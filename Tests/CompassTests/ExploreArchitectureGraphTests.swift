@@ -482,17 +482,12 @@ struct ExploreArchitectureGraphTests {
 
   @Test
   func explain_emptyGraph_doesNotThrow() async throws {
-    // explain with an empty graph must not throw — it should either return
-    // nil (model unavailable) or a string (model available).
     let graph = ImportGraph()
     let repoURL = URL(fileURLWithPath: "/tmp")
     guard #available(macOS 26.0, *) else { return }
-    let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL)
-    // Result may be nil (model unavailable) or a string (model available).
-    // The key guarantee is no throw.
-    if FoundationModelsAvailability.isAvailable {
-      // When the model IS available, a result is expected.
-      try #require(result != nil || result == nil)  // soft check: just must not throw
+    try await withMockFoundationModels(response: "Mock architecture explanation.") {
+      let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL)
+      try #require(result == "Mock architecture explanation.")
     }
   }
 

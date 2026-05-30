@@ -257,8 +257,52 @@ struct AgentSystemPromptTests {
     )
     #expect(prompt.contains("host_xcode"))
     #expect(prompt.contains("build/test only"))
+    #expect(prompt.contains("FoundationModels"))
+    #expect(prompt.contains("instead of bash"))
     #expect(!prompt.contains("simctl"))
     #expect(!prompt.contains("`open`"))
+  }
+
+  @Test func testDevelopPromptExplainsHowToCallHostXcodeToolForVerify() throws {
+    let prompt = Prompts.developPrompt(
+      next: PlanNext(
+        plan: "Run host-only FoundationModels tests.",
+        verify:
+          "xcodebuild -project Compass.xcodeproj -scheme Compass -only-testing:CompassTests/FoundationModelsAvailabilityTests test",
+        requiresHostXcode: true
+      ),
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: [],
+      hostXcodeBuildTestEnabled: true
+    )
+
+    try #require(prompt.contains("Host Xcode build/test bridge"))
+    try #require(prompt.contains("do not use `bash` for Xcode-only commands"))
+    try #require(prompt.contains("call `host_xcode`"))
+    try #require(prompt.contains("pass only the xcodebuild flags"))
+  }
+
+  @Test func testPlanPromptMarksFoundationModelsAsHostXcodeRequiredWhenEnabled() throws {
+    let prompt = try Prompts.planPrompt(
+      state: PlanProposal(immediate: nil, midTerm: "", longTerm: ""),
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature,
+      hostXcodeBuildTestEnabled: true
+    )
+
+    try #require(prompt.contains("FoundationModels"))
+    try #require(prompt.contains("Apple Intelligence"))
+    try #require(prompt.contains("requiresHostXcode"))
+    try #require(prompt.contains("Do not pair `requiresHostXcode: true` with"))
+    try #require(prompt.contains("host Xcode verify commands must start with `xcodebuild`"))
+    try #require(prompt.contains(".swiftpm/xcode/package.xcworkspace"))
+    try #require(prompt.contains("-skipMacroValidation"))
   }
 
   @Test func testExecutionEnvironmentSectionsAreRoutedByDescriptor() throws {

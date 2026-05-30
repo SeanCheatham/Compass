@@ -80,12 +80,12 @@ enum CommitExplainer {
   // MARK: - Private
 
   private static func summarize(diff: String, prompt: String) async -> (String?, ExplainUnavailableReason?) {
+    let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return (nil, .emptyDiff) }
+
     guard FoundationModelsAvailability.isAvailable else {
       return (nil, .foundationModelsUnavailable)
     }
-
-    let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return (nil, .emptyDiff) }
 
     if let result = await FoundationModelsAvailability._streamText(prompt: prompt) {
       return (result, nil)
@@ -103,22 +103,121 @@ enum CommitExplainer {
       """ + diff
   }
 
-  /// Fetches the diff for a single commit via `git diff <sha>^..<sha>`.
-  static func gitDiff(sha: String, repoURL: URL) async -> String {
-    let result = try? await ProcessRunner.runEnv(
-      "git", ["diff", "\(sha)^..\(sha)"],
-      workingDirectory: repoURL
-    )
-    return result?.stdout ?? ""
+  /// Git's well-known empty-tree object, used as the base for root commits.
+  private static let emptyTreeObjectSHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+  /// Returns the first parent of `sha`, or the empty tree when `sha` is a root commit.
+  private static func baseRevisionBefore(sha: String, repoURL: URL) async -> String? {
+    let trimmedSHA = sha.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedSHA.isEmpty else { return nil }
+
+    guard
+      let exists = try? await ProcessRunner.runEnv(
+        "git", ["cat-file", "-e", "\(trimmedSHA)^{commit}"],
+        workingDirectory: repoURL
+      ),
+      exists.exitCode == 0
+    else {
+      return nil
+    }
+
+    guard
+      let parent = try? await ProcessRunner.runEnv(
+        "git", ["rev-parse", "\(trimmedSHA)^"],
+        workingDirectory: repoURL
+      ),
+      parent.exitCode == 0
+    else {
+      return emptyTreeObjectSHA
+    }
+
+    let parentSHA = parent.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    return parentSHA.isEmpty ? emptyTreeObjectSHA : parentSHA
   }
 
-  /// Fetches the diff for a commit range via `git diff <newest>..<oldest>`.
-  static func gitDiffRange(newest: String, oldest: String, repoURL: URL) async -> String {
-    let result = try? await ProcessRunner.runEnv(
-      "git", ["diff", "--no-color", "\(oldest)..\(newest)"],
-      workingDirectory: repoURL
-    )
-    return result?.stdout ?? ""
+  private static func isAncestor(_ ancestor: String, of descendant: String, repoURL: URL) async -> Bool {
+    let trimmedAncestor = ancestor.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedDescendant = descendant.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedAncestor.isEmpty, !trimmedDescendant.isEmpty else { return false }
+
+    guard
+      let result = try? await ProcessRunner.runEnv(
+        "git", ["merge-base", "--is-ancestor", trimmedAncestor, trimmedDescendant],
+        workingDirectory: repoURL
+      )
+    else {
+      return false
+    }
+    return result.exitCode == 0
+  }
+
+  private static func diffArguments(base: String, tip: String, relativePath: String?) -> [String] {
+    var args = ["diff", "--no-color", base, tip]
+    let trimmedPath = relativePath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if !trimmedPath.isEmpty {
+      args += ["--", trimmedPath]
+    }
+    return args
+  }
+
+  /// Fetches the diff for a single commit against its first parent.
+  /// Root commits are diffed against git's empty tree so their changes are visible.
+  static func gitDiff(sha: String, repoURL: URL, relativePath: String? = nil) async -> String {
+    let trimmedSHA = sha.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let base = await baseRevisionBefore(sha: trimmedSHA, repoURL: repoURL) else {
+      return ""
+    }
+
+    guard
+      let result = try? await ProcessRunner.runEnv(
+        "git", diffArguments(base: base, tip: trimmedSHA, relativePath: relativePath),
+        workingDirectory: repoURL
+      ),
+      result.exitCode == 0
+    else {
+      return ""
+    }
+    return result.stdout
+  }
+
+  /// Fetches an inclusive diff for a commit range, including changes from the oldest commit.
+  static func gitDiffRange(
+    newest: String,
+    oldest: String,
+    repoURL: URL,
+    relativePath: String? = nil
+  ) async -> String {
+    let trimmedNewest = newest.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedOldest = oldest.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedNewest.isEmpty, !trimmedOldest.isEmpty else { return "" }
+
+    let baseSource: String
+    let tip: String
+    if await isAncestor(trimmedOldest, of: trimmedNewest, repoURL: repoURL) {
+      baseSource = trimmedOldest
+      tip = trimmedNewest
+    } else if await isAncestor(trimmedNewest, of: trimmedOldest, repoURL: repoURL) {
+      baseSource = trimmedNewest
+      tip = trimmedOldest
+    } else {
+      baseSource = trimmedOldest
+      tip = trimmedNewest
+    }
+
+    guard let base = await baseRevisionBefore(sha: baseSource, repoURL: repoURL) else {
+      return ""
+    }
+
+    guard
+      let result = try? await ProcessRunner.runEnv(
+        "git", diffArguments(base: base, tip: tip, relativePath: relativePath),
+        workingDirectory: repoURL
+      ),
+      result.exitCode == 0
+    else {
+      return ""
+    }
+    return result.stdout
   }
 
   /// Returns the git diff text for a commit range, delegating to the appropriate
@@ -126,17 +225,26 @@ enum CommitExplainer {
   ///
   /// - Returns: `nil` when commits is empty; otherwise the diff text (may be empty
   ///   if git produced no output).
-  static func commitDiffRange(commits: [SessionCommit], repoURL: URL) async -> String? {
+  static func commitDiffRange(
+    commits: [SessionCommit],
+    repoURL: URL,
+    relativePath: String? = nil
+  ) async -> String? {
     guard let first = commits.first else { return nil }
     if commits.count == 1 {
-      return await gitDiff(sha: first.sha, repoURL: repoURL)
+      return await gitDiff(sha: first.sha, repoURL: repoURL, relativePath: relativePath)
     }
     guard let oldest = commits.last else { return nil }
-    return await gitDiffRange(newest: first.sha, oldest: oldest.sha, repoURL: repoURL)
+    return await gitDiffRange(
+      newest: first.sha,
+      oldest: oldest.sha,
+      repoURL: repoURL,
+      relativePath: relativePath
+    )
   }
 
   /// Produces a plain-English summary of a single commit by fetching the full
-  /// diff via `git diff <sha>^..<sha>` and passing it to ``summarize(diff:)``.
+  /// first-parent diff and passing it to ``summarize(diff:)``.
   ///
   /// This method is the single-commit counterpart to the multi-commit path
   /// used in ``FileExplainer/explain(file:repoURL:commits:)``.  Callers that

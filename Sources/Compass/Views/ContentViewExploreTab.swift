@@ -39,6 +39,7 @@ struct ExploreTab: View {
   @State private var sessionScope: SessionScope = .lastSession
   @State private var expandedPaths: Set<String> = []
   @State private var loadedRepoPath: String?
+  @State private var loadingRepoPath: String?
 
   private var visibleRows: [ExploreVisibleRow] {
     ExploreVisibleRow.visibleRows(in: fileTree, expandedPaths: expandedPaths)
@@ -145,17 +146,25 @@ struct ExploreTab: View {
     }
   }
 
+  @MainActor
   private func loadRepositorySnapshotIfNeeded() async {
     let repoPath = project.repoURL.standardizedFileURL.path
     guard loadedRepoPath != repoPath else { return }
+    guard loadingRepoPath != repoPath else { return }
 
     if let cached = ExploreRepositorySnapshotCache.shared.snapshot(for: project.repoURL) {
       apply(cached, repoPath: repoPath)
       return
     }
 
+    loadingRepoPath = repoPath
     isLoading = true
-    defer { isLoading = false }
+    defer {
+      if loadingRepoPath == repoPath {
+        loadingRepoPath = nil
+        isLoading = false
+      }
+    }
 
     guard let workspace = project.workspace else {
       fileTree = []
@@ -170,6 +179,7 @@ struct ExploreTab: View {
     let snapshot = await Task.detached(priority: .utility) {
       ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
     }.value
+    guard project.repoURL.standardizedFileURL.path == repoPath else { return }
 
     ExploreRepositorySnapshotCache.shared.store(snapshot, for: repoURL)
     apply(snapshot, repoPath: repoPath)
@@ -269,7 +279,7 @@ struct ExploreTab: View {
 // MARK: - FileTreeNode
 
 /// A node in the repo's directory tree produced by `CodemapFileSystem`.
-struct FileTreeNode: Identifiable, Equatable {
+struct FileTreeNode: Identifiable, Equatable, Sendable {
   let relativePath: String
   let isDirectory: Bool
   let language: CodemapLanguage?
@@ -342,6 +352,7 @@ struct FileTreeRowView: View {
   let onGenerateSummary: (String) -> Void
 
   private let rowHeight: CGFloat = 44
+  private let summaryPreviewLimit = 180
 
   var body: some View {
     HStack(spacing: 8) {
@@ -435,7 +446,7 @@ struct FileTreeRowView: View {
         onSummaryTap(node.relativePath, summary)
       } label: {
         HStack(spacing: 4) {
-          Text(summary)
+          Text(summaryPreview(summary))
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(1)
@@ -461,6 +472,15 @@ struct FileTreeRowView: View {
       }
       .buttonStyle(.plain)
     }
+  }
+
+  private func summaryPreview(_ summary: String) -> String {
+    let singleLine = summary
+      .replacingOccurrences(of: "\n", with: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard singleLine.count > summaryPreviewLimit else { return singleLine }
+    return singleLine.prefix(summaryPreviewLimit - 1)
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "…"
   }
 }
 

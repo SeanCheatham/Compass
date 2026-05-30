@@ -11,9 +11,9 @@ import Testing
 ///
 /// ### Path 1 — `gitDiff(sha:)` on malformed SHA
 ///
-/// `CommitExplainer.gitDiff(sha:repoURL:)` uses `try?` on `ProcessRunner.runEnv`.
-/// When git receives a malformed SHA it exits non-zero, `try?` produces `nil`,
-/// and the method returns `""`. Callers that receive `""` and trim it to empty
+/// `CommitExplainer.gitDiff(sha:repoURL:)` validates the commit before diffing.
+/// When git receives a malformed SHA it exits non-zero and the method returns
+/// `""`. Callers that receive `""` and trim it to empty
 /// hit `guard !trimmed.isEmpty` and return `nil` without throwing.
 ///
 /// ### Path 2 — `explain(commit:)` when git returns empty diff on a valid commit
@@ -46,7 +46,7 @@ struct ExploreCommitExplainerGuardPathTests {
       sha: malformedSHA,
       repoURL: temporaryDirectory
     )
-    // The malformed SHA causes git to fail; try? returns nil, result is ""
+    // The malformed SHA causes git to fail; result is ""
     try #require(result == "")
   }
 
@@ -79,7 +79,7 @@ struct ExploreCommitExplainerGuardPathTests {
       repoURL: temporaryDirectory
     )
     // Empty tree commit: diff is "" → trimmed empty → guard fires → nil
-    try #require(result.0 == nil && result.1 == .noDiff)
+    try #require(result.0 == nil && result.1 == .emptyDiff)
   }
 
   // MARK: - Path 2b: explain — malformed SHA → empty diff → nil
@@ -105,6 +105,6 @@ struct ExploreCommitExplainerGuardPathTests {
       repoURL: temporaryDirectory
     )
     // Malformed SHA causes gitDiff to return "", trim gives "", guard fires → nil
-    try #require(result.0 == nil && result.1 == .noDiff)
+    try #require(result.0 == nil && result.1 == .emptyDiff)
   }
 }

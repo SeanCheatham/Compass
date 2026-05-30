@@ -22,6 +22,7 @@ final class CompassWorkspaceStorageMigrationTests {
     try workspace.initialize()
     try write("draft entry\n", to: workspace.draftsURL)
     try write("lesson entry\n", to: workspace.lessonsURL)
+    try write(AssumptionLedger.emptyJSON, to: workspace.assumptionsURL)
     try write("vision entry\n", to: workspace.visionURL)
     try write("[{\"session\":1}]\n", to: workspace.sessionsRecordURL)
     let artifactURL = try workspace.writeSessionArtifact(
@@ -42,6 +43,10 @@ final class CompassWorkspaceStorageMigrationTests {
     try #require(FileManager.default.fileExists(atPath: plan.destinationURL.path))
     try #require(try read(plan.destinationURL.appending(path: "drafts.md")) == "draft entry\n")
     try #require(try read(plan.destinationURL.appending(path: "lessons.md")) == "lesson entry\n")
+    try #require(
+      try read(plan.destinationURL.appending(path: "assumptions.json"))
+        == AssumptionLedger.emptyJSON
+    )
     try #require(try read(plan.destinationURL.appending(path: "COMPASS.md")) == "vision entry\n")
     try #require(
       try read(plan.destinationURL.appending(path: "sessions.json")) == "[{\"session\":1}]\n")
@@ -56,11 +61,11 @@ final class CompassWorkspaceStorageMigrationTests {
     try #require(manifest.storageIdentifier == plan.projectStorageIdentifier)
     try #require(manifest.sourcePath == workspace.compassURL.path)
     try #require(manifest.destinationPath == plan.destinationURL.path)
-    try #require(manifest.copiedFileCount == 6)
+    try #require(manifest.copiedFileCount == 7)
     try #require(manifest.migratedAt == "1970-01-01T00:00:00Z")
 
     try #require(result.manifest == manifest)
-    try #require(result.copiedFileCount == 6)
+    try #require(result.copiedFileCount == 7)
     try #require(result.repoLocalSourcePreserved)
     try #require(!result.activeStorageDidChange)
     try #require(

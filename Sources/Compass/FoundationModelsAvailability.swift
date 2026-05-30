@@ -39,10 +39,10 @@ import Foundation
 /// - ``RepoQnA`` — answers questions grounded in repository state
 /// - ``FoundationModelsAgentRuntime`` — primary agent runtime backed by Foundation Models
 ///
-/// Internally it opens a ``LanguageModelSession``, accumulates every content snapshot from the
-/// streaming response, and returns the final text after trimming trailing whitespace.  There is
-/// no explicit token-cap: the session collects all snapshots emitted by the model and the caller
-/// is responsible for truncating the result if needed.
+/// Internally it opens a ``LanguageModelSession``, keeps the latest content snapshot from the
+/// streaming response, and returns the final text after trimming trailing whitespace. The stream
+/// snapshots are cumulative, so appending every frame would duplicate partial output. There is no
+/// explicit token-cap: the caller is responsible for truncating the result if needed.
 ///
 /// ## `nil` return contract
 ///
@@ -92,6 +92,30 @@ enum ExplainUnavailableReason: Sendable {
 }
 
 enum FoundationModelsAvailability {
+  struct TextProvider: Sendable {
+    var isAvailable: @Sendable () -> Bool
+    var streamText: @Sendable (_ prompt: String) async -> String?
+
+    init(
+      isAvailable: @escaping @Sendable () -> Bool,
+      streamText: @escaping @Sendable (_ prompt: String) async -> String?
+    ) {
+      self.isAvailable = isAvailable
+      self.streamText = streamText
+    }
+  }
+
+  @TaskLocal private static var textProviderOverride: TextProvider?
+
+  static func withTextProvider<T>(
+    _ provider: TextProvider,
+    operation: () async throws -> T
+  ) async rethrows -> T {
+    try await $textProviderOverride.withValue(provider) {
+      try await operation()
+    }
+  }
+
   /// `true` when the on-device Foundation Models stack is available and
   /// ready to handle requests on this system.
   ///
@@ -99,6 +123,12 @@ enum FoundationModelsAvailability {
   /// - `FoundationModels` module is present at compile time
   /// - `SystemLanguageModel.default.isAvailable` returns `true` at runtime
   static var isAvailable: Bool {
+    if let textProviderOverride {
+      return textProviderOverride.isAvailable()
+    }
+    if shouldDisableLiveFoundationModelsForTests {
+      return false
+    }
     #if canImport(FoundationModels)
       if #available(macOS 26.0, *) {
         return SystemLanguageModel.default.isAvailable
@@ -107,25 +137,54 @@ enum FoundationModelsAvailability {
     return false
   }
 
-  #if canImport(FoundationModels)
-    /// Streams a prompt through `LanguageModelSession` and returns the
-    /// accumulated, trimmed text.  Returns `nil` on error or when the
-    /// result is empty.
-    @available(macOS 26.0, *)
-    static func _streamText(prompt: String) async -> String? {
-      await FoundationModelsSessionGate.shared.withExclusiveAccess {
+  /// Streams a prompt through `LanguageModelSession` and returns the
+  /// final, trimmed text. Returns `nil` on error or when the result is empty.
+  @available(macOS 26.0, *)
+  static func _streamText(prompt: String) async -> String? {
+    if let textProviderOverride {
+      return await textProviderOverride.streamText(prompt)
+    }
+    if shouldDisableLiveFoundationModelsForTests {
+      return nil
+    }
+
+    #if canImport(FoundationModels)
+      return await FoundationModelsSessionGate.shared.withExclusiveAccess {
         do {
           let session = LanguageModelSession(model: .default)
-          var fullText = ""
+          var latestText = ""
           for try await snapshot in session.streamResponse(to: prompt) {
-            fullText += snapshot.content
+            latestText = snapshot.content
           }
-          let result = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+          let result = finalStreamText(from: [latestText])
           return result.isEmpty ? nil : result
         } catch {
           return nil
         }
       }
-    }
-  #endif
+    #else
+      return nil
+    #endif
+  }
+
+  static func finalStreamText(from snapshots: [String]) -> String {
+    snapshots.last?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+  }
+
+  private static var shouldDisableLiveFoundationModelsForTests: Bool {
+    #if DEBUG
+      let environment = ProcessInfo.processInfo.environment
+      if environment["COMPASS_ENABLE_LIVE_FOUNDATION_MODEL_TESTS"] == "1" {
+        return false
+      }
+      if environment["XCTestConfigurationFilePath"] != nil {
+        return true
+      }
+      return CommandLine.arguments.contains { argument in
+        argument.contains(".xctest") || argument.contains("swift-testing")
+      }
+    #else
+      return false
+    #endif
+  }
 }

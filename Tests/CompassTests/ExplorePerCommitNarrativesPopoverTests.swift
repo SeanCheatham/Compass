@@ -19,8 +19,8 @@ import Testing
 ///
 /// - **Path 2 (model unavailable):** `loadNarratives()` calls `CommitExplainer.explain()`
 ///   for each commit. When `FoundationModelsAvailability.isAvailable == false`,
-///   `explain()` returns `nil` (non-throwing) → `narrative.availabilityError = (text == nil)`
-///   → `true` (line 1043).
+///   `explain()` returns `(nil, .foundationModelsUnavailable)` (non-throwing) →
+///   `narrative.availabilityError = (text == nil)` → `true` (line 1043).
 ///
 /// This mirrors the Path 2 / Path 3 pattern from `ExploreCommitTourRowTests` and
 /// `ExploreQnAPopoverTests` but targets the `PerCommitNarrativesPopover` path.
@@ -44,6 +44,7 @@ struct ExplorePerCommitNarrativesPopoverTests {
     try CompassTests.initGitRepo(at: temporaryDirectory)
 
     let emptyCommits: [SessionCommit] = []
+    try #require(emptyCommits.isEmpty)
 
     // When commits is empty, loadNarratives() returns early at the guard
     // (line 1023) before any call to CommitExplainer.explain() or git.
@@ -60,18 +61,18 @@ struct ExplorePerCommitNarrativesPopoverTests {
     try #require(result.0 == nil && result.1 == .emptyDiff)
   }
 
-  // MARK: - Path 2: CommitExplainer.explain returns nil when Foundation Models is unavailable
+  // MARK: - Path 2: CommitExplainer.explain returns nil text when Foundation Models is unavailable
   //          → loadNarratives() would set narrative.availabilityError = true
 
   /// Verifies the `narrative.availabilityError = (text == nil)` condition
   /// that is set in `PerCommitNarrativesPopover.loadNarratives()` (line 1043).
   ///
   /// When `FoundationModelsAvailability.isAvailable == false`,
-  /// `CommitExplainer.explain()` returns `nil` (non-throwing) →
+  /// `CommitExplainer.explain()` returns `(nil, .foundationModelsUnavailable)` (non-throwing) →
   /// `narrative.availabilityError = (text == nil)` → `true`.
   ///
   /// The chain this test exercises:
-  /// `loadNarratives()` → `CommitExplainer.explain()` → `nil` (model unavailable)
+  /// `loadNarratives()` → `CommitExplainer.explain()` → nil text (model unavailable)
   ///                     → `narrative.availabilityError = true`
   @Test
   func loadNarratives_explainReturnsNil_setsAvailabilityError() async throws {
@@ -82,7 +83,7 @@ struct ExplorePerCommitNarrativesPopoverTests {
     let commits = try CompassTests.makeSingleCommit(at: temporaryDirectory)
 
     // Call explain directly — this is what loadNarratives() does at line 1040.
-    // When Foundation Models is unavailable, it returns nil (non-throwing),
+    // When Foundation Models is unavailable, it returns nil text (non-throwing),
     // which is the exact condition that triggers:
     // narrative.availabilityError = (text == nil) → true
     let text = await CommitExplainer.explain(
@@ -92,7 +93,8 @@ struct ExplorePerCommitNarrativesPopoverTests {
 
     if !FoundationModelsAvailability.isAvailable {
       // The nil return is the exact condition that sets availabilityError = true.
-      try #require(text == nil)
+      try #require(text.0 == nil)
+      try #require(text.1 == .foundationModelsUnavailable)
     }
     // If the model IS available, a non-nil string would be returned — both are valid.
   }

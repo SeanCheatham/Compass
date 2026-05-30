@@ -176,7 +176,10 @@ struct ExploreFileExplainerGuardPathTests {
       repoURL: temporaryDirectory,
       commits: commits
     )
-    try #require(result.0 == nil)
+    if !FoundationModelsAvailability.isAvailable {
+      try #require(result.0 == nil)
+      try #require(result.1 == .foundationModelsUnavailable)
+    }
   }
 
   /// Verifies `whyGenerated` returns `nil` when Foundation Models is unavailable.
@@ -199,7 +202,10 @@ struct ExploreFileExplainerGuardPathTests {
       repoURL: temporaryDirectory,
       commits: commits
     )
-    try #require(result.0 == nil)
+    if !FoundationModelsAvailability.isAvailable {
+      try #require(result.0 == nil)
+      try #require(result.1 == .foundationModelsUnavailable)
+    }
   }
 
   // MARK: - Structural tuple-content tests: non-nil reason verification

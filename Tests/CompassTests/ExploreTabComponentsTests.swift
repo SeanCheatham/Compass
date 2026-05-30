@@ -660,6 +660,44 @@ struct ExploreTabComponentsTests {
     #expect(!buttonReflection.contains("Generate Summary"))
     #expect(!buttonReflection.contains("sparkles"))
   }
+
+  @Test
+  func fileTreeRowView_summaryButton_rendersBoundedSingleLinePreview() throws {
+    let node = FileTreeNode(
+      relativePath: "Sources/App.swift",
+      isDirectory: false,
+      language: .swift,
+      children: []
+    )
+    let longSummary = String(repeating: "This sentence is intentionally long.\n", count: 12)
+    let entry = CodemapEntry(
+      relativePath: "Sources/App.swift",
+      language: .swift,
+      contentHash: "abc123",
+      sizeBytes: 100,
+      symbols: [],
+      imports: [],
+      summary: longSummary,
+      summaryModel: nil,
+      summaryContentHash: nil,
+      isGenerated: false
+    )
+    let sut = FileTreeRowView(
+      node: node,
+      depth: 0,
+      isExpanded: false,
+      codemapEntries: ["Sources/App.swift": entry],
+      onToggleExpansion: { _ in },
+      onFileTap: { _ in },
+      onSummaryTap: { _, _ in },
+      onSymbolDetailTap: { _ in },
+      onGenerateSummary: { _ in }
+    )
+
+    let buttonReflection = String(reflecting: sut.summaryButton)
+    #expect(buttonReflection.contains("…"))
+    #expect(!buttonReflection.contains(longSummary))
+  }
 }
 
 // MARK: - Test helpers

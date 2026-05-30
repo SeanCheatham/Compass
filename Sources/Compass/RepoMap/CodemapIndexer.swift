@@ -215,7 +215,10 @@ struct CodemapIndexer: Sendable {
     }
     return
       allRelativePaths
-      .filter { CodemapLanguage.forRelativePath($0) != nil }
+      .filter {
+        CodemapLanguage.forRelativePath($0) != nil
+          && RepositoryWalkRules.shouldInclude(relativePath: $0)
+      }
       .sorted()
   }
 

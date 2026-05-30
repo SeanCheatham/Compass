@@ -53,16 +53,15 @@ struct ExploreRepoQnATests {
     let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
 
-    let result = await RepoQnA.answer(
-      question: "What changed in this commit?",
-      repoURL: test.temporaryDirectory,
-      commits: commits
-    )
+    try await withMockFoundationModels(response: "Mock repo answer.") {
+      let result = await RepoQnA.answer(
+        question: "What changed in this commit?",
+        repoURL: test.temporaryDirectory,
+        commits: commits
+      )
 
-    // When Foundation Models is unavailable in the test environment, answer() returns nil.
-    // In that case we can only verify the call didn't throw.
-    if let answer = result {
-      try #require(!answer.text.isEmpty)
+      let answer = try #require(result)
+      try #require(answer.text == "Mock repo answer.")
       try #require(answer.sources.contains("Sources/App.swift"))
     }
   }

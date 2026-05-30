@@ -48,10 +48,11 @@ struct ExploreCommitExplainerTests {
       Sources/App.swift        |  12 ++++++------
       Sources/Model.swift      |   4 ++++++
       """
-    // May return nil in CI / test environments without Foundation Models,
-    // but must not throw.
-    let result = await CommitExplainer.summarize(diff: diff)
-    _ = result
+    try await withMockFoundationModels(response: "Mock summary.") {
+      let result = await CommitExplainer.summarize(diff: diff)
+      try #require(result.0 == "Mock summary.")
+      try #require(result.1 == nil)
+    }
   }
 
   // MARK: - isAvailable guard
@@ -86,10 +87,11 @@ struct ExploreCommitExplainerTests {
       Sources/App.swift        |  12 ++++++------
       Sources/Model.swift      |   4 ++++++
       """
-    // May return nil in CI / test environments without Foundation Models,
-    // but must not throw.
-    let result = await CommitExplainer.summarizeWhyGenerated(diff: diff)
-    _ = result
+    try await withMockFoundationModels(response: "Mock purpose.") {
+      let result = await CommitExplainer.summarizeWhyGenerated(diff: diff)
+      try #require(result.0 == "Mock purpose.")
+      try #require(result.1 == nil)
+    }
   }
 
   // MARK: - explain(commit:repoURL:)
@@ -177,9 +179,9 @@ struct ExploreCommitExplainerTests {
 
     // Call explain and verify it returns (nil or string) without throwing
     let result = await CommitExplainer.explain(commit: commit, repoURL: test.temporaryDirectory)
-    // If Foundation Models is available, we expect a non-nil string.
-    // If unavailable, result will be nil — both are acceptable outcomes.
-    if FoundationModelsAvailability.isAvailable {
+    // When Foundation Models is unavailable, the guard should be explicit.
+    // When it is available, the model may still return empty output on a test host.
+    if !FoundationModelsAvailability.isAvailable {
       try #require(result.0 == nil && result.1 == .foundationModelsUnavailable)
     }
   }
@@ -219,21 +221,9 @@ struct ExploreCommitExplainerTests {
       at: test.temporaryDirectory
     )
 
-    // Create an empty commit (no file changes — amend to be empty)
-    // We use a separate approach: create a commit with only metadata change.
-    // Instead, use a merge commit that introduces no new changes.
-    // Simpler: use a commit that only changes a binary file to same content.
-    // Best approach: a merge commit with no changes.
-    let shaResult = try test.explainRunGitCapture(
-      "git -C \(test.temporaryDirectory.path) rev-parse HEAD",
-      at: test.temporaryDirectory
-    )
-    let initialSha = shaResult.trimmingCharacters(in: .whitespacesAndNewlines)
-
-    // Create a commit that makes no file changes by touching the same content
-    try test.explainWriteFile("README.md", contents: "# Test\n")
+    // Create a commit that makes no file changes.
     try test.explainRunGit(
-      "git -C \(test.temporaryDirectory.path) add . && " + "git -C \(test.temporaryDirectory.path) "
+      "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty change'",
       at: test.temporaryDirectory
     )
@@ -250,7 +240,7 @@ struct ExploreCommitExplainerTests {
     // The diff for an empty commit should be empty → explain returns nil.
     // This does not call summarize because the trimmed diff is empty.
     let result = await CommitExplainer.explain(commit: commit, repoURL: test.temporaryDirectory)
-    try #require(result.0 == nil && result.1 == .noDiff)
+    try #require(result.0 == nil && result.1 == .emptyDiff)
   }
 
   /// Verifies `explain(commit:repoURL:)` returns `(nil, .emptyDiff)` when git
@@ -277,22 +267,20 @@ struct ExploreCommitExplainerTests {
       at: test.temporaryDirectory
     )
 
-    // Create a topic branch and make a commit on it
+    // Create a topic branch with no tree changes, then merge it. The merge commit
+    // exists, but its tree is identical to the first parent.
     try test.explainRunGit(
       "git -C \(test.temporaryDirectory.path) checkout -q -b topic",
       at: test.temporaryDirectory
     )
-    try test.explainWriteFile("feature.txt", contents: "feature\n")
     try test.explainRunGit(
-      "git -C \(test.temporaryDirectory.path) add . && "
-        + "git -C \(test.temporaryDirectory.path) "
-        + "-c user.email=t@t -c user.name=t commit -q -m 'Feature on topic'",
+      "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty topic'",
       at: test.temporaryDirectory
     )
 
     // Merge topic into main with a --no-ff merge commit
-    // The merge commit is on mainline but its diff against the first parent is empty
-    // because the topic branch changes don't affect the mainline files.
+    // The merge commit is on mainline but its diff against the first parent is empty.
     try test.explainRunGit(
       "git -C \(test.temporaryDirectory.path) checkout -q main",
       at: test.temporaryDirectory
@@ -310,17 +298,17 @@ struct ExploreCommitExplainerTests {
     let commit = SessionCommit(sha: mergeSha, short: String(mergeSha.prefix(7)), subject: "Merge topic")
 
     // Git ran successfully but the diff for the merge commit against its first parent
-    // is empty — only the second parent introduced changes. explain returns .emptyDiff.
+    // is empty. explain returns .emptyDiff.
     let result = await CommitExplainer.explain(commit: commit, repoURL: test.temporaryDirectory)
     try #require(result.0 == nil)
     try #require(result.1 == .emptyDiff)
   }
 
   /// Verifies `explain(commit:repoURL:)` returns `(nil, .emptyDiff)` when git
-  /// runs successfully but the working tree has no files (e.g. after a hard reset).
+  /// runs successfully but the target commit has no tree changes.
   ///
-  /// This covers the git-level empty-diff path: `git diff <sha>^..<sha>` produces
-  /// no output because the tree is bare, so the guard `guard !trimmed.isEmpty`
+  /// This covers the git-level empty-diff path: diffing against the first parent
+  /// produces no output, so the guard `guard !trimmed.isEmpty`
   /// fires and returns `(nil, .emptyDiff)`.
   @Test
   func explain_gitSucceedsButTreeIsEmpty_returnsNilWithEmptyDiffReason() async throws {
@@ -339,19 +327,19 @@ struct ExploreCommitExplainerTests {
       at: test.temporaryDirectory
     )
 
+    // Add a valid empty commit after the initial file commit.
+    try test.explainRunGit(
+      "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty change'",
+      at: test.temporaryDirectory
+    )
+
     let shaResult = try test.explainRunGitCapture(
       "git -C \(test.temporaryDirectory.path) rev-parse HEAD",
       at: test.temporaryDirectory
     )
     let sha = shaResult.trimmingCharacters(in: .whitespacesAndNewlines)
-    let commit = SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add README")
-
-    // Hard-reset to leave the working tree empty — but the commit still exists.
-    // git diff <sha>^..<sha> produces no output because there are no files.
-    try test.explainRunGit(
-      "git -C \(test.temporaryDirectory.path) reset --hard HEAD^",
-      at: test.temporaryDirectory
-    )
+    let commit = SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Empty change")
 
     let result = await CommitExplainer.explain(commit: commit, repoURL: test.temporaryDirectory)
     try #require(result.0 == nil)
@@ -383,8 +371,7 @@ struct ExploreCommitExplainerTests {
   func whyGenerated_normalPath_callsSummarizeWithWhyGeneratedPrompt() async throws {
     // Test the FileExplainer.whyGenerated path: it calls
     // CommitExplainer.summarizeWhyGenerated (not summarize).
-    // Set up a real git repo with a multi-commit range and verify
-    // non-nil result when Foundation Models is available.
+    // Set up a real git repo with a multi-commit range.
     var test = Self()
     test.explainSetUp()
     defer { test.explainTearDown() }
@@ -426,14 +413,14 @@ struct ExploreCommitExplainerTests {
       SessionCommit(sha: oldestSha, short: String(oldestSha.prefix(7)), subject: "Initial"),
     ]
 
-    // Call whyGenerated and verify non-nil when Foundation Models is available
+    // Call whyGenerated and verify the unavailable guard when Foundation Models is absent.
     let result = await FileExplainer.whyGenerated(
       file: "README.md",
       repoURL: test.temporaryDirectory,
       commits: commits
     )
-    if FoundationModelsAvailability.isAvailable {
-      try #require(result.0 == nil && result.1 == .emptyDiff)
+    if !FoundationModelsAvailability.isAvailable {
+      try #require(result.0 == nil && result.1 == .foundationModelsUnavailable)
     }
   }
 
@@ -447,15 +434,16 @@ struct ExploreCommitExplainerTests {
   /// reason the UI displays when the feature fails to activate.
   @Test
   func summarize_modelUnavailable_returnsNilWithUnavailableReason() async throws {
-    // FoundationModelsAvailability.isAvailable is false on this test host
-    // (no Apple Intelligence runtime in the Shared VM). Confirm the method
-    // returns the correct `(nil, .foundationModelsUnavailable)` tuple.
+    // On hosts without Apple Intelligence, confirm the method returns the
+    // correct `(nil, .foundationModelsUnavailable)` tuple.
     let diff = """
       Sources/App.swift        |   2 ++
       """
     let result = await CommitExplainer.summarize(diff: diff)
-    try #require(result.0 == nil)
-    try #require(result.1 == .foundationModelsUnavailable)
+    if !FoundationModelsAvailability.isAvailable {
+      try #require(result.0 == nil)
+      try #require(result.1 == .foundationModelsUnavailable)
+    }
   }
 
   /// Verifies `summarize(diff:)` returns `(nil, .emptyDiff)` when the diff
@@ -500,8 +488,10 @@ struct ExploreCommitExplainerTests {
     let commit = SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add README")
 
     let result = await CommitExplainer.explain(commit: commit, repoURL: test.temporaryDirectory)
-    try #require(result.0 == nil)
-    try #require(result.1 == .foundationModelsUnavailable)
+    if !FoundationModelsAvailability.isAvailable {
+      try #require(result.0 == nil)
+      try #require(result.1 == .foundationModelsUnavailable)
+    }
   }
 
   // MARK: - gitDiff

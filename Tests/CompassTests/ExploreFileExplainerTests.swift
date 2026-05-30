@@ -362,15 +362,15 @@ struct ExploreFileExplainerTests {
     let sha = try test.getSingleCommitSHA(at: test.temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
 
-    // Call explain — CommitExplainer.summarize may return nil if Foundation Models
-    // is unavailable, but the call chain must not throw.
-    let result = await FileExplainer.explain(
-      file: "Sources/App.swift",
-      repoURL: test.temporaryDirectory,
-      commits: commits
-    )
-    // Result may be nil in test environments; we only verify it doesn't throw.
-    _ = result
+    try await withMockFoundationModels(response: "Mock file explanation.") {
+      let result = await FileExplainer.explain(
+        file: "Sources/App.swift",
+        repoURL: test.temporaryDirectory,
+        commits: commits
+      )
+      try #require(result.0 == "Mock file explanation.")
+      try #require(result.1 == nil)
+    }
   }
 
   @Test

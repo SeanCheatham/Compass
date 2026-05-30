@@ -82,10 +82,19 @@ enum Prompts {
       hostXcodeBuildTestEnabled
       ? """
       - If the next increment's verify path needs full host Xcode build/test
-        support (`xcodebuild` with `.xcodeproj` / `.xcworkspace`, iOS SDKs,
-        or simulator-backed `xcodebuild test` destinations), set
-        `requiresHostXcode` to true. Use true only for build/test needs, not
-        for launching apps, opening Simulator, or arbitrary host commands.
+        support, set `requiresHostXcode` to true. This includes `xcodebuild`
+        with `.xcodeproj` / `.xcworkspace`, iOS/watchOS/tvOS SDKs,
+        simulator-backed `xcodebuild test` destinations, and tests whose
+        behavior depends on host-only Apple frameworks such as
+        `FoundationModels` / Apple Intelligence. When you set it true, choose
+        an `xcodebuild ... build` or `xcodebuild ... test` verify command that
+        the host bridge can run. Do not pair `requiresHostXcode: true` with
+        `swift test`; host Xcode verify commands must start with `xcodebuild`.
+        For SwiftPM package tests that need host-only frameworks, prefer the
+        generated package workspace form:
+        `xcodebuild -workspace .swiftpm/xcode/package.xcworkspace -scheme <Package>-Package -destination 'platform=macOS' -skipMacroValidation ... test`.
+        Use true only for build/test needs, not for launching apps, opening
+        Simulator, or arbitrary host commands.
       """
       : ""
     let hostXcodeShape =
@@ -327,7 +336,10 @@ enum Prompts {
       This increment requires host Xcode. Use the `host_xcode` tool for
       Xcode build/test checks only. It runs against a temporary host mirror
       of this guest workspace, so keep source edits in the normal file tools
-      here and do not use `bash` for Xcode-only commands.
+      here and do not use `bash` for Xcode-only commands. If the verify command
+      is `xcodebuild ... test` or `xcodebuild ... build`, call `host_xcode`
+      with the matching `action` and pass only the xcodebuild flags before the
+      final action in `arguments`; the tool supplies the build/test action.
       """
       : ""
     return """
@@ -617,7 +629,7 @@ enum Prompts {
       "record_assumption (capture consequential assumptions for user review)"
     let hostXcodeTool =
       hostXcodeBuildTestEnabled
-      ? "\n        - Host Xcode: host_xcode (restricted to host-side xcodebuild build/test only, against a temporary mirror)."
+      ? "\n        - Host Xcode: host_xcode (restricted to host-side xcodebuild build/test only, against a temporary mirror; use it instead of bash for required Xcode or FoundationModels/Apple Intelligence verification)."
       : ""
     let toolList: String
     switch phase {
@@ -898,6 +910,9 @@ enum Prompts {
         Full Xcode is not installed in the guest. When this plan explicitly
         requires host Xcode, use `host_xcode` for build/test only; do not use it
         for Simulator management, app launching, or arbitrary host shell.
+        The guest may also differ from the host for Apple Intelligence /
+        `FoundationModels` availability, so host-sensitive model tests should
+        be planned as host Xcode verification.
         """
     }
     return """

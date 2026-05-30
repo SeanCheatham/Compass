@@ -149,3 +149,17 @@ func capture(_ command: String, at url: URL) async throws -> String {
     }
   }
 }
+
+func withMockFoundationModels<T>(
+  available: Bool = true,
+  response: String? = "Mock Foundation Models response.",
+  operation: () async throws -> T
+) async rethrows -> T {
+  try await FoundationModelsAvailability.withTextProvider(
+    FoundationModelsAvailability.TextProvider(
+      isAvailable: { available },
+      streamText: { _ in response }
+    ),
+    operation: operation
+  )
+}

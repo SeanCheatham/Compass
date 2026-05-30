@@ -238,7 +238,12 @@ enum FileExplainer {
     repoURL: URL,
     commits: [SessionCommit]
   ) async -> (String?, ExplainUnavailableReason?) {
-    guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL)
+    guard
+      let diff = await CommitExplainer.commitDiffRange(
+        commits: commits,
+        repoURL: repoURL,
+        relativePath: relativePath
+      )
     else {
       return (nil, .noDiff)
     }
@@ -269,7 +274,12 @@ enum FileExplainer {
     repoURL: URL,
     commits: [SessionCommit]
   ) async -> (String?, ExplainUnavailableReason?) {
-    guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL)
+    guard
+      let diff = await CommitExplainer.commitDiffRange(
+        commits: commits,
+        repoURL: repoURL,
+        relativePath: relativePath
+      )
     else {
       return (nil, .noDiff)
     }

@@ -61,9 +61,9 @@ struct ExploreCommitTourGeneratorTests {
   @Test
   func generate_singleLineDiff_doesNotThrow() async throws {
     let diff = "README.md | 1 +"
-    let result = await CommitTourGenerator.generate(diff: diff)
-    if FoundationModelsAvailability.isAvailable {
-      try #require(result != nil && !result!.isEmpty)
+    try await withMockFoundationModels(response: "Mock tour.") {
+      let result = await CommitTourGenerator.generate(diff: diff)
+      try #require(result == "Mock tour.")
     }
   }
 

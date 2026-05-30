@@ -149,7 +149,10 @@ private enum GitSourcePaths {
     return listing
       .split(separator: "\0", omittingEmptySubsequences: true)
       .map(String.init)
-      .filter { CodemapLanguage.forRelativePath($0) != nil }
+      .filter {
+        CodemapLanguage.forRelativePath($0) != nil
+          && RepositoryWalkRules.shouldInclude(relativePath: $0)
+      }
   }
 
   private static func runGitLsFiles(repoURL: URL) -> String? {
@@ -165,8 +168,9 @@ private enum GitSourcePaths {
     } catch {
       return nil
     }
+    let data = stdout.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else { return nil }
-    return String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+    return String(data: data, encoding: .utf8)
   }
 }

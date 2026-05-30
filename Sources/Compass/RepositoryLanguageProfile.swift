@@ -239,6 +239,24 @@ enum RepositoryWalkRules {
     if isDirectory && ignoredDirectoryNames.contains(name) { return false }
     return true
   }
+
+  static func shouldInclude(relativePath: String) -> Bool {
+    let components = relativePath.split(separator: "/").map(String.init)
+    guard !components.isEmpty else { return false }
+    for (index, component) in components.enumerated() {
+      let isDirectory = index < components.count - 1
+      guard
+        shouldInclude(
+          name: component,
+          isDirectory: isDirectory,
+          isTopLevel: index == 0
+        )
+      else {
+        return false
+      }
+    }
+    return true
+  }
 }
 
 enum RepositoryLanguageProfileService {
