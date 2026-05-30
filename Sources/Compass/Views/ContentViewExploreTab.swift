@@ -39,6 +39,12 @@ struct ExploreTab: View, Equatable {
   @State private var symbolDetailEntry: CodemapEntry? = nil
   @State private var showSymbolDetailPopover = false
 
+  @State private var showQAPopover = false
+  @State private var qaQuestion = ""
+  @State private var qaAnswer: RepoQnA.Answer?
+  @State private var qaReason: ExplainUnavailableReason?
+  @State private var loadingQA = false
+
   @State private var sessionScope: SessionScope = .lastSession
   @State private var expandedPaths: Set<String> = []
   @State private var loadedRepoPath: String?
@@ -85,6 +91,16 @@ struct ExploreTab: View, Equatable {
           isLoading: $loadingWhyGenerated
         )
       }
+    }
+    .popover(isPresented: $showQAPopover) {
+      QnAPopoverExplore(
+        question: $qaQuestion,
+        answer: $qaAnswer,
+        reason: $qaReason,
+        isLoading: $loadingQA,
+        repoURL: repoURL,
+        commits: commitsForSessionScope()
+      )
     }
     .onAppear {
       guard isActive else { return }
@@ -230,13 +246,26 @@ struct ExploreTab: View, Equatable {
   }
 
   private var sessionScopePicker: some View {
-    HStack {
+    HStack(spacing: 8) {
+      Button {
+        qaQuestion = ""
+        qaAnswer = nil
+        qaReason = nil
+        showQAPopover = true
+      } label: {
+        Label("Ask a Question", systemImage: "questionmark.circle")
+          .font(.callout)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+
+      Spacer()
+
       Picker("Session Scope", selection: $sessionScope) {
         Text("Last Session").tag(SessionScope.lastSession)
         Text("All Sessions").tag(SessionScope.allSessions)
       }
       .pickerStyle(.menu)
-      Spacer()
     }
     .padding(.horizontal, 8)
     .padding(.vertical, 6)
@@ -735,5 +764,115 @@ struct SymbolDetailPopover: View {
 
   private static func color(for kind: CodemapSymbolKind) -> Color {
     CodemapSymbolKind.color(for: kind)
+  }
+}
+
+// MARK: - QnAPopoverExplore
+
+/// Q&A popover for the Explore tab, backed by `RepoQnA.answer`.
+/// Mirrors the layout of ``QnAPopover`` in the Plan tab.
+struct QnAPopoverExplore: View {
+  @Binding var question: String
+  @Binding var answer: RepoQnA.Answer?
+  @Binding var reason: ExplainUnavailableReason?
+  @Binding var isLoading: Bool
+
+  let repoURL: URL
+  let commits: [SessionCommit]
+
+  @State private var availabilityError = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Label("Ask About Changes", systemImage: "questionmark.circle")
+          .font(.headline)
+        Spacer()
+      }
+
+      if availabilityError {
+        Label(
+          "Foundation Models is unavailable on this device.",
+          systemImage: "exclamationmark.triangle"
+        )
+        .font(.caption)
+        .foregroundStyle(.orange)
+      }
+
+      HStack(spacing: 8) {
+        TextField("Ask about this repository…", text: $question)
+          .textFieldStyle(.roundedBorder)
+          .font(.callout)
+          .onChange(of: question) { _, _ in answer = nil }
+
+        Button("Ask") {
+          Task { await submitQuestion() }
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .disabled(question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+      }
+
+      if isLoading {
+        HStack(spacing: 8) {
+          ProgressView()
+            .controlSize(.small)
+          Text("Generating answer...")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      } else if let answer {
+        VStack(alignment: .leading, spacing: 8) {
+          HStack(alignment: .top) {
+            ScrollView {
+              Text(answer.text)
+                .font(.callout)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 200)
+
+            Button {
+              NSPasteboard.general.clearContents()
+              NSPasteboard.general.setString(answer.text, forType: .string)
+            } label: {
+              Image(systemName: "doc.on.clipboard")
+                .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .help("Copy answer to clipboard")
+          }
+
+          if !answer.sources.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Sources:")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(answer.sources, id: \.self) { source in
+                Text(source)
+                  .font(.caption.monospaced())
+                  .foregroundStyle(.secondary)
+              }
+            }
+          }
+        }
+      }
+    }
+    .padding(16)
+    .frame(width: 420)
+  }
+
+  private func submitQuestion() async {
+    let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return }
+    isLoading = true
+    answer = nil
+    availabilityError = false
+    if #available(macOS 26.0, *) {
+      let result = await RepoQnA.answer(question: trimmed, repoURL: repoURL, commits: commits)
+      answer = result
+      if result == nil { availabilityError = true }
+    }
+    isLoading = false
   }
 }
