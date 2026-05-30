@@ -450,6 +450,15 @@ struct FileTreeRowView: View {
     .padding(.leading, CGFloat(depth * 16))
     .frame(height: rowHeight)
     .contentShape(Rectangle())
+    .contextMenu {
+      if !node.isDirectory {
+        Button {
+          onFileTap(node.relativePath)
+        } label: {
+          Label("Why was this generated?", systemImage: "questionmark.circle")
+        }
+      }
+    }
   }
 
   @ViewBuilder
