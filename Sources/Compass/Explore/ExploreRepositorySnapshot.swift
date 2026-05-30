@@ -1,5 +1,36 @@
 import Foundation
 
+/// ## Explore pipeline: repository snapshot
+///
+/// This file contains the data model, cache, loader, and tree builder that
+/// together produce the Explore tab's repository payload.
+///
+/// ### Composition
+///
+/// ``ExploreRepositorySnapshot`` is the immutable payload: a file tree
+/// plus the indexed codemap entries for every source file.
+///
+/// ``ExploreRepositorySnapshotCache`` is a thread-safe in-memory cache keyed
+/// by repo URL, preventing a full rebuild every time the user switches back
+/// to the Explore tab.
+///
+/// ``ExploreRepositorySnapshotLoader`` assembles a snapshot by delegating
+/// to ``ExploreTreeBuilder`` (for the file tree) and ``CodemapStore`` (for
+/// codemap entries).
+///
+/// ``ExploreTreeBuilder`` constructs the ``FileTreeNode`` hierarchy using
+/// ``GitSourcePaths`` when `git ls-files` is available, or falling back to
+/// ``CodemapFileSystem`` for a raw directory walk.
+///
+/// ## Pipeline position
+///
+/// 1. ``ExploreRepositorySnapshotLoader.load(repoURL:codemapDirectory:)`` is
+///    called when the Explore tab becomes active or the repo changes.
+/// 2. It builds the file tree (either via `git` or ``CodemapFileSystem``) and
+///    loads codemap entries via ``CodemapStore``.
+/// 3. The resulting ``ExploreRepositorySnapshot`` is stored in
+///    ``ExploreRepositorySnapshotCache`` and consumed by the Explore UI.
+
 /// Cached Explore tab payload for a repository.
 struct ExploreRepositorySnapshot: Sendable, Equatable {
   let fileTree: [FileTreeNode]

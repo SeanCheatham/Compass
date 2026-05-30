@@ -1,5 +1,24 @@
 import Foundation
 
+/// ## Explore pipeline: file-system scanner
+///
+/// ``CodemapFileSystem`` walks the repository tree and produces a
+/// ``FileTreeNode`` hierarchy that mirrors the source directory layout.
+/// It is the low-level scanning engine used by ``ExploreTreeBuilder`` when
+/// ``GitSourcePaths`` cannot enumerate source files via `git ls-files`
+/// (e.g. in a fresh or sparse checkout).  Its output feeds directly into the
+/// Explore tab's cached ``ExploreRepositorySnapshot``.
+///
+/// ## Responsibilities
+///
+/// - Recursively enumerate the repo root, respecting ``RepositoryWalkRules``.
+/// - Produce both a full tree (``buildTree()``) and a source-only tree
+///   (``buildSourceTree()``) filtered to files with a known ``CodemapLanguage``.
+/// - Reject symbolic links and hidden entries.
+///
+/// ``CodemapFileSystem`` is a private implementation detail of the Explore
+/// layer; callers should use ``ExploreTreeBuilder`` instead.
+
 /// Reads `repoURL` and produces a tree of `FileTreeNode`s mirroring the
 /// source directory layout under `rootURL`.
 struct CodemapFileSystem {
