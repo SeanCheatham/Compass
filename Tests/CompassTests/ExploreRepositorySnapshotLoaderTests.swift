@@ -15,7 +15,8 @@ struct ExploreRepositorySnapshotLoaderTests {
     let codemapDir = repoURL.appendingPathComponent(".compass/codemap", isDirectory: true)
     try FileManager.default.createDirectory(at: codemapDir, withIntermediateDirectories: true)
 
-    let snapshot = ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
+    let snapshot = ExploreRepositorySnapshotLoader.load(
+      repoURL: repoURL, codemapDirectory: codemapDir)
 
     #expect(snapshot.fileTree.isEmpty)
     #expect(snapshot.codemapEntries.isEmpty)
@@ -68,7 +69,8 @@ struct ExploreRepositorySnapshotLoaderTests {
     try codemapStore.saveEntry(entry1)
     try codemapStore.saveEntry(entry2)
 
-    let snapshot = ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
+    let snapshot = ExploreRepositorySnapshotLoader.load(
+      repoURL: repoURL, codemapDirectory: codemapDir)
 
     // File tree must contain the tracked files.
     let treePaths = ExploreTreeBuilder.allFilePaths(in: snapshot.fileTree).sorted()
@@ -100,7 +102,8 @@ struct ExploreRepositorySnapshotLoaderTests {
 
     // Leave codemap directory empty (no entries written).
 
-    let snapshot = ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
+    let snapshot = ExploreRepositorySnapshotLoader.load(
+      repoURL: repoURL, codemapDirectory: codemapDir)
 
     let treePaths = ExploreTreeBuilder.allFilePaths(in: snapshot.fileTree).sorted()
     #expect(treePaths == ["Sources/App.swift"])
@@ -133,7 +136,8 @@ struct ExploreRepositorySnapshotLoaderTests {
     )
     try codemapStore.saveEntry(entry)
 
-    let snapshot = ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
+    let snapshot = ExploreRepositorySnapshotLoader.load(
+      repoURL: repoURL, codemapDirectory: codemapDir)
 
     // The file tree is built from git (or CodemapFileSystem) — neither will include
     // files that don't exist on disk, so the tree is empty.
@@ -166,7 +170,8 @@ struct ExploreRepositorySnapshotLoaderTests {
       at: repoURL
     )
 
-    let snapshot = ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
+    let snapshot = ExploreRepositorySnapshotLoader.load(
+      repoURL: repoURL, codemapDirectory: codemapDir)
 
     let treePaths = ExploreTreeBuilder.allFilePaths(in: snapshot.fileTree).sorted()
     // Only the git-tracked file appears in the tree — not build/generated.swift.
@@ -198,8 +203,10 @@ struct ExploreRepositorySnapshotLoaderTests {
       isGenerated: false
     )
 
-    let snap1 = ExploreRepositorySnapshot(fileTree: tree, codemapEntries: ["Sources/App.swift": entry])
-    let snap2 = ExploreRepositorySnapshot(fileTree: tree, codemapEntries: ["Sources/App.swift": entry])
+    let snap1 = ExploreRepositorySnapshot(
+      fileTree: tree, codemapEntries: ["Sources/App.swift": entry])
+    let snap2 = ExploreRepositorySnapshot(
+      fileTree: tree, codemapEntries: ["Sources/App.swift": entry])
 
     #expect(snap1 == snap2)
   }

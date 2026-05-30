@@ -15,7 +15,7 @@ struct AgentGenerateImageTool: AgentTool {
 
   struct Arguments: Codable {
     let prompt: String
-    let output_path: String
+    let outputPath: String
   }
 
   let spec: AgentToolSpec
@@ -31,14 +31,14 @@ struct AgentGenerateImageTool: AgentTool {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
-      "required": ["prompt", "output_path"],
+      "required": ["prompt", "outputPath"],
       "properties": [
         "prompt": [
           "type": "string",
           "description":
             "Description of the image to generate. Be specific about subject, style, lighting, and framing — the model has no context beyond this text.",
         ],
-        "output_path": [
+        "outputPath": [
           "type": "string",
           "description":
             "Path under the working directory where the image bytes are written. Must end with .png, .jpg, .jpeg, or .webp. Intermediate directories are created automatically.",
@@ -69,7 +69,7 @@ struct AgentGenerateImageTool: AgentTool {
 
     let url: URL
     do {
-      url = try context.resolvePath(args.output_path)
+      url = try context.resolvePath(args.outputPath)
     } catch let error as AgentToolError {
       return .failure(error)
     } catch {
@@ -82,7 +82,7 @@ struct AgentGenerateImageTool: AgentTool {
     guard allowedExtensions.contains(lowered) else {
       return .failure(
         .invalidArguments(
-          "output_path must end with one of .png, .jpg, .jpeg, .webp (got \"\(args.output_path)\")"
+          "output_path must end with one of .png, .jpg, .jpeg, .webp (got \"\(args.outputPath)\")"
         ))
     }
 
@@ -100,7 +100,7 @@ struct AgentGenerateImageTool: AgentTool {
     } catch let error as AgentFilesystemError {
       switch error {
       case .notRegularFile:
-        return .failure(.notRegularFile(args.output_path))
+        return .failure(.notRegularFile(args.outputPath))
       case .transportFailure(let detail):
         return .failure(.rpcFailure(detail))
       default:

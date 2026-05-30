@@ -51,7 +51,8 @@ struct PlanTransitionValidatorTests {
 
   @Test func testRejectsNoImmediateWorkWhenMidTermRemains() throws {
     let current = makeState(completed: ["done"], midTerm: "- Next queued item", longTerm: "")
-    let next = makeState(completed: ["done"], immediate: nil, midTerm: "- Next queued item", longTerm: "")
+    let next = makeState(
+      completed: ["done"], immediate: nil, midTerm: "- Next queued item", longTerm: "")
 
     assertTransitionRejected(from: current, to: next, contains: "Immediate Plan")
   }

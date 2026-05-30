@@ -57,8 +57,9 @@ struct ExploreImportGraphTextGraphTests {
 
     // Alphabetical order: Explore < Sources < Zoo
     if let exploreRange = output.range(of: "📁 Explore/"),
-       let sourcesRange = output.range(of: "📁 Sources/"),
-       let zooRange = output.range(of: "📁 Zoo/") {
+      let sourcesRange = output.range(of: "📁 Sources/"),
+      let zooRange = output.range(of: "📁 Zoo/")
+    {
       #expect(exploreRange.lowerBound < sourcesRange.lowerBound)
       #expect(sourcesRange.lowerBound < zooRange.lowerBound)
     } else {
@@ -186,9 +187,10 @@ struct ExploreImportGraphTextGraphTests {
     }
 
     let output = graph.textGraph()
-    let section = output.range(of: "=== Key Dependencies ===").map {
-      output[$0.upperBound...]
-    } ?? output[output.startIndex...]
+    let section =
+      output.range(of: "=== Key Dependencies ===").map {
+        output[$0.upperBound...]
+      } ?? output[output.startIndex...]
     let sectionStr = String(section)
 
     // Count "•" markers in the Key Dependencies section
@@ -333,9 +335,10 @@ struct ExploreImportGraphTextGraphTests {
 
     let output = graph.textGraph()
 
-    let entrySection = output.range(of: "=== Entry Points ===").map {
-      output[$0.upperBound...]
-    } ?? Substring()
+    let entrySection =
+      output.range(of: "=== Entry Points ===").map {
+        output[$0.upperBound...]
+      } ?? Substring()
     let entryStr = String(entrySection).trimmingCharacters(in: .whitespacesAndNewlines)
     // Lone.swift has no outgoing edges, so not an entry point
     #expect(!entryStr.contains("Lone.swift"))

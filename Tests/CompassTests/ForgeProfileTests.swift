@@ -80,7 +80,8 @@ struct ForgeProfileTests {
       """
     let snapshot = CoverageSnapshotParser.parseVitestSummaryJSON(json, profile: .typeScriptVitest)
     try #require(snapshot.overallLineCoveragePercent == 80)
-    try #require(snapshot.files.contains { $0.path == "src/foo.ts" && $0.lineCoveragePercent == 50 })
+    try #require(
+      snapshot.files.contains { $0.path == "src/foo.ts" && $0.lineCoveragePercent == 50 })
   }
 
   @Test func planPromptIncludesForgeProfileAndCoverage() throws {

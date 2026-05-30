@@ -345,14 +345,14 @@ enum Prompts {
     let hostXcodeVerifyNote =
       next.requiresHostXcode
       ? """
-        This increment's verify runs on the host: call `host_xcode` with the
-        matching `action` and pass only xcodebuild flags in `arguments` (the tool
-        supplies `build`/`test`).
-        """
+      This increment's verify runs on the host: call `host_xcode` with the
+      matching `action` and pass only xcodebuild flags in `arguments` (the tool
+      supplies `build`/`test`).
+      """
       : """
-        If you need to probe SwiftPM or Xcode builds before finishing, still use
-        `host_xcode` even when verify is compile-only in the guest.
-        """
+      If you need to probe SwiftPM or Xcode builds before finishing, still use
+      `host_xcode` even when verify is compile-only in the guest.
+      """
     let hostXcodeWorkflow =
       hostXcodeBuildTestEnabled
       ? """

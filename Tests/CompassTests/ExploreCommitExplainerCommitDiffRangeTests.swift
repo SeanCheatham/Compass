@@ -126,7 +126,8 @@ struct ExploreCommitExplainerCommitDiffRangeTests {
     let newestSha = try getSingleCommitSHA(at: test.temporaryDirectory)
 
     let commits = [
-      SessionCommit(sha: newestSha, short: String(newestSha.prefix(7)), subject: "Extend App.swift"),
+      SessionCommit(
+        sha: newestSha, short: String(newestSha.prefix(7)), subject: "Extend App.swift"),
       SessionCommit(sha: oldestSha, short: String(oldestSha.prefix(7)), subject: "Add App.swift"),
     ]
 

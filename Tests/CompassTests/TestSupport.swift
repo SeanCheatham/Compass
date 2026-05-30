@@ -68,7 +68,8 @@ func makeSingleCommit(at directory: URL) throws -> [SessionCommit] {
 /// Returns all commit SHAs in the repo, newest-first.
 func getAllCommitSHAs(at directory: URL) throws -> [String] {
   let stdout = try captureGit(["log", "--all", "--format=%H"], at: directory)
-  return stdout
+  return
+    stdout
     .split(separator: "\n")
     .filter { !$0.isEmpty }
     .map { String($0) }

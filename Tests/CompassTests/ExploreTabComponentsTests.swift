@@ -355,72 +355,72 @@ struct ExploreTabComponentsTests {
 
   @Test
   func symbolDetailPopover_symbolKindLabel_function() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.function) == "func")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.function) == "func")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_method() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.method) == "meth")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.method) == "meth")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_class() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.class) == "class")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.class) == "class")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_interface() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.interface) == "iface")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.interface) == "iface")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_struct() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.struct) == "struct")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.struct) == "struct")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_enum() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.enum) == "enum")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.enum) == "enum")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_trait() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.trait) == "trait")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.trait) == "trait")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_module() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.module) == "mod")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.module) == "mod")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_type() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.type) == "type")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.type) == "type")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_property() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.property) == "prop")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.property) == "prop")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_macro() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.macro) == "macro")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.macro) == "macro")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_impl() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.impl) == "impl")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.impl) == "impl")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_extension() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.extension) == "ext")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.extension) == "ext")
   }
 
   @Test
   func symbolDetailPopover_symbolKindLabel_constant() throws {
-    #expect(SymbolDetailPopoverTests_symbolKindLabel(.constant) == "const")
+    #expect(symbolDetailPopoverTestsSymbolKindLabel(.constant) == "const")
   }
 
   // MARK: - SummaryPopover layout
@@ -693,7 +693,7 @@ struct ExploreTabComponentsTests {
 /// Accesses the private `symbolKindLabel` method on `SymbolDetailPopover` by
 /// mirroring the internal switch logic. This is the same approach used by
 /// `SummaryPopoverTests` for private view helpers.
-private func SymbolDetailPopoverTests_symbolKindLabel(_ kind: CodemapSymbolKind) -> String {
+private func symbolDetailPopoverTestsSymbolKindLabel(_ kind: CodemapSymbolKind) -> String {
   switch kind {
   case .function: return "func"
   case .method: return "meth"

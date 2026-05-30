@@ -57,7 +57,8 @@ struct ExploreArchitectureGraphGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    let store = CodemapStore(directory: temporaryDirectory.appendingPathComponent(".compass/codemap", isDirectory: true))
+    let store = CodemapStore(
+      directory: temporaryDirectory.appendingPathComponent(".compass/codemap", isDirectory: true))
     let graph = buildGraph(codemapDirectory: store.directory)
 
     #expect(graph.nodes.isEmpty)

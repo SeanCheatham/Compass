@@ -249,7 +249,8 @@ struct ExploreCommitExplainerGitDiffTests {
     test.setUpGitRepo()
 
     // Commit 1 (oldest): add App.swift with 3 lines → +3, -0
-    _ = try test.commitFile("App.swift", contents: "line1\nline2\nline3\n", message: "Add App.swift")
+    _ = try test.commitFile(
+      "App.swift", contents: "line1\nline2\nline3\n", message: "Add App.swift")
     let oldestSha = try getSingleCommitSHA(at: test.temporaryDirectory)
 
     // Commit 2 (newest): modify App.swift from 3 to 5 lines → +2, -0
@@ -320,6 +321,7 @@ struct ExploreCommitExplainerGitDiffTests {
     // Both files should appear in `@@` hunk context lines.
     // We check that after the first `@@`, the second `@@` references the other file.
     let atLines = result.components(separatedBy: "\n").filter { $0.hasPrefix("@@") }
-    try #require(atLines.count >= 2, "Expected at least 2 `@@` hunk headers for 2 files, got \(atLines.count)")
+    try #require(
+      atLines.count >= 2, "Expected at least 2 `@@` hunk headers for 2 files, got \(atLines.count)")
   }
 }

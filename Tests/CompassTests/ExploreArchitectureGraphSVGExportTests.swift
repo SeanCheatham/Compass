@@ -94,7 +94,7 @@ struct ExploreArchitectureGraphSVGExportTests {
     for (path, imports) in [
       ("source.swift", [CodemapImport(raw: "middle", line: 1)] as [CodemapImport]),
       ("middle.swift", [CodemapImport(raw: "sink", line: 1)]),
-      ("sink.swift", [] as [CodemapImport])
+      ("sink.swift", [] as [CodemapImport]),
     ] {
       let entry = CodemapEntry(
         relativePath: path,

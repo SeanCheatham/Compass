@@ -9,7 +9,9 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
 }
 
 enum PlanTransitionValidator {
-  static func validate(from current: PlanState, to next: PlanState, forgeProfile: ForgeProfile? = nil)
+  static func validate(
+    from current: PlanState, to next: PlanState, forgeProfile: ForgeProfile? = nil
+  )
     throws
   {
     if !current.midTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

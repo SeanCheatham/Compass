@@ -69,11 +69,13 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         `xcodebuild ... test` with `requiresHostXcode: true` (Compass collects coverage host-side after verify).
         """
     case .goModule:
-      return "test verify commands must include `-coverprofile=.compass/coverage.out` (e.g. `go test -coverprofile=.compass/coverage.out ./...`)."
+      return
+        "test verify commands must include `-coverprofile=.compass/coverage.out` (e.g. `go test -coverprofile=.compass/coverage.out ./...`)."
     case .rustCargo:
       return "test verify commands must use `cargo llvm-cov` with summary or json output."
     case .typeScriptVitest:
-      return "test verify commands must include Vitest coverage (e.g. `pnpm test -- --coverage --coverage.reporter=json-summary`)."
+      return
+        "test verify commands must include Vitest coverage (e.g. `pnpm test -- --coverage --coverage.reporter=json-summary`)."
     }
   }
 
@@ -130,9 +132,12 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   func isCompileOnlyVerify(_ verify: String) -> Bool {
     let normalized = verify.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     guard !normalized.isEmpty else { return false }
-    if normalized.contains(" test") || normalized.hasPrefix("test ") || normalized.contains("pnpm test")
-      || normalized.contains("vitest") || normalized.contains("cargo test") || normalized.contains("go test")
-      || normalized.contains("swift test") || normalized.contains("xcodebuild") && normalized.contains(" test")
+    if normalized.contains(" test") || normalized.hasPrefix("test ")
+      || normalized.contains("pnpm test")
+      || normalized.contains("vitest") || normalized.contains("cargo test")
+      || normalized.contains("go test")
+      || normalized.contains("swift test")
+      || normalized.contains("xcodebuild") && normalized.contains(" test")
     {
       return false
     }
@@ -142,8 +147,9 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     case .goModule:
       return normalized.contains("go build") && !normalized.contains("go test")
     case .rustCargo:
-      return normalized.contains("cargo check") || (normalized.contains("cargo build")
-        && !normalized.contains("cargo test"))
+      return normalized.contains("cargo check")
+        || (normalized.contains("cargo build")
+          && !normalized.contains("cargo test"))
     case .typeScriptVitest:
       return normalized.contains("pnpm build") || normalized.contains("tsc ")
     }
@@ -210,7 +216,8 @@ struct CoverageSnapshot: Codable, Equatable, Sendable {
 
   func formattedForPrompt(maxFiles: Int = 12) -> String {
     guard !files.isEmpty || overallLineCoveragePercent != nil else {
-      return "_(no coverage data collected yet — ensure verify enables coverage for this forge profile)_"
+      return
+        "_(no coverage data collected yet — ensure verify enables coverage for this forge profile)_"
     }
     var lines: [String] = []
     if let overall = overallLineCoveragePercent {
@@ -305,10 +312,12 @@ enum ForgeProfileService {
     in root: URL,
     fileManager: FileManager
   ) -> Bool {
-    guard let children = try? fileManager.contentsOfDirectory(
-      at: root,
-      includingPropertiesForKeys: nil
-    ) else {
+    guard
+      let children = try? fileManager.contentsOfDirectory(
+        at: root,
+        includingPropertiesForKeys: nil
+      )
+    else {
       return false
     }
     return children.contains { url in
@@ -343,7 +352,8 @@ enum ForgeProfileService {
     return try? decoder.decode(CoverageSnapshot.self, from: data)
   }
 
-  static func writeCoverageSnapshot(_ snapshot: CoverageSnapshot, workspace: CompassWorkspace) throws
+  static func writeCoverageSnapshot(_ snapshot: CoverageSnapshot, workspace: CompassWorkspace)
+    throws
   {
     let url = coverageSnapshotURL(in: workspace)
     let encoder = JSONEncoder()
@@ -394,7 +404,8 @@ enum CoverageSnapshotParser {
         continue
       }
       guard trimmed.contains(".go:"), let pct = trailingPercent(in: trimmed) else { continue }
-      let path = trimmed.split(separator: "\t").first.map(String.init)
+      let path =
+        trimmed.split(separator: "\t").first.map(String.init)
         ?? trimmed.split(separator: " ").first.map(String.init) ?? trimmed
       let cleanPath = path.split(separator: ":").first.map(String.init) ?? path
       if !files.contains(where: { $0.path == cleanPath }) {
@@ -411,7 +422,8 @@ enum CoverageSnapshotParser {
     )
   }
 
-  static func parseGoCoverFuncFromFile(_ coverageOut: URL, profile: ForgeProfile) -> CoverageSnapshot?
+  static func parseGoCoverFuncFromFile(_ coverageOut: URL, profile: ForgeProfile)
+    -> CoverageSnapshot?
   {
     guard FileManager.default.fileExists(atPath: coverageOut.path) else { return nil }
     let process = Process()
@@ -442,7 +454,8 @@ enum CoverageSnapshotParser {
         continue
       }
       if trimmed.hasSuffix("%"), trimmed.contains(".rs") {
-        let path = trimmed.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? trimmed
+        let path =
+          trimmed.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? trimmed
         if let pct = trailingPercent(in: trimmed) {
           files.append(CoverageFileEntry(path: path, lineCoveragePercent: pct))
         }

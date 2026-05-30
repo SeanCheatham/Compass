@@ -1516,7 +1516,8 @@ struct ExploreFileExplainerTests {
     // Accumulate per-commit diff stats to verify correct per-file counts across commits.
     var accumulated: [String: (additions: Int, deletions: Int)] = [:]
     for commit in commits {
-      let diffStatOutput = await FileExplainer.gitDiffStat(sha: commit.sha, repoURL: test.temporaryDirectory)
+      let diffStatOutput = await FileExplainer.gitDiffStat(
+        sha: commit.sha, repoURL: test.temporaryDirectory)
       let perCommitChanges = FileExplainer.parseGitDiffStat(diffStatOutput)
       for change in perCommitChanges {
         let existing = accumulated[change.relativePath, default: (0, 0)]

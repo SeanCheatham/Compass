@@ -285,8 +285,8 @@ struct ExploreTabWhyGeneratedInteractionTests {
     let newPath = "B.swift"
     var whyGeneratedFile = newPath
     whyGeneratedExplanation = nil  // ← reset
-    whyGeneratedReason = nil        // ← reset
-    loadingWhyGenerated = true      // ← set true before async loadWhyGenerated()
+    whyGeneratedReason = nil  // ← reset
+    loadingWhyGenerated = true  // ← set true before async loadWhyGenerated()
 
     // Verify the prior state was cleared, matching what loadWhyGenerated() would
     // then populate asynchronously after FileExplainer.whyGenerated() returns.

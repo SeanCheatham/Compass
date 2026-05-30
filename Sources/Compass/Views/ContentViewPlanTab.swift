@@ -1306,7 +1306,8 @@ struct ArchitectureGraphPopover: View {
   private func exportSVG() {
     svgExportPath = nil
     svgExportError = nil
-    let codemapDir = repoURL
+    let codemapDir =
+      repoURL
       .appendingPathComponent(".compass/codemap")
       .standardizedFileURL
     let viz = CodemapGraphViz(repoURL: repoURL, codemapDirectory: codemapDir)
@@ -1762,7 +1763,10 @@ struct WhyGeneratedPopover: View {
   @Binding var isLoading: Bool
   @State private var copiedReason = false
 
-  init(fileName: String, fileURL: URL? = nil, explanation: Binding<String?>, reason: Binding<ExplainUnavailableReason?>, isLoading: Binding<Bool>) {
+  init(
+    fileName: String, fileURL: URL? = nil, explanation: Binding<String?>,
+    reason: Binding<ExplainUnavailableReason?>, isLoading: Binding<Bool>
+  ) {
     self.fileName = fileName
     self.fileURL = fileURL
     self._explanation = explanation
@@ -1795,8 +1799,11 @@ struct WhyGeneratedPopover: View {
               copiedReason = false
             }
           } label: {
-            Label(copiedReason ? "Copied!" : "Copy reason", systemImage: copiedReason ? "checkmark" : "doc.on.doc")
-              .font(.caption)
+            Label(
+              copiedReason ? "Copied!" : "Copy reason",
+              systemImage: copiedReason ? "checkmark" : "doc.on.doc"
+            )
+            .font(.caption)
           }
           .buttonStyle(.bordered)
           .controlSize(.small)

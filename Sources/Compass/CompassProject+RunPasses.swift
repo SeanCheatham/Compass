@@ -807,7 +807,8 @@ extension CompassProject {
     sessionIndex: Int
   ) async {
     guard let workspace else { return }
-    let sessionNumber = sessions.indices.contains(sessionIndex) ? sessions[sessionIndex].session : nil
+    let sessionNumber =
+      sessions.indices.contains(sessionIndex) ? sessions[sessionIndex].session : nil
     log("Post-check: collecting coverage for \(profile.displayName).", level: .info)
     do {
       let result = try await runVerifyCommand(
@@ -824,7 +825,9 @@ extension CompassProject {
       try ForgeProfileService.writeCoverageSnapshot(snapshot, workspace: workspace)
       if let overall = snapshot.overallLineCoveragePercent {
         log(
-          String(format: "Coverage snapshot saved (overall %.1f%%, %d files).", overall, snapshot.files.count),
+          String(
+            format: "Coverage snapshot saved (overall %.1f%%, %d files).", overall,
+            snapshot.files.count),
           level: .info
         )
       } else {

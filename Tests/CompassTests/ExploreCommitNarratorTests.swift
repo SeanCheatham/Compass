@@ -75,7 +75,8 @@ struct ExploreCommitNarratorTests {
 
   @Test
   func narrate_withMockFoundationModels_returnsNonEmptyString() async throws {
-    try await withMockFoundationModels(response: "Added a new helper method to process user input.") {
+    try await withMockFoundationModels(response: "Added a new helper method to process user input.")
+    {
       let commit = SessionCommit(sha: "abc123", short: "abc123", subject: "Add helper method")
       let diff = """
         +func processUserInput(_ input: String) -> String {

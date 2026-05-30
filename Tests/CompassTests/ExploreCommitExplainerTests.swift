@@ -295,7 +295,8 @@ struct ExploreCommitExplainerTests {
       at: test.temporaryDirectory
     )
     let mergeSha = shaResult.trimmingCharacters(in: .whitespacesAndNewlines)
-    let commit = SessionCommit(sha: mergeSha, short: String(mergeSha.prefix(7)), subject: "Merge topic")
+    let commit = SessionCommit(
+      sha: mergeSha, short: String(mergeSha.prefix(7)), subject: "Merge topic")
 
     // Git ran successfully but the diff for the merge commit against its first parent
     // is empty. explain returns .emptyDiff.
@@ -501,7 +502,8 @@ struct ExploreCommitExplainerTests {
   /// filename and at least one addition marker, proving the pipeline won't
   /// silently feed empty content downstream.
   @Test
-  func gitDiff_singleCommitWithFileChange_returnsNonEmptyDiffWithFilenameAndAdditions() async throws {
+  func gitDiff_singleCommitWithFileChange_returnsNonEmptyDiffWithFilenameAndAdditions() async throws
+  {
     var test = Self()
     test.explainSetUp()
     defer { test.explainTearDown() }

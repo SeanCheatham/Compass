@@ -67,7 +67,7 @@ struct ExploreTab: View, Equatable {
           await loadRepositorySnapshotIfNeeded()
         }
     }
-      .popover(isPresented: $showSummaryPopover) {
+    .popover(isPresented: $showSummaryPopover) {
       if let file = summaryPopoverFile {
         SummaryPopover(
           fileName: (file as NSString).lastPathComponent,
@@ -78,7 +78,8 @@ struct ExploreTab: View, Equatable {
     }
     .popover(isPresented: $showSymbolDetailPopover) {
       if let entry = symbolDetailEntry {
-        SymbolDetailPopover(entry: entry, fileURL: repoURL.appendingPathComponent(entry.relativePath))
+        SymbolDetailPopover(
+          entry: entry, fileURL: repoURL.appendingPathComponent(entry.relativePath))
       }
     }
     .popover(isPresented: $showWhyGenerated) {
@@ -531,7 +532,8 @@ struct FileTreeRowView: View {
   }
 
   private func summaryPreview(_ summary: String) -> String {
-    let singleLine = summary
+    let singleLine =
+      summary
       .replacingOccurrences(of: "\n", with: " ")
       .trimmingCharacters(in: .whitespacesAndNewlines)
     guard singleLine.count > summaryPreviewLimit else { return singleLine }
@@ -724,13 +726,13 @@ struct SymbolDetailPopover: View {
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
-              ForEach(entry.imports, id: \.raw) { import_ in
+              ForEach(entry.imports, id: \.raw) { `import` in
                 HStack(spacing: 8) {
-                  Text(import_.raw)
+                  Text(`import`.raw)
                     .font(.callout)
                     .textSelection(.enabled)
                   Spacer()
-                  Text("L\(import_.line)")
+                  Text("L\(`import`.line)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                 }

@@ -393,7 +393,7 @@ enum ArchitectureGraph {
     for (node, rank) in ranks {
       rankGroups[rank].append(node)
     }
-    for i in 0 ..< rankGroups.count {
+    for i in 0..<rankGroups.count {
       rankGroups[i].sort { $0.path < $1.path }
     }
 
@@ -401,7 +401,8 @@ enum ArchitectureGraph {
     var positions: [ImportGraph.Node: CGPoint] = [:]
     for (rankIdx, nodes) in rankGroups.enumerated() {
       let y = padding + CGFloat(rankIdx) * (nodeHeight + rankSpacingY)
-      let totalWidth = CGFloat(nodes.count) * nodeWidth
+      let totalWidth =
+        CGFloat(nodes.count) * nodeWidth
         + CGFloat(max(0, nodes.count - 1)) * nodeSpacingX
       let startX = padding + (max(0, 800 - totalWidth) / 2)
       for (i, node) in nodes.enumerated() {
@@ -448,11 +449,11 @@ enum ArchitectureGraph {
       let label = (node.path as NSString).lastPathComponent
       svg += """
 
-      <g>
-        <rect x="\(pos.x)" y="\(pos.y)" width="\(nodeWidth)" height="\(nodeHeight)" rx="5" class="node-rect"/>
-        <text x="\(pos.x + nodeWidth / 2)" y="\(pos.y + nodeHeight / 2)" class="node-label">\(label)</text>
-      </g>
-    """
+          <g>
+            <rect x="\(pos.x)" y="\(pos.y)" width="\(nodeWidth)" height="\(nodeHeight)" rx="5" class="node-rect"/>
+            <text x="\(pos.x + nodeWidth / 2)" y="\(pos.y + nodeHeight / 2)" class="node-label">\(label)</text>
+          </g>
+        """
     }
 
     svg += "\n</svg>"

@@ -152,12 +152,16 @@ struct ExploreRepositorySnapshotLoaderGuardPathTests {
     let codemapDir = repoURL.appendingPathComponent(".compass/codemap", isDirectory: true)
     try FileManager.default.createDirectory(at: codemapDir, withIntermediateDirectories: true)
 
-    let snapshot = ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
+    let snapshot = ExploreRepositorySnapshotLoader.load(
+      repoURL: repoURL, codemapDirectory: codemapDir)
 
     // File tree must be populated from git.
     let treePaths = ExploreTreeBuilder.allFilePaths(in: snapshot.fileTree).sorted()
     try #require(treePaths.count == 3)
-    try #require(treePaths == ["Sources/App.swift", "Sources/Models/User.swift", "Sources/Utils+Helpers.swift"])
+    try #require(
+      treePaths == [
+        "Sources/App.swift", "Sources/Models/User.swift", "Sources/Utils+Helpers.swift",
+      ])
 
     // Codemap entries are empty because the store had no entries.
     #expect(snapshot.codemapEntries.isEmpty)
@@ -209,7 +213,8 @@ struct ExploreRepositorySnapshotLoaderGuardPathTests {
     )
     try store.saveEntry(appEntry)
 
-    let snapshot = ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
+    let snapshot = ExploreRepositorySnapshotLoader.load(
+      repoURL: repoURL, codemapDirectory: codemapDir)
 
     // File tree has all 3 paths.
     let treePaths = ExploreTreeBuilder.allFilePaths(in: snapshot.fileTree).sorted()
@@ -243,7 +248,8 @@ struct ExploreRepositorySnapshotLoaderGuardPathTests {
     let codemapDir = repoURL.appendingPathComponent(".compass/codemap", isDirectory: true)
     try FileManager.default.createDirectory(at: codemapDir, withIntermediateDirectories: true)
 
-    let snapshot = ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
+    let snapshot = ExploreRepositorySnapshotLoader.load(
+      repoURL: repoURL, codemapDirectory: codemapDir)
 
     #expect(snapshot.fileTree.isEmpty)
     #expect(snapshot.codemapEntries.isEmpty)
@@ -342,7 +348,8 @@ struct ExploreRepositorySnapshotLoaderGuardPathTests {
 
     // The full load() also produces a valid snapshot with the unindexed path
     // absent from codemapEntries.
-    let snapshot = ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
+    let snapshot = ExploreRepositorySnapshotLoader.load(
+      repoURL: repoURL, codemapDirectory: codemapDir)
     #expect(snapshot.codemapEntries["Sources/Unindexed.swift"] == nil)
     let treePaths = ExploreTreeBuilder.allFilePaths(in: snapshot.fileTree)
     #expect(treePaths.contains("Sources/Unindexed.swift"))
