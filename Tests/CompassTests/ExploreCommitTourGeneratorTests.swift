@@ -422,4 +422,19 @@ struct ExploreCommitTourGeneratorTests {
     }
   }
 
+  @Test
+  func generateTour_modelUnavailable_returnsNil_forcing() async throws {
+    // Forcing version: uses withMockFoundationModels(available: false) to
+    // guarantee the guard fires regardless of host environment, turning the
+    // host-dependent conditional test into a deterministic one.
+    let repoURL = try makeTempDir()
+    try initGitRepo(at: repoURL)
+    let commits = try makeSingleCommit(at: repoURL)
+
+    try await withMockFoundationModels(available: false) {
+      let result = await CommitTourGenerator.generateTour(commits: commits, repoURL: repoURL)
+      try #require(result == nil)
+    }
+  }
+
 }
