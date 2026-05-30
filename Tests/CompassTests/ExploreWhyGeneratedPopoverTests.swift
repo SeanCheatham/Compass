@@ -64,4 +64,53 @@ struct ExploreWhyGeneratedPopoverTests {
     #expect(!box.isLoading)
     #expect(box.reason == .foundationModelsUnavailable)
   }
+
+  // MARK: - reason.message display path
+
+  /// Verifies `ExplainUnavailableReason.foundationModelsUnavailable.message`
+  /// returns the expected user-facing string.
+  ///
+  /// When `WhyGeneratedPopover` has a non-nil `reason` binding (the
+  /// `else if let reason = reason { HStack { Image + Text(reason.message) } }`
+  /// branch at line 1740-1748), `reason.message` is displayed in the popover body.
+  /// This test exercises that data path without requiring a full SwiftUI
+  /// view render — matching the approach used in `ExploreTabWhyGeneratedTests`
+  /// which tests the same reason cases that the popover's UI path exercises.
+  @Test
+  func reasonMessage_forFoundationModelsUnavailable_showsExpectedMessage() throws {
+    #expect(ExplainUnavailableReason.foundationModelsUnavailable.message
+      == "Explanation requires Apple Intelligence, which is not available on this device.")
+  }
+
+  /// Verifies `ExplainUnavailableReason.noDiff.message` returns the expected
+  /// user-facing string displayed in the popover's reason branch.
+  @Test
+  func reasonMessage_forNoDiff_showsExpectedMessage() throws {
+    #expect(ExplainUnavailableReason.noDiff.message
+      == "No commit diff available for this file.")
+  }
+
+  /// Verifies `ExplainUnavailableReason.emptyDiff.message` returns the expected
+  /// user-facing string displayed in the popover's reason branch.
+  @Test
+  func reasonMessage_forEmptyDiff_showsExpectedMessage() throws {
+    #expect(ExplainUnavailableReason.emptyDiff.message
+      == "No content changes found in this file.")
+  }
+
+  /// Verifies `ExplainUnavailableReason.emptyResponse.message` returns the expected
+  /// user-facing string displayed in the popover's reason branch.
+  @Test
+  func reasonMessage_forEmptyResponse_showsExpectedMessage() throws {
+    #expect(ExplainUnavailableReason.emptyResponse.message
+      == "The model did not produce an explanation. Please try again.")
+  }
+
+  /// Verifies `ExplainUnavailableReason.unavailable.message` returns the expected
+  /// user-facing string displayed in the popover's reason branch.
+  @Test
+  func reasonMessage_forUnavailable_showsExpectedMessage() throws {
+    #expect(ExplainUnavailableReason.unavailable.message
+      == "Explanation unavailable.")
+  }
 }
