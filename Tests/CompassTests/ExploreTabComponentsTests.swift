@@ -263,6 +263,28 @@ struct ExploreTabComponentsTests {
     #expect(colorsEqual(reliabilityColor(for: .paused), .blue))
   }
 
+  // MARK: - storageAssessmentColor(for:)
+
+  @Test
+  func storageAssessmentColor_for_healthy() throws {
+    #expect(colorsEqual(storageAssessmentColor(for: .healthy), .green))
+  }
+
+  @Test
+  func storageAssessmentColor_for_info() throws {
+    #expect(colorsEqual(storageAssessmentColor(for: .info), .blue))
+  }
+
+  @Test
+  func storageAssessmentColor_for_warning() throws {
+    #expect(colorsEqual(storageAssessmentColor(for: .warning), .orange))
+  }
+
+  @Test
+  func storageAssessmentColor_for_failure() throws {
+    #expect(colorsEqual(storageAssessmentColor(for: .failure), .red))
+  }
+
   @Test
   func codemapSymbolKind_rawValue_function() throws {
     #expect(CodemapSymbolKind.function.rawValue == "function")
