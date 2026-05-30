@@ -220,9 +220,7 @@ struct ExploreRepoQnATests {
     // These labels intentionally mismatch `FileExplainer.changes` so that
     // adding a shadow overload with these labels does not silently shadow
     // the real call — keeping the test focused on documentation.
-    func changes(url: URL, items: [SessionCommit]) async -> [
-      FileChange
-    ] {
+    func changes(url: URL, items: [SessionCommit]) async -> [FileChange] {
       // If this compiles, the call site signature is well-formed.
       []
     }
