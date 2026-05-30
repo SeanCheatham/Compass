@@ -57,7 +57,7 @@ import Foundation
 ///
 /// The UI uses these cases to show a specific, actionable message to the user
 /// instead of a generic "unavailable" notice.
-enum ExplainUnavailableReason: Sendable {
+enum ExplainUnavailableReason: Sendable, CaseIterable {
   /// Foundation Models is not available on this system (not installed or
   /// cannot run on this device).
   case foundationModelsUnavailable

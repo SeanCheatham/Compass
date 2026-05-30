@@ -1315,14 +1315,14 @@ struct ArchitectureGraphPopover: View {
   /// The method captures the `svgExportError` state that results from
   /// `CodemapGraphViz.writeOverviewSVG()` returning `nil` (missing codemap
   /// directory) or throwing.
-  package func triggerExportSVG() async {
+  func triggerExportSVG() async {
     exportSVG()
   }
 
   /// Triggers `loadGraph()` for testing purposes.
   /// The method exercises the `availabilityError` guard path when
   /// `FoundationModelsAvailability.isAvailable == false`.
-  package func triggerLoadGraph() async {
+  func triggerLoadGraph() async {
     await loadGraph()
   }
 }
