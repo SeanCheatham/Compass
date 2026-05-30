@@ -554,7 +554,8 @@ struct ExploreTabComponentsTests {
       onGenerateSummary: { path in
         called = true
         capturedPath = path
-      }
+      },
+      onWhyGeneratedTap: { _ in }
     )
 
     // The sparkles button label must be present in the rendered view.
@@ -587,7 +588,8 @@ struct ExploreTabComponentsTests {
       onGenerateSummary: { p in
         called = true
         capturedPath = p
-      }
+      },
+      onWhyGeneratedTap: { _ in }
     )
 
     // Invoke the sparkles button action (the else branch at line 354).
@@ -622,7 +624,8 @@ struct ExploreTabComponentsTests {
       onFileTap: { _ in },
       onSummaryTap: { _, _ in },
       onSymbolDetailTap: { _ in },
-      onGenerateSummary: { _ in called = true }
+      onGenerateSummary: { _ in called = true },
+      onWhyGeneratedTap: { _ in }
     )
 
     // Directory with children shows folder summary, not the sparkles button.
@@ -664,7 +667,8 @@ struct ExploreTabComponentsTests {
       onFileTap: { _ in },
       onSummaryTap: { _, _ in },
       onSymbolDetailTap: { _ in },
-      onGenerateSummary: { _ in called = true }
+      onGenerateSummary: { _ in called = true },
+      onWhyGeneratedTap: { _ in }
     )
 
     // Summary popover button is shown; sparkles button is not.
@@ -703,7 +707,8 @@ struct ExploreTabComponentsTests {
       onFileTap: { _ in },
       onSummaryTap: { _, _ in },
       onSymbolDetailTap: { _ in },
-      onGenerateSummary: { _ in }
+      onGenerateSummary: { _ in },
+      onWhyGeneratedTap: { _ in }
     )
 
     let buttonReflection = String(reflecting: sut.summaryButton)

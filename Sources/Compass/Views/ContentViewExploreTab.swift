@@ -144,7 +144,8 @@ struct ExploreTab: View, Equatable {
               onFileTap: handleFileTap,
               onSummaryTap: handleSummaryTap,
               onSymbolDetailTap: handleSymbolDetailTap,
-              onGenerateSummary: handleGenerateSummary
+              onGenerateSummary: handleGenerateSummary,
+              onWhyGeneratedTap: handleFileTap
             )
             .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
             .listRowSeparator(.hidden)
@@ -461,6 +462,7 @@ struct FileTreeRowView: View {
   let onSummaryTap: (String, String) -> Void
   let onSymbolDetailTap: (CodemapEntry) -> Void
   let onGenerateSummary: (String) -> Void
+  let onWhyGeneratedTap: (String) -> Void
 
   private let rowHeight: CGFloat = 44
   private let summaryPreviewLimit = 180
@@ -517,7 +519,7 @@ struct FileTreeRowView: View {
     .contextMenu {
       if !node.isDirectory {
         Button {
-          onFileTap(node.relativePath)
+          onWhyGeneratedTap(node.relativePath)
         } label: {
           Label("Why was this generated?", systemImage: "questionmark.circle")
         }
