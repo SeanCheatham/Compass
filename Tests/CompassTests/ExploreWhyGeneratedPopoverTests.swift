@@ -40,7 +40,7 @@ struct ExploreWhyGeneratedPopoverTests {
     }
 
     let box = BindingBox()
-    var popover = WhyGeneratedPopover(
+    let popover = WhyGeneratedPopover(
       fileName: "GeneratedFile.swift",
       explanation: Binding(
         get: { box.explanation },
