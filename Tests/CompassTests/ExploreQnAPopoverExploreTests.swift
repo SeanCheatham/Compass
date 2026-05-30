@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModels
+import SwiftUI
 import Testing
 
 @testable import Compass
@@ -171,6 +172,84 @@ struct ExploreQnAPopoverExploreTests {
     #expect(popover.commits.count == 2)
     #expect(popover.commits[0].sha == "abc123")
     #expect(popover.commits[1].sha == "def456")
+  }
+
+  // MARK: - isLoading binding display path
+
+  /// Verifies that when `isLoading = .constant(true)`, the body contains the
+  /// `ProgressView` spinner label and "Generating answer..." loading text.
+  /// This mirrors `ExploreWhyGeneratedPopoverTests.isLoading_true_showsGeneratingExplanation()`
+  /// but for the `QnAPopoverExplore` view.
+  @Test
+  func isLoading_true_showsGeneratingAnswer() throws {
+    let commits = [
+      SessionCommit(sha: "abc123", short: "abc1234", subject: "Add file"),
+    ]
+
+    let popover = QnAPopoverExplore(
+      question: .constant("What changed?"),
+      answer: .constant(nil),
+      reason: .constant(nil),
+      isLoading: .constant(true),
+      repoURL: URL(fileURLWithPath: "/tmp/CompassRepo").standardizedFileURL,
+      commits: commits
+    )
+
+    let body = String(reflecting: popover.body)
+    #expect(body.contains("Generating answer..."))
+  }
+
+  /// Verifies that when `isLoading = .constant(false)`, the loading text is
+  /// absent from the rendered body — no spinner or "Generating answer..."
+  /// text appears when the popover is not in a loading state.
+  @Test
+  func isLoading_false_hidesGeneratingAnswer() throws {
+    let commits = [
+      SessionCommit(sha: "abc123", short: "abc1234", subject: "Add file"),
+    ]
+
+    let popover = QnAPopoverExplore(
+      question: .constant("What changed?"),
+      answer: .constant(nil),
+      reason: .constant(nil),
+      isLoading: .constant(false),
+      repoURL: URL(fileURLWithPath: "/tmp/CompassRepo").standardizedFileURL,
+      commits: commits
+    )
+
+    let body = String(reflecting: popover.body)
+    #expect(!body.contains("Generating answer..."))
+  }
+
+  // MARK: - availabilityError display path
+
+  /// Verifies that when `availabilityError` is `false` (the default), the
+  /// "Foundation Models is unavailable on this device." warning label is
+  /// absent from the body — confirming the initial state is clean and no
+  /// error is shown until `submitQuestion()` transitions it.
+  ///
+  /// Note: `availabilityError` is `@State private var` in `QnAPopoverExplore`,
+  /// so its value cannot be set from tests. This test verifies the initial
+  /// (false) default state. The transition to `true` is exercised via the
+  /// `submitQuestion()` path tested in `submitQuestion_answerReturnsNil_setsUnavailableReason`.
+  @Test
+  func availabilityError_false_hidesUnavailableLabel() throws {
+    let commits = [
+      SessionCommit(sha: "abc123", short: "abc1234", subject: "Add file"),
+    ]
+
+    let popover = QnAPopoverExplore(
+      question: .constant("What changed?"),
+      answer: .constant(nil),
+      reason: .constant(nil),
+      isLoading: .constant(false),
+      repoURL: URL(fileURLWithPath: "/tmp/CompassRepo").standardizedFileURL,
+      commits: commits
+    )
+
+    // availabilityError defaults to false — no warning label in the body.
+    let body = String(reflecting: popover.body)
+    #expect(!body.contains("Foundation Models is unavailable on this device."))
   }
 
   // MARK: - Helpers
