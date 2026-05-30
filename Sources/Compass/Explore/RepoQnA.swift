@@ -106,8 +106,9 @@ enum RepoQnA {
     if diff.count > maxDiffChars {
       truncatedDiff = String(diff.prefix(maxDiffChars)) + "\n[... diff truncated ...]"
     } else {
-      // diff is guaranteed non-nil here: the guard on line 86 exits early if it were nil.
-      truncatedDiff = diff!
+      // diff is a non-optional String here: the `guard let diff =` on line 86 already
+      // unwrapped the optional, so `diff` is String throughout this else branch.
+      truncatedDiff = diff
     }
 
     let prompt = """

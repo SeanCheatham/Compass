@@ -195,6 +195,44 @@ struct ExploreRepoQnATests {
     _ = result
   }
 
+  // MARK: - Non-truncated diff path (diff < 8000 chars)
+
+  /// Exercises the else-branch at RepoQnA.swift:108–111 where the diff is small
+  /// enough to not require truncation, verifying that `truncatedDiff = diff`
+  /// (the non-force-unwrap path) is exercised without crashing.
+  @Test
+  func answer_smallDiff_notTruncated_noCrash() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with one commit that produces a diff well under 8000 chars.
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("Sources/App.swift", contents: "import Foundation\n", at: test.temporaryDirectory)
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
+      at: test.temporaryDirectory
+    )
+
+    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
+
+    try await withMockFoundationModels(response: "Small diff answer.") {
+      let result = await RepoQnA.answer(
+        question: "What changed?",
+        repoURL: test.temporaryDirectory,
+        commits: commits
+      )
+
+      // With a mock provider `isAvailable` is true, so result must be non-nil.
+      // This exercises the else-branch (diff < 8000 chars) without force-unwrap.
+      let answer = try #require(result)
+      try #require(answer.text == "Small diff answer.")
+    }
+  }
+
   // MARK: - changes(for:commits:) argument order
 
   /// Compile-only structural test: verifies the `FileExplainer.changes` call
