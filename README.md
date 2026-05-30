@@ -186,7 +186,14 @@ by Compass. Rather than leaving generated code opaque, it surfaces meaning —
 what changed, why, and how the pieces fit together — using Apple's on-device
 Foundation Models so explanations stay local and fast.
 
-Explore has five main components:
+Explore has seven main components:
+
+- **`CodemapFileSystem`** (`Sources/Compass/Explore/CodemapFileSystem.swift`) —
+  File-system scanner that walks the repository tree and produces a
+  ``FileTreeNode`` hierarchy mirroring the source directory layout.
+  Used by ``ExploreTreeBuilder`` when ``GitSourcePaths`` cannot enumerate
+  files via `git ls-files` (e.g. in a fresh or sparse checkout).
+  Available on all macOS versions. Entry point: ``CodemapFileSystem(rootURL:).buildTree()``.
 
 - **`CommitExplainer`** (`Sources/Compass/Explore/CommitExplainer.swift`) —
   Takes a git diff and produces a plain-English summary in roughly three
@@ -203,6 +210,13 @@ Explore has five main components:
   Uses `FoundationModelsAvailability.isAvailable` from the on-device Foundation Models
   framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
   Returns `nil` gracefully when Foundation Models is unavailable.
+
+- **`ExploreRepositorySnapshot`** (`Sources/Compass/Explore/ExploreRepositorySnapshot.swift`) —
+  Immutable snapshot combining the repository file tree with indexed
+  codemap entries. ``ExploreRepositorySnapshotCache`` provides thread-safe
+  in-memory caching; ``ExploreRepositorySnapshotLoader`` assembles the snapshot
+  by delegating to ``ExploreTreeBuilder`` and ``CodemapStore``. Available on all
+  macOS versions. Entry point: ``ExploreRepositorySnapshotLoader.load(repoURL:codemapDirectory:)``.
 
 - **`FileExplainer`** (`Sources/Compass/Explore/FileExplainer.swift`) —
   Parses `git diff --stat` output and enriches each changed file with
