@@ -46,7 +46,7 @@ struct SymbolExtractor: Sendable {
     var seenSymbol: Set<SymbolKey> = []
     var seenImport: Set<ImportKey> = []
 
-    while let match = cursor.nextMatch() {
+    while let match = cursor.next() {
       var defCapture: QueryCapture?
       var defKind: CodemapSymbolKind?
       var nameCapture: QueryCapture?

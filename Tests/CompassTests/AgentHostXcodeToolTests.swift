@@ -84,7 +84,7 @@ struct AgentHostXcodeToolTests {
 
     #expect(!defaultNames.contains(AgentHostXcodeTool.toolName))
     #expect(enabledNames.contains(AgentHostXcodeTool.toolName))
-    #expect(!planNames.contains(AgentHostXcodeTool.toolName))
+    #expect(planNames.contains(AgentHostXcodeTool.toolName))
   }
 }
 

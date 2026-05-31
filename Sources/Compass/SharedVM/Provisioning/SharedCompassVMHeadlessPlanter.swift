@@ -1,5 +1,4 @@
 import Foundation
-import Compass
 
 /// Host-side disk planter for the Compass shared VM's headless first-boot
 /// pipeline.

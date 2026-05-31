@@ -16,8 +16,6 @@ import Testing
 ///
 /// Called from `insert(path:into:)` when an empty string is passed.
 /// The guard fires and returns without crashing. No file tree mutation occurs.
-/// The compile-only test below uses a shadow-function to verify the call
-/// shape compiles.
 ///
 /// ### 2 — `buildSourceTree` empty-paths guard  (line 89)
 ///
@@ -36,73 +34,38 @@ import Testing
 /// When `paths.sorted(...)` yields an empty array the for-loop never runs and
 /// `sortNodes([])` is called, returning `[]` immediately.
 ///
-/// ### 4 — `insert(components:fullPath:into:siblings:prefix:)` compile-only
+/// ### 4 — `insert(components:fullPath:into:siblings:prefix:)` nested path
 ///
-/// Called from the `insert(path:into:)` caller at line 117. A local shadow
-/// function confirms the call compiles without type errors.
+/// Called from the `insert(path:into:)` caller at line 117 to build nested
+/// directory/file nodes.
 ///
-/// ### 5 — `sortNodes` compile-only
+/// ### 5 — `sortNodes`
 ///
 /// Called from `buildTree` (line 102) and `insert` recursive branch (line 176).
-/// A local shadow function confirms both call sites compile without type errors.
+/// Direct assertions cover directory-first and case-insensitive sorting.
 struct ExploreTreeBuilderGuardPathTests {
 
   // MARK: - Guard 1: insert — empty-path guard fires at line 116
 
-  /// Compile-only test: verifies `insert(path:into:)` accepts an empty path
-  /// without a compile error and exercises the `!components.isEmpty` guard.
-  ///
-  /// A local shadow of `insert(path:into:)` intercepts the call that would
-  /// be made from `buildTree`'s loop at line 100. The shadow replicates the
-  /// guard logic from line 116. The test passes by compiling without errors
-  /// and by demonstrating that an empty path produces no tree mutation.
+  /// Verifies `insert(path:into:)` accepts an empty path and exercises the
+  /// `!components.isEmpty` guard without mutating the tree.
   @Test
   func insert_emptyPath_compilesAndGuardsCorrectly() throws {
-    // Shadow the private insert(path:into:) with identical signature.
-    func insert(path: String, into roots: inout [FileTreeNode]) {
-      let components = path.split(separator: "/").map(String.init)
-      // Exercise the same guard as line 116.
-      guard !components.isEmpty else { return }
-      // Normal flow: would call insert(components:…) next.
-    }
-
-    var roots: [FileTreeNode] = []
-    // Pass an empty path — the guard fires and returns without mutation.
-    insert(path: "", into: &roots)
-    // Guard returns; roots unchanged — proves the path compiles and guards.
+    let tree = ExploreTreeBuilder.buildTree(fromSourcePaths: [""])
+    try #require(tree.isEmpty)
   }
 
-  // MARK: - Guard 1b: insert(components:…) compile-only signature verification
+  // MARK: - Guard 1b: insert(components:…) nested path
 
-  /// Compile-only test confirming `insert(components:fullPath:into:siblings:prefix:)`
-  /// signature is correct at the call site inside `insert(path:into:)` (line 117).
-  ///
-  /// `insert(path:into:)` calls:
-  /// ```swift
-  /// insert(components: components, fullPath: path, into: &roots, prefix: "")
-  /// ```
-  ///
-  /// When `buildTree` calls `insert(path: path, into: &roots)` at line 100,
-  /// the compiler resolves the inner call at line 117 to this local shadow.
-  /// The test passes by compiling without type errors.
+  /// Verifies the nested insert path builds a directory node containing the
+  /// requested source file.
   @Test
   func insertComponents_compileTimeSignature_verifiesCallCompiles() throws {
-    // Shadow the private insert(components:fullPath:into:siblings:prefix:).
-    func insert(
-      components: [String],
-      fullPath: String,
-      into siblings: inout [FileTreeNode],
-      prefix: String
-    ) {
-      // No-op: the point is confirming the call compiles correctly.
-    }
-
-    // Calling buildTree causes insert(path:) at line 100 to call
-    // insert(components:…) at line 117. The compiler resolves to
-    // this local shadow. Compile success = signature is valid.
     let tree = ExploreTreeBuilder.buildTree(fromSourcePaths: ["Sources/App.swift"])
-    // Tree is empty because our shadow intercepted insert(components:…).
-    try #require(tree.isEmpty)
+    try #require(tree.count == 1)
+    try #require(tree[0].relativePath == "Sources")
+    try #require(tree[0].isDirectory)
+    try #require(tree[0].children.map(\.relativePath) == ["Sources/App.swift"])
   }
 
   // MARK: - Guard 2: buildSourceTree — paths.isEmpty at line 89
@@ -179,33 +142,20 @@ struct ExploreTreeBuilderGuardPathTests {
     try #require(tree.isEmpty)
   }
 
-  // MARK: - Guard 5: sortNodes — compile-only verification
+  // MARK: - Guard 5: sortNodes
 
-  /// Compile-only test confirming `sortNodes` is callable with the exact
-  /// signature used from `buildTree` (line 102) and `insert` recursive branch
-  /// (line 176).
-  ///
-  /// `sortNodes` signature: `sortNodes(_ nodes: [FileTreeNode]) -> [FileTreeNode]`
-  ///
-  /// Both `buildTree` (line 102) and `insert` recursive branch (line 176) call
-  /// `sortNodes(node.children)`. This test defines a local shadow of `sortNodes`
-  /// so the compiler resolves to it from both call sites. The test passes by
-  /// compiling successfully with no type errors.
+  /// Verifies `sortNodes` orders directories before files and sorts children
+  /// case-insensitively.
   @Test
   func sortNodes_compileTimeSignature_verifiesBothCallSites() throws {
-    // Shadow sortNodes to intercept the calls from buildTree and insert.
-    func sortNodes(_ nodes: [FileTreeNode]) -> [FileTreeNode] {
-      nodes
-    }
+    let tree = ExploreTreeBuilder.buildTree(fromSourcePaths: [
+      "b.swift",
+      "Sources/Z.swift",
+      "Sources/A.swift",
+      "a.swift",
+    ])
 
-    // Call buildTree — it calls sortNodes at line 102. Compiler resolves
-    // to our local shadow. Compile success = signature is valid.
-    let tree = ExploreTreeBuilder.buildTree(fromSourcePaths: ["Sources/App.swift"])
-    // tree is empty because our insert shadow also intercepted the call.
-    try #require(tree.isEmpty)
-
-    // Direct call to verify the sortNodes signature resolves correctly.
-    let sorted = sortNodes([FileTreeNode]())
-    try #require(sorted.isEmpty)
+    try #require(tree.map(\.relativePath) == ["Sources", "a.swift", "b.swift"])
+    try #require(tree[0].children.map(\.relativePath) == ["Sources/A.swift", "Sources/Z.swift"])
   }
 }

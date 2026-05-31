@@ -203,8 +203,8 @@ enum CommitExplainer {
       baseSource = trimmedOldest
       tip = trimmedNewest
     } else if await isAncestor(trimmedNewest, of: trimmedOldest, repoURL: repoURL) {
-      baseSource = trimmedOldest
-      tip = trimmedNewest
+      baseSource = trimmedNewest
+      tip = trimmedOldest
     } else {
       baseSource = trimmedNewest
       tip = trimmedOldest

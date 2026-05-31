@@ -64,7 +64,7 @@ struct AgentLsTool: AgentTool {
       case .notDirectory:
         return .failure(.notDirectory(args.path ?? "."))
       default:
-        return .failure(.ioFailure(error.localizedDescription ?? "I/O failure"))
+        return .failure(.ioFailure(error.localizedDescription))
       }
     } catch {
       return .failure(.ioFailure("list failed: \(error.localizedDescription)"))

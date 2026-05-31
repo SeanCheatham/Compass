@@ -39,7 +39,7 @@ enum AgentSecretStorageError: LocalizedError, Equatable {
 /// POSIX permissions to `0600` (owner read/write only) so other accounts
 /// on the same machine can't read the secret. The parent directory is
 /// created on demand and pinned to `0700`.
-struct AgentFileSecretStorage: AgentSecretStorage {
+struct AgentFileSecretStorage: AgentSecretStorage, @unchecked Sendable {
   let root: URL
   /// `FileManager` is not `Sendable` because its underlying coordinate
   /// methods can race, but this struct is a concrete type — not a protocol

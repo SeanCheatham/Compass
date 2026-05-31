@@ -16,6 +16,11 @@ struct AgentGenerateImageTool: AgentTool {
   struct Arguments: Codable {
     let prompt: String
     let outputPath: String
+
+    enum CodingKeys: String, CodingKey {
+      case prompt
+      case outputPath = "output_path"
+    }
   }
 
   let spec: AgentToolSpec
@@ -31,14 +36,14 @@ struct AgentGenerateImageTool: AgentTool {
     let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
-      "required": ["prompt", "outputPath"],
+      "required": ["prompt", "output_path"],
       "properties": [
         "prompt": [
           "type": "string",
           "description":
             "Description of the image to generate. Be specific about subject, style, lighting, and framing — the model has no context beyond this text.",
         ],
-        "outputPath": [
+        "output_path": [
           "type": "string",
           "description":
             "Path under the working directory where the image bytes are written. Must end with .png, .jpg, .jpeg, or .webp. Intermediate directories are created automatically.",

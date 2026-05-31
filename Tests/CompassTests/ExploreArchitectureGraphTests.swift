@@ -96,8 +96,7 @@ struct ExploreArchitectureGraphTests {
     // C imports nothing
 
     let sorted = graph.mostDependedOn
-    #expect(sorted.first == c)
-    #expect(sorted.last == a || sorted.last == b)
+    #expect(sorted == [c])
   }
 
   // MARK: - likelyEntryPoints
@@ -122,7 +121,7 @@ struct ExploreArchitectureGraphTests {
 
   @Test
   func likelyEntryPoints_emptyGraph_returnsEmpty() throws {
-    var graph = ImportGraph()
+    let graph = ImportGraph()
     #expect(graph.likelyEntryPoints.isEmpty)
   }
 
@@ -149,7 +148,7 @@ struct ExploreArchitectureGraphTests {
 
   @Test
   func textGraph_emptyGraph_doesNotCrash() throws {
-    var graph = ImportGraph()
+    let graph = ImportGraph()
     let output = graph.textGraph()
     try #require(!output.isEmpty)
     // Empty graph still produces all section headers
@@ -498,7 +497,7 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // Three files all importing the same target
-    for (idx, sourcePath) in ["A.swift", "B.swift", "C.swift"].enumerated() {
+    for sourcePath in ["A.swift", "B.swift", "C.swift"] {
       try writeEntry(
         dir, relativePath: sourcePath,
         imports: [

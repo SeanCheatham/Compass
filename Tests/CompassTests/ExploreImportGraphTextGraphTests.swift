@@ -53,7 +53,6 @@ struct ExploreImportGraphTextGraphTests {
 
     let sourcesRange = output.range(of: "📁 Sources/")
     let zooRange = output.range(of: "📁 Zoo/")
-    let exploreRange = output.range(of: "📁 Explore/")
 
     // Alphabetical order: Explore < Sources < Zoo
     if let exploreRange = output.range(of: "📁 Explore/"),
@@ -191,7 +190,10 @@ struct ExploreImportGraphTextGraphTests {
       output.range(of: "=== Key Dependencies ===").map {
         output[$0.upperBound...]
       } ?? output[output.startIndex...]
-    let sectionStr = String(section)
+    let sectionStr =
+      String(section)
+      .components(separatedBy: "=== Entry Points ===")
+      .first ?? ""
 
     // Count "•" markers in the Key Dependencies section
     let bulletCount = sectionStr.components(separatedBy: "•").count - 1
@@ -229,18 +231,22 @@ struct ExploreImportGraphTextGraphTests {
     let entryB = ImportGraph.Node(path: "Sources/EntryB.swift")
     let sink = ImportGraph.Node(path: "Core/Sink.swift")
 
-    // entryA → entryB (both have outgoing, no incoming)
-    graph.addEdge(from: entryA, to: entryB, rawImport: "EntryB")
-    // entryB → sink (sink has incoming, no outgoing)
+    // Both entries have outgoing edges and no incoming edges.
+    graph.addEdge(from: entryA, to: sink, rawImport: "Sink")
     graph.addEdge(from: entryB, to: sink, rawImport: "Sink")
 
     let output = graph.textGraph()
 
+    let entrySection =
+      output.range(of: "=== Entry Points ===").map {
+        String(output[$0.upperBound...])
+      } ?? ""
+
     #expect(output.contains("=== Entry Points ==="))
-    #expect(output.contains("• Sources/EntryA.swift"))
-    #expect(output.contains("• Sources/EntryB.swift"))
+    #expect(entrySection.contains("• Sources/EntryA.swift"))
+    #expect(entrySection.contains("• Sources/EntryB.swift"))
     // Core/Sink.swift has incoming but no outgoing — not an entry point
-    #expect(!output.contains("• Core/Sink.swift"))
+    #expect(!entrySection.contains("• Core/Sink.swift"))
   }
 
   @Test
@@ -248,13 +254,18 @@ struct ExploreImportGraphTextGraphTests {
     var graph = ImportGraph()
     graph.addEdge(
       from: ImportGraph.Node(path: "Zoo/Animal.swift"),
-      to: ImportGraph.Node(path: "App.swift"),
-      rawImport: "App"
+      to: ImportGraph.Node(path: "Core/Sink.swift"),
+      rawImport: "Core/Sink"
     )
     graph.addEdge(
       from: ImportGraph.Node(path: "App.swift"),
-      to: ImportGraph.Node(path: "Alpha/First.swift"),
-      rawImport: "Alpha/First"
+      to: ImportGraph.Node(path: "Core/Sink.swift"),
+      rawImport: "Core/Sink"
+    )
+    graph.addEdge(
+      from: ImportGraph.Node(path: "Alpha/First.swift"),
+      to: ImportGraph.Node(path: "Core/Sink.swift"),
+      rawImport: "Core/Sink"
     )
 
     let output = graph.textGraph()
@@ -300,7 +311,7 @@ struct ExploreImportGraphTextGraphTests {
 
   @Test
   func textGraph_emptyGraph_showsAllSectionHeadersNoEntries() throws {
-    var graph = ImportGraph()
+    let graph = ImportGraph()
     let output = graph.textGraph()
 
     #expect(output.contains("=== Architecture Graph ==="))

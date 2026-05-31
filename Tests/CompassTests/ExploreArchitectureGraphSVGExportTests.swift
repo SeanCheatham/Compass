@@ -92,8 +92,8 @@ struct ExploreArchitectureGraphSVGExportTests {
     let store = CodemapStore(directory: dir, prettyPrint: true)
 
     for (path, imports) in [
-      ("source.swift", [CodemapImport(raw: "middle", line: 1)] as [CodemapImport]),
-      ("middle.swift", [CodemapImport(raw: "sink", line: 1)]),
+      ("source.swift", [CodemapImport(raw: "./middle.swift", line: 1)] as [CodemapImport]),
+      ("middle.swift", [CodemapImport(raw: "./sink.swift", line: 1)]),
       ("sink.swift", [] as [CodemapImport]),
     ] {
       let entry = CodemapEntry(
@@ -148,7 +148,7 @@ struct ExploreArchitectureGraphSVGExportTests {
       contentHash: "hasha",
       sizeBytes: 0,
       symbols: [],
-      imports: [CodemapImport(raw: "B", line: 1)],
+      imports: [CodemapImport(raw: "./B.swift", line: 1)],
       summary: nil,
       summaryModel: nil,
       summaryContentHash: nil,
@@ -162,7 +162,7 @@ struct ExploreArchitectureGraphSVGExportTests {
       contentHash: "hashb",
       sizeBytes: 0,
       symbols: [],
-      imports: [CodemapImport(raw: "A", line: 1)],
+      imports: [CodemapImport(raw: "./A.swift", line: 1)],
       summary: nil,
       summaryModel: nil,
       summaryContentHash: nil,

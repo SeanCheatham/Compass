@@ -89,8 +89,8 @@ struct AgentGrepTool: AgentTool {
     } catch let error as AgentFilesystemError {
       switch error {
       case .transportFailure:
-        return .failure(.rpcFailure(error.localizedDescription ?? "transport failure"))
-      default: return .failure(.ioFailure(error.localizedDescription ?? "I/O failure"))
+        return .failure(.rpcFailure(error.localizedDescription))
+      default: return .failure(.ioFailure(error.localizedDescription))
       }
     } catch {
       return .failure(.ioFailure("grep launch failed: \(error.localizedDescription)"))

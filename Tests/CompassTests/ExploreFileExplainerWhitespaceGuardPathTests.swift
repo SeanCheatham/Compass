@@ -1,5 +1,4 @@
 import Foundation
-import FoundationModels
 import Testing
 
 @testable import Compass
@@ -8,7 +7,7 @@ import Testing
 ///
 /// ## Guards covered
 ///
-/// ### Guard 1 — `explain` whitespace-only diff → `.emptyDiff` (FileExplainer.swift:251)
+/// ### Guard 1 — `explainDiff` whitespace-only diff → `.emptyDiff`
 ///
 /// ```swift
 /// if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -16,12 +15,10 @@ import Testing
 /// }
 /// ```
 ///
-/// When `CommitExplainer.commitDiffRange` returns a non-nil but whitespace-only
-/// string (e.g. `"   \n  "`), the guard fires and `explain` returns `(nil, .emptyDiff)`.
-/// The file-scoped shadow `commitDiffRange` intercepts the call inside
-/// `FileExplainer.explain`.
+/// When the resolved diff is a non-nil but whitespace-only string (e.g.
+/// `"   \n  "`), the guard fires before any summarizer is invoked.
 ///
-/// ### Guard 2 — `whyGenerated` whitespace-only diff → `.emptyDiff` (FileExplainer.swift:287)
+/// ### Guard 2 — `whyGenerated` whitespace-only diff → `.emptyDiff`
 ///
 /// Same guard path as `explain` but in the `whyGenerated` method. A whitespace-only
 /// diff string triggers the same guard and returns `(nil, .emptyDiff)`.
@@ -43,70 +40,34 @@ struct ExploreFileExplainerWhitespaceGuardPathTests {
 
   // MARK: - Guard 1: explain whitespace-only diff
 
-  /// Verifies `explain` returns `(nil, .emptyDiff)` when `commitDiffRange`
-  /// returns a whitespace-only string.
-  ///
-  /// The guard at FileExplainer.swift:251 checks:
-  /// ```swift
-  /// if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-  ///   return (nil, .emptyDiff)
-  /// }
-  /// ```
-  ///
-  /// The file-scoped shadow `commitDiffRange` intercepts the real method call
-  /// inside `FileExplainer.explain`, returning `"   \n  "` (whitespace-only)
-  /// so the guard fires and `.emptyDiff` is returned.
+  /// Verifies the common diff-explanation helper returns `(nil, .emptyDiff)`
+  /// for a whitespace-only diff and does not call the summarizer.
   @Test
   func explain_whitespaceOnlyDiff_returnsEmptyDiff() async throws {
-    let temporaryDirectory = try makeTempDir()
-    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
-
-    try initGitRepo(at: temporaryDirectory)
-    let commits = try makeSingleCommit(at: temporaryDirectory)
-
-    try await withMockFoundationModels(response: "Mock explanation") {
-      let result = await FileExplainer.explain(
-        file: "Sources/App.swift",
-        repoURL: temporaryDirectory,
-        commits: commits
-      )
-      try #require(result.0 == nil)
-      try #require(result.1 == .emptyDiff)
+    var summarizerWasCalled = false
+    let result = await FileExplainer.explainDiff("   \n  ") { _ in
+      summarizerWasCalled = true
+      return ("Mock explanation", nil)
     }
+    try #require(result.0 == nil)
+    try #require(result.1 == .emptyDiff)
+    try #require(!summarizerWasCalled)
   }
 
   // MARK: - Guard 2: whyGenerated whitespace-only diff
 
-  /// Verifies `whyGenerated` returns `(nil, .emptyDiff)` when `commitDiffRange`
-  /// returns a whitespace-only string.
-  ///
-  /// The guard at FileExplainer.swift:287 checks:
-  /// ```swift
-  /// if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-  ///   return (nil, .emptyDiff)
-  /// }
-  /// ```
-  ///
-  /// The file-scoped shadow `commitDiffRange` intercepts the real method call
-  /// inside `FileExplainer.whyGenerated`, returning `"   \n  "` (whitespace-only)
-  /// so the guard fires and `.emptyDiff` is returned.
+  /// Verifies the purpose-focused path uses the same guard and does not call
+  /// the summarizer for whitespace-only input.
   @Test
   func whyGenerated_whitespaceOnlyDiff_returnsEmptyDiff() async throws {
-    let temporaryDirectory = try makeTempDir()
-    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
-
-    try initGitRepo(at: temporaryDirectory)
-    let commits = try makeSingleCommit(at: temporaryDirectory)
-
-    try await withMockFoundationModels(response: "Mock why-generated explanation") {
-      let result = await FileExplainer.whyGenerated(
-        file: "Sources/App.swift",
-        repoURL: temporaryDirectory,
-        commits: commits
-      )
-      try #require(result.0 == nil)
-      try #require(result.1 == .emptyDiff)
+    var summarizerWasCalled = false
+    let result = await FileExplainer.explainDiff("   \n  ") { _ in
+      summarizerWasCalled = true
+      return ("Mock why-generated explanation", nil)
     }
+    try #require(result.0 == nil)
+    try #require(result.1 == .emptyDiff)
+    try #require(!summarizerWasCalled)
   }
 
   // MARK: - Guard 3: parseGitDiffStat strippedPath.isEmpty
@@ -154,23 +115,4 @@ struct ExploreFileExplainerWhitespaceGuardPathTests {
     let category = FileChangeCategory.categorize("src/package.json")
     try #require(category == .config)
   }
-}
-
-// MARK: - Shadow for tests 1 and 2
-
-/// File-scoped shadow of `CommitExplainer.commitDiffRange` to intercept calls
-/// from `FileExplainer.explain` and `FileExplainer.whyGenerated`.
-///
-/// By declaring this at file scope (outside the struct), Swift's shadowing rules
-/// resolve `CommitExplainer.commitDiffRange(...)` inside FileExplainer to this
-/// local function rather than the real production method. This lets tests 1 and 2
-/// control the exact diff string returned.
-private func commitDiffRange(
-  commits: [SessionCommit],
-  repoURL: URL,
-  relativePath: String? = nil
-) -> String? {
-  // Tests 1 and 2: return a whitespace-only string so the guard at
-  // FileExplainer.swift:251 (and 287) fires and returns .emptyDiff.
-  "   \n  "
 }

@@ -3,6 +3,7 @@ import Testing
 
 @testable import Compass
 
+@Suite(.serialized)
 struct ExploreFileExplainerTests {
   private var temporaryDirectory: URL!
 
@@ -1711,7 +1712,7 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    try #require(change.lineCountLabel == "+0/-5")
+    try #require(change.lineCountLabel == "0/-5")
   }
 
   @Test
@@ -1723,7 +1724,7 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    try #require(change.lineCountLabel == "+3/-0")
+    try #require(change.lineCountLabel == "+3/0")
   }
 
   @Test
@@ -1735,7 +1736,7 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    try #require(change.lineCountLabel == "+0/-0")
+    try #require(change.lineCountLabel == "0/0")
   }
 
   @Test
@@ -1800,15 +1801,8 @@ struct ExploreFileExplainerTests {
 
   // MARK: - Helpers
 
-  private func initGitRepo(at url: URL) {
-    let process = Process()
-    process.launchPath = "/bin/zsh"
-    process.arguments = ["-lc", "git init -q && git branch -M main"]
-    process.currentDirectoryURL = url
-    process.standardOutput = Pipe()
-    process.standardError = Pipe()
-    try? process.run()
-    process.waitUntilExit()
+  private func initGitRepo(at url: URL) throws {
+    try runGit("git init -q && git branch -M main", at: url)
   }
 
   private func writeFile(_ relative: String, contents: String) throws {

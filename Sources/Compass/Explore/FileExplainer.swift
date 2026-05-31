@@ -1,43 +1,3 @@
-/// # Explore Layer
-///
-/// Explore is an AI-powered explanation system for the software Compass produces.  It
-/// exists to solve a fundamental problem with generated code: the humans responsible
-/// for it often cannot explain it.  As the Vision puts it, Explore "helps the user
-/// understand what was built, why it was built that way, and how the pieces fit
-/// together — turning opaque generated code into something a human can inspect,
-/// navigate, and confidently stand behind."
-///
-/// ## Components
-///
-/// Explore is composed of five Foundation Models-driven components:
-///
-/// | Component | Role | Foundation Models entry point |
-/// |---|---|---|
-/// | ``FileExplainer`` | Orchestrator — UI entry point for changed-file lists and per-file explanations (``changes(for:commits:)``, ``explain(file:repoURL:commits:)``) | Delegates to ``CommitExplainer`` |
-/// | ``CommitExplainer`` | Per-commit diff summarization — converts a raw `git diff` into plain-English prose | ``summarize(diff:)`` |
-/// | ``CommitTourGenerator`` | Guided code tours — produces a narrative walk-through of a multi-commit span | ``generateTour(commits:repoURL:)`` |
-/// | ``RepoQnA`` | Repository-scale Q&A — answers natural-language questions grounded in the actual codebase | ``answer(question:repoURL:)`` |
-/// | ``ArchitectureGraph`` | Architectural import-graph analysis — visualizes module boundaries and dependencies | ``explain(graph:repoURL:)`` |
-///
-/// ## Composition
-///
-/// - **FileExplainer → CommitExplainer**: When the user selects a file, FileExplainer
-///   runs `git diff` and passes the result to CommitExplainer for an AI summary of
-///   what changed in that file.
-/// - **FileExplainer → CommitTourGenerator**: For multi-commit ranges FileExplainer
-///   can route the commit list to CommitTourGenerator to produce a guided tour.
-/// - **RepoQnA**: Available independently for free-form questions about the repository.
-/// - **ArchitectureGraph**: Available independently for import-graph visualization of the codebase structure.
-///
-/// ``FileExplainer`` is the primary component the UI depends on for changed-file exploration;
-/// the other four are called through it or available independently.
-///
-/// ## Source material
-///
-/// All five components operate on live repository data — git commits, file diffs, and
-/// the codemap — so their output is always validated against the actual codebase rather
-/// than hallucinated from training data.
-
 import Foundation
 
 #if canImport(FoundationModels)
@@ -109,7 +69,15 @@ struct FileChange: Identifiable, Equatable {
 
   /// Short "+N/-N" line-count label.
   var lineCountLabel: String {
-    "\(additions >= 0 ? "+\(additions)" : "-\(additions)")/\(deletions >= 0 ? "-\(deletions)" : "+\(deletions)")"
+    "\(Self.additionLabel(additions))/\(Self.deletionLabel(deletions))"
+  }
+
+  private static func additionLabel(_ value: Int) -> String {
+    value == 0 ? "0" : "+\(value)"
+  }
+
+  private static func deletionLabel(_ value: Int) -> String {
+    value == 0 ? "0" : "-\(value)"
   }
 }
 
@@ -238,21 +206,14 @@ enum FileExplainer {
     repoURL: URL,
     commits: [SessionCommit]
   ) async -> (String?, ExplainUnavailableReason?) {
-    guard
-      let diff = await CommitExplainer.commitDiffRange(
+    await explainDiff(
+      await CommitExplainer.commitDiffRange(
         commits: commits,
         repoURL: repoURL,
         relativePath: relativePath
-      )
-    else {
-      return (nil, .noDiff)
-    }
-
-    if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      return (nil, .emptyDiff)
-    }
-
-    return await CommitExplainer.summarize(diff: diff)
+      ),
+      using: CommitExplainer.summarize(diff:)
+    )
   }
 
   /// Returns a purpose-focused explanation for a single changed file:
@@ -274,21 +235,14 @@ enum FileExplainer {
     repoURL: URL,
     commits: [SessionCommit]
   ) async -> (String?, ExplainUnavailableReason?) {
-    guard
-      let diff = await CommitExplainer.commitDiffRange(
+    await explainDiff(
+      await CommitExplainer.commitDiffRange(
         commits: commits,
         repoURL: repoURL,
         relativePath: relativePath
-      )
-    else {
-      return (nil, .noDiff)
-    }
-
-    if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      return (nil, .emptyDiff)
-    }
-
-    return await CommitExplainer.summarizeWhyGenerated(diff: diff)
+      ),
+      using: CommitExplainer.summarizeWhyGenerated(diff:)
+    )
   }
 
   /// Returns all files changed across the given commits, with their line counts
@@ -336,6 +290,17 @@ enum FileExplainer {
   }
 
   // MARK: - Private
+
+  static func explainDiff(
+    _ diff: String?,
+    using summarize: (String) async -> (String?, ExplainUnavailableReason?)
+  ) async -> (String?, ExplainUnavailableReason?) {
+    guard let diff else { return (nil, .noDiff) }
+    guard !diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      return (nil, .emptyDiff)
+    }
+    return await summarize(diff)
+  }
 
   /// Parse `git diff --stat` output into FileChange objects.
   /// Each line of --stat output looks like:

@@ -36,6 +36,7 @@
 				CompassAgentRPC/AgentRPCFraming.swift,
 				CompassGuestAgent/AgentFileOperations.swift,
 				CompassGuestAgent/AgentServer.swift,
+				CompassGuestAgent/GitRemoteCompassHelper.swift,
 				CompassGuestAgent/main.swift,
 				CompassGuestAgent/VsockListener.swift,
 			);

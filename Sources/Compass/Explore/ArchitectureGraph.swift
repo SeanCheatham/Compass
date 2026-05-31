@@ -75,7 +75,14 @@ struct ImportGraph: Sendable {
     for edge in edges {
       counts[edge.target, default: 0] += 1
     }
-    return nodes.sorted { (counts[$0] ?? 0) > (counts[$1] ?? 0) }
+    return nodes
+      .filter { (counts[$0] ?? 0) > 0 }
+      .sorted {
+        let lhsCount = counts[$0] ?? 0
+        let rhsCount = counts[$1] ?? 0
+        if lhsCount != rhsCount { return lhsCount > rhsCount }
+        return $0.path < $1.path
+      }
   }
 
   mutating func addEdge(from source: Node, to target: Node, rawImport: String) {
@@ -145,10 +152,7 @@ struct ImportGraph: Sendable {
 
     lines.append("")
     lines.append("=== Entry Points ===")
-    let entryPoints = nodes.filter { node in
-      !(edges.map { $0.target }).contains(node)
-    }
-    for node in entryPoints.sorted(by: { $0.path < $1.path }) {
+    for node in likelyEntryPoints.sorted(by: { $0.path < $1.path }) {
       lines.append("  • \(node.path)")
     }
 
@@ -447,16 +451,25 @@ enum ArchitectureGraph {
     // Nodes.
     for (node, pos) in positions {
       let label = (node.path as NSString).lastPathComponent
+      let escapedLabel = xmlEscaped(label)
       svg += """
 
           <g>
-            <rect x="\(pos.x)" y="\(pos.y)" width="\(nodeWidth)" height="\(nodeHeight)" rx="5" class="node-rect"/>
-            <text x="\(pos.x + nodeWidth / 2)" y="\(pos.y + nodeHeight / 2)" class="node-label">\(label)</text>
+            <rect x="\(pos.x)" y="\(pos.y)" width="\(nodeWidth)" height="\(nodeHeight)" rx="5" class="node-rect" data-label="\(escapedLabel)"/>
+            <text x="\(pos.x + nodeWidth / 2)" y="\(pos.y + nodeHeight / 2)" class="node-label">\(escapedLabel)</text>
           </g>
         """
     }
 
     svg += "\n</svg>"
     return svg
+  }
+
+  private static func xmlEscaped(_ value: String) -> String {
+    value
+      .replacingOccurrences(of: "&", with: "&amp;")
+      .replacingOccurrences(of: "\"", with: "&quot;")
+      .replacingOccurrences(of: "<", with: "&lt;")
+      .replacingOccurrences(of: ">", with: "&gt;")
   }
 }
