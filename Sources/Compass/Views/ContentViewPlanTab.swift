@@ -1327,8 +1327,24 @@ struct ArchitectureGraphPopover: View {
   }
 
   private func exportSVG() {
-    svgExportPath = nil
-    svgExportError = nil
+    let result = ArchitectureGraphPopoverLogic.exportSVGState(repoURL: repoURL)
+    svgExportPath = result.path
+    svgExportError = result.error
+  }
+
+  private func loadGraph() async {
+    isLoading = true
+    availabilityError = false
+    let result = await ArchitectureGraphPopoverLogic.loadGraphState(repoURL: repoURL)
+    graphText = result.graphText
+    explanation = result.explanation
+    availabilityError = result.availabilityError
+    isLoading = false
+  }
+}
+
+enum ArchitectureGraphPopoverLogic {
+  static func exportSVGState(repoURL: URL) -> ArchitectureGraphPopoverExportState {
     let codemapDir =
       repoURL
       .appendingPathComponent(".compass/codemap")
@@ -1336,25 +1352,30 @@ struct ArchitectureGraphPopover: View {
     let viz = CodemapGraphViz(repoURL: repoURL, codemapDirectory: codemapDir)
     do {
       if let url = try viz.writeOverviewSVG() {
-        svgExportPath = url.lastPathComponent
+        return ArchitectureGraphPopoverExportState(path: url.lastPathComponent, error: nil)
       } else {
-        svgExportError = "Codemap is empty — no files to render."
+        return ArchitectureGraphPopoverExportState(
+          path: nil,
+          error: "Codemap is empty — no files to render."
+        )
       }
     } catch {
-      svgExportError = "Failed: \(error.localizedDescription)"
+      return ArchitectureGraphPopoverExportState(
+        path: nil,
+        error: "Failed: \(error.localizedDescription)"
+      )
     }
   }
 
-  private func loadGraph() async {
-    isLoading = true
-    availabilityError = false
-
+  static func loadGraphState(repoURL: URL) async -> ArchitectureGraphPopoverLoadState {
     let codemapDir =
       repoURL
       .appendingPathComponent(".compass/codemap")
       .standardizedFileURL
     let graph = buildGraph(codemapDirectory: codemapDir)
-    graphText = graph.textGraph()
+    let graphText = graph.textGraph()
+    var explanation: String?
+    var availabilityError = false
 
     if #available(macOS 26.0, *) {
       let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL)
@@ -1362,25 +1383,23 @@ struct ArchitectureGraphPopover: View {
       if result == nil { availabilityError = true }
     }
 
-    isLoading = false
+    return ArchitectureGraphPopoverLoadState(
+      graphText: graphText,
+      explanation: explanation,
+      availabilityError: availabilityError
+    )
   }
+}
 
-  // MARK: - Test helper
+struct ArchitectureGraphPopoverExportState: Equatable {
+  var path: String?
+  var error: String?
+}
 
-  /// Triggers `exportSVG()` synchronously for testing purposes.
-  /// The method captures the `svgExportError` state that results from
-  /// `CodemapGraphViz.writeOverviewSVG()` returning `nil` (missing codemap
-  /// directory) or throwing.
-  func triggerExportSVG() async {
-    exportSVG()
-  }
-
-  /// Triggers `loadGraph()` for testing purposes.
-  /// The method exercises the `availabilityError` guard path when
-  /// `FoundationModelsAvailability.isAvailable == false`.
-  func triggerLoadGraph() async {
-    await loadGraph()
-  }
+struct ArchitectureGraphPopoverLoadState: Equatable {
+  var graphText: String
+  var explanation: String?
+  var availabilityError: Bool
 }
 
 struct QnAButton: View {
