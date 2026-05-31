@@ -26,10 +26,11 @@ struct PlanTab: View {
       languageProfile: project.languageProfile,
       launchPlan: launchPlan
     )
-    let sessionHistory = PlanSessionHistory.displayItems(for: project.sessions)
+    let historySessions = showAllSessionHistory ? project.allSessions : project.sessions
+    let sessionHistory = PlanSessionHistory.displayItems(for: historySessions)
     let reliabilityFeedback = PlanReliabilityFeedback(
       state: project.state,
-      sessions: project.sessions,
+      sessions: historySessions,
       historyItems: sessionHistory
     )
     let sessionHistoryDisplay = PlanSessionHistoryDisplay(
@@ -70,13 +71,24 @@ struct PlanTab: View {
           showAllRuns: $showAllSessionHistory,
           selectedFilter: $sessionHistoryFilter,
           runCues: reliabilityFeedback.recentRunCues,
-          repoURL: project.repoURL
+          repoURL: project.repoURL,
+          hasOlderArchivedSessions: project.hasOlderArchivedSessions,
+          isLoadingArchivedSessions: project.isLoadingArchivedSessions,
+          onLoadArchivedSessions: {
+            await project.loadArchivedSessionsIfNeeded()
+          }
         )
       }
       .frame(maxWidth: 1060, alignment: .leading)
     }
     .onAppear {
       normalizeSelection(for: items)
+    }
+    .onChange(of: showAllSessionHistory) { _, showAll in
+      guard showAll else { return }
+      Task {
+        await project.loadArchivedSessionsIfNeeded()
+      }
     }
     .onChange(of: project.state) {
       normalizeSelection(for: PlanTimelineItem.items(for: project.state))
@@ -560,6 +572,9 @@ struct PlanSessionHistorySection: View {
   @Binding var selectedFilter: PlanSessionHistoryFilter
   var runCues: [Int: PlanReliabilityFeedback.RunCue] = [:]
   var repoURL: URL
+  var hasOlderArchivedSessions = false
+  var isLoadingArchivedSessions = false
+  var onLoadArchivedSessions: () async -> Void = {}
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -593,9 +608,16 @@ struct PlanSessionHistorySection: View {
             .padding(.vertical, 5)
             .background(.quaternary.opacity(0.55), in: Capsule())
 
-          if display.shouldOfferModeToggle {
+          if display.shouldOfferModeToggle || hasOlderArchivedSessions {
             Button {
-              showAllRuns.toggle()
+              if !showAllRuns {
+                Task {
+                  await onLoadArchivedSessions()
+                  showAllRuns = true
+                }
+              } else {
+                showAllRuns = false
+              }
             } label: {
               Label(
                 display.mode == .all ? "Show Recent" : "Show All",
@@ -604,6 +626,7 @@ struct PlanSessionHistorySection: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .disabled(isLoadingArchivedSessions)
           }
         }
       }

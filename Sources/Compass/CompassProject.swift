@@ -13,6 +13,9 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var assumptions: [AssumptionRecord] = []
   @Published var vision = ""
   @Published var sessions: [SessionRecord] = []
+  @Published var archivedSessions: [SessionRecord] = []
+  @Published var hasOlderArchivedSessions = false
+  @Published var isLoadingArchivedSessions = false
   @Published var languageProfile = RepositoryLanguageProfile.empty
   @Published var forgeProfile: ForgeProfile?
   @Published var activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned()
@@ -61,6 +64,29 @@ final class CompassProject: ObservableObject, Identifiable {
   /// Develop + post-checks inner loop with critic feedback added.
   let maxCriticAttempts = 3
   let reflectSessionWindow = 10
+  var allSessions: [SessionRecord] {
+    let merged = archivedSessions + sessions
+    var bySession: [Int: SessionRecord] = [:]
+    for record in merged {
+      bySession[record.session] = record
+    }
+    return bySession.values.sorted { lhs, rhs in
+      if lhs.session == rhs.session {
+        return lhs.startedAt < rhs.startedAt
+      }
+      return lhs.session < rhs.session
+    }
+  }
+
+  func loadArchivedSessionsIfNeeded() async {
+    guard hasOlderArchivedSessions, archivedSessions.isEmpty, !isLoadingArchivedSessions else {
+      return
+    }
+    guard let workspace else { return }
+    isLoadingArchivedSessions = true
+    defer { isLoadingArchivedSessions = false }
+    archivedSessions = workspace.readArchivedSessions()
+  }
 
   init(
     id: UUID = UUID(),

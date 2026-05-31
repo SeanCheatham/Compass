@@ -732,7 +732,10 @@ struct WorkspaceContent: View {
           repoURL: project.repoURL,
           workspace: project.workspace,
           isActive: selectedTab == .explore,
-          sessionRecords: { project.sessions }
+          sessionRecords: { project.allSessions },
+          onLoadArchivedSessions: {
+            await project.loadArchivedSessionsIfNeeded()
+          }
         )
         .equatable()
         .opacity(selectedTab == .explore ? 1 : 0)

@@ -24,7 +24,7 @@ final class CompassWorkspaceStorageMigrationTests {
     try write("lesson entry\n", to: workspace.lessonsURL)
     try write(AssumptionLedger.emptyJSON, to: workspace.assumptionsURL)
     try write("vision entry\n", to: workspace.visionURL)
-    try write("[{\"session\":1}]\n", to: workspace.sessionsRecordURL)
+    try workspace.writeSessions([SessionRecord.started(1)])
     let artifactURL = try workspace.writeSessionArtifact(
       session: 1,
       name: "develop-output.txt",
@@ -48,8 +48,9 @@ final class CompassWorkspaceStorageMigrationTests {
         == AssumptionLedger.emptyJSON
     )
     try #require(try read(plan.destinationURL.appending(path: "COMPASS.md")) == "vision entry\n")
-    try #require(
-      try read(plan.destinationURL.appending(path: "sessions.json")) == "[{\"session\":1}]\n")
+    let migratedSessions = try read(
+      plan.destinationURL.appending(path: SessionRecordStore.activeFileName))
+    try #require(migratedSessions.contains("\"session\":1"))
     try #require(
       try read(
         plan.destinationURL.appending(path: "sessions").appending(

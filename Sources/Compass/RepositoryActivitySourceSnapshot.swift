@@ -1,7 +1,7 @@
 import Foundation
 
 struct RepositoryActivitySourceSnapshot: Equatable {
-  static let maxSessionsFileBytes: UInt64 = 2 * 1024 * 1024
+  static let maxSessionsFileBytes = SessionRecordStore.maxSegmentBytes
 
   enum SourceAvailability: String, Equatable {
     case available
@@ -87,20 +87,17 @@ struct RepositoryActivitySourceSnapshot: Equatable {
     fileManager: FileManager = .default
   ) -> Self {
     let storageRootURL = workspace.compassURL.standardizedFileURL
-    let sessionsRecordURL = workspace.sessionsRecordURL.standardizedFileURL
-    let repoLocalSessionsRecordURL = workspace.repoLocalCompassURL
-      .appending(path: "sessions.json")
-      .standardizedFileURL
-    let sourceAvailability = availability(
-      storageRootURL: storageRootURL,
-      sessionsRecordURL: sessionsRecordURL,
+    let sessionStore = SessionRecordStore(compassURL: storageRootURL, fileManager: fileManager)
+    let sessionsRecordURL = sessionStore.activeRecordURL.standardizedFileURL
+    let repoLocalSessionStore = SessionRecordStore(
+      compassURL: workspace.repoLocalCompassURL.standardizedFileURL,
       fileManager: fileManager
     )
+    let repoLocalSessionsRecordURL = repoLocalSessionStore.activeRecordURL
+    let sourceAvailability = sessionStore.activeSegmentAvailability()
     let repoLocalSessionsState = Self.repoLocalSessionsState(
       activeStorage: activeStorage,
-      repoLocalStorageRootURL: workspace.repoLocalCompassURL,
-      repoLocalSessionsRecordURL: repoLocalSessionsRecordURL,
-      fileManager: fileManager
+      sessionStore: repoLocalSessionStore
     )
 
     return Self(
@@ -115,17 +112,11 @@ struct RepositoryActivitySourceSnapshot: Equatable {
 
   private static func repoLocalSessionsState(
     activeStorage: KnownProjectActiveStorage,
-    repoLocalStorageRootURL: URL,
-    repoLocalSessionsRecordURL: URL,
-    fileManager: FileManager
+    sessionStore: SessionRecordStore
   ) -> RepoLocalSessionsState {
     guard activeStorage != .repoLocal else { return .activeSource }
 
-    switch availability(
-      storageRootURL: repoLocalStorageRootURL,
-      sessionsRecordURL: repoLocalSessionsRecordURL,
-      fileManager: fileManager
-    ) {
+    switch sessionStore.activeSegmentAvailability() {
     case .available:
       return .ignoredCompatible
     case .sessionsRecordOversized:
@@ -138,46 +129,5 @@ struct RepositoryActivitySourceSnapshot: Equatable {
       .notScanned:
       return .ignoredMissing
     }
-  }
-
-  private static func availability(
-    storageRootURL: URL,
-    sessionsRecordURL: URL,
-    fileManager: FileManager
-  ) -> SourceAvailability {
-    guard directoryExists(storageRootURL, fileManager: fileManager) else {
-      return .storageRootMissing
-    }
-    guard fileExists(sessionsRecordURL, fileManager: fileManager) else {
-      return .sessionsRecordMissing
-    }
-    guard let attributes = try? fileManager.attributesOfItem(atPath: sessionsRecordURL.path),
-      let size = attributes[.size] as? NSNumber
-    else {
-      return .sessionsRecordUnreadable
-    }
-    guard size.uint64Value <= maxSessionsFileBytes else {
-      return .sessionsRecordOversized
-    }
-    guard let data = try? Data(contentsOf: sessionsRecordURL) else {
-      return .sessionsRecordUnreadable
-    }
-    guard !data.isEmpty else { return .available }
-    guard (try? JSONDecoder().decode([SessionRecord].self, from: data)) != nil else {
-      return .sessionsRecordUnreadable
-    }
-    return .available
-  }
-
-  private static func directoryExists(_ url: URL, fileManager: FileManager) -> Bool {
-    var isDirectory = ObjCBool(false)
-    return fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory)
-      && isDirectory.boolValue
-  }
-
-  private static func fileExists(_ url: URL, fileManager: FileManager) -> Bool {
-    var isDirectory = ObjCBool(false)
-    return fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory)
-      && !isDirectory.boolValue
   }
 }

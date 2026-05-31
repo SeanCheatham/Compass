@@ -33,6 +33,8 @@ extension CompassProject {
       assumptions = []
       vision = ""
       sessions = []
+      archivedSessions = []
+      hasOlderArchivedSessions = false
       activitySourceSnapshot = RepositoryActivitySourceSnapshot.noRepository(
         activeStorage: activeStorage
       )
@@ -61,6 +63,8 @@ extension CompassProject {
       assumptions = []
       vision = ""
       sessions = []
+      archivedSessions = []
+      hasOlderArchivedSessions = false
       if requireStorageRoot {
         throw AppModelError.internalInvariant(
           "Active Compass storage root is missing at \(workspace.compassURL.path)."
@@ -77,6 +81,8 @@ extension CompassProject {
     assumptions = try workspace.readAssumptionLedger().assumptions
     vision = workspace.readVision()
     sessions = workspace.readSessions()
+    archivedSessions = []
+    hasOlderArchivedSessions = workspace.hasArchivedSessions()
   }
 
   func initializeIfNeeded(_ workspace: CompassWorkspace) async throws {

@@ -23,7 +23,10 @@ struct CompassWorkspace {
   var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
   var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
   var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
-  var sessionsRecordURL: URL { compassURL.appending(path: "sessions.json") }
+  var sessionsRecordURL: URL { sessionRecordStore.activeRecordURL }
+  var sessionRecordStore: SessionRecordStore {
+    SessionRecordStore(compassURL: compassURL)
+  }
   var isRepoLocalStorage: Bool {
     compassURL.standardizedFileURL.path == repoLocalCompassURL.standardizedFileURL.path
   }
@@ -61,7 +64,7 @@ struct CompassWorkspace {
     try createFileIfMissing(lessonsURL, contents: "")
     try createFileIfMissing(assumptionsURL, contents: AssumptionLedger.emptyJSON)
     try createFileIfMissing(visionURL, contents: "")
-    try createFileIfMissing(sessionsRecordURL, contents: "[]\n")
+    try createFileIfMissing(sessionsRecordURL, contents: "")
     if isRepoLocalStorage {
       try ensureCompassIsIgnored()
     }
@@ -217,19 +220,32 @@ struct CompassWorkspace {
     try text.write(to: visionURL, atomically: true, encoding: .utf8)
   }
 
-  func readSessions() -> [SessionRecord] {
-    guard let data = try? Data(contentsOf: sessionsRecordURL), !data.isEmpty else {
-      return []
+  func readSessions(includeArchived: Bool = false) -> [SessionRecord] {
+    let store = sessionRecordStore
+    if includeArchived {
+      return store.readAllSessions()
     }
-    return (try? JSONDecoder().decode([SessionRecord].self, from: data)) ?? []
+    return store.readActiveSessions()
+  }
+
+  func readArchivedSessions() -> [SessionRecord] {
+    sessionRecordStore.readArchivedSessions()
+  }
+
+  func hasArchivedSessions() -> Bool {
+    sessionRecordStore.hasArchivedSessions()
+  }
+
+  func maxSessionNumber() -> Int {
+    sessionRecordStore.maxSessionNumber()
+  }
+
+  func previousSessionFeedback(excluding session: Int, activeSessions: [SessionRecord]) -> String {
+    sessionRecordStore.previousFeedback(excluding: session, activeSessions: activeSessions)
   }
 
   func writeSessions(_ records: [SessionRecord]) throws {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(records)
-    let text = String(decoding: data, as: UTF8.self) + "\n"
-    try text.write(to: sessionsRecordURL, atomically: true, encoding: .utf8)
+    try sessionRecordStore.writeActiveSessions(records)
   }
 
   func writeSessionArtifact(session: Int, name: String, contents: String) throws -> URL {
@@ -409,7 +425,7 @@ struct CompassWorkspaceStorageAssessment: Equatable {
     case drafts = "drafts.md"
     case lessons = "lessons.md"
     case vision = "COMPASS.md"
-    case sessionsRecord = "sessions.json"
+    case sessionsRecord = "sessions.jsonl"
 
     var relativePath: String { rawValue }
   }
@@ -1855,15 +1871,12 @@ struct CompassWorkspaceStorageActivationPlan: Equatable {
     }
 
     do {
-      let data = try Data(contentsOf: workspace.sessionsRecordURL)
-      if !data.isEmpty {
-        _ = try JSONDecoder().decode([SessionRecord].self, from: data)
-      }
+      try workspace.sessionRecordStore.validatePrimaryRecord()
     } catch {
       return CandidateValidation(
         kind: .candidateInvalid,
         missingItems: [],
-        invalidReason: "sessions.json could not be decoded: \(error.localizedDescription)"
+        invalidReason: "sessions record could not be decoded: \(error.localizedDescription)"
       )
     }
 

@@ -105,7 +105,7 @@ struct ProjectActivitySourceStatus: Equatable {
         kind: .applicationSupportActive,
         label: "Activity from Support",
         detail: [
-          "Session activity reads Application Support sessions.json.",
+          "Session activity reads Application Support session records.",
           repoLocalIgnoredSentence(snapshot.repoLocalSessionsState),
         ]
         .filter { !$0.isEmpty }
@@ -149,22 +149,23 @@ struct ProjectActivitySourceStatus: Equatable {
 
     switch snapshot.sourceAvailability {
     case .available:
-      detail = "\(storageName) sessions.json is available."
+      detail = "\(storageName) active session record is available."
     case .noRepository:
       detail = "No repository is available, so session activity uses an empty activity source."
     case .notScanned:
       detail =
-        "\(storageName) sessions.json has not been scanned yet; session activity is pending."
+        "\(storageName) session record has not been scanned yet; session activity is pending."
     case .storageRootMissing:
       detail =
         "\(storageName) activity root is missing; session activity uses an empty source until storage returns."
     case .sessionsRecordMissing:
       detail =
-        "\(storageName) sessions.json is missing; session activity uses an empty source until the record returns."
+        "\(storageName) session record is missing; session activity uses an empty source until the record returns."
     case .sessionsRecordOversized:
-      detail = "\(storageName) sessions.json is oversized and ignored for session activity."
+      detail =
+        "\(storageName) active session record is oversized and ignored for session activity."
     case .sessionsRecordUnreadable:
-      detail = "\(storageName) sessions.json is unreadable and ignored for session activity."
+      detail = "\(storageName) session record is unreadable and ignored for session activity."
     }
 
     return Presentation(
@@ -249,13 +250,13 @@ struct ProjectActivitySourceStatus: Equatable {
     case .activeSource:
       return ""
     case .ignoredMissing:
-      return "Repo-local sessions.json is missing and ignored."
+      return "Repo-local session record is missing and ignored."
     case .ignoredCompatible:
-      return "Repo-local sessions.json is present but ignored as stale repo-local activity."
+      return "Repo-local session record is present but ignored as stale repo-local activity."
     case .ignoredOversized:
-      return "Repo-local sessions.json is oversized and ignored."
+      return "Repo-local active session record is oversized and ignored."
     case .ignoredUnreadable:
-      return "Repo-local sessions.json is unreadable and ignored."
+      return "Repo-local session record is unreadable and ignored."
     }
   }
 

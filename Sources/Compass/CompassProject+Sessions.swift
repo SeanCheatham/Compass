@@ -4,7 +4,9 @@ import Foundation
 @MainActor
 extension CompassProject {
   func startSession() -> Int {
-    let nextNumber = (sessions.map(\.session).max() ?? 0) + 1
+    let storeMax = workspace?.maxSessionNumber() ?? 0
+    let memoryMax = sessions.map(\.session).max() ?? 0
+    let nextNumber = max(storeMax, memoryMax) + 1
     sessions.append(.started(nextNumber))
     try? persistSessions()
     return sessions.count - 1
@@ -33,7 +35,13 @@ extension CompassProject {
   }
 
   func previousFeedback(excluding session: Int) -> String {
-    sessions
+    if let feedback = workspace?.previousSessionFeedback(
+      excluding: session,
+      activeSessions: sessions
+    ), !feedback.isEmpty {
+      return feedback
+    }
+    return sessions
       .filter { $0.session != session && $0.endedAt != nil }
       .sorted { $0.startedAt > $1.startedAt }
       .compactMap { $0.feedback?.trimmingCharacters(in: .whitespacesAndNewlines) }

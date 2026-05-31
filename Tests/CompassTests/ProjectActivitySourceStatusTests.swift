@@ -50,8 +50,8 @@ struct ProjectActivitySourceStatusTests {
     try #require(status.label == "Activity from Support")
     try #require(status.severity == .info)
     try #require(status.systemImage == "externaldrive.fill.badge.checkmark")
-    try #require(status.detail.contains("Application Support sessions.json"))
-    try #require(status.detail.contains("Repo-local sessions.json is missing and ignored"))
+    try #require(status.detail.contains("Application Support session records"))
+    try #require(status.detail.contains("Repo-local session record is missing and ignored"))
     try #require(status.helpText.contains("storage application_support"))
     try #require(status.helpText.contains("availability available"))
     try #require(status.helpText.contains("repo-local ignored-missing"))
@@ -175,9 +175,9 @@ struct ProjectActivitySourceStatusTests {
     return RepositoryActivitySourceSnapshot(
       activeStorage: activeStorage,
       storageRootURL: activeRoot,
-      sessionsRecordURL: activeRoot.appending(path: "sessions.json"),
+      sessionsRecordURL: activeRoot.appending(path: SessionRecordStore.activeFileName),
       sourceAvailability: sourceAvailability,
-      repoLocalSessionsRecordURL: repoLocalRoot.appending(path: "sessions.json"),
+      repoLocalSessionsRecordURL: repoLocalRoot.appending(path: SessionRecordStore.activeFileName),
       repoLocalSessionsState: repoLocalSessionsState
     )
   }

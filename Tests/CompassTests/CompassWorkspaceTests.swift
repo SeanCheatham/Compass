@@ -40,7 +40,7 @@ final class CompassWorkspaceTests {
     try #require(try read(workspace.lessonsURL) == "")
     try #require(try workspace.readAssumptionLedger() == .empty)
     try #require(try read(workspace.visionURL) == "")
-    try #require(try read(workspace.sessionsRecordURL) == "[]\n")
+    try #require(try read(workspace.sessionsRecordURL) == "")
 
     let gitignore = try read(repoURL.appending(path: ".gitignore"))
     try #require(gitignore.components(separatedBy: ".compass/").count - 1 == 1)
@@ -111,23 +111,13 @@ final class CompassWorkspaceTests {
       !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
   }
 
-  @Test func testSessionsJsonDecodesLegacyRecordsWithoutExecutionEnvironmentSnapshots() throws {
+  @Test func testSessionsJSONLDecodesRecordsWithoutExecutionEnvironmentSnapshots() throws {
     let workspace = try makeInitializedWorkspace()
-    try write(
-      """
-      [
-        {
-          "session": 7,
-          "startedAt": 1000,
-          "status": "succeeded",
-          "notes": ["legacy"],
-          "commits": []
-        }
-      ]
-
-      """,
-      to: workspace.sessionsRecordURL
-    )
+    var record = SessionRecord.started(7)
+    record.startedAt = 1000
+    record.status = .succeeded
+    record.notes = ["legacy"]
+    try workspace.writeSessions([record])
 
     let records = workspace.readSessions()
 
@@ -323,7 +313,7 @@ final class CompassWorkspaceTests {
     try #require(try read(workspace.lessonsURL) == "existing lessons\n")
     try #require(try read(workspace.draftsURL) == "")
     try #require(try read(workspace.visionURL) == "")
-    try #require(try read(workspace.sessionsRecordURL) == "[]\n")
+    try #require(try read(workspace.sessionsRecordURL) == "")
 
     let gitignore = try read(repoURL.appending(path: ".gitignore"))
     try #require(gitignore == "build\n.compass/\n")

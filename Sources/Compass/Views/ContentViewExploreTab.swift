@@ -19,6 +19,7 @@ struct ExploreTab: View, Equatable {
   let workspace: CompassWorkspace?
   let isActive: Bool
   let sessionRecords: () -> [SessionRecord]
+  let onLoadArchivedSessions: () async -> Void
   @State private var fileTree: [FileTreeNode] = []
   @State private var codemapEntries: [String: CodemapEntry] = [:]
   @State private var visibleRows: [ExploreVisibleRow] = []
@@ -275,6 +276,12 @@ struct ExploreTab: View, Equatable {
         Text("All Sessions").tag(SessionScope.allSessions)
       }
       .pickerStyle(.menu)
+      .onChange(of: sessionScope) { _, scope in
+        guard scope == .allSessions else { return }
+        Task {
+          await onLoadArchivedSessions()
+        }
+      }
     }
     .padding(.horizontal, 8)
     .padding(.vertical, 6)
