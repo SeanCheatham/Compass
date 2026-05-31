@@ -501,6 +501,11 @@ extension CompassProject {
             "Guest git workspace at \(result.guestPath) is ahead of host branch \(result.context.branchName); preserving local agent commits.",
             level: .info)
           return .reused
+        case .preservedUncommittedChanges:
+          log(
+            "Guest git workspace at \(result.guestPath) has uncommitted agent changes; preserving them for the retry attempt.",
+            level: .warning)
+          return .reused
         case .rebasedLocalCommits:
           log(
             "Guest git workspace at \(result.guestPath) rebased local agent commits onto host branch \(result.context.branchName).",

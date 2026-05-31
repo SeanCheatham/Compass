@@ -47,6 +47,7 @@ enum SharedCompassVMGitWorkspaceSync {
     case alreadyCurrent
     case resetToHost
     case preservedLocalCommits
+    case preservedUncommittedChanges
     case rebasedLocalCommits
   }
 
@@ -181,6 +182,9 @@ enum SharedCompassVMGitWorkspaceSync {
     if result.stdout.contains("COMPASS_GIT_OUTCOME=local-ahead") {
       return .preservedLocalCommits
     }
+    if result.stdout.contains("COMPASS_GIT_OUTCOME=dirty") {
+      return .preservedUncommittedChanges
+    }
     if result.stdout.contains("COMPASS_GIT_OUTCOME=rebased") {
       return .rebasedLocalCommits
     }
@@ -214,16 +218,16 @@ enum SharedCompassVMGitWorkspaceSync {
       git config user.email "compass-agent@localhost"
       git remote set-url origin "$REMOTE_URL"
       git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" --tags
+      if [ -n "$(git status --porcelain)" ]; then
+        echo COMPASS_GIT_OUTCOME=dirty
+        exit 0
+      fi
       if ! git rev-parse --verify --quiet "$BRANCH" >/dev/null; then
         git checkout -b "$BRANCH" "origin/${BRANCH}"
         echo COMPASS_GIT_OUTCOME=reset
         exit 0
       fi
       git checkout "$BRANCH"
-      if [ -n "$(git status --porcelain)" ]; then
-        echo "guest worktree has uncommitted changes; commit or discard them before Compass can sync host history" >&2
-        exit 3
-      fi
       if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/${BRANCH}")" ]; then
         echo COMPASS_GIT_OUTCOME=current
       elif git merge-base --is-ancestor HEAD "origin/${BRANCH}"; then
