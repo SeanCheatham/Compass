@@ -114,6 +114,7 @@ enum SharedCompassVMGitWorkspaceSync {
     return """
       set -euo pipefail
       sudo /bin/mkdir -p /usr/local/bin
+      sudo /bin/rm -f /usr/local/bin/git-remote-compass
       /usr/bin/printf '%s\\n' '#!/bin/sh' \(SharedCompassVMGuestBridge.posixQuote(wrapperExecLine)) | sudo /usr/bin/tee /usr/local/bin/git-remote-compass >/dev/null
       sudo /bin/chmod 0755 /usr/local/bin/git-remote-compass
       /usr/local/bin/git-remote-compass --version >/dev/null

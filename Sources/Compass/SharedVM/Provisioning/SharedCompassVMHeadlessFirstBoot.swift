@@ -787,6 +787,7 @@ enum SharedCompassVMHeadlessFirstBoot {
       mkdir -p "$WORKTREES_ROOT"
       chown -R "$GUEST_USER":staff "$GUEST_HOME/Compass"
       /bin/mkdir -p /usr/local/bin
+      /bin/rm -f /usr/local/bin/git-remote-compass
       /usr/bin/printf '%s\\n' '#!/bin/sh' 'exec "\(inputs.profile.guestAgentBinaryGuestPath)" --git-remote-helper "$@"' > /usr/local/bin/git-remote-compass
       /bin/chmod 0755 /usr/local/bin/git-remote-compass
       /bin/chmod 0755 "\(inputs.profile.guestAgentBinaryGuestPath)"
