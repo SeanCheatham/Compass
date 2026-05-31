@@ -266,6 +266,9 @@ struct SharedCompassVMHeadlessFirstBootTests {
     try #require(script.contains("WORKTREES_ROOT=\"$GUEST_HOME/Compass/Worktrees\""))
     try #require(script.contains("mkdir -p \"$WORKTREES_ROOT\""))
     try #require(script.contains("chown -R \"$GUEST_USER\":staff \"$GUEST_HOME/Compass\""))
+    try #require(script.contains("/usr/local/bin/git-remote-compass"))
+    try #require(script.contains("--git-remote-helper"))
+    try #require(!script.contains("/bin/ln -sf"))
     try #require(
       !script.contains("/opt/compass/workspaces"),
       "the VirtioFS-mount symlink must be gone — AppleVirtIOFS is TCC-blocked"

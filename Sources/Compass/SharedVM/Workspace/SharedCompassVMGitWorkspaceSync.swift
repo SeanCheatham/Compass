@@ -40,6 +40,8 @@ enum SharedCompassVMGitWorkspaceSync {
     var errorDescription: String? { description }
   }
 
+  static let guestAgentBinaryGuestPath = "/usr/local/libexec/compass-guest-agent"
+
   enum Outcome: Equatable {
     case cloned
     case alreadyCurrent
@@ -76,21 +78,93 @@ enum SharedCompassVMGitWorkspaceSync {
   }
 
   private static func ensureRemoteHelperInstalled(client: AgentVsockClient) async throws {
-    let command = """
-      set -euo pipefail
-      sudo /bin/mkdir -p /usr/local/bin
-      sudo /bin/ln -sf /usr/local/libexec/compass-guest-agent /usr/local/bin/git-remote-compass
-      sudo /bin/chmod 0755 /usr/local/libexec/compass-guest-agent
-      /usr/local/bin/git-remote-compass --version >/dev/null
-      """
+    let command = remoteHelperInstallCommand()
     let result = try await client.run(
       command: command,
       workingDirectory: URL(fileURLWithPath: "/"),
       timeout: 30
     )
-    guard result.exitCode == 0 else {
-      throw SyncError.helperInstallFailed(exitCode: result.exitCode, stderr: result.stderr)
+    if result.exitCode == 0 { return }
+
+    try await installBundledGuestAgentBinary(client: client)
+    let retry = try await client.run(
+      command: command,
+      workingDirectory: URL(fileURLWithPath: "/"),
+      timeout: 30
+    )
+    guard retry.exitCode == 0 else {
+      throw SyncError.helperInstallFailed(
+        exitCode: retry.exitCode,
+        stderr: """
+          initial helper probe:
+          \(result.stderr)\(result.stdout)
+
+          after guest-agent upgrade:
+          \(retry.stderr)\(retry.stdout)
+          """
+      )
     }
+  }
+
+  static func remoteHelperInstallCommand(
+    guestAgentBinaryPath: String = guestAgentBinaryGuestPath
+  ) -> String {
+    let wrapperExecLine =
+      "exec \(SharedCompassVMGuestBridge.posixQuote(guestAgentBinaryPath)) --git-remote-helper \"$@\""
+    return """
+      set -euo pipefail
+      sudo /bin/mkdir -p /usr/local/bin
+      /usr/bin/printf '%s\\n' '#!/bin/sh' \(SharedCompassVMGuestBridge.posixQuote(wrapperExecLine)) | sudo /usr/bin/tee /usr/local/bin/git-remote-compass >/dev/null
+      sudo /bin/chmod 0755 /usr/local/bin/git-remote-compass
+      /usr/local/bin/git-remote-compass --version >/dev/null
+      """
+  }
+
+  private static func installBundledGuestAgentBinary(client: AgentVsockClient) async throws {
+    let binaryURL = try locateBundledGuestAgentBinary()
+    let binary = try Data(contentsOf: binaryURL)
+    let temporaryGuestPath = "/tmp/compass-guest-agent-\(UUID().uuidString)"
+    try await client.writeFile(binary, at: URL(fileURLWithPath: temporaryGuestPath))
+    let quotedTemporaryPath = SharedCompassVMGuestBridge.posixQuote(temporaryGuestPath)
+    let quotedInstallPath = SharedCompassVMGuestBridge.posixQuote(guestAgentBinaryGuestPath)
+    let install = """
+      set -euo pipefail
+      sudo /bin/mkdir -p /usr/local/libexec
+      sudo /usr/bin/install -m 0755 -o root -g wheel \(quotedTemporaryPath) \(quotedInstallPath)
+      /bin/rm -f \(quotedTemporaryPath)
+      """
+    let result = try await client.run(
+      command: install,
+      workingDirectory: URL(fileURLWithPath: "/"),
+      timeout: 30
+    )
+    guard result.exitCode == 0 else {
+      throw SyncError.helperInstallFailed(
+        exitCode: result.exitCode,
+        stderr: result.stderr + result.stdout
+      )
+    }
+  }
+
+  private static func locateBundledGuestAgentBinary() throws -> URL {
+    let executableName = "CompassGuestAgent"
+    let bundle = Bundle.main
+    var candidates: [URL] = []
+    if let executable = bundle.executableURL {
+      candidates.append(
+        executable.deletingLastPathComponent().appendingPathComponent(executableName)
+      )
+    }
+    candidates.append(bundle.bundleURL.appendingPathComponent(executableName))
+    candidates.append(bundle.bundleURL.appendingPathComponent("Contents/MacOS/\(executableName)"))
+    for url in candidates where FileManager.default.isExecutableFile(atPath: url.path) {
+      return url
+    }
+    throw SyncError.helperInstallFailed(
+      exitCode: 127,
+      stderr:
+        "Could not locate CompassGuestAgent binary. Searched: \(candidates.map(\.path).joined(separator: ", "))"
+    )
   }
 
   private static func cloneOrUpdateGuestWorkspace(

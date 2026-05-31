@@ -7,7 +7,14 @@ enum GitRemoteCompassHelper {
 
   static func shouldRun(arguments: [String]) -> Bool {
     let executable = URL(fileURLWithPath: arguments.first ?? "").lastPathComponent
-    return executable == "git-remote-compass" || arguments.contains("--git-remote-helper")
+    if executable == "git-remote-compass" || arguments.contains("--git-remote-helper")
+      || arguments.contains("--version")
+    {
+      return true
+    }
+    return arguments.dropFirst().contains { raw in
+      raw.hasPrefix("compass::") || raw.hasPrefix("compass://")
+    }
   }
 
   static func run(arguments: [String]) -> Never {
