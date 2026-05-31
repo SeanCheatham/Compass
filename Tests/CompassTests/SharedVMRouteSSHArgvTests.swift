@@ -215,6 +215,36 @@ struct SharedVMRouteSSHArgvTests {
     try #require(args.suffix(3) == ["-O", "exit", "compass@10.0.0.42"])
   }
 
+  // MARK: - scpUploadArguments
+
+  @Test
+  func testSCPUploadArgumentsMirrorSSHTrustOptions() throws {
+    let options = SharedCompassVMGuestBridge.ConnectionOptions(
+      identityFile: "/tmp/id_ed25519",
+      knownHostsFile: "/Users/x/Library/Application Support/Compass/known_hosts",
+      connectTimeoutSeconds: 5
+    )
+
+    let args = SharedCompassVMGuestBridge.scpUploadArguments(
+      sourcePath: "/tmp/CompassGuestAgent",
+      destination: "compass@10.0.0.42",
+      remotePath: "/tmp/compass-guest-agent",
+      options: options
+    )
+
+    try #require(args.contains(["-i", "/tmp/id_ed25519"]))
+    try #require(
+      args.contains([
+        "-o", #"UserKnownHostsFile="/Users/x/Library/Application Support/Compass/known_hosts""#,
+      ]))
+    try #require(args.contains(["-o", "StrictHostKeyChecking=yes"]))
+    try #require(args.contains(["-o", "BatchMode=yes"]))
+    try #require(args.contains(["-o", "ConnectTimeout=5"]))
+    try #require(args.contains(["-o", "ControlMaster=auto"]))
+    try #require(!args.contains("-T"))
+    try #require(args.suffix(2) == ["/tmp/CompassGuestAgent", "compass@10.0.0.42:/tmp/compass-guest-agent"])
+  }
+
   @Test
   func testPOSIXQuoteSafePathRequiresNoQuoting() throws {
     // Sanity check that the safe-character fast path doesn't add ceremony.

@@ -192,8 +192,11 @@ extension SharedCompassVM {
       )
       if probeOK {
         lastResolvedSSHDestination = destination
-        await ensureDefaultToolchainsIfNeeded()
+        guard await ensureGuestAgentReachableAfterBoot(destination: destination) else { return }
         transition(to: .ready(sshDestination: destination))
+        Task { [weak self] in
+          await self?.ensureDefaultToolchainsIfNeeded()
+        }
         return
       }
       try? await Task.sleep(nanoseconds: attemptIntervalNanoseconds)
@@ -225,6 +228,82 @@ extension SharedCompassVM {
       // Exponential backoff capped at 20s so we don't hammer ssh
       // during the long tail of slow first boots.
       attemptIntervalNanoseconds = min(attemptIntervalNanoseconds * 2, 20_000_000_000)
+    }
+  }
+
+  /// Subsequent boots should not sit in the launch gate for the full vsock
+  /// timeout when SSH is already alive. Probe both the live vsock agent and
+  /// the on-disk helper, repair the planted guest agent over SSH if needed,
+  /// then wait a short bounded window for vsock.
+  private func ensureGuestAgentReachableAfterBoot(destination: String) async -> Bool {
+    guard let machine = virtualMachine else {
+      transition(to: .error(detail: "Shared VM is not running; cannot reach guest agent."))
+      return false
+    }
+
+    let options = SharedCompassVMGuestBridge.ConnectionOptions(
+      identityFile: bundle.privateKeyURL.path,
+      knownHostsFile: bundle.knownHostsURL.path,
+      connectTimeoutSeconds: 5
+    )
+    let liveAgentReachable = await probeGuestAgentOnce(on: machine, timeout: 3)
+    let installedHelperWorks = await SharedCompassVMGuestAgentInstall.probeInstalledHelperOverSSH(
+      destination: destination,
+      options: options
+    )
+    if liveAgentReachable && installedHelperWorks {
+      return true
+    }
+
+    do {
+      try await SharedCompassVMGuestAgentInstall.repairOverSSH(
+        destination: destination,
+        options: options,
+        fileManager: dependencies.fileManager
+      )
+    } catch {
+      transition(
+        to: .error(
+          detail:
+            "Guest agent repair failed after SSH became reachable: \(SharedCompassVMAvailabilityCheck.describeVerbose(error: error))"
+        ))
+      return false
+    }
+
+    guard
+      await SharedCompassVMVsock.waitUntilReachable(
+        on: machine,
+        timeout: 45,
+        probeTimeout: 5
+      )
+    else {
+      transition(
+        to: .error(
+          detail:
+            "Guest agent did not become reachable over vsock after SSH repair. Restart the Shared VM to retry."
+        ))
+      return false
+    }
+    return true
+  }
+
+  private func probeGuestAgentOnce(on machine: VZVirtualMachine, timeout: TimeInterval) async -> Bool {
+    let client = AgentVsockClient(
+      transportFactory: {
+        let connection = try await SharedCompassVMVsock.connect(on: machine)
+        return VZVirtioSocketTransport(connection: connection)
+      },
+      requestTimeout: timeout
+    )
+    do {
+      let result = try await client.run(
+        command: "true",
+        workingDirectory: URL(fileURLWithPath: "/"),
+        timeout: timeout
+      )
+      return result.exitCode == 0
+    } catch {
+      return false
     }
   }
 
@@ -494,10 +573,12 @@ extension SharedCompassVM {
   }
 
   /// Backfills default toolchains on guests provisioned before homebrew
-  /// was split out or ripgrep was added. Failures are non-fatal.
+  /// was split out or ripgrep was added. This runs after readiness, so it
+  /// deliberately avoids driving the readiness state machine; failures are
+  /// non-fatal and the next launch can retry.
   private func ensureDefaultToolchainsIfNeeded() async {
     guard let machine = virtualMachine else { return }
-    guard await SharedCompassVMVsock.waitUntilReachable(on: machine) else { return }
+    guard await SharedCompassVMVsock.waitUntilReachable(on: machine, timeout: 10) else { return }
     let client = Self.makeVsockClient(on: machine)
     let manager = makeToolchainService()
 
@@ -525,16 +606,11 @@ extension SharedCompassVM {
     guard homebrewMissing || ripgrepMissing else { return }
 
     if homebrewMissing {
-      transition(to: .provisioningDevTools(fractionCompleted: 0.6))
       do {
         _ = try await SharedCompassVMToolchainProvisioner.provision(
           definition: SharedVMToolchainCatalog.definition(for: .homebrew),
           runner: client,
-          progress: { fraction in
-            await MainActor.run {
-              self.transition(to: .provisioningDevTools(fractionCompleted: 0.6 + fraction * 0.2))
-            }
-          }
+          progress: { _ in }
         )
       } catch {
         return
@@ -542,15 +618,10 @@ extension SharedCompassVM {
     }
 
     if ripgrepMissing {
-      transition(to: .provisioningDevTools(fractionCompleted: 0.8))
       do {
         _ = try await SharedCompassVMRipgrepProvisioner.provision(
           runner: client,
-          progress: { fraction in
-            await MainActor.run {
-              self.transition(to: .provisioningDevTools(fractionCompleted: 0.8 + fraction * 0.2))
-            }
-          }
+          progress: { _ in }
         )
       } catch {
         return

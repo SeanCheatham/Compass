@@ -40,7 +40,7 @@ enum SharedCompassVMGitWorkspaceSync {
     var errorDescription: String? { description }
   }
 
-  static let guestAgentBinaryGuestPath = "/usr/local/libexec/compass-guest-agent"
+  static let guestAgentBinaryGuestPath = SharedCompassVMGuestAgentInstall.binaryGuestPath
 
   enum Outcome: Equatable {
     case cloned
@@ -109,16 +109,9 @@ enum SharedCompassVMGitWorkspaceSync {
   static func remoteHelperInstallCommand(
     guestAgentBinaryPath: String = guestAgentBinaryGuestPath
   ) -> String {
-    let wrapperExecLine =
-      "exec \(SharedCompassVMGuestBridge.posixQuote(guestAgentBinaryPath)) --git-remote-helper \"$@\""
-    return """
-      set -euo pipefail
-      sudo /bin/mkdir -p /usr/local/bin
-      sudo /bin/rm -f /usr/local/bin/git-remote-compass
-      /usr/bin/printf '%s\\n' '#!/bin/sh' \(SharedCompassVMGuestBridge.posixQuote(wrapperExecLine)) | sudo /usr/bin/tee /usr/local/bin/git-remote-compass >/dev/null
-      sudo /bin/chmod 0755 /usr/local/bin/git-remote-compass
-      /usr/local/bin/git-remote-compass --version >/dev/null
-      """
+    SharedCompassVMGuestAgentInstall.remoteHelperInstallCommand(
+      guestAgentBinaryPath: guestAgentBinaryPath
+    )
   }
 
   private static func installBundledGuestAgentBinary(client: AgentVsockClient) async throws {
@@ -148,24 +141,11 @@ enum SharedCompassVMGitWorkspaceSync {
   }
 
   private static func locateBundledGuestAgentBinary() throws -> URL {
-    let executableName = "CompassGuestAgent"
-    let bundle = Bundle.main
-    var candidates: [URL] = []
-    if let executable = bundle.executableURL {
-      candidates.append(
-        executable.deletingLastPathComponent().appendingPathComponent(executableName)
-      )
+    do {
+      return try SharedCompassVMGuestAgentInstall.locateBundledBinary()
+    } catch {
+      throw SyncError.helperInstallFailed(exitCode: 127, stderr: "\(error)")
     }
-    candidates.append(bundle.bundleURL.appendingPathComponent(executableName))
-    candidates.append(bundle.bundleURL.appendingPathComponent("Contents/MacOS/\(executableName)"))
-    for url in candidates where FileManager.default.isExecutableFile(atPath: url.path) {
-      return url
-    }
-    throw SyncError.helperInstallFailed(
-      exitCode: 127,
-      stderr:
-        "Could not locate CompassGuestAgent binary. Searched: \(candidates.map(\.path).joined(separator: ", "))"
-    )
   }
 
   private static func cloneOrUpdateGuestWorkspace(

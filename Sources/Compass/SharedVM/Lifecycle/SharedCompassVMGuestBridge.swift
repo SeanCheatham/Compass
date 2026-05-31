@@ -158,6 +158,40 @@ struct SharedCompassVMGuestBridge {
     return arguments
   }
 
+  /// Builds the `[String]` argv to upload one local file to the guest via
+  /// `scp`. Mirrors `sshArguments` for auth, known_hosts, and multiplexing
+  /// so repair paths don't accidentally use a different trust boundary.
+  static func scpUploadArguments(
+    sourcePath: String,
+    destination: String,
+    remotePath: String,
+    options: ConnectionOptions = ConnectionOptions()
+  ) -> [String] {
+    var arguments: [String] = []
+    if let identity = options.identityFile, !identity.isEmpty {
+      arguments.append(contentsOf: ["-i", identity])
+    }
+    if let knownHosts = options.knownHostsFile, !knownHosts.isEmpty {
+      arguments.append(contentsOf: ["-o", #"UserKnownHostsFile="\#(knownHosts)""#])
+    }
+    arguments.append(contentsOf: [
+      "-o", "StrictHostKeyChecking=\(options.strictHostKeyChecking ? "yes" : "no")",
+    ])
+    if options.batchMode {
+      arguments.append(contentsOf: ["-o", "BatchMode=yes"])
+    }
+    if let timeout = options.connectTimeoutSeconds {
+      arguments.append(contentsOf: ["-o", "ConnectTimeout=\(timeout)"])
+    }
+    if options.useControlMaster {
+      arguments.append(
+        contentsOf: controlMasterOptions(persistSeconds: options.controlPersistSeconds))
+    }
+    arguments.append(sourcePath)
+    arguments.append("\(destination):\(remotePath)")
+    return arguments
+  }
+
   /// Fire-and-forget tear-down of the multiplexed SSH master for
   /// `destination`. Safe to call when no master exists — ssh prints a
   /// diagnostic on stderr and exits non-zero, which we deliberately
