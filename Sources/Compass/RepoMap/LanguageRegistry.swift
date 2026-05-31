@@ -53,6 +53,54 @@ final class LanguageRegistry: @unchecked Sendable {
     return entries[language]
   }
 
+  struct RuntimeNodeKinds: Sendable, Equatable {
+    var branchTypes: Set<String>
+    var loopTypes: Set<String>
+    var switchTypes: Set<String>
+    var errorTypes: Set<String>
+    var callTypes: Set<String>
+  }
+
+  /// Tree-sitter node names used by the World tab's static runtime-path
+  /// extractor. Kept beside the grammar registry so adding a language has one
+  /// obvious place to define both symbol indexing and control-flow scanning.
+  static func runtimeNodeKinds(for language: CodemapLanguage) -> RuntimeNodeKinds {
+    switch language {
+    case .swift:
+      return RuntimeNodeKinds(
+        branchTypes: ["if_statement"],
+        loopTypes: ["for_statement", "while_statement", "repeat_while_statement"],
+        switchTypes: ["switch_statement"],
+        errorTypes: ["do_statement", "try_expression"],
+        callTypes: ["call_expression"]
+      )
+    case .typescript, .tsx, .javascript:
+      return RuntimeNodeKinds(
+        branchTypes: ["if_statement"],
+        loopTypes: ["for_statement", "for_in_statement", "while_statement", "do_statement"],
+        switchTypes: ["switch_statement"],
+        errorTypes: ["catch_clause"],
+        callTypes: ["call_expression"]
+      )
+    case .go:
+      return RuntimeNodeKinds(
+        branchTypes: ["if_statement"],
+        loopTypes: ["for_statement"],
+        switchTypes: ["expression_switch_statement", "type_switch_statement", "select_statement"],
+        errorTypes: [],
+        callTypes: ["call_expression"]
+      )
+    case .rust:
+      return RuntimeNodeKinds(
+        branchTypes: ["if_expression"],
+        loopTypes: ["for_expression", "while_expression", "loop_expression"],
+        switchTypes: ["match_expression"],
+        errorTypes: ["try_expression"],
+        callTypes: ["call_expression"]
+      )
+    }
+  }
+
   private static func makeLanguage(for codemapLanguage: CodemapLanguage) -> Language {
     switch codemapLanguage {
     case .swift: return Language(language: tree_sitter_swift())

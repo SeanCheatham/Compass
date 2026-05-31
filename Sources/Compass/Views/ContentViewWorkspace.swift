@@ -35,7 +35,7 @@ struct MainWorkspaceView: View {
       Divider()
       WorkspaceContent(
         project: project,
-        selectedTab: selectedTab
+        selectedTab: $selectedTab
       )
       .padding(16)
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -703,7 +703,7 @@ struct WorkspaceTabButton: View {
 
 struct WorkspaceContent: View {
   @ObservedObject var project: CompassProject
-  var selectedTab: WorkspaceTab
+  @Binding var selectedTab: WorkspaceTab
   @State private var keepExploreTabMounted = false
 
   var body: some View {
@@ -721,6 +721,16 @@ struct WorkspaceContent: View {
         VisionTab(project: project)
       case .lessons:
         LessonsTab(project: project)
+      case .world:
+        WorldTab(
+          repoURL: project.repoURL,
+          workspace: project.workspace,
+          isActive: selectedTab == .world,
+          onOpenInExplore: { _ in
+            keepExploreTabMounted = true
+            selectedTab = .explore
+          }
+        )
       case .explore:
         Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -758,6 +768,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
   case assumptions
   case vision
   case lessons
+  case world
   case explore
 
   var id: Self { self }
@@ -770,6 +781,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .assumptions: return "Assumptions"
     case .vision: return "Vision"
     case .lessons: return "Lessons"
+    case .world: return "World"
     case .explore: return "Explore"
     }
   }
@@ -782,6 +794,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .assumptions: return "checklist.checked"
     case .vision: return "scope"
     case .lessons: return "book.closed"
+    case .world: return "cube.transparent"
     case .explore: return "magnifyingglass"
     }
   }
