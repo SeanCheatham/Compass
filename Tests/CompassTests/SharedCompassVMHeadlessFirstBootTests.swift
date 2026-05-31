@@ -253,15 +253,16 @@ struct SharedCompassVMHeadlessFirstBootTests {
   }
 
   @Test
-  func testBootstrapScriptCreatesGuestLocalWorktreesRoot() throws {
+  func testBootstrapScriptCreatesGuestLocalRepoRoots() throws {
     // Compass dropped the VirtioFS share + /opt/compass/workspaces
     // symlink after confirming macOS guests TCC-block AppleVirtIOFS
     // reads from every process (including LaunchAgents in gui/501
-    // and root via LaunchDaemon). Worktrees now live under the
-    // compass user's home and are vsock-synced from the host — the
-    // first-boot script just needs to materialize the empty parent
-    // dir with the right ownership.
+    // and root via LaunchDaemon). Git-backed worktrees now live under
+    // the compass user's home and are synced via the vsock Git exchange.
+    // The legacy Worktrees root remains for tar-sync fallback state.
     let script = renderStandardScript()
+    try #require(script.contains("REPOS_ROOT=\"$GUEST_HOME/Compass/Repos\""))
+    try #require(script.contains("mkdir -p \"$REPOS_ROOT\""))
     try #require(script.contains("WORKTREES_ROOT=\"$GUEST_HOME/Compass/Worktrees\""))
     try #require(script.contains("mkdir -p \"$WORKTREES_ROOT\""))
     try #require(script.contains("chown -R \"$GUEST_USER\":staff \"$GUEST_HOME/Compass\""))

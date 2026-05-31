@@ -18,6 +18,13 @@ enum SharedCompassVMVsock {
   /// other vsock-using software on the guest.
   static let guestAgentPort: UInt32 = 0x4007_ACE5
 
+  /// Port the host-side Git service listens on for guest-initiated
+  /// `git-remote-compass` connections. This is the inverse direction
+  /// of `guestAgentPort`: the guest dials the host, then Compass
+  /// bridges the connection to `git-upload-pack` / `git-receive-pack`
+  /// against a Compass-owned bare exchange repo.
+  static let gitServicePort: UInt32 = 0x4007_ACE6
+
   enum ConnectError: Error, CustomStringConvertible {
     /// VZVirtualMachine had no `VZVirtioSocketDevice` — typically means
     /// the configuration didn't attach a `VZVirtioSocketDeviceConfiguration`,

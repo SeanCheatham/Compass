@@ -25,16 +25,15 @@ extension CompassProject {
   }
 
   /// Builds a `SharedVMRoute` for a host repo URL by mapping it to
-  /// the guest-local path where Compass keeps its synced copy
+  /// the guest-local path where Compass keeps its Git-backed copy
   /// (`/Users/compass/Compass/Repos/<UUID>/worktree`). Returns nil if
   /// the VM is not ready, or if the catalog lookup fails (planner
   /// falls back to host).
   ///
   /// The mapping no longer references VirtioFS: macOS guests TCC-block
   /// `AppleVirtIOFS` reads from every process (even LaunchAgents inside
-  /// the GUI session, even root via LaunchDaemon), so Compass copies
-  /// repo contents into the guest via vsock-streamed tar instead. See
-  /// `SharedCompassVMWorktreeSync` for the push/pull machinery.
+  /// the GUI session, even root via LaunchDaemon), so Compass keeps a
+  /// real guest clone in sync through the vsock Git exchange instead.
   ///
   /// Callers must pass the user's main repo URL — never a derived
   /// per-iteration path — so every Compass phase (Plan / Reflect /
@@ -61,6 +60,13 @@ extension CompassProject {
     let guestWorkspacePath = SharedCompassVMGuestWorkspaceCatalog.guestWorktreePath(
       forEntry: catalogEntry
     )
+    let exchangeRepoURL = SharedCompassVMGitExchange.exchangeRepoURL(forHostRepoURL: hostRepoURL)
+    let gitRemoteURL = SharedCompassVMGitExchange.remoteURL(repoID: catalogEntry.id)
+    let hostBranch = SharedCompassVMGitStateStore.context(forHostRepoURL: hostRepoURL)?.branchName
+    SharedCompassVMGitService.shared.register(
+      repoID: catalogEntry.id,
+      exchangeRepoURL: exchangeRepoURL
+    )
 
     return SharedVMRoute(
       sshDestination: sshDestination,
@@ -68,7 +74,11 @@ extension CompassProject {
       guestWorkspacePath: guestWorkspacePath,
       environmentVariables: [:],
       identityFile: bundle.privateKeyURL.path,
-      knownHostsFile: bundle.knownHostsURL.path
+      knownHostsFile: bundle.knownHostsURL.path,
+      catalogID: catalogEntry.id,
+      hostBranch: hostBranch,
+      exchangeRepoURL: exchangeRepoURL,
+      gitRemoteURL: gitRemoteURL
     )
   }
 
@@ -138,11 +148,10 @@ extension CompassProject {
     let schema = AgentToolParametersSchema(json: Data(submitResultSchema.utf8))
     let environment = resolveAgentEnvironment(forHostURL: workingDirectory)
     if environment.kind == .sharedVM {
-      // Ensure the persistent guest workspace has contents before
-      // the agent's first read_file. ensurePopulated is idempotent
-      // — pays the push cost only when the guest workspace is
-      // missing, so subsequent phases / iterations / sessions
-      // skip straight to running the agent.
+      // Ensure the persistent guest workspace has current host Git
+      // history before the agent's first read_file. The git-backed path
+      // fetches/rebases in place; the legacy tar path remains as an
+      // explicit migration fallback.
       log("Guest workspace sync: checking Shared VM copy…", level: .info)
       try await ensurePersistentGuestWorkspace(forHostRepo: workingDirectory)
     }
@@ -465,6 +474,48 @@ extension CompassProject {
       return nil
     }
     let client = Self.makeVsockClient(on: machine)
+    if ProcessInfo.processInfo.environment["COMPASS_DISABLE_GUEST_GIT_SYNC"] != "1" {
+      do {
+        let result = try await SharedCompassVMGitWorkspaceSync.ensurePopulated(
+          hostRepoURL: hostRepoURL,
+          client: client
+        )
+        switch result.outcome {
+        case .cloned:
+          log(
+            "Guest git workspace cloned at \(result.guestPath) from Compass exchange \(result.context.remoteURL).",
+            level: .info)
+          return .freshlyPopulated
+        case .alreadyCurrent:
+          log(
+            "Guest git workspace already matches host branch \(result.context.branchName) at \(result.guestPath).",
+            level: .info)
+          return .reused
+        case .resetToHost:
+          log(
+            "Guest git workspace reset to host branch \(result.context.branchName) at \(result.guestPath).",
+            level: .info)
+          return .refreshedDueToHostDrift
+        case .preservedLocalCommits:
+          log(
+            "Guest git workspace at \(result.guestPath) is ahead of host branch \(result.context.branchName); preserving local agent commits.",
+            level: .info)
+          return .reused
+        case .rebasedLocalCommits:
+          log(
+            "Guest git workspace at \(result.guestPath) rebased local agent commits onto host branch \(result.context.branchName).",
+            level: .info)
+          return .refreshedDueToHostDrift
+        }
+      } catch let error as SharedCompassVMGitExchange.ExchangeError {
+        log("Guest git workspace setup blocked: \(error.description)", level: .error)
+        throw error
+      } catch let error as SharedCompassVMGitWorkspaceSync.SyncError {
+        log("Guest git workspace setup failed: \(error.description)", level: .error)
+        throw error
+      }
+    }
+
     let syncFileCount: Int
     do {
       syncFileCount = try SharedCompassVMWorktreeSync.syncableRelativePaths(in: hostRepoURL).count
@@ -561,5 +612,94 @@ extension CompassProject {
         level: .warning
       )
     }
+  }
+
+  /// Pushes the committed guest HEAD to the Compass exchange repo and
+  /// fast-forwards the host checkout from that staging ref. Returns a
+  /// human-readable issue on failure so the Develop loop can stop
+  /// cleanly instead of silently losing agent commits.
+  func promoteDevelopChangesIfNeeded(
+    mainRepoURL: URL,
+    plan: AgentExecutionLaunchPlan,
+    sessionNumber: Int,
+    verifyPassed: Bool
+  ) async -> String? {
+    guard case .sharedVM(let route) = plan.effectiveRoute,
+      let repoID = route.catalogID,
+      let machine = SharedCompassVM.shared.virtualMachine
+    else {
+      return nil
+    }
+    guard let context = SharedCompassVMGitStateStore.context(forHostRepoURL: mainRepoURL) else {
+      return nil
+    }
+
+    let stagingRef: String
+    do {
+      stagingRef = try SharedCompassVMGitExchange.stagingRef(
+        repoID: repoID,
+        sessionNumber: sessionNumber,
+        branchName: context.branchName
+      )
+    } catch {
+      return "Guest git promotion failed: \(error.localizedDescription)"
+    }
+
+    let client = Self.makeVsockClient(on: machine)
+    let guestWorkingDirectory = URL(fileURLWithPath: route.guestWorkspacePath)
+    let status: ProcessResult
+    do {
+      status = try await client.run(
+        command: "git status --porcelain",
+        workingDirectory: guestWorkingDirectory,
+        timeout: 30
+      )
+    } catch {
+      return "Guest git promotion failed at git status: \(error.localizedDescription)"
+    }
+    if status.exitCode != 0 {
+      return
+        "Guest git promotion failed at git status (exit \(status.exitCode)): \(tail(status.stderr + status.stdout, max: 2000))"
+    }
+    let dirty = status.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !dirty.isEmpty {
+      return """
+        Guest git promotion refused because the guest working tree is not clean:
+        ```
+        \(dirty)
+        ```
+        """
+    }
+
+    let quotedStaging = SharedCompassVMGuestBridge.posixQuote(stagingRef)
+    let push = try? await client.run(
+      command: "git push origin HEAD:\(quotedStaging)",
+      workingDirectory: guestWorkingDirectory,
+      timeout: 180
+    )
+    guard let push else {
+      return "Guest git promotion failed: could not run git push in guest."
+    }
+    if push.exitCode != 0 {
+      return
+        "Guest git promotion failed at git push (exit \(push.exitCode)): \(tail(push.stderr + push.stdout, max: 4000))"
+    }
+
+    do {
+      try await SharedCompassVMGitExchange.promote(
+        stagingRef: stagingRef,
+        context: context,
+        hostRepoURL: mainRepoURL
+      )
+    } catch {
+      return "Guest git promotion failed while fast-forwarding host branch: \(error.localizedDescription)"
+    }
+
+    let suffix = verifyPassed ? "." : " despite failed Verify."
+    log(
+      "Guest git promotion: pushed \(stagingRef) and fast-forwarded host branch \(context.branchName)\(suffix)",
+      level: verifyPassed ? .success : .warning
+    )
+    return nil
   }
 }

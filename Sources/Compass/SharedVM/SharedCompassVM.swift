@@ -663,6 +663,7 @@ final class SharedCompassVM: ObservableObject {
       tearDownConsolePipe()
       throw error
     }
+    SharedCompassVMGitService.shared.install(on: machine)
 
     // Headless first-boot follow-up: if we just booted a freshly-planted
     // guest, the LaunchDaemon will spend ~30-60s creating the user,
@@ -858,6 +859,7 @@ final class SharedCompassVM: ObservableObject {
     }
 
     guard let machine = virtualMachine else { return }
+    SharedCompassVMGitService.shared.remove(from: machine)
     if machine.state == .stopped {
       virtualMachine = nil
       tearDownConsolePipe()

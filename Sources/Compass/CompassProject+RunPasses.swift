@@ -272,6 +272,9 @@ extension CompassProject {
         var postChecksPassed = false
         var postCheckSummary: DevelopSummary?
         var postCheckLaunchPlan: AgentExecutionLaunchPlan?
+        var lastAttemptSummary: DevelopSummary?
+        var lastAttemptLaunchPlan: AgentExecutionLaunchPlan?
+        var lastPostCheckResult: PostCheckResult?
 
         for attempt in 1...maxDevelopAttempts {
           if stopRequested {
@@ -343,6 +346,7 @@ extension CompassProject {
           guard sessions.indices.contains(sessionIndex) else {
             throw AppModelError.internalInvariant("Develop session disappeared during agent run.")
           }
+          lastAttemptSummary = summary
           sessions[sessionIndex].feedback = summary.feedback
           lastDevelopFeedback = summary.feedback
           appendSessionNote(summary.summary, to: sessionIndex)
@@ -357,6 +361,8 @@ extension CompassProject {
           )
           finalIssues = post.verifyIssues + post.gitStatusIssues
           finalVerifyOutput = post.verifyOutput
+          lastPostCheckResult = post
+          lastAttemptLaunchPlan = launchPlan
           if sessions.indices.contains(sessionIndex) {
             sessions[sessionIndex].verifyOutput = post.verifyOutput
           }
@@ -384,21 +390,65 @@ extension CompassProject {
           let summary = postCheckSummary,
           let launchPlan = postCheckLaunchPlan
         else {
-          // Post-checks failed after every Develop attempt — hand the
-          // failure context to Plan on the next loop iteration instead
-          // of stopping auto-play.
+          if let summary = lastAttemptSummary,
+            let launchPlan = lastAttemptLaunchPlan,
+            let post = lastPostCheckResult,
+            post.gitStatusIssues.isEmpty,
+            SharedCompassVMGitStateStore.context(forHostRepoURL: workspace.repoURL) != nil
+          {
+            let note =
+              "Develop exhausted \(maxDevelopAttempts) attempts without passing Verify; promoting the latest committed guest state anyway."
+            appendSessionNote(note, to: sessionIndex)
+            log(note, level: .warning)
+            if let issue = await promoteDevelopChangesIfNeeded(
+              mainRepoURL: workspace.repoURL,
+              plan: launchPlan,
+              sessionNumber: sessions[sessionIndex].session,
+              verifyPassed: false
+            ) {
+              finalIssues.append(issue)
+              succeeded = false
+            } else if let commitIssue = await landDevelopChanges(
+              workspace: workspace,
+              summary: summary,
+              launchPlan: launchPlan,
+              sessionIndex: sessionIndex
+            ) {
+              finalIssues.append(commitIssue)
+              succeeded = false
+            } else {
+              succeeded = true
+              feedback(.commitsPromoted)
+            }
+            break criticLoop
+          }
+          // Post-checks failed after every Develop attempt and either
+          // the guest still has git-status issues or this workspace is
+          // on the legacy tar-sync fallback, where failed-Verify commits
+          // cannot be preserved safely. Hand the failure context to Plan.
           developHandOffToPlan = true
           break criticLoop
         }
 
-        // Pull guest workspace onto the host so the Critic can diff
-        // against the pre-Develop SHA. We do this regardless of the
-        // critic's verdict because the inner loop already passed —
-        // even on critic-reject the next Develop attempt sees the
-        // cumulative guest state (persistent), and the next pull
-        // overwrites the dirty host state with whatever the new
-        // Verify-passing iteration produced.
-        if case .sharedVM = launchPlan.effectiveRoute {
+        // Promote the committed guest state to the host before Critic
+        // so existing host-side diff machinery can review real commits.
+        // If Critic rejects, the next Develop attempt builds on those
+        // commits and lands follow-up commits rather than rewriting
+        // history behind the user's checkout.
+        if let issue = await promoteDevelopChangesIfNeeded(
+          mainRepoURL: workspace.repoURL,
+          plan: launchPlan,
+          sessionNumber: sessions[sessionIndex].session,
+          verifyPassed: true
+        ) {
+          finalIssues = [issue]
+          succeeded = false
+          break criticLoop
+        }
+
+        if case .sharedVM = launchPlan.effectiveRoute,
+          SharedCompassVMGitStateStore.context(forHostRepoURL: workspace.repoURL) == nil
+        {
           await pullDevelopChangesIfNeeded(
             mainRepoURL: workspace.repoURL,
             plan: launchPlan
@@ -746,15 +796,44 @@ extension CompassProject {
       }
     }
 
-    // Under `.sharedVM` the agent runs in the guest workspace,
-    // which has no `.git`, so a host-side `git status` here would
-    // either look stale (the post-Verify pull hasn't happened yet)
-    // or always-dirty (after an early pull). The Develop loop's
-    // `commitAgentChangesOnHost` does the host-side commit
-    // explicitly once Verify passes.
-    if case .sharedVM = launchPlan.effectiveRoute {
+    if case .sharedVM(let route) = launchPlan.effectiveRoute,
+      let machine = SharedCompassVM.shared.virtualMachine,
+      SharedCompassVMGitStateStore.context(forHostRepoURL: workingDirectory) != nil
+    {
+      let client = SharedCompassVM.makeVsockClient(on: machine)
+      let gitStatus = try await client.run(
+        command: "git status --porcelain",
+        workingDirectory: URL(fileURLWithPath: route.guestWorkspacePath),
+        timeout: 30
+      )
+      if gitStatus.exitCode != 0 {
+        let issue = """
+          Guest `git status --porcelain` failed unexpectedly:
+          ```
+          \(tail(gitStatus.stdout + gitStatus.stderr, max: 2000))
+          ```
+          """
+        gitStatusIssues.append(issue)
+        log("Guest working-tree status check failed.", level: .error)
+      } else {
+        let status = gitStatus.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        if status.isEmpty {
+          log("Guest working tree clean.", level: .success)
+        } else {
+          let issue = """
+            Uncommitted or untracked changes remain in the guest after Develop ran. Commit them before finishing.
+            Guest `git status --porcelain` output:
+            ```
+            \(status)
+            ```
+            """
+          gitStatusIssues.append(issue)
+          log("Guest working tree is not clean after Develop.", level: .error)
+        }
+      }
+    } else if case .sharedVM = launchPlan.effectiveRoute {
       log(
-        "Post-check: skipping host git-status check under .sharedVM (commits are managed post-Verify by the Develop loop).",
+        "Post-check: skipping host git-status check under .sharedVM tar-sync fallback.",
         level: .info)
     } else {
       let gitStatus = try await ProcessRunner.runEnv(

@@ -83,11 +83,14 @@ directory survives across sessions, iterations, and app restarts.
 This is the **source of truth** for the agent — every Plan, Reflect,
 Develop, and Verify call against this repo operates on it.
 
-There are no per-iteration host worktrees anymore. On Verify success
-the guest workspace is packed and pulled directly into the main host
-checkout via `AppModel.pullDevelopChangesIfNeeded`, and Compass runs
-`git add -A` + `git commit` there on behalf of the agent (the guest
-has no `.git`).
+There are no per-iteration host worktrees anymore. In the normal path,
+the guest workspace is a real clone of a Compass-owned bare exchange
+repo stored under the host repo's gitignored `.compass/` area. Agents
+create ordinary local commits in the guest. When an iteration is ready,
+Compass pushes those commits to a staging ref in the exchange repo and
+fast-forwards the live host branch from there. The older gitignore-aware
+tar sync remains as a migration fallback, but it is no longer the
+primary Shared VM path.
 
 There is no VirtioFS share. We tried it; macOS guests TCC-block
 `AppleVirtIOFS` reads from every process (sshd children, LaunchDaemons
@@ -106,53 +109,31 @@ allowed to touch:
   first-boot diagnostics dump). sshd children can't read AppleVirtIOFS
   anyway, and we no longer expect them to: SSH never touches worktree
   files.
-- **vsock** — every agent tool call (read_file / write_file / edit_file
+- **vsock RPC** — every agent tool call (read_file / write_file / edit_file
   / ls / glob / grep / bash) **for every phase** (Plan, Reflect,
-  Develop, Verify) and the bulk worktree sync. The host calls
+  Develop, Verify). The host calls
   `VZVirtioSocketDevice.connect(toPort:)` to open a fresh connection per
   request; the in-guest `CompassGuestAgent` binary listens on `AF_VSOCK`
   at port `0x4007ACE5`. Wire format is length-prefixed JSON
   (`Sources/CompassAgentRPC/`).
-- **Worktree sync** (over vsock) — sync is lazy, asymmetric, and
-  drift-checked:
-    - **First time** a repo's persistent guest workspace is referenced
-      (`SharedCompassVMRepoWorkspaceSync.ensurePopulated`), the host
-      packages the repo as a gitignore-aware tar
-      (`git ls-files --cached --others --exclude-standard | tar`),
-      filtered to drop heavyweight build dirs (`.build`, `target`,
-      `node_modules`, …) even when a repo's `.gitignore` omits them,
-      streams it into the guest, and records a content fingerprint
-      plus the matching file set in
-      `<repo>/.compass/guest-workspace.json` + `guest-workspace-fileset.dat`.
-    - **Subsequent sessions** recompute the host fingerprint
-      ([SharedCompassVMHostFingerprint](SharedCompassVMHostFingerprint.swift) —
-      SHA-256 over sorted `<path>\0<sha256(content)>\0` records) and
-      compare it to the recorded value. On match the fast-path
-      reuses the guest as-is, preserving accumulated agent state. On
-      mismatch — typically because the user edited the repo while
-      Compass was closed — Compass re-pushes so those edits show up
-      in the session, surfacing the outcome as `.refreshedDueToHostDrift`
-      in the log.
-    - **After Verify passes** the guest packs its current worktree
-      (excluding `.git`, `.build`, `target`, `node_modules`, `build`,
-      `dist`, `.swiftpm`) into a tar that the host reads back over
-      `readFile` and applies directly onto the main host repo.
-      Deletions are scoped to the file set captured at the last
-      push (intersected with files still present on host and absent
-      from guest), so files the user added on the host between
-      sessions survive even if the agent never saw them. After the
-      pull, Compass re-stamps the fingerprint to reflect the new
-      shared state. Compass then runs `git add -A` + `git commit -m "<agent summary>"`
-      on the main repo so the iteration's commit lands where the
-      rest of the toolchain expects it.
-    - The guest never has `.git/`. The agent cannot commit there;
-      committing is host-side only, gated on Verify success.
-    - See [SharedCompassVMWorktreeSync.swift](SharedCompassVMWorktreeSync.swift)
-      for the raw tar plumbing,
-      [SharedCompassVMHostFingerprint.swift](SharedCompassVMHostFingerprint.swift)
-      for the drift detector, and
-      [SharedCompassVMRepoWorkspaceSync.swift](SharedCompassVMRepoWorkspaceSync.swift)
-      for the session-level "fingerprint match? reuse. mismatch? re-push." policy.
+- **vsock Git** — the in-guest `git-remote-compass` helper connects to a
+  host `SharedCompassVMGitService` listener at port `0x4007ACE6`. Guest
+  remotes use `compass::<catalogID>`; the host validates the catalog ID
+  and Git service name before spawning `git-upload-pack` or
+  `git-receive-pack` against the project exchange repo.
+- **Git workspace sync** — before a run, Compass blocks if the host
+  checkout is dirty, detached, or not a Git repo. It refreshes the bare
+  exchange repo from the host's current branch and tags, then clones,
+  fetches, resets, or rebases the guest workspace through the remote
+  helper. Guest pushes are only accepted under `refs/compass/staging/*`;
+  force pushes, deletes, direct updates to `refs/heads/*`, unknown repo
+  IDs, and arbitrary filesystem paths are rejected. See
+  [Workspace/SharedCompassVMGitWorkspaceSync.swift](Workspace/SharedCompassVMGitWorkspaceSync.swift),
+  [Workspace/SharedCompassVMGitExchange.swift](Workspace/SharedCompassVMGitExchange.swift), and
+  [Transport/SharedCompassVMGitService.swift](Transport/SharedCompassVMGitService.swift).
+- **Legacy tar sync** — `SharedCompassVMRepoWorkspaceSync` still carries
+  the gitignore-aware tar path for migration-blocked workspaces and can
+  be forced with `COMPASS_DISABLE_GUEST_GIT_SYNC=1`.
 
 The guest agent is a separate SwiftPM target (`CompassGuestAgent`)
 shipped alongside the host binary and planted at
@@ -160,7 +141,7 @@ shipped alongside the host binary and planted at
 a `LaunchAgent`
 (`/Library/LaunchAgents/com.seancheatham.Compass.guest-agent.plist`)
 under the auto-logged-in `compass` user, which means it operates on
-guest-local files in `/Users/compass/Compass/Worktrees/...` — a
+guest-local files in `/Users/compass/Compass/Repos/<UUID>/worktree` — a
 non-protected path on a non-VirtioFS filesystem, so TCC is irrelevant.
 
 For the LaunchAgent to load, a GUI user session has to exist.
@@ -239,7 +220,8 @@ session unattended. The agent comes up moments later.
   LaunchAgent. SIP is on; the TCC database is not writable from inside
   the guest. With no path that grants the agent read access, the share
   is just dead weight, so the VZ configuration no longer attaches one.
-  Worktrees are vsock-synced instead (see [SharedCompassVMWorktreeSync.swift](SharedCompassVMWorktreeSync.swift)).
+  Worktrees are moved through vsock instead: normally as Git protocol
+  streams to the exchange repo, with the tar sync kept as a fallback.
 - **Why is the guest the source of truth, not the host?** Earlier
   Compass treated the host repo as primary and synced a snapshot of
   it into the guest per Develop iteration; Plan/Reflect stayed
@@ -253,32 +235,27 @@ session unattended. The agent comes up moments later.
   home directory, and agent state accumulates across iterations and
   sessions instead of getting wiped per iteration. The host worktree
   still exists for git plumbing (commits, branches, promote), but the
-  agent never reads or writes there directly. *Caveat:* between
-  sessions the host re-asserts authority via the fingerprint check
-  in `ensurePopulated` — if the user edited the repo while Compass
-  was closed, those edits are pushed in before the agent runs, so
-  the model is "guest is source of truth within a session, host
-  re-anchors the guest at session start."
-- **Why does the host commit the agent's changes instead of the agent?**
-  The agent runs entirely inside the guest, where there is no `.git`
-  (the bulk sync uses `git ls-files`, which doesn't include `.git/`).
-  Syncing `.git` would bloat each push by tens of megabytes for no
-  practical gain — the agent never needs to inspect history. So the
-  agent edits files only and Compass commits host-side after Verify
-  passes, using the agent's `summary` field as the commit message.
-  This also gives Compass a natural gate: a failed Verify produces no
-  commit, so a half-finished iteration cannot accidentally land on the
-  branch.
-- **Why gitignore-aware tar for sync instead of NFS / a host-side git
-  daemon?** Both alternatives require running a network service on the
-  host (port 2049 for NFS, port 9418 for `git daemon`) plus firewall
-  rules and an exposure model the user has to reason about. The tar
-  approach uses the existing vsock RPC with zero new ports, falls back
-  cleanly when the VM isn't ready, and excludes the dominant on-disk
-  cost (build artifacts in `.build`, `target`, `node_modules`) via
-  `git ls-files --cached --others --exclude-standard` on the push side
-  and a hard-coded prune list on the pull side. Worktrees under
-  ~80 MiB sync end-to-end in well under a second.
+  agent never reads or writes there directly. *Caveat:* each run
+  starts by refreshing the exchange repo from the host's clean current
+  branch and fetching/rebasing the guest clone as needed, so the model
+  is "guest is source of truth within a session, host re-anchors the
+  guest at session start."
+- **Why preserve agent commits instead of host-side synthetic commits?**
+  The agent now works in a real Git checkout and can inspect history,
+  create several local commits, and leave a clean committed state for
+  Compass to promote. This avoids flattening multi-step work into one
+  host-side synthetic commit and makes future `git log` / `git show`
+  output accurately reflect what the agent did. Compass still controls
+  the final host mutation: the guest pushes to a staging ref in the bare
+  exchange repo, and the host branch only advances via a fast-forward
+  promotion that starts from the recorded baseline.
+- **Why a vsock Git exchange instead of NFS / TCP git daemon / direct host
+  checkout mutation?** NFS and TCP Git introduce host network services
+  and firewall/exposure questions. Directly mutating the live host
+  checkout would also let a guest bug damage uncommitted user state.
+  The exchange repo keeps Git history without giving the guest arbitrary
+  filesystem reach: the remote helper speaks over vsock, repo IDs map to
+  Compass-owned bare repos, and promotion is a separate host-side step.
 
 ## How agent phases reach the guest
 
@@ -290,21 +267,21 @@ the agent its own filesystem paths.
 Per-session flow:
 
 1. **First reference** to a repo's guest workspace:
-   `SharedCompassVMRepoWorkspaceSync.ensurePopulated` streams the host
-   repo (gitignore-aware tar) into the guest path. Subsequent sessions
-   skip this step — the guest workspace from the prior session is
-   already there.
+   `SharedCompassVMGitWorkspaceSync.ensurePopulated` prepares the bare
+   exchange repo from the clean host branch, installs the guest remote
+   helper if needed, and clones or refreshes the guest worktree through
+   `compass::<catalogID>`.
 2. **Plan, Reflect, Develop** all run their agent loops in the guest.
    Every `AgentBashTool` / `read_file` / `write_file` / `edit_file` /
    `ls` / `glob` / `grep` call goes through vsock RPC against the
    persistent guest workspace.
 3. **Verify** (when the iteration's `verify` command is set) runs
-   inside the guest too, via the same vsock bash RPC. No host-side
-   build toolchain is needed.
-4. **On Verify success**, the host pulls the guest worktree tar
-   directly onto the main host repo and commits there
-   (`git add -A` + `git commit -m "<agent summary>"`). The agent does
-   not commit — the guest has no `.git`.
-5. **On Verify failure**, nothing pulls. Agent state stays in the
-   guest workspace; the next attempt (within or across sessions) picks
-   it up and continues.
+   inside the guest too, via the same vsock bash RPC, unless the plan
+   explicitly uses the Host Xcode bridge.
+4. **After each attempt**, Compass requires the guest worktree to be
+   clean. Verify failures prompt the agent to keep fixing, up to the
+   existing 3-attempt budget.
+5. **On success, or after the final failed Verify attempt**, Compass
+   pushes the guest `HEAD` to a staging ref, then fast-forwards the host
+   branch from that ref. Failed-Verify promotions are explicitly logged
+   as promoted with failed Verify state.

@@ -32,16 +32,10 @@ extension CompassProject {
     return nil
   }
 
-  /// Stages whatever the post-Verify pull left in the main repo and
-  /// lands it as a single commit on the user's current branch. Only
-  /// relevant for the `.sharedVM` route — under the host route the
-  /// agent already committed in-place using its `bash` tool.
-  ///
-  /// The guest workspace has no `.git`, so the agent cannot perform
-  /// the commit itself. Compass takes responsibility for it
-  /// host-side once Verify confirms the agent's work is good. The
-  /// commit message uses the agent's own `summary` so future
-  /// `git log` reads remain agent-authored.
+  /// Stages whatever a legacy post-Verify tar pull left in the main
+  /// repo and lands it as a single commit on the user's current branch.
+  /// In the normal Shared VM git-backed route, agent commits are already
+  /// promoted by fast-forward before this runs, so this becomes a no-op.
   ///
   /// Returns nil on success, or a human-readable issue string on
   /// failure.

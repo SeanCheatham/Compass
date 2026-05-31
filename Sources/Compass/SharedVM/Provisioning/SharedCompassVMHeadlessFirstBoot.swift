@@ -774,16 +774,21 @@ enum SharedCompassVMHeadlessFirstBoot {
       /sbin/ifconfig en0 2>&1 | /usr/bin/grep 'inet ' || true
       echo "  --- end sshd snapshot ---"
 
-      echo "[compass-firstboot] [4/6] Creating guest-local worktrees root"
+      echo "[compass-firstboot] [4/6] Creating guest-local repo roots"
       # macOS guests TCC-block AppleVirtIOFS reads from every process —
       # including LaunchAgents inside the GUI session and even root via
       # LaunchDaemon — so Compass abandoned the VirtioFS share and now
-      # keeps each iteration's worktree under the compass user's home.
-      # The host streams worktree contents in/out via vsock-tunneled tar
-      # at iteration boundaries; see SharedCompassVMWorktreeSync.
+      # keeps repo worktrees under the compass user's home. Git-backed
+      # workspaces live under Repos; Worktrees is kept for legacy tar-sync
+      # fallback state.
+      REPOS_ROOT="$GUEST_HOME/Compass/Repos"
       WORKTREES_ROOT="$GUEST_HOME/Compass/Worktrees"
+      mkdir -p "$REPOS_ROOT"
       mkdir -p "$WORKTREES_ROOT"
       chown -R "$GUEST_USER":staff "$GUEST_HOME/Compass"
+      /bin/mkdir -p /usr/local/bin
+      /bin/ln -sf "\(inputs.profile.guestAgentBinaryGuestPath)" /usr/local/bin/git-remote-compass
+      /bin/chmod 0755 "\(inputs.profile.guestAgentBinaryGuestPath)"
 
       # macOS sshd runs commands via the user's login shell in
       # NON-interactive, NON-login mode (e.g. `zsh -c "command"`).
