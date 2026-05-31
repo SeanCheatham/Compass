@@ -101,9 +101,8 @@ struct RepoSummarizer: Sendable {
       } catch {
         throw SummarizerError.providerError(error.localizedDescription)
       }
-      let text =
-        result.choices.first?.message.content?
-        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      let raw = result.choices.first?.message.content ?? ""
+      let text = Self.cleanedSummaryText(raw)
       if text.isEmpty { throw SummarizerError.emptyResponse }
       return text
     }
@@ -180,6 +179,13 @@ struct RepoSummarizer: Sendable {
 
   // MARK: - Internals
 
+  /// Strip `<think>` blocks reasoning models may embed in
+  /// `content` when the endpoint does not split reasoning out.
+  static func cleanedSummaryText(_ text: String) -> String {
+    let (cleaned, _) = AgentExecutor.stripThinkBlocks(text)
+    return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
   private func pickTargets() -> [CodemapEntry] {
     let codemapModel = settings.codemapModel
     return store.loadAllEntries().filter { entry in
@@ -251,7 +257,7 @@ struct RepoSummarizer: Sendable {
       """
 
     let text = try await chatRequest(prompt, model)
-    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmed = Self.cleanedSummaryText(text)
     guard !trimmed.isEmpty else { throw SummarizerError.emptyResponse }
 
     var updated = entry

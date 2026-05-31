@@ -172,6 +172,24 @@ struct RepoSummarizerTests: ~Copyable {
     try #require(secondCalls == 1)
   }
 
+  @Test
+  func testStripsThinkingBlocksFromModelResponse() async throws {
+    let store = CodemapStore(directory: cacheDirectory)
+    try await primeFile("alpha.swift", contents: swiftFixture)
+    let indexer = makeIndexer(store: store)
+    _ = try await indexer.indexAll()
+
+    let recorder = ChatRecorder(
+      response:
+        "<think>internal reasoning</think> This file provides tests."
+    )
+    let summarizer = makeSummarizer(store: store, recorder: recorder)
+    _ = await summarizer.summarizeMissing()
+
+    let entry = try #require(store.loadEntry(forRelativePath: "alpha.swift"))
+    try #require(entry.summary == "This file provides tests.")
+  }
+
   // MARK: - Helpers
 
   private let swiftFixture = """
@@ -237,9 +255,11 @@ private actor ChatRecorder {
   private var current: Int = 0
   private var peak: Int = 0
   nonisolated let delay: TimeInterval
+  nonisolated let response: String
 
-  init(callDelay: TimeInterval = 0) {
+  init(callDelay: TimeInterval = 0, response: String = "mocked-summary") {
     self.delay = callDelay
+    self.response = response
   }
 
   func callCount() -> Int { calls }
@@ -260,13 +280,14 @@ private actor ChatRecorder {
   nonisolated var chatRequest: RepoSummarizer.ChatRequest {
     let actor = self
     let pause = delay
+    let reply = response
     return { @Sendable _, _ in
       await actor.record()
       if pause > 0 {
         try? await Task.sleep(nanoseconds: UInt64(pause * 1_000_000_000))
       }
       await actor.release()
-      return "mocked-summary"
+      return reply
     }
   }
 }
