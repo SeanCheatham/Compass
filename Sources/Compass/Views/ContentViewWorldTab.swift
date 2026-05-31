@@ -183,14 +183,18 @@ final class WorldTabViewModel: ObservableObject {
 
     let codemapDirectory = CodemapStore.defaultDirectory(forWorkspace: workspace)
     let builder = WorldGraphBuilder(repoURL: repoURL, codemapDirectory: codemapDirectory)
-    let built = await builder.buildCached()
+    let built = await Task.detached(priority: .userInitiated) {
+      await builder.buildCached()
+    }.value
 
-    graph = built
-    selectedEntrypointID = built.entrypointIDs.first
-    route = WorldNavigator.route(in: built, from: selectedEntrypointID)
+    let entrypointID = built.entrypointIDs.first
+    let initialRoute = WorldNavigator.route(in: built, from: entrypointID)
+    selectedEntrypointID = entrypointID
+    route = initialRoute
     routeIndex = 0
-    selectedNodeID = route.first ?? built.nodes.first?.id
+    selectedNodeID = initialRoute.first ?? built.nodes.first?.id
     loadedRepoPath = repoPath
+    graph = built
     isLoading = false
   }
 
@@ -598,6 +602,9 @@ struct WorldRealitySceneView: View {
 
 @MainActor
 enum WorldRealitySceneFactory {
+  private static let maxSceneNodes = 450
+  private static let maxSceneEdges = 650
+
   static func makeScene(
     graph: WorldGraph,
     selectedNodeID: String?,
@@ -624,9 +631,24 @@ enum WorldRealitySceneFactory {
 
     let routePrefix = Array(route.prefix(min(routeIndex + 1, route.count)))
     let routeSet = Set(routePrefix)
-    let lookup = graph.nodeByID
+    let entrypointSet = Set(graph.entrypointIDs)
+    let sceneNodes = prioritizedSceneNodes(
+      in: graph,
+      selectedNodeID: selectedNodeID,
+      routeSet: routeSet
+    )
+    let visibleNodeIDs = Set(sceneNodes.map(\.id))
+    let lookup = Dictionary(uniqueKeysWithValues: sceneNodes.map { ($0.id, $0) })
+    let sceneEdges = prioritizedSceneEdges(
+      graph.edges.filter { edge in
+        edge.kind != .imports
+          && visibleNodeIDs.contains(edge.sourceID)
+          && visibleNodeIDs.contains(edge.targetID)
+      },
+      routeSet: routeSet
+    )
 
-    for edge in graph.edges where edge.kind != .imports {
+    for edge in sceneEdges {
       guard let source = lookup[edge.sourceID], let target = lookup[edge.targetID] else { continue }
       root.addChild(
         corridorEntity(
@@ -638,15 +660,20 @@ enum WorldRealitySceneFactory {
       )
     }
 
-    for node in graph.nodes {
+    for node in sceneNodes {
       let active = routePrefix.last == node.id
       let selected = selectedNodeID == node.id
+      let inRoute = routeSet.contains(node.id)
+      let showLabel =
+        active || selected || entrypointSet.contains(node.id)
+        || (inRoute && ![WorldNodeKind.module, .file, .type].contains(node.kind))
       root.addChild(
         chamberEntity(
           for: node,
           active: active,
           selected: selected,
-          inRoute: routeSet.contains(node.id)
+          inRoute: inRoute,
+          showLabel: showLabel
         )
       )
     }
@@ -661,6 +688,79 @@ enum WorldRealitySceneFactory {
     root.addChild(camera)
 
     return root
+  }
+
+  private static func prioritizedSceneNodes(
+    in graph: WorldGraph,
+    selectedNodeID: String?,
+    routeSet: Set<String>
+  ) -> [WorldNode] {
+    guard graph.nodes.count > maxSceneNodes else { return graph.nodes }
+    let entrypointSet = Set(graph.entrypointIDs)
+    return Array(
+      graph.nodes.sorted { lhs, rhs in
+        let lhsScore = sceneNodeScore(
+          lhs,
+          selectedNodeID: selectedNodeID,
+          routeSet: routeSet,
+          entrypointSet: entrypointSet
+        )
+        let rhsScore = sceneNodeScore(
+          rhs,
+          selectedNodeID: selectedNodeID,
+          routeSet: routeSet,
+          entrypointSet: entrypointSet
+        )
+        if lhsScore != rhsScore { return lhsScore > rhsScore }
+        return lhs.id < rhs.id
+      }.prefix(maxSceneNodes)
+    )
+  }
+
+  private static func prioritizedSceneEdges(_ edges: [WorldEdge], routeSet: Set<String>) -> [WorldEdge] {
+    guard edges.count > maxSceneEdges else { return edges }
+    return Array(
+      edges.sorted { lhs, rhs in
+        let lhsScore = sceneEdgeScore(lhs, routeSet: routeSet)
+        let rhsScore = sceneEdgeScore(rhs, routeSet: routeSet)
+        if lhsScore != rhsScore { return lhsScore > rhsScore }
+        if lhs.sourceID != rhs.sourceID { return lhs.sourceID < rhs.sourceID }
+        return lhs.targetID < rhs.targetID
+      }.prefix(maxSceneEdges)
+    )
+  }
+
+  private static func sceneNodeScore(
+    _ node: WorldNode,
+    selectedNodeID: String?,
+    routeSet: Set<String>,
+    entrypointSet: Set<String>
+  ) -> Int {
+    var score = 0
+    if node.id == selectedNodeID { score += 10_000 }
+    if routeSet.contains(node.id) { score += 8_000 }
+    if entrypointSet.contains(node.id) { score += 7_000 }
+    switch node.kind {
+    case .function: score += 600
+    case .branch, .loop, .switchCase, .errorPath: score += 520
+    case .file: score += 420
+    case .module: score += 360
+    case .unresolvedPassage: score += 300
+    case .type: score += 180
+    }
+    return score
+  }
+
+  private static func sceneEdgeScore(_ edge: WorldEdge, routeSet: Set<String>) -> Int {
+    var score = 0
+    if routeSet.contains(edge.sourceID), routeSet.contains(edge.targetID) { score += 10_000 }
+    switch edge.kind {
+    case .branches, .loops, .calls, .`throws`: score += 600
+    case .contains: score += 260
+    case .returns: score += 160
+    case .imports: score += 0
+    }
+    return score
   }
 
   private static func addLights(to root: Entity) {
@@ -688,7 +788,8 @@ enum WorldRealitySceneFactory {
     for node: WorldNode,
     active: Bool,
     selected: Bool,
-    inRoute: Bool
+    inRoute: Bool,
+    showLabel: Bool
   ) -> Entity {
     let group = Entity()
     group.name = node.id
@@ -715,7 +816,7 @@ enum WorldRealitySceneFactory {
       group.addChild(glow)
     }
 
-    if [.module, .function, .branch, .loop, .switchCase, .errorPath, .unresolvedPassage].contains(node.kind) {
+    if showLabel {
       let label = labelEntity(node.label, position: position + SIMD3<Float>(-0.42, 0.72, 0))
       group.addChild(label)
     }

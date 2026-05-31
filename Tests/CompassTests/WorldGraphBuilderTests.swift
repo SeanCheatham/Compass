@@ -78,6 +78,50 @@ struct WorldGraphBuilderTests {
   }
 
   @Test
+  func buildGraph_focusesInitialWorldWhenCodemapIsLarge() throws {
+    let repo = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repo) }
+    let codemapDir = repo.appendingPathComponent(".compass/codemap")
+    let store = CodemapStore(directory: codemapDir)
+
+    try writeIndexedSource(
+      "Sources/DemoApp.swift",
+      source: """
+        @main
+        struct DemoApp {
+          static func main() { helper() }
+          static func helper() {}
+        }
+        """,
+      language: .swift,
+      repo: repo,
+      store: store
+    )
+
+    for index in 0..<20 {
+      try writeIndexedSource(
+        "Sources/Feature\(index).swift",
+        source: "func feature\(index)() {}\n",
+        language: .swift,
+        repo: repo,
+        store: store
+      )
+    }
+
+    let graph = WorldGraphBuilder(
+      repoURL: repo,
+      codemapDirectory: codemapDir,
+      maxWorldFiles: 8
+    )
+    .build()
+
+    let fileNodes = graph.nodes.filter { $0.kind == .file }
+    #expect(fileNodes.count == 8)
+    #expect(fileNodes.contains { $0.location?.filePath == "Sources/DemoApp.swift" })
+    #expect(!graph.entrypointIDs.isEmpty)
+  }
+
+  @Test
   func navigator_branchChoicesAndRouteWork() throws {
     var graph = WorldGraph()
     let entry = WorldNode(

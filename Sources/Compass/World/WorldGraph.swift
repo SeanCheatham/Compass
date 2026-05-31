@@ -180,6 +180,11 @@ struct WorldGraphLayout {
   private static func depthByNode(in graph: WorldGraph) -> [String: Int] {
     var depths: [String: Int] = [:]
     var queue: [(String, Int)] = []
+    let traversableKinds: Set<WorldEdgeKind> = [.contains, .branches, .loops, .calls, .`throws`]
+    let outgoingEdges = Dictionary(
+      grouping: graph.edges.filter { traversableKinds.contains($0.kind) },
+      by: \.sourceID
+    )
 
     let starts = graph.entrypointIDs.isEmpty
       ? graph.nodes.filter { $0.kind == .file || $0.kind == .module }.map(\.id)
@@ -194,10 +199,7 @@ struct WorldGraphLayout {
     while cursor < queue.count {
       let (nodeID, depth) = queue[cursor]
       cursor += 1
-      let nextEdges = graph.edges.filter { edge in
-        edge.sourceID == nodeID
-          && [.contains, .branches, .loops, .calls, .`throws`].contains(edge.kind)
-      }
+      let nextEdges = outgoingEdges[nodeID] ?? []
       for edge in nextEdges {
         let nextDepth = depth + 1
         if let existing = depths[edge.targetID], existing <= nextDepth {

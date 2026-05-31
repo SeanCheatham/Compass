@@ -28,23 +28,38 @@ struct WorldGraphBuilder: Sendable {
   let repoURL: URL
   let codemapDirectory: URL
   let extractor: RuntimePathExtractor
+  let maxWorldFiles: Int
+  let maxSymbolsPerFile: Int
   let maxRuntimeFactsPerFile: Int
+  let maxSourceBytes: Int
 
   init(
     repoURL: URL,
     codemapDirectory: URL,
     extractor: RuntimePathExtractor = RuntimePathExtractor(),
-    maxRuntimeFactsPerFile: Int = 80
+    maxWorldFiles: Int = 32,
+    maxSymbolsPerFile: Int = 18,
+    maxRuntimeFactsPerFile: Int = 10,
+    maxSourceBytes: Int = 512_000
   ) {
     self.repoURL = repoURL.standardizedFileURL
     self.codemapDirectory = codemapDirectory.standardizedFileURL
     self.extractor = extractor
+    self.maxWorldFiles = maxWorldFiles
+    self.maxSymbolsPerFile = maxSymbolsPerFile
     self.maxRuntimeFactsPerFile = maxRuntimeFactsPerFile
+    self.maxSourceBytes = maxSourceBytes
   }
 
   func buildCached() async -> WorldGraph {
     let entries = loadEntries()
-    let fingerprint = Self.fingerprint(repoURL: repoURL, entries: entries)
+    let fingerprint = Self.fingerprint(
+      repoURL: repoURL,
+      entries: entries,
+      maxWorldFiles: maxWorldFiles,
+      maxSymbolsPerFile: maxSymbolsPerFile,
+      maxRuntimeFactsPerFile: maxRuntimeFactsPerFile
+    )
     if let cached = await WorldGraphCache.shared.graph(for: fingerprint) {
       return cached
     }
@@ -56,14 +71,16 @@ struct WorldGraphBuilder: Sendable {
   }
 
   func build(entries: [CodemapEntry]? = nil) -> WorldGraph {
-    let entries = entries ?? loadEntries()
+    let allEntries = entries ?? loadEntries()
+    var sourceCache: [String: String] = [:]
+    let entries = focusedEntries(from: allEntries, sourceCache: &sourceCache)
     var graph = WorldGraph()
     var fileIDsByPath: [String: String] = [:]
     var symbolIDsByPathAndLine: [String: String] = [:]
     var symbolIDsByName: [String: [String]] = [:]
-    var symbolsByPath: [String: [CodemapSymbol]] = [:]
 
     for entry in entries {
+      let retainedSymbols = Self.retainedSymbols(for: entry, limit: maxSymbolsPerFile)
       let moduleID = Self.moduleID(for: entry.relativePath)
       let moduleName = Self.moduleName(for: entry.relativePath)
       graph.addNode(
@@ -81,7 +98,6 @@ struct WorldGraphBuilder: Sendable {
 
       let fileID = Self.fileID(for: entry.relativePath)
       fileIDsByPath[entry.relativePath] = fileID
-      symbolsByPath[entry.relativePath] = entry.symbols
       graph.addNode(
         WorldNode(
           id: fileID,
@@ -100,7 +116,7 @@ struct WorldGraphBuilder: Sendable {
       )
       graph.addEdge(from: moduleID, to: fileID, kind: .contains, confidence: .high)
 
-      for symbol in entry.symbols {
+      for symbol in retainedSymbols {
         let nodeID = Self.symbolID(path: entry.relativePath, symbol: symbol)
         symbolIDsByPathAndLine[Self.symbolLookupKey(path: entry.relativePath, line: symbol.line)] =
           nodeID
@@ -124,9 +140,9 @@ struct WorldGraphBuilder: Sendable {
         graph.addEdge(from: fileID, to: nodeID, kind: .contains, confidence: .high)
       }
 
-      for container in entry.symbols where Self.nodeKind(for: container) == .type {
+      for container in retainedSymbols where Self.nodeKind(for: container) == .type {
         let containerID = Self.symbolID(path: entry.relativePath, symbol: container)
-        for child in entry.symbols where [.function, .method].contains(child.kind) {
+        for child in retainedSymbols where [.function, .method].contains(child.kind) {
           guard child.line > container.line, child.endLine <= container.endLine else { continue }
           let childID = Self.symbolID(path: entry.relativePath, symbol: child)
           graph.addEdge(from: containerID, to: childID, kind: .contains, confidence: .high)
@@ -136,13 +152,7 @@ struct WorldGraphBuilder: Sendable {
 
     for entry in entries {
       guard let fileID = fileIDsByPath[entry.relativePath] else { continue }
-      let sourceURL = repoURL.appendingPathComponent(entry.relativePath)
-      guard
-        let data = try? Data(contentsOf: sourceURL),
-        let source = String(data: data, encoding: .utf8)
-      else {
-        continue
-      }
+      guard let source = source(for: entry, sourceCache: &sourceCache) else { continue }
 
       let extraction =
         (try? extractor.extract(
@@ -268,6 +278,100 @@ struct WorldGraphBuilder: Sendable {
       .sorted { $0.relativePath < $1.relativePath }
   }
 
+  private func focusedEntries(
+    from entries: [CodemapEntry],
+    sourceCache: inout [String: String]
+  ) -> [CodemapEntry] {
+    let sortedEntries = entries.sorted { $0.relativePath < $1.relativePath }
+    guard sortedEntries.count > maxWorldFiles else { return sortedEntries }
+
+    let entryByPath = Dictionary(uniqueKeysWithValues: sortedEntries.map { ($0.relativePath, $0) })
+    let filePaths = Set(entryByPath.keys)
+    let ranked = sortedEntries
+      .map { entry -> (entry: CodemapEntry, score: Int) in
+        (entry, focusScore(for: entry, source: source(for: entry, sourceCache: &sourceCache)))
+      }
+      .sorted { lhs, rhs in
+        if lhs.score != rhs.score { return lhs.score > rhs.score }
+        return lhs.entry.relativePath < rhs.entry.relativePath
+      }
+
+    var selectedPaths: Set<String> = []
+
+    func select(_ path: String) {
+      guard selectedPaths.count < maxWorldFiles, filePaths.contains(path) else { return }
+      selectedPaths.insert(path)
+    }
+
+    for item in ranked where item.score >= 220 {
+      select(item.entry.relativePath)
+    }
+
+    let seedPaths = selectedPaths
+    for path in seedPaths.sorted() {
+      guard let entry = entryByPath[path] else { continue }
+      for rawImport in entry.imports.map(\.raw) {
+        if let targetPath = Self.importTargetPath(rawImport, filePaths: filePaths) {
+          select(targetPath)
+        }
+      }
+    }
+
+    for item in ranked {
+      guard selectedPaths.count < maxWorldFiles else { break }
+      select(item.entry.relativePath)
+    }
+
+    return sortedEntries.filter { selectedPaths.contains($0.relativePath) }
+  }
+
+  private func source(
+    for entry: CodemapEntry,
+    sourceCache: inout [String: String]
+  ) -> String? {
+    if let cached = sourceCache[entry.relativePath] {
+      return cached
+    }
+    guard entry.sizeBytes <= maxSourceBytes else { return nil }
+    let sourceURL = repoURL.appendingPathComponent(entry.relativePath)
+    guard
+      let data = try? Data(contentsOf: sourceURL),
+      let source = String(data: data, encoding: .utf8)
+    else {
+      return nil
+    }
+    sourceCache[entry.relativePath] = source
+    return source
+  }
+
+  private func focusScore(for entry: CodemapEntry, source: String?) -> Int {
+    let path = entry.relativePath
+    let fileName = (path as NSString).lastPathComponent
+    let stem = ((fileName as NSString).deletingPathExtension).lowercased()
+    var score = 0
+
+    if path.hasPrefix("Sources/") || path.contains("/Sources/") { score += 50 }
+    if path.hasPrefix("Tests/") || path.contains("/Tests/") { score -= 900 }
+    if entry.isGenerated { score -= 220 }
+    if fileName == "main.swift" { score += 520 }
+    if ["index", "main", "app", "server"].contains(stem) { score += 160 }
+    if stem.hasSuffix("app") { score += 80 }
+
+    for symbol in entry.symbols {
+      if symbol.name == "main", [.function, .method].contains(symbol.kind) { score += 260 }
+      if symbol.name.hasSuffix("App"), [.class, .struct].contains(symbol.kind) { score += 90 }
+      if [.function, .method].contains(symbol.kind) { score += 2 }
+    }
+
+    if let source {
+      if source.contains("@main") { score += 520 }
+      if source.contains("package main") { score += 260 }
+      if source.contains("import.meta.main") || source.contains("process.argv") { score += 180 }
+    }
+
+    return score
+  }
+
   private func entrypointNodeID(
     _ entrypoint: RuntimePathEntrypoint,
     entry: CodemapEntry,
@@ -344,26 +448,81 @@ struct WorldGraphBuilder: Sendable {
   }
 
   private func importTargetID(_ rawImport: String, fileIDsByPath: [String: String]) -> String? {
-    let candidates = [
-      rawImport,
-      rawImport + ".swift",
-      rawImport + ".ts",
-      rawImport + ".tsx",
-      rawImport + ".js",
-      rawImport + ".go",
-      rawImport + ".rs",
-      "Sources/" + rawImport,
-      "Sources/" + rawImport + ".swift",
-    ]
-    return candidates.lazy.compactMap { fileIDsByPath[$0] }.first
+    Self.importTargetPath(rawImport, filePaths: Set(fileIDsByPath.keys))
+      .flatMap { fileIDsByPath[$0] }
   }
 
-  static func fingerprint(repoURL: URL, entries: [CodemapEntry]) -> String {
+  static func retainedSymbols(for entry: CodemapEntry, limit: Int) -> [CodemapSymbol] {
+    guard entry.symbols.count > limit else { return entry.symbols }
+    return entry.symbols
+      .sorted { lhs, rhs in
+        let lhsScore = symbolDisplayScore(lhs)
+        let rhsScore = symbolDisplayScore(rhs)
+        if lhsScore != rhsScore { return lhsScore > rhsScore }
+        if lhs.line != rhs.line { return lhs.line < rhs.line }
+        return lhs.name < rhs.name
+      }
+      .prefix(limit)
+      .sorted { lhs, rhs in
+        if lhs.line != rhs.line { return lhs.line < rhs.line }
+        return lhs.name < rhs.name
+      }
+  }
+
+  static func importTargetPath(_ rawImport: String, filePaths: Set<String>) -> String? {
+    let clean = rawImport
+      .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let withoutDotSlash = clean.hasPrefix("./") ? String(clean.dropFirst(2)) : clean
+    let candidates = [
+      clean,
+      clean + ".swift",
+      clean + ".ts",
+      clean + ".tsx",
+      clean + ".js",
+      clean + ".go",
+      clean + ".rs",
+      withoutDotSlash,
+      withoutDotSlash + ".swift",
+      withoutDotSlash + ".ts",
+      withoutDotSlash + ".tsx",
+      withoutDotSlash + ".js",
+      "Sources/" + withoutDotSlash,
+      "Sources/" + withoutDotSlash + ".swift",
+    ]
+    return candidates.first { filePaths.contains($0) }
+  }
+
+  private static func symbolDisplayScore(_ symbol: CodemapSymbol) -> Int {
+    var score = 0
+    switch symbol.kind {
+    case .function, .method:
+      score += 120
+    case .class, .struct, .enum, .interface, .trait, .type, .impl, .extension, .module:
+      score += 90
+    case .macro:
+      score += 60
+    case .property, .constant:
+      score += 15
+    }
+    if symbol.name == "main" { score += 260 }
+    if symbol.name.hasSuffix("App") { score += 120 }
+    return score
+  }
+
+  static func fingerprint(
+    repoURL: URL,
+    entries: [CodemapEntry],
+    maxWorldFiles: Int,
+    maxSymbolsPerFile: Int,
+    maxRuntimeFactsPerFile: Int
+  ) -> String {
     let body = entries
       .sorted { $0.relativePath < $1.relativePath }
       .map { "\($0.relativePath):\($0.contentHash):\($0.symbols.count):\($0.imports.count)" }
       .joined(separator: "|")
-    return CodemapHash.sha256Hex(repoURL.standardizedFileURL.path + "|" + body)
+    let limits = "world:v2:\(maxWorldFiles):\(maxSymbolsPerFile):\(maxRuntimeFactsPerFile)"
+    return CodemapHash.sha256Hex(repoURL.standardizedFileURL.path + "|\(limits)|" + body)
   }
 
   static func moduleName(for path: String) -> String {
