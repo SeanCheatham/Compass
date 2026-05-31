@@ -447,6 +447,129 @@ struct ExploreTabComponentsTests {
     #expect(symbolDetailPopoverTestsSymbolKindLabel(.constant) == "const")
   }
 
+  // MARK: - SymbolDetailPopover view-body
+
+  @Test
+  func symbolDetailPopover_init_preservesRelativePathAndFileURL() throws {
+    let entry = CodemapEntry(
+      relativePath: "Test.swift",
+      language: .swift,
+      contentHash: "h",
+      sizeBytes: 1,
+      symbols: [],
+      imports: [],
+      isGenerated: false
+    )
+    let popover = SymbolDetailPopover(
+      entry: entry,
+      fileURL: URL(fileURLWithPath: "/tmp/test.swift")
+    )
+    #expect(popover.entry.relativePath == "Test.swift")
+    #expect(popover.fileURL != nil)
+  }
+
+  @Test
+  func symbolDetailPopover_init_fileURLNil_hidesOpenInXcodeButton() throws {
+    let entry = CodemapEntry(
+      relativePath: "Test.swift",
+      language: .swift,
+      contentHash: "h",
+      sizeBytes: 1,
+      symbols: [],
+      imports: [],
+      isGenerated: false
+    )
+    let popover = SymbolDetailPopover(entry: entry, fileURL: nil)
+    let bodyDescription = String(reflecting: popover.body)
+    #expect(!bodyDescription.contains("Open in Xcode"))
+  }
+
+  @Test
+  func symbolDetailPopover_init_withFileURL_showsOpenInXcodeButton() throws {
+    let entry = CodemapEntry(
+      relativePath: "Test.swift",
+      language: .swift,
+      contentHash: "h",
+      sizeBytes: 1,
+      symbols: [],
+      imports: [],
+      isGenerated: false
+    )
+    let popover = SymbolDetailPopover(
+      entry: entry,
+      fileURL: URL(fileURLWithPath: "/tmp/test.swift")
+    )
+    let bodyDescription = String(reflecting: popover.body)
+    #expect(bodyDescription.contains("Open in Xcode"))
+  }
+
+  @Test
+  func symbolDetailPopover_symbolsSection_visibleWithSymbols() throws {
+    let entry = CodemapEntry(
+      relativePath: "Test.swift",
+      language: .swift,
+      contentHash: "h",
+      sizeBytes: 1,
+      symbols: [CodemapSymbol(kind: .function, name: "foo", line: 10, endLine: 10)],
+      imports: [],
+      isGenerated: false
+    )
+    let popover = SymbolDetailPopover(entry: entry, fileURL: nil)
+    let bodyDescription = String(reflecting: popover.body)
+    #expect(bodyDescription.contains("foo"))
+    #expect(bodyDescription.contains("func"))
+    #expect(bodyDescription.contains("Symbols"))
+  }
+
+  @Test
+  func symbolDetailPopover_importsSection_visibleWithImports() throws {
+    let entry = CodemapEntry(
+      relativePath: "Test.swift",
+      language: .swift,
+      contentHash: "h",
+      sizeBytes: 1,
+      symbols: [],
+      imports: [CodemapImport(raw: "Foundation", line: 3)],
+      isGenerated: false
+    )
+    let popover = SymbolDetailPopover(entry: entry, fileURL: nil)
+    let bodyDescription = String(reflecting: popover.body)
+    #expect(bodyDescription.contains("Foundation"))
+    #expect(bodyDescription.contains("Imports"))
+  }
+
+  @Test
+  func symbolDetailPopover_emptyState_showsNoSymbolsOrImportsMessage() throws {
+    let entry = CodemapEntry(
+      relativePath: "Test.swift",
+      language: .swift,
+      contentHash: "h",
+      sizeBytes: 1,
+      symbols: [],
+      imports: [],
+      isGenerated: false
+    )
+    let popover = SymbolDetailPopover(entry: entry, fileURL: nil)
+    let bodyDescription = String(reflecting: popover.body)
+    #expect(bodyDescription.contains("No symbols or imports found."))
+  }
+
+  @Test
+  func symbolDetailPopover_frameWidth440() throws {
+    let entry = CodemapEntry(
+      relativePath: "Test.swift",
+      language: .swift,
+      contentHash: "h",
+      sizeBytes: 1,
+      symbols: [],
+      imports: [],
+      isGenerated: false
+    )
+    let popover = SymbolDetailPopover(entry: entry, fileURL: nil)
+    let bodyDescription = String(reflecting: popover.body)
+    #expect(bodyDescription.contains("440"))
+  }
+
   // MARK: - SummaryPopover layout
 
   @Test
