@@ -145,6 +145,7 @@ struct AgentSystemPromptTests {
     let develop = Prompts.softwareFactorySection(phase: .develop, role: .phaseAgent)
     try #require(develop.contains("Your role this turn: Develop"))
     try #require(develop.contains("verify command"))
+    try #require(develop.contains("generated artifact"))
 
     let critic = Prompts.softwareFactorySection(phase: .critic, role: .phaseAgent)
     try #require(critic.contains("Your role this turn: Critic"))

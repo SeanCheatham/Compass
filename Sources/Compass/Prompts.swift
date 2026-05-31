@@ -95,10 +95,23 @@ enum Prompts {
         For SwiftPM packages use the generated workspace when needed:
         `xcodebuild -workspace .swiftpm/xcode/package.xcworkspace -scheme <Package>-Package -destination 'platform=macOS' -skipMacroValidation ... test`.
         During Plan probing, use `host_xcode` instead of `bash` for these checks.
-        Use `requiresHostXcode` for build/test only — not Simulator launch, `open`,
-        or arbitrary host shell.
+        Use `requiresHostXcode` for build/test only — not app launch, Simulator
+        control, or arbitrary host shell.
       """
       : sharedVMApplePlatformPlanningRuleWhenHostXcodeDisabled(forgeProfile: forgeProfile)
+    let compassTestsMigrationRule =
+      hostXcodeBuildTestEnabled
+      ? """
+        - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
+          guest `swift test` as verify. Use host `xcodebuild ... test` with
+          `requiresHostXcode: true` when host Xcode is enabled; otherwise prefer
+          `swift build --target CompassTests` for compile-only guest increments.
+        """
+      : """
+        - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
+          guest `swift test` as verify. Prefer `swift build --target CompassTests`
+          for compile-only guest increments.
+        """
     let hostXcodeShape =
       hostXcodeBuildTestEnabled
       ? ",\n            \"requiresHostXcode\": true|false"
@@ -129,11 +142,18 @@ enum Prompts {
       - Pick one commit-sized `immediate` with a real verify command that proves
         the important behavior. If there are no relevant tests, use build or
         typecheck as the fallback.
+      - If the increment touches feature-gated, optional-provider, platform-specific,
+        or conditional-compilation code, plan a verify matrix that compiles the
+        relevant variants (for Rust/Cargo this usually means including
+        `cargo test --all-features` or an equivalent all-feature check).
       - The verify command runs with the repo working tree already as its
         current directory. Write it as a plain command — e.g. `swift build`,
         `swift test`, `make check` — and never prepend a `cd` or include
         absolute paths to the working directory. Those paths get saved to
         state and rot the moment the working directory changes.
+      - Avoid brittle grep-only verify commands. If a verify step uses `grep`,
+        make the intended presence/absence semantics explicit so "no matches"
+        cannot accidentally fail a successful build.
       - Use `immediate: null` only when the project is genuinely complete:
         every goal is shipped, `midTerm` and `longTerm` were already exhausted,
         they remain exhausted, and you cannot identify a useful next increment.
@@ -146,10 +166,7 @@ enum Prompts {
         material changes.
       - Never choose placeholder verify commands like `true`, `not-running-tests`,
         `none`, or `n/a`.
-      - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
-        guest `swift test` as verify. Use host `xcodebuild ... test` with
-        `requiresHostXcode: true` when host Xcode is enabled; otherwise prefer
-        `swift build --target CompassTests` for compile-only guest increments.
+      \(compassTestsMigrationRule)
       - Compass projects use opinionated forge profiles (Swift, Go, Rust, or
         TypeScript/Vitest). Test verify commands must collect coverage — see
         the forge profile section below. Compile-only verify may omit coverage.
@@ -362,6 +379,7 @@ enum Prompts {
       The Shared VM guest has Command Line Tools only — not full Xcode. Keep
       edits in the normal file tools here, but run Swift/macOS/iOS build and test
       on the host via `host_xcode` (status/build/test). Please do not use `bash` for Xcode-only commands;
+      `host_xcode` is for build/test checks only.
       do not use `bash` for `swift test`, `xcodebuild`, or
       other Apple-platform compile/test commands because they fail or mislead in
       the guest (e.g. missing `_TestingInterop`).
@@ -380,6 +398,13 @@ enum Prompts {
       - In Shared VM git workspaces, make local commits for your completed changes.
       - Run the verify command before finishing.
       - Leave the working tree clean, or explain why you are blocked.
+      - Do not commit generated build outputs or caches (`target/`, `.build/`,
+        `build/`, `DerivedData/`, `node_modules/`, `coverage/`, object files,
+        archives, etc.). If a build creates them, remove them from the change
+        set and add/update `.gitignore`.
+      - When fixing a bug class reported by post-checks or Critic, search for
+        sibling call sites with the same pattern and fix the whole local class,
+        not only the cited line.
       - End the phase by calling `submit_result` exactly once.
 
       \(lessonEditsGuidance())
@@ -525,6 +550,13 @@ enum Prompts {
         an implicit assumption that should have been verified?
       - Are new code paths exercised by tests or just by the verify
         smoke command?
+      - If the change touched feature-gated, optional-provider, platform-specific,
+        or conditional-compilation code, did Verify cover the relevant matrix
+        (for Rust/Cargo, default tests plus all-features when appropriate)?
+      - If you find one instance of a bug class, search for sibling call sites
+        before requesting changes so the feedback asks Develop to fix the whole
+        local pattern.
+      - Are generated build outputs or caches accidentally included in the diff?
       - Are there leftover TODOs, dead code, or unrelated changes that
         shouldn't be in this commit?
 
@@ -855,8 +887,9 @@ enum Prompts {
       2. Develop — implement that increment in the working tree (often a Shared VM
          guest clone synced from the host repo).
       3. Post-checks — Compass runs the verify shell command you planned; retries
-         Develop on failure up to three attempts, then promotes the latest clean
-         committed guest state while recording the failed Verify output.
+         Develop on failure up to three attempts, checks for generated artifact
+         churn, then promotes the latest clean committed guest state while recording
+         the failed Verify output.
       4. Critic — optional adversarial review; may loop Develop with feedback.
       5. Land — Compass pushes guest commits through its private exchange repo and
          fast-forwards the host branch; agents do not push directly.

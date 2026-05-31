@@ -357,7 +357,8 @@ extension CompassProject {
             workingDirectory: workspace.repoURL,
             launchPlan: launchPlan,
             sessionIndex: sessionIndex,
-            attempt: attempt
+            attempt: attempt,
+            beforeSha: beforeSha
           )
           finalIssues = post.verifyIssues + post.gitStatusIssues
           finalVerifyOutput = post.verifyOutput
@@ -715,7 +716,8 @@ extension CompassProject {
     workingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,
     sessionIndex: Int,
-    attempt: Int
+    attempt: Int,
+    beforeSha: String?
   ) async throws -> PostCheckResult {
     var verifyIssues: [String] = []
     var gitStatusIssues: [String] = []
@@ -869,12 +871,48 @@ extension CompassProject {
       }
     }
 
+    let artifactIssues = try await runArtifactHygieneCheck(
+      beforeSha: beforeSha,
+      workingDirectory: workingDirectory,
+      launchPlan: launchPlan
+    )
+    gitStatusIssues.append(contentsOf: artifactIssues)
+
     return PostCheckResult(
       ok: verifyIssues.isEmpty && gitStatusIssues.isEmpty,
       verifyIssues: verifyIssues,
       gitStatusIssues: gitStatusIssues,
       verifyOutput: verifyOutput
     )
+  }
+
+  func runArtifactHygieneCheck(
+    beforeSha: String?,
+    workingDirectory: URL,
+    launchPlan: AgentExecutionLaunchPlan
+  ) async throws -> [String] {
+    let command: String
+    if let beforeSha, !beforeSha.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      command = "git -c core.quotepath=false diff --name-status --no-renames \(beforeSha)..HEAD"
+    } else {
+      command = "git -c core.quotepath=false diff-tree --root --no-commit-id --name-status -r HEAD"
+    }
+    let result = try await runVerifyCommand(
+      command: command,
+      hostWorkingDirectory: workingDirectory,
+      timeoutSeconds: 30,
+      launchPlan: launchPlan
+    )
+    guard result.exitCode == 0 else {
+      log("Artifact hygiene check skipped: could not inspect changed files.", level: .warning)
+      return []
+    }
+    let issues = FactoryArtifactHygiene.issues(fromGitNameStatus: result.stdout)
+    guard let message = FactoryArtifactHygiene.formattedIssue(from: issues) else {
+      return []
+    }
+    log("Artifact hygiene check found generated build outputs in the change set.", level: .error)
+    return [message]
   }
 
   /// After verify passes, run the forge profile's coverage collector and

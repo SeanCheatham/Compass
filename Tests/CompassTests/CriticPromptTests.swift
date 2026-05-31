@@ -117,6 +117,25 @@ struct CriticPromptTests {
     try #require(prompt.contains("no `git commit`"))
   }
 
+  @Test func testCriticPromptChecksFeatureMatrixBugClassAndArtifacts() throws {
+    let prompt = Prompts.criticPrompt(
+      next: makePlanNext(),
+      developSummary: makeDevelopSummary(),
+      verifyCommand: "cargo test",
+      verifyExitCode: 0,
+      verifyOutput: "",
+      gitDiff: "",
+      priorCritiques: [],
+      lessons: "",
+      vision: "",
+      iteration: 1,
+      maxIterations: 3
+    )
+    try #require(prompt.contains("all-features"))
+    try #require(prompt.contains("sibling call sites"))
+    try #require(prompt.contains("generated build outputs"))
+  }
+
   @Test func testCriticVerdictDecodesApproveAndRequestChangesSnakeCase() throws {
     let approve = #"{"verdict":"approve","summary":"looks good","feedback":""}"#
     let reject = #"{"verdict":"request_changes","summary":"missing tests","feedback":"add one"}"#
@@ -139,6 +158,20 @@ struct CriticPromptTests {
     )
     try #require(withFeedback.contains("Critic feedback from prior passes"))
     try #require(withFeedback.contains("Add a test for the empty list case."))
+  }
+
+  @Test func testDevelopPromptForbidsGeneratedArtifactsAndAsksForPatternSweep() throws {
+    let prompt = Prompts.developPrompt(
+      next: PlanNext(
+        plan: "p", verify: "swift build", verifyTimeoutMs: nil, estimatedDifficulty: nil),
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: []
+    )
+    try #require(prompt.contains("Do not commit generated build outputs"))
+    try #require(prompt.contains("target/"))
+    try #require(prompt.contains("sibling call sites"))
   }
 
   @Test func testDevelopPromptOmitsCriticFeedbackSectionWhenAbsent() throws {

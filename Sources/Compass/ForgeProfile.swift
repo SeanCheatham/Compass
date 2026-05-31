@@ -46,6 +46,9 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         - Standard Cargo workspace/crate layout with `Cargo.toml`.
         - Verify for test increments should use `cargo llvm-cov --summary-only` or \
         `cargo llvm-cov test --summary-only` (requires `cargo-llvm-cov` in the project or VM).
+        - When an increment touches feature-gated crates, optional providers, `cfg(...)`
+          branches, or Cargo feature wiring, include an all-feature matrix check
+          such as `cargo test --all-features` in the verify plan.
         - Check-only increments may use `cargo check` or `cargo build` without coverage.
         """
     case .typeScriptVitest:

@@ -67,6 +67,14 @@ struct PlanPromptTests {
     )
   }
 
+  @Test func testPlanPromptGuidesFeatureMatrixAndGrepVerifySemantics() throws {
+    let prompt = try makePlanPrompt(forgeProfile: .rustCargo)
+    try #require(prompt.contains("feature-gated"))
+    try #require(prompt.contains("cargo test --all-features"))
+    try #require(prompt.contains("Avoid brittle grep-only verify commands"))
+    try #require(prompt.contains("no matches"))
+  }
+
   @Test func testPlanPromptDefaultsTowardImmediatePlan() throws {
     let prompt = try makePlanPrompt()
     try #require(
@@ -325,7 +333,7 @@ struct PlanPromptTests {
     try #require(critic.contains("denied assumption"))
   }
 
-  private func makePlanPrompt() throws -> String {
+  private func makePlanPrompt(forgeProfile: ForgeProfile? = nil) throws -> String {
     try Prompts.planPrompt(
       state: .empty,
       completedCount: 0,
@@ -333,7 +341,8 @@ struct PlanPromptTests {
       feedback: "",
       lessons: "",
       vision: "",
-      focus: .feature
+      focus: .feature,
+      forgeProfile: forgeProfile
     )
   }
 }

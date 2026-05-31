@@ -110,6 +110,11 @@ struct ForgeProfileTests {
     try #require(prompt.contains("Sources/Foo.swift"))
   }
 
+  @Test func rustForgeProfileMentionsAllFeatureMatrixForFeatureGates() throws {
+    try #require(ForgeProfile.rustCargo.planningGuidance.contains("feature-gated"))
+    try #require(ForgeProfile.rustCargo.planningGuidance.contains("cargo test --all-features"))
+  }
+
   private func makeTemporaryDirectory() throws -> URL {
     let directory = FileManager.default.temporaryDirectory
       .appending(path: "ForgeProfileTests-\(UUID().uuidString)", directoryHint: .isDirectory)
