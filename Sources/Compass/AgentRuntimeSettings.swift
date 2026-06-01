@@ -183,16 +183,20 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   var audioModel: String? { audioAssignment?.model }
   var videoModel: String? { videoAssignment?.model }
 
-  /// True when the Text capability is configured well enough to
-  /// drive a run: an on-device provider needs nothing more than
-  /// being selected, while an OpenAI-compatible provider needs a
-  /// non-empty API key. Used by the onboarding gate and menu
-  /// shortcuts to decide whether the rest of the UI is unlocked.
+  /// True when the Text capability is configured and available enough
+  /// to drive a run: an on-device provider must be present on this
+  /// system, while an OpenAI-compatible provider needs a non-empty API
+  /// key. Used by the onboarding gate and menu shortcuts to decide
+  /// whether the rest of the UI is unlocked.
   var isTextCapabilityReady: Bool {
+    isTextCapabilityRunnable(foundationModelsAvailable: FoundationModelsAvailability.isAvailable)
+  }
+
+  func isTextCapabilityRunnable(foundationModelsAvailable: Bool) -> Bool {
     if textProvider.requiresCredentials {
       return !apiKey.isEmpty
     }
-    return true
+    return foundationModelsAvailable
   }
 
   /// Resolve the model identifier for a given phase.

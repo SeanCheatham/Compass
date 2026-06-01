@@ -4,20 +4,32 @@ import UniformTypeIdentifiers
 import Virtualization
 
 /// Mandatory gate shown until both onboarding requirements are satisfied:
-/// the agent API key is non-empty, and the Shared VM has reached
-/// `.ready`. The rest of the app is hidden behind this — there is no
-/// "skip" path, because every agent run routes through the VM.
+/// the Text provider can run, and the Shared VM has reached `.ready`.
+/// The rest of the app is hidden behind this — there is no "skip" path,
+/// because every agent run routes through the VM.
 struct OnboardingView: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject private var vmHost: SharedCompassVM = .shared
+  @State private var readinessNarration: OnboardingReadinessGuideNarration?
 
   var body: some View {
+    let foundationModelsAvailable = FoundationModelsAvailability.isAvailable
+    let readinessGuide = OnboardingReadinessGuide(
+      settings: model.agentSettings,
+      vmReadiness: vmHost.readiness,
+      foundationModelsAvailable: foundationModelsAvailable
+    )
+
     ScrollView {
       VStack(alignment: .leading, spacing: 22) {
         header
         if let message = model.errorMessage, !message.isEmpty {
           onboardingErrorBanner(message: message)
         }
+        OnboardingReadinessGuidePanel(
+          guide: readinessGuide,
+          narration: matchingNarration(for: readinessGuide)
+        )
         OnboardingStep(
           number: 1,
           title: "Choose a Text provider",
@@ -28,7 +40,7 @@ struct OnboardingView: View {
           if model.agentSettings.textProvider.requiresCredentials {
             APIKeyStepBody()
           } else {
-            FoundationModelsStepBody()
+            FoundationModelsStepBody(isAvailable: foundationModelsAvailable)
           }
         }
         OnboardingStep(
@@ -50,6 +62,12 @@ struct OnboardingView: View {
     .background(.background)
     .task(id: vmHost.readiness.headlessAutoStartToken) {
       await autoStartHeadlessGuestIfNeeded()
+    }
+    .task(id: readinessGuide.narrationIdentifier) {
+      readinessNarration = nil
+      readinessNarration = await OnboardingReadinessGuideNarrator.narrate(
+        guide: readinessGuide
+      )
     }
   }
 
@@ -109,7 +127,7 @@ struct OnboardingView: View {
           Text("Compass unlocks once both steps are complete.")
             .font(.callout.weight(.semibold))
           if blockedByTextProvider {
-            Text("• Add an API key for \(model.agentSettings.textProvider.displayName).")
+            Text("• \(textProviderBlockerText)")
               .font(.caption)
               .foregroundStyle(.secondary)
           }
@@ -127,6 +145,14 @@ struct OnboardingView: View {
     }
   }
 
+  private var textProviderBlockerText: String {
+    if model.agentSettings.textProvider == .appleFoundationModels {
+      return
+        "Foundation Models is selected but unavailable; switch Text provider in Settings."
+    }
+    return "Add an API key for \(model.agentSettings.textProvider.displayName)."
+  }
+
   /// After provisioning lands at `.guestPrepping`, we need to kick the
   /// VZ instance so SharedCompassVM's poll loop can finalise readiness.
   /// Mirrors `SandboxView.autoStartHeadlessGuestIfNeeded`.
@@ -136,6 +162,93 @@ struct OnboardingView: View {
       try await vmHost.start()
     } catch {
       // Errors surface through vmHost.readiness.
+    }
+  }
+
+  private func matchingNarration(
+    for guide: OnboardingReadinessGuide
+  ) -> OnboardingReadinessGuideNarration? {
+    guard readinessNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return readinessNarration
+  }
+}
+
+private struct OnboardingReadinessGuidePanel: View {
+  let guide: OnboardingReadinessGuide
+  let narration: OnboardingReadinessGuideNarration?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(guide.title, systemImage: guide.systemImageName)
+          .font(.headline)
+          .foregroundStyle(color)
+
+        Spacer(minLength: 8)
+
+        Text(guide.actionLabel)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color)
+          .lineLimit(1)
+          .padding(.horizontal, 8)
+          .padding(.vertical, 3)
+          .background(color.opacity(0.12), in: Capsule())
+      }
+
+      Text(narration?.text ?? guide.detail)
+        .font(.callout)
+        .foregroundStyle(.primary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+
+      VStack(alignment: .leading, spacing: 7) {
+        ForEach(guide.steps) { step in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: step.isComplete ? "checkmark.circle.fill" : step.systemImageName)
+              .foregroundStyle(step.isComplete ? .green : color)
+              .frame(width: 18, height: 18)
+              .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(step.label)
+                .font(.caption.weight(.semibold))
+              Text(step.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+      }
+
+      if narration != nil {
+        Label("On-device setup note", systemImage: "sparkles")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay {
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(color.opacity(0.22))
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(guide.title). \(narration?.text ?? guide.detail)")
+  }
+
+  private var color: Color {
+    switch guide.tone {
+    case .ready:
+      return .green
+    case .needsText:
+      return .orange
+    case .needsWorkspace:
+      return .blue
+    case .inProgress:
+      return .teal
     }
   }
 }
@@ -311,20 +424,34 @@ private struct APIKeyStepBody: View {
 /// Settings screen — so this just confirms the default and points
 /// at where to switch.
 private struct FoundationModelsStepBody: View {
+  var isAvailable: Bool
+
   var body: some View {
     HStack(alignment: .top, spacing: 10) {
-      Image(systemName: "cpu")
-        .foregroundStyle(.tint)
+      Image(systemName: isAvailable ? "cpu" : "exclamationmark.triangle.fill")
+        .foregroundStyle(isAvailable ? Color.accentColor : .orange)
         .padding(.top, 2)
       VStack(alignment: .leading, spacing: 4) {
-        Text("Using Apple Foundation Models")
+        Text(isAvailable ? "Using Apple Foundation Models" : "Foundation Models unavailable")
           .font(.callout.weight(.semibold))
-        Text(
-          "Runs on-device with no API key. Switch to MiniMax Token or OpenAI API in Settings (⌘,) if you want to route Text through a third-party endpoint."
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
+        if isAvailable {
+          Text(
+            "Runs on-device with no API key. Switch to MiniMax Token or OpenAI API in Settings (⌘,) if you want to route Text through a third-party endpoint."
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        } else {
+          Text(
+            "The selected on-device model cannot run on this Mac right now. Choose MiniMax Token or OpenAI API in Settings, or enable Apple Intelligence if supported."
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+          SettingsLink {
+            Label("Open Text Provider Settings", systemImage: "gearshape")
+          }
+        }
       }
       Spacer()
     }
