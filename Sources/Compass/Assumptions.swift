@@ -348,12 +348,24 @@ struct AssumptionLedger: Codable, Equatable, Sendable {
   ) {
     guard !records.isEmpty else { return }
     let lines = records.map { record in
-      var parts = ["- [\(record.id)] \(record.text)"]
+      var parts = [
+        "- [\(record.id)] \(record.text)",
+        "Scope: \(record.scope.displayName)",
+      ]
+      if let session = record.createdInSession {
+        parts.append("Session: #\(session)")
+      }
       if !record.impact.isEmpty {
         parts.append("Impact: \(record.impact)")
       }
       if !record.rationale.isEmpty {
         parts.append("Why: \(record.rationale)")
+      }
+      if !record.evidence.isEmpty {
+        parts.append("Evidence: \(record.evidence.joined(separator: "; "))")
+      }
+      if !record.invalidation.isEmpty {
+        parts.append("Invalidated by: \(record.invalidation)")
       }
       if let comment = record.userComment, !comment.isEmpty {
         parts.append("User comment: \(comment)")

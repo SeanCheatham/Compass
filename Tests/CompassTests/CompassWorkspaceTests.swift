@@ -161,6 +161,10 @@ final class CompassWorkspaceTests {
     let summary = try workspace.readAssumptionLedger().formattedForPrompt()
     try #require(summary.contains("Denied assumptions"))
     try #require(summary.contains("do not rely"))
+    try #require(summary.contains("Scope: Project"))
+    try #require(summary.contains("Session: #2"))
+    try #require(summary.contains("Evidence: Package.swift"))
+    try #require(summary.contains("Invalidated by: User asks for iOS support."))
     try #require(summary.contains("iOS support is planned next."))
   }
 
