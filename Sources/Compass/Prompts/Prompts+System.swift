@@ -25,6 +25,8 @@ extension Prompts {
 
       \(softwareFactorySection(phase: parentPhase, role: .subAgent))
 
+      \(humanCenteredFactoryGuidance())
+
       \(assumptionGuidance())
 
       Working directory: \(workingDirectoryPath)
@@ -151,6 +153,8 @@ extension Prompts {
 
       \(softwareFactorySection(phase: phase, role: .phaseAgent))
 
+      \(humanCenteredFactoryGuidance())
+
       Working directory: \(workingDirectoryPath)
       All tool paths are resolved against this directory. Relative paths
       are recommended; if you use absolute paths they must resolve inside
@@ -189,6 +193,28 @@ extension Prompts {
       message — always call the tool. The phase ends the moment you call
       it; no further messages will be processed.
       """
+  }
+
+  /// Product-level quality bar shared by every agent role. This is
+  /// deliberately separate from phase mechanics so it remains visible to
+  /// sub-agents and survives prompt edits around tool routing.
+  static func humanCenteredFactoryGuidance() -> String {
+    """
+    Human-centered factory rules:
+    - Optimize for a non-engineer owner. Prefer observable behavior, clear
+      labels, recoverable states, and plain-language handoffs over hidden
+      implementation details.
+    - Make work easy for a less-capable next model to continue: keep slices
+      small, name exact files or UI surfaces when known, preserve uncertainty,
+      and turn vague goals into explicit acceptance checks.
+    - Foundation Models and other generators are helpful polish only when
+      non-load-bearing. Any generated narration, summary, refinement, or hint
+      must have a deterministic fallback, be grounded in existing facts, and
+      be rejected or sanitized when it invents structure, links, files, or
+      outcomes.
+    - When you make a durable product guess, record it in the assumption
+      ledger instead of silently relying on it.
+    """
   }
 
   /// How agents should use the assumption ledger. Kept distinct from

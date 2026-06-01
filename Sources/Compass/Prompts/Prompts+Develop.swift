@@ -100,6 +100,11 @@ extension Prompts {
       - When fixing a bug class reported by post-checks or Critic, search for
         sibling call sites with the same pattern and fix the whole local class,
         not only the cited line.
+      - Build for non-engineer users: surface important state in visible UI copy,
+        recoverable controls, or deterministic guides instead of burying it in logs.
+      - If you add Foundation Models or other generated text, keep it
+        non-load-bearing with a deterministic fallback, grounded inputs, and
+        output sanitization.
       - End the phase by calling `submit_result` exactly once.
 
       \(lessonEditsGuidance())
@@ -163,7 +168,8 @@ extension Prompts {
 
     if digest.acceptanceChecks.isEmpty {
       let missing = digest.missingPieces.map(\.label).joined(separator: ", ")
-      lines.append("Missing handoff detail: \(missing). Recover it from the plan text before editing.")
+      lines.append(
+        "Missing handoff detail: \(missing). Recover it from the plan text before editing.")
     } else {
       lines.append("Acceptance checks:")
       for check in digest.acceptanceChecks {

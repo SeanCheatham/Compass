@@ -142,6 +142,18 @@ struct AgentSystemPromptTests {
     )
   }
 
+  @Test func testSystemPromptIncludesHumanCenteredFactoryRules() throws {
+    for phase in AgentPhase.allCases {
+      let prompt = Prompts.agentSystemPrompt(phase: phase, workingDirectoryPath: "/x")
+      try #require(prompt.contains("Human-centered factory rules"))
+      try #require(prompt.contains("non-engineer owner"))
+      try #require(prompt.contains("less-capable next model"))
+      try #require(prompt.contains("Foundation Models"))
+      try #require(prompt.contains("deterministic fallback"))
+      try #require(prompt.contains("record it in the assumption"))
+    }
+  }
+
   @Test func testSoftwareFactorySectionVariesByPhase() throws {
     let develop = Prompts.softwareFactorySection(phase: .develop, role: .phaseAgent)
     try #require(develop.contains("Your role this turn: Develop"))
@@ -211,6 +223,7 @@ struct AgentSystemPromptTests {
     try #require(prompt.contains("About Compass:"))
     try #require(prompt.contains("software factory"))
     try #require(prompt.contains("sub-agent"))
+    try #require(prompt.contains("Human-centered factory rules"))
   }
 
   // MARK: - Execution environment

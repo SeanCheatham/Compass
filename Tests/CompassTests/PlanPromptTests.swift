@@ -329,6 +329,31 @@ struct PlanPromptTests {
     )
   }
 
+  @Test func testDevelopPromptCarriesUXAndGeneratedTextGuardrails() throws {
+    let prompt = Prompts.developPrompt(
+      next: PlanNext(
+        plan: """
+          ## Outcome
+          Make setup status readable.
+
+          ## Acceptance checks
+          - Setup explains the next action.
+          """,
+        verify: "swift test --filter PlanPromptTests"
+      ),
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: []
+    )
+
+    try #require(prompt.contains("Build for non-engineer users"))
+    try #require(prompt.contains("deterministic guides"))
+    try #require(prompt.contains("Foundation Models"))
+    try #require(prompt.contains("non-load-bearing"))
+    try #require(prompt.contains("output sanitization"))
+  }
+
   @Test func testDevelopPromptIncludesExecutableHandoffDigest() throws {
     let prompt = Prompts.developPrompt(
       next: PlanNext(
