@@ -85,6 +85,23 @@ struct AgentRuntimeSidebarSummaryTests {
   }
 
   @Test
+  func minimaxSummaryShowsMixedRoleRouting() throws {
+    let summary = AgentRuntimeSidebarSummary(
+      settings: AgentRuntimeSettings(
+        textProvider: .minimaxToken,
+        baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
+        apiKey: "mm-text",
+        model: "MiniMax-M2.7"
+      ),
+      foundationModelsAvailable: false
+    )
+
+    #expect(summary.lineValue("model")?.contains("Plan=MiniMax-M3") == true)
+    #expect(summary.lineValue("model")?.contains("Develop=MiniMax-M2.7") == true)
+    #expect(summary.lineValue("model")?.contains("Critic=MiniMax-M2.7") == true)
+  }
+
+  @Test
   func summaryValuesStayBounded() throws {
     let summary = AgentRuntimeSidebarSummary(
       settings: AgentRuntimeSettings(

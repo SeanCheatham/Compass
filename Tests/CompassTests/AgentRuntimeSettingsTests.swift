@@ -26,6 +26,10 @@ struct AgentRuntimeSettingsTests {
     ])
     try #require(settings.textProvider == .minimaxToken)
     try #require(settings.model == "MiniMax-M2.7")
+    try #require(settings.model(for: .plan) == "MiniMax-M3")
+    try #require(settings.model(for: .develop) == "MiniMax-M2.7")
+    try #require(settings.model(for: .reflect) == "MiniMax-M2.7")
+    try #require(settings.model(for: .critic) == "MiniMax-M2.7")
     try #require(
       settings.contextWindowTokens == AgentProviderKind.minimaxToken.defaultTextContextWindowTokens)
   }
@@ -142,6 +146,26 @@ struct AgentRuntimeSettingsTests {
     try #require(settings.model(for: .plan) == "default-model")
     try #require(settings.model(for: .develop) == "default-model")
     try #require(settings.model(for: .reflect) == "default-model")
+  }
+
+  @Test func testMiniMaxPlanDefaultsToM3WhileOtherRolesUseBaseModel() throws {
+    let settings = AgentRuntimeSettings(
+      textProvider: .minimaxToken,
+      model: MiniMaxTextModelVersion.m27.modelIdentifier
+    )
+    try #require(settings.model(for: .plan) == MiniMaxTextModelVersion.m3.modelIdentifier)
+    try #require(settings.model(for: .develop) == MiniMaxTextModelVersion.m27.modelIdentifier)
+    try #require(settings.model(for: .reflect) == MiniMaxTextModelVersion.m27.modelIdentifier)
+    try #require(settings.model(for: .critic) == MiniMaxTextModelVersion.m27.modelIdentifier)
+  }
+
+  @Test func testMiniMaxPlanCanBeExplicitlyForcedToBaseModel() throws {
+    let settings = AgentRuntimeSettings(
+      textProvider: .minimaxToken,
+      model: MiniMaxTextModelVersion.m27.modelIdentifier,
+      planModelOverride: MiniMaxTextModelVersion.m27.modelIdentifier
+    )
+    try #require(settings.model(for: .plan) == MiniMaxTextModelVersion.m27.modelIdentifier)
   }
 
   @Test func testModelForPhaseUsesPhaseOverrideOverDefault() throws {

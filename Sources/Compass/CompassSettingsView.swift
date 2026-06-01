@@ -164,17 +164,7 @@ private struct AgentSettingsTab: View {
 
     if capability == .text {
       ForEach(AgentPhase.allCases, id: \.self) { phase in
-        TextField(
-          "\(phaseLabel(phase)) model (optional)",
-          text: Binding(
-            get: {
-              model.agentSettings.phaseOverride(phase, provider: provider) ?? ""
-            },
-            set: { model.setTextPhaseOverride(phase, $0, provider: provider) }
-          )
-        )
-        .textFieldStyle(.roundedBorder)
-        .help(phaseHelp(phase))
+        phaseModelField(phase, provider: provider)
       }
     }
   }
@@ -203,6 +193,76 @@ private struct AgentSettingsTab: View {
     }
     .pickerStyle(.menu)
     .help("Selects the MiniMax text model and matching context window.")
+  }
+
+  @ViewBuilder
+  private func phaseModelField(_ phase: AgentPhase, provider: AgentProviderKind) -> some View {
+    if provider == .minimaxToken {
+      minimaxPhaseModelPicker(phase)
+    } else {
+      TextField(
+        "\(phaseLabel(phase)) model (optional)",
+        text: Binding(
+          get: {
+            model.agentSettings.phaseOverride(phase, provider: provider) ?? ""
+          },
+          set: { model.setTextPhaseOverride(phase, $0, provider: provider) }
+        )
+      )
+      .textFieldStyle(.roundedBorder)
+      .help(phaseHelp(phase))
+    }
+  }
+
+  @ViewBuilder
+  private func minimaxPhaseModelPicker(_ phase: AgentPhase) -> some View {
+    let defaultModel =
+      model.agentSettings.textProvider.defaultModel(
+        for: phase,
+        baseModel: model.agentSettings.model
+      ) ?? MiniMaxTextModelVersion.default.modelIdentifier
+    Picker(
+      "\(phaseLabel(phase)) model",
+      selection: Binding(
+        get: {
+          minimaxPhaseSelection(for: phase)
+        },
+        set: { selection in
+          switch selection {
+          case .defaultRole:
+            model.setTextPhaseOverride(phase, "", provider: .minimaxToken)
+          case .version(let version):
+            model.setTextPhaseOverride(
+              phase,
+              version.modelIdentifier,
+              provider: .minimaxToken
+            )
+          }
+        }
+      )
+    ) {
+      Text("Default (\(defaultModel))").tag(MiniMaxPhaseModelSelection.defaultRole)
+      ForEach(MiniMaxTextModelVersion.allCases) { version in
+        Text(version.displayName).tag(MiniMaxPhaseModelSelection.version(version))
+      }
+    }
+    .pickerStyle(.menu)
+    .help(phaseHelp(phase))
+  }
+
+  private func minimaxPhaseSelection(for phase: AgentPhase) -> MiniMaxPhaseModelSelection {
+    guard
+      let raw = model.agentSettings.phaseOverride(phase, provider: .minimaxToken),
+      let version = MiniMaxTextModelVersion(modelIdentifier: raw)
+    else {
+      return .defaultRole
+    }
+    return .version(version)
+  }
+
+  private enum MiniMaxPhaseModelSelection: Hashable {
+    case defaultRole
+    case version(MiniMaxTextModelVersion)
   }
 
   private struct ProviderOption {

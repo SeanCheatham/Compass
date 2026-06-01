@@ -161,16 +161,16 @@ struct AgentSettingsGuide: Equatable, Sendable {
         "Plan, Develop, Reflect, and Critic share the on-device model; deterministic checks carry the safety load."
       status = .ready
     } else {
-      let overrides = AgentPhase.allCases.compactMap { phase -> String? in
-        guard let override = phaseOverride(for: phase, settings: settings) else { return nil }
-        return "\(phase.displayLabel)=\(override)"
+      let phaseModels = AgentPhase.allCases.map { phase in
+        "\(phase.displayLabel)=\(settings.model(for: phase))"
       }
-      if overrides.isEmpty {
+      let uniqueModels = Set(AgentPhase.allCases.map { settings.model(for: $0) })
+      if uniqueModels.count <= 1 {
         detail =
           "Plan, Develop, Reflect, and Critic use \(textModelName(settings)); set Critic only when you want an independent reviewer."
       } else {
         detail =
-          "Overrides: \(overrides.joined(separator: ", ")). Empty phases use \(textModelName(settings))."
+          "Role routing: \(phaseModels.joined(separator: ", "))."
       }
       status = .ready
     }
@@ -232,21 +232,6 @@ struct AgentSettingsGuide: Equatable, Sendable {
     let trimmed = settings.model.trimmingCharacters(in: .whitespacesAndNewlines)
     if !trimmed.isEmpty { return trimmed }
     return settings.textProvider.defaultModel(for: .text) ?? "the provider default"
-  }
-
-  private static func phaseOverride(
-    for phase: AgentPhase,
-    settings: AgentRuntimeSettings
-  ) -> String? {
-    let raw: String?
-    switch phase {
-    case .plan: raw = settings.planModelOverride
-    case .develop: raw = settings.developModelOverride
-    case .reflect: raw = settings.reflectModelOverride
-    case .critic: raw = settings.criticModelOverride
-    }
-    let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    return trimmed.isEmpty ? nil : trimmed
   }
 
   private static func isOptionalToolRowID(_ id: String) -> Bool {
@@ -402,16 +387,7 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
     _ phase: AgentPhase,
     settings: AgentRuntimeSettings
   ) -> String {
-    let override: String?
-    switch phase {
-    case .plan: override = settings.planModelOverride
-    case .develop: override = settings.developModelOverride
-    case .reflect: override = settings.reflectModelOverride
-    case .critic: override = settings.criticModelOverride
-    }
-    let trimmed = override?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if !trimmed.isEmpty { return trimmed }
-    return Self.modelLabel(settings.model, provider: settings.textProvider, capability: .text)
+    settings.model(for: phase)
   }
 
   private static func codemapModelLabel(_ settings: AgentRuntimeSettings) -> String {

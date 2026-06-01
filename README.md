@@ -96,9 +96,12 @@ Any endpoint that implements OpenAI-style streaming chat completions with
 `tools` / `tool_choice` / multi-turn `tool_calls` works. MiniMax-M2.7 is
 the default MiniMax text model, and swapping to a different provider or
 model is a Settings-only change. MiniMax Token's Text settings include a
-version menu for MiniMax 2.7 (200k context) and MiniMax 3 (1M context);
-auto-compaction follows the selected version unless
-`COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` is set.
+version menu for MiniMax 2.7 (200k context) and MiniMax 3 (1M context).
+By default, MiniMax routes Plan through MiniMax 3 and keeps Develop,
+Reflect, Critic, and codemap summaries on the selected base version
+(MiniMax 2.7 by default). The per-phase MiniMax menus can opt any role
+into 2.7 or 3 explicitly; `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` still
+overrides auto-compaction.
 
 ## Workflow
 

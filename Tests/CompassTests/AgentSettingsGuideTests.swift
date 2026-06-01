@@ -68,7 +68,28 @@ struct AgentSettingsGuideTests {
     #expect(phaseRow.status == .ready)
     #expect(phaseRow.detail.contains("Plan=planner"))
     #expect(phaseRow.detail.contains("Critic=critic"))
-    #expect(phaseRow.detail.contains("Empty phases use MiniMax-M2.7"))
+    #expect(phaseRow.detail.contains("Develop=MiniMax-M2.7"))
+    #expect(phaseRow.detail.contains("Reflect=MiniMax-M2.7"))
+  }
+
+  @Test
+  func minimaxDefaultRoleRoutingReservesM3ForPlan() throws {
+    let guide = AgentSettingsGuide(
+      settings: AgentRuntimeSettings(
+        textProvider: .minimaxToken,
+        baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
+        apiKey: "mm-key",
+        model: "MiniMax-M2.7"
+      ),
+      foundationModelsAvailable: false
+    )
+
+    let phaseRow = try #require(guide.rows.first { $0.id == "phaseRouting" })
+    #expect(phaseRow.status == .ready)
+    #expect(phaseRow.detail.contains("Plan=MiniMax-M3"))
+    #expect(phaseRow.detail.contains("Develop=MiniMax-M2.7"))
+    #expect(phaseRow.detail.contains("Reflect=MiniMax-M2.7"))
+    #expect(phaseRow.detail.contains("Critic=MiniMax-M2.7"))
   }
 
   @Test
@@ -175,6 +196,29 @@ struct AgentSettingsGuideTests {
     #expect(!payload.text.contains("mm-image-secret"))
     #expect(payload.text.count <= AgentSettingsClipboardPayload.textLimit)
     #expect(!payload.isEmpty)
+  }
+
+  @Test
+  func settingsClipboardPayloadIncludesMiniMaxDefaultRoleRouting() throws {
+    let settings = AgentRuntimeSettings(
+      textProvider: .minimaxToken,
+      baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
+      apiKey: "mm-secret",
+      model: "MiniMax-M2.7"
+    )
+    let guide = AgentSettingsGuide(settings: settings, foundationModelsAvailable: false)
+
+    let payload = AgentSettingsClipboardPayload(
+      settings: settings,
+      guide: guide,
+      foundationModelsAvailable: false
+    )
+
+    #expect(payload.text.contains("Default model: MiniMax-M2.7"))
+    #expect(payload.text.contains("Phase routing: Plan=MiniMax-M3"))
+    #expect(payload.text.contains("Develop=MiniMax-M2.7"))
+    #expect(payload.text.contains("Critic=MiniMax-M2.7"))
+    #expect(!payload.text.contains("mm-secret"))
   }
 
   @Test

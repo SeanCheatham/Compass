@@ -105,6 +105,19 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
     )?.contextWindowTokens ?? defaultTextContextWindowTokens
   }
 
+  func defaultModel(for phase: AgentPhase, baseModel: String) -> String? {
+    let trimmedBase = baseModel.trimmingCharacters(in: .whitespacesAndNewlines)
+    let fallback = trimmedBase.isEmpty ? defaultModel(for: .text) : trimmedBase
+    guard self == .minimaxToken else { return fallback }
+
+    switch phase {
+    case .plan:
+      return MiniMaxTextModelVersion.m3.modelIdentifier
+    case .develop, .reflect, .critic:
+      return fallback
+    }
+  }
+
   /// Built-in default context window (in tokens) for this provider's
   /// text capability. Drives `AgentExecutor`'s auto-compaction
   /// threshold when no more specific model size is selected, and keeps
@@ -129,7 +142,7 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
   }
 }
 
-enum MiniMaxTextModelVersion: String, Sendable, CaseIterable, Codable, Identifiable {
+enum MiniMaxTextModelVersion: String, Sendable, CaseIterable, Codable, Identifiable, Hashable {
   case m27
   case m3
 

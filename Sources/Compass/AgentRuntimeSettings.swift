@@ -215,8 +215,10 @@ struct AgentRuntimeSettings: Equatable, Sendable {
 
   /// Resolve the model identifier for a given phase.
   ///
-  /// Resolution order: sidebar override → phase-specific env override →
-  /// default model.
+  /// Resolution order: sidebar override → phase-specific override →
+  /// provider role default. For MiniMax, Plan defaults to M3 while the
+  /// other roles use the selected base Text model, keeping the stronger
+  /// model focused on planning unless the user opts another role into it.
   func model(for phase: AgentPhase, sidebarOverride: String = "") -> String {
     let sidebar = sidebarOverride.trimmingCharacters(in: .whitespacesAndNewlines)
     if !sidebar.isEmpty { return sidebar }
@@ -227,7 +229,12 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     case .reflect: phaseOverride = reflectModelOverride
     case .critic: phaseOverride = criticModelOverride
     }
-    return phaseOverride ?? model
+    if let phaseOverride,
+      !phaseOverride.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    {
+      return phaseOverride
+    }
+    return textProvider.defaultModel(for: phase, baseModel: model) ?? model
   }
 }
 

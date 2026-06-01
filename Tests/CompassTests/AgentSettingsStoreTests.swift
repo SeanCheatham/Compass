@@ -69,6 +69,8 @@ struct AgentSettingsStoreTests: ~Copyable {
     let store = makeStore(environment: [:])
     store.setSelectedProvider(.minimaxToken, for: .text)
     try #require(store.load().model == MiniMaxTextModelVersion.m27.modelIdentifier)
+    try #require(store.load().model(for: .plan) == MiniMaxTextModelVersion.m3.modelIdentifier)
+    try #require(store.load().model(for: .develop) == MiniMaxTextModelVersion.m27.modelIdentifier)
     try #require(store.load().contextWindowTokens == 200_000)
 
     store.setCellModel(

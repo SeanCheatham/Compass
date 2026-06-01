@@ -78,6 +78,11 @@ struct AgentRuntimeSidebarSummary: Equatable, Sendable {
     if settings.textProvider == .appleFoundationModels {
       return "Apple Intelligence system model"
     }
+    let phaseModels = AgentPhase.allCases.map { "\($0.sidebarLabel)=\(settings.model(for: $0))" }
+    let uniqueModels = Set(AgentPhase.allCases.map { settings.model(for: $0) })
+    if uniqueModels.count > 1 {
+      return phaseModels.joined(separator: "; ")
+    }
     let model = settings.model.trimmingCharacters(in: .whitespacesAndNewlines)
     if !model.isEmpty { return model }
     return settings.textProvider.defaultModel(for: .text) ?? "Provider default"
@@ -105,5 +110,16 @@ struct AgentRuntimeSidebarSummary: Equatable, Sendable {
     return hasKey
       ? "\(label) ready via \(assignment.provider.displayName)"
       : "\(label) needs key"
+  }
+}
+
+extension AgentPhase {
+  fileprivate var sidebarLabel: String {
+    switch self {
+    case .plan: return "Plan"
+    case .develop: return "Develop"
+    case .reflect: return "Reflect"
+    case .critic: return "Critic"
+    }
   }
 }
