@@ -358,12 +358,25 @@ extension AgentExecutor {
         error.missingLabels.isEmpty
         ? "Outcome and Acceptance checks"
         : error.missingLabels.joined(separator: " and ")
-      if !error.rejectedAcceptanceChecks.isEmpty {
-        return """
-          - Replace command-only acceptance checks (\(formattedRejectedAcceptanceChecks(error.rejectedAcceptanceChecks))) with observable finish-line behavior.
-          - Keep shell commands in `state.immediate.verify`; do not repeat them as acceptance checks.
-          - Add \(missing) to `state.immediate.plan` while keeping the slice commit-sized.
-          """
+      if !error.rejectedAcceptanceChecks.isEmpty || !error.vagueAcceptanceChecks.isEmpty {
+        var repairs: [String] = []
+        if !error.rejectedAcceptanceChecks.isEmpty {
+          repairs.append(
+            "- Replace command-only acceptance checks (\(formattedRejectedAcceptanceChecks(error.rejectedAcceptanceChecks))) with observable finish-line behavior."
+          )
+          repairs.append(
+            "- Keep shell commands in `state.immediate.verify`; do not repeat them as acceptance checks."
+          )
+        }
+        if !error.vagueAcceptanceChecks.isEmpty {
+          repairs.append(
+            "- Replace vague acceptance checks (\(formattedRejectedAcceptanceChecks(error.vagueAcceptanceChecks))) with specific behavior, UI state, or test-proven signals."
+          )
+        }
+        repairs.append(
+          "- Add \(missing) to `state.immediate.plan` while keeping the slice commit-sized."
+        )
+        return repairs.joined(separator: "\n")
       }
       return """
         - Add \(missing) to `state.immediate.plan`.

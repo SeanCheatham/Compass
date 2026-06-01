@@ -629,6 +629,22 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("observable finish-line behavior"))
   }
 
+  @Test func testSubmitResultValidationNudgeTargetsVagueAcceptanceChecks() throws {
+    let nudge = AgentExecutor.submitResultValidationNudge(
+      for: PlanTransitionValidationError(
+        message: "Plan returned vague acceptance checks.",
+        reason: .weakHandoff,
+        missingLabels: ["Acceptance checks"],
+        vagueAcceptanceChecks: ["The planned behavior is implemented."]
+      )
+    )
+
+    try #require(nudge.userMessage.contains("Replace vague acceptance checks"))
+    try #require(nudge.userMessage.contains("`The planned behavior is implemented.`"))
+    try #require(nudge.userMessage.contains("specific behavior, UI state, or test-proven signals"))
+    try #require(nudge.userMessage.contains("Add Acceptance checks"))
+  }
+
   @Test func testSubmitResultValidationNudgeTargetsCoverageRequirement() throws {
     let nudge = AgentExecutor.submitResultValidationNudge(
       for: PlanTransitionValidationError(

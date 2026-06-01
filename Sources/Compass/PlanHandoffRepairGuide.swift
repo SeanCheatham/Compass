@@ -209,6 +209,9 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     if !digest.commandOnlyAcceptanceChecks.isEmpty {
       return "Replace command-only checks with observable finish-line behavior."
     }
+    if !digest.vagueAcceptanceChecks.isEmpty {
+      return "Replace vague checks with specific observable finish-line behavior."
+    }
     return "List observable finish-line checks."
   }
 

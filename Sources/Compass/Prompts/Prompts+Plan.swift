@@ -92,6 +92,8 @@ extension Prompts {
         not shell commands. Put commands only in `state.immediate.verify`;
         never write checks like `swift test`, `npm test`, `cargo test`,
         `pytest`, or `Verify: ...` as acceptance bullets.
+        Do not use placeholder checks like `the planned behavior is
+        implemented`, `it works`, or unedited template text.
       - If the increment touches feature-gated, optional-provider, platform-specific,
         or conditional-compilation code, plan a verify matrix that compiles the
         relevant variants (for Rust/Cargo this usually means including

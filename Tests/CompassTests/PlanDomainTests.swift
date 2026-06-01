@@ -124,6 +124,30 @@ struct PlanTransitionValidatorTests {
     try #require(error.missingLabels == ["Acceptance checks"])
   }
 
+  @Test func testRejectsVagueAcceptanceChecks() throws {
+    let current = makeState(midTerm: "- Make Plan handoffs clearer")
+    let next = makeState(
+      immediate: PlanNext(
+        plan: """
+          ## Outcome
+          Make Plan handoffs clearer.
+
+          ## Acceptance checks
+          - The planned behavior is implemented.
+          """,
+        verify: "swift test --filter PlanDomainTests"
+      ),
+      midTerm: "- Make Plan handoffs clearer"
+    )
+
+    let error = try rejectedTransition(from: current, to: next)
+    try #require(error.message.contains("Acceptance checks are too vague"))
+    try #require(error.message.contains("`The planned behavior is implemented.`"))
+    try #require(error.vagueAcceptanceChecks == ["The planned behavior is implemented."])
+    try #require(error.reason == .weakHandoff)
+    try #require(error.missingLabels == ["Acceptance checks"])
+  }
+
   @Test func testRejectsNoImmediateWorkWhenLongTermRemains() throws {
     let current = makeState(completed: ["done"], midTerm: "", longTerm: "")
     let next = makeState(
@@ -231,7 +255,7 @@ struct PlanTransitionValidatorTests {
     The owner can understand the next slice before Develop starts.
 
     ## Acceptance checks
-    - The planned behavior is implemented.
+    - The owner-visible result appears in the target surface.
     """
   }
 }

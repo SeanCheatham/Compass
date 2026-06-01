@@ -223,6 +223,7 @@ struct PlanHandoffDigest: Equatable, Sendable {
   var whyItMatters: String?
   var acceptanceChecks: [String]
   var commandOnlyAcceptanceChecks: [String]
+  var vagueAcceptanceChecks: [String]
   var missingPieces: [MissingPiece]
 
   init(plan rawPlan: String?) {
@@ -236,6 +237,7 @@ struct PlanHandoffDigest: Equatable, Sendable {
       whyItMatters = nil
       acceptanceChecks = []
       commandOnlyAcceptanceChecks = []
+      vagueAcceptanceChecks = []
       missingPieces = [.outcome, .acceptanceChecks]
       return
     }
@@ -252,9 +254,16 @@ struct PlanHandoffDigest: Equatable, Sendable {
       .filter(Self.isCommandOnlyAcceptanceCheck)
       .prefix(Self.checkLimit)
       .map { StringUtils.boundedText($0, limit: Self.textLimit) }
+    vagueAcceptanceChecks =
+      cleanedAcceptanceChecks
+      .filter { !Self.isCommandOnlyAcceptanceCheck($0) }
+      .filter(Self.isVagueAcceptanceCheck)
+      .prefix(Self.checkLimit)
+      .map { StringUtils.boundedText($0, limit: Self.textLimit) }
     acceptanceChecks =
       cleanedAcceptanceChecks
       .filter { !Self.isCommandOnlyAcceptanceCheck($0) }
+      .filter { !Self.isVagueAcceptanceCheck($0) }
       .prefix(Self.checkLimit)
       .map { StringUtils.boundedText($0, limit: Self.textLimit) }
 
@@ -458,6 +467,35 @@ struct PlanHandoffDigest: Equatable, Sendable {
     return false
   }
 
+  private static func isVagueAcceptanceCheck(_ line: String) -> Bool {
+    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.contains("<") || trimmed.contains(">") {
+      return true
+    }
+    let key = acceptanceQualityKey(line)
+    if vagueAcceptanceCheckKeys.contains(key) {
+      return true
+    }
+    if key.hasPrefix("the planned ") && key.hasSuffix(" is implemented") {
+      return true
+    }
+    if key.hasPrefix("the change ") && key.hasSuffix(" is implemented") {
+      return true
+    }
+    return false
+  }
+
+  private static func acceptanceQualityKey(_ line: String) -> String {
+    var key = line
+      .lowercased()
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    key = key.trimmingCharacters(
+      in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
+    )
+    return key.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+  }
+
   private static func commandCandidate(fromAcceptanceLine line: String) -> String? {
     var candidate = line.trimmingCharacters(in: .whitespacesAndNewlines)
     let labels = [
@@ -513,6 +551,36 @@ struct PlanHandoffDigest: Equatable, Sendable {
     "yarn run build",
     "yarn run test",
     "yarn test",
+  ]
+
+  private static let vagueAcceptanceCheckKeys: Set<String> = [
+    "all done",
+    "all good",
+    "all set",
+    "complete",
+    "completed",
+    "done",
+    "everything works",
+    "fixed",
+    "implemented",
+    "implementation complete",
+    "implementation is complete",
+    "it is complete",
+    "it is done",
+    "it is implemented",
+    "it works",
+    "looks good",
+    "planned behavior is implemented",
+    "the change is complete",
+    "the change is done",
+    "the change works",
+    "the feature works",
+    "the implementation is complete",
+    "the planned behavior is implemented",
+    "the planned change is implemented",
+    "the task is complete",
+    "the work is complete",
+    "works",
   ]
 
   private static let shellArgumentCharacters = CharacterSet(

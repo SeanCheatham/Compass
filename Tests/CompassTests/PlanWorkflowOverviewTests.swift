@@ -438,6 +438,52 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
+  func testHandoffDigestIgnoresVagueAcceptanceChecks() throws {
+    let digest = PlanHandoffDigest(
+      plan: """
+        ## Outcome
+        Make run recovery safer.
+
+        ## Acceptance checks
+        - The planned behavior is implemented.
+        - It works.
+        - Retry button explains the saved failure before it runs again.
+        """
+    )
+
+    try #require(digest.status == .ready)
+    try #require(
+      digest.acceptanceChecks == [
+        "Retry button explains the saved failure before it runs again."
+      ])
+    try #require(
+      digest.vagueAcceptanceChecks == [
+        "The planned behavior is implemented.",
+        "It works.",
+      ])
+
+    let vagueOnly = PlanHandoffDigest(
+      plan: """
+        ## Outcome
+        Make run recovery safer.
+
+        ## Acceptance checks
+        - The planned behavior is implemented.
+        - <observable finish-line behavior>
+        """
+    )
+
+    try #require(vagueOnly.status == .needsDetail)
+    try #require(vagueOnly.acceptanceChecks.isEmpty)
+    try #require(
+      vagueOnly.vagueAcceptanceChecks == [
+        "The planned behavior is implemented.",
+        "<observable finish-line behavior>",
+      ])
+    try #require(vagueOnly.missingPieces == [.acceptanceChecks, .whyItMatters])
+  }
+
+  @Test
   func testHandoffDigestFlagsMissingAcceptanceChecks() throws {
     let digest = PlanHandoffDigest(
       plan: """
@@ -606,6 +652,27 @@ struct PlanWorkflowOverviewTests {
     try #require(!guide.steps[1].isSatisfied)
     try #require(
       guide.steps[1].detail == "Replace command-only checks with observable finish-line behavior."
+    )
+  }
+
+  @Test
+  func testHandoffRepairGuideExplainsVagueAcceptanceChecks() throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: """
+        ## Outcome
+        Make retry recovery safer.
+
+        ## Acceptance checks
+        - The planned behavior is implemented.
+        """,
+      verify: "swift test --filter RecoveryTests",
+      languageProfile: profile(.swift)
+    )
+
+    try #require(guide.status == .needsRepair)
+    try #require(!guide.steps[1].isSatisfied)
+    try #require(
+      guide.steps[1].detail == "Replace vague checks with specific observable finish-line behavior."
     )
   }
 

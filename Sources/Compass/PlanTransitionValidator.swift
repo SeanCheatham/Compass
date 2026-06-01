@@ -15,19 +15,22 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
   var missingLabels: [String]
   var rejectedVerify: String?
   var rejectedAcceptanceChecks: [String]
+  var vagueAcceptanceChecks: [String]
 
   init(
     message: String,
     reason: Reason = .unknown,
     missingLabels: [String] = [],
     rejectedVerify: String? = nil,
-    rejectedAcceptanceChecks: [String] = []
+    rejectedAcceptanceChecks: [String] = [],
+    vagueAcceptanceChecks: [String] = []
   ) {
     self.message = message
     self.reason = reason
     self.missingLabels = missingLabels
     self.rejectedVerify = rejectedVerify
     self.rejectedAcceptanceChecks = rejectedAcceptanceChecks
+    self.vagueAcceptanceChecks = vagueAcceptanceChecks
   }
 
   var errorDescription: String? {
@@ -105,16 +108,19 @@ enum PlanTransitionValidator {
         ? "a concrete Outcome and Acceptance checks"
         : requiredMissing.joined(separator: " and ")
       let rejectedAcceptanceChecks = handoffDigest.commandOnlyAcceptanceChecks
-      let commandOnlyDetail =
-        requiredMissing.contains("Acceptance checks") && !rejectedAcceptanceChecks.isEmpty
-        ? " Acceptance checks cannot be only verify commands (\(formattedRejectedChecks(rejectedAcceptanceChecks))). Put shell commands in `state.immediate.verify`, and describe observable behavior or UI state in `state.immediate.plan`."
-        : ""
+      let vagueAcceptanceChecks = handoffDigest.vagueAcceptanceChecks
+      let acceptanceRepairDetail = acceptanceRepairDetail(
+        missingLabels: requiredMissing,
+        commandOnlyChecks: rejectedAcceptanceChecks,
+        vagueChecks: vagueAcceptanceChecks
+      )
       throw PlanTransitionValidationError(
         message:
-          "Plan returned an immediate handoff that is not executable enough for Develop. Missing \(missing).\(commandOnlyDetail) Write `immediate.plan` with short Markdown sections named Outcome and Acceptance checks; include Why it matters when it helps the non-engineer owner. The acceptance checks should state observable finish-line behavior Develop can verify.",
+          "Plan returned an immediate handoff that is not executable enough for Develop. Missing \(missing).\(acceptanceRepairDetail) Write `immediate.plan` with short Markdown sections named Outcome and Acceptance checks; include Why it matters when it helps the non-engineer owner. The acceptance checks should state observable finish-line behavior Develop can verify.",
         reason: .weakHandoff,
         missingLabels: requiredMissing,
-        rejectedAcceptanceChecks: rejectedAcceptanceChecks
+        rejectedAcceptanceChecks: rejectedAcceptanceChecks,
+        vagueAcceptanceChecks: vagueAcceptanceChecks
       )
     }
   }
@@ -147,5 +153,28 @@ enum PlanTransitionValidator {
 
   private static func formattedRejectedChecks(_ checks: [String]) -> String {
     checks.prefix(3).map { "`\($0)`" }.joined(separator: ", ")
+  }
+
+  private static func acceptanceRepairDetail(
+    missingLabels: [String],
+    commandOnlyChecks: [String],
+    vagueChecks: [String]
+  ) -> String {
+    guard missingLabels.contains("Acceptance checks") else { return "" }
+
+    var details: [String] = []
+    if !commandOnlyChecks.isEmpty {
+      details.append(
+        "Acceptance checks cannot be only verify commands (\(formattedRejectedChecks(commandOnlyChecks))). Put shell commands in `state.immediate.verify`, and describe observable behavior or UI state in `state.immediate.plan`."
+      )
+    }
+    if !vagueChecks.isEmpty {
+      details.append(
+        "Acceptance checks are too vague (\(formattedRejectedChecks(vagueChecks))). Replace them with specific behavior, UI state, or test-proven signals Develop can verify."
+      )
+    }
+
+    guard !details.isEmpty else { return "" }
+    return " " + details.joined(separator: " ")
   }
 }

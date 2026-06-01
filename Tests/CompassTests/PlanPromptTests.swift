@@ -86,6 +86,9 @@ struct PlanPromptTests {
     try #require(prompt.contains("Acceptance checks describe observable behavior"))
     try #require(prompt.contains("Put commands only in `state.immediate.verify`"))
     try #require(prompt.contains("or `Verify: ...` as acceptance bullets"))
+    try #require(prompt.contains("Do not use placeholder checks"))
+    try #require(prompt.contains("the planned behavior is"))
+    try #require(prompt.contains("unedited template text"))
   }
 
   @Test func testPlanPromptIncludesCopyableImmediateHandoffTemplate() throws {
