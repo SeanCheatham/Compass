@@ -137,6 +137,17 @@ struct PlanPromptTests {
     )
   }
 
+  @Test func testPlanPromptSubmitResultExampleUsesSchemaValidChoiceValues() throws {
+    let prompt = try makePlanPrompt()
+
+    try #require(prompt.contains("\"estimatedDifficulty\": \"low\""))
+    try #require(!prompt.contains("\"estimatedDifficulty\": \"low|medium|high\""))
+    try #require(prompt.contains("Replace `\"estimatedDifficulty\": \"low\"`"))
+    try #require(prompt.contains("`\"medium\"` or `\"high\"`"))
+    try #require(prompt.contains("replace the entire `immediate` object with `null`"))
+    try #require(!prompt.contains("} | null"))
+  }
+
   @Test func testHostXcodePlanningIsAbsentUnlessProjectOptInIsEnabled() throws {
     let state = PlanProposal(
       immediate: PlanNext(
@@ -175,6 +186,9 @@ struct PlanPromptTests {
     )
 
     #expect(prompt.contains("requiresHostXcode"))
+    #expect(prompt.contains("\"requiresHostXcode\": true"))
+    #expect(!prompt.contains("true|false"))
+    #expect(prompt.contains("do not combine both choices in the JSON value"))
     #expect(prompt.contains("default to host-side execution"))
     #expect(prompt.contains("_TestingInterop"))
     #expect(!prompt.contains("simctl"))

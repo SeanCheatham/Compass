@@ -51,7 +51,11 @@ extension Prompts {
       """
     let hostXcodeShape =
       hostXcodeBuildTestEnabled
-      ? ",\n            \"requiresHostXcode\": true|false"
+      ? ",\n            \"requiresHostXcode\": true"
+      : ""
+    let hostXcodeShapeGuidance =
+      hostXcodeBuildTestEnabled
+      ? "When the field appears, set `requiresHostXcode` to the boolean `true` or `false`; do not combine both choices in the JSON value."
       : ""
     return """
       You are the Plan agent in Compass's software factory (see the system
@@ -157,8 +161,8 @@ extension Prompts {
             "plan": "markdown plan for one implementation increment",
             "verify": "shell command — no `cd` prefix, no absolute paths",
             "verifyTimeoutMs": 600000,
-            "estimatedDifficulty": "low|medium|high"\(hostXcodeShape)
-          } | null,
+            "estimatedDifficulty": "low"\(hostXcodeShape)
+          },
           "midTerm": "markdown",
           "longTerm": "markdown"
         },
@@ -170,6 +174,10 @@ extension Prompts {
           }
         ]
       }
+      Replace `"estimatedDifficulty": "low"` with `"medium"` or `"high"` only when \
+      that better fits. If the project is genuinely complete, replace the entire \
+      `immediate` object with `null`; keep `midTerm`, `longTerm`, and `lessonEdits` \
+      present. \(hostXcodeShapeGuidance)
 
       \(focus.promptGuidance)
 
