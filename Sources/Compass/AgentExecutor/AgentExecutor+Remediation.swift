@@ -107,7 +107,18 @@ extension AgentExecutor {
         `lessonEdits` unless the facts changed, but replace `feedback` with one or two concrete \
         sentences. For `succeeded`, name what changed and whether there is a next follow-up or \
         no follow-up after verification. For `blocked` or `failed`, name the blocker/failure and \
-        the smallest recovery action Plan should choose next. Do not answer in prose.
+        the smallest recovery action Plan should choose next.
+
+        Use this exact retry shape, keeping facts unchanged except for the stronger `feedback`:
+        {
+          "status": "<same status>",
+          "summary": "<same factual summary>",
+          "feedback": "<changed surface plus verification/follow-up, or blocker/failure plus smallest Plan recovery action>",
+          "bypassVerify": false,
+          "lessonEdits": []
+        }
+
+        Do not answer in prose.
         """
     )
   }

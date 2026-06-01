@@ -362,6 +362,14 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("next Plan pass"))
     try #require(nudge.userMessage.contains("Keep the same `status`"))
     try #require(nudge.userMessage.contains("smallest recovery action"))
+    try #require(nudge.userMessage.contains("Use this exact retry shape"))
+    try #require(nudge.userMessage.contains("\"status\": \"<same status>\""))
+    try #require(
+      nudge.userMessage.contains(
+        "changed surface plus verification/follow-up, or blocker/failure plus smallest Plan recovery action"
+      )
+    )
+    try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
     try #require(nudge.userMessage.contains("Do not answer in prose"))
   }
 
