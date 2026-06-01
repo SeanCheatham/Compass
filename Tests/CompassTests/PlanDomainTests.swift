@@ -985,15 +985,15 @@ struct DevelopSummaryDecoderTests {
     let data = Data(
       """
       {
-        "outcome": "completed",
+        "completion_status": "completed",
         "details": "Implemented the recovery copy.",
-        "handoff": "Run controls now name the exact handoff field that needs repair.",
-        "skipVerify": "false",
-        "lessonEdits": [
+        "next_plan_handoff": "Run controls now name the exact handoff field that needs repair.",
+        "bypass_verify": "false",
+        "lesson_edits": [
           {
             "find": "old lesson",
             "replace": "new lesson",
-            "replaceAll": "true"
+            "replace_all": "true"
           }
         ]
       }
@@ -1086,7 +1086,13 @@ struct PlanningEnvelopeDecoderTests {
           "mid_term": "- Continue payload hardening",
           "long_term": "Make Compass forgiving at the edges and strict at the core."
         },
-        "lessonEdits": []
+        "lesson_edits": [
+          {
+            "find": "old planning lesson",
+            "replace": "new planning lesson",
+            "replace_all": "false"
+          }
+        ]
       }
       """.utf8
     )
@@ -1099,6 +1105,8 @@ struct PlanningEnvelopeDecoderTests {
     try #require(result.state.midTerm == "- Continue payload hardening")
     try #require(
       result.state.longTerm == "Make Compass forgiving at the edges and strict at the core.")
+    try #require(result.lessonEdits.count == 1)
+    try #require(result.lessonEdits[0].replaceAll == false)
   }
 
   @Test func reflectSummaryDecoderAcceptsPlanningStateAliasesFromLessCapableModels() throws {
@@ -1114,7 +1122,13 @@ struct PlanningEnvelopeDecoderTests {
           "The arc still points at non-engineer UX.",
           "No immediate planning update is needed."
         ],
-        "lessonEdits": []
+        "lesson_edits": [
+          {
+            "find": "old reflect lesson",
+            "replace": "new reflect lesson",
+            "replace_all": "true"
+          }
+        ]
       }
       """.utf8
     )
@@ -1128,6 +1142,8 @@ struct PlanningEnvelopeDecoderTests {
       summary.summary
         == "The arc still points at non-engineer UX.\nNo immediate planning update is needed."
     )
+    try #require(summary.lessonEdits.count == 1)
+    try #require(summary.lessonEdits[0].replaceAll == true)
   }
 
   @Test func planProposalDecoderAcceptsRunwayArraysForFreeformText() throws {

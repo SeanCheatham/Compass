@@ -121,6 +121,29 @@ enum FlexibleModelDecoder {
     )
   }
 
+  static func decodeValueIfPresent<Value: Decodable, Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    preferredKey: Key,
+    aliases: [Key]
+  ) throws -> Value? {
+    var firstTypeError: Error?
+
+    for key in [preferredKey] + aliases where container.contains(key) {
+      do {
+        if let value = try container.decodeIfPresent(Value.self, forKey: key) {
+          return value
+        }
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    return nil
+  }
+
   static func decodeBool<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     forKey key: Key
@@ -387,6 +410,7 @@ struct LessonEdit: Codable, Equatable {
     case find
     case replace
     case replaceAll
+    case replaceAllSnake = "replace_all"
   }
 
   init(find: String, replace: String, replaceAll: Bool?) {
@@ -399,7 +423,16 @@ struct LessonEdit: Codable, Equatable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     find = try container.decode(String.self, forKey: .find)
     replace = try container.decode(String.self, forKey: .replace)
-    replaceAll = FlexibleModelDecoder.decodeBool(from: container, forKey: .replaceAll)
+    replaceAll =
+      FlexibleModelDecoder.decodeBool(from: container, forKey: .replaceAll)
+      ?? FlexibleModelDecoder.decodeBool(from: container, forKey: .replaceAllSnake)
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(find, forKey: .find)
+    try container.encode(replace, forKey: .replace)
+    try container.encodeIfPresent(replaceAll, forKey: .replaceAll)
   }
 }
 
@@ -415,6 +448,7 @@ struct PlanRunResult: Codable, Equatable {
     case planning_state
     case proposal
     case lessonEdits
+    case lessonEditsSnake = "lesson_edits"
   }
 
   init(state: PlanProposal, lessonEdits: [LessonEdit] = []) {
@@ -430,7 +464,12 @@ struct PlanRunResult: Codable, Equatable {
       aliases: [.planState, .plan_state, .planningState, .planning_state, .proposal],
       fieldName: "state"
     )
-    lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
+    lessonEdits =
+      try FlexibleModelDecoder.decodeValueIfPresent(
+        from: container,
+        preferredKey: .lessonEdits,
+        aliases: [.lessonEditsSnake]
+      ) ?? []
   }
 
   func encode(to encoder: Encoder) throws {
@@ -501,6 +540,7 @@ struct ReflectSummary: Codable, Equatable {
     case proposal
     case summary
     case lessonEdits
+    case lessonEditsSnake = "lesson_edits"
   }
 
   init(state: PlanProposal?, summary: String, lessonEdits: [LessonEdit] = []) {
@@ -517,7 +557,12 @@ struct ReflectSummary: Codable, Equatable {
       aliases: [.planState, .plan_state, .planningState, .planning_state, .proposal]
     )
     summary = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .summary)
-    lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
+    lessonEdits =
+      try FlexibleModelDecoder.decodeValueIfPresent(
+        from: container,
+        preferredKey: .lessonEdits,
+        aliases: [.lessonEditsSnake]
+      ) ?? []
   }
 
   func encode(to encoder: Encoder) throws {
@@ -987,18 +1032,26 @@ struct DevelopSummary: Codable, Equatable {
     case result
     case outcome
     case completionStatus
+    case completionStatusSnake = "completion_status"
     case summary
     case description
     case details
     case feedback
     case handoff
     case nextPlanHandoff
+    case nextPlanHandoffSnake = "next_plan_handoff"
     case bypassVerify
+    case bypassVerifySnake = "bypass_verify"
     case verifyBypass
+    case verifyBypassSnake = "verify_bypass"
     case skipVerify
+    case skipVerifySnake = "skip_verify"
     case skipVerification
+    case skipVerificationSnake = "skip_verification"
     case verificationBypassed
+    case verificationBypassedSnake = "verification_bypassed"
     case lessonEdits
+    case lessonEditsSnake = "lesson_edits"
   }
 
   init(
@@ -1020,7 +1073,7 @@ struct DevelopSummary: Codable, Equatable {
     status = try FlexibleModelDecoder.decodeRequiredValue(
       from: container,
       preferredKey: .status,
-      aliases: [.result, .outcome, .completionStatus],
+      aliases: [.result, .outcome, .completionStatus, .completionStatusSnake],
       fieldName: "status"
     )
     summary = try FlexibleModelDecoder.decodeRequiredString(
@@ -1032,11 +1085,16 @@ struct DevelopSummary: Codable, Equatable {
     feedback = try FlexibleModelDecoder.decodeRequiredString(
       from: container,
       preferredKey: .feedback,
-      aliases: [.handoff, .nextPlanHandoff],
+      aliases: [.handoff, .nextPlanHandoff, .nextPlanHandoffSnake],
       fieldName: "feedback"
     )
     bypassVerify = Self.decodeBypassVerify(from: container)
-    lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
+    lessonEdits =
+      try FlexibleModelDecoder.decodeValueIfPresent(
+        from: container,
+        preferredKey: .lessonEdits,
+        aliases: [.lessonEditsSnake]
+      ) ?? []
   }
 
   func encode(to encoder: Encoder) throws {
@@ -1053,10 +1111,15 @@ struct DevelopSummary: Codable, Equatable {
   ) -> Bool? {
     for key in [
       CodingKeys.bypassVerify,
+      .bypassVerifySnake,
       .verifyBypass,
+      .verifyBypassSnake,
       .skipVerify,
+      .skipVerifySnake,
       .skipVerification,
+      .skipVerificationSnake,
       .verificationBypassed,
+      .verificationBypassedSnake,
     ] {
       if let value = FlexibleModelDecoder.decodeBool(from: container, forKey: key) {
         return value
