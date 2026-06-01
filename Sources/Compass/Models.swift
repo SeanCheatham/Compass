@@ -476,11 +476,13 @@ struct PlanNext: Codable, Equatable {
     for key in [preferredKey] + aliases where container.contains(key) {
       sawPresentKey = true
       do {
-        if let value = try container.decodeIfPresent(String.self, forKey: key) {
-          let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-          if !trimmed.isEmpty {
-            return trimmed
-          }
+        let value = try FlexibleModelDecoder.decodeRequiredString(
+          from: container,
+          forKey: key
+        )
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+          return trimmed
         }
       } catch {
         firstTypeError = firstTypeError ?? error

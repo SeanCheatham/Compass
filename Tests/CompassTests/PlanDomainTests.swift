@@ -960,6 +960,37 @@ struct PlanNextDecoderTests {
     }
   }
 
+  @Test func decoderAcceptsPlanAndVerifyArraysFromLessCapableModels() throws {
+    let next = try decodePlanNext(
+      """
+      {
+        "plan": [
+          "## Outcome",
+          "Make PlanNext decoding tolerate array-shaped handoffs.",
+          "",
+          "## Acceptance checks",
+          "- Array plan text decodes into newline-delimited Markdown.",
+          "- Single-item verify arrays decode to the intended shell command."
+        ],
+        "verify": [
+          "swift test --filter PlanNextDecoderTests"
+        ]
+      }
+      """)
+
+    try #require(
+      next.plan
+        == """
+        ## Outcome
+        Make PlanNext decoding tolerate array-shaped handoffs.
+        ## Acceptance checks
+        - Array plan text decodes into newline-delimited Markdown.
+        - Single-item verify arrays decode to the intended shell command.
+        """
+    )
+    try #require(next.verify == "swift test --filter PlanNextDecoderTests")
+  }
+
   @Test func decoderPrefersCanonicalPlanAndVerifyOverAliases() throws {
     let next = try decodePlanNext(
       """
