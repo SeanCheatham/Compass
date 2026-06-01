@@ -227,6 +227,38 @@ struct LiveFailureInsightTests {
     try #require(insight.nextStep.contains("exact blocker"))
   }
 
+  @Test func failureClipboardPayloadPackagesRepairContextForReuse() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .error,
+          text: "bash · swift test --filter LiveFailureInsightTests",
+          detail: "[stderr]\nerror: copy failure packet assertion failed\n\n[exit 1]",
+          kind: .command,
+          status: .failed
+        )
+      )
+    )
+    let payload = LiveFailureInsightClipboardPayload(insight: insight)
+
+    try #require(payload.text.contains("Compass Live Failure Handoff"))
+    try #require(payload.text.contains("Recipient instructions:"))
+    try #require(payload.text.contains("Do not invent files, commands, credentials"))
+    try #require(payload.text.contains("Failure type: Command Reported A Failure"))
+    try #require(payload.text.contains("Category: commandFailure"))
+    try #require(payload.text.contains("Badge: Command"))
+    try #require(payload.text.contains("Plain explanation:"))
+    try #require(payload.text.contains("A command finished with a failing result"))
+    try #require(payload.text.contains("Safe next step:"))
+    try #require(payload.text.contains("rerun the proof"))
+    try #require(
+      payload.text.contains("Raw live row:\nbash · swift test --filter LiveFailureInsightTests")
+    )
+    try #require(payload.text.contains("Raw detail:\n[stderr] error: copy failure packet"))
+    try #require(payload.text.count <= LiveFailureInsightClipboardPayload.textLimit)
+    try #require(!payload.isEmpty)
+  }
+
   @Test func narratorUsesFoundationModelsAsOptionalFailurePolish() async throws {
     let insight = try #require(
       LiveFailureInsight(

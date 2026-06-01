@@ -337,6 +337,60 @@ struct LiveFailureInsightNarration: Equatable, Sendable {
   var text: String
 }
 
+struct LiveFailureInsightClipboardPayload: Equatable, Sendable {
+  static let textLimit = 2_600
+
+  var text: String
+
+  init(insight: LiveFailureInsight) {
+    let sections = [
+      "Compass Live Failure Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded failure context. Do not invent files, commands, "
+        + "credentials, project facts, outcomes, or extra scope.",
+      "- Start from the raw live row and detail, then apply the safe next step.",
+      "- If the repair requires missing user input, ask for it instead of guessing.",
+      "",
+      "Failure type: \(insight.title)",
+      "Category: \(insight.kind.rawValue)",
+      "Badge: \(insight.badge)",
+      "",
+      "Plain explanation:",
+      insight.explanation,
+      "",
+      "Safe next step:",
+      insight.nextStep,
+      "",
+      "Raw live row:",
+      insight.lineTitle.isEmpty ? "No live row title captured." : insight.lineTitle,
+      "",
+      "Raw detail:",
+      insight.detail.isEmpty ? "No detail captured." : insight.detail,
+    ]
+
+    text = LiveFailureInsightClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+private enum LiveFailureInsightClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}
+
 enum LiveFailureInsightNarrator {
   static let maxCharacters = 340
 

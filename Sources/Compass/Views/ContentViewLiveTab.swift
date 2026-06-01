@@ -868,6 +868,8 @@ struct LiveFailureInsightPanel: View {
   var narration: LiveFailureInsightNarration?
 
   var body: some View {
+    let failurePayload = LiveFailureInsightClipboardPayload(insight: insight)
+
     VStack(alignment: .leading, spacing: 6) {
       HStack(alignment: .firstTextBaseline, spacing: 7) {
         Label(insight.title, systemImage: insight.systemImageName)
@@ -881,6 +883,10 @@ struct LiveFailureInsightPanel: View {
           .padding(.horizontal, 6)
           .padding(.vertical, 2)
           .background(.red.opacity(0.12), in: Capsule())
+
+        Spacer(minLength: 8)
+
+        CopyLiveFailureButton(payload: failurePayload)
       }
 
       Text(narration?.text ?? insight.explanation)
@@ -911,5 +917,30 @@ struct LiveFailureInsightPanel: View {
     }
     .accessibilityElement(children: .combine)
     .accessibilityLabel("\(insight.title). \(narration?.text ?? insight.explanation)")
+  }
+}
+
+struct CopyLiveFailureButton: View {
+  var payload: LiveFailureInsightClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Failure",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded live-failure handoff for another model or teammate.")
   }
 }
