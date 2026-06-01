@@ -9,6 +9,7 @@ struct DevelopFeedbackValidatorTests {
       ("done", .placeholder),
       ("OK", .placeholder),
       ("All good.", .placeholder),
+      ("No follow-up needed.", .placeholder),
       ("compile failed", .tooShort),
     ]
 
@@ -40,6 +41,15 @@ struct DevelopFeedbackValidatorTests {
         summary: "The implementation could not compile.",
         feedback:
           "Swift compile still fails in PlanReliabilityFeedback; next Plan should repair the changed initializer."
+      )
+    )
+
+    try DevelopFeedbackValidator.validate(
+      DevelopSummary(
+        status: .succeeded,
+        summary: "Queued draft readiness is visible in run controls.",
+        feedback:
+          "No follow-up unless the Drafts success-signal copy needs tuning after review."
       )
     )
   }
@@ -118,6 +128,7 @@ struct CriticFeedbackValidatorTests {
       ("", .empty),
       ("needs work", .placeholder),
       ("fix it", .placeholder),
+      ("No further action needed.", .placeholder),
       ("missing tests", .tooShort),
     ]
 
