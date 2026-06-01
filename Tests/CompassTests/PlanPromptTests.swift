@@ -190,6 +190,56 @@ struct PlanPromptTests {
     )
   }
 
+  @Test func testReflectPromptIncludesRecentSessionBriefForCourseCorrection() throws {
+    let prompt = try Prompts.reflectPrompt(
+      state: .empty,
+      lessons: "",
+      vision: "",
+      recentSessions: [
+        makeSession(
+          7,
+          startedAt: 7_000,
+          status: .failed,
+          plan: """
+            ## Outcome
+            Show plain-language reflection cues.
+
+            ## Why it matters
+            Smaller Reflect models can notice repeated failure patterns.
+
+            ## Acceptance checks
+            - Reflect prompt names the attempted outcome.
+            - Reflect prompt explains the failed verify command.
+            """,
+          verify: "swift test --filter ReflectSessionBriefTests",
+          notes: ["Develop reported failure: missing retry coverage."],
+          verifyOutput: VerifyOutput(
+            command: "swift test --filter ReflectSessionBriefTests",
+            exitCode: 65,
+            tail: "expected retry note in the reflection brief"
+          ),
+          feedback: "Retry with a smaller prompt-only slice."
+        )
+      ],
+      iteration: 3
+    )
+
+    try #require(prompt.contains("## Recent session brief"))
+    try #require(prompt.contains("Use this brief to spot patterns before reading the raw session JSON."))
+    try #require(prompt.contains("Raw JSON below remains authoritative."))
+    try #require(prompt.contains("Status mix: 1 failed."))
+    try #require(prompt.contains("Session #7: Failed"))
+    try #require(prompt.contains("Handoff: Executable handoff"))
+    try #require(prompt.contains("Outcome: Show plain-language reflection cues."))
+    try #require(prompt.contains("Acceptance: Reflect prompt names the attempted outcome."))
+    try #require(prompt.contains("Verify: Runs Swift tests"))
+    try #require(prompt.contains("focused on ReflectSessionBriefTests"))
+    try #require(prompt.contains("Result: verify failed exit 65"))
+    try #require(prompt.contains("Tail: expected retry note in the reflection brief"))
+    try #require(prompt.contains("Feedback: Retry with a smaller prompt-only slice."))
+    try #require(prompt.contains("Note: Develop reported failure: missing retry coverage."))
+  }
+
   /// The focus block is what biases the planner away from compounding
   /// feature work. Pin both the header and a representative line from
   /// the interaction rules so a future prompt edit that drops the
@@ -387,6 +437,33 @@ struct PlanPromptTests {
       vision: "",
       focus: .feature,
       forgeProfile: forgeProfile
+    )
+  }
+
+  private func makeSession(
+    _ number: Int,
+    startedAt: Double,
+    status: SessionStatus = .succeeded,
+    plan: String? = "Plan",
+    verify: String? = "swift test",
+    commits: [SessionCommit] = [],
+    notes: [String] = [],
+    verifyOutput: VerifyOutput? = nil,
+    feedback: String? = nil
+  ) -> SessionRecord {
+    SessionRecord(
+      session: number,
+      startedAt: startedAt,
+      endedAt: startedAt + 500,
+      plan: plan,
+      verify: verify,
+      beforeSha: nil,
+      afterSha: nil,
+      commits: commits,
+      status: status,
+      notes: notes,
+      verifyOutput: verifyOutput,
+      feedback: feedback
     )
   }
 }

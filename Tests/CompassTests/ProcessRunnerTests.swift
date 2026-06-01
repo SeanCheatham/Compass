@@ -27,4 +27,31 @@ struct ProcessRunnerTests {
     try #require(result.stdout.utf8.count == 262_144)
     try #require(result.stderr.isEmpty)
   }
+
+  @Test func testRunExecutesShellStubWithoutInput() async throws {
+    let directory = try makeTempDir()
+    let stub = directory.appendingPathComponent("ssh-keyscan")
+    let script = """
+      #!/bin/bash
+      cat <<'OUTPUT'
+      192.168.64.9 ssh-ed25519 TEST_KEY
+      OUTPUT
+      exit 0
+      """
+    try script.write(to: stub, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes(
+      [.posixPermissions: NSNumber(value: 0o755)],
+      ofItemAtPath: stub.path
+    )
+
+    let result = try await ProcessRunner.run(
+      executable: stub.path,
+      arguments: ["-T", "2", "-t", "ed25519,rsa,ecdsa", "192.168.64.9"],
+      timeout: 30
+    )
+
+    try #require(result.exitCode == 0)
+    try #require(result.stdout.contains("TEST_KEY"))
+    try #require(result.stderr.isEmpty)
+  }
 }

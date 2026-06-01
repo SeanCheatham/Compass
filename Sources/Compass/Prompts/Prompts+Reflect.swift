@@ -13,6 +13,7 @@ extension Prompts {
     let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()
     let stateJSON = try CompassWorkspace.encodeProposal(promptState)
     let sessionsJSON = try encodeSessions(recentSessions)
+    let sessionBrief = ReflectSessionBrief(sessions: recentSessions).text
     let hostXcodeGuidance =
       hostXcodeBuildTestEnabled
       ? """
@@ -45,6 +46,9 @@ extension Prompts {
 
       Keep this tight. Do not rewrite state defensively.
       \(hostXcodeGuidance)
+
+      ## Recent session brief
+      \(sessionBrief)
 
       ## Current planning state
       ```json

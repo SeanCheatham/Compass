@@ -18,6 +18,8 @@ struct SharedCompassVMGuestBridge {
   /// trips that ceiling.
   static let controlPathTemplate = "/tmp/compass-ssh-%h-%p-%r"
 
+  private static let keyscanGate = KeyscanGate()
+
   /// Tuneable options that affect every ssh invocation Compass makes.
   struct ConnectionOptions: Equatable {
     var executablePath: String
@@ -327,11 +329,13 @@ struct SharedCompassVMGuestBridge {
     sshKeyscanPath: String = "/usr/bin/ssh-keyscan",
     fileManager: FileManager = .default
   ) async -> KnownHostsBootstrap {
-    let scanned = await runKeyscan(
-      host: host,
-      timeout: timeout,
-      sshKeyscanPath: sshKeyscanPath
-    )
+    let scanned = await keyscanGate.run {
+      await runKeyscan(
+        host: host,
+        timeout: timeout,
+        sshKeyscanPath: sshKeyscanPath
+      )
+    }
     guard let scanned, !scanned.isEmpty else {
       return KnownHostsBootstrap(succeeded: false, entriesAppended: 0)
     }
@@ -388,12 +392,18 @@ struct SharedCompassVMGuestBridge {
           "-t", "ed25519,rsa,ecdsa",
           host,
         ],
-        timeout: max(timeout + 5, 10)
+        timeout: max(timeout + 20, 30)
       )
       guard result.exitCode == 0, !result.stdout.isEmpty else { return nil }
       return result.stdout
     } catch {
       return nil
+    }
+  }
+
+  private actor KeyscanGate {
+    func run(_ operation: @Sendable () async -> String?) async -> String? {
+      await operation()
     }
   }
 
