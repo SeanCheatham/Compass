@@ -9,11 +9,57 @@ struct AgentGrepTool: AgentTool {
   static let maxBytes = 50_000
   static let timeoutSeconds: TimeInterval = 30
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let pattern: String
     let path: String?
     let glob: String?
     let caseInsensitive: Bool?
+
+    enum CodingKeys: String, CodingKey {
+      case pattern
+      case query
+      case regex
+      case search
+      case path
+      case filePath
+      case filePathSnake = "file_path"
+      case file
+      case directory
+      case dir
+      case root
+      case glob
+      case fileGlob
+      case fileGlobSnake = "file_glob"
+      case caseInsensitive
+      case caseInsensitiveSnake = "case_insensitive"
+      case ignoreCase
+      case ignoreCaseSnake = "ignore_case"
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      pattern = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .pattern,
+        aliases: [.query, .regex, .search],
+        fieldName: "pattern"
+      )
+      path = try FlexibleModelDecoder.decodeStringIfPresent(
+        from: container,
+        preferredKey: .path,
+        aliases: [.filePath, .filePathSnake, .file, .directory, .dir, .root]
+      )
+      glob = try FlexibleModelDecoder.decodeStringIfPresent(
+        from: container,
+        preferredKey: .glob,
+        aliases: [.fileGlob, .fileGlobSnake]
+      )
+      caseInsensitive =
+        FlexibleModelDecoder.decodeBool(from: container, forKey: .caseInsensitive)
+        ?? FlexibleModelDecoder.decodeBool(from: container, forKey: .caseInsensitiveSnake)
+        ?? FlexibleModelDecoder.decodeBool(from: container, forKey: .ignoreCase)
+        ?? FlexibleModelDecoder.decodeBool(from: container, forKey: .ignoreCaseSnake)
+    }
   }
 
   let spec: AgentToolSpec

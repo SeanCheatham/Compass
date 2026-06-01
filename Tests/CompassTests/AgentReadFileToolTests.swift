@@ -50,6 +50,25 @@ final class AgentReadFileToolTests {
     try #require(result.content.contains("6 more lines"))
   }
 
+  @Test func testAcceptsCommonPathAndLineAliasesFromLessCapableModels() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("aliases.txt")
+    let lines = (1...5).map { "alias\($0)" }.joined(separator: "\n")
+    try lines.write(to: fileURL, atomically: true, encoding: .utf8)
+
+    let context = AgentToolContext(workingDirectory: temporaryDirectory)
+    let result = try await invoke(
+      [
+        "file_path": "aliases.txt",
+        "start_line": "2",
+        "line_count": "2",
+      ], context: context)
+
+    try #require(!result.isError)
+    try #require(result.content.contains("     2\talias2"))
+    try #require(result.content.contains("     3\talias3"))
+    try #require(!result.content.contains("alias4"))
+  }
+
   @Test func testRejectsBinaryFiles() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("binary.bin")
     try Data([0x89, 0x00, 0x01, 0xFF, 0x00]).write(to: fileURL)

@@ -8,10 +8,72 @@ struct AgentReadFileTool: AgentTool {
   static let defaultLineCount = 2_000
   static let maxLineLength = 2_000
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let path: String
     let offset: Int?
     let limit: Int?
+
+    enum CodingKeys: String, CodingKey {
+      case path
+      case filePath
+      case filePathSnake = "file_path"
+      case file
+      case offset
+      case start
+      case startLine
+      case startLineSnake = "start_line"
+      case line
+      case limit
+      case lineCount
+      case lineCountSnake = "line_count"
+      case maxLines
+      case maxLinesSnake = "max_lines"
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      path = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .path,
+        aliases: [.filePath, .filePathSnake, .file],
+        fieldName: "path"
+      )
+      offset = Self.decodeInt(
+        from: container,
+        preferredKey: .offset,
+        aliases: [.start, .startLine, .startLineSnake, .line]
+      )
+      limit = Self.decodeInt(
+        from: container,
+        preferredKey: .limit,
+        aliases: [.lineCount, .lineCountSnake, .maxLines, .maxLinesSnake]
+      )
+    }
+
+    private static func decodeInt(
+      from container: KeyedDecodingContainer<CodingKeys>,
+      preferredKey: CodingKeys,
+      aliases: [CodingKeys]
+    ) -> Int? {
+      for key in [preferredKey] + aliases {
+        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
+          return value
+        }
+        if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
+          return Int(value)
+        }
+        if let rawValue = try? container.decodeIfPresent(String.self, forKey: key) {
+          let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+          if let value = Int(trimmed) {
+            return value
+          }
+          if let value = Double(trimmed) {
+            return Int(value)
+          }
+        }
+      }
+      return nil
+    }
   }
 
   let spec: AgentToolSpec

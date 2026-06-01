@@ -68,6 +68,32 @@ final class AgentGrepToolTests {
     try #require(result.content.contains("foo"))
   }
 
+  @Test func testAcceptsCommonSearchAliasesFromLessCapableModels() async throws {
+    let directory = temporaryDirectory.appendingPathComponent("Sources")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try "Needle\nother".write(
+      to: directory.appendingPathComponent("App.swift"),
+      atomically: true,
+      encoding: .utf8
+    )
+    try "Needle".write(
+      to: temporaryDirectory.appendingPathComponent("notes.txt"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let result = try await invoke([
+      "query": "needle",
+      "directory": "Sources",
+      "file_glob": "*.swift",
+      "case_insensitive": "true",
+    ])
+
+    try #require(!result.isError)
+    try #require(result.content.contains("Sources/App.swift"))
+    try #require(!result.content.contains("notes.txt"))
+  }
+
   @Test func testGlobRestrictsFiles() async throws {
     try "match".write(
       to: temporaryDirectory.appendingPathComponent("kept.swift"),

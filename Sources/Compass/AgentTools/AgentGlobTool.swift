@@ -9,9 +9,34 @@ struct AgentGlobTool: AgentTool {
   static let maxResults = 200
   static let walkCap = 10_000
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let pattern: String
     let path: String?
+
+    enum CodingKeys: String, CodingKey {
+      case pattern
+      case glob
+      case query
+      case path
+      case directory
+      case dir
+      case root
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      pattern = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .pattern,
+        aliases: [.glob, .query],
+        fieldName: "pattern"
+      )
+      path = try FlexibleModelDecoder.decodeStringIfPresent(
+        from: container,
+        preferredKey: .path,
+        aliases: [.directory, .dir, .root]
+      )
+    }
   }
 
   let spec: AgentToolSpec

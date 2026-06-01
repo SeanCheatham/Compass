@@ -61,6 +61,24 @@ struct AgentLsToolTests {
   }
 
   @Test
+  func acceptsDirectoryAliasFromLessCapableModels() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    let subdir = test.temporaryDirectory.appendingPathComponent("Sources")
+    try FileManager.default.createDirectory(at: subdir, withIntermediateDirectories: false)
+    try "x".write(
+      to: subdir.appendingPathComponent("App.swift"), atomically: true,
+      encoding: .utf8)
+
+    let result = try await test.invoke(["directory": "Sources"])
+
+    try #require(!result.isError)
+    try #require(result.content == "App.swift")
+  }
+
+  @Test
   func emptyDirectoryReportsPlaceholder() async throws {
     var test = Self()
     test.setUp()

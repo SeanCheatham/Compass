@@ -60,6 +60,21 @@ final class AgentGlobToolTests {
     try #require(lines == ["a.txt", "b.txt"])
   }
 
+  @Test func testAcceptsCommonPatternAndDirectoryAliasesFromLessCapableModels() async throws {
+    try makeTree([
+      "Sources/App.swift": "x",
+      "Tests/AppTests.swift": "x",
+    ])
+
+    let result = try await invoke([
+      "glob": "*.swift",
+      "directory": "Sources",
+    ])
+
+    try #require(!result.isError)
+    try #require(result.content == "Sources/App.swift")
+  }
+
   @Test func testReportsNoMatchesWhenEmpty() async throws {
     try makeTree(["a.txt": "x"])
     let result = try await invoke(["pattern": "*.swift"])

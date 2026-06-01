@@ -80,6 +80,29 @@ enum FlexibleModelDecoder {
     return try container.decode(String.self, forKey: key)
   }
 
+  static func decodeStringIfPresent<Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    preferredKey: Key,
+    aliases: [Key]
+  ) throws -> String? {
+    var firstTypeError: Error?
+
+    for key in [preferredKey] + aliases where container.contains(key) {
+      do {
+        if let value = try decodeStringIfPresent(from: container, forKey: key) {
+          return value
+        }
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    return nil
+  }
+
   static func decodeRequiredValue<Value: Decodable, Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,

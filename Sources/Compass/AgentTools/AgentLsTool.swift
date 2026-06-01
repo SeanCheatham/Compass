@@ -6,8 +6,24 @@ struct AgentLsTool: AgentTool {
   static let toolName = "ls"
   static let maxEntries = 1_000
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let path: String?
+
+    enum CodingKeys: String, CodingKey {
+      case path
+      case directory
+      case dir
+      case root
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      path = try FlexibleModelDecoder.decodeStringIfPresent(
+        from: container,
+        preferredKey: .path,
+        aliases: [.directory, .dir, .root]
+      )
+    }
   }
 
   let spec: AgentToolSpec
