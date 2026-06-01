@@ -194,7 +194,7 @@ struct AgentRuntimeSettings: Equatable, Sendable {
 
   func isTextCapabilityRunnable(foundationModelsAvailable: Bool) -> Bool {
     if textProvider.requiresCredentials {
-      return !apiKey.isEmpty
+      return !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     return foundationModelsAvailable
   }

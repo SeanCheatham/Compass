@@ -71,6 +71,16 @@ struct AgentRuntimeSettingsTests {
       AgentProviderKind.openAI.defaultTextContextWindowTokens == 128_000)
   }
 
+  @Test func testWhitespaceOnlyAPIKeyDoesNotMakeNetworkTextRunnable() throws {
+    let settings = AgentRuntimeSettings(
+      textProvider: .openAI,
+      apiKey: " \n\t ",
+      model: "gpt-4o"
+    )
+
+    try #require(!settings.isTextCapabilityRunnable(foundationModelsAvailable: true))
+  }
+
   @Test func testEnvironmentOverridesAreApplied() throws {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([
       "COMPASS_AGENT_BASE_URL": "https://example.test/v1",

@@ -21,9 +21,22 @@ struct CompassSettingsView: View {
 
 private struct AgentSettingsTab: View {
   @EnvironmentObject var model: AppModel
+  @State private var settingsNarration: AgentSettingsGuideNarration?
 
   var body: some View {
+    let settingsGuide = AgentSettingsGuide(
+      settings: model.agentSettings,
+      foundationModelsAvailable: FoundationModelsAvailability.isAvailable
+    )
+
     Form {
+      Section {
+        AgentSettingsGuidePanel(
+          guide: settingsGuide,
+          narration: matchingNarration(for: settingsGuide)
+        )
+      }
+
       ForEach(AgentCapability.allCases, id: \.self) { capability in
         capabilitySection(for: capability)
       }
@@ -38,6 +51,19 @@ private struct AgentSettingsTab: View {
     }
     .formStyle(.grouped)
     .padding()
+    .task(id: settingsGuide.narrationIdentifier) {
+      settingsNarration = nil
+      settingsNarration = await AgentSettingsGuideNarrator.narrate(guide: settingsGuide)
+    }
+  }
+
+  private func matchingNarration(
+    for guide: AgentSettingsGuide
+  ) -> AgentSettingsGuideNarration? {
+    guard settingsNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return settingsNarration
   }
 
   @ViewBuilder
@@ -160,7 +186,7 @@ private struct AgentSettingsTab: View {
     switch provider {
     case .appleFoundationModels:
       return
-        "Runs on-device via Apple's Foundation Models framework. No API key or model identifier needed; the OS selects the available system model."
+        "Runs on this Mac through Apple Intelligence. No API key or model name is needed; macOS selects the available on-device model."
     default:
       return ""
     }
@@ -189,6 +215,82 @@ private struct AgentSettingsTab: View {
     case .critic:
       return
         "Adversarial review pass that gates Develop output. Pointing this at a different / stronger model than Develop produces more independent critique."
+    }
+  }
+}
+
+private struct AgentSettingsGuidePanel: View {
+  let guide: AgentSettingsGuide
+  let narration: AgentSettingsGuideNarration?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(guide.title, systemImage: guide.systemImageName)
+          .font(.headline)
+          .foregroundStyle(toneColor)
+
+        Spacer(minLength: 8)
+
+        Text(guide.actionLabel)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(toneColor)
+          .lineLimit(1)
+      }
+
+      Text(narration?.text ?? guide.detail)
+        .font(.callout)
+        .foregroundStyle(.primary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+
+      VStack(alignment: .leading, spacing: 7) {
+        ForEach(guide.rows) { row in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: rowIconName(row))
+              .foregroundStyle(rowColor(row))
+              .frame(width: 18, height: 18)
+              .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 2) {
+              Text(row.label)
+                .font(.caption.weight(.semibold))
+              Text(row.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.vertical, 4)
+  }
+
+  private var toneColor: Color {
+    switch guide.tone {
+    case .ready: return .green
+    case .blocked: return .red
+    case .optionalAttention: return .orange
+    }
+  }
+
+  private func rowIconName(_ row: AgentSettingsGuide.Row) -> String {
+    switch row.status {
+    case .ready: return "checkmark.circle.fill"
+    case .blocked: return "xmark.octagon.fill"
+    case .off: return "circle.slash"
+    case .attention: return "exclamationmark.triangle.fill"
+    }
+  }
+
+  private func rowColor(_ row: AgentSettingsGuide.Row) -> Color {
+    switch row.status {
+    case .ready: return .green
+    case .blocked: return .red
+    case .off: return .secondary
+    case .attention: return .orange
     }
   }
 }
