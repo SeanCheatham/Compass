@@ -344,7 +344,7 @@ struct PlanWorkflowMetadataRow: View {
           PlanVerifyCommandSummary(command: verifyCommand).title,
           systemImage: "checkmark.seal"
         )
-          .textSelection(.enabled)
+        .textSelection(.enabled)
       } else if section.kind == .immediate {
         metadataLabel("No verify command", systemImage: "checkmark.seal")
       }
@@ -469,6 +469,12 @@ struct PlanFocusPanel: View {
   var languageProfile: RepositoryLanguageProfile
 
   var body: some View {
+    let handoffPayload = PlanHandoffClipboardPayload(
+      plan: item.body,
+      verify: item.verify,
+      languageProfile: languageProfile
+    )
+
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Label(item.title, systemImage: item.kind.systemImage)
@@ -483,6 +489,10 @@ struct PlanFocusPanel: View {
           .background(.quaternary.opacity(0.7), in: Capsule())
 
         Spacer()
+
+        if item.kind == .immediate {
+          CopyHandoffButton(payload: handoffPayload)
+        }
 
         if item.metadata != nil || item.verifyTimeoutLabel != nil {
           HStack(spacing: 6) {
@@ -525,6 +535,28 @@ struct PlanFocusPanel: View {
       RoundedRectangle(cornerRadius: 8)
         .stroke(item.kind.color.opacity(0.22))
     }
+  }
+}
+
+struct CopyHandoffButton: View {
+  var payload: PlanHandoffClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(copied ? "Copied" : "Copy Handoff", systemImage: copied ? "checkmark" : "doc.on.doc")
+        .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded Immediate Work handoff for another model or teammate.")
   }
 }
 
@@ -666,7 +698,8 @@ struct PlanHandoffDigestView: View {
       }
 
       if let whyItMatters = digest.whyItMatters {
-        digestLine(title: "Why", text: whyItMatters, systemImage: "person.crop.circle.badge.questionmark")
+        digestLine(
+          title: "Why", text: whyItMatters, systemImage: "person.crop.circle.badge.questionmark")
       }
 
       if !digest.acceptanceChecks.isEmpty {

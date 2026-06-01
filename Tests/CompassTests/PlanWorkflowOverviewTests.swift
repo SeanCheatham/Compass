@@ -225,10 +225,12 @@ struct PlanWorkflowOverviewTests {
 
     let rust = PlanVerifyCommandSummary(command: "cargo test --all-features")
     try #require(rust.title == "Runs Rust tests")
-    try #require(rust.detail == "Compass will run the Rust test suite with all feature flags enabled.")
+    try #require(
+      rust.detail == "Compass will run the Rust test suite with all feature flags enabled.")
 
     let xcode = PlanVerifyCommandSummary(
-      command: "xcodebuild -scheme Compass -only-testing:CompassTests/PlanWorkflowOverviewTests test"
+      command:
+        "xcodebuild -scheme Compass -only-testing:CompassTests/PlanWorkflowOverviewTests test"
     )
     try #require(xcode.title == "Runs Xcode tests")
     try #require(
@@ -241,12 +243,14 @@ struct PlanWorkflowOverviewTests {
   func testVerifyCommandSummaryExplainsBuildAndFallbackCommands() throws {
     let swiftBuild = PlanVerifyCommandSummary(command: "swift build --target CompassTests")
     try #require(swiftBuild.title == "Builds the Swift package")
-    try #require(swiftBuild.detail == "Compass will compile the CompassTests target and fail on build errors.")
+    try #require(
+      swiftBuild.detail == "Compass will compile the CompassTests target and fail on build errors.")
 
     let unknown = PlanVerifyCommandSummary(command: "make verify")
     try #require(unknown.title == "Runs verification")
     try #require(
-      unknown.detail == "Compass will run the planned command and treat a non-zero exit as a failed check."
+      unknown.detail
+        == "Compass will run the planned command and treat a non-zero exit as a failed check."
     )
   }
 
@@ -393,7 +397,9 @@ struct PlanWorkflowOverviewTests {
     try #require(guide.status == .needsRepair)
     try #require(guide.shouldShow)
     try #require(guide.title == "Make this executable")
-    try #require(guide.detail == "Add Acceptance checks and Verify command before Develop has a clear finish line.")
+    try #require(
+      guide.detail
+        == "Add Acceptance checks and Verify command before Develop has a clear finish line.")
     try #require(guide.scoreLabel == "1 of 3 required")
     try #require(guide.steps[0].isSatisfied)
     try #require(!guide.steps[1].isSatisfied)
@@ -426,6 +432,56 @@ struct PlanWorkflowOverviewTests {
     try #require(guide.suggestedVerifyCommand == "swift test --filter PlanWorkflowOverviewTests")
     try #require(guide.steps.filter { $0.isRequired }.allSatisfy { $0.isSatisfied })
     try #require(!guide.steps[3].isSatisfied)
+  }
+
+  @Test
+  func testHandoffClipboardPayloadPackagesExecutablePlanForReuse() throws {
+    let payload = PlanHandoffClipboardPayload(
+      plan: """
+        ## Outcome
+        Add a readable factory launch checklist.
+
+        ## Why it matters
+        Non-engineers can tell whether the next run is safe.
+
+        ## Acceptance checks
+        - Checklist appears beside the immediate plan.
+        - Focused Plan tests pass.
+        """,
+      verify: "swift test --filter PlanWorkflowOverviewTests",
+      languageProfile: profile(.swift)
+    )
+
+    try #require(payload.text.contains("Compass Immediate Work Handoff"))
+    try #require(payload.text.contains("Status: Executable handoff"))
+    try #require(payload.text.contains("Readiness: Ready for Develop (3 of 3 required)"))
+    try #require(payload.text.contains("Outcome:\nAdd a readable factory launch checklist."))
+    try #require(
+      payload.text.contains("- Checklist appears beside the immediate plan.")
+    )
+    try #require(
+      payload.text.contains("Verify:\nswift test --filter PlanWorkflowOverviewTests")
+    )
+    try #require(!payload.text.contains("Repair before Develop:"))
+    try #require(payload.text.count <= PlanHandoffClipboardPayload.textLimit)
+  }
+
+  @Test
+  func testHandoffClipboardPayloadIncludesRepairTemplateForWeakPlan() throws {
+    let payload = PlanHandoffClipboardPayload(
+      plan: "Make the Plan tab easier to read.",
+      verify: "true",
+      languageProfile: profile(.typeScriptJavaScript, hints: [.packageJSON])
+    )
+
+    try #require(payload.text.contains("Status: Handoff needs detail"))
+    try #require(payload.text.contains("Readiness: Make this executable (1 of 3 required)"))
+    try #require(payload.text.contains("Missing handoff detail:\n- Acceptance checks"))
+    try #require(payload.text.contains("Repair before Develop:"))
+    try #require(payload.text.contains("- Verify command: Choose a real command"))
+    try #require(payload.text.contains("Suggested verify: npm test"))
+    try #require(payload.text.contains("Suggested plan shape:"))
+    try #require(payload.text.contains("Original plan:\nMake the Plan tab easier to read."))
   }
 
   @Test
