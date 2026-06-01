@@ -222,7 +222,8 @@ extension CompassProject {
     let repairGuide = PlanHandoffRepairGuide(
       plan: next.plan,
       verify: next.verify,
-      languageProfile: languageProfile
+      languageProfile: languageProfile,
+      forgeProfile: forgeProfile
     )
     guard repairGuide.status == .ready else {
       let missing = repairGuide.steps

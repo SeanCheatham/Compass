@@ -517,6 +517,51 @@ struct PlanSubmitResultValidationTests {
     )
   }
 
+  @Test func testDevelopStartRefusesCoverageMissingVerify() async throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    project.languageProfile = goProfile()
+    project.forgeProfile = .goModule
+    let workspace = project.makeWorkspace(repoURL: repoURL)
+    try workspace.initialize()
+    try workspace.writeState(
+      PlanState(
+        completed: [],
+        immediate: PlanNext(
+          plan: """
+            ## Outcome
+            Add Go coverage for parser failures.
+
+            ## Acceptance checks
+            - Go tests exercise parser failures.
+            """,
+          verify: "go test ./..."
+        ),
+        midTerm: "",
+        longTerm: ""
+      )
+    )
+
+    await project.runDevelopOnly(
+      agentSettings: AgentRuntimeSettings(),
+      modelOverride: ""
+    )
+
+    try #require(!project.isRunning)
+    try #require(project.sessions.isEmpty)
+    try #require(project.errorMessage?.contains("Coverage-ready verify") == true)
+    try #require(
+      project.liveLog.contains {
+        $0.text.contains("Develop needs a stronger handoff")
+          && $0.text.contains("Coverage-ready verify")
+          && $0.level == .warning
+      }
+    )
+  }
+
   private func swiftProfile() -> RepositoryLanguageProfile {
     var counts = RepositoryLanguageCounts()
     counts[.swift] = 1
@@ -524,6 +569,19 @@ struct PlanSubmitResultValidationTests {
       counts: counts,
       manifestHints: [.packageSwift],
       primaryLanguage: .swift,
+      scannedFileCount: 1,
+      scannedDirectoryCount: 1,
+      wasTruncated: false
+    )
+  }
+
+  private func goProfile() -> RepositoryLanguageProfile {
+    var counts = RepositoryLanguageCounts()
+    counts[.go] = 1
+    return RepositoryLanguageProfile(
+      counts: counts,
+      manifestHints: [.goMod],
+      primaryLanguage: .go,
       scannedFileCount: 1,
       scannedDirectoryCount: 1,
       wasTruncated: false

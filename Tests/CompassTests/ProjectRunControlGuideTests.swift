@@ -109,6 +109,41 @@ struct ProjectRunControlGuideTests {
   }
 
   @Test
+  func testCoverageMissingVerifyMakesPlanPrimaryAndDisablesDevelop() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(
+        immediate: PlanNext(
+          plan: """
+            ## Outcome
+            Add Go coverage for parser failures.
+
+            ## Acceptance checks
+            - Go tests exercise parser failures.
+            """,
+          verify: "go test ./..."
+        )
+      ),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      languageProfile: profile(.go),
+      forgeProfile: .goModule
+    )
+
+    try #require(
+      guide.primaryHelp == "Repair Immediate Work before Develop: add Coverage-ready verify.")
+    try #require(guide.readiness.title == "Plan repair needed")
+    try #require(
+      guide.readiness.detail == "Immediate Work needs Coverage-ready verify before Develop.")
+    try #require(guide.primaryKind == .planOnly)
+    try #require(!guide.options[2].isEnabled)
+    try #require(
+      guide.options[2].detail == "Disabled until Immediate Work has Coverage-ready verify.")
+  }
+
+  @Test
   func testWeakImmediateWorkMakesPlanPrimaryAndDisablesDevelop() throws {
     let guide = ProjectRunControlGuide(
       state: makeState(

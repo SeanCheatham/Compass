@@ -654,12 +654,19 @@ struct PlanFactoryBrief: Equatable, Sendable {
     state: PlanState,
     reliabilityFeedback: PlanReliabilityFeedback,
     launchPlan: AgentExecutionLaunchPlan,
-    languageProfile: RepositoryLanguageProfile
+    languageProfile: RepositoryLanguageProfile,
+    forgeProfile: ForgeProfile? = nil
   ) {
     let routeSummary = Self.routeSummary(for: launchPlan)
     routeLabel = launchPlan.effectiveRouteTitle
     routeDetail = routeSummary.detail
     handoffDigest = PlanHandoffDigest(plan: state.immediate?.plan)
+    let repairGuide = PlanHandoffRepairGuide(
+      plan: state.immediate?.plan,
+      verify: state.immediate?.verify,
+      languageProfile: languageProfile,
+      forgeProfile: forgeProfile
+    )
 
     if let notice = reliabilityFeedback.notices.first {
       status = notice.severity == .paused ? .paused : .needsAttention
@@ -667,7 +674,7 @@ struct PlanFactoryBrief: Equatable, Sendable {
       detail = Self.bounded("\(notice.title): \(notice.detail)")
       primaryActionLabel = notice.actionLabel
     } else if let immediate = state.immediate {
-      if handoffDigest.status == .ready {
+      if repairGuide.status == .ready {
         status = .ready
         title = "Ready To Build"
         detail = Self.bounded("Next slice: \(Self.firstMeaningfulLine(in: immediate.plan))")
@@ -675,7 +682,7 @@ struct PlanFactoryBrief: Equatable, Sendable {
       } else {
         status = .planning
         title = "Clarify Before Building"
-        detail = Self.bounded(handoffDigest.detail)
+        detail = Self.bounded(repairGuide.detail)
         primaryActionLabel = "Run Plan"
       }
     } else if let queued = Self.firstMeaningfulLine(in: state.midTerm).nilIfEmpty {

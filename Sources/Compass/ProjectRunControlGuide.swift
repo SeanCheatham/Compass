@@ -22,13 +22,15 @@ struct ProjectRunControlGuide: Equatable {
     isAutoPlaying: Bool,
     isPaused: Bool,
     languageProfile: RepositoryLanguageProfile = .empty,
+    forgeProfile: ForgeProfile? = nil,
     drafts: String = ""
   ) {
     let canStart = hasRepository && !isRunning && !isAutoPlaying
     let draftIntakeGuide = DraftIntakeGuide(drafts: drafts)
     let handoffReadiness = HandoffReadiness(
       state: state,
-      languageProfile: languageProfile
+      languageProfile: languageProfile,
+      forgeProfile: forgeProfile
     )
     let hasImmediate = handoffReadiness.hasImmediate
     let canDevelop = hasImmediate && handoffReadiness.canDevelop
@@ -361,13 +363,15 @@ struct ProjectRunControlGuide: Equatable {
 
     init(
       state: PlanState,
-      languageProfile: RepositoryLanguageProfile
+      languageProfile: RepositoryLanguageProfile,
+      forgeProfile: ForgeProfile?
     ) {
       hasImmediate = state.immediate != nil
       let repairGuide = PlanHandoffRepairGuide(
         plan: state.immediate?.plan,
         verify: state.immediate?.verify,
-        languageProfile: languageProfile
+        languageProfile: languageProfile,
+        forgeProfile: forgeProfile
       )
       canDevelop = repairGuide.status == .ready
       let missing = repairGuide.steps

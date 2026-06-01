@@ -27,7 +27,8 @@ struct PlanTab: View {
       state: project.state,
       reliabilityFeedback: reliabilityFeedback,
       launchPlan: launchPlan,
-      languageProfile: project.languageProfile
+      languageProfile: project.languageProfile,
+      forgeProfile: project.forgeProfile
     )
     let sessionHistoryDisplay = PlanSessionHistoryDisplay(
       items: sessionHistory,
@@ -67,7 +68,8 @@ struct PlanTab: View {
 
         PlanFocusPanel(
           item: selectedItem(in: items),
-          languageProfile: project.languageProfile
+          languageProfile: project.languageProfile,
+          forgeProfile: project.forgeProfile
         )
 
         PlanSessionHistorySection(

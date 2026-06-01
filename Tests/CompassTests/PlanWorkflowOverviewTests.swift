@@ -435,6 +435,35 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
+  func testFactoryBriefRoutesCoverageRepairBackToPlan() throws {
+    let state = makeState(
+      immediate: PlanNext(
+        plan: """
+          ## Outcome
+          Add Go coverage for parser failures.
+
+          ## Acceptance checks
+          - Go tests exercise parser failures.
+          """,
+        verify: "go test ./..."
+      )
+    )
+    let brief = PlanFactoryBrief(
+      state: state,
+      reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
+      launchPlan: .host(),
+      languageProfile: profile(.go, hints: [.goMod]),
+      forgeProfile: .goModule
+    )
+
+    try #require(brief.status == .planning)
+    try #require(brief.title == "Clarify Before Building")
+    try #require(brief.detail.contains("Coverage-ready verify"))
+    try #require(brief.primaryActionLabel == "Run Plan")
+    try #require(brief.proofLabel == "Runs Go tests")
+  }
+
+  @Test
   func testHandoffRepairGuideCreatesTemplateForMissingImmediatePlan() throws {
     let guide = PlanHandoffRepairGuide(
       plan: "",
@@ -475,6 +504,29 @@ struct PlanWorkflowOverviewTests {
     try #require(!guide.steps[3].isRequired)
     try #require(guide.suggestedVerifyCommand == "npm test")
     try #require(guide.planTemplate?.contains("Make the Plan tab easier to read.") == true)
+  }
+
+  @Test
+  func testHandoffRepairGuideFlagsMissingForgeCoverage() throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: """
+        ## Outcome
+        Add Go coverage for parser failures.
+
+        ## Acceptance checks
+        - Go tests exercise parser failures.
+        """,
+      verify: "go test ./...",
+      languageProfile: profile(.go, hints: [.goMod]),
+      forgeProfile: .goModule
+    )
+
+    try #require(guide.status == .needsRepair)
+    try #require(guide.detail == "Add Coverage-ready verify before Develop has a clear finish line.")
+    try #require(guide.scoreLabel == "2 of 3 required")
+    try #require(guide.steps[2].title == "Coverage-ready verify")
+    try #require(guide.steps[2].detail == "Add coverage to the verify command for Go (module).")
+    try #require(guide.suggestedVerifyCommand == "go test -coverprofile=.compass/coverage.out ./...")
   }
 
   @Test

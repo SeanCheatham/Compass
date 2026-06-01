@@ -467,12 +467,14 @@ struct PlanReliabilityNoticeRow: View {
 struct PlanFocusPanel: View {
   var item: PlanTimelineItem
   var languageProfile: RepositoryLanguageProfile
+  var forgeProfile: ForgeProfile?
 
   var body: some View {
     let handoffPayload = PlanHandoffClipboardPayload(
       plan: item.body,
       verify: item.verify,
-      languageProfile: languageProfile
+      languageProfile: languageProfile,
+      forgeProfile: forgeProfile
     )
 
     VStack(alignment: .leading, spacing: 10) {
@@ -517,7 +519,8 @@ struct PlanFocusPanel: View {
         let repairGuide = PlanHandoffRepairGuide(
           plan: item.body,
           verify: item.verify,
-          languageProfile: languageProfile
+          languageProfile: languageProfile,
+          forgeProfile: forgeProfile
         )
         if repairGuide.shouldShow {
           PlanHandoffRepairGuideView(guide: repairGuide)

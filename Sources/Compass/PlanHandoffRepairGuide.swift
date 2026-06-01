@@ -18,14 +18,22 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
   init(
     plan rawPlan: String?,
     verify rawVerify: String?,
-    languageProfile: RepositoryLanguageProfile
+    languageProfile: RepositoryLanguageProfile,
+    forgeProfile: ForgeProfile? = nil
   ) {
     let digest = PlanHandoffDigest(plan: rawPlan)
     let verifyCommand = PlanVerifyCommandPolicy.normalizedCommand(rawVerify)
-    let hasUsableVerify = verifyCommand.map { !PlanVerifyCommandPolicy.isPlaceholder($0) } ?? false
+    let hasRealVerify = verifyCommand.map { !PlanVerifyCommandPolicy.isPlaceholder($0) } ?? false
+    let coverageViolation =
+      hasRealVerify
+      ? verifyCommand.flatMap {
+        ForgeVerifyValidator.coverageViolation(verify: $0, profile: forgeProfile)
+      }
+      : nil
+    let hasUsableVerify = hasRealVerify && coverageViolation == nil
     suggestedVerifyCommand = hasUsableVerify
       ? verifyCommand
-      : Self.suggestedVerifyCommand(for: languageProfile)
+      : Self.suggestedVerifyCommand(for: languageProfile, forgeProfile: forgeProfile)
 
     steps = [
       Step(
@@ -41,11 +49,14 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
           : "\(digest.acceptanceChecks.count) check\(digest.acceptanceChecks.count == 1 ? "" : "s") listed."
       ),
       Step(
-        kind: .verifyCommand,
+        kind: coverageViolation == nil ? .verifyCommand : .coverageReadyVerify,
         isSatisfied: hasUsableVerify,
         detail: hasUsableVerify
           ? "Compass can run \(verifyCommand ?? "the planned check")."
-          : "Choose a real command Compass can run after Develop."
+          : Self.verifyRepairDetail(
+            coverageViolation: coverageViolation,
+            forgeProfile: forgeProfile
+          )
       ),
       Step(
         kind: .whyItMatters,
@@ -112,6 +123,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     case outcome
     case acceptanceChecks
     case verifyCommand
+    case coverageReadyVerify
     case whyItMatters
 
     var title: String {
@@ -122,6 +134,8 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
         return "Acceptance checks"
       case .verifyCommand:
         return "Verify command"
+      case .coverageReadyVerify:
+        return "Coverage-ready verify"
       case .whyItMatters:
         return "Why"
       }
@@ -135,6 +149,8 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
         return "checkmark.seal"
       case .verifyCommand:
         return "terminal"
+      case .coverageReadyVerify:
+        return "chart.bar.doc.horizontal"
       case .whyItMatters:
         return "person.crop.circle.badge.questionmark"
       }
@@ -142,7 +158,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
 
     var isRequired: Bool {
       switch self {
-      case .outcome, .acceptanceChecks, .verifyCommand:
+      case .outcome, .acceptanceChecks, .verifyCommand, .coverageReadyVerify:
         return true
       case .whyItMatters:
         return false
@@ -150,7 +166,24 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     }
   }
 
-  private static func suggestedVerifyCommand(for profile: RepositoryLanguageProfile) -> String? {
+  private static func verifyRepairDetail(
+    coverageViolation: String?,
+    forgeProfile: ForgeProfile?
+  ) -> String {
+    if coverageViolation != nil, let forgeProfile {
+      return "Add coverage to the verify command for \(forgeProfile.displayName)."
+    }
+    return "Choose a real command Compass can run after Develop."
+  }
+
+  private static func suggestedVerifyCommand(
+    for profile: RepositoryLanguageProfile,
+    forgeProfile: ForgeProfile?
+  ) -> String? {
+    if let forgeProfile {
+      return coverageReadyVerifyCommand(for: forgeProfile)
+    }
+
     if let hint = profile.manifestHints.first {
       switch hint {
       case .packageJSON:
@@ -175,6 +208,19 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
       return "cargo test"
     case .markdown, .other, .unknown:
       return nil
+    }
+  }
+
+  private static func coverageReadyVerifyCommand(for forgeProfile: ForgeProfile) -> String {
+    switch forgeProfile {
+    case .swiftSPM:
+      return "swift test --enable-code-coverage"
+    case .goModule:
+      return "go test -coverprofile=.compass/coverage.out ./..."
+    case .rustCargo:
+      return "cargo llvm-cov --summary-only"
+    case .typeScriptVitest:
+      return "pnpm test -- --coverage --coverage.reporter=json-summary"
     }
   }
 
