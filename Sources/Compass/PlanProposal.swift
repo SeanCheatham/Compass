@@ -7,6 +7,22 @@ struct PlanProposal: Codable, Equatable {
   var midTerm: String
   var longTerm: String
 
+  enum CodingKeys: String, CodingKey {
+    case immediate
+    case next
+    case nextImmediate
+    case immediatePlan
+    case midTerm
+    case midterm
+    case mid_term
+    case nearTerm
+    case nearTermQueue
+    case longTerm
+    case longterm
+    case long_term
+    case strategicArc
+  }
+
   init(immediate: PlanNext?, midTerm: String, longTerm: String) {
     self.immediate = immediate
     self.midTerm = midTerm
@@ -21,6 +37,38 @@ struct PlanProposal: Codable, Equatable {
 
   static let empty = PlanProposal(immediate: nil, midTerm: "", longTerm: "")
 
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    immediate = try Self.decodeRequiredOptionalPlanNext(
+      from: container,
+      preferredKey: .immediate,
+      aliases: [.next, .nextImmediate, .immediatePlan],
+      fieldName: "immediate"
+    )
+    midTerm = try Self.decodeRequiredString(
+      from: container,
+      preferredKey: .midTerm,
+      aliases: [.midterm, .mid_term, .nearTerm, .nearTermQueue],
+      fieldName: "midTerm"
+    )
+    longTerm = try Self.decodeRequiredString(
+      from: container,
+      preferredKey: .longTerm,
+      aliases: [.longterm, .long_term, .strategicArc],
+      fieldName: "longTerm"
+    )
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encodeIfPresent(immediate, forKey: .immediate)
+    if immediate == nil {
+      try container.encodeNil(forKey: .immediate)
+    }
+    try container.encode(midTerm, forKey: .midTerm)
+    try container.encode(longTerm, forKey: .longTerm)
+  }
+
   func applying(to state: PlanState) -> PlanState {
     PlanState(
       completed: state.completed,
@@ -34,6 +82,79 @@ struct PlanProposal: Codable, Equatable {
     guard var immediate else { return self }
     immediate.requiresHostXcode = false
     return PlanProposal(immediate: immediate, midTerm: midTerm, longTerm: longTerm)
+  }
+
+  private static func decodeRequiredOptionalPlanNext(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys],
+    fieldName: String
+  ) throws -> PlanNext? {
+    var sawPresentKey = false
+    var decodedNull = false
+    var firstTypeError: Error?
+
+    for key in [preferredKey] + aliases where container.contains(key) {
+      sawPresentKey = true
+      do {
+        if let value = try container.decodeIfPresent(PlanNext.self, forKey: key) {
+          return value
+        }
+        decodedNull = true
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+
+    if !sawPresentKey {
+      throw DecodingError.keyNotFound(
+        preferredKey,
+        .init(
+          codingPath: container.codingPath,
+          debugDescription: "PlanProposal requires \(fieldName)."
+        )
+      )
+    }
+    if decodedNull {
+      return nil
+    }
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    return nil
+  }
+
+  private static func decodeRequiredString(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys],
+    fieldName: String
+  ) throws -> String {
+    var sawPresentKey = false
+    var firstTypeError: Error?
+
+    for key in [preferredKey] + aliases where container.contains(key) {
+      sawPresentKey = true
+      do {
+        return try container.decode(String.self, forKey: key)
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+
+    if !sawPresentKey {
+      throw DecodingError.keyNotFound(
+        preferredKey,
+        .init(
+          codingPath: container.codingPath,
+          debugDescription: "PlanProposal requires \(fieldName)."
+        )
+      )
+    }
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    return ""
   }
 }
 

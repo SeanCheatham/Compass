@@ -1009,6 +1009,57 @@ struct DevelopSummaryDecoderTests {
   }
 }
 
+struct PlanningEnvelopeDecoderTests {
+  @Test func planRunResultDecoderAcceptsPlanningStateAliasesFromLessCapableModels() throws {
+    let data = Data(
+      """
+      {
+        "planState": {
+          "next": {
+            "handoff": "Build the envelope decoder tolerance.",
+            "verifyCommand": "swift test --filter PlanningEnvelopeDecoderTests"
+          },
+          "mid_term": "- Continue payload hardening",
+          "long_term": "Make Compass forgiving at the edges and strict at the core."
+        },
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+
+    let result = try JSONDecoder().decode(PlanRunResult.self, from: data)
+
+    try #require(result.state.immediate?.plan == "Build the envelope decoder tolerance.")
+    try #require(
+      result.state.immediate?.verify == "swift test --filter PlanningEnvelopeDecoderTests")
+    try #require(result.state.midTerm == "- Continue payload hardening")
+    try #require(
+      result.state.longTerm == "Make Compass forgiving at the edges and strict at the core.")
+  }
+
+  @Test func reflectSummaryDecoderAcceptsPlanningStateAliasesFromLessCapableModels() throws {
+    let data = Data(
+      """
+      {
+        "planning_state": {
+          "immediate": null,
+          "nearTermQueue": "",
+          "strategicArc": "Keep the factory understandable to non-engineers."
+        },
+        "summary": "The arc still points at non-engineer UX.",
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+
+    let summary = try JSONDecoder().decode(ReflectSummary.self, from: data)
+
+    try #require(summary.state?.immediate == nil)
+    try #require(summary.state?.midTerm == "")
+    try #require(summary.state?.longTerm == "Keep the factory understandable to non-engineers.")
+  }
+}
+
 struct RepositoryLanguageProfileServiceTests {
   @Test func testDetectsSwiftPackageWhileIgnoringBuildDirectories() throws {
     let repoURL = try makeTemporaryDirectory()

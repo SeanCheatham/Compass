@@ -1,6 +1,6 @@
 import Foundation
 
-private enum FlexibleModelDecoder {
+enum FlexibleModelDecoder {
   static func decodeBool<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     forKey key: Key
@@ -277,6 +277,11 @@ struct PlanRunResult: Codable, Equatable {
 
   enum CodingKeys: String, CodingKey {
     case state
+    case planState
+    case plan_state
+    case planningState
+    case planning_state
+    case proposal
     case lessonEdits
   }
 
@@ -287,8 +292,57 @@ struct PlanRunResult: Codable, Equatable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    state = try container.decode(PlanProposal.self, forKey: .state)
+    state = try Self.decodeRequiredPlanProposal(
+      from: container,
+      preferredKey: .state,
+      aliases: [.planState, .plan_state, .planningState, .planning_state, .proposal],
+      fieldName: "state"
+    )
     lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(state, forKey: .state)
+    try container.encode(lessonEdits, forKey: .lessonEdits)
+  }
+
+  private static func decodeRequiredPlanProposal(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys],
+    fieldName: String
+  ) throws -> PlanProposal {
+    var sawPresentKey = false
+    var firstTypeError: Error?
+
+    for key in [preferredKey] + aliases where container.contains(key) {
+      sawPresentKey = true
+      do {
+        return try container.decode(PlanProposal.self, forKey: key)
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+
+    if !sawPresentKey {
+      throw DecodingError.keyNotFound(
+        preferredKey,
+        .init(
+          codingPath: container.codingPath,
+          debugDescription: "PlanRunResult requires \(fieldName)."
+        )
+      )
+    }
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    throw DecodingError.dataCorrupted(
+      .init(
+        codingPath: container.codingPath,
+        debugDescription: "PlanRunResult requires a planning state object."
+      )
+    )
   }
 }
 
@@ -308,6 +362,11 @@ struct ReflectSummary: Codable, Equatable {
 
   enum CodingKeys: String, CodingKey {
     case state
+    case planState
+    case plan_state
+    case planningState
+    case planning_state
+    case proposal
     case summary
     case lessonEdits
   }
@@ -320,9 +379,44 @@ struct ReflectSummary: Codable, Equatable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    state = try container.decodeIfPresent(PlanProposal.self, forKey: .state)
+    state = try Self.decodeOptionalPlanProposal(
+      from: container,
+      preferredKey: .state,
+      aliases: [.planState, .plan_state, .planningState, .planning_state, .proposal]
+    )
     summary = try container.decode(String.self, forKey: .summary)
     lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encodeIfPresent(state, forKey: .state)
+    if state == nil {
+      try container.encodeNil(forKey: .state)
+    }
+    try container.encode(summary, forKey: .summary)
+    try container.encode(lessonEdits, forKey: .lessonEdits)
+  }
+
+  private static func decodeOptionalPlanProposal(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys]
+  ) throws -> PlanProposal? {
+    var firstTypeError: Error?
+    for key in [preferredKey] + aliases where container.contains(key) {
+      do {
+        if let state = try container.decodeIfPresent(PlanProposal.self, forKey: key) {
+          return state
+        }
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    return nil
   }
 }
 
