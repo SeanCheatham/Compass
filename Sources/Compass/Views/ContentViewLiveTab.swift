@@ -22,6 +22,7 @@ struct LiveTab: View {
       liveLog: project.liveLog,
       reliabilityStatus: reliabilityStatus
     )
+    let timelinePayload = LiveTimelineClipboardPayload(guide: timelineGuide)
     let liveActivityInputIdentifier = LiveActivitySummaryPlanner.inputIdentifier(
       for: project.liveLog)
     let liveActivityPlan = LiveActivitySummaryPlanner.plan(
@@ -44,6 +45,7 @@ struct LiveTab: View {
       if timelineGuide.shouldShow {
         LiveTimelineGuidePanel(
           guide: timelineGuide,
+          clipboardPayload: timelinePayload,
           narration: matchingNarration(for: timelineGuide)
         )
       }
@@ -202,6 +204,7 @@ struct LiveTab: View {
 
 struct LiveTimelineGuidePanel: View {
   var guide: LiveTimelineGuide
+  var clipboardPayload: LiveTimelineClipboardPayload
   var narration: LiveTimelineGuideNarration?
 
   var body: some View {
@@ -212,6 +215,8 @@ struct LiveTimelineGuidePanel: View {
           .foregroundStyle(color)
 
         Spacer(minLength: 8)
+
+        CopyLiveTimelineButton(payload: clipboardPayload)
 
         Text(guide.statusLabel)
           .font(.caption.weight(.semibold))
@@ -548,11 +553,36 @@ struct CopyProjectRecoveryButton: View {
         copied ? "Copied" : "Copy Recovery",
         systemImage: copied ? "checkmark" : "doc.on.doc"
       )
-        .lineLimit(1)
+      .lineLimit(1)
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
     .help("Copy a bounded recovery handoff for another model or teammate.")
+  }
+}
+
+private struct CopyLiveTimelineButton: View {
+  var payload: LiveTimelineClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Live",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded live timeline handoff for another model or teammate.")
   }
 }
 

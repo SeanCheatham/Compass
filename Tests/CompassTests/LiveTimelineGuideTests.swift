@@ -68,6 +68,8 @@ struct LiveTimelineGuideTests {
     #expect(guide.tone == .attention)
     #expect(guide.checkpoints.map(\.id) == ["symptom", "narrow", "proof"])
     #expect(guide.narrationIdentifier.contains("failedEvents:1"))
+    #expect(guide.latestEvents.map(\.text) == ["Verify failed"])
+    #expect(guide.latestEvents.map(\.detail) == ["Expected true but got false"])
   }
 
   @Test
@@ -90,6 +92,94 @@ struct LiveTimelineGuideTests {
 
     #expect(!guide.shouldShow)
     #expect(!guide.allowsNarration)
+  }
+
+  @Test
+  func clipboardPayloadPackagesRunningTimelineForReuse() {
+    let guide = makeGuide(
+      phase: .developing,
+      isRunning: true,
+      liveLog: [
+        liveLine(
+          text: "Develop started",
+          kind: .lifecycle,
+          status: .completed
+        ),
+        liveLine(
+          text: "swift test --filter LiveTimelineGuideTests",
+          kind: .command,
+          status: .running
+        ),
+        liveLine(
+          text: "Sources/Compass/LiveTimelineGuide.swift",
+          detail: "Updated live timeline copy handoff.",
+          kind: .fileChange,
+          status: .completed
+        ),
+      ]
+    )
+
+    let payload = LiveTimelineClipboardPayload(guide: guide)
+    let runningCommandLine = "[running command info] swift test --filter LiveTimelineGuideTests"
+    let fileChangeLine = "[completed file-change info] Sources/Compass/LiveTimelineGuide.swift"
+
+    #expect(payload.text.contains("Compass Live Timeline Handoff"))
+    #expect(payload.text.contains("Do not invent commands"))
+    #expect(payload.text.contains("Status: Developing Current Slice (running)"))
+    #expect(payload.text.contains("Phase: Developing"))
+    #expect(payload.text.contains("Events: 3 total, 1 running, 0 failed"))
+    #expect(payload.text.contains(runningCommandLine))
+    #expect(payload.text.contains(fileChangeLine))
+    #expect(payload.text.count <= LiveTimelineClipboardPayload.textLimit)
+    #expect(!payload.isEmpty)
+  }
+
+  @Test
+  func clipboardPayloadStartsFailedTimelineFromConcreteLatestEvent() {
+    let guide = makeGuide(
+      phase: .failed,
+      liveLog: [
+        liveLine(
+          level: .error,
+          text: "Verify failed",
+          detail: "Expected true but got false",
+          kind: .command,
+          status: .failed
+        )
+      ]
+    )
+
+    let payload = LiveTimelineClipboardPayload(guide: guide)
+    let failedEventLine = "[failed command error] Verify failed: Expected true but got false"
+
+    #expect(payload.text.contains("Status: Latest Run Needs Review (attention)"))
+    #expect(payload.text.contains("Events: 1 total, 0 running, 1 failed"))
+    #expect(payload.text.contains(failedEventLine))
+    #expect(payload.text.contains("smallest repair plus a proof rerun"))
+  }
+
+  @Test
+  func clipboardPayloadIsEmptyWhenReliabilityBannerOwnsAttention() {
+    let guide = LiveTimelineGuide(
+      phase: .failed,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      liveLog: [
+        liveLine(
+          level: .error,
+          text: "Verify failed",
+          kind: .command,
+          status: .failed
+        )
+      ],
+      reliabilityStatus: failedReliabilityStatus()
+    )
+
+    let payload = LiveTimelineClipboardPayload(guide: guide)
+
+    #expect(payload.isEmpty)
+    #expect(payload.text.isEmpty)
   }
 
   @Test
