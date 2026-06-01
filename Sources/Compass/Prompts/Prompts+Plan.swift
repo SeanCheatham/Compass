@@ -38,16 +38,16 @@ extension Prompts {
     let compassTestsMigrationRule =
       hostXcodeBuildTestEnabled
       ? """
-        - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
-          guest `swift test` as verify. Use host `xcodebuild ... test` with
-          `requiresHostXcode: true` when host Xcode is enabled; otherwise prefer
-          `swift build --target CompassTests` for compile-only guest increments.
-        """
+      - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
+        guest `swift test` as verify. Use host `xcodebuild ... test` with
+        `requiresHostXcode: true` when host Xcode is enabled; otherwise prefer
+        `swift build --target CompassTests` for compile-only guest increments.
+      """
       : """
-        - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
-          guest `swift test` as verify. Prefer `swift build --target CompassTests`
-          for compile-only guest increments.
-        """
+      - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
+        guest `swift test` as verify. Prefer `swift build --target CompassTests`
+        for compile-only guest increments.
+      """
     let hostXcodeShape =
       hostXcodeBuildTestEnabled
       ? ",\n            \"requiresHostXcode\": true|false"
@@ -116,6 +116,24 @@ extension Prompts {
         read-only shell commands to confirm assumptions is fine; that's what
         `bash` is for here.
       \(hostXcodePlanningRule)
+
+      Immediate handoff template — when `state.immediate` is not null, make
+      `state.immediate.plan` follow this exact compact Markdown shape. Replace
+      the bracketed text; keep the headings:
+      ```markdown
+      ## Outcome
+      <one sentence: what will change>
+
+      ## Why it matters
+      <who benefits and why this slice is worth doing now>
+
+      ## Acceptance checks
+      - <observable finish-line behavior Develop can verify>
+      - <the planned verify command proves the change>
+      ```
+      If sequencing matters, add a short `## Sequence` section after Why it
+      matters with 2-4 ordered steps. Do not add speculative files, fake test
+      names, or acceptance checks that the verify command cannot observe.
 
       \(lessonEditsGuidance())
 

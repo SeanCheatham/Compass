@@ -85,6 +85,22 @@ struct PlanPromptTests {
     try #require(prompt.contains("explicit sequencing"))
   }
 
+  @Test func testPlanPromptIncludesCopyableImmediateHandoffTemplate() throws {
+    let prompt = try makePlanPrompt()
+
+    try #require(prompt.contains("Immediate handoff template"))
+    try #require(prompt.contains("state.immediate.plan"))
+    try #require(prompt.contains("```markdown"))
+    try #require(prompt.contains("## Outcome\n<one sentence: what will change>"))
+    try #require(
+      prompt.contains("## Why it matters\n<who benefits and why this slice is worth doing now>"))
+    try #require(prompt.contains("## Acceptance checks"))
+    try #require(prompt.contains("<observable finish-line behavior Develop can verify>"))
+    try #require(prompt.contains("## Sequence"))
+    try #require(prompt.contains("Do not add speculative files"))
+    try #require(prompt.contains("acceptance checks that the verify command cannot observe"))
+  }
+
   @Test func testPlanPromptDefaultsTowardImmediatePlan() throws {
     let prompt = try makePlanPrompt()
     try #require(
@@ -225,7 +241,8 @@ struct PlanPromptTests {
     )
 
     try #require(prompt.contains("## Recent session brief"))
-    try #require(prompt.contains("Use this brief to spot patterns before reading the raw session JSON."))
+    try #require(
+      prompt.contains("Use this brief to spot patterns before reading the raw session JSON."))
     try #require(prompt.contains("Raw JSON below remains authoritative."))
     try #require(prompt.contains("Status mix: 1 failed."))
     try #require(prompt.contains("Session #7: Failed"))
@@ -339,8 +356,10 @@ struct PlanPromptTests {
     try #require(prompt.contains("## Execution handoff"))
     try #require(prompt.contains("Handoff status: Executable handoff"))
     try #require(prompt.contains("Treat the checks below as the finish line"))
-    try #require(prompt.contains("Outcome: Make draft polish available without Apple Intelligence."))
-    try #require(prompt.contains("Why it matters: Non-engineers still get a cleaner draft before planning."))
+    try #require(
+      prompt.contains("Outcome: Make draft polish available without Apple Intelligence."))
+    try #require(
+      prompt.contains("Why it matters: Non-engineers still get a cleaner draft before planning."))
     try #require(prompt.contains("- Preview appears for a non-empty draft."))
     try #require(prompt.contains("Verify meaning: Runs Swift tests"))
     try #require(prompt.contains("focused on DraftRefinementTests"))
