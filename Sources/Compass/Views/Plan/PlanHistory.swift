@@ -206,6 +206,11 @@ struct PlanSessionHistoryCard: View {
   var repoURL: URL
 
   var body: some View {
+    let runPayload = PlanSessionHistoryClipboardPayload(
+      item: item,
+      reliabilityCue: reliabilityCue
+    )
+
     VStack(alignment: .leading, spacing: 9) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Text("#\(item.sessionNumber)")
@@ -229,6 +234,8 @@ struct PlanSessionHistoryCard: View {
         }
 
         Spacer()
+
+        CopyHistoryRunButton(payload: runPayload)
 
         Text(dateString(item.startedAt))
           .font(.caption)
@@ -335,6 +342,31 @@ struct PlanSessionHistoryCard: View {
 
   private func dateString(_ date: Date) -> String {
     date.formatted(date: .abbreviated, time: .shortened)
+  }
+}
+
+struct CopyHistoryRunButton: View {
+  var payload: PlanSessionHistoryClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Run",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded run-history handoff for another model or teammate.")
   }
 }
 

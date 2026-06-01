@@ -367,6 +367,130 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
   }
 }
 
+struct PlanSessionHistoryClipboardPayload: Equatable, Sendable {
+  static let textLimit = 3_500
+
+  var text: String
+
+  init(
+    item: PlanSessionHistoryItem,
+    reliabilityCue: PlanReliabilityFeedback.RunCue? = nil
+  ) {
+    var sections: [String] = [
+      "Compass Run History Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded audit context. Do not invent files, commands, "
+        + "credentials, outcomes, commits, or extra scope.",
+      "- Use the recorded handoff, verify proof, notes, and commits to decide what can "
+        + "be trusted before continuing.",
+      "- If the run needs attention, repair from the recorded cue or failure detail before "
+        + "starting new work.",
+      "",
+      "Run: #\(item.sessionNumber)",
+      "Status: \(item.statusText)",
+      "Started: \(item.startedAt.formatted(date: .abbreviated, time: .shortened))",
+    ]
+
+    if let reliabilityCue {
+      sections.append("")
+      sections.append("Attention cue:")
+      sections.append("\(reliabilityCue.label): \(reliabilityCue.detail)")
+    }
+
+    sections.append("")
+    sections.append("Handoff:")
+    sections.append("Status: \(item.handoffDigest.title)")
+    sections.append(item.handoffDigest.detail)
+
+    if let outcome = item.handoffDigest.outcome {
+      sections.append("Outcome: \(outcome)")
+    } else if let planExcerpt = item.planExcerpt {
+      sections.append("Plan excerpt: \(planExcerpt)")
+    }
+
+    if let whyItMatters = item.handoffDigest.whyItMatters {
+      sections.append("Why it matters: \(whyItMatters)")
+    }
+
+    if !item.handoffDigest.acceptanceChecks.isEmpty {
+      sections.append("Acceptance checks:")
+      sections.append(contentsOf: item.handoffDigest.acceptanceChecks.map { "- \($0)" })
+    }
+
+    if !item.handoffDigest.missingPieces.isEmpty {
+      sections.append("Missing handoff detail:")
+      sections.append(contentsOf: item.handoffDigest.missingPieces.map { "- \($0.label)" })
+    }
+
+    sections.append("")
+    sections.append("Verify:")
+    sections.append(item.verifyCommand ?? "No verify command recorded.")
+
+    if item.runtimeRouteDescriptor.isSnapshotAvailable {
+      sections.append("")
+      sections.append("Runtime route:")
+      sections.append(item.runtimeRouteDescriptor.badgeText)
+      sections.append(item.runtimeRouteDescriptor.helpText)
+    } else if let runtimeRouteSummary = item.runtimeRouteSummary {
+      sections.append("")
+      sections.append("Runtime route:")
+      sections.append(runtimeRouteSummary)
+    }
+
+    if let failedVerify = item.failedVerify {
+      sections.append("")
+      sections.append("Failed verify:")
+      sections.append("\(failedVerify.command) (\(failedVerify.exitCodeText))")
+      sections.append(failedVerify.tail)
+    }
+
+    if let feedback = item.feedback {
+      sections.append("")
+      sections.append("Feedback:")
+      sections.append(feedback)
+    }
+
+    if !item.notes.isEmpty {
+      sections.append("")
+      sections.append("Notes:")
+      sections.append(contentsOf: item.notes.prefix(5).map { "- \($0)" })
+      if item.notes.count > 5 {
+        sections.append("- ...\(item.notes.count - 5) more notes not shown")
+      }
+    }
+
+    if !item.commits.isEmpty {
+      sections.append("")
+      sections.append("Commits:")
+      sections.append(contentsOf: item.commits.prefix(8).map { "- \($0.short) \($0.subject)" })
+      if item.commits.count > 8 {
+        sections.append("- ...\(item.commits.count - 8) more commits not shown")
+      }
+    }
+
+    text = PlanSessionHistoryClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+private enum PlanSessionHistoryClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}
+
 enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Hashable {
   case all
   case attention

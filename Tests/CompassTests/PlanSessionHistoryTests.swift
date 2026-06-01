@@ -132,6 +132,71 @@ struct PlanSessionHistoryTests: ~Copyable {
   }
 
   @Test
+  func testHistoryClipboardPayloadPackagesRunAuditForReuse() throws {
+    let commit = SessionCommit(
+      sha: "abcdef123456",
+      short: "abcdef1",
+      subject: "Ship run-history copy"
+    )
+    let items = PlanSessionHistory.displayItems(
+      for: [
+        makeSession(
+          7,
+          startedAt: 1_000,
+          status: .failed,
+          plan: """
+            ## Outcome
+            Make Run History copyable.
+
+            ## Why it matters
+            Non-engineers can share audit context without reconstructing the run.
+
+            ## Acceptance checks
+            - The copied packet names the run status and handoff outcome.
+            - The copied packet includes failed verify output.
+            """,
+          verify: "swift test --filter PlanSessionHistoryTests",
+          commits: [commit],
+          notes: ["Plan retry needed."],
+          verifyOutput: VerifyOutput(
+            command: "swift test --filter PlanSessionHistoryTests",
+            exitCode: 1,
+            tail: "Expected copy packet to include failed verify output."
+          ),
+          feedback: "Next Plan should tighten the copied run packet."
+        )
+      ]
+    )
+    let item = try #require(items.first)
+    let payload = PlanSessionHistoryClipboardPayload(
+      item: item,
+      reliabilityCue: makeRunCue(kind: .failedVerify)
+    )
+
+    try #require(payload.text.contains("Compass Run History Handoff"))
+    try #require(payload.text.contains("Recipient instructions:"))
+    try #require(payload.text.contains("Do not invent files, commands, credentials"))
+    try #require(payload.text.contains("Run: #7"))
+    try #require(payload.text.contains("Status: Failed"))
+    try #require(payload.text.contains("Attention cue:\nReview: Run needs attention."))
+    try #require(payload.text.contains("Outcome: Make Run History copyable."))
+    try #require(payload.text.contains("Why it matters: Non-engineers can share audit context"))
+    try #require(
+      payload.text.contains("- The copied packet includes failed verify output.")
+    )
+    try #require(
+      payload.text.contains("Verify:\nswift test --filter PlanSessionHistoryTests")
+    )
+    try #require(payload.text.contains("Failed verify:"))
+    try #require(payload.text.contains("Expected copy packet to include failed verify output."))
+    try #require(payload.text.contains("Feedback:\nNext Plan should tighten"))
+    try #require(payload.text.contains("Notes:\n- Plan retry needed."))
+    try #require(payload.text.contains("Commits:\n- abcdef1 Ship run-history copy"))
+    try #require(payload.text.count <= PlanSessionHistoryClipboardPayload.textLimit)
+    try #require(!payload.isEmpty)
+  }
+
+  @Test
   func testBoundsPlanExcerpt() throws {
     let items = PlanSessionHistory.displayItems(
       for: [
