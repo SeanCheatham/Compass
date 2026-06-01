@@ -269,6 +269,66 @@ struct PlanCompletionRecorderTests {
     try #require(updated.completed == ["Ship feature X"])
   }
 
+  @Test func testCompletionSummarySkipsGenericOutcomeHeading() throws {
+    let session = makeSucceededSession(
+      1,
+      plan: """
+        ## Outcome
+        Fix the broken doctest in `tessera-core/src/typeck.rs`.
+
+        ## Why it matters
+        The test suite should be green.
+        """
+    )
+
+    let summary = PlanCompletionRecorder.completionSummary(for: session)
+
+    try #require(summary == "Fix the broken doctest in `tessera-core/src/typeck.rs`.")
+  }
+
+  @Test func testCompletionSummaryStripsMarkdownHeadingMarker() throws {
+    let session = makeSucceededSession(
+      1,
+      plan: "## Set up Rust workspace with Cargo.toml and tessera-core crate"
+    )
+
+    let summary = PlanCompletionRecorder.completionSummary(for: session)
+
+    try #require(summary == "Set up Rust workspace with Cargo.toml and tessera-core crate")
+  }
+
+  @Test func testCompletionSummaryBoundsVerboseOneLinePlan() throws {
+    let longPlan = String(repeating: "Add missing typechecker coverage for nested branch cases. ", count: 8)
+    let session = makeSucceededSession(1, plan: longPlan)
+
+    let summary = PlanCompletionRecorder.completionSummary(for: session)
+
+    try #require(summary.count == 180)
+    try #require(summary.hasSuffix("..."))
+  }
+
+  @Test func testRepairsStoredGenericCompletionSummary() throws {
+    let state = makeState(completed: ["## Outcome"])
+    let sessions = [
+      makeSucceededSession(
+        1,
+        plan: """
+          ## Outcome
+          Fix the broken doctest in `tessera-core/src/typeck.rs`.
+          """
+      )
+    ]
+
+    let updated = PlanCompletionRecorder.recordingShippedIterations(
+      into: state,
+      sessions: sessions
+    )
+
+    try #require(
+      updated.completed == ["Fix the broken doctest in `tessera-core/src/typeck.rs`."]
+    )
+  }
+
   @Test func testDoesNotDuplicateAlreadyRecordedSessions() throws {
     let state = makeState(completed: ["Ship feature X"])
     let sessions = [makeSucceededSession(1, plan: "Ship feature X")]
@@ -326,6 +386,16 @@ struct PlanHistoryPageTests {
     try #require(page.entries.map(\.summary) == ["Second"])
     try #require(page.formatted().contains("offset 1 from newest"))
     try #require(page.formatted().contains("more: call plan_history with offset 2"))
+  }
+
+  @Test func testFormattedHistoryBoundsVerboseEntries() throws {
+    let longEntry = String(repeating: "Add detailed coverage for the remaining command branches. ", count: 8)
+    let page = PlanHistoryPage.read(entries: [longEntry], limit: 1)
+
+    let formatted = page.formatted()
+
+    try #require(formatted.contains("#1: "))
+    try #require(formatted.count < longEntry.count)
   }
 
   @Test func testIterationNumbersWithOffsetAndFourPlusEntries() throws {
