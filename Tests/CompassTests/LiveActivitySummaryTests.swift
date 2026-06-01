@@ -286,6 +286,102 @@ struct LiveActivitySummaryTests {
     try #require(summary.text.contains("Primary failure: Plan Needs A Clearer Handoff."))
   }
 
+  @Test func testTakeawayPromotesFailureNextStepWhenClusterIsCollapsed() throws {
+    var lines = completedBatch()
+    lines[1] = makeLine(
+      offset: 0.2,
+      text: "bash · swift test",
+      detail: "[stderr]\nerror: compile failed\n\n[exit 1]",
+      level: .error,
+      kind: .command,
+      status: .failed
+    )
+    let cluster = LiveActivityCluster(lines: lines, freezeReason: .quietGap)
+
+    let takeaway = LiveActivityTakeaway(cluster: cluster)
+
+    try #require(takeaway.label == "Command Reported A Failure")
+    try #require(takeaway.tone == .danger)
+    try #require(takeaway.systemImageName == "terminal")
+    try #require(takeaway.detail.contains("rerun the proof"))
+    try #require(takeaway.badges.map(\.label).contains("1 failure"))
+  }
+
+  @Test func testTakeawayHighlightsFileChangesBeforeRoutineActivity() throws {
+    let lines = [
+      makeLine(
+        offset: 0,
+        text: "edit_file · Sources/App.swift",
+        kind: .fileChange,
+        status: .completed
+      ),
+      makeLine(
+        offset: 0.2,
+        text: "write_file · Tests/AppTests.swift",
+        kind: .fileChange,
+        status: .completed
+      ),
+      makeLine(
+        offset: 0.4,
+        text: "bash · swift test",
+        kind: .command,
+        status: .completed
+      ),
+    ]
+    let cluster = LiveActivityCluster(lines: lines, freezeReason: .quietGap)
+
+    let takeaway = LiveActivityTakeaway(cluster: cluster)
+
+    try #require(takeaway.label == "Files Changed")
+    try #require(takeaway.tone == .changed)
+    try #require(takeaway.detail.contains("Verify or Critic"))
+    try #require(takeaway.badges.map(\.label) == ["2 files", "1 command"])
+  }
+
+  @Test func testTakeawayTurnsWarningsIntoReviewCue() throws {
+    let lines = [
+      makeLine(offset: 0, text: "Plan accepted", kind: .lifecycle, status: .completed),
+      makeLine(
+        offset: 0.2,
+        text: "Critic requested changes",
+        level: .warning,
+        kind: .lifecycle,
+        status: .completed
+      ),
+      makeLine(offset: 0.4, text: "Review output", kind: .agentMessage),
+    ]
+    let cluster = LiveActivityCluster(lines: lines, freezeReason: .lifecycleBoundary)
+
+    let takeaway = LiveActivityTakeaway(cluster: cluster)
+
+    try #require(takeaway.label == "Review Warnings")
+    try #require(takeaway.tone == .warning)
+    try #require(takeaway.badges.map(\.label) == ["1 warning", "1 note"])
+  }
+
+  @Test func testTakeawayUsesLifecycleBoundaryForCleanPhaseCompletion() throws {
+    let lines = [
+      makeLine(offset: 0, text: "Inspect source", kind: .command, status: .completed),
+      makeLine(offset: 0.2, text: "Review output", kind: .agentMessage),
+      makeLine(
+        offset: 0.4,
+        text: "Develop completed",
+        detail: "Develop changed the run controls and verified the focused tests.",
+        kind: .lifecycle,
+        status: .completed
+      ),
+    ]
+    let cluster = LiveActivityCluster(lines: lines, freezeReason: .lifecycleBoundary)
+
+    let takeaway = LiveActivityTakeaway(cluster: cluster)
+
+    try #require(takeaway.label == "Phase Complete")
+    try #require(takeaway.tone == .complete)
+    try #require(
+      takeaway.detail == "Develop changed the run controls and verified the focused tests.")
+    try #require(takeaway.badges.map(\.label) == ["1 command", "1 note"])
+  }
+
   @Test func testModelPromptLinesIncludeFailureInsightForFoundationModels() throws {
     let cluster = LiveActivityCluster(
       lines: [

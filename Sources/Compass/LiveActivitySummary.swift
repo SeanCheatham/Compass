@@ -21,6 +21,125 @@ struct LiveActivitySummary: Equatable, Sendable {
   }
 }
 
+struct LiveActivityTakeaway: Equatable, Sendable {
+  struct Badge: Equatable, Identifiable, Sendable {
+    var label: String
+
+    var id: String { label }
+  }
+
+  enum Tone: String, Equatable, Sendable {
+    case neutral
+    case progress
+    case changed
+    case warning
+    case danger
+    case complete
+  }
+
+  var label: String
+  var detail: String
+  var badges: [Badge]
+  var tone: Tone
+  var systemImageName: String
+
+  init(cluster: LiveActivityCluster) {
+    let commandCount = cluster.lines.filter { $0.kind == .command }.count
+    let fileChangeCount = cluster.lines.filter { $0.kind == .fileChange }.count
+    let agentMessageCount = cluster.lines.filter { $0.kind == .agentMessage }.count
+    let failureLines = cluster.lines.filter { $0.status == .failed || $0.level == .error }
+    let warningCount = cluster.lines.filter { $0.level == .warning }.count
+    let lifecycleLine = cluster.lines.last { $0.kind == .lifecycle && $0.status != .running }
+    let primaryFailureInsight = failureLines.compactMap { LiveFailureInsight(line: $0) }.first
+
+    if let primaryFailureInsight {
+      label = primaryFailureInsight.title
+      detail = primaryFailureInsight.nextStep
+      tone = .danger
+      systemImageName = primaryFailureInsight.systemImageName
+    } else if !failureLines.isEmpty {
+      label = "Needs Review"
+      detail = "Start with the failed live event before rerunning the smallest proof."
+      tone = .danger
+      systemImageName = "exclamationmark.triangle.fill"
+    } else if warningCount > 0 {
+      label = "Review Warnings"
+      detail = "Warnings are preserved here so the next run can start from evidence."
+      tone = .warning
+      systemImageName = "exclamationmark.triangle.fill"
+    } else if fileChangeCount > 0 {
+      label = "Files Changed"
+      detail =
+        "Review the touched files, then let Verify or Critic decide whether the slice is ready."
+      tone = .changed
+      systemImageName = "doc.badge.gearshape"
+    } else if lifecycleLine != nil {
+      label = "Phase Complete"
+      detail = Self.lifecycleDetail(from: lifecycleLine)
+      tone = .complete
+      systemImageName = "flag.checkered"
+    } else if commandCount > 0 {
+      label = "Commands Ran"
+      detail = "Compass captured command output for this batch."
+      tone = .progress
+      systemImageName = "terminal"
+    } else if agentMessageCount > 0 {
+      label = "Agent Note"
+      detail = "The agent left context for this run."
+      tone = .neutral
+      systemImageName = "sparkles"
+    } else {
+      label = "Activity Logged"
+      detail = "Compass preserved these events as handoff context."
+      tone = .neutral
+      systemImageName = "info.circle"
+    }
+
+    badges = Self.badges(
+      failureCount: failureLines.count,
+      warningCount: warningCount,
+      fileChangeCount: fileChangeCount,
+      commandCount: commandCount,
+      agentMessageCount: agentMessageCount
+    )
+  }
+
+  private static func lifecycleDetail(from line: LiveLine?) -> String {
+    let raw = firstLine(line?.detail) ?? line?.text ?? "The phase reached a boundary."
+    let normalized = LiveActivitySummaryService.normalizedPlainText(raw)
+    guard !normalized.isEmpty else {
+      return "The phase reached a boundary."
+    }
+    return normalized
+  }
+
+  private static func badges(
+    failureCount: Int,
+    warningCount: Int,
+    fileChangeCount: Int,
+    commandCount: Int,
+    agentMessageCount: Int
+  ) -> [Badge] {
+    [
+      countBadge(failureCount, singular: "failure", plural: "failures"),
+      countBadge(warningCount, singular: "warning", plural: "warnings"),
+      countBadge(fileChangeCount, singular: "file", plural: "files"),
+      countBadge(commandCount, singular: "command", plural: "commands"),
+      countBadge(agentMessageCount, singular: "note", plural: "notes"),
+    ]
+    .compactMap { $0 }
+  }
+
+  private static func countBadge(
+    _ count: Int,
+    singular: String,
+    plural: String
+  ) -> Badge? {
+    guard count > 0 else { return nil }
+    return Badge(label: "\(count) \(count == 1 ? singular : plural)")
+  }
+}
+
 struct LiveActivityCluster: Equatable, Identifiable {
   var key: String
   var lines: [LiveLine]

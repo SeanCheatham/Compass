@@ -292,6 +292,8 @@ struct LiveActivityClusterRow: View {
   @Binding var isExpanded: Bool
 
   var body: some View {
+    let takeaway = LiveActivityTakeaway(cluster: cluster)
+
     DisclosureGroup(isExpanded: $isExpanded) {
       VStack(alignment: .leading, spacing: 4) {
         ForEach(cluster.lines) { line in
@@ -331,14 +333,61 @@ struct LiveActivityClusterRow: View {
             }
           }
 
-          HStack(spacing: 6) {
-            Text(countLabel)
-            if let durationLabel {
-              Text(durationLabel)
+          ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+              Label(takeaway.label, systemImage: takeaway.systemImageName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(takeawayColor(for: takeaway.tone))
+                .lineLimit(1)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(
+                  takeawayColor(for: takeaway.tone).opacity(0.11),
+                  in: Capsule()
+                )
+                .help(takeaway.detail)
+
+              ForEach(takeaway.badges) { badge in
+                Text(badge.label)
+                  .font(.caption.monospacedDigit())
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+                  .padding(.horizontal, 7)
+                  .padding(.vertical, 3)
+                  .background(.quaternary.opacity(0.55), in: Capsule())
+              }
+
+              Text(countLabel)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+
+              if let durationLabel {
+                Text(durationLabel)
+                  .font(.caption.monospacedDigit())
+                  .foregroundStyle(.secondary)
+              }
+
+              if summary.source == .generated {
+                Label("On-device", systemImage: "sparkles")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+                  .padding(.horizontal, 7)
+                  .padding(.vertical, 3)
+                  .background(.quaternary.opacity(0.55), in: Capsule())
+              }
             }
           }
-          .font(.caption.monospacedDigit())
-          .foregroundStyle(.secondary)
+
+          if shouldShowTakeawayDetail(takeaway) {
+            Text(takeaway.detail)
+              .font(.caption)
+              .foregroundStyle(takeawayColor(for: takeaway.tone))
+              .lineLimit(2)
+              .fixedSize(horizontal: false, vertical: true)
+              .textSelection(.enabled)
+              .frame(maxWidth: .infinity, alignment: .leading)
+          }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
       }
@@ -388,6 +437,32 @@ struct LiveActivityClusterRow: View {
       return .orange
     }
     return .blue
+  }
+
+  private func takeawayColor(for tone: LiveActivityTakeaway.Tone) -> Color {
+    switch tone {
+    case .neutral:
+      return .secondary
+    case .progress:
+      return .blue
+    case .changed:
+      return .purple
+    case .warning:
+      return .orange
+    case .danger:
+      return .red
+    case .complete:
+      return .green
+    }
+  }
+
+  private func shouldShowTakeawayDetail(_ takeaway: LiveActivityTakeaway) -> Bool {
+    switch takeaway.tone {
+    case .danger, .warning, .changed:
+      return !takeaway.detail.isEmpty
+    case .neutral, .progress, .complete:
+      return false
+    }
   }
 
   private func timestamp(_ date: Date?) -> String {
