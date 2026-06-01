@@ -348,6 +348,23 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("Use `[]`"))
   }
 
+  @Test func testInvalidDevelopFeedbackNudgeExplainsConcreteRetry() throws {
+    let nudge = AgentExecutor.submitResultValidationNudge(
+      for: DevelopFeedbackValidationError(
+        message: "Develop feedback `done` is too generic to guide the next Plan pass.",
+        reason: .placeholder,
+        feedback: "done"
+      )
+    )
+
+    try #require(nudge.eventText == "submit_result feedback rejected")
+    try #require(nudge.eventDetail.contains("too generic"))
+    try #require(nudge.userMessage.contains("next Plan pass"))
+    try #require(nudge.userMessage.contains("Keep the same `status`"))
+    try #require(nudge.userMessage.contains("smallest recovery action"))
+    try #require(nudge.userMessage.contains("Do not answer in prose"))
+  }
+
   @Test func testInvalidSubmitResultDecodeNudgeExplainsContractMismatch() throws {
     let nudge = AgentExecutor.invalidSubmitResultDecodeNudge(
       errorMessage: "Missing required field `lessonEdits`."

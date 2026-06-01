@@ -277,6 +277,70 @@ struct PlanSubmitResultValidationTests {
     }
   }
 
+  @Test func testRejectsWeakDevelopFeedbackBeforeAgentFinishes() throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    let workspace = project.makeWorkspace(repoURL: repoURL)
+    try workspace.initialize()
+
+    let args = Data(
+      """
+      {
+        "status": "succeeded",
+        "summary": "Implemented the slice.",
+        "feedback": "done",
+        "bypassVerify": null,
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+    let validate = project.submitResultValidation(
+      for: .develop,
+      hostRepoURL: repoURL,
+      decode: DevelopSummary.self
+    )
+
+    do {
+      try validate(args)
+      Issue.record("Expected weak Develop feedback to be rejected.")
+    } catch let error as DevelopFeedbackValidationError {
+      try #require(error.reason == .placeholder)
+      try #require(error.message.contains("next Plan pass"))
+    }
+  }
+
+  @Test func testAcceptsConcreteDevelopFeedbackBeforeAgentFinishes() throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    let workspace = project.makeWorkspace(repoURL: repoURL)
+    try workspace.initialize()
+
+    let args = Data(
+      """
+      {
+        "status": "succeeded",
+        "summary": "Implemented the slice.",
+        "feedback": "Draft readiness now appears in run controls; no follow-up unless copy needs tuning.",
+        "bypassVerify": null,
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+    let validate = project.submitResultValidation(
+      for: .develop,
+      hostRepoURL: repoURL,
+      decode: DevelopSummary.self
+    )
+
+    try validate(args)
+  }
+
   @Test func testDevelopStartRefusesWeakExistingImmediateHandoff() async throws {
     let repoURL = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: repoURL) }

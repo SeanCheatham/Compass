@@ -416,6 +416,31 @@ struct PlanPromptTests {
     try #require(prompt.contains("focused on DraftRefinementTests"))
   }
 
+  @Test func testDevelopPromptRequiresConcreteFeedbackHandoff() throws {
+    let prompt = Prompts.developPrompt(
+      next: PlanNext(
+        plan: """
+          ## Outcome
+          Make Develop feedback harder to ignore.
+
+          ## Acceptance checks
+          - Placeholder feedback is rejected before the run finishes.
+          """,
+        verify: "swift test --filter DevelopFeedbackValidatorTests"
+      ),
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: []
+    )
+
+    try #require(prompt.contains("concrete handoff note for the next Plan pass"))
+    try #require(prompt.contains("Do not use"))
+    try #require(prompt.contains("`done`"))
+    try #require(prompt.contains("No follow-up; verified <command>"))
+    try #require(prompt.contains("smallest recovery action"))
+  }
+
   @Test func testDevelopPromptMentionsHostXcodeOnlyWhenEnabledAndRequired() throws {
     let next = PlanNext(
       plan: "Build the app",

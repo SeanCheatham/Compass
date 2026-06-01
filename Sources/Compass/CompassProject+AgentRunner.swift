@@ -240,6 +240,9 @@ extension CompassProject {
         try hostWorkspace.validateSubmitResultLessonEdits(args)
       }
       let decoded = try JSONDecoder().decode(T.self, from: args)
+      if phase == .develop, let developResult = decoded as? DevelopSummary {
+        try DevelopFeedbackValidator.validate(developResult)
+      }
       guard phase == .plan, let planResult = decoded as? PlanRunResult else { return }
       let currentState = try hostWorkspace.readState()
       let nextState = currentState.applying(proposal: planResult.state)

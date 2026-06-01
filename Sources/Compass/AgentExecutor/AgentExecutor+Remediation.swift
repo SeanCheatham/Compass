@@ -23,6 +23,9 @@ extension AgentExecutor {
     if let error = error as? PlanTransitionValidationError {
       return invalidPlanTransitionNudge(error: error)
     }
+    if let error = error as? DevelopFeedbackValidationError {
+      return invalidDevelopFeedbackNudge(error: error)
+    }
     if error is DecodingError {
       return invalidSubmitResultDecodeNudge(errorMessage: decodingErrorMessage(error))
     }
@@ -80,6 +83,25 @@ extension AgentExecutor {
         matches the current lessons content exactly — re-read the Lessons section in your \
         original task. Use `[]` when you have no lesson change. If `find` would match more \
         than once, include more surrounding context or set `replaceAll` to true.
+        """
+    )
+  }
+
+  static func invalidDevelopFeedbackNudge(error: DevelopFeedbackValidationError)
+    -> InvalidToolArgumentsNudge
+  {
+    InvalidToolArgumentsNudge(
+      eventText: "submit_result feedback rejected",
+      eventDetail: error.message,
+      userMessage: """
+        Your previous `submit_result.feedback` was too weak to hand to the next Plan pass: \
+        \(error.message)
+
+        Call `submit_result` again. Keep the same `status`, `summary`, `bypassVerify`, and \
+        `lessonEdits` unless the facts changed, but replace `feedback` with one or two concrete \
+        sentences. For `succeeded`, name what changed and whether there is a next follow-up or \
+        no follow-up after verification. For `blocked` or `failed`, name the blocker/failure and \
+        the smallest recovery action Plan should choose next. Do not answer in prose.
         """
     )
   }

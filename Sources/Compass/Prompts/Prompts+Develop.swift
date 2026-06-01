@@ -144,7 +144,12 @@ extension Prompts {
       submit_result arguments:
       - `status`: `succeeded`, `blocked`, or `failed`.
       - `summary`: concise human summary of what happened.
-      - `feedback`: short handoff note for the next planning pass.
+      - `feedback`: concrete handoff note for the next Plan pass. Do not use
+        empty text, `done`, `ok`, `n/a`, or other placeholder wording. For
+        `succeeded`, name what changed and either the next follow-up or
+        `No follow-up; verified <command>`. For `blocked` or `failed`, name
+        the blocker/failure and the smallest recovery action Plan should
+        choose next.
       - `bypassVerify`: true only if the verify command itself is wrong or out of scope.
       - `lessonEdits`: exact find/replace edits against the lessons content
         shown above, or [].

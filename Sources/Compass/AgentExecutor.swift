@@ -43,8 +43,8 @@ struct AgentExecutionConfiguration {
   /// Optional post-decode guard for `submit_result`. When it throws,
   /// the executor rolls back the turn and reprompts — same remediation
   /// path as malformed tool JSON. `runAgent` uses this to reject lesson
-  /// edits that don't match lessons.md and payloads that don't decode
-  /// into the phase result model.
+  /// edits that don't match lessons.md, payloads that don't decode into
+  /// the phase result model, and phase-specific weak handoffs.
   var validateSubmitResult: (@Sendable (Data) throws -> Void)?
   var maxIterations: Int
   var wallClockTimeout: TimeInterval
