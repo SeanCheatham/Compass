@@ -365,6 +365,23 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("Do not answer in prose"))
   }
 
+  @Test func testInvalidDevelopVerifyBypassNudgeExplainsFallbackToVerify() throws {
+    let nudge = AgentExecutor.submitResultValidationNudge(
+      for: DevelopVerifyBypassValidationError(
+        message:
+          "Develop set bypassVerify=true without explaining why the verify command itself is wrong or out of scope.",
+        reason: .missingReason
+      )
+    )
+
+    try #require(nudge.eventText == "submit_result verify bypass rejected")
+    try #require(nudge.eventDetail.contains("bypassVerify=true"))
+    try #require(nudge.userMessage.contains("set `bypassVerify` to false"))
+    try #require(nudge.userMessage.contains("verify command itself is wrong"))
+    try #require(nudge.userMessage.contains("smallest Plan recovery action"))
+    try #require(nudge.userMessage.contains("Do not answer in prose"))
+  }
+
   @Test func testInvalidCriticFeedbackNudgeExplainsApproveEscapeHatch() throws {
     let nudge = AgentExecutor.submitResultValidationNudge(
       for: CriticFeedbackValidationError(

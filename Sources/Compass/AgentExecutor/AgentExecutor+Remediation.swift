@@ -26,6 +26,9 @@ extension AgentExecutor {
     if let error = error as? DevelopFeedbackValidationError {
       return invalidDevelopFeedbackNudge(error: error)
     }
+    if let error = error as? DevelopVerifyBypassValidationError {
+      return invalidDevelopVerifyBypassNudge(error: error)
+    }
     if let error = error as? CriticFeedbackValidationError {
       return invalidCriticFeedbackNudge(error: error)
     }
@@ -105,6 +108,24 @@ extension AgentExecutor {
         sentences. For `succeeded`, name what changed and whether there is a next follow-up or \
         no follow-up after verification. For `blocked` or `failed`, name the blocker/failure and \
         the smallest recovery action Plan should choose next. Do not answer in prose.
+        """
+    )
+  }
+
+  static func invalidDevelopVerifyBypassNudge(error: DevelopVerifyBypassValidationError)
+    -> InvalidToolArgumentsNudge
+  {
+    InvalidToolArgumentsNudge(
+      eventText: "submit_result verify bypass rejected",
+      eventDetail: error.message,
+      userMessage: """
+        Your previous Develop `submit_result` set `bypassVerify: true`, but Compass needs a \
+        concrete reason before it can skip Verify: \(error.message)
+
+        Call `submit_result` again. If the verify command can run, set `bypassVerify` to false \
+        or null and let Compass run it. Use `bypassVerify: true` only when the verify command \
+        itself is wrong or out of scope, and then make `feedback` name the exact verify-command \
+        problem and the smallest Plan recovery action. Do not answer in prose.
         """
     )
   }

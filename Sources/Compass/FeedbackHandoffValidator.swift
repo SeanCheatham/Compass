@@ -16,6 +16,18 @@ struct DevelopFeedbackValidationError: LocalizedError, Equatable {
   var errorDescription: String? { message }
 }
 
+struct DevelopVerifyBypassValidationError: LocalizedError, Equatable {
+  enum Reason: Equatable {
+    case missingReason
+    case genericReason
+  }
+
+  var message: String
+  var reason: Reason
+
+  var errorDescription: String? { message }
+}
+
 enum DevelopFeedbackValidator {
   static func validate(_ summary: DevelopSummary) throws {
     guard let rejection = FeedbackHandoffTextQuality.rejection(for: summary.feedback) else {
@@ -43,6 +55,50 @@ enum DevelopFeedbackValidator {
           "Develop feedback `\(rejection.feedback ?? "")` is too short. Write one concrete sentence with the result, blocker, or next recovery action.",
         reason: .tooShort,
         feedback: rejection.feedback
+      )
+    }
+  }
+}
+
+enum DevelopVerifyBypassValidator {
+  private static let concreteReasonTokens: Set<String> = [
+    "cannot",
+    "cant",
+    "coverage",
+    "disabled",
+    "host",
+    "invalid",
+    "missing",
+    "out",
+    "scope",
+    "unsupported",
+    "wrong",
+    "xcode",
+    "xcodebuild",
+  ]
+
+  static func validate(_ summary: DevelopSummary) throws {
+    guard summary.bypassVerify == true else { return }
+
+    let combined = [summary.feedback, summary.summary]
+      .map(HandoffText.normalizedWhitespace)
+      .filter { !$0.isEmpty }
+      .joined(separator: " ")
+    let tokens = Set(HandoffText.wordTokens(in: combined))
+
+    guard tokens.contains("verify") else {
+      throw DevelopVerifyBypassValidationError(
+        message:
+          "Develop set bypassVerify=true without explaining why the verify command itself is wrong or out of scope.",
+        reason: .missingReason
+      )
+    }
+
+    guard !tokens.isDisjoint(with: concreteReasonTokens) else {
+      throw DevelopVerifyBypassValidationError(
+        message:
+          "Develop set bypassVerify=true but did not name a concrete verify-command problem.",
+        reason: .genericReason
       )
     }
   }
@@ -97,6 +153,34 @@ private struct FeedbackHandoffRejection: Equatable {
   var feedback: String?
 }
 
+private enum HandoffText {
+  static func normalizedWhitespace(_ text: String) -> String {
+    text
+      .components(separatedBy: .whitespacesAndNewlines)
+      .filter { !$0.isEmpty }
+      .joined(separator: " ")
+  }
+
+  static func wordTokens(in text: String) -> [String] {
+    var tokens: [String] = []
+    var current = String.UnicodeScalarView()
+
+    for scalar in text.lowercased().unicodeScalars {
+      if CharacterSet.alphanumerics.contains(scalar) {
+        current.append(scalar)
+      } else if !current.isEmpty {
+        tokens.append(String(current))
+        current.removeAll(keepingCapacity: true)
+      }
+    }
+
+    if !current.isEmpty {
+      tokens.append(String(current))
+    }
+    return tokens
+  }
+}
+
 private enum FeedbackHandoffTextQuality {
   private static let placeholderKeys: Set<String> = [
     "all done",
@@ -147,12 +231,12 @@ private enum FeedbackHandoffTextQuality {
   ]
 
   static func rejection(for text: String) -> FeedbackHandoffRejection? {
-    let feedback = normalizedWhitespace(text)
+    let feedback = HandoffText.normalizedWhitespace(text)
     guard !feedback.isEmpty else {
       return FeedbackHandoffRejection(reason: .empty, feedback: nil)
     }
 
-    let tokens = wordTokens(in: feedback)
+    let tokens = HandoffText.wordTokens(in: feedback)
     let key = tokens.joined(separator: " ")
     if placeholderKeys.contains(key)
       || (!tokens.isEmpty && tokens.count <= 3 && tokens.allSatisfy(genericTokens.contains))
@@ -165,31 +249,5 @@ private enum FeedbackHandoffTextQuality {
     }
 
     return nil
-  }
-
-  private static func normalizedWhitespace(_ text: String) -> String {
-    text
-      .components(separatedBy: .whitespacesAndNewlines)
-      .filter { !$0.isEmpty }
-      .joined(separator: " ")
-  }
-
-  private static func wordTokens(in text: String) -> [String] {
-    var tokens: [String] = []
-    var current = String.UnicodeScalarView()
-
-    for scalar in text.lowercased().unicodeScalars {
-      if CharacterSet.alphanumerics.contains(scalar) {
-        current.append(scalar)
-      } else if !current.isEmpty {
-        tokens.append(String(current))
-        current.removeAll(keepingCapacity: true)
-      }
-    }
-
-    if !current.isEmpty {
-      tokens.append(String(current))
-    }
-    return tokens
   }
 }

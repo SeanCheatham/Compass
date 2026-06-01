@@ -150,7 +150,10 @@ extension Prompts {
         `No follow-up; verified <command>`. For `blocked` or `failed`, name
         the blocker/failure and the smallest recovery action Plan should
         choose next.
-      - `bypassVerify`: true only if the verify command itself is wrong or out of scope.
+      - `bypassVerify`: true only if the verify command itself is wrong or out
+        of scope. If true, `feedback` must explicitly name the verify-command
+        problem and the smallest Plan recovery action. Do not use true because
+        tests are slow, failing, unavailable in your environment, or not yet run.
       - `lessonEdits`: exact find/replace edits against the lessons content
         shown above, or [].
       """

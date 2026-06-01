@@ -242,6 +242,7 @@ extension CompassProject {
       let decoded = try JSONDecoder().decode(T.self, from: args)
       if phase == .develop, let developResult = decoded as? DevelopSummary {
         try DevelopFeedbackValidator.validate(developResult)
+        try DevelopVerifyBypassValidator.validate(developResult)
       }
       if phase == .critic, let criticResult = decoded as? CriticVerdict {
         try CriticFeedbackValidator.validate(criticResult)

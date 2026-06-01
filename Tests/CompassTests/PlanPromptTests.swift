@@ -441,6 +441,31 @@ struct PlanPromptTests {
     try #require(prompt.contains("smallest recovery action"))
   }
 
+  @Test func testDevelopPromptRequiresConcreteVerifyBypassReason() throws {
+    let prompt = Prompts.developPrompt(
+      next: PlanNext(
+        plan: """
+          ## Outcome
+          Make verify bypass harder to misuse.
+
+          ## Acceptance checks
+          - Verify bypass without a reason is rejected.
+          """,
+        verify: "swift test --filter DevelopVerifyBypassValidatorTests"
+      ),
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: []
+    )
+
+    try #require(prompt.contains("verify command itself is wrong or out"))
+    try #require(prompt.contains("feedback` must explicitly name"))
+    try #require(prompt.contains("smallest Plan recovery action"))
+    try #require(prompt.contains("Do not use true because"))
+    try #require(prompt.contains("not yet run"))
+  }
+
   @Test func testDevelopPromptMentionsHostXcodeOnlyWhenEnabledAndRequired() throws {
     let next = PlanNext(
       plan: "Build the app",

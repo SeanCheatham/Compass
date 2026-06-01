@@ -341,6 +341,70 @@ struct PlanSubmitResultValidationTests {
     try validate(args)
   }
 
+  @Test func testRejectsUnexplainedVerifyBypassBeforeAgentFinishes() throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    let workspace = project.makeWorkspace(repoURL: repoURL)
+    try workspace.initialize()
+
+    let args = Data(
+      """
+      {
+        "status": "succeeded",
+        "summary": "Implemented the slice.",
+        "feedback": "Draft readiness now appears in run controls; no follow-up unless copy needs tuning.",
+        "bypassVerify": true,
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+    let validate = project.submitResultValidation(
+      for: .develop,
+      hostRepoURL: repoURL,
+      decode: DevelopSummary.self
+    )
+
+    do {
+      try validate(args)
+      Issue.record("Expected unexplained verify bypass to be rejected.")
+    } catch let error as DevelopVerifyBypassValidationError {
+      try #require(error.reason == .missingReason)
+      try #require(error.message.contains("bypassVerify=true"))
+    }
+  }
+
+  @Test func testAcceptsConcreteVerifyBypassBeforeAgentFinishes() throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    let workspace = project.makeWorkspace(repoURL: repoURL)
+    try workspace.initialize()
+
+    let args = Data(
+      """
+      {
+        "status": "succeeded",
+        "summary": "Implemented the slice; verify command points at a removed test suite.",
+        "feedback": "Verify command is wrong because DraftReadinessOldTests no longer exists; next Plan should replace it with DraftRefinementTests.",
+        "bypassVerify": true,
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+    let validate = project.submitResultValidation(
+      for: .develop,
+      hostRepoURL: repoURL,
+      decode: DevelopSummary.self
+    )
+
+    try validate(args)
+  }
+
   @Test func testRejectsWeakCriticFeedbackBeforeAgentFinishes() throws {
     let repoURL = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: repoURL) }

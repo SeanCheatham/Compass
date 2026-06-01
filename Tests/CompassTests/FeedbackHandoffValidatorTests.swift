@@ -45,6 +45,67 @@ struct DevelopFeedbackValidatorTests {
   }
 }
 
+struct DevelopVerifyBypassValidatorTests {
+  @Test func ignoresNormalVerifyRuns() throws {
+    try DevelopVerifyBypassValidator.validate(
+      DevelopSummary(
+        status: .succeeded,
+        summary: "Implemented the slice.",
+        feedback: "Draft readiness now appears in run controls; no follow-up unless copy needs tuning.",
+        bypassVerify: false
+      )
+    )
+  }
+
+  @Test func rejectsBypassWithoutVerifySpecificReason() throws {
+    let cases: [(summary: String, feedback: String, reason: DevelopVerifyBypassValidationError.Reason)] = [
+      (
+        "Implemented the slice.",
+        "Draft readiness now appears in run controls; no follow-up unless copy needs tuning.",
+        .missingReason
+      ),
+      (
+        "Implemented the slice and skipped verify.",
+        "Verify was skipped; next Plan can continue with the queue.",
+        .genericReason
+      ),
+      (
+        "Implemented the slice and skipped verify.",
+        "Verify is unavailable in this environment; next Plan can continue with the queue.",
+        .genericReason
+      ),
+    ]
+
+    for testCase in cases {
+      do {
+        try DevelopVerifyBypassValidator.validate(
+          DevelopSummary(
+            status: .succeeded,
+            summary: testCase.summary,
+            feedback: testCase.feedback,
+            bypassVerify: true
+          )
+        )
+        Issue.record("Expected bypass feedback `\(testCase.feedback)` to be rejected.")
+      } catch let error as DevelopVerifyBypassValidationError {
+        try #require(error.reason == testCase.reason)
+      }
+    }
+  }
+
+  @Test func acceptsConcreteVerifyCommandBypassReason() throws {
+    try DevelopVerifyBypassValidator.validate(
+      DevelopSummary(
+        status: .succeeded,
+        summary: "Implemented the slice; the planned verify command targets a deleted test suite.",
+        feedback:
+          "Verify command is wrong because DraftReadinessOldTests no longer exists; next Plan should replace it with DraftRefinementTests.",
+        bypassVerify: true
+      )
+    )
+  }
+}
+
 struct CriticFeedbackValidatorTests {
   @Test func allowsApproveWithoutFeedback() throws {
     try CriticFeedbackValidator.validate(
