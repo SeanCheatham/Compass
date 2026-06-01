@@ -83,6 +83,7 @@ struct DraftRefinementTests {
     try #require(empty.title == "No queued drafts")
     try #require(empty.scoreLabel == "0 queued")
     try #require(empty.detail == "Add one clear direction above when you are ready.")
+    try #require(!empty.allowsNarration)
 
     let ready = DraftIntakeGuide(
       drafts: """
@@ -94,10 +95,61 @@ struct DraftRefinementTests {
     try #require(ready.status == .ready)
     try #require(ready.title == "Draft queue ready")
     try #require(ready.scoreLabel == "2 of 2 ready")
+    try #require(ready.allowsNarration)
     try #require(ready.missingSignalTitles.isEmpty)
     try #require(
       ready.detail
         == "Every queued draft names the outcome, why it matters, and how done should look.")
+  }
+
+  @Test func testDraftIntakeGuideNarrationIdentifierTracksQueueSignals() throws {
+    let initial = DraftIntakeGuide(drafts: "- Improve onboarding copy")
+    let refined = DraftIntakeGuide(
+      drafts: "- Improve onboarding copy because users get stuck; success looks like tests pass.")
+
+    try #require(initial.narrationIdentifier.contains("Draft queue needs detail"))
+    try #require(initial.narrationIdentifier.contains("missing:Why, Success signal"))
+    try #require(refined.narrationIdentifier.contains("Draft queue ready"))
+    try #require(refined.narrationIdentifier.contains("present:Outcome, Why, Success signal"))
+    try #require(initial.narrationIdentifier != refined.narrationIdentifier)
+  }
+
+  @Test func testDraftIntakeGuideNarratorUsesFoundationModelsAsOptionalQueuePolish()
+    async throws
+  {
+    let guide = DraftIntakeGuide(
+      drafts: """
+        - Improve onboarding copy
+        - Make setup faster because users get stuck; success looks like tests pass.
+        """
+    )
+
+    try await withMockFoundationModels(response: "Add why and a success signal to the first draft.")
+    {
+      let generatedNarration = await DraftIntakeGuideNarrator.narrate(guide: guide)
+      let narration = try #require(generatedNarration)
+      try #require(narration.guideIdentifier == guide.narrationIdentifier)
+      try #require(narration.text == "Add why and a success signal to the first draft.")
+    }
+  }
+
+  @Test func testDraftIntakeGuideNarratorSkipsEmptyAndRejectsStructuredOutput() async {
+    let empty = DraftIntakeGuide(drafts: "")
+    await withMockFoundationModels(response: "Queue is empty.") {
+      let narration = await DraftIntakeGuideNarrator.narrate(guide: empty)
+      #expect(narration == nil)
+    }
+
+    let guide = DraftIntakeGuide(drafts: "- Improve onboarding copy")
+    await withMockFoundationModels(response: #"{"text":"invented"}"#) {
+      let narration = await DraftIntakeGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "Read more at https://example.com") {
+      let narration = await DraftIntakeGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
   }
 
   @Test func testParserAcceptsGeneratedJSONRefinement() throws {

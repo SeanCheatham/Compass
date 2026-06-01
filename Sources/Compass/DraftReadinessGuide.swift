@@ -178,11 +178,27 @@ struct DraftReadinessGuide: Equatable, Sendable {
 struct DraftIntakeGuide: Equatable, Sendable {
   static let maxEntries = 6
   static let draftTextLimit = 220
+  static let identifierLimit = 1_200
 
   var entries: [Entry]
 
   var isEmpty: Bool {
     entries.isEmpty
+  }
+
+  var allowsNarration: Bool {
+    !entries.isEmpty
+  }
+
+  var narrationIdentifier: String {
+    let raw = [
+      "title:\(title)",
+      "detail:\(detail)",
+      "status:\(status)",
+      "score:\(scoreLabel)",
+      "entries:\(entries.map(\.narrationIdentifierFragment).joined(separator: "|"))",
+    ].joined(separator: "\n")
+    return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 
   var status: Status {
@@ -294,6 +310,16 @@ struct DraftIntakeGuide: Equatable, Sendable {
 
     var missingSignalText: String {
       signalList(satisfied: false)
+    }
+
+    fileprivate var narrationIdentifierFragment: String {
+      [
+        "draft\(number):\(draft)",
+        "status:\(readiness.title)",
+        "score:\(readiness.scoreLabel)",
+        "present:\(satisfiedSignalText)",
+        "missing:\(missingSignalText)",
+      ].joined(separator: ";")
     }
 
     private func signalTitles(satisfied: Bool) -> [String] {

@@ -11,8 +11,11 @@ struct DraftsTab: View {
   @State private var activeDraftRefinementKey: DraftRefinementPreviewKey?
   @State private var isDraftRefinementActive = false
   @State private var isDraftRefinementPreviewAvailable = DraftRefinementService.isPreviewAvailable
+  @State private var draftQueueNarration: DraftIntakeGuideNarration?
 
   var body: some View {
+    let draftQueueGuide = DraftIntakeGuide(drafts: pendingDraftsText)
+
     VStack(alignment: .leading, spacing: 14) {
       SectionHeader("New Draft", systemImage: "square.and.pencil")
       HStack(alignment: .top, spacing: 10) {
@@ -54,7 +57,10 @@ struct DraftsTab: View {
         }
         .disabled(!project.hasRepository)
       }
-      DraftQueueReadinessView(guide: DraftIntakeGuide(drafts: pendingDraftsText))
+      DraftQueueReadinessView(
+        guide: draftQueueGuide,
+        narration: matchingNarration(for: draftQueueGuide)
+      )
       TextEditor(text: $pendingDraftsText)
         .font(.system(.body, design: .monospaced))
         .scrollContentBackground(.hidden)
@@ -97,6 +103,13 @@ struct DraftsTab: View {
     }
     .onChange(of: project.repoURL) {
       requestDraftRefinementReschedule()
+    }
+    .task(id: "\(draftQueueGuide.narrationIdentifier)|running-\(project.isRunning)") {
+      draftQueueNarration = nil
+      guard !project.isRunning else { return }
+      try? await Task.sleep(nanoseconds: 700_000_000)
+      guard !Task.isCancelled else { return }
+      draftQueueNarration = await DraftIntakeGuideNarrator.narrate(guide: draftQueueGuide)
     }
   }
 
@@ -265,10 +278,18 @@ struct DraftsTab: View {
     cancelDraftRefinementPreview()
     project.modifyDraft(with: refinement)
   }
+
+  private func matchingNarration(for guide: DraftIntakeGuide) -> DraftIntakeGuideNarration? {
+    guard draftQueueNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return draftQueueNarration
+  }
 }
 
 struct DraftQueueReadinessView: View {
   var guide: DraftIntakeGuide
+  var narration: DraftIntakeGuideNarration? = nil
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -287,10 +308,11 @@ struct DraftQueueReadinessView: View {
         Spacer()
       }
 
-      Text(guide.detail)
+      Text(narration?.text ?? guide.detail)
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(narration == nil ? .secondary : .primary)
         .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
 
       if !guide.entries.isEmpty {
         VStack(alignment: .leading, spacing: 8) {
@@ -304,6 +326,12 @@ struct DraftQueueReadinessView: View {
         }
         .padding(.top, 2)
       }
+
+      if narration != nil {
+        Label("On-device queue note", systemImage: "sparkles")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
     }
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -313,7 +341,7 @@ struct DraftQueueReadinessView: View {
         .stroke(color.opacity(0.18))
     }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(guide.title). \(guide.detail). \(guide.scoreLabel).")
+    .accessibilityLabel("\(guide.title). \(narration?.text ?? guide.detail). \(guide.scoreLabel).")
   }
 
   private var color: Color {
