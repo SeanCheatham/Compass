@@ -348,9 +348,9 @@ struct DraftIntakeGuide: Equatable, Sendable {
     let lines = normalized.split(separator: "\n", omittingEmptySubsequences: false)
       .map(String.init)
 
-    let bulletEntries = extractBulletEntries(from: lines)
-    if !bulletEntries.isEmpty {
-      return bulletEntries
+    let listEntries = extractListEntries(from: lines)
+    if !listEntries.isEmpty {
+      return listEntries
     }
 
     return normalized.components(separatedBy: "\n\n")
@@ -358,10 +358,10 @@ struct DraftIntakeGuide: Equatable, Sendable {
       .filter { !$0.isEmpty }
   }
 
-  private static func extractBulletEntries(from lines: [String]) -> [String] {
+  private static func extractListEntries(from lines: [String]) -> [String] {
     var entries: [String] = []
     var current: [String] = []
-    var sawBullet = false
+    var sawListEntry = false
 
     func flush() {
       let text = normalizedDraftText(current.joined(separator: " "))
@@ -375,22 +375,37 @@ struct DraftIntakeGuide: Equatable, Sendable {
       let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmed.isEmpty else { continue }
 
-      if let bullet = strippedBulletPrefix(from: trimmed) {
-        sawBullet = true
+      if let listEntry = strippedListPrefix(from: trimmed) {
+        sawListEntry = true
         flush()
-        current.append(bullet)
-      } else if sawBullet {
+        current.append(listEntry)
+      } else if sawListEntry {
         current.append(trimmed)
       }
     }
 
     flush()
-    return sawBullet ? entries : []
+    return sawListEntry ? entries : []
   }
 
-  private static func strippedBulletPrefix(from line: String) -> String? {
-    guard line.hasPrefix("- ") || line.hasPrefix("* ") else { return nil }
-    return String(line.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+  private static func strippedListPrefix(from line: String) -> String? {
+    if line.hasPrefix("- ") || line.hasPrefix("* ") {
+      return strippedTaskPrefix(
+        from: String(line.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+      )
+    }
+
+    guard let range = line.range(of: #"^\d{1,3}[\.)]\s+"#, options: .regularExpression)
+    else { return nil }
+    return strippedTaskPrefix(
+      from: String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+    )
+  }
+
+  private static func strippedTaskPrefix(from text: String) -> String {
+    guard let range = text.range(of: #"^\[( |x|X)\]\s*"#, options: .regularExpression)
+    else { return text }
+    return String(text[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private static func normalizedDraftText(_ text: String) -> String {

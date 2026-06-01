@@ -76,6 +76,25 @@ struct DraftRefinementTests {
       guide.entries[1].draft == "Show a visible success state when the repair packet is copied.")
   }
 
+  @Test func testDraftIntakeGuideAcceptsNumberedAndCheckboxEntries() throws {
+    let guide = DraftIntakeGuide(
+      drafts: """
+        1. [ ] Make setup faster because users get stuck; success looks like tests pass.
+        2) [x] Improve onboarding copy
+        """
+    )
+
+    try #require(guide.entries.map(\.number) == [1, 2])
+    try #require(
+      guide.entries[0].draft
+        == "Make setup faster because users get stuck; success looks like tests pass.")
+    try #require(guide.entries[0].readiness.status == .ready)
+    try #require(guide.entries[1].draft == "Improve onboarding copy")
+    try #require(guide.entries[1].readiness.status == .needsDetail)
+    try #require(guide.promptText.contains("Text: Improve onboarding copy"))
+    try #require(!guide.promptText.contains("[x]"))
+  }
+
   @Test func testDraftIntakeGuideSummarizesReadyAndEmptyQueueStates() throws {
     let empty = DraftIntakeGuide(drafts: " \n ")
 
