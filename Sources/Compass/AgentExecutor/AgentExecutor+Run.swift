@@ -156,7 +156,8 @@ extension AgentExecutor {
           ? Self.invalidSubmitResultNudge(
             finishReason: aggregated.finishReason,
             argumentsPreview: previewString(bad.arguments),
-            maxCompletionTokens: Self.maxCompletionTokensPerTurn
+            maxCompletionTokens: Self.maxCompletionTokensPerTurn,
+            phase: configuration.phase
           )
           : Self.invalidToolArgumentsNudge(
             toolName: bad.name,

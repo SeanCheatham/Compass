@@ -392,22 +392,35 @@ extension AgentExecutor {
   static func invalidSubmitResultNudge(
     finishReason: String?,
     argumentsPreview: String,
-    maxCompletionTokens: Int
+    maxCompletionTokens: Int,
+    phase: AgentPhase? = nil
   ) -> InvalidToolArgumentsNudge {
+    let retryShape = submitResultDecodeRetryShape(for: phase)
     if finishReason == "length" {
       return InvalidToolArgumentsNudge(
         eventText: "submit_result truncated",
         eventDetail:
           "Output hit the max-tokens cap (\(maxCompletionTokens)); asking the model to retry with shorter fields.",
-        userMessage:
-          "Your previous `submit_result` was truncated by the output-token limit. Retry with the same structure but shorter free-form text — trim `summary`, keep plan fields concise, and avoid restating context. The tool args must be complete, valid JSON."
+        userMessage: """
+          Your previous `submit_result` was truncated by the output-token limit. Retry with the same \
+          structure but shorter free-form text — trim `summary`, keep plan fields concise, and avoid \
+          restating context. The tool args must be complete, valid JSON.
+
+          \(retryShape)
+          """
       )
     }
     return InvalidToolArgumentsNudge(
       eventText: "submit_result rejected",
       eventDetail: "submit_result args are not valid JSON: \(argumentsPreview)",
-      userMessage:
-        "Your previous `submit_result` arguments could not be parsed as JSON — the upstream often truncates mid-token without flagging it. Retry with the same structure but noticeably shorter free-form text: trim `summary`, keep plan fields concise, and avoid restating prior context. The tool args must be complete, valid JSON."
+      userMessage: """
+        Your previous `submit_result` arguments could not be parsed as JSON — the upstream often \
+        truncates mid-token without flagging it. Retry with the same structure but noticeably shorter \
+        free-form text: trim `summary`, keep plan fields concise, and avoid restating prior context. \
+        The tool args must be complete, valid JSON.
+
+        \(retryShape)
+        """
     )
   }
 

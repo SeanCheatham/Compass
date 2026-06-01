@@ -309,6 +309,21 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("complete, valid JSON"))
   }
 
+  @Test func testInvalidSubmitResultNudgeIncludesPhaseRetryShapeWhenTruncated() throws {
+    let nudge = AgentExecutor.invalidSubmitResultNudge(
+      finishReason: "length",
+      argumentsPreview: "{\"verdict\":\"approve",
+      maxCompletionTokens: 65_536,
+      phase: .critic
+    )
+
+    try #require(nudge.eventText == "submit_result truncated")
+    try #require(nudge.userMessage.contains("Use this exact retry shape when approving"))
+    try #require(nudge.userMessage.contains("\"verdict\": \"approve\""))
+    try #require(nudge.userMessage.contains("\"verdict\": \"request_changes\""))
+    try #require(nudge.userMessage.contains("Do not answer in prose"))
+  }
+
   @Test func testInvalidSubmitResultNudgeUsesRejectedCopyWhenFinishReasonIsNotLength() throws {
     // MiniMax in production was observed truncating submit_result
     // mid-token while reporting finish_reason "tool_calls" — the
@@ -335,6 +350,22 @@ struct AgentExecutorTests {
         "rejected nudge should still push the model toward shorter output, since silent truncation is the most common cause"
       )
     }
+  }
+
+  @Test func testInvalidSubmitResultNudgeIncludesPhaseRetryShapeWhenMalformed() throws {
+    let nudge = AgentExecutor.invalidSubmitResultNudge(
+      finishReason: "tool_calls",
+      argumentsPreview: "{\"state\":{\"immediate\":{\"plan\":\"## Outcome",
+      maxCompletionTokens: 65_536,
+      phase: .plan
+    )
+
+    try #require(nudge.eventText == "submit_result rejected")
+    try #require(nudge.userMessage.contains("Use this exact retry shape for Plan"))
+    try #require(nudge.userMessage.contains("\"verifyTimeoutMs\": 600000"))
+    try #require(nudge.userMessage.contains("\"estimatedDifficulty\": \"low\""))
+    try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
+    try #require(nudge.userMessage.contains("state.immediate.verify proves it"))
   }
 
   @Test func testInvalidLessonEditsNudgeExplainsMismatchAndRetry() throws {
