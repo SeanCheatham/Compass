@@ -230,10 +230,16 @@ struct CriticPromptTests {
   @Test func testCriticVerdictDecodesApproveAndRequestChangesSnakeCase() throws {
     let approve = #"{"verdict":"approve","summary":"looks good","feedback":""}"#
     let reject = #"{"verdict":"request_changes","summary":"missing tests","feedback":"add one"}"#
+    let approved = #"{"verdict":"approved","summary":"looks good","feedback":""}"#
+    let camelReject = #"{"verdict":"requestChanges","summary":"missing tests","feedback":"add one"}"#
     let v1 = try JSONDecoder().decode(CriticVerdict.self, from: Data(approve.utf8))
     let v2 = try JSONDecoder().decode(CriticVerdict.self, from: Data(reject.utf8))
+    let v3 = try JSONDecoder().decode(CriticVerdict.self, from: Data(approved.utf8))
+    let v4 = try JSONDecoder().decode(CriticVerdict.self, from: Data(camelReject.utf8))
     try #require(v1.verdict == .approve)
     try #require(v2.verdict == .requestChanges)
+    try #require(v3.verdict == .approve)
+    try #require(v4.verdict == .requestChanges)
     try #require(v2.feedback == "add one")
   }
 

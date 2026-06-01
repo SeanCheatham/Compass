@@ -905,6 +905,36 @@ struct PlanNextDecoderTests {
     try #require(next.requiresHostXcode)
   }
 
+  @Test func decoderAcceptsCommonHandoffAliasesFromLessCapableModels() throws {
+    let next = try decodePlanNext(
+      """
+      {
+        "implementationPlan": "  Build the safer handoff\\n",
+        "verifyCommand": "\\n swift test --filter PlanDomainTests  ",
+        "requiresHostXcode": "no"
+      }
+      """)
+
+    try #require(next.plan == "Build the safer handoff")
+    try #require(next.verify == "swift test --filter PlanDomainTests")
+    try #require(!next.requiresHostXcode)
+  }
+
+  @Test func decoderPrefersCanonicalPlanAndVerifyOverAliases() throws {
+    let next = try decodePlanNext(
+      """
+      {
+        "plan": "Use canonical plan",
+        "implementationPlan": "Ignore alias plan",
+        "verify": "swift test",
+        "verifyCommand": "echo wrong"
+      }
+      """)
+
+    try #require(next.plan == "Use canonical plan")
+    try #require(next.verify == "swift test")
+  }
+
   @Test func decoderIgnoresUnknownOptionalMetadataWithoutRejectingPlan() throws {
     let next = try decodePlanNext(
       """
@@ -947,6 +977,35 @@ struct PlanNextDecoderTests {
   private func decodePlanNext(_ json: String) throws -> PlanNext {
     let data = try #require(json.data(using: .utf8))
     return try JSONDecoder().decode(PlanNext.self, from: data)
+  }
+}
+
+struct DevelopSummaryDecoderTests {
+  @Test func decoderAcceptsStatusBooleanAndLessonEditAliasesFromLessCapableModels() throws {
+    let data = Data(
+      """
+      {
+        "status": "completed",
+        "summary": "Implemented the recovery copy.",
+        "feedback": "Run controls now name the exact handoff field that needs repair.",
+        "bypassVerify": "false",
+        "lessonEdits": [
+          {
+            "find": "old lesson",
+            "replace": "new lesson",
+            "replaceAll": "true"
+          }
+        ]
+      }
+      """.utf8
+    )
+
+    let summary = try JSONDecoder().decode(DevelopSummary.self, from: data)
+
+    try #require(summary.status == .succeeded)
+    try #require(summary.bypassVerify == false)
+    try #require(summary.lessonEdits.count == 1)
+    try #require(summary.lessonEdits[0].replaceAll == true)
   }
 }
 

@@ -1,5 +1,46 @@
 import Foundation
 
+private enum FlexibleModelDecoder {
+  static func decodeBool<Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    forKey key: Key
+  ) -> Bool? {
+    if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
+      return value
+    }
+    if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
+      if value == 1 { return true }
+      if value == 0 { return false }
+    }
+    guard let rawValue = try? container.decodeIfPresent(String.self, forKey: key) else {
+      return nil
+    }
+
+    switch normalizedIdentifier(rawValue) {
+    case "true", "yes", "y", "1":
+      return true
+    case "false", "no", "n", "0":
+      return false
+    default:
+      return nil
+    }
+  }
+
+  static func normalizedIdentifier(_ rawValue: String) -> String {
+    let camelSeparated = rawValue
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .replacingOccurrences(
+        of: #"([a-z0-9])([A-Z])"#,
+        with: "$1_$2",
+        options: .regularExpression
+      )
+    return camelSeparated
+      .lowercased()
+      .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "_", options: .regularExpression)
+      .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+  }
+}
+
 struct PlanNext: Codable, Equatable {
   var plan: String
   var verify: String
@@ -15,7 +56,13 @@ struct PlanNext: Codable, Equatable {
 
   enum CodingKeys: String, CodingKey {
     case plan
+    case implementationPlan
+    case handoff
     case verify
+    case verifyCommand
+    case verification
+    case verificationCommand
+    case verifyCmd
     case verifyTimeoutMs
     case estimatedDifficulty
     case requiresHostXcode
@@ -37,23 +84,25 @@ struct PlanNext: Codable, Equatable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    let plan = try container.decode(String.self, forKey: .plan)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    let verify = try container.decode(String.self, forKey: .verify)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !plan.isEmpty, !verify.isEmpty else {
-      throw DecodingError.dataCorrupted(
-        .init(
-          codingPath: decoder.codingPath,
-          debugDescription: "PlanNext requires non-empty plan and verify.")
-      )
-    }
+    let plan = try Self.decodeRequiredTrimmedString(
+      from: container,
+      preferredKey: .plan,
+      aliases: [.implementationPlan, .handoff],
+      fieldName: "plan"
+    )
+    let verify = try Self.decodeRequiredTrimmedString(
+      from: container,
+      preferredKey: .verify,
+      aliases: [.verifyCommand, .verification, .verificationCommand, .verifyCmd],
+      fieldName: "verify"
+    )
 
     self.plan = plan
     self.verify = verify
     self.verifyTimeoutMs = Self.decodePositiveInt(from: container, forKey: .verifyTimeoutMs)
     self.estimatedDifficulty = Self.decodeDifficulty(from: container, forKey: .estimatedDifficulty)
-    self.requiresHostXcode = Self.decodeBool(from: container, forKey: .requiresHostXcode) ?? false
+    self.requiresHostXcode =
+      FlexibleModelDecoder.decodeBool(from: container, forKey: .requiresHostXcode) ?? false
   }
 
   func encode(to encoder: Encoder) throws {
@@ -107,32 +156,47 @@ struct PlanNext: Codable, Equatable {
     return Difficulty(rawValue: rawValue)
   }
 
-  private static func decodeBool(
+  private static func decodeRequiredTrimmedString(
     from container: KeyedDecodingContainer<CodingKeys>,
-    forKey key: CodingKeys
-  ) -> Bool? {
-    if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
-      return value
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys],
+    fieldName: String
+  ) throws -> String {
+    var sawPresentKey = false
+    var firstTypeError: Error?
+
+    for key in [preferredKey] + aliases where container.contains(key) {
+      sawPresentKey = true
+      do {
+        if let value = try container.decodeIfPresent(String.self, forKey: key) {
+          let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+          if !trimmed.isEmpty {
+            return trimmed
+          }
+        }
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
     }
-    if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-      if value == 1 { return true }
-      if value == 0 { return false }
+
+    if !sawPresentKey {
+      throw DecodingError.keyNotFound(
+        preferredKey,
+        .init(
+          codingPath: container.codingPath,
+          debugDescription: "PlanNext requires \(fieldName)."
+        )
+      )
     }
-    guard
-      let rawValue = try? container.decodeIfPresent(String.self, forKey: key)?
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-        .lowercased()
-    else {
-      return nil
+    if let firstTypeError {
+      throw firstTypeError
     }
-    switch rawValue {
-    case "true", "yes", "1":
-      return true
-    case "false", "no", "0":
-      return false
-    default:
-      return nil
-    }
+    throw DecodingError.dataCorrupted(
+      .init(
+        codingPath: container.codingPath,
+        debugDescription: "PlanNext requires non-empty \(fieldName)."
+      )
+    )
   }
 }
 
@@ -186,6 +250,25 @@ struct LessonEdit: Codable, Equatable {
   var find: String
   var replace: String
   var replaceAll: Bool?
+
+  enum CodingKeys: String, CodingKey {
+    case find
+    case replace
+    case replaceAll
+  }
+
+  init(find: String, replace: String, replaceAll: Bool?) {
+    self.find = find
+    self.replace = replace
+    self.replaceAll = replaceAll
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    find = try container.decode(String.self, forKey: .find)
+    replace = try container.decode(String.self, forKey: .replace)
+    replaceAll = FlexibleModelDecoder.decodeBool(from: container, forKey: .replaceAll)
+  }
 }
 
 struct PlanRunResult: Codable, Equatable {
@@ -646,6 +729,31 @@ struct DevelopSummary: Codable, Equatable {
     case succeeded
     case blocked
     case failed
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.singleValueContainer()
+      let rawValue = try container.decode(String.self)
+      switch FlexibleModelDecoder.normalizedIdentifier(rawValue) {
+      case "succeeded", "success", "successful", "complete", "completed", "done":
+        self = .succeeded
+      case "blocked", "stuck":
+        self = .blocked
+      case "failed", "failure", "error":
+        self = .failed
+      default:
+        throw DecodingError.dataCorrupted(
+          .init(
+            codingPath: decoder.codingPath,
+            debugDescription: "DevelopSummary status must be succeeded, blocked, or failed."
+          )
+        )
+      }
+    }
+
+    func encode(to encoder: Encoder) throws {
+      var container = encoder.singleValueContainer()
+      try container.encode(rawValue)
+    }
   }
 
   enum CodingKeys: String, CodingKey {
@@ -675,7 +783,7 @@ struct DevelopSummary: Codable, Equatable {
     status = try container.decode(Status.self, forKey: .status)
     summary = try container.decode(String.self, forKey: .summary)
     feedback = try container.decode(String.self, forKey: .feedback)
-    bypassVerify = try container.decodeIfPresent(Bool.self, forKey: .bypassVerify)
+    bypassVerify = FlexibleModelDecoder.decodeBool(from: container, forKey: .bypassVerify)
     lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
   }
 }
@@ -689,6 +797,30 @@ struct CriticVerdict: Codable, Equatable {
   enum Verdict: String, Codable {
     case approve
     case requestChanges = "request_changes"
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.singleValueContainer()
+      let rawValue = try container.decode(String.self)
+      switch FlexibleModelDecoder.normalizedIdentifier(rawValue) {
+      case "approve", "approved":
+        self = .approve
+      case "request_changes", "requestchanges", "changes_requested", "change_requested",
+        "changes_required", "needs_changes", "reject", "rejected":
+        self = .requestChanges
+      default:
+        throw DecodingError.dataCorrupted(
+          .init(
+            codingPath: decoder.codingPath,
+            debugDescription: "Critic verdict must be approve or request_changes."
+          )
+        )
+      }
+    }
+
+    func encode(to encoder: Encoder) throws {
+      var container = encoder.singleValueContainer()
+      try container.encode(rawValue)
+    }
   }
 
   var verdict: Verdict
