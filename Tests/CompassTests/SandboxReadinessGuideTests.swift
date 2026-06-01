@@ -56,6 +56,65 @@ struct SandboxReadinessGuideTests {
   }
 
   @Test
+  func sandboxClipboardPayloadPackagesErrorForRepair() {
+    let readiness = SharedCompassVMReadiness.error(
+      detail: "restore failed: unable to mount guest disk"
+    )
+    let guide = SandboxReadinessGuide(readiness: readiness)
+
+    let payload = SandboxReadinessClipboardPayload(
+      readiness: readiness,
+      guide: guide
+    )
+
+    #expect(payload.text.contains("Compass Sandbox Handoff"))
+    #expect(payload.text.contains("Do not invent logs"))
+    #expect(payload.text.contains("Status: Sandbox Needs Repair (blocked)"))
+    #expect(payload.text.contains("Action: Repair sandbox"))
+    #expect(payload.text.contains("Readiness: error: restore failed"))
+    #expect(payload.text.contains("[open] Recover install"))
+    #expect(payload.text.contains("local IPSW"))
+    #expect(payload.text.count <= SandboxReadinessClipboardPayload.textLimit)
+    #expect(!payload.isEmpty)
+  }
+
+  @Test
+  func sandboxClipboardPayloadPreservesProgressState() {
+    let readiness = SharedCompassVMReadiness.provisioningDevTools(fractionCompleted: 0.43)
+    let guide = SandboxReadinessGuide(readiness: readiness)
+
+    let payload = SandboxReadinessClipboardPayload(
+      readiness: readiness,
+      guide: guide
+    )
+
+    #expect(payload.text.contains("Status: Installing Developer Tools (progress)"))
+    #expect(payload.text.contains("Action: 43%"))
+    #expect(payload.text.contains("Readiness: installing developer tools: 43%"))
+    #expect(payload.text.contains("If the packet is progress-only, wait"))
+    #expect(payload.text.contains("[complete] Restore image"))
+    #expect(payload.text.contains("[complete] macOS install"))
+    #expect(payload.text.contains("[complete] Guest access"))
+    #expect(payload.text.contains("[open] Developer tools"))
+  }
+
+  @Test
+  func sandboxClipboardPayloadNamesReadyRoute() {
+    let readiness = SharedCompassVMReadiness.ready(sshDestination: "compass@10.0.0.42")
+    let guide = SandboxReadinessGuide(readiness: readiness)
+
+    let payload = SandboxReadinessClipboardPayload(
+      readiness: readiness,
+      guide: guide
+    )
+
+    #expect(payload.text.contains("Status: Sandbox Ready (ready)"))
+    #expect(payload.text.contains("Readiness: ready via compass@10.0.0.42"))
+    #expect(payload.text.contains("[complete] Restore image"))
+    #expect(payload.text.contains("[complete] Developer tools"))
+  }
+
+  @Test
   func narratorUsesFoundationModelsAsOptionalSandboxPolish() async throws {
     let guide = SandboxReadinessGuide(readiness: .guestPrepping)
 

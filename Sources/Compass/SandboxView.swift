@@ -153,6 +153,7 @@ private struct SandboxSidePanel: View {
       VStack(alignment: .leading, spacing: 16) {
         SandboxReadinessSection(readiness: vmHost.readiness)
         SandboxReadinessGuideSection(
+          readiness: vmHost.readiness,
           guide: readinessGuide,
           narration: narration
         )
@@ -224,10 +225,16 @@ private struct SandboxReadinessSection: View {
 }
 
 private struct SandboxReadinessGuideSection: View {
+  let readiness: SharedCompassVMReadiness
   let guide: SandboxReadinessGuide
   let narration: SandboxReadinessGuideNarration?
 
   var body: some View {
+    let clipboardPayload = SandboxReadinessClipboardPayload(
+      readiness: readiness,
+      guide: guide
+    )
+
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Image(systemName: guide.systemImageName)
@@ -235,6 +242,7 @@ private struct SandboxReadinessGuideSection: View {
         Text(guide.title)
           .font(.subheadline.weight(.semibold))
         Spacer(minLength: 0)
+        CopySandboxReadinessButton(payload: clipboardPayload)
       }
       Text(guide.actionLabel)
         .font(.caption.weight(.semibold))
@@ -281,6 +289,31 @@ private struct SandboxReadinessGuideSection: View {
     case .blocked:
       return .orange
     }
+  }
+}
+
+private struct CopySandboxReadinessButton: View {
+  var payload: SandboxReadinessClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Sandbox",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded sandbox readiness handoff for another model or teammate.")
   }
 }
 

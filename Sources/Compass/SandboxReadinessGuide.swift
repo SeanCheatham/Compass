@@ -252,3 +252,88 @@ struct SandboxReadinessGuide: Equatable, Sendable {
     return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 }
+
+struct SandboxReadinessClipboardPayload: Equatable, Sendable {
+  static let textLimit = 3_000
+  private static let readinessDetailLimit = 600
+
+  var text: String
+
+  init(readiness: SharedCompassVMReadiness, guide: SandboxReadinessGuide) {
+    var sections: [String] = [
+      "Compass Sandbox Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded Shared VM readiness context. Do not invent logs, "
+        + "local IPSW paths, credentials, SSH destinations, host support, or hidden state.",
+      "- Use the exact readiness state, action, and checklist to choose the next safe step.",
+      "- If repair is needed, prefer the visible Compass controls named here before "
+        + "suggesting manual filesystem cleanup.",
+      "- If the packet is progress-only, wait or ask for a fresh status instead of "
+        + "claiming the sandbox is ready.",
+      "",
+      "Status: \(guide.title) (\(guide.tone.rawValue))",
+      "Action: \(guide.actionLabel)",
+      "Detail: \(guide.detail)",
+      "Readiness: \(Self.readinessLabel(readiness))",
+      "",
+      "Checklist:",
+    ]
+
+    for step in guide.steps {
+      sections.append(
+        "- \(step.isComplete ? "[complete]" : "[open]") \(step.title): \(step.detail)"
+      )
+    }
+
+    text = SandboxReadinessClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private static func readinessLabel(_ readiness: SharedCompassVMReadiness) -> String {
+    switch readiness {
+    case .unavailable(let reason):
+      return "unavailable: \(bounded(reason))"
+    case .notProvisioned:
+      return "not provisioned"
+    case .downloadingIPSW(let fraction):
+      return "downloading restore image: \(percentLabel(fraction))"
+    case .installing(let fraction):
+      return "installing macOS: \(percentLabel(fraction))"
+    case .guestPrepping:
+      return "preparing guest access"
+    case .provisioningDevTools(let fraction):
+      return "installing developer tools: \(percentLabel(fraction))"
+    case .ready(let destination):
+      return "ready via \(bounded(destination))"
+    case .error(let detail):
+      return "error: \(bounded(detail))"
+    }
+  }
+
+  private static func percentLabel(_ fraction: Double) -> String {
+    let clamped = Swift.min(1, Swift.max(0, fraction))
+    return "\(Int((clamped * 100).rounded()))%"
+  }
+
+  private static func bounded(_ text: String) -> String {
+    StringUtils.boundedText(text, limit: readinessDetailLimit)
+  }
+}
+
+private enum SandboxReadinessClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}
