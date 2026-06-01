@@ -118,18 +118,29 @@ extension AgentExecutor {
               ? nil : aggregated.toolCalls.map { $0.asAssistantToolCall() }
           )))
 
-      // No tool calls → either submit_result was missed or the model
-      // gave up. Either way, nudge it once; on the next loop we'll
-      // either get tool calls or break out.
+      // No tool calls → either submit_result was missed, the turn was
+      // truncated before the tool call, or the model gave up in prose.
+      // Nudge with the phase-specific shape so the next loop can finish
+      // without the user having to interpret a stalled transcript.
       if aggregated.toolCalls.isEmpty {
-        if aggregated.finishReason == "stop" || aggregated.finishReason == nil {
-          Self.appendRemediationNudge(
-            "You must call the submit_result tool to finish this phase. Use it now.",
-            messages: &messages,
-            nudgeIndices: &remediationNudgeIndices
-          )
-          continue
-        }
+        let nudge = Self.missingSubmitResultNudge(
+          finishReason: aggregated.finishReason,
+          maxCompletionTokens: Self.maxCompletionTokensPerTurn,
+          phase: configuration.phase
+        )
+        Self.appendRemediationNudge(
+          nudge.userMessage,
+          messages: &messages,
+          nudgeIndices: &remediationNudgeIndices
+        )
+        emit(
+          level: .warning,
+          text: nudge.eventText,
+          detail: nudge.eventDetail,
+          kind: .agentMessage,
+          status: .failed
+        )
+        continue
       }
 
       // Pre-flight: any tool call whose `arguments` field isn't

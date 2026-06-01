@@ -368,6 +368,39 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("state.immediate.verify proves it"))
   }
 
+  @Test func testMissingSubmitResultNudgeUsesTruncationCopyAndPhaseShape() throws {
+    let nudge = AgentExecutor.missingSubmitResultNudge(
+      finishReason: "length",
+      maxCompletionTokens: 65_536,
+      phase: .plan
+    )
+
+    try #require(nudge.eventText == "submit_result missing after truncation")
+    try #require(nudge.eventDetail.contains("65536"))
+    try #require(nudge.userMessage.contains("truncated by the output-token limit"))
+    try #require(nudge.userMessage.contains("Do not continue prose"))
+    try #require(nudge.userMessage.contains("Use this exact retry shape for Plan"))
+    try #require(nudge.userMessage.contains("\"state\""))
+    try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
+  }
+
+  @Test func testMissingSubmitResultNudgeRejectsProseAndNamesFinishReason() throws {
+    let nudge = AgentExecutor.missingSubmitResultNudge(
+      finishReason: "stop",
+      maxCompletionTokens: 65_536,
+      phase: .develop
+    )
+
+    try #require(nudge.eventText == "submit_result missing")
+    try #require(nudge.eventDetail.contains("finish_reason=stop"))
+    try #require(nudge.userMessage.contains("cannot finish this phase from prose"))
+    try #require(
+      nudge.userMessage.contains("Use this exact retry shape when the implementation is complete")
+    )
+    try #require(nudge.userMessage.contains("\"status\": \"succeeded\""))
+    try #require(nudge.userMessage.contains("Do not answer in prose"))
+  }
+
   @Test func testInvalidLessonEditsNudgeExplainsMismatchAndRetry() throws {
     let nudge = AgentExecutor.invalidLessonEditsNudge(
       errorMessage: "Lesson edit `find` text was not found in lessons.md."

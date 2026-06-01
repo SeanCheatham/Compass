@@ -131,10 +131,23 @@ enum FoundationModelsAgentRuntime {
           )
         }
         // Stream finished without submit_result being called. Nudge
-        // the model to call it on the next turn — same shape as the
-        // OpenAI-compatible path.
-        nextPrompt =
-          "You must call the submit_result tool to finish this phase. Use it now."
+        // the model to call it on the next turn — same phase-specific
+        // recovery packet as the OpenAI-compatible path.
+        let nudge = AgentExecutor.missingSubmitResultNudge(
+          finishReason: nil,
+          maxCompletionTokens: AgentExecutor.maxCompletionTokensPerTurn,
+          phase: configuration.phase
+        )
+        emit(
+          LiveEvent(
+            level: .warning,
+            text: nudge.eventText,
+            detail: nudge.eventDetail,
+            kind: .agentMessage,
+            status: .failed
+          )
+        )
+        nextPrompt = nudge.userMessage
       } catch let signal as SubmitResultSignal {
         // submit_result was invoked mid-stream; its args are in the
         // capture box. The thrown sentinel unwinds the framework's

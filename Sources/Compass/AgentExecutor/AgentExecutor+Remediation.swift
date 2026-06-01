@@ -442,6 +442,47 @@ extension AgentExecutor {
     )
   }
 
+  static func missingSubmitResultNudge(
+    finishReason: String?,
+    maxCompletionTokens: Int,
+    phase: AgentPhase? = nil
+  ) -> InvalidToolArgumentsNudge {
+    let retryShape = submitResultDecodeRetryShape(for: phase)
+    if finishReason == "length" {
+      return InvalidToolArgumentsNudge(
+        eventText: "submit_result missing after truncation",
+        eventDetail:
+          "Output hit the max-tokens cap (\(maxCompletionTokens)) before a submit_result call.",
+        userMessage: """
+          Your previous turn was truncated by the output-token limit before Compass received \
+          a `submit_result` tool call. Do not continue prose. Call `submit_result` now with \
+          the required phase payload, using shorter free-form fields if needed.
+
+          \(retryShape)
+          """
+      )
+    }
+
+    let reason = finishReason?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let detail: String
+    if let reason, !reason.isEmpty {
+      detail = "Model ended with finish_reason=\(reason) without calling submit_result."
+    } else {
+      detail = "Model ended without calling submit_result."
+    }
+    return InvalidToolArgumentsNudge(
+      eventText: "submit_result missing",
+      eventDetail: detail,
+      userMessage: """
+        Your previous turn ended without a `submit_result` tool call. Compass cannot finish \
+        this phase from prose, partial notes, or analysis text. Call `submit_result` now with \
+        the required phase payload.
+
+        \(retryShape)
+        """
+    )
+  }
+
   /// Build the remediation copy for any non-`submit_result` tool call
   /// whose `arguments` field isn't valid JSON. Two common causes: the
   /// model emitted unescaped control characters or unbalanced strings
