@@ -66,7 +66,7 @@ struct AgentRuntimeSettingsTests {
     try #require(
       AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens == 4_096)
     try #require(
-      AgentProviderKind.minimaxToken.defaultTextContextWindowTokens == 200_000)
+      AgentProviderKind.minimaxToken.defaultTextContextWindowTokens == 1_000_000)
     try #require(
       AgentProviderKind.openAI.defaultTextContextWindowTokens == 128_000)
   }
@@ -101,7 +101,7 @@ struct AgentRuntimeSettingsTests {
 
     try #require(settings.baseURL == AgentRuntimeSettings.defaultBaseURL)
     try #require(settings.apiKey == "")
-    try #require(settings.model == "MiniMax-M2.7")
+    try #require(settings.model == "MiniMax-M3")
     try #require(settings.planModelOverride == nil)
   }
 

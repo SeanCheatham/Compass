@@ -74,13 +74,13 @@ scripted setup / CI:
 | ------------------------------------- | -------------------------------- |
 | `COMPASS_AGENT_BASE_URL`              | `https://api.minimax.io/v1`      |
 | `COMPASS_AGENT_API_KEY`               | _(no default, required)_         |
-| `COMPASS_AGENT_MODEL`                 | `MiniMax-M2.7`                   |
+| `COMPASS_AGENT_MODEL`                 | `MiniMax-M3`                     |
 | `COMPASS_AGENT_MODEL_PLAN`            | _(falls back to default model)_  |
 | `COMPASS_AGENT_MODEL_DEV`             | _(falls back to default model)_  |
 | `COMPASS_AGENT_MODEL_REFLECT`         | _(falls back to default model)_  |
 | `COMPASS_AGENT_MODEL_CRITIC`          | _(falls back to default model; point at a different / stronger model than Develop for independent adversarial review)_ |
 | `COMPASS_AGENT_MODEL_CODEMAP`         | _(falls back to default model; use a cheap small model for the per-file summary fan-out)_ |
-| `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` | `200000` (`0` disables compaction) |
+| `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` | `1000000` (`0` disables compaction) |
 | `COMPASS_REFLECT_EVERY`               | `5` (Reflect cadence in iterations) |
 
 Each Plan / Develop / Reflect iteration reports its token usage back to
@@ -93,9 +93,9 @@ for a model that returns clear 400s on overflow and you want them to
 bubble up).
 
 Any endpoint that implements OpenAI-style streaming chat completions with
-`tools` / `tool_choice` / multi-turn `tool_calls` works. MiniMax-M2.7 is
-the default because it is what this branch was developed against;
-swapping to a different provider is a Settings-only change.
+`tools` / `tool_choice` / multi-turn `tool_calls` works. MiniMax-M3 is
+the default MiniMax text model, and swapping to a different provider or
+model is a Settings-only change.
 
 ## Workflow
 

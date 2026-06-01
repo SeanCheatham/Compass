@@ -48,10 +48,11 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   /// the selected Text provider's
   /// `defaultTextContextWindowTokens` (see `AgentProviderKind`), so
   /// each provider's actual ceiling — 4096 for Foundation Models,
-  /// 200k for MiniMax, 128k for OpenAI — drives auto-compaction.
+  /// 1M for MiniMax, 128k for OpenAI — drives auto-compaction.
   /// `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` overrides whichever value
   /// the resolver picked; `0` disables auto-compaction entirely.
-  static let defaultContextWindowTokens = 200_000
+  static let defaultContextWindowTokens =
+    AgentProviderKind.minimaxToken.defaultTextContextWindowTokens
 
   /// Out-of-the-box text provider. Foundation Models runs on-device
   /// with no credentials and is available on every Apple Silicon Mac
