@@ -860,6 +860,11 @@ struct PlanWorkflowOverviewTests {
     )
 
     try #require(payload.text.contains("Compass Immediate Work Handoff"))
+    try #require(payload.text.contains("Recipient instructions:"))
+    try #require(payload.text.contains("Do not invent files, commands, credentials"))
+    try #require(
+      payload.text.contains("implement only the Original plan and run Verify")
+    )
     try #require(payload.text.contains("Status: Executable handoff"))
     try #require(payload.text.contains("Readiness: Ready for Develop (3 of 3 required)"))
     try #require(payload.text.contains("Outcome:\nAdd a readable factory launch checklist."))
@@ -883,6 +888,9 @@ struct PlanWorkflowOverviewTests {
 
     try #require(payload.text.contains("Status: Handoff needs detail"))
     try #require(payload.text.contains("Readiness: Make this executable (1 of 3 required)"))
+    try #require(
+      payload.text.contains("repair the handoff first and return the Suggested plan shape")
+    )
     try #require(payload.text.contains("Missing handoff detail:\n- Acceptance checks"))
     try #require(payload.text.contains("Repair before Develop:"))
     try #require(payload.text.contains("- Verify command: Choose a real command"))
@@ -902,6 +910,10 @@ struct PlanWorkflowOverviewTests {
     let payload = PlanHandoffRepairClipboardPayload(guide: guide)
 
     try #require(payload.text.contains("Compass Plan Repair Handoff"))
+    try #require(payload.text.contains("Recipient instructions:"))
+    try #require(payload.text.contains("Rewrite the handoff before any coding starts."))
+    try #require(payload.text.contains("Use only the facts in this packet."))
+    try #require(payload.text.contains("Return one repaired Immediate Work handoff"))
     try #require(payload.text.contains("Status: Make this executable"))
     try #require(payload.text.contains("Readiness: 1 of 3 required"))
     try #require(payload.text.contains("Instruction for Plan:"))

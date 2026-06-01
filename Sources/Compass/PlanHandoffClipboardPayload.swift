@@ -26,6 +26,13 @@ struct PlanHandoffClipboardPayload: Equatable, Sendable {
     var sections: [String] = [
       "Compass Immediate Work Handoff",
       "",
+      "Recipient instructions:",
+      "- Treat this packet as the full bounded handoff. Do not invent files, commands, "
+        + "credentials, product decisions, or extra scope.",
+      "- If Readiness is not Ready for Develop, repair the handoff first and return "
+        + "the Suggested plan shape before coding.",
+      "- If Readiness is Ready for Develop, implement only the Original plan and run Verify.",
+      "",
       "Status: \(digest.title)",
       "Readiness: \(repairGuide.title) (\(repairGuide.scoreLabel))",
     ]
@@ -105,6 +112,13 @@ struct PlanHandoffRepairClipboardPayload: Equatable, Sendable {
   init(guide: PlanHandoffRepairGuide) {
     var sections: [String] = [
       "Compass Plan Repair Handoff",
+      "",
+      "Recipient instructions:",
+      "- Rewrite the handoff before any coding starts.",
+      "- Use only the facts in this packet. Do not invent files, commands, credentials, "
+        + "product decisions, or timing.",
+      "- Return one repaired Immediate Work handoff with Outcome, Why it matters, "
+        + "Acceptance checks, and Verify.",
       "",
       "Status: \(guide.title)",
       "Readiness: \(guide.scoreLabel)",
