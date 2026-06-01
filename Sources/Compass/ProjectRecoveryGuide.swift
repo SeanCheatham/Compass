@@ -66,16 +66,17 @@ struct ProjectRecoveryGuide: Equatable {
         Step(title: status.actionLabel, detail: "Compass will preserve the current plan context."),
       ]
     case .failedVerify:
+      let insight = VerifyFailureInsight(detail: status.detail, metadata: status.metadata)
       title = "Fix the failing check"
       steps = [
-        Step(title: "Inspect verify output", detail: status.detail),
+        Step(title: insight.inspectTitle, detail: insight.inspectDetail),
         Step(
-          title: "Patch the failing behavior",
-          detail: "Have Develop change code or tests only where the failure points."
+          title: insight.repairTitle,
+          detail: insight.repairDetail
         ),
         Step(
           title: status.actionLabel,
-          detail: "Compass will rerun the planned verification command."
+          detail: insight.retryDetail
         ),
       ]
     case .dirtyWorktree:

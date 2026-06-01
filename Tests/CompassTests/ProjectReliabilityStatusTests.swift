@@ -223,10 +223,57 @@ struct ProjectReliabilityStatusTests {
     try #require(guide.title == "Fix the failing check")
     try #require(
       guide.steps.map(\.title) == [
-        "Inspect verify output", "Patch the failing behavior", "Retry Develop",
+        "Inspect the failing assertion", "Fix the behavior under test", "Retry Develop",
       ])
-    try #require(guide.steps[0].detail == "Expected passing check, got failing check")
-    try #require(guide.steps[2].detail == "Compass will rerun the planned verification command.")
+    try #require(guide.steps[0].detail.contains("test failure"))
+    try #require(guide.steps[0].detail.contains("Expected passing check, got failing check"))
+    try #require(guide.steps[1].detail.contains("code or expectation"))
+    try #require(
+      guide.steps[2].detail
+        == "Compass will rerun the same test command after Develop patches the failure."
+    )
+  }
+
+  @Test
+  func testRecoveryGuideForBuildVerifyFailureNamesCompilerRepair() throws {
+    let session = makeSession(
+      17,
+      status: .failed,
+      verifyOutput: VerifyOutput(
+        command: "swift test",
+        exitCode: 1,
+        tail: "Sources/App.swift:10:5: error: cannot find 'WidgetStore' in scope"
+      )
+    )
+    let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+    let status = ProjectReliabilityStatus(feedback: feedback)
+
+    let guide = ProjectRecoveryGuide(status: status)
+
+    try #require(guide.steps.map(\.title).contains("Fix the first compiler error"))
+    try #require(guide.steps[0].detail.contains("compile or build error"))
+    try #require(guide.steps[1].detail.contains("file, symbol, module, or syntax error"))
+  }
+
+  @Test
+  func testRecoveryGuideForTimedOutVerifyFailureNamesBoundedRepair() throws {
+    let session = makeSession(
+      18,
+      status: .failed,
+      verifyOutput: VerifyOutput(
+        command: "swift test",
+        exitCode: 124,
+        tail: "Process timed out after 600 seconds waiting for integration tests"
+      )
+    )
+    let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+    let status = ProjectReliabilityStatus(feedback: feedback)
+
+    let guide = ProjectRecoveryGuide(status: status)
+
+    try #require(guide.steps.map(\.title).contains("Unblock the hanging check"))
+    try #require(guide.steps[0].detail.contains("timed out"))
+    try #require(guide.steps[2].detail.contains("bounded path"))
   }
 
   @Test
