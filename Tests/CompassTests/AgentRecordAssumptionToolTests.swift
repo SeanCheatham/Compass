@@ -39,6 +39,38 @@ struct AgentRecordAssumptionToolTests {
     try #require(record.createdInSession == 7)
   }
 
+  @Test func testRecordAssumptionAcceptsCompatibilityArguments() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let assumptionsURL = root.appending(path: "assumptions.json")
+    let tool = AgentRecordAssumptionTool()
+
+    let result = try await tool.invoke(
+      arguments: Data(
+        """
+        {
+          "assumption": "The next slice should finish the apply workflow.",
+          "rationale": "The active plan focuses on end-to-end apply.",
+          "impact": "Plan should wire patch application instead of adding more coverage.",
+          "evidence": "state.json immediate item",
+          "scope": "Feature"
+        }
+        """.utf8),
+      context: AgentToolContext(
+        workingDirectory: root,
+        assumptionsURL: assumptionsURL,
+        phase: .plan,
+        sessionNumber: 8
+      )
+    )
+
+    try #require(!result.isError)
+    let record = try #require(try AssumptionLedgerStore(url: assumptionsURL).read().assumptions.first)
+    try #require(record.text == "The next slice should finish the apply workflow.")
+    try #require(record.evidence == ["state.json immediate item"])
+    try #require(record.scope == .feature)
+  }
+
   @Test func testRecordAssumptionPreservesDeniedReview() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
@@ -77,10 +109,52 @@ struct AgentRecordAssumptionToolTests {
     try #require(record.userComment == "Generated files should stay untracked.")
   }
 
+  @Test func testRemoveAssumptionSupersedesHostLedger() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let assumptionsURL = root.appending(path: "assumptions.json")
+    let store = AssumptionLedgerStore(url: assumptionsURL)
+    let existing = try store.record(
+      draft: AssumptionDraft(
+        text: "The app only needs coverage work.",
+        rationale: "Recent sessions focused on coverage.",
+        evidence: ["sessions.jsonl"],
+        impact: "Planning would keep selecting tests.",
+        invalidation: "The roadmap points to a feature slice.",
+        scope: .feature
+      ),
+      phase: .plan,
+      sessionNumber: 3
+    )
+
+    let result = try await AgentRemoveAssumptionTool().invoke(
+      arguments: Data(
+        """
+        {
+          "id": "\(existing.id)",
+          "reason": "The current roadmap item supersedes the coverage focus."
+        }
+        """.utf8),
+      context: AgentToolContext(
+        workingDirectory: root,
+        assumptionsURL: assumptionsURL,
+        phase: .plan,
+        sessionNumber: 4
+      )
+    )
+
+    try #require(!result.isError)
+    let record = try #require(try store.read().assumptions.first)
+    try #require(record.status == .superseded)
+    try #require(record.userComment == "The current roadmap item supersedes the coverage focus.")
+    try #require(try store.read().formattedForPrompt().isEmpty)
+  }
+
   @Test func testToolRegistryExposesAssumptionsToEveryPhase() throws {
     for phase in AgentPhase.allCases {
       let names = Set(ToolRegistry.tools(for: phase).map { $0.spec.name })
       try #require(names.contains(AgentRecordAssumptionTool.toolName))
+      try #require(names.contains(AgentRemoveAssumptionTool.toolName))
     }
   }
 }

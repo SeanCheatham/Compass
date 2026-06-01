@@ -34,7 +34,7 @@ struct AgentExecutionConfiguration {
   var codemapStoreDirectory: URL?
   /// Host-side completed plan summaries for the `plan_history` tool.
   var planHistoryEntries: [String]
-  /// Host-side assumptions ledger URL for `record_assumption`.
+  /// Host-side assumptions ledger URL for assumption-management tools.
   var assumptionsURL: URL?
   /// Compass session number associated with this phase, when one exists.
   var sessionNumber: Int?

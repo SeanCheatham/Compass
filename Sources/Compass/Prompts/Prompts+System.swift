@@ -80,8 +80,8 @@ extension Prompts {
     let writeTools = "write_file, edit_file, bash"
     let delegateTool =
       "delegate (spawn a focused sub-agent for a self-contained sub-task; it returns a findings string)"
-    let assumptionTool =
-      "record_assumption (capture consequential assumptions for user review)"
+    let assumptionTools =
+      "record_assumption (capture consequential assumptions for user review), remove_assumption (remove stale assumptions from active guidance)"
     let hostXcodeTool =
       hostXcodeBuildTestEnabled
       ? "\n        - Host Xcode: host_xcode (host-side xcodebuild build/test only against a mirror; use instead of bash for Swift, SwiftPM, xcodebuild, and Apple-platform probes in the Shared VM)."
@@ -95,7 +95,7 @@ extension Prompts {
         - Shell: bash (read-only intent — git inspection and guest-safe probes; do not mutate tracked files and do not commit).\(hostXcodeTool)
         - Plan history: plan_history (read paginated completed iterations managed by Compass).
         - Sub-agents: \(delegateTool).
-        - Assumptions: \(assumptionTool).
+        - Assumptions: \(assumptionTools).
         - This phase must not write files or commit. The Develop phase has the write tools — do not request them here.
         """
     case .reflect:
@@ -104,7 +104,7 @@ extension Prompts {
         - File tools: \(fileTools).
         - Shell: bash (read-only intent — git inspection and guest-safe probes; do not mutate tracked files and do not commit).\(hostXcodeTool)
         - Sub-agents: \(delegateTool).
-        - Assumptions: \(assumptionTool).
+        - Assumptions: \(assumptionTools).
         - This phase must not write files or commit. The Develop phase has the write tools — do not request them here.
         """
     case .develop:
@@ -113,7 +113,7 @@ extension Prompts {
         - File tools: \(fileTools).
         - Write tools: \(writeTools).
         - Sub-agents: \(delegateTool).\(hostXcodeTool)
-        - Assumptions: \(assumptionTool).
+        - Assumptions: \(assumptionTools).
         """
     case .critic:
       toolList = """
@@ -121,7 +121,7 @@ extension Prompts {
         - File tools: \(fileTools).
         - Shell: bash (read-only intent — do not mutate the working tree, do not commit).\(hostXcodeTool)
         - Sub-agents: \(delegateTool).
-        - Assumptions: \(assumptionTool).
+        - Assumptions: \(assumptionTools).
         - This phase is the adversarial review gate. Do not edit files; report a verdict via submit_result.
         """
     }
@@ -164,8 +164,9 @@ extension Prompts {
       as authoritative; do not try to `read_file` `.compass/lessons.md`,
       `.compass/state.json`, `.compass/drafts.md`, or any other
       `.compass/*` path. Pass lesson updates back through the
-      `lessonEdits` field on `submit_result`; record assumptions through
-      the `record_assumption` tool. Compass applies both host-side.
+      `lessonEdits` field on `submit_result`; manage assumptions through
+      `record_assumption` and `remove_assumption`. Compass applies both
+      host-side.
 
       \(lessonEditsGuidance())
 
@@ -203,7 +204,9 @@ extension Prompts {
     assumptions are strong guidance. Implicit assumptions are treated as true
     but with lower confidence, so verify them when cheap. User-denied
     assumptions are corrections; do not rely on them, and repair or re-plan
-    work that depends on them.
+    work that depends on them. If an active assumption becomes stale or
+    superseded by new evidence, call `remove_assumption` with its id and a
+    short reason; removed assumptions stop appearing in active guidance.
     """
   }
 

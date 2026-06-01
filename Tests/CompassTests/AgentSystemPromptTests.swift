@@ -102,6 +102,7 @@ struct AgentSystemPromptTests {
     for phase in AgentPhase.allCases {
       let prompt = Prompts.agentSystemPrompt(phase: phase, workingDirectoryPath: "/x")
       try #require(prompt.contains("record_assumption"))
+      try #require(prompt.contains("remove_assumption"))
       try #require(prompt.contains("Implicit assumptions are treated as true"))
       try #require(prompt.contains("User-denied"))
     }

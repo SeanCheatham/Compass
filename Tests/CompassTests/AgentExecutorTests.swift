@@ -230,6 +230,7 @@ struct AgentExecutorTests {
           AgentImportersOfTool.toolName,
           AgentDelegateTool.toolName,
           AgentRecordAssumptionTool.toolName,
+          AgentRemoveAssumptionTool.toolName,
           AgentExecutor.submitResultToolName,
         ]))
   }

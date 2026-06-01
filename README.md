@@ -160,7 +160,9 @@ the phase contract.
   shows them to the user for explicit affirmation or denial. Affirmed
   assumptions are injected as strong guidance, denied assumptions as
   corrections, and unreviewed assumptions as true but lower-confidence
-  context.
+  context. Agents can call `remove_assumption` when an active assumption
+  becomes stale; Compass keeps the record as superseded history but stops
+  injecting it into future prompts.
 - History metadata is written to `.compass/sessions.json`.
 
 ## Compass Workspace

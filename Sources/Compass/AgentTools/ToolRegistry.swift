@@ -3,7 +3,7 @@ import Foundation
 /// Phase-specific tool sets handed to `AgentExecutor`.
 ///
 /// All four agent phases share a common inspection core (file/code reads,
-/// codemap lookups, delegation, and host-side assumption recording).
+/// codemap lookups, delegation, and host-side assumption management).
 /// Develop additionally gets file mutation + shell. Plan/Reflect/Critic
 /// additionally get `bash` so they can probe the project (build, test,
 /// lint, git) without touching tracked files — the system prompt is what
@@ -31,6 +31,7 @@ enum ToolRegistry {
       AgentImportersOfTool(),
       AgentDelegateTool(),
       AgentRecordAssumptionTool(),
+      AgentRemoveAssumptionTool(),
     ]
   }
 

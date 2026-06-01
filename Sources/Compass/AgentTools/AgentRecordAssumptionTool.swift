@@ -59,9 +59,9 @@ struct AgentRecordAssumptionTool: AgentTool {
   {
     let draft: AssumptionDraft
     do {
-      draft = try JSONDecoder().decode(AssumptionDraft.self, from: arguments)
+      draft = try JSONDecoder().decode(Arguments.self, from: arguments).draft
     } catch {
-      return .failure(.invalidArguments(error.localizedDescription))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
     guard let assumptionsURL = context.assumptionsURL else {
       return .failure(
@@ -88,5 +88,129 @@ struct AgentRecordAssumptionTool: AgentTool {
     } catch {
       return .failure(.ioFailure(error.localizedDescription))
     }
+  }
+}
+
+private struct Arguments: Decodable {
+  var draft: AssumptionDraft
+
+  enum CodingKeys: String, CodingKey {
+    case text
+    case assumption
+    case rationale
+    case evidence
+    case impact
+    case invalidation
+    case scope
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let text = try Self.firstString(
+      in: container,
+      keys: [.text, .assumption]
+    )
+    let rawScope = try Self.optionalString(in: container, key: .scope)
+    let scope = try Self.scope(
+      from: rawScope,
+      codingPath: container.codingPath + [CodingKeys.scope]
+    )
+    draft = AssumptionDraft(
+      text: text,
+      rationale: try Self.optionalString(in: container, key: .rationale),
+      evidence: try Self.optionalEvidence(in: container),
+      impact: try Self.optionalString(in: container, key: .impact),
+      invalidation: try Self.optionalString(in: container, key: .invalidation),
+      scope: scope
+    )
+  }
+
+  private static func firstString(
+    in container: KeyedDecodingContainer<CodingKeys>,
+    keys: [CodingKeys]
+  ) throws -> String {
+    var firstError: Error?
+    for key in keys where container.contains(key) {
+      do {
+        if let value = try optionalString(in: container, key: key), !value.isEmpty {
+          return value
+        }
+      } catch {
+        firstError = firstError ?? error
+      }
+    }
+    if let firstError {
+      throw firstError
+    }
+    throw DecodingError.keyNotFound(
+      CodingKeys.text,
+      DecodingError.Context(
+        codingPath: container.codingPath,
+        debugDescription:
+          "record_assumption requires a non-empty `text` string. `assumption` is also accepted as a compatibility alias."
+      )
+    )
+  }
+
+  private static func optionalString(
+    in container: KeyedDecodingContainer<CodingKeys>,
+    key: CodingKeys
+  ) throws -> String? {
+    guard container.contains(key), try !container.decodeNil(forKey: key) else {
+      return nil
+    }
+    do {
+      return try container.decode(String.self, forKey: key)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    } catch {
+      throw DecodingError.typeMismatch(
+        String.self,
+        DecodingError.Context(
+          codingPath: container.codingPath + [key],
+          debugDescription: "`\(key.stringValue)` must be a string."
+        )
+      )
+    }
+  }
+
+  private static func optionalEvidence(
+    in container: KeyedDecodingContainer<CodingKeys>
+  ) throws -> [String]? {
+    let key = CodingKeys.evidence
+    guard container.contains(key), try !container.decodeNil(forKey: key) else {
+      return nil
+    }
+    if let values = try? container.decode([String].self, forKey: key) {
+      return values
+    }
+    if let value = try? optionalString(in: container, key: key) {
+      return value.isEmpty ? [] : [value]
+    }
+    throw DecodingError.typeMismatch(
+      [String].self,
+      DecodingError.Context(
+        codingPath: container.codingPath + [key],
+        debugDescription: "`evidence` must be an array of strings or a single string."
+      )
+    )
+  }
+
+  private static func scope(
+    from rawValue: String?,
+    codingPath: [CodingKey]
+  ) throws -> AssumptionRecord.Scope? {
+    guard let rawValue, !rawValue.isEmpty else { return nil }
+    if let scope = AssumptionRecord.Scope.allCases.first(where: {
+      $0.rawValue.caseInsensitiveCompare(rawValue) == .orderedSame
+    }) {
+      return scope
+    }
+    let supported = AssumptionRecord.Scope.allCases.map(\.rawValue).joined(separator: ", ")
+    throw DecodingError.dataCorrupted(
+      DecodingError.Context(
+        codingPath: codingPath,
+        debugDescription: "`scope` must be one of: \(supported)."
+      )
+    )
   }
 }

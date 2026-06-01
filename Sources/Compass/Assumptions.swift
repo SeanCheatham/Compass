@@ -170,6 +170,17 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     return copy
   }
 
+  func removed(
+    comment: String?,
+    now: Date = Date()
+  ) -> AssumptionRecord {
+    var copy = self
+    copy.status = .superseded
+    copy.userComment = Self.optionalSanitized(comment, limit: Self.commentLimit)
+    copy.updatedAt = now.timeIntervalSince1970
+    return copy
+  }
+
   static func normalizedKey(_ text: String) -> String {
     sanitized(text, limit: textLimit)
       .lowercased()
@@ -270,6 +281,19 @@ struct AssumptionLedger: Codable, Equatable, Sendable {
     let reviewed = try assumptions[index].reviewed(status: status, comment: comment, now: now)
     assumptions[index] = reviewed
     return reviewed
+  }
+
+  mutating func remove(
+    id: String,
+    comment: String?,
+    now: Date = Date()
+  ) throws -> AssumptionRecord {
+    guard let index = assumptions.firstIndex(where: { $0.id == id }) else {
+      throw AssumptionLedgerError.assumptionNotFound(id)
+    }
+    let removed = assumptions[index].removed(comment: comment, now: now)
+    assumptions[index] = removed
+    return removed
   }
 
   func formattedForPrompt() -> String {
@@ -384,6 +408,17 @@ struct AssumptionLedgerStore: Sendable {
     try write(ledger)
     return record
   }
+
+  func remove(
+    id: String,
+    comment: String?,
+    now: Date = Date()
+  ) throws -> AssumptionRecord {
+    var ledger = try read()
+    let record = try ledger.remove(id: id, comment: comment, now: now)
+    try write(ledger)
+    return record
+  }
 }
 
 enum AssumptionLedgerError: LocalizedError, Equatable {
@@ -432,6 +467,16 @@ extension CompassWorkspace {
     try AssumptionLedgerStore(url: assumptionsURL).review(
       id: id,
       status: status,
+      comment: comment
+    )
+  }
+
+  func removeAssumption(
+    id: String,
+    comment: String?
+  ) throws -> AssumptionRecord {
+    try AssumptionLedgerStore(url: assumptionsURL).remove(
+      id: id,
       comment: comment
     )
   }
