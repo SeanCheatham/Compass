@@ -2,18 +2,25 @@ import Foundation
 
 struct ProjectRecoveryGuide: Equatable {
   static let detailLimit = 180
+  static let identifierLimit = 1_200
 
   var title: String
   var steps: [Step]
+  var narrationIdentifier: String
 
   var isEmpty: Bool {
     steps.isEmpty
+  }
+
+  var allowsNarration: Bool {
+    !isEmpty
   }
 
   init(status: ProjectReliabilityStatus) {
     guard let kind = status.primaryKind else {
       title = ""
       steps = []
+      narrationIdentifier = ""
       return
     }
 
@@ -108,6 +115,7 @@ struct ProjectRecoveryGuide: Equatable {
         detail: Self.bounded(step.detail, limit: Self.detailLimit)
       )
     }
+    narrationIdentifier = Self.narrationIdentifier(title: title, steps: steps)
   }
 
   struct Step: Identifiable, Equatable {
@@ -190,6 +198,14 @@ struct ProjectRecoveryGuide: Equatable {
         "Include Outcome, Acceptance checks, and a real verify command; add Why it matters when useful.",
       retryDetail: retryDetail
     )
+  }
+
+  private static func narrationIdentifier(title: String, steps: [Step]) -> String {
+    let raw = [
+      "title:\(title)",
+      "steps:\(steps.map { "\($0.title):\($0.detail)" }.joined(separator: "|"))",
+    ].joined(separator: "\n")
+    return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 
   private static func bounded(_ text: String, limit: Int) -> String {

@@ -4,6 +4,7 @@ import SwiftUI
 struct LiveTab: View {
   @ObservedObject var project: CompassProject
   @State private var liveTimelineGuideNarration: LiveTimelineGuideNarration?
+  @State private var recoveryGuideNarration: ProjectRecoveryGuideNarration?
   @State private var liveActivitySummaryCache: [String: LiveActivitySummary] = [:]
   @State private var liveActivitySummaryInFlightKeys: Set<String> = []
   @State private var expandedLiveActivityClusterKeys: Set<String> = []
@@ -12,6 +13,7 @@ struct LiveTab: View {
 
   var body: some View {
     let reliabilityStatus = project.reliabilityStatus
+    let recoveryGuide = ProjectRecoveryGuide(status: reliabilityStatus)
     let timelineGuide = LiveTimelineGuide(
       phase: project.phase,
       isRunning: project.isRunning,
@@ -32,7 +34,11 @@ struct LiveTab: View {
 
     VStack(alignment: .leading, spacing: 10) {
       if !reliabilityStatus.isEmpty {
-        ProjectReliabilityBanner(status: reliabilityStatus)
+        ProjectReliabilityBanner(
+          status: reliabilityStatus,
+          recoveryGuide: recoveryGuide,
+          narration: matchingNarration(for: recoveryGuide)
+        )
       }
 
       if timelineGuide.shouldShow {
@@ -96,6 +102,16 @@ struct LiveTab: View {
       guard !project.isRunning, !project.isAutoPlaying else { return }
       liveTimelineGuideNarration = await LiveTimelineGuideNarrator.narrate(
         guide: timelineGuide
+      )
+    }
+    .task(
+      id:
+        "\(recoveryGuide.narrationIdentifier)|running-\(project.isRunning)|auto-\(project.isAutoPlaying)"
+    ) {
+      recoveryGuideNarration = nil
+      guard !project.isRunning, !project.isAutoPlaying else { return }
+      recoveryGuideNarration = await ProjectRecoveryGuideNarrator.narrate(
+        guide: recoveryGuide
       )
     }
   }
@@ -172,6 +188,15 @@ struct LiveTab: View {
       return nil
     }
     return liveTimelineGuideNarration
+  }
+
+  private func matchingNarration(
+    for guide: ProjectRecoveryGuide
+  ) -> ProjectRecoveryGuideNarration? {
+    guard recoveryGuideNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return recoveryGuideNarration
   }
 }
 
@@ -370,10 +395,10 @@ struct LiveActivityClusterRow: View {
 
 struct ProjectReliabilityBanner: View {
   var status: ProjectReliabilityStatus
+  var recoveryGuide: ProjectRecoveryGuide
+  var narration: ProjectRecoveryGuideNarration?
 
   var body: some View {
-    let recoveryGuide = ProjectRecoveryGuide(status: status)
-
     VStack(alignment: .leading, spacing: 9) {
       HStack(alignment: .top, spacing: 10) {
         Image(systemName: status.systemImage)
@@ -426,6 +451,23 @@ struct ProjectReliabilityBanner: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(color)
 
+          if let narration {
+            HStack(alignment: .top, spacing: 7) {
+              Image(systemName: "sparkles")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 16)
+                .padding(.top, 2)
+
+              Text(narration.text)
+                .font(.caption)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+          }
+
           ForEach(Array(recoveryGuide.steps.enumerated()), id: \.offset) { index, step in
             HStack(alignment: .top, spacing: 7) {
               Text("\(index + 1)")
@@ -461,6 +503,8 @@ struct ProjectReliabilityBanner: View {
         .stroke(color.opacity(0.22))
     }
     .help(helpText)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(status.primaryCue). \(narration?.text ?? status.detail)")
   }
 
   private var color: Color {
