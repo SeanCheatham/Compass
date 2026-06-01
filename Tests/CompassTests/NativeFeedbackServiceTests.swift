@@ -37,6 +37,14 @@ struct NativeFeedbackServiceTests {
     try #require(retry.spokenPhrase == "Editor. Develop retrying.")
   }
 
+  @Test func testTestFeedbackMilestoneCopy() throws {
+    let content = NativeFeedbackContent(milestone: .testFeedback, projectName: "Editor")
+
+    try #require(content.title == "Editor: Feedback test")
+    try #require(content.body == "Native Compass feedback is ready.")
+    try #require(content.spokenPhrase == "Editor. Feedback test.")
+  }
+
   @MainActor
   @Test func testDevelopReadyDeliverySnapshotCorrelatesWithoutAuthorizationInOffMode() throws {
     let service = NativeFeedbackService.shared
@@ -69,6 +77,30 @@ struct NativeFeedbackServiceTests {
     try #require(menu.items.map(\.title) == ["Off", "Notifications", "Speech + Notifications"])
     try #require(menu.items.map(\.systemImage) == ["bell.slash", "bell", "checkmark"])
     try #require(menu.items.map(\.isSelected) == [false, false, true])
+  }
+
+  @Test func testModeMenuExposesModeAwareTestAction() throws {
+    let notifications = NativeFeedbackModeMenu(
+      selectedMode: .notifications,
+      projectName: "Editor"
+    )
+    try #require(notifications.testAction.title == "Send Test Feedback")
+    try #require(notifications.testAction.systemImage == "bell.badge")
+    try #require(notifications.testAction.milestone == .testFeedback)
+    try #require(notifications.testAction.isEnabled)
+    try #require(notifications.testAction.detail.contains("Editor"))
+
+    let speech = NativeFeedbackModeMenu(
+      selectedMode: .speechAndNotifications,
+      projectName: "Editor"
+    )
+    try #require(speech.testAction.systemImage == "speaker.wave.2")
+    try #require(speech.testAction.isEnabled)
+
+    let off = NativeFeedbackModeMenu(selectedMode: .off, projectName: "Editor")
+    try #require(!off.testAction.isEnabled)
+    try #require(off.testAction.detail.contains("Choose Notifications"))
+    try #require(off.testAction.detail.count <= NativeFeedbackTestAction.detailLimit)
   }
 
   @Test func testModeMenuProjectScopedCopyIsBounded() throws {
@@ -195,5 +227,25 @@ struct NativeFeedbackServiceTests {
       after.notificationAuthorizationStatusIdentifier
         == before.notificationAuthorizationStatusIdentifier)
     try #require(after.lastAttemptedMilestoneIdentifier == before.lastAttemptedMilestoneIdentifier)
+  }
+
+  @MainActor
+  @Test func testFeedbackTestDeliverySnapshotCorrelatesWithoutAuthorizationInOffMode() throws {
+    let service = NativeFeedbackService.shared
+    let before = service.deliverySnapshot(mode: .off)
+
+    service.emit(
+      .testFeedback,
+      projectName: "Editor",
+      mode: .off,
+      content: NativeFeedbackContent(milestone: .testFeedback, projectName: "Editor")
+    )
+    let after = service.deliverySnapshot(mode: .off)
+
+    try #require(
+      after.lastAttemptedMilestoneIdentifier == NativeFeedbackMilestone.testFeedback.rawValue)
+    try #require(after.lastAttemptResultIdentifier == "suppressed-off")
+    try #require(
+      after.authorizationRequestStateIdentifier == before.authorizationRequestStateIdentifier)
   }
 }

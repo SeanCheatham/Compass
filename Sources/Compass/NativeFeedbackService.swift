@@ -63,6 +63,7 @@ enum NativeFeedbackMilestone: String, CaseIterable {
   case paused
   case stopped
   case noImmediateWork
+  case testFeedback
 }
 
 struct NativeFeedbackModeMenuItem: Identifiable, Equatable {
@@ -77,6 +78,17 @@ struct NativeFeedbackModeMenuItem: Identifiable, Equatable {
   var permissionHint: String
 
   var id: NativeFeedbackMode { mode }
+}
+
+struct NativeFeedbackTestAction: Equatable {
+  static let titleLimit = 40
+  static let detailLimit = 160
+
+  var title: String
+  var systemImage: String
+  var detail: String
+  var milestone: NativeFeedbackMilestone
+  var isEnabled: Bool
 }
 
 struct NativeFeedbackDeliverySnapshot: Equatable {
@@ -158,6 +170,7 @@ struct NativeFeedbackModeMenu: Equatable {
   var labelSystemImage: String
   var helpText: String
   var deliveryStatusText: String
+  var testAction: NativeFeedbackTestAction
   var items: [NativeFeedbackModeMenuItem]
 
   init(
@@ -170,6 +183,7 @@ struct NativeFeedbackModeMenu: Equatable {
     labelSystemImage = selectedMode.systemImage
     helpText = "Feedback: \(selectedMode.title)"
     deliveryStatusText = Self.deliveryStatusText(for: deliverySnapshot)
+    testAction = Self.testAction(for: selectedMode, projectName: projectName)
     items = NativeFeedbackMode.allCases.map { mode in
       NativeFeedbackModeMenuItem(
         mode: mode,
@@ -208,6 +222,24 @@ struct NativeFeedbackModeMenu: Equatable {
         "Speech uses local audio; notifications for \(projectName) ask permission only when needed."
     }
     return bounded(copy, limit: NativeFeedbackModeMenuItem.permissionHintLimit)
+  }
+
+  private static func testAction(
+    for mode: NativeFeedbackMode,
+    projectName: String
+  ) -> NativeFeedbackTestAction {
+    let isEnabled = mode != .off
+    let detail =
+      isEnabled
+      ? "Send one sample update for \(projectName) using the selected native feedback mode."
+      : "Choose Notifications or Speech + Notifications before sending a sample update."
+    return NativeFeedbackTestAction(
+      title: bounded("Send Test Feedback", limit: NativeFeedbackTestAction.titleLimit),
+      systemImage: mode.speaks ? "speaker.wave.2" : "bell.badge",
+      detail: bounded(detail, limit: NativeFeedbackTestAction.detailLimit),
+      milestone: .testFeedback,
+      isEnabled: isEnabled
+    )
   }
 
   private static func deliveryStatusText(for snapshot: NativeFeedbackDeliverySnapshot?) -> String {
@@ -302,6 +334,10 @@ struct NativeFeedbackContent: Equatable {
       title = "\(projectName): No immediate work"
       body = "Plan returned no ready next task."
       spokenPhrase = "\(projectName). No immediate work."
+    case .testFeedback:
+      title = "\(projectName): Feedback test"
+      body = "Native Compass feedback is ready."
+      spokenPhrase = "\(projectName). Feedback test."
     }
 
     self.title = Self.boundedText(title, limit: Self.titleLimit)

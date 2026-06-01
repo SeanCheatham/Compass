@@ -637,6 +637,19 @@ struct ProjectRunControls: View {
             Divider()
           }
         }
+        Divider()
+        Button {
+          let action = feedbackMenu.testAction
+          NativeFeedbackService.shared.emit(
+            action.milestone,
+            projectName: project.displayName,
+            mode: project.nativeFeedbackMode
+          )
+        } label: {
+          Label(feedbackMenu.testAction.title, systemImage: feedbackMenu.testAction.systemImage)
+        }
+        .disabled(!feedbackMenu.testAction.isEnabled)
+        Text(feedbackMenu.testAction.detail)
       } label: {
         Image(systemName: feedbackMenu.labelSystemImage)
           .frame(width: 18, height: 18)
