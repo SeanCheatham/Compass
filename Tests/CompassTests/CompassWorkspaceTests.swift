@@ -164,6 +164,38 @@ final class CompassWorkspaceTests {
     try #require(summary.contains("iOS support is planned next."))
   }
 
+  @Test func testAssumptionLedgerRejectsMissingRequiredDetail() throws {
+    let workspace = try makeInitializedWorkspace()
+
+    #expect(throws: AssumptionLedgerError.emptyRationale) {
+      try workspace.recordAssumption(
+        AssumptionDraft(
+          text: "The project targets macOS only.",
+          rationale: " ",
+          impact: "Plan should not add iOS-specific workflow.",
+          scope: .project
+        ),
+        phase: .plan,
+        sessionNumber: 2
+      )
+    }
+
+    #expect(throws: AssumptionLedgerError.emptyImpact) {
+      try workspace.recordAssumption(
+        AssumptionDraft(
+          text: "The project targets macOS only.",
+          rationale: "Package.swift declares only macOS.",
+          impact: "",
+          scope: .project
+        ),
+        phase: .plan,
+        sessionNumber: 2
+      )
+    }
+
+    try #require(try workspace.readAssumptionLedger().assumptions.isEmpty)
+  }
+
   @Test func testSessionsJsonRoundTripsExecutionEnvironmentSnapshotsWithoutLeakingRuntimePaths()
     throws
   {

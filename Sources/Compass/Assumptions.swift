@@ -106,12 +106,20 @@ struct AssumptionRecord: Codable, Identifiable, Equatable, Sendable {
     guard !text.isEmpty else {
       throw AssumptionLedgerError.emptyAssumption
     }
+    let rationale = Self.sanitized(draft.rationale ?? "", limit: Self.detailLimit)
+    guard !rationale.isEmpty else {
+      throw AssumptionLedgerError.emptyRationale
+    }
+    let impact = Self.sanitized(draft.impact ?? "", limit: Self.detailLimit)
+    guard !impact.isEmpty else {
+      throw AssumptionLedgerError.emptyImpact
+    }
     let timestamp = now.timeIntervalSince1970
     self.init(
       text: text,
-      rationale: draft.rationale ?? "",
+      rationale: rationale,
       evidence: draft.evidence ?? [],
-      impact: draft.impact ?? "",
+      impact: impact,
       invalidation: draft.invalidation ?? "",
       scope: draft.scope ?? .project,
       status: .implicit,
@@ -233,6 +241,10 @@ struct AssumptionLedger: Codable, Equatable, Sendable {
 
   var activeAssumptions: [AssumptionRecord] {
     assumptions.filter { $0.status != .superseded }
+  }
+
+  var archivedCount: Int {
+    assumptions.filter { $0.status == .superseded }.count
   }
 
   var implicitCount: Int {
@@ -423,6 +435,8 @@ struct AssumptionLedgerStore: Sendable {
 
 enum AssumptionLedgerError: LocalizedError, Equatable {
   case emptyAssumption
+  case emptyRationale
+  case emptyImpact
   case assumptionNotFound(String)
   case unsupportedReviewStatus(String)
 
@@ -430,6 +444,10 @@ enum AssumptionLedgerError: LocalizedError, Equatable {
     switch self {
     case .emptyAssumption:
       return "Assumption text cannot be empty."
+    case .emptyRationale:
+      return "Assumption rationale cannot be empty; explain why this guess seems reasonable."
+    case .emptyImpact:
+      return "Assumption impact cannot be empty; describe what decision depends on this assumption."
     case .assumptionNotFound(let id):
       return "Assumption not found: \(id)."
     case .unsupportedReviewStatus(let status):

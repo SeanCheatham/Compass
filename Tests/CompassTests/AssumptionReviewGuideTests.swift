@@ -83,6 +83,23 @@ struct AssumptionReviewGuideTests {
   }
 
   @Test
+  func guideExplainsArchivedOnlyLedger() {
+    let guide = AssumptionReviewGuide(
+      ledger: AssumptionLedger(assumptions: [
+        record(id: "archived", text: "The old setup flow should stay first.", status: .superseded)
+      ])
+    )
+
+    #expect(guide.title == "All Assumptions Archived")
+    #expect(guide.tone == .empty)
+    #expect(
+      guide.detail == "1 archived assumption is kept in history but no longer steer future runs.")
+    #expect(guide.promptEffect == "Future prompts are not receiving active assumption guidance.")
+    #expect(guide.steps.map(\.id) == ["archivedOnly"])
+    #expect(guide.queue.isEmpty)
+  }
+
+  @Test
   func narratorUsesFoundationModelsAsOptionalPolish() async throws {
     let guide = AssumptionReviewGuide(
       ledger: AssumptionLedger(assumptions: [

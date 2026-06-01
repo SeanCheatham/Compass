@@ -151,6 +151,13 @@ struct AssumptionSummaryStrip: View {
         systemImage: "xmark.circle",
         color: .red
       )
+      if ledger.archivedCount > 0 {
+        summaryLabel(
+          "\(ledger.archivedCount) archived",
+          systemImage: "archivebox",
+          color: .secondary
+        )
+      }
       Spacer()
     }
   }
@@ -383,6 +390,19 @@ struct AssumptionReviewRow: View {
           } label: {
             Label("Implicit", systemImage: "arrow.uturn.backward.circle")
           }
+        }
+
+        if assumption.status != .superseded {
+          Button {
+            Task {
+              await project.archiveAssumption(id: assumption.id, comment: trimmedComment)
+              comment = ""
+            }
+          } label: {
+            Label("Archive", systemImage: "archivebox")
+          }
+          .disabled(trimmedComment.isEmpty)
+          .help("Archive requires a comment.")
         }
       }
       .controlSize(.small)

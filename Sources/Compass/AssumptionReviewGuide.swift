@@ -35,8 +35,16 @@ struct AssumptionReviewGuide: Equatable, Sendable {
     let implicit = Self.records(status: .implicit, in: active)
     let affirmed = Self.records(status: .affirmed, in: active)
     let denied = Self.records(status: .denied, in: active)
+    let archivedCount = ledger.archivedCount
 
-    if active.isEmpty {
+    if active.isEmpty && archivedCount > 0 {
+      let archivedVerb = archivedCount == 1 ? "is" : "are"
+      title = "All Assumptions Archived"
+      detail =
+        "\(Self.countLabel(archivedCount, singular: "archived assumption", plural: "archived assumptions")) \(archivedVerb) kept in history but no longer steer future runs."
+      promptEffect = "Future prompts are not receiving active assumption guidance."
+      tone = .empty
+    } else if active.isEmpty {
       title = "No Memory Yet"
       detail =
         "When Compass makes a consequential guess, it will appear here before it becomes durable guidance."
@@ -63,7 +71,12 @@ struct AssumptionReviewGuide: Equatable, Sendable {
       tone = .steady
     }
 
-    steps = Self.steps(implicit: implicit, affirmed: affirmed, denied: denied)
+    steps = Self.steps(
+      implicit: implicit,
+      affirmed: affirmed,
+      denied: denied,
+      archivedCount: archivedCount
+    )
     queue = implicit.prefix(3).map { record in
       QueueItem(
         id: record.id,
@@ -99,7 +112,8 @@ struct AssumptionReviewGuide: Equatable, Sendable {
   private static func steps(
     implicit: [AssumptionRecord],
     affirmed: [AssumptionRecord],
-    denied: [AssumptionRecord]
+    denied: [AssumptionRecord],
+    archivedCount: Int
   ) -> [Step] {
     var steps: [Step] = []
 
@@ -138,6 +152,18 @@ struct AssumptionReviewGuide: Equatable, Sendable {
           detail: "These are strong signals for planning, implementation, and review prompts.",
           systemImageName: "checkmark.circle",
           tone: .steady
+        )
+      )
+    }
+
+    if steps.isEmpty && archivedCount > 0 {
+      steps.append(
+        Step(
+          id: "archivedOnly",
+          label: "No active guidance",
+          detail: "Archived assumptions stay in history and are excluded from agent prompts.",
+          systemImageName: "archivebox",
+          tone: .empty
         )
       )
     }

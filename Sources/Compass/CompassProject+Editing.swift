@@ -58,6 +58,21 @@ extension CompassProject {
     )
   }
 
+  func archiveAssumption(id: String, comment: String?) async {
+    do {
+      guard let workspace else {
+        fail(AppModelError.noRepositorySelected)
+        return
+      }
+      try await initializeIfNeeded(workspace)
+      _ = try workspace.removeAssumption(id: id, comment: comment)
+      assumptions = try workspace.readAssumptionLedger().assumptions
+      log("Assumption archived.", level: .success)
+    } catch {
+      fail(error)
+    }
+  }
+
   func saveDrafts() async {
     do {
       guard let workspace else {

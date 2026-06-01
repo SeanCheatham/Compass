@@ -71,6 +71,34 @@ struct AgentRecordAssumptionToolTests {
     try #require(record.scope == .feature)
   }
 
+  @Test func testRecordAssumptionRejectsMissingRequiredDetails() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let assumptionsURL = root.appending(path: "assumptions.json")
+    let tool = AgentRecordAssumptionTool()
+
+    let result = try await tool.invoke(
+      arguments: Data(
+        """
+        {
+          "text": "The project targets macOS only.",
+          "rationale": "Package.swift declares only macOS."
+        }
+        """.utf8),
+      context: AgentToolContext(
+        workingDirectory: root,
+        assumptionsURL: assumptionsURL,
+        phase: .plan,
+        sessionNumber: 9
+      )
+    )
+
+    try #require(result.isError)
+    try #require(result.errorKind == .invalidArguments)
+    try #require(result.content.contains("Assumption impact cannot be empty"))
+    try #require(try AssumptionLedgerStore(url: assumptionsURL).read().assumptions.isEmpty)
+  }
+
   @Test func testRecordAssumptionPreservesDeniedReview() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
