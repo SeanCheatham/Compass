@@ -277,6 +277,27 @@ struct PlanPromptTests {
     try #require(prompt.contains("Note: Develop reported failure: missing retry coverage."))
   }
 
+  @Test func testReflectPromptIncludesCopyableSubmitResultShapes() throws {
+    let prompt = try Prompts.reflectPrompt(
+      state: .empty,
+      lessons: "",
+      vision: "",
+      recentSessions: [],
+      iteration: 1
+    )
+
+    try #require(prompt.contains("Copy this shape when no planning update is needed"))
+    try #require(prompt.contains("\"state\": null"))
+    try #require(prompt.contains("\"summary\": \"<why the current plan is still on course>\""))
+    try #require(prompt.contains("\"lessonEdits\": []"))
+    try #require(prompt.contains("containing all three keys"))
+    try #require(prompt.contains("\"immediate\": null"))
+    try #require(prompt.contains("\"midTerm\": \"<revised near-term queue>\""))
+    try #require(prompt.contains("\"longTerm\": \"<revised strategic arc>\""))
+    try #require(prompt.contains("copy the full current immediate"))
+    try #require(prompt.contains("Do not include completed"))
+  }
+
   /// The focus block is what biases the planner away from compounding
   /// feature work. Pin both the header and a representative line from
   /// the interaction rules so a future prompt edit that drops the

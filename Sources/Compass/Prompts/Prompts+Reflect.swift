@@ -42,6 +42,29 @@ extension Prompts {
       - `lessonEdits`: exact find/replace edits against the lessons content
         shown below, or `[]` when nothing durable should be recorded.
 
+      Copy this shape when no planning update is needed:
+      {
+        "state": null,
+        "summary": "<why the current plan is still on course>",
+        "lessonEdits": []
+      }
+
+      If planning needs revision, replace `state: null` with an object
+      containing all three keys:
+      {
+        "state": {
+          "immediate": null,
+          "midTerm": "<revised near-term queue>",
+          "longTerm": "<revised strategic arc>"
+        },
+        "summary": "<what changed and why>",
+        "lessonEdits": []
+      }
+      When preserving a non-null `immediate`, copy the full current immediate
+      object, including `plan`, `verify`, `verifyTimeoutMs`, `estimatedDifficulty`,
+      and `requiresHostXcode` if that field is present. Do not include completed
+      history.
+
       \(lessonEditsGuidance())
 
       Keep this tight. Do not rewrite state defensively.
