@@ -20,9 +20,20 @@ struct DraftRefinementTests {
     try #require(guide.status == .needsDetail)
     try #require(guide.scoreLabel == "1 of 3")
     try #require(guide.detail == "Missing: Why, Success signal.")
+    try #require(guide.missingSignalText == "Why, Success signal")
+    try #require(guide.satisfiedSignalText == "Outcome")
     try #require(guide.cues[0].isSatisfied)
     try #require(!guide.cues[1].isSatisfied)
     try #require(!guide.cues[2].isSatisfied)
+    try #require(guide.coachingPrompts.map(\.question) == [
+      "Who is stuck, and why?",
+      "How will you know it worked?",
+    ])
+    try #require(
+      guide.coachingPrompts[1].detail
+        == "Name a visible result, error, test, or check Compass can verify.")
+    try #require(guide.allowsNarration)
+    try #require(guide.narrationIdentifier.contains("questions:Who is stuck, and why?"))
   }
 
   @Test func testDraftReadinessGuideMarksActionableDraftReady() throws {
@@ -35,6 +46,8 @@ struct DraftRefinementTests {
     try #require(guide.title == "Ready for Plan")
     try #require(guide.scoreLabel == "3 of 3")
     try #require(guide.cues.allSatisfy { $0.isSatisfied })
+    try #require(guide.coachingPrompts.isEmpty)
+    try #require(!guide.allowsNarration)
   }
 
   @Test func testDraftReadinessGuideRejectsVagueSuccessSignals() throws {
@@ -198,6 +211,47 @@ struct DraftRefinementTests {
 
     await withMockFoundationModels(response: "Read more at https://example.com") {
       let narration = await DraftIntakeGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+  }
+
+  @Test func testDraftReadinessGuideNarratorUsesFoundationModelsAsOptionalCoach() async throws {
+    let guide = DraftReadinessGuide(draft: "Improve onboarding copy")
+
+    try await withMockFoundationModels(
+      response: "Who is confused by the onboarding copy, and what should look different?"
+    ) {
+      let generatedNarration = await DraftReadinessGuideNarrator.narrate(guide: guide)
+      let narration = try #require(generatedNarration)
+      try #require(narration.guideIdentifier == guide.narrationIdentifier)
+      try #require(
+        narration.text == "Who is confused by the onboarding copy, and what should look different?"
+      )
+    }
+  }
+
+  @Test func testDraftReadinessGuideNarratorSkipsReadyAndRejectsStructuredOutput() async {
+    let ready = DraftReadinessGuide(
+      draft: "Improve onboarding copy because users are confused; success shows clearer steps."
+    )
+    await withMockFoundationModels(response: "Should not be used.") {
+      let narration = await DraftReadinessGuideNarrator.narrate(guide: ready)
+      #expect(narration == nil)
+    }
+
+    let guide = DraftReadinessGuide(draft: "Improve onboarding copy")
+    await withMockFoundationModels(response: #"{"text":"invented"}"#) {
+      let narration = await DraftReadinessGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "- Ask a hidden question") {
+      let narration = await DraftReadinessGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "Read more at https://example.com") {
+      let narration = await DraftReadinessGuideNarrator.narrate(guide: guide)
       #expect(narration == nil)
     }
   }

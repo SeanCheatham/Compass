@@ -2,15 +2,41 @@ import Foundation
 
 struct DraftReadinessGuide: Equatable, Sendable {
   static let detailLimit = 160
+  static let draftPreviewLimit = 220
+  static let identifierLimit = 1_000
 
   var status: Status
   var title: String
   var detail: String
   var scoreLabel: String
   var cues: [Cue]
+  var coachingPrompts: [CoachingPrompt]
+  var draftPreview: String
+  var narrationIdentifier: String
+
+  var allowsNarration: Bool {
+    status != .ready && !draftPreview.isEmpty
+  }
+
+  var missingSignalTitles: [String] {
+    cues.filter { !$0.isSatisfied }.map(\.title)
+  }
+
+  var satisfiedSignalTitles: [String] {
+    cues.filter(\.isSatisfied).map(\.title)
+  }
+
+  var missingSignalText: String {
+    missingSignalTitles.isEmpty ? "none" : missingSignalTitles.joined(separator: ", ")
+  }
+
+  var satisfiedSignalText: String {
+    satisfiedSignalTitles.isEmpty ? "none" : satisfiedSignalTitles.joined(separator: ", ")
+  }
 
   init(draft rawDraft: String) {
     let draft = DraftRefinementService.normalizeDraft(rawDraft)
+    draftPreview = StringUtils.boundedText(draft, limit: Self.draftPreviewLimit)
     let outcome = Self.hasOutcomeSignal(in: draft)
     let why = Self.hasWhySignal(in: draft)
     let success = Self.hasSuccessSignal(in: draft)
@@ -37,6 +63,7 @@ struct DraftReadinessGuide: Equatable, Sendable {
             : "Say how done should look."
       ),
     ]
+    coachingPrompts = cues.filter { !$0.isSatisfied }.map { CoachingPrompt(kind: $0.kind) }
 
     let satisfiedCount = cues.filter(\.isSatisfied).count
     scoreLabel = "\(satisfiedCount) of \(cues.count)"
@@ -56,6 +83,15 @@ struct DraftReadinessGuide: Equatable, Sendable {
     }
 
     detail = Self.bounded(detail)
+    narrationIdentifier = Self.narrationIdentifier(
+      draft: draftPreview,
+      title: title,
+      detail: detail,
+      scoreLabel: scoreLabel,
+      status: status,
+      cues: cues,
+      coachingPrompts: coachingPrompts
+    )
   }
 
   enum Status: Equatable, Sendable {
@@ -77,6 +113,38 @@ struct DraftReadinessGuide: Equatable, Sendable {
 
     var systemImage: String {
       isSatisfied ? "checkmark.circle.fill" : kind.systemImage
+    }
+  }
+
+  struct CoachingPrompt: Identifiable, Equatable, Sendable {
+    var kind: Kind
+
+    var id: Kind { kind }
+
+    var question: String {
+      switch kind {
+      case .outcome:
+        return "What should change?"
+      case .why:
+        return "Who is stuck, and why?"
+      case .success:
+        return "How will you know it worked?"
+      }
+    }
+
+    var detail: String {
+      switch kind {
+      case .outcome:
+        return "Name the screen, workflow, behavior, or problem Compass should improve."
+      case .why:
+        return "Mention the person, workflow pain, or risk this should relieve."
+      case .success:
+        return "Name a visible result, error, test, or check Compass can verify."
+      }
+    }
+
+    var systemImage: String {
+      kind.systemImage
     }
   }
 
@@ -199,6 +267,28 @@ struct DraftReadinessGuide: Equatable, Sendable {
     guard detailLimit > 3 else { return String(text.prefix(detailLimit)) }
     return String(text.prefix(detailLimit - 3))
       .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+
+  private static func narrationIdentifier(
+    draft: String,
+    title: String,
+    detail: String,
+    scoreLabel: String,
+    status: Status,
+    cues: [Cue],
+    coachingPrompts: [CoachingPrompt]
+  ) -> String {
+    let raw = [
+      "draft:\(draft)",
+      "title:\(title)",
+      "detail:\(detail)",
+      "score:\(scoreLabel)",
+      "status:\(status)",
+      "present:\(cues.filter(\.isSatisfied).map(\.title).joined(separator: ","))",
+      "missing:\(cues.filter { !$0.isSatisfied }.map(\.title).joined(separator: ","))",
+      "questions:\(coachingPrompts.map(\.question).joined(separator: "|"))",
+    ].joined(separator: "\n")
+    return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 }
 

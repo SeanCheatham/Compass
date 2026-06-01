@@ -11,9 +11,11 @@ struct DraftsTab: View {
   @State private var activeDraftRefinementKey: DraftRefinementPreviewKey?
   @State private var isDraftRefinementActive = false
   @State private var isDraftRefinementPreviewAvailable = DraftRefinementService.isPreviewAvailable
+  @State private var draftReadinessNarration: DraftReadinessGuideNarration?
   @State private var draftQueueNarration: DraftIntakeGuideNarration?
 
   var body: some View {
+    let draftReadinessGuide = DraftReadinessGuide(draft: project.draftEntry)
     let draftQueueGuide = DraftIntakeGuide(drafts: pendingDraftsText)
 
     VStack(alignment: .leading, spacing: 14) {
@@ -35,7 +37,10 @@ struct DraftsTab: View {
           !project.hasRepository
             || project.draftEntry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
-      DraftReadinessGuideView(guide: DraftReadinessGuide(draft: project.draftEntry))
+      DraftReadinessGuideView(
+        guide: draftReadinessGuide,
+        narration: matchingNarration(for: draftReadinessGuide)
+      )
 
       if shouldShowDraftRefinementPreview {
         DraftRefinementPreviewCard(
@@ -103,6 +108,15 @@ struct DraftsTab: View {
     }
     .onChange(of: project.repoURL) {
       requestDraftRefinementReschedule()
+    }
+    .task(id: "\(draftReadinessGuide.narrationIdentifier)|running-\(project.isRunning)") {
+      draftReadinessNarration = nil
+      guard !project.isRunning, draftReadinessGuide.allowsNarration else { return }
+      try? await Task.sleep(nanoseconds: 700_000_000)
+      guard !Task.isCancelled else { return }
+      draftReadinessNarration = await DraftReadinessGuideNarrator.narrate(
+        guide: draftReadinessGuide
+      )
     }
     .task(id: "\(draftQueueGuide.narrationIdentifier)|running-\(project.isRunning)") {
       draftQueueNarration = nil
@@ -279,6 +293,15 @@ struct DraftsTab: View {
     project.modifyDraft(with: refinement)
   }
 
+  private func matchingNarration(
+    for guide: DraftReadinessGuide
+  ) -> DraftReadinessGuideNarration? {
+    guard draftReadinessNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return draftReadinessNarration
+  }
+
   private func matchingNarration(for guide: DraftIntakeGuide) -> DraftIntakeGuideNarration? {
     guard draftQueueNarration?.guideIdentifier == guide.narrationIdentifier else {
       return nil
@@ -441,6 +464,11 @@ struct DraftQueueReadinessRow: View {
 
 struct DraftReadinessGuideView: View {
   var guide: DraftReadinessGuide
+  var narration: DraftReadinessGuideNarration? = nil
+
+  private let coachingColumns = [
+    GridItem(.adaptive(minimum: 180), spacing: 6, alignment: .leading)
+  ]
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -459,10 +487,11 @@ struct DraftReadinessGuideView: View {
         Spacer()
       }
 
-      Text(guide.detail)
+      Text(narration?.text ?? guide.detail)
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(narration == nil ? .secondary : .primary)
         .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
 
       HStack(spacing: 6) {
         ForEach(guide.cues) { cue in
@@ -479,6 +508,39 @@ struct DraftReadinessGuideView: View {
             .help(cue.detail)
         }
       }
+
+      if !guide.coachingPrompts.isEmpty {
+        LazyVGrid(columns: coachingColumns, alignment: .leading, spacing: 6) {
+          ForEach(guide.coachingPrompts) { prompt in
+            Label {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(prompt.question)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(.primary)
+                  .lineLimit(2)
+
+                Text(prompt.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+              }
+            } icon: {
+              Image(systemName: prompt.systemImage)
+                .foregroundStyle(color)
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 5)
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            .help(prompt.detail)
+          }
+        }
+      }
+
+      if narration != nil {
+        Label("On-device draft note", systemImage: "sparkles")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
     }
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -488,7 +550,9 @@ struct DraftReadinessGuideView: View {
         .stroke(color.opacity(0.18))
     }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(guide.title). \(guide.detail). \(guide.scoreLabel) signals present.")
+    .accessibilityLabel(
+      "\(guide.title). \(narration?.text ?? guide.detail). \(guide.scoreLabel) signals present."
+    )
   }
 
   private var color: Color {
