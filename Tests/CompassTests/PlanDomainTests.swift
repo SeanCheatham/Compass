@@ -938,6 +938,28 @@ struct PlanNextDecoderTests {
     try #require(!next.requiresHostXcode)
   }
 
+  @Test func decoderAcceptsCommonVerifyCommandAliasesFromLessCapableModels() throws {
+    let cases = [
+      ("test_command", "swift test --filter PlanNextDecoderTests"),
+      ("check_command", "./scripts/test-local.sh"),
+      ("validation_command", "npm test"),
+      ("validation_cmd", "xcodebuild test -scheme Compass"),
+      ("command", "swift build"),
+    ]
+
+    for (key, command) in cases {
+      let next = try decodePlanNext(
+        """
+        {
+          "plan": "Build",
+          "\(key)": "  \(command)\\n"
+        }
+        """)
+
+      try #require(next.verify == command)
+    }
+  }
+
   @Test func decoderPrefersCanonicalPlanAndVerifyOverAliases() throws {
     let next = try decodePlanNext(
       """
@@ -1129,7 +1151,7 @@ struct PlanningEnvelopeDecoderTests {
         "planState": {
           "next": {
             "handoff": "Build the envelope decoder tolerance.",
-            "verify_command": "swift test --filter PlanningEnvelopeDecoderTests"
+            "test_command": "swift test --filter PlanningEnvelopeDecoderTests"
           },
           "near_term_queue": "- Continue payload hardening",
           "strategic_arc": "Make Compass forgiving at the edges and strict at the core."

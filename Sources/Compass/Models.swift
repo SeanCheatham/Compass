@@ -299,6 +299,18 @@ struct PlanNext: Codable, Equatable {
     case verificationCommandSnake = "verification_command"
     case verifyCmd
     case verifyCmdSnake = "verify_cmd"
+    case test
+    case testCommand
+    case testCommandSnake = "test_command"
+    case check
+    case checkCommand
+    case checkCommandSnake = "check_command"
+    case validation
+    case validationCommand
+    case validationCommandSnake = "validation_command"
+    case validationCmd
+    case validationCmdSnake = "validation_cmd"
+    case command
     case verifyTimeoutMs
     case verifyTimeoutMsSnake = "verify_timeout_ms"
     case estimatedDifficulty
@@ -334,7 +346,10 @@ struct PlanNext: Codable, Equatable {
       preferredKey: .verify,
       aliases: [
         .verifyCommand, .verifyCommandSnake, .verification, .verificationCommand,
-        .verificationCommandSnake, .verifyCmd, .verifyCmdSnake,
+        .verificationCommandSnake, .verifyCmd, .verifyCmdSnake, .test, .testCommand,
+        .testCommandSnake, .check, .checkCommand, .checkCommandSnake, .validation,
+        .validationCommand, .validationCommandSnake, .validationCmd, .validationCmdSnake,
+        .command,
       ],
       fieldName: "verify"
     )
