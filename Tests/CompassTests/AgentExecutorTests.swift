@@ -387,6 +387,10 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("set `bypassVerify` to false"))
     try #require(nudge.userMessage.contains("verify command itself is wrong"))
     try #require(nudge.userMessage.contains("smallest Plan recovery action"))
+    try #require(nudge.userMessage.contains("Use this exact retry shape when verify can run"))
+    try #require(nudge.userMessage.contains("\"bypassVerify\": false"))
+    try #require(nudge.userMessage.contains("exact verify-command problem plus"))
+    try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
     try #require(nudge.userMessage.contains("Do not answer in prose"))
   }
 
@@ -404,6 +408,13 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("request_changes"))
     try #require(nudge.userMessage.contains("smallest recovery action"))
     try #require(nudge.userMessage.contains("approve with"))
+    try #require(
+      nudge.userMessage.contains("Use this exact retry shape for real requested changes"))
+    try #require(nudge.userMessage.contains("\"verdict\": \"request_changes\""))
+    try #require(nudge.userMessage.contains("<specific failing behavior or file>"))
+    try #require(nudge.userMessage.contains("use this approve shape"))
+    try #require(nudge.userMessage.contains("\"verdict\": \"approve\""))
+    try #require(nudge.userMessage.contains("\"feedback\": \"\""))
     try #require(nudge.userMessage.contains("Do not answer in prose"))
   }
 

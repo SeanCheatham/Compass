@@ -136,7 +136,20 @@ extension AgentExecutor {
         Call `submit_result` again. If the verify command can run, set `bypassVerify` to false \
         or null and let Compass run it. Use `bypassVerify: true` only when the verify command \
         itself is wrong or out of scope, and then make `feedback` name the exact verify-command \
-        problem and the smallest Plan recovery action. Do not answer in prose.
+        problem and the smallest Plan recovery action.
+
+        Use this exact retry shape when verify can run:
+        {
+          "status": "<same status>",
+          "summary": "<same factual summary>",
+          "feedback": "<concrete Develop handoff for the next Plan pass>",
+          "bypassVerify": false,
+          "lessonEdits": []
+        }
+
+        If the verify command itself is wrong or out of scope, keep the same shape but set \
+        `"bypassVerify": true` and make `feedback` name the exact verify-command problem plus \
+        the smallest Plan recovery action. Do not answer in prose.
         """
     )
   }
@@ -155,7 +168,23 @@ extension AgentExecutor {
         `verdict: "request_changes"` and replace `feedback` with one or two concrete bullets or \
         sentences that name the failure and the smallest recovery action. Include file paths or \
         line numbers from the diff when possible. If you cannot name a concrete fix, approve with \
-        `feedback: ""`. Do not answer in prose.
+        `feedback: ""`.
+
+        Use this exact retry shape for real requested changes:
+        {
+          "verdict": "request_changes",
+          "summary": "<same or corrected review summary>",
+          "feedback": "- <specific failing behavior or file>\\n- <smallest Develop recovery action>"
+        }
+
+        If you cannot name a concrete fix, use this approve shape:
+        {
+          "verdict": "approve",
+          "summary": "<why no blocking issue remains>",
+          "feedback": ""
+        }
+
+        Do not answer in prose.
         """
     )
   }
