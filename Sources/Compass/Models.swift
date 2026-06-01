@@ -49,14 +49,11 @@ struct PlanNext: Codable, Equatable {
       )
     }
 
-    let rawTimeout = try container.decodeIfPresent(Int.self, forKey: .verifyTimeoutMs)
     self.plan = plan
     self.verify = verify
-    self.verifyTimeoutMs = rawTimeout.flatMap { $0 > 0 ? $0 : nil }
-    self.estimatedDifficulty = try container.decodeIfPresent(
-      Difficulty.self, forKey: .estimatedDifficulty)
-    self.requiresHostXcode =
-      try container.decodeIfPresent(Bool.self, forKey: .requiresHostXcode) ?? false
+    self.verifyTimeoutMs = Self.decodePositiveInt(from: container, forKey: .verifyTimeoutMs)
+    self.estimatedDifficulty = Self.decodeDifficulty(from: container, forKey: .estimatedDifficulty)
+    self.requiresHostXcode = Self.decodeBool(from: container, forKey: .requiresHostXcode) ?? false
   }
 
   func encode(to encoder: Encoder) throws {
@@ -67,6 +64,74 @@ struct PlanNext: Codable, Equatable {
     try container.encodeIfPresent(estimatedDifficulty, forKey: .estimatedDifficulty)
     if requiresHostXcode {
       try container.encode(true, forKey: .requiresHostXcode)
+    }
+  }
+
+  private static func decodePositiveInt(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    forKey key: CodingKeys
+  ) -> Int? {
+    if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
+      return value > 0 ? value : nil
+    }
+    if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
+      return value > 0 ? Int(value) : nil
+    }
+    guard
+      let rawValue = try? container.decodeIfPresent(String.self, forKey: key)?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
+      !rawValue.isEmpty
+    else {
+      return nil
+    }
+    if let value = Int(rawValue) {
+      return value > 0 ? value : nil
+    }
+    if let value = Double(rawValue) {
+      return value > 0 ? Int(value) : nil
+    }
+    return nil
+  }
+
+  private static func decodeDifficulty(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    forKey key: CodingKeys
+  ) -> Difficulty? {
+    guard
+      let rawValue = try? container.decodeIfPresent(String.self, forKey: key)?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    else {
+      return nil
+    }
+    return Difficulty(rawValue: rawValue)
+  }
+
+  private static func decodeBool(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    forKey key: CodingKeys
+  ) -> Bool? {
+    if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
+      return value
+    }
+    if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
+      if value == 1 { return true }
+      if value == 0 { return false }
+    }
+    guard
+      let rawValue = try? container.decodeIfPresent(String.self, forKey: key)?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    else {
+      return nil
+    }
+    switch rawValue {
+    case "true", "yes", "1":
+      return true
+    case "false", "no", "0":
+      return false
+    default:
+      return nil
     }
   }
 }

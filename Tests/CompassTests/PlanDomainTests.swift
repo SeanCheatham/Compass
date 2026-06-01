@@ -818,6 +818,40 @@ struct PlanNextDecoderTests {
     #expect(required.requiresHostXcode)
   }
 
+  @Test func decoderAcceptsStringMetadataFromLessCapableModels() throws {
+    let next = try decodePlanNext(
+      """
+      {
+        "plan": "Build",
+        "verify": "xcodebuild -scheme App test",
+        "verifyTimeoutMs": "600000",
+        "estimatedDifficulty": " Medium ",
+        "requiresHostXcode": "true"
+      }
+      """)
+
+    try #require(next.verifyTimeoutMs == 600000)
+    try #require(next.estimatedDifficulty == .medium)
+    try #require(next.requiresHostXcode)
+  }
+
+  @Test func decoderIgnoresUnknownOptionalMetadataWithoutRejectingPlan() throws {
+    let next = try decodePlanNext(
+      """
+      {
+        "plan": "Build",
+        "verify": "swift build",
+        "verifyTimeoutMs": "later",
+        "estimatedDifficulty": "moderate",
+        "requiresHostXcode": "maybe"
+      }
+      """)
+
+    try #require(next.verifyTimeoutMs == nil)
+    try #require(next.estimatedDifficulty == nil)
+    try #require(!next.requiresHostXcode)
+  }
+
   @Test func decoderDropsNonPositiveTimeouts() throws {
     let zeroTimeout = try decodePlanNext(
       """
