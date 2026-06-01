@@ -315,6 +315,8 @@ struct DraftQueueReadinessView: View {
   var narration: DraftIntakeGuideNarration? = nil
 
   var body: some View {
+    let queuePayload = DraftIntakeClipboardPayload(guide: guide)
+
     VStack(alignment: .leading, spacing: 8) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Label(guide.title, systemImage: systemImage)
@@ -329,6 +331,8 @@ struct DraftQueueReadinessView: View {
           .background(.quaternary.opacity(0.7), in: Capsule())
 
         Spacer()
+
+        CopyDraftQueueButton(payload: queuePayload)
       }
 
       Text(narration?.text ?? guide.detail)
@@ -387,6 +391,31 @@ struct DraftQueueReadinessView: View {
     case .ready:
       return "checkmark.seal"
     }
+  }
+}
+
+struct CopyDraftQueueButton: View {
+  var payload: DraftIntakeClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Queue",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded draft queue handoff for another model or teammate.")
   }
 }
 

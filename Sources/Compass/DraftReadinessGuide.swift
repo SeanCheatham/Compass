@@ -548,3 +548,79 @@ struct DraftIntakeGuide: Equatable, Sendable {
     count == 1 ? "1 \(singular)" : "\(count) \(plural)"
   }
 }
+
+struct DraftIntakeClipboardPayload: Equatable, Sendable {
+  static let textLimit = 3_500
+
+  var text: String
+
+  init(guide: DraftIntakeGuide) {
+    guard !guide.isEmpty else {
+      text = ""
+      return
+    }
+
+    var sections: [String] = [
+      "Compass Draft Queue Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded draft-intake context. Do not invent user intent, "
+        + "files, commands, success criteria, or extra scope.",
+      "- Ready drafts can be turned into one commit-sized Immediate Work handoff.",
+      "- Drafts missing signals need clarification or rewriting before load-bearing Plan work.",
+      "- If the queue is capped, preserve hidden raw drafts instead of assuming they were checked.",
+      "",
+      "Status: \(guide.title)",
+      "Score: \(guide.scoreLabel)",
+      "Detail: \(guide.detail)",
+      "Queue: \(guide.entryCountLabel)",
+    ]
+
+    if guide.isCapped {
+      sections.append("Visible checklist: first \(guide.entries.count) of \(guide.totalEntryCount)")
+      sections.append("Hidden drafts: \(guide.hiddenCountSentence) in the raw draft list.")
+    }
+
+    if !guide.missingSignalTitles.isEmpty {
+      sections.append("")
+      sections.append("Missing across queue: \(guide.missingSignalTitles.joined(separator: ", "))")
+    }
+
+    sections.append("")
+    sections.append("Drafts:")
+    for entry in guide.entries {
+      sections.append("Draft #\(entry.number)")
+      sections.append("Text: \(entry.draft)")
+      sections.append("Readiness: \(entry.readiness.title) (\(entry.readiness.scoreLabel))")
+      sections.append("Signals present: \(entry.satisfiedSignalText)")
+      sections.append("Missing signals: \(entry.missingSignalText)")
+
+      if !entry.readiness.coachingPrompts.isEmpty {
+        sections.append("Clarify before planning:")
+        for prompt in entry.readiness.coachingPrompts {
+          sections.append("- \(prompt.question) \(prompt.detail)")
+        }
+      }
+    }
+
+    text = DraftIntakeClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+private enum DraftIntakeClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}

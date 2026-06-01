@@ -199,6 +199,69 @@ struct DraftRefinementTests {
         == "Every queued draft names the outcome, why it matters, and how done should look.")
   }
 
+  @Test func testDraftIntakeClipboardPayloadPackagesQueueForReuse() throws {
+    let guide = DraftIntakeGuide(
+      drafts: """
+        - Make setup faster because users get stuck; success looks like tests pass.
+        - Improve onboarding copy
+        """
+    )
+    let payload = DraftIntakeClipboardPayload(guide: guide)
+
+    try #require(payload.text.contains("Compass Draft Queue Handoff"))
+    try #require(payload.text.contains("Recipient instructions:"))
+    try #require(payload.text.contains("Do not invent user intent, files, commands"))
+    try #require(payload.text.contains("Status: Draft queue needs detail"))
+    try #require(payload.text.contains("Score: 1 of 2 ready"))
+    try #require(payload.text.contains("Queue: 2 queued drafts"))
+    try #require(payload.text.contains("Missing across queue: Why, Success signal"))
+    try #require(payload.text.contains("Draft #1"))
+    try #require(
+      payload.text.contains(
+        "Text: Make setup faster because users get stuck; success looks like tests pass."
+      )
+    )
+    try #require(payload.text.contains("Readiness: Ready for Plan (3 of 3)"))
+    try #require(payload.text.contains("Signals present: Outcome, Why, Success signal"))
+    try #require(payload.text.contains("Draft #2"))
+    try #require(payload.text.contains("Text: Improve onboarding copy"))
+    try #require(payload.text.contains("Readiness: Add one more signal (1 of 3)"))
+    try #require(payload.text.contains("Missing signals: Why, Success signal"))
+    try #require(payload.text.contains("Clarify before planning:"))
+    try #require(payload.text.contains("- Who is stuck, and why?"))
+    try #require(payload.text.contains("- How will you know it worked?"))
+    try #require(payload.text.count <= DraftIntakeClipboardPayload.textLimit)
+    try #require(!payload.isEmpty)
+  }
+
+  @Test func testDraftIntakeClipboardPayloadNamesCappedQueues() throws {
+    let guide = DraftIntakeGuide(
+      drafts: """
+        - Make setup faster because users get stuck; success looks like tests pass.
+        - Show recovery copy because users get locked out; done when recovery copy appears.
+        - Explain failed verifies because owners get confused; success shows the first error.
+        - Add draft polish because planning starts rough; success shows clearer queue copy.
+        - Improve sandbox setup because onboarding is hard; done when the readiness panel shows progress.
+        - Surface provider failures because API keys expire; success shows a model connection repair.
+        - Improve onboarding copy
+        """
+    )
+    let payload = DraftIntakeClipboardPayload(guide: guide)
+
+    try #require(payload.text.contains("Visible checklist: first 6 of 7"))
+    try #require(payload.text.contains("Hidden drafts: 1 more draft remains in the raw draft list."))
+    try #require(payload.text.contains("Draft #6"))
+    try #require(!payload.text.contains("Draft #7"))
+  }
+
+  @Test func testDraftIntakeClipboardPayloadIsEmptyWithoutQueue() throws {
+    let guide = DraftIntakeGuide(drafts: "")
+    let payload = DraftIntakeClipboardPayload(guide: guide)
+
+    try #require(payload.isEmpty)
+    try #require(payload.text.isEmpty)
+  }
+
   @Test func testDraftIntakeGuideNarrationIdentifierTracksQueueSignals() throws {
     let initial = DraftIntakeGuide(drafts: "- Improve onboarding copy")
     let refined = DraftIntakeGuide(
