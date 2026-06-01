@@ -63,6 +63,31 @@ struct AgentSettingsStoreTests: ~Copyable {
     try #require(settings.model == "gpt-5")
   }
 
+  @Test func testMiniMaxTextModelVersionPersistsAndResizesContextWindow() throws {
+    let store = makeStore(environment: [:])
+    store.setSelectedProvider(.minimaxToken, for: .text)
+    try #require(store.load().model == MiniMaxTextModelVersion.m27.modelIdentifier)
+    try #require(store.load().contextWindowTokens == 200_000)
+
+    store.setCellModel(
+      MiniMaxTextModelVersion.m3.modelIdentifier,
+      capability: .text,
+      provider: .minimaxToken
+    )
+    let m3Settings = store.load()
+    try #require(m3Settings.model == MiniMaxTextModelVersion.m3.modelIdentifier)
+    try #require(m3Settings.contextWindowTokens == 1_000_000)
+
+    store.setCellModel(
+      MiniMaxTextModelVersion.m27.modelIdentifier,
+      capability: .text,
+      provider: .minimaxToken
+    )
+    let m27Settings = store.load()
+    try #require(m27Settings.model == MiniMaxTextModelVersion.m27.modelIdentifier)
+    try #require(m27Settings.contextWindowTokens == 200_000)
+  }
+
   @Test func testCellAPIKeyRoundTripsThroughSecretStorage() throws {
     let store = makeStore(environment: [:])
     store.setSelectedProvider(.openAI, for: .text)

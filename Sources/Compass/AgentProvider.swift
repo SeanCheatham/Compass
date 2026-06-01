@@ -73,7 +73,7 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
   func defaultModel(for capability: AgentCapability) -> String? {
     guard supports(capability) else { return nil }
     switch (self, capability) {
-    case (.minimaxToken, .text): return "MiniMax-M2.7"
+    case (.minimaxToken, .text): return MiniMaxTextModelVersion.default.modelIdentifier
     case (.minimaxToken, .image): return "image-01"
     case (.minimaxToken, .audio): return "speech-02-hd"
     case (.minimaxToken, .video): return "MiniMax-Hailuo-02"
@@ -82,26 +82,78 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
     }
   }
 
-  /// Built-in maximum context window (in tokens) for this provider's
+  func textContextWindowTokens(for modelIdentifier: String?) -> Int {
+    guard self == .minimaxToken else {
+      return defaultTextContextWindowTokens
+    }
+    return MiniMaxTextModelVersion(
+      modelIdentifier: modelIdentifier ?? MiniMaxTextModelVersion.default.modelIdentifier
+    )?.contextWindowTokens ?? defaultTextContextWindowTokens
+  }
+
+  /// Built-in default context window (in tokens) for this provider's
   /// text capability. Drives `AgentExecutor`'s auto-compaction
-  /// threshold (compaction triggers at ~75% of this value) and keeps
-  /// Compass from constructing requests that would be rejected
-  /// outright for exceeding the model's hard ceiling. The
-  /// `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` env var still overrides
-  /// the resolved value when set, and `0` disables compaction
-  /// entirely.
+  /// threshold when no more specific model size is selected, and keeps
+  /// Compass from constructing requests that would be rejected outright
+  /// for exceeding the model's hard ceiling. The
+  /// `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` env var still overrides the
+  /// resolved value when set, and `0` disables compaction entirely.
   ///
   /// Numbers reflect each vendor's publicly-documented ceilings:
   /// - Apple Foundation Models is a ~3B-param on-device model with
   ///   a 4096-token rolling window the framework manages internally.
-  /// - MiniMax M-series exposes a 200k-token window.
+  /// - MiniMax 2.7 defaults to a 200k-token window; MiniMax 3 opts
+  ///   into 1M via `textContextWindowTokens(for:)`.
   /// - OpenAI is sized for the GPT-4o family (128k); higher-window
   ///   models can opt in by setting the env var.
   var defaultTextContextWindowTokens: Int {
     switch self {
     case .appleFoundationModels: return 4_096
-    case .minimaxToken: return 200_000
+    case .minimaxToken: return MiniMaxTextModelVersion.default.contextWindowTokens
     case .openAI: return 128_000
+    }
+  }
+}
+
+enum MiniMaxTextModelVersion: String, Sendable, CaseIterable, Codable, Identifiable {
+  case m27
+  case m3
+
+  static let `default`: Self = .m27
+
+  var id: String { rawValue }
+
+  var displayName: String {
+    switch self {
+    case .m27: return "MiniMax 2.7"
+    case .m3: return "MiniMax 3"
+    }
+  }
+
+  var modelIdentifier: String {
+    switch self {
+    case .m27: return "MiniMax-M2.7"
+    case .m3: return "MiniMax-M3"
+    }
+  }
+
+  var contextWindowTokens: Int {
+    switch self {
+    case .m27: return 200_000
+    case .m3: return 1_000_000
+    }
+  }
+
+  init?(modelIdentifier: String) {
+    let normalized = modelIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+    switch normalized {
+    case "minimax-m2.7", "minimax-2.7", "m2.7", "2.7":
+      self = .m27
+    case "minimax-m3", "minimax-3", "m3", "3":
+      self = .m3
+    default:
+      return nil
     }
   }
 }

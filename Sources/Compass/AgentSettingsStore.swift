@@ -146,11 +146,10 @@ final class AgentSettingsStore: @unchecked Sendable {
       if let raw, let value = Int(raw) {
         return max(value, 0)
       }
-      // No env override: defer to the selected Text provider's
-      // built-in ceiling. Each provider declares the size of its
-      // model's window so compaction triggers before we construct a
-      // request the upstream would reject.
-      return textProvider.defaultTextContextWindowTokens
+      // No env override: defer to the selected Text model's built-in
+      // ceiling. MiniMax exposes multiple selectable text versions, so
+      // its compaction window follows the selected model identifier.
+      return textProvider.textContextWindowTokens(for: textModel)
     }()
     return AgentRuntimeSettings(
       textProvider: textProvider,

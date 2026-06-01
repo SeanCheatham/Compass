@@ -45,10 +45,10 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   /// Generic fallback context window used by the synthetic init
   /// default (tests and ad-hoc constructions that don't go through
   /// `AgentSettingsStore.load()`). Real runs resolve the value from
-  /// the selected Text provider's
-  /// `defaultTextContextWindowTokens` (see `AgentProviderKind`), so
-  /// each provider's actual ceiling — 4096 for Foundation Models,
-  /// 200k for MiniMax, 128k for OpenAI — drives auto-compaction.
+  /// the selected Text provider and model (see `AgentProviderKind`), so
+  /// each provider/model's actual ceiling — 4096 for Foundation
+  /// Models, 200k or 1M for MiniMax, 128k for OpenAI — drives
+  /// auto-compaction.
   /// `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` overrides whichever value
   /// the resolver picked; `0` disables auto-compaction entirely.
   static let defaultContextWindowTokens =
@@ -152,14 +152,15 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     let chosenProvider: AgentProviderKind =
       environment.compassAgentTrimmed("COMPASS_AGENT_API_KEY") != nil
       ? .minimaxToken : defaultTextProvider
+    let model = environment.compassAgentTrimmed("COMPASS_AGENT_MODEL") ?? defaultModelIdentifier
     let contextWindow =
       environment.compassAgentTrimmed("COMPASS_AGENT_CONTEXT_WINDOW_TOKENS")
-      .flatMap(Int.init) ?? chosenProvider.defaultTextContextWindowTokens
+      .flatMap(Int.init) ?? chosenProvider.textContextWindowTokens(for: model)
     return Self(
       textProvider: chosenProvider,
       baseURL: baseURL,
       apiKey: environment.compassAgentTrimmed("COMPASS_AGENT_API_KEY") ?? "",
-      model: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL") ?? defaultModelIdentifier,
+      model: model,
       planModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_PLAN"),
       developModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_DEV"),
       reflectModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_REFLECT"),

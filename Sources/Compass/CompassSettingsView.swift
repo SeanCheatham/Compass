@@ -141,16 +141,20 @@ private struct AgentSettingsTab: View {
   private func cellModelFields(
     capability: AgentCapability, provider: AgentProviderKind
   ) -> some View {
-    let placeholder = provider.defaultModel(for: capability) ?? "—"
-    TextField(
-      "\(capability == .text ? "Default model" : "\(capability.displayName) model")",
-      text: Binding(
-        get: { model.agentSettings.model(for: capability, provider: provider) },
-        set: { model.setCellModel($0, capability: capability, provider: provider) }
+    if capability == .text, provider == .minimaxToken {
+      minimaxVersionPicker()
+    } else {
+      let placeholder = provider.defaultModel(for: capability) ?? "—"
+      TextField(
+        "\(capability == .text ? "Default model" : "\(capability.displayName) model")",
+        text: Binding(
+          get: { model.agentSettings.model(for: capability, provider: provider) },
+          set: { model.setCellModel($0, capability: capability, provider: provider) }
+        )
       )
-    )
-    .textFieldStyle(.roundedBorder)
-    .help("Default for \(provider.displayName): \(placeholder)")
+      .textFieldStyle(.roundedBorder)
+      .help("Default for \(provider.displayName): \(placeholder)")
+    }
 
     if capability == .text {
       ForEach(AgentPhase.allCases, id: \.self) { phase in
@@ -167,6 +171,32 @@ private struct AgentSettingsTab: View {
         .help(phaseHelp(phase))
       }
     }
+  }
+
+  @ViewBuilder
+  private func minimaxVersionPicker() -> some View {
+    Picker(
+      "MiniMax version",
+      selection: Binding(
+        get: {
+          MiniMaxTextModelVersion(modelIdentifier: model.agentSettings.model)
+            ?? MiniMaxTextModelVersion.default
+        },
+        set: { version in
+          model.setCellModel(
+            version.modelIdentifier,
+            capability: .text,
+            provider: .minimaxToken
+          )
+        }
+      )
+    ) {
+      ForEach(MiniMaxTextModelVersion.allCases) { version in
+        Text(version.displayName).tag(version)
+      }
+    }
+    .pickerStyle(.menu)
+    .help("Selects the MiniMax text model and matching context window.")
   }
 
   private struct ProviderOption {

@@ -25,8 +25,19 @@ struct AgentRuntimeSettingsTests {
       "COMPASS_AGENT_API_KEY": "env-key"
     ])
     try #require(settings.textProvider == .minimaxToken)
+    try #require(settings.model == "MiniMax-M2.7")
     try #require(
       settings.contextWindowTokens == AgentProviderKind.minimaxToken.defaultTextContextWindowTokens)
+  }
+
+  @Test func testMiniMaxM3EnvironmentModelSelectsM3ContextWindow() throws {
+    let settings = AgentRuntimeSettings.defaultFromEnvironment([
+      "COMPASS_AGENT_API_KEY": "env-key",
+      "COMPASS_AGENT_MODEL": "MiniMax-M3",
+    ])
+    try #require(settings.textProvider == .minimaxToken)
+    try #require(settings.model == "MiniMax-M3")
+    try #require(settings.contextWindowTokens == 1_000_000)
   }
 
   @Test func testContextWindowEnvironmentOverrideIsApplied() throws {
@@ -67,6 +78,10 @@ struct AgentRuntimeSettingsTests {
       AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens == 4_096)
     try #require(
       AgentProviderKind.minimaxToken.defaultTextContextWindowTokens == 200_000)
+    try #require(
+      AgentProviderKind.minimaxToken.textContextWindowTokens(for: "MiniMax-M2.7") == 200_000)
+    try #require(
+      AgentProviderKind.minimaxToken.textContextWindowTokens(for: "MiniMax-M3") == 1_000_000)
     try #require(
       AgentProviderKind.openAI.defaultTextContextWindowTokens == 128_000)
   }
