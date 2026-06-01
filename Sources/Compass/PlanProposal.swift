@@ -11,16 +11,21 @@ struct PlanProposal: Codable, Equatable {
     case immediate
     case next
     case nextImmediate
+    case nextImmediateSnake = "next_immediate"
     case immediatePlan
+    case immediatePlanSnake = "immediate_plan"
     case midTerm
     case midterm
     case mid_term
     case nearTerm
+    case nearTermSnake = "near_term"
     case nearTermQueue
+    case nearTermQueueSnake = "near_term_queue"
     case longTerm
     case longterm
     case long_term
     case strategicArc
+    case strategicArcSnake = "strategic_arc"
   }
 
   init(immediate: PlanNext?, midTerm: String, longTerm: String) {
@@ -42,19 +47,23 @@ struct PlanProposal: Codable, Equatable {
     immediate = try Self.decodeRequiredOptionalPlanNext(
       from: container,
       preferredKey: .immediate,
-      aliases: [.next, .nextImmediate, .immediatePlan],
+      aliases: [
+        .next, .nextImmediate, .nextImmediateSnake, .immediatePlan, .immediatePlanSnake,
+      ],
       fieldName: "immediate"
     )
     midTerm = try Self.decodeRequiredString(
       from: container,
       preferredKey: .midTerm,
-      aliases: [.midterm, .mid_term, .nearTerm, .nearTermQueue],
+      aliases: [
+        .midterm, .mid_term, .nearTerm, .nearTermSnake, .nearTermQueue, .nearTermQueueSnake,
+      ],
       fieldName: "midTerm"
     )
     longTerm = try Self.decodeRequiredString(
       from: container,
       preferredKey: .longTerm,
-      aliases: [.longterm, .long_term, .strategicArc],
+      aliases: [.longterm, .long_term, .strategicArc, .strategicArcSnake],
       fieldName: "longTerm"
     )
   }

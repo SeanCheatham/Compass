@@ -211,15 +211,22 @@ struct PlanNext: Codable, Equatable {
   enum CodingKeys: String, CodingKey {
     case plan
     case implementationPlan
+    case implementationPlanSnake = "implementation_plan"
     case handoff
     case verify
     case verifyCommand
+    case verifyCommandSnake = "verify_command"
     case verification
     case verificationCommand
+    case verificationCommandSnake = "verification_command"
     case verifyCmd
+    case verifyCmdSnake = "verify_cmd"
     case verifyTimeoutMs
+    case verifyTimeoutMsSnake = "verify_timeout_ms"
     case estimatedDifficulty
+    case estimatedDifficultySnake = "estimated_difficulty"
     case requiresHostXcode
+    case requiresHostXcodeSnake = "requires_host_xcode"
   }
 
   init(
@@ -241,22 +248,37 @@ struct PlanNext: Codable, Equatable {
     let plan = try Self.decodeRequiredTrimmedString(
       from: container,
       preferredKey: .plan,
-      aliases: [.implementationPlan, .handoff],
+      aliases: [.implementationPlan, .implementationPlanSnake, .handoff],
       fieldName: "plan"
     )
     let verify = try Self.decodeRequiredTrimmedString(
       from: container,
       preferredKey: .verify,
-      aliases: [.verifyCommand, .verification, .verificationCommand, .verifyCmd],
+      aliases: [
+        .verifyCommand, .verifyCommandSnake, .verification, .verificationCommand,
+        .verificationCommandSnake, .verifyCmd, .verifyCmdSnake,
+      ],
       fieldName: "verify"
     )
 
     self.plan = plan
     self.verify = verify
-    self.verifyTimeoutMs = Self.decodePositiveInt(from: container, forKey: .verifyTimeoutMs)
-    self.estimatedDifficulty = Self.decodeDifficulty(from: container, forKey: .estimatedDifficulty)
+    self.verifyTimeoutMs = Self.decodePositiveInt(
+      from: container,
+      preferredKey: .verifyTimeoutMs,
+      aliases: [.verifyTimeoutMsSnake]
+    )
+    self.estimatedDifficulty = Self.decodeDifficulty(
+      from: container,
+      preferredKey: .estimatedDifficulty,
+      aliases: [.estimatedDifficultySnake]
+    )
     self.requiresHostXcode =
-      FlexibleModelDecoder.decodeBool(from: container, forKey: .requiresHostXcode) ?? false
+      Self.decodeBool(
+        from: container,
+        preferredKey: .requiresHostXcode,
+        aliases: [.requiresHostXcodeSnake]
+      ) ?? false
   }
 
   func encode(to encoder: Encoder) throws {
@@ -268,6 +290,19 @@ struct PlanNext: Codable, Equatable {
     if requiresHostXcode {
       try container.encode(true, forKey: .requiresHostXcode)
     }
+  }
+
+  private static func decodePositiveInt(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys]
+  ) -> Int? {
+    for key in [preferredKey] + aliases {
+      if let value = decodePositiveInt(from: container, forKey: key) {
+        return value
+      }
+    }
+    return nil
   }
 
   private static func decodePositiveInt(
@@ -298,6 +333,19 @@ struct PlanNext: Codable, Equatable {
 
   private static func decodeDifficulty(
     from container: KeyedDecodingContainer<CodingKeys>,
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys]
+  ) -> Difficulty? {
+    for key in [preferredKey] + aliases {
+      if let value = decodeDifficulty(from: container, forKey: key) {
+        return value
+      }
+    }
+    return nil
+  }
+
+  private static func decodeDifficulty(
+    from container: KeyedDecodingContainer<CodingKeys>,
     forKey key: CodingKeys
   ) -> Difficulty? {
     guard
@@ -308,6 +356,19 @@ struct PlanNext: Codable, Equatable {
       return nil
     }
     return Difficulty(rawValue: rawValue)
+  }
+
+  private static func decodeBool(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys]
+  ) -> Bool? {
+    for key in [preferredKey] + aliases {
+      if let value = FlexibleModelDecoder.decodeBool(from: container, forKey: key) {
+        return value
+      }
+    }
+    return nil
   }
 
   private static func decodeRequiredTrimmedString(

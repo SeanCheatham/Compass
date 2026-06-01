@@ -894,9 +894,9 @@ struct PlanNextDecoderTests {
       {
         "plan": "Build",
         "verify": "xcodebuild -scheme App test",
-        "verifyTimeoutMs": "600000",
-        "estimatedDifficulty": " Medium ",
-        "requiresHostXcode": "true"
+        "verify_timeout_ms": "600000",
+        "estimated_difficulty": " Medium ",
+        "requires_host_xcode": "true"
       }
       """)
 
@@ -909,9 +909,9 @@ struct PlanNextDecoderTests {
     let next = try decodePlanNext(
       """
       {
-        "implementationPlan": "  Build the safer handoff\\n",
-        "verifyCommand": "\\n swift test --filter PlanDomainTests  ",
-        "requiresHostXcode": "no"
+        "implementation_plan": "  Build the safer handoff\\n",
+        "verify_command": "\\n swift test --filter PlanDomainTests  ",
+        "requires_host_xcode": "no"
       }
       """)
 
@@ -1081,10 +1081,10 @@ struct PlanningEnvelopeDecoderTests {
         "planState": {
           "next": {
             "handoff": "Build the envelope decoder tolerance.",
-            "verifyCommand": "swift test --filter PlanningEnvelopeDecoderTests"
+            "verify_command": "swift test --filter PlanningEnvelopeDecoderTests"
           },
-          "mid_term": "- Continue payload hardening",
-          "long_term": "Make Compass forgiving at the edges and strict at the core."
+          "near_term_queue": "- Continue payload hardening",
+          "strategic_arc": "Make Compass forgiving at the edges and strict at the core."
         },
         "lesson_edits": [
           {
@@ -1150,12 +1150,12 @@ struct PlanningEnvelopeDecoderTests {
     let data = Data(
       """
       {
-        "next": null,
-        "nearTermQueue": [
+        "next_immediate": null,
+        "near_term_queue": [
           "- Harden weak-model recovery.",
           "- Keep owner-facing status clear."
         ],
-        "strategicArc": [
+        "strategic_arc": [
           "Keep the factory understandable to non-engineers.",
           "Make model mistakes recoverable instead of mysterious."
         ]
