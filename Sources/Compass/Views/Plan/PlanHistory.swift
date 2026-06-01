@@ -10,7 +10,11 @@ struct PlanSessionHistorySection: View {
   var isLoadingArchivedSessions = false
   var onLoadArchivedSessions: () async -> Void = {}
 
+  @State private var guideNarration: PlanSessionHistoryGuideNarration?
+
   var body: some View {
+    let guide = PlanSessionHistoryGuide(display: display, runCues: runCues)
+
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .firstTextBaseline) {
         VStack(alignment: .leading, spacing: 3) {
@@ -74,6 +78,11 @@ struct PlanSessionHistorySection: View {
         .foregroundStyle(.secondary)
       }
 
+      PlanSessionHistoryGuidePanel(
+        guide: guide,
+        narration: matchingNarration(for: guide)
+      )
+
       if display.unfilteredTotalCount == 0 {
         EmptyState("No run history recorded.")
       } else if display.totalCount == 0 {
@@ -91,12 +100,103 @@ struct PlanSessionHistorySection: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+    .task(id: guide.narrationIdentifier) {
+      guideNarration = nil
+      guideNarration = await PlanSessionHistoryGuideNarrator.narrate(guide: guide)
+    }
   }
 
   private func hiddenSummaryText(_ statusSummary: String) -> String {
     let matchingText = display.filter == .all ? "" : " matching"
     return
       "\(display.hiddenCount) older\(matchingText) \(PlanSessionHistoryDisplay.runWord(for: display.hiddenCount)) hidden: \(statusSummary)"
+  }
+
+  private func matchingNarration(
+    for guide: PlanSessionHistoryGuide
+  ) -> PlanSessionHistoryGuideNarration? {
+    guard guideNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return guideNarration
+  }
+}
+
+struct PlanSessionHistoryGuidePanel: View {
+  var guide: PlanSessionHistoryGuide
+  var narration: PlanSessionHistoryGuideNarration?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(guide.title, systemImage: guide.systemImageName)
+          .font(.callout.weight(.semibold))
+          .foregroundStyle(color)
+
+        Spacer(minLength: 8)
+
+        Text(guide.statusLabel)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .padding(.horizontal, 7)
+          .padding(.vertical, 2)
+          .background(.quaternary.opacity(0.65), in: Capsule())
+      }
+
+      Text(narration?.text ?? guide.detail)
+        .font(.callout)
+        .foregroundStyle(.primary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 6) {
+          ForEach(guide.facts) { fact in
+            Label(fact.label, systemImage: fact.systemImageName)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .padding(.horizontal, 7)
+              .padding(.vertical, 3)
+              .background(color.opacity(0.1), in: Capsule())
+              .help(fact.detail)
+          }
+
+          if narration != nil {
+            Label("On-device history note", systemImage: "sparkles")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .padding(.horizontal, 7)
+              .padding(.vertical, 3)
+              .background(.quaternary.opacity(0.55), in: Capsule())
+          }
+        }
+      }
+    }
+    .padding(11)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay {
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(color.opacity(0.2))
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(guide.title). \(narration?.text ?? guide.detail)")
+  }
+
+  private var color: Color {
+    switch guide.tone {
+    case .empty:
+      return .secondary
+    case .steady:
+      return .green
+    case .active:
+      return .blue
+    case .attention:
+      return .orange
+    }
   }
 }
 
@@ -293,9 +393,9 @@ struct HistoryHandoffSummary: View {
           Text(
             "Missing handoff detail: \(item.handoffDigest.missingPieces.map(\.label).joined(separator: ", "))"
           )
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .textSelection(.enabled)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
         }
       }
     }
