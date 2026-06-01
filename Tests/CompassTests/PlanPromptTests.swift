@@ -262,6 +262,40 @@ struct PlanPromptTests {
     )
   }
 
+  @Test func testDevelopPromptIncludesExecutableHandoffDigest() throws {
+    let prompt = Prompts.developPrompt(
+      next: PlanNext(
+        plan: """
+          ## Outcome
+          Make draft polish available without Apple Intelligence.
+
+          ## Why it matters
+          Non-engineers still get a cleaner draft before planning.
+
+          ## Acceptance checks
+          - Preview appears for a non-empty draft.
+          - Deterministic polish remains the fallback.
+          """,
+        verify: "swift test --filter DraftRefinementTests",
+        verifyTimeoutMs: nil,
+        estimatedDifficulty: .medium
+      ),
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: []
+    )
+
+    try #require(prompt.contains("## Execution handoff"))
+    try #require(prompt.contains("Handoff status: Executable handoff"))
+    try #require(prompt.contains("Treat the checks below as the finish line"))
+    try #require(prompt.contains("Outcome: Make draft polish available without Apple Intelligence."))
+    try #require(prompt.contains("Why it matters: Non-engineers still get a cleaner draft before planning."))
+    try #require(prompt.contains("- Preview appears for a non-empty draft."))
+    try #require(prompt.contains("Verify meaning: Runs Swift tests"))
+    try #require(prompt.contains("focused on DraftRefinementTests"))
+  }
+
   @Test func testDevelopPromptMentionsHostXcodeOnlyWhenEnabledAndRequired() throws {
     let next = PlanNext(
       plan: "Build the app",

@@ -80,6 +80,7 @@ extension Prompts {
       \(hostXcodeVerifyNote)
       """
       : ""
+    let handoffSection = developHandoffSection(next: next)
     return """
       You are the Develop agent in Compass's software factory (see the system
       message for how the loop works).
@@ -115,6 +116,9 @@ extension Prompts {
 
       \(developAttemptInstructions(attempt: attempt, priorIssues: priorIssues))
 
+      ## Execution handoff
+      \(handoffSection)
+
       ## Plan to implement
       \(next.plan)
 
@@ -140,6 +144,36 @@ extension Prompts {
       - `lessonEdits`: exact find/replace edits against the lessons content
         shown above, or [].
       """
+  }
+
+  private static func developHandoffSection(next: PlanNext) -> String {
+    let digest = PlanHandoffDigest(plan: next.plan)
+    let verify = PlanVerifyCommandSummary(command: next.verify)
+    var lines: [String] = [
+      "Handoff status: \(digest.title). \(digest.detail)",
+      "Treat the checks below as the finish line; do not broaden scope.",
+    ]
+
+    if let outcome = digest.outcome {
+      lines.append("Outcome: \(outcome)")
+    }
+    if let whyItMatters = digest.whyItMatters {
+      lines.append("Why it matters: \(whyItMatters)")
+    }
+
+    if digest.acceptanceChecks.isEmpty {
+      let missing = digest.missingPieces.map(\.label).joined(separator: ", ")
+      lines.append("Missing handoff detail: \(missing). Recover it from the plan text before editing.")
+    } else {
+      lines.append("Acceptance checks:")
+      for check in digest.acceptanceChecks {
+        lines.append("- \(check)")
+      }
+    }
+
+    lines.append("Verify meaning: \(verify.title). \(verify.detail)")
+    lines.append("Exact verify command remains below.")
+    return lines.joined(separator: "\n")
   }
 
   private static func developAttemptInstructions(attempt: Int, priorIssues: [String]) -> String {
