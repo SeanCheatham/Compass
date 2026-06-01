@@ -187,6 +187,8 @@ struct AgentExecutorTests {
       AgentReadFileTool.toolName,
       AgentListFilesTool.toolName,
       AgentFindSymbolTool.toolName,
+      AgentImportersOfTool.toolName,
+      AgentListToolchainsTool.toolName,
       AgentExecutor.submitResultToolName,
     ]
 
@@ -210,6 +212,28 @@ struct AgentExecutorTests {
         == AgentExecutor.submitResultToolName)
     try #require(
       AgentExecutor.canonicalToolName("unknownTool", availableToolNames: names) == nil)
+  }
+
+  @Test func testCanonicalToolNameAcceptsSingularPluralDrift() throws {
+    let names: Set<String> = [
+      AgentReadFileTool.toolName,
+      AgentListFilesTool.toolName,
+      AgentImportersOfTool.toolName,
+      AgentListToolchainsTool.toolName,
+    ]
+
+    try #require(
+      AgentExecutor.canonicalToolName("read_files", availableToolNames: names)
+        == AgentReadFileTool.toolName)
+    try #require(
+      AgentExecutor.canonicalToolName("list_file", availableToolNames: names)
+        == AgentListFilesTool.toolName)
+    try #require(
+      AgentExecutor.canonicalToolName("importer_of", availableToolNames: names)
+        == AgentImportersOfTool.toolName)
+    try #require(
+      AgentExecutor.canonicalToolName("list_toolchain", availableToolNames: names)
+        == AgentListToolchainsTool.toolName)
   }
 
   @Test func testEnsureUniqueToolNamesRejectsAliasCollisions() throws {

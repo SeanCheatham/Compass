@@ -425,7 +425,27 @@ extension AgentExecutor {
     if normalized.hasSuffix("_tool") {
       candidates.insert(String(normalized.dropLast("_tool".count)))
     }
+    for candidate in Array(candidates) {
+      candidates.formUnion(toolNamePluralityVariants(for: candidate))
+    }
     return candidates
+  }
+
+  private static func toolNamePluralityVariants(for name: String) -> Set<String> {
+    let parts = name.split(separator: "_", omittingEmptySubsequences: false).map(String.init)
+    guard !parts.isEmpty else { return [] }
+    var variants = Set<String>()
+    for index in parts.indices {
+      guard parts[index].count > 3 else { continue }
+      var toggled = parts
+      if parts[index].hasSuffix("s") {
+        toggled[index] = String(parts[index].dropLast())
+      } else {
+        toggled[index] += "s"
+      }
+      variants.insert(toggled.joined(separator: "_"))
+    }
+    return variants
   }
 
   private static func uniqueToolNameMatch(
