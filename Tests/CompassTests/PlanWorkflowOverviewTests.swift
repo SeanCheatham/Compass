@@ -457,7 +457,7 @@ struct PlanWorkflowOverviewTests {
   func testHandoffRepairGuideFlagsWeakPlanAndPlaceholderVerify() throws {
     let guide = PlanHandoffRepairGuide(
       plan: "Make the Plan tab easier to read.",
-      verify: "true",
+      verify: #"echo "No tests available""#,
       languageProfile: profile(.typeScriptJavaScript, hints: [.packageJSON])
     )
 

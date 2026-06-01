@@ -141,7 +141,8 @@ struct ProjectRecoveryGuide: Equatable {
       return RejectedPlanRecovery(
         title: "Replace the verify command",
         detail:
-          "Use a real command Compass can run; do not use true, none, n/a, or not-running-tests.",
+          "Use a real command Compass can run; do not use no-op commands such as "
+            + "true, exit 0, echo no tests, none, n/a, or not-running-tests.",
         retryDetail: retryDetail
       )
     }

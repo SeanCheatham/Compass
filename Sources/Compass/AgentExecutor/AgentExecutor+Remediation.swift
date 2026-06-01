@@ -201,7 +201,7 @@ extension AgentExecutor {
       let rejected = error.rejectedVerify.map { " Rejected verify: `\($0)`." } ?? ""
       return """
         - Replace the placeholder verify command with a real shell command Compass can run.\(rejected)
-        - Do not use `true`, `none`, `n/a`, or `not-running-tests`.
+        - Do not use no-op commands such as \(PlanVerifyCommandPolicy.placeholderExamples).
         - Keep the plan text if its Outcome and Acceptance checks are still correct.
         """
     case .coverageRequirement:

@@ -467,7 +467,9 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("Replace the placeholder verify command"))
     try #require(nudge.userMessage.contains("Rejected verify: `true`"))
     try #require(
-      nudge.userMessage.contains("Do not use `true`, `none`, `n/a`, or `not-running-tests`"))
+      nudge.userMessage.contains(
+        "Do not use no-op commands such as `true`, `exit 0`, `echo no tests`, "
+          + "`none`, `n/a`, or `not-running-tests`"))
     try #require(
       nudge.userMessage.contains("Keep the plan text if its Outcome and Acceptance checks"))
   }

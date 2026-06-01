@@ -21,8 +21,8 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     languageProfile: RepositoryLanguageProfile
   ) {
     let digest = PlanHandoffDigest(plan: rawPlan)
-    let verifyCommand = Self.normalizedVerify(rawVerify)
-    let hasUsableVerify = verifyCommand.map { !Self.isPlaceholderVerify($0) } ?? false
+    let verifyCommand = PlanVerifyCommandPolicy.normalizedCommand(rawVerify)
+    let hasUsableVerify = verifyCommand.map { !PlanVerifyCommandPolicy.isPlaceholder($0) } ?? false
     suggestedVerifyCommand = hasUsableVerify
       ? verifyCommand
       : Self.suggestedVerifyCommand(for: languageProfile)
@@ -148,20 +148,6 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
         return false
       }
     }
-  }
-
-  private static func normalizedVerify(_ rawVerify: String?) -> String? {
-    let command = rawVerify?
-      .replacingOccurrences(of: "\r", with: " ")
-      .replacingOccurrences(of: "\n", with: " ")
-      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    return command?.isEmpty == false ? command : nil
-  }
-
-  private static func isPlaceholderVerify(_ command: String) -> Bool {
-    Set(["true", "not-running-tests", "not running tests", "none", "n/a"])
-      .contains(command.lowercased())
   }
 
   private static func suggestedVerifyCommand(for profile: RepositoryLanguageProfile) -> String? {

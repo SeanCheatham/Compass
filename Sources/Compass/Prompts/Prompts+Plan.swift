@@ -111,8 +111,8 @@ extension Prompts {
       - Keep `midTerm` to the next 3-7 useful increments.
       - Keep `longTerm` strategic and stable; revise it only when something
         material changes.
-      - Never choose placeholder verify commands like `true`, `not-running-tests`,
-        `none`, or `n/a`.
+      - Never choose placeholder verify commands like `true`, `exit 0`,
+        `echo no tests`, `not-running-tests`, `none`, or `n/a`.
       \(compassTestsMigrationRule)
       - Compass projects use opinionated forge profiles (Swift, Go, Rust, or
         TypeScript/Vitest). Test verify commands must collect coverage — see

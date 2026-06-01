@@ -150,8 +150,8 @@ struct ProjectRunControlGuideTests {
 
             ## Acceptance checks
             - Develop is disabled until the verify command is real.
-            """,
-          verify: "true"
+          """,
+          verify: "exit 0"
         )
       ),
       reliabilityStatus: emptyReliabilityStatus(),

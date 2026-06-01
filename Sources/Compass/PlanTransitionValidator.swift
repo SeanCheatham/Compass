@@ -62,32 +62,33 @@ enum PlanTransitionValidator {
       }
       return
     }
-    let verify = immediate.verify.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    let rejectedVerifyCommands = Set([
-      "true",
-      "not-running-tests",
-      "not running tests",
-      "none",
-      "n/a",
-    ])
-    if rejectedVerifyCommands.contains(verify) {
+    guard let verify = PlanVerifyCommandPolicy.normalizedCommand(immediate.verify) else {
       throw PlanTransitionValidationError(
         message:
-          "Plan returned placeholder verify command `\(immediate.verify)`. Refusing to overwrite state.json.",
+          "Plan returned an empty verify command. Refusing to overwrite state.json.",
         reason: .placeholderVerify,
         missingLabels: ["Verify command"],
-        rejectedVerify: immediate.verify
+        rejectedVerify: nil
+      )
+    }
+    if PlanVerifyCommandPolicy.isPlaceholder(verify) {
+      throw PlanTransitionValidationError(
+        message:
+          "Plan returned placeholder verify command `\(verify)`. Refusing to overwrite state.json.",
+        reason: .placeholderVerify,
+        missingLabels: ["Verify command"],
+        rejectedVerify: verify
       )
     }
     if let coverageError = ForgeVerifyValidator.coverageViolation(
-      verify: immediate.verify,
+      verify: verify,
       profile: forgeProfile
     ) {
       throw PlanTransitionValidationError(
         message: coverageError,
         reason: .coverageRequirement,
         missingLabels: ["Coverage-ready verify command"],
-        rejectedVerify: immediate.verify
+        rejectedVerify: verify
       )
     }
 

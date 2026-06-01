@@ -13,13 +13,33 @@ struct PlanTransitionValidatorTests {
 
   @Test func testRejectsPlaceholderVerifyCommands() throws {
     let current = makeState()
-    let next = makeState(immediate: PlanNext(plan: "Do work", verify: " true "))
+    let commands = [
+      (" true ", "true"),
+      ("exit 0", "exit 0"),
+      (#"echo "No tests available""#, #"echo "No tests available""#),
+      (":", ":"),
+    ]
+
+    for (command, rejectedVerify) in commands {
+      let next = makeState(immediate: PlanNext(plan: "Do work", verify: command))
+
+      let error = try rejectedTransition(from: current, to: next)
+      try #require(error.message.contains("placeholder verify command"))
+      try #require(error.reason == .placeholderVerify)
+      try #require(error.missingLabels == ["Verify command"])
+      try #require(error.rejectedVerify == rejectedVerify)
+    }
+  }
+
+  @Test func testRejectsMissingVerifyCommand() throws {
+    let current = makeState()
+    let next = makeState(immediate: PlanNext(plan: executablePlan("Do work"), verify: " \n "))
 
     let error = try rejectedTransition(from: current, to: next)
-    try #require(error.message.contains("placeholder verify command"))
+    try #require(error.message.contains("empty verify command"))
     try #require(error.reason == .placeholderVerify)
     try #require(error.missingLabels == ["Verify command"])
-    try #require(error.rejectedVerify == "true")
+    try #require(error.rejectedVerify == nil)
   }
 
   @Test func testAcceptsNormalImmediateWork() throws {
