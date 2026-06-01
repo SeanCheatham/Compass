@@ -784,6 +784,11 @@ struct ReflectSummary: Codable, Equatable {
     case planning_state
     case proposal
     case summary
+    case reflection
+    case result
+    case outcome
+    case details
+    case notes
     case lessonEdits
     case lessonEditsSnake = "lesson_edits"
   }
@@ -801,7 +806,12 @@ struct ReflectSummary: Codable, Equatable {
       preferredKey: .state,
       aliases: [.planState, .plan_state, .planningState, .planning_state, .proposal]
     )
-    summary = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .summary)
+    summary = try FlexibleModelDecoder.decodeRequiredString(
+      from: container,
+      preferredKey: .summary,
+      aliases: [.reflection, .result, .outcome, .details, .notes],
+      fieldName: "summary"
+    )
     lessonEdits =
       try FlexibleModelDecoder.decodeLessonEditsIfPresent(
         from: container,

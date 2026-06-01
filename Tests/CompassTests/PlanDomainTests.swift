@@ -1186,7 +1186,7 @@ struct PlanningEnvelopeDecoderTests {
           "nearTermQueue": "",
           "strategicArc": "Keep the factory understandable to non-engineers."
         },
-        "summary": [
+        "reflection": [
           "The arc still points at non-engineer UX.",
           "No immediate planning update is needed."
         ],
