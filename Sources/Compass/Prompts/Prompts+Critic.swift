@@ -90,7 +90,9 @@ extension Prompts {
       - `feedback`: when requesting changes, a concrete punch list the
         Develop agent can act on in one more pass. Lead with the most
         important item; reference file paths and line numbers from the
-        diff. Empty string when approving.
+        diff. Do not use `fix it`, `needs work`, `ok`, or other placeholder
+        wording. Empty string when approving; if you cannot name a concrete
+        recovery action, approve instead of requesting changes.
 
       ## Review brief
       \(reviewBrief)

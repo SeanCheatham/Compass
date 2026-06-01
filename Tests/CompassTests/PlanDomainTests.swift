@@ -341,6 +341,60 @@ struct PlanSubmitResultValidationTests {
     try validate(args)
   }
 
+  @Test func testRejectsWeakCriticFeedbackBeforeAgentFinishes() throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    let args = Data(
+      """
+      {
+        "verdict": "request_changes",
+        "summary": "Needs work.",
+        "feedback": "fix it"
+      }
+      """.utf8
+    )
+    let validate = project.submitResultValidation(
+      for: .critic,
+      hostRepoURL: repoURL,
+      decode: CriticVerdict.self
+    )
+
+    do {
+      try validate(args)
+      Issue.record("Expected weak Critic feedback to be rejected.")
+    } catch let error as CriticFeedbackValidationError {
+      try #require(error.reason == .placeholder)
+      try #require(error.message.contains("next Develop pass"))
+    }
+  }
+
+  @Test func testAcceptsApproveWithEmptyCriticFeedbackBeforeAgentFinishes() throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    let args = Data(
+      """
+      {
+        "verdict": "approve",
+        "summary": "No blocking issues found.",
+        "feedback": ""
+      }
+      """.utf8
+    )
+    let validate = project.submitResultValidation(
+      for: .critic,
+      hostRepoURL: repoURL,
+      decode: CriticVerdict.self
+    )
+
+    try validate(args)
+  }
+
   @Test func testDevelopStartRefusesWeakExistingImmediateHandoff() async throws {
     let repoURL = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: repoURL) }

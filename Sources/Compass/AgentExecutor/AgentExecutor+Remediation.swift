@@ -26,6 +26,9 @@ extension AgentExecutor {
     if let error = error as? DevelopFeedbackValidationError {
       return invalidDevelopFeedbackNudge(error: error)
     }
+    if let error = error as? CriticFeedbackValidationError {
+      return invalidCriticFeedbackNudge(error: error)
+    }
     if error is DecodingError {
       return invalidSubmitResultDecodeNudge(errorMessage: decodingErrorMessage(error))
     }
@@ -102,6 +105,25 @@ extension AgentExecutor {
         sentences. For `succeeded`, name what changed and whether there is a next follow-up or \
         no follow-up after verification. For `blocked` or `failed`, name the blocker/failure and \
         the smallest recovery action Plan should choose next. Do not answer in prose.
+        """
+    )
+  }
+
+  static func invalidCriticFeedbackNudge(error: CriticFeedbackValidationError)
+    -> InvalidToolArgumentsNudge
+  {
+    InvalidToolArgumentsNudge(
+      eventText: "submit_result critic feedback rejected",
+      eventDetail: error.message,
+      userMessage: """
+        Your previous Critic `submit_result` requested changes without an actionable punch list: \
+        \(error.message)
+
+        Call `submit_result` again. If there is a real, fixable problem, keep \
+        `verdict: "request_changes"` and replace `feedback` with one or two concrete bullets or \
+        sentences that name the failure and the smallest recovery action. Include file paths or \
+        line numbers from the diff when possible. If you cannot name a concrete fix, approve with \
+        `feedback: ""`. Do not answer in prose.
         """
     )
   }

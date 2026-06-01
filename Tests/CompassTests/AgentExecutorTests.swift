@@ -365,6 +365,23 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("Do not answer in prose"))
   }
 
+  @Test func testInvalidCriticFeedbackNudgeExplainsApproveEscapeHatch() throws {
+    let nudge = AgentExecutor.submitResultValidationNudge(
+      for: CriticFeedbackValidationError(
+        message: "Critic feedback `fix it` is too generic to guide the next Develop pass.",
+        reason: .placeholder,
+        feedback: "fix it"
+      )
+    )
+
+    try #require(nudge.eventText == "submit_result critic feedback rejected")
+    try #require(nudge.eventDetail.contains("too generic"))
+    try #require(nudge.userMessage.contains("request_changes"))
+    try #require(nudge.userMessage.contains("smallest recovery action"))
+    try #require(nudge.userMessage.contains("approve with"))
+    try #require(nudge.userMessage.contains("Do not answer in prose"))
+  }
+
   @Test func testInvalidSubmitResultDecodeNudgeExplainsContractMismatch() throws {
     let nudge = AgentExecutor.invalidSubmitResultDecodeNudge(
       errorMessage: "Missing required field `lessonEdits`."

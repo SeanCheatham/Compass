@@ -44,3 +44,42 @@ struct DevelopFeedbackValidatorTests {
     )
   }
 }
+
+struct CriticFeedbackValidatorTests {
+  @Test func allowsApproveWithoutFeedback() throws {
+    try CriticFeedbackValidator.validate(
+      CriticVerdict(verdict: .approve, summary: "No blocking issues found.", feedback: "")
+    )
+  }
+
+  @Test func rejectsRequestChangesWithoutConcreteFeedback() throws {
+    let cases: [(String, CriticFeedbackValidationError.Reason)] = [
+      ("", .empty),
+      ("needs work", .placeholder),
+      ("fix it", .placeholder),
+      ("missing tests", .tooShort),
+    ]
+
+    for (feedback, reason) in cases {
+      do {
+        try CriticFeedbackValidator.validate(
+          CriticVerdict(verdict: .requestChanges, summary: "Issue found.", feedback: feedback)
+        )
+        Issue.record("Expected critic feedback `\(feedback)` to be rejected.")
+      } catch let error as CriticFeedbackValidationError {
+        try #require(error.reason == reason)
+      }
+    }
+  }
+
+  @Test func acceptsConcreteRequestChangesFeedback() throws {
+    try CriticFeedbackValidator.validate(
+      CriticVerdict(
+        verdict: .requestChanges,
+        summary: "The fallback path is untested.",
+        feedback:
+          "Add a DraftReadinessGuide fallback test covering empty queues before approving."
+      )
+    )
+  }
+}

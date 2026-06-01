@@ -180,6 +180,28 @@ struct CriticPromptTests {
     try #require(prompt.contains("generated build outputs"))
   }
 
+  @Test func testCriticPromptRequiresConcreteRequestChangesFeedback() throws {
+    let prompt = Prompts.criticPrompt(
+      next: makePlanNext(),
+      developSummary: makeDevelopSummary(),
+      verifyCommand: "swift test",
+      verifyExitCode: 0,
+      verifyOutput: "",
+      gitDiff: "diff --git a/Sources/Foo.swift b/Sources/Foo.swift\n+let broken = true\n",
+      priorCritiques: [],
+      lessons: "",
+      vision: "",
+      iteration: 1,
+      maxIterations: 3
+    )
+
+    try #require(prompt.contains("concrete punch list"))
+    try #require(prompt.contains("Do not use `fix it`"))
+    try #require(prompt.contains("placeholder"))
+    try #require(prompt.contains("if you cannot name a concrete"))
+    try #require(prompt.contains("approve instead of requesting changes"))
+  }
+
   @Test func testCriticVerdictDecodesApproveAndRequestChangesSnakeCase() throws {
     let approve = #"{"verdict":"approve","summary":"looks good","feedback":""}"#
     let reject = #"{"verdict":"request_changes","summary":"missing tests","feedback":"add one"}"#

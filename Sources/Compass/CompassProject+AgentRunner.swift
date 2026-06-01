@@ -243,6 +243,9 @@ extension CompassProject {
       if phase == .develop, let developResult = decoded as? DevelopSummary {
         try DevelopFeedbackValidator.validate(developResult)
       }
+      if phase == .critic, let criticResult = decoded as? CriticVerdict {
+        try CriticFeedbackValidator.validate(criticResult)
+      }
       guard phase == .plan, let planResult = decoded as? PlanRunResult else { return }
       let currentState = try hostWorkspace.readState()
       let nextState = currentState.applying(proposal: planResult.state)
