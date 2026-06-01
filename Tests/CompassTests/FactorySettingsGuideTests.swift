@@ -74,6 +74,54 @@ struct FactorySettingsGuideTests {
   }
 
   @Test
+  func factoryClipboardPayloadPackagesRecommendedRowsForReuse() {
+    let guide = FactorySettingsGuide(projects: [
+      makeProject(
+        name: "Swift App",
+        hostXcodeBuildTestEnabled: false,
+        recommendsHostXcode: true,
+        isSelected: true
+      ),
+      makeProject(
+        name: "CLI Tools",
+        hostXcodeBuildTestEnabled: true,
+        recommendsHostXcode: true
+      ),
+      makeProject(
+        name: "Go Service",
+        hostXcodeBuildTestEnabled: false,
+        recommendsHostXcode: false
+      ),
+    ])
+
+    let payload = FactorySettingsClipboardPayload(guide: guide)
+
+    #expect(payload.text.contains("Compass Factory Settings Handoff"))
+    #expect(payload.text.contains("Do not invent projects"))
+    #expect(payload.text.contains("Status: Factory Needs One Toggle (attention)"))
+    #expect(payload.text.contains("Action: 1 recommended"))
+    #expect(payload.text.contains("Rows: 1 ready, 1 recommended, 1 off"))
+    #expect(payload.text.contains("[recommended] Swift App (selected)"))
+    #expect(payload.text.contains("[ready] CLI Tools"))
+    #expect(payload.text.contains("[off] Go Service"))
+    #expect(payload.text.contains("Host Xcode Build/Test changes the verification route only"))
+    #expect(payload.text.count <= FactorySettingsClipboardPayload.textLimit)
+    #expect(!payload.isEmpty)
+  }
+
+  @Test
+  func factoryClipboardPayloadCoversEmptyProjectList() {
+    let guide = FactorySettingsGuide(projects: [])
+
+    let payload = FactorySettingsClipboardPayload(guide: guide)
+
+    #expect(payload.text.contains("Status: Add a Project (empty)"))
+    #expect(payload.text.contains("Action: No projects"))
+    #expect(payload.text.contains("Rows: 0 ready, 0 recommended, 1 off"))
+    #expect(payload.text.contains("[off] Projects: Add a repository"))
+  }
+
+  @Test
   func narratorUsesFoundationModelsAsOptionalFactoryPolish() async throws {
     let guide = FactorySettingsGuide(projects: [
       makeProject(name: "Swift App", hostXcodeBuildTestEnabled: false, recommendsHostXcode: true)

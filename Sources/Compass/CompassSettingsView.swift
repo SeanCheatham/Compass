@@ -379,11 +379,13 @@ private struct FactorySettingsTab: View {
 
   var body: some View {
     let factoryGuide = FactorySettingsGuide(projects: factoryGuideProjects)
+    let factoryPayload = FactorySettingsClipboardPayload(guide: factoryGuide)
 
     Form {
       Section {
         FactorySettingsGuidePanel(
           guide: factoryGuide,
+          clipboardPayload: factoryPayload,
           narration: matchingNarration(for: factoryGuide)
         )
       }
@@ -447,6 +449,7 @@ private struct FactorySettingsTab: View {
 
 private struct FactorySettingsGuidePanel: View {
   let guide: FactorySettingsGuide
+  let clipboardPayload: FactorySettingsClipboardPayload
   let narration: FactorySettingsGuideNarration?
 
   var body: some View {
@@ -457,6 +460,8 @@ private struct FactorySettingsGuidePanel: View {
           .foregroundStyle(toneColor)
 
         Spacer(minLength: 8)
+
+        CopyFactorySettingsButton(payload: clipboardPayload)
 
         Text(guide.actionLabel)
           .font(.caption.weight(.semibold))
@@ -516,6 +521,31 @@ private struct FactorySettingsGuidePanel: View {
     case .recommended: return .orange
     case .off: return .secondary
     }
+  }
+}
+
+private struct CopyFactorySettingsButton: View {
+  var payload: FactorySettingsClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Factory",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded factory routing handoff for another model or teammate.")
   }
 }
 

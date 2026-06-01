@@ -160,3 +160,61 @@ struct FactorySettingsGuide: Equatable, Sendable {
     return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 }
+
+struct FactorySettingsClipboardPayload: Equatable, Sendable {
+  static let textLimit = 3_200
+
+  var text: String
+
+  init(guide: FactorySettingsGuide) {
+    var sections: [String] = [
+      "Compass Factory Settings Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded factory-routing context. Do not invent projects, "
+        + "repo paths, build commands, Xcode availability, verification results, or hidden toggles.",
+      "- Host Xcode Build/Test changes the verification route only; agents still edit inside "
+        + "the private workspace.",
+      "- Recommended rows should be enabled before Swift or Xcode build/test verification is "
+        + "planned. Off rows can stay off unless new repo evidence appears.",
+      "",
+      "Status: \(guide.title) (\(guide.tone.rawValue))",
+      "Action: \(guide.actionLabel)",
+      "Detail: \(guide.detail)",
+      "Rows: \(Self.countSummary(guide.rows))",
+      "",
+      "Projects:",
+    ]
+
+    for row in guide.rows {
+      sections.append("- [\(row.status.rawValue)] \(row.label): \(row.detail)")
+    }
+
+    text = FactorySettingsClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private static func countSummary(_ rows: [FactorySettingsGuide.Row]) -> String {
+    let ready = rows.filter { $0.status == .ready }.count
+    let recommended = rows.filter { $0.status == .recommended }.count
+    let off = rows.filter { $0.status == .off }.count
+    return "\(ready) ready, \(recommended) recommended, \(off) off"
+  }
+}
+
+private enum FactorySettingsClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}
