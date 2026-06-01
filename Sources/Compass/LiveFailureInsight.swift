@@ -28,6 +28,7 @@ struct LiveFailureInsight: Equatable, Sendable {
   var explanation: String
   var nextStep: String
   var badge: String
+  var repairOwner: RepairOwner
   var systemImageName: String
   var lineTitle: String
   var detail: String
@@ -47,6 +48,7 @@ struct LiveFailureInsight: Equatable, Sendable {
     self.explanation = presentation.explanation
     self.nextStep = presentation.nextStep
     self.badge = presentation.badge
+    self.repairOwner = Self.repairOwner(for: presentation.kind)
     self.systemImageName = presentation.systemImageName
     self.lineTitle = StringUtils.boundedText(lineTitle, limit: 160)
     self.detail = StringUtils.boundedText(detail, limit: Self.detailLimit)
@@ -55,6 +57,7 @@ struct LiveFailureInsight: Equatable, Sendable {
       title: presentation.title,
       explanation: presentation.explanation,
       nextStep: presentation.nextStep,
+      repairOwner: repairOwner,
       lineTitle: lineTitle,
       detail: detail
     )
@@ -62,6 +65,14 @@ struct LiveFailureInsight: Equatable, Sendable {
 
   var allowsNarration: Bool {
     !narrationIdentifier.isEmpty
+  }
+
+  struct RepairOwner: Equatable, Sendable {
+    static let detailLimit = 180
+
+    var label: String
+    var detail: String
+    var systemImageName: String
   }
 
   private static func normalized(_ text: String) -> String {
@@ -312,11 +323,77 @@ struct LiveFailureInsight: Equatable, Sendable {
     needles.contains { haystack.contains($0) }
   }
 
+  private static func repairOwner(for kind: Kind) -> RepairOwner {
+    switch kind {
+    case .handoffRepair:
+      return owner(
+        label: "Plan handoff",
+        detail: "Plan should return a smaller executable handoff before Develop retries.",
+        systemImageName: "map"
+      )
+    case .providerFailure:
+      return owner(
+        label: "Text provider",
+        detail: "Check the selected model, endpoint, API key, and network connection.",
+        systemImageName: "text.bubble.badge.exclamationmark"
+      )
+    case .guestBridge, .unavailableService:
+      return owner(
+        label: "Sandbox route",
+        detail: "Repair the shared workspace route or enabled capability before retrying.",
+        systemImageName: "network"
+      )
+    case .commandFailure:
+      return owner(
+        label: "Project proof",
+        detail: "Fix the first clear command error, then rerun the proof.",
+        systemImageName: "terminal"
+      )
+    case .timeout:
+      return owner(
+        label: "Scope or time",
+        detail: "Narrow the command or split the work before increasing a timeout.",
+        systemImageName: "timer"
+      )
+    case .safetyGate, .sandboxBoundary, .editConflict, .missingFile:
+      return owner(
+        label: "Workspace edit",
+        detail: "Reread or list the current workspace, then retry the smallest exact edit.",
+        systemImageName: "doc.text.magnifyingglass"
+      )
+    case .argumentRepair, .missingResult, .verifyBypass, .feedbackRepair, .unknownTool:
+      return owner(
+        label: "Agent handoff",
+        detail: "Ask the agent to resend the required tool, result, or feedback shape.",
+        systemImageName: "arrow.uturn.backward.circle"
+      )
+    case .generic:
+      return owner(
+        label: "Review needed",
+        detail: "Use the preserved live detail to choose the smallest concrete repair.",
+        systemImageName: "exclamationmark.triangle"
+      )
+    }
+  }
+
+  private static func owner(
+    label: String,
+    detail: String,
+    systemImageName: String
+  ) -> RepairOwner {
+    RepairOwner(
+      label: label,
+      detail: StringUtils.boundedText(detail, limit: RepairOwner.detailLimit),
+      systemImageName: systemImageName
+    )
+  }
+
   private static func identifier(
     kind: Kind,
     title: String,
     explanation: String,
     nextStep: String,
+    repairOwner: RepairOwner,
     lineTitle: String,
     detail: String
   ) -> String {
@@ -325,6 +402,7 @@ struct LiveFailureInsight: Equatable, Sendable {
       "title:\(title)",
       "explanation:\(explanation)",
       "next:\(nextStep)",
+      "owner:\(repairOwner.label):\(repairOwner.detail)",
       "line:\(StringUtils.boundedText(lineTitle, limit: 160))",
       "detail:\(StringUtils.boundedText(detail, limit: detailLimit))",
     ].joined(separator: "|")
@@ -355,6 +433,7 @@ struct LiveFailureInsightClipboardPayload: Equatable, Sendable {
       "Failure type: \(insight.title)",
       "Category: \(insight.kind.rawValue)",
       "Badge: \(insight.badge)",
+      "Repair owner: \(insight.repairOwner.label) - \(insight.repairOwner.detail)",
       "",
       "Plain explanation:",
       insight.explanation,
@@ -425,6 +504,7 @@ enum LiveFailureInsightNarrator {
 
     Failure type: \(insight.title)
     Plain explanation: \(insight.explanation)
+    Repair owner: \(insight.repairOwner.label) - \(insight.repairOwner.detail)
     Safe next step: \(insight.nextStep)
     Raw live row: \(insight.lineTitle)
     Raw detail: \(insight.detail)

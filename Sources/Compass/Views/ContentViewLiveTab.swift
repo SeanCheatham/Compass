@@ -1000,6 +1000,15 @@ struct LiveFailureInsightPanel: View {
         .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
 
+      Label(
+        "\(insight.repairOwner.label): \(insight.repairOwner.detail)",
+        systemImage: insight.repairOwner.systemImageName
+      )
+      .font(.caption)
+      .foregroundStyle(.secondary)
+      .fixedSize(horizontal: false, vertical: true)
+      .textSelection(.enabled)
+
       Label(insight.nextStep, systemImage: "arrow.turn.down.right")
         .font(.caption)
         .foregroundStyle(.secondary)

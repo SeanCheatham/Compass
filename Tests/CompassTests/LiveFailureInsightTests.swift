@@ -71,6 +71,8 @@ struct LiveFailureInsightTests {
     try #require(insight.kind == .commandFailure)
     try #require(insight.title == "Command Reported A Failure")
     try #require(insight.nextStep.contains("rerun the proof"))
+    try #require(insight.repairOwner.label == "Project proof")
+    try #require(insight.repairOwner.detail.contains("first clear command error"))
   }
 
   @Test func timeoutClassificationWinsOverGenericCommandFailure() throws {
@@ -108,6 +110,7 @@ struct LiveFailureInsightTests {
     try #require(insight.title == "Model Provider Needs Attention")
     try #require(insight.explanation.contains("Text provider"))
     try #require(insight.nextStep.contains("API key"))
+    try #require(insight.repairOwner.label == "Text provider")
     try #require(insight.narrationIdentifier.contains("providerFailure"))
   }
 
@@ -186,6 +189,7 @@ struct LiveFailureInsightTests {
     try #require(insight.title == "Plan Needs A Clearer Handoff")
     try #require(insight.explanation.contains("Immediate Work"))
     try #require(insight.nextStep.contains("real verify command"))
+    try #require(insight.repairOwner.label == "Plan handoff")
   }
 
   @Test func explainsVerifyBypassAsVerifyGateRepair() throws {
@@ -247,6 +251,7 @@ struct LiveFailureInsightTests {
     try #require(payload.text.contains("Failure type: Command Reported A Failure"))
     try #require(payload.text.contains("Category: commandFailure"))
     try #require(payload.text.contains("Badge: Command"))
+    try #require(payload.text.contains("Repair owner: Project proof"))
     try #require(payload.text.contains("Plain explanation:"))
     try #require(payload.text.contains("A command finished with a failing result"))
     try #require(payload.text.contains("Safe next step:"))
@@ -275,6 +280,9 @@ struct LiveFailureInsightTests {
     try await withMockFoundationModels(
       response: "Compass could not find that file, so the next step is to list current paths."
     ) {
+      let prompt = LiveFailureInsightNarrator.prompt(for: insight)
+      try #require(prompt.contains("Repair owner: Workspace edit"))
+
       let generated = await LiveFailureInsightNarrator.narrate(insight: insight)
       let narration = try #require(generated)
       try #require(narration.insightIdentifier == insight.narrationIdentifier)
