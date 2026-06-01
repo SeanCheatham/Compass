@@ -10,15 +10,73 @@ import Foundation
 struct AgentEditFileTool: AgentTool {
   static let toolName = "edit_file"
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let path: String
     let edits: [EditOperation]
+
+    enum CodingKeys: String, CodingKey {
+      case path
+      case filePath
+      case filePathSnake = "file_path"
+      case file
+      case edits
+      case changes
+      case operations
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      path = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .path,
+        aliases: [.filePath, .filePathSnake, .file],
+        fieldName: "path"
+      )
+      edits = try FlexibleModelDecoder.decodeRequiredValue(
+        from: container,
+        preferredKey: .edits,
+        aliases: [.changes, .operations],
+        fieldName: "edits"
+      )
+    }
   }
 
-  struct EditOperation: Codable {
+  struct EditOperation: Decodable {
     let oldString: String
     let newString: String
     let replaceAll: Bool?
+
+    enum CodingKeys: String, CodingKey {
+      case oldString
+      case oldStringSnake = "old_string"
+      case old
+      case find
+      case newString
+      case newStringSnake = "new_string"
+      case replacement
+      case replace
+      case replaceAll
+      case replaceAllSnake = "replace_all"
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      oldString = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .oldString,
+        aliases: [.oldStringSnake, .old, .find],
+        fieldName: "oldString"
+      )
+      newString = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .newString,
+        aliases: [.newStringSnake, .replacement, .replace],
+        fieldName: "newString"
+      )
+      replaceAll =
+        FlexibleModelDecoder.decodeBool(from: container, forKey: .replaceAll)
+        ?? FlexibleModelDecoder.decodeBool(from: container, forKey: .replaceAllSnake)
+    }
   }
 
   let spec: AgentToolSpec

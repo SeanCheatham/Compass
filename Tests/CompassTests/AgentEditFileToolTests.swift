@@ -124,6 +124,48 @@ final class AgentEditFileToolTests {
     try #require(try String(contentsOf: fileURL, encoding: .utf8) == "bar\nbar\nbar")
   }
 
+  @Test func testAcceptsSnakeCaseEditArgumentsFromLessCapableModels() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("snake.txt")
+    try "foo\nfoo\nfoo".write(to: fileURL, atomically: true, encoding: .utf8)
+
+    let result = try await invokeMarkingRead(
+      fileURL,
+      args: [
+        "file_path": "snake.txt",
+        "edits": [
+          [
+            "old_string": "foo",
+            "new_string": "bar",
+            "replace_all": "true",
+          ]
+        ],
+      ])
+
+    try #require(!result.isError)
+    try #require(result.content.contains("replaced 3 occurrences"))
+    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "bar\nbar\nbar")
+  }
+
+  @Test func testAcceptsFindReplaceAliasesFromLessonEditShapedPayloads() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("lesson-shaped.txt")
+    try "old lesson".write(to: fileURL, atomically: true, encoding: .utf8)
+
+    let result = try await invokeMarkingRead(
+      fileURL,
+      args: [
+        "path": "lesson-shaped.txt",
+        "changes": [
+          [
+            "find": "old lesson",
+            "replace": "new lesson",
+          ]
+        ],
+      ])
+
+    try #require(!result.isError)
+    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "new lesson")
+  }
+
   @Test func testFailsWhenOldStringMissing() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
     try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)

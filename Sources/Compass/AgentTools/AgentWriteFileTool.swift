@@ -7,9 +7,36 @@ import Foundation
 struct AgentWriteFileTool: AgentTool {
   static let toolName = "write_file"
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let path: String
     let content: String
+
+    enum CodingKeys: String, CodingKey {
+      case path
+      case filePath
+      case filePathSnake = "file_path"
+      case file
+      case content
+      case contents
+      case text
+      case body
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      path = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .path,
+        aliases: [.filePath, .filePathSnake, .file],
+        fieldName: "path"
+      )
+      content = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .content,
+        aliases: [.contents, .text, .body],
+        fieldName: "content"
+      )
+    }
   }
 
   let spec: AgentToolSpec

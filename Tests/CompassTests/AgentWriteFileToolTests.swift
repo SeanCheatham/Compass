@@ -30,6 +30,19 @@ final class AgentWriteFileToolTests {
     try #require(written == "hello world")
   }
 
+  @Test func acceptsCommonContentAliasesFromLessCapableModels() async throws {
+    let result = try await invoke([
+      "file_path": "aliased.txt",
+      "contents": "hello alias",
+    ])
+
+    try #require(!result.isError)
+    try #require(result.content.contains("wrote 11 bytes to aliased.txt"))
+    let written = try String(
+      contentsOf: temporaryDirectory.appendingPathComponent("aliased.txt"), encoding: .utf8)
+    try #require(written == "hello alias")
+  }
+
   @Test func overwritesExistingFileAfterRead() async throws {
     let url = temporaryDirectory.appendingPathComponent("existing.txt")
     try "old".write(to: url, atomically: true, encoding: .utf8)
