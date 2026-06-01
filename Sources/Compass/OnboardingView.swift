@@ -34,7 +34,7 @@ struct OnboardingView: View {
           number: 1,
           title: "Choose a Text provider",
           description:
-            "Compass drives the agent through Apple's on-device Foundation Models by default. You can also configure an OpenAI-compatible endpoint (MiniMax Token / OpenAI API) from Settings.",
+            "Compass can use Apple Intelligence on this Mac with no API key. You can also choose a cloud Text provider like MiniMax Token or OpenAI API from Settings.",
           isComplete: textProviderConfigured
         ) {
           if model.agentSettings.textProvider.requiresCredentials {
@@ -148,7 +148,7 @@ struct OnboardingView: View {
   private var textProviderBlockerText: String {
     if model.agentSettings.textProvider == .appleFoundationModels {
       return
-        "Foundation Models is selected but unavailable; switch Text provider in Settings."
+        "Apple Intelligence is unavailable; switch Text provider in Settings."
     }
     return "Add an API key for \(model.agentSettings.textProvider.displayName)."
   }
@@ -340,7 +340,7 @@ private struct APIKeyStepBody: View {
         TextField("Base URL", text: $baseURL)
           .textFieldStyle(.roundedBorder)
           .help(
-            "OpenAI-compatible chat completions endpoint. Default: \(AgentRuntimeSettings.defaultBaseURLString)"
+            "Chat API endpoint for this provider. Default: \(AgentRuntimeSettings.defaultBaseURLString)"
           )
           .onChange(of: baseURL) { _, newValue in
             guard newValue != model.agentSettings.baseURL.absoluteString else { return }
@@ -432,18 +432,18 @@ private struct FoundationModelsStepBody: View {
         .foregroundStyle(isAvailable ? Color.accentColor : .orange)
         .padding(.top, 2)
       VStack(alignment: .leading, spacing: 4) {
-        Text(isAvailable ? "Using Apple Foundation Models" : "Foundation Models unavailable")
+        Text(isAvailable ? "Using Apple Intelligence" : "Apple Intelligence unavailable")
           .font(.callout.weight(.semibold))
         if isAvailable {
           Text(
-            "Runs on-device with no API key. Switch to MiniMax Token or OpenAI API in Settings (⌘,) if you want to route Text through a third-party endpoint."
+            "Runs on this Mac with no API key. Switch to MiniMax Token or OpenAI API in Settings (⌘,) if you want Text to use a cloud provider."
           )
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         } else {
           Text(
-            "The selected on-device model cannot run on this Mac right now. Choose MiniMax Token or OpenAI API in Settings, or enable Apple Intelligence if supported."
+            "The on-device Text provider cannot run on this Mac right now. Choose MiniMax Token or OpenAI API in Settings, or enable Apple Intelligence if supported."
           )
           .font(.caption)
           .foregroundStyle(.secondary)

@@ -104,7 +104,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
   ) -> String {
     if settings.textProvider == .appleFoundationModels, !foundationModelsAvailable {
       return
-        "Foundation Models is selected, but the on-device model is unavailable on this Mac. Switch Text to MiniMax Token or OpenAI API in Settings, or enable Apple Intelligence if supported."
+        "Apple Intelligence is unavailable on this Mac, so the default on-device Text provider cannot run. Switch Text to MiniMax Token or OpenAI API in Settings, or enable Apple Intelligence if supported."
     }
     return
       "Add an API key for \(settings.textProvider.displayName) before Compass can ask an agent to plan or develop."
@@ -156,8 +156,8 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
   ) -> String {
     if settings.textProvider == .appleFoundationModels {
       return foundationModelsAvailable
-        ? "Foundation Models is available on this Mac; no API key is needed."
-        : "Foundation Models is selected but unavailable on this Mac."
+        ? "Apple Intelligence is available on this Mac; no API key is needed."
+        : "Apple Intelligence is unavailable on this Mac."
     }
 
     return isReady
