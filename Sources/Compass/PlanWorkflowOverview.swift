@@ -47,10 +47,12 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
     let lowercased = normalized.lowercased()
 
     if lowercased.contains("swift test") {
-      title = "Runs Swift tests"
+      let collectsCoverage = lowercased.contains("--enable-code-coverage")
+      title = collectsCoverage ? "Runs Swift coverage" : "Runs Swift tests"
       detail = Self.testDetail(
         framework: "Swift",
-        filter: Self.argumentValue(after: "--filter", in: normalized)
+        filter: Self.argumentValue(after: "--filter", in: normalized),
+        collectsCoverage: collectsCoverage
       )
       systemImage = "checkmark.seal"
     } else if lowercased.contains("xcodebuild"), lowercased.contains(" test") {
@@ -78,11 +80,23 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
         ? "Compass will run the Rust test suite with all feature flags enabled."
         : "Compass will run the Rust test suite."
       systemImage = "checkmark.seal"
+    } else if lowercased.contains("cargo llvm-cov") {
+      title = "Runs Rust coverage"
+      detail = "Compass will run Rust tests through cargo-llvm-cov and report coverage."
+      systemImage = "chart.bar.doc.horizontal"
     } else if lowercased.contains("go test") {
-      title = "Runs Go tests"
-      detail = lowercased.contains("./...")
-        ? "Compass will run Go tests across every package in the module."
-        : "Compass will run the selected Go tests."
+      let collectsCoverage =
+        lowercased.contains("-coverprofile") || lowercased.contains("covermode")
+      title = collectsCoverage ? "Runs Go coverage" : "Runs Go tests"
+      if collectsCoverage {
+        detail = lowercased.contains("./...")
+          ? "Compass will run Go tests across every package and write a coverage profile."
+          : "Compass will run the selected Go tests and write a coverage profile."
+      } else {
+        detail = lowercased.contains("./...")
+          ? "Compass will run Go tests across every package in the module."
+          : "Compass will run the selected Go tests."
+      }
       systemImage = "checkmark.seal"
     } else if Self.containsAny(
       lowercased,
@@ -92,10 +106,15 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
         "python3 -m unittest",
       ])
     {
-      title = "Runs Python tests"
-      detail = lowercased.contains("pytest")
-        ? "Compass will run the Python test suite with pytest."
-        : "Compass will run the Python unittest suite."
+      let collectsCoverage = lowercased.contains("--cov") || lowercased.contains("coverage")
+      title = collectsCoverage ? "Runs Python coverage" : "Runs Python tests"
+      if lowercased.contains("pytest") {
+        detail = collectsCoverage
+          ? "Compass will run pytest with Python coverage enabled."
+          : "Compass will run the Python test suite with pytest."
+      } else {
+        detail = "Compass will run the Python unittest suite."
+      }
       systemImage = "checkmark.seal"
     } else if Self.containsAny(
       lowercased,
@@ -109,8 +128,11 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
         "yarn run test",
       ])
     {
-      title = "Runs JavaScript tests"
-      detail = "Compass will run the project's JavaScript or TypeScript test command."
+      let collectsCoverage = lowercased.contains("coverage")
+      title = collectsCoverage ? "Runs JavaScript coverage" : "Runs JavaScript tests"
+      detail = collectsCoverage
+        ? "Compass will run the project's JavaScript or TypeScript tests with coverage enabled."
+        : "Compass will run the project's JavaScript or TypeScript test command."
       systemImage = "checkmark.seal"
     } else if Self.containsAny(
       lowercased,
@@ -138,11 +160,16 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
     detail = StringUtils.boundedText(detail, limit: Self.detailLimit)
   }
 
-  private static func testDetail(framework: String, filter: String?) -> String {
+  private static func testDetail(
+    framework: String,
+    filter: String?,
+    collectsCoverage: Bool = false
+  ) -> String {
+    let coverageSuffix = collectsCoverage ? " Coverage collection is enabled." : ""
     if let filter, !filter.isEmpty {
-      return "Compass will run \(framework) tests focused on \(filter)."
+      return "Compass will run \(framework) tests focused on \(filter).\(coverageSuffix)"
     }
-    return "Compass will run the \(framework) test suite."
+    return "Compass will run the \(framework) test suite.\(coverageSuffix)"
   }
 
   private static func normalizedCommand(_ command: String) -> String {

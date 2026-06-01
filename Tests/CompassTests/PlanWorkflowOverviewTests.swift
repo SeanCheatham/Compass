@@ -249,6 +249,41 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
+  func testVerifyCommandSummaryExplainsCoverageCommands() throws {
+    let swift = PlanVerifyCommandSummary(
+      command: "swift test --enable-code-coverage --filter DraftRefinementTests"
+    )
+    try #require(swift.title == "Runs Swift coverage")
+    try #require(
+      swift.detail
+        == "Compass will run Swift tests focused on DraftRefinementTests. Coverage collection is enabled.")
+
+    let go = PlanVerifyCommandSummary(
+      command: "go test -coverprofile=.compass/coverage.out ./..."
+    )
+    try #require(go.title == "Runs Go coverage")
+    try #require(
+      go.detail == "Compass will run Go tests across every package and write a coverage profile.")
+
+    let rust = PlanVerifyCommandSummary(command: "cargo llvm-cov --summary-only")
+    try #require(rust.title == "Runs Rust coverage")
+    try #require(
+      rust.detail == "Compass will run Rust tests through cargo-llvm-cov and report coverage.")
+
+    let python = PlanVerifyCommandSummary(command: "uv run pytest --cov src tests")
+    try #require(python.title == "Runs Python coverage")
+    try #require(python.detail == "Compass will run pytest with Python coverage enabled.")
+
+    let js = PlanVerifyCommandSummary(
+      command: "pnpm test -- --coverage --coverage.reporter=json-summary"
+    )
+    try #require(js.title == "Runs JavaScript coverage")
+    try #require(
+      js.detail
+        == "Compass will run the project's JavaScript or TypeScript tests with coverage enabled.")
+  }
+
+  @Test
   func testVerifyCommandSummaryExplainsBuildAndFallbackCommands() throws {
     let swiftBuild = PlanVerifyCommandSummary(command: "swift build --target CompassTests")
     try #require(swiftBuild.title == "Builds the Swift package")
