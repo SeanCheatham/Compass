@@ -430,6 +430,62 @@ struct AgentExecutorTests {
     try #require(nudge.eventText == "submit_result contract rejected")
     try #require(nudge.userMessage.contains("required shape"))
     try #require(nudge.userMessage.contains("lessonEdits: []"))
+    try #require(nudge.userMessage.contains("Do not answer in prose"))
+  }
+
+  @Test func testInvalidSubmitResultDecodeNudgeUsesPlanRetryShape() throws {
+    let nudge = AgentExecutor.invalidSubmitResultDecodeNudge(
+      errorMessage: "Missing required field `state`.",
+      phase: .plan
+    )
+
+    try #require(nudge.userMessage.contains("Use this exact retry shape for Plan"))
+    try #require(nudge.userMessage.contains("\"state\""))
+    try #require(nudge.userMessage.contains("\"immediate\""))
+    try #require(nudge.userMessage.contains("\"verifyTimeoutMs\": 600000"))
+    try #require(nudge.userMessage.contains("\"estimatedDifficulty\": \"low\""))
+    try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
+    try #require(nudge.userMessage.contains("state.immediate.verify proves it"))
+  }
+
+  @Test func testInvalidSubmitResultDecodeNudgeUsesDevelopRetryShape() throws {
+    let nudge = AgentExecutor.invalidSubmitResultDecodeNudge(
+      errorMessage: "Missing required field `bypassVerify`.",
+      phase: .develop
+    )
+
+    try #require(nudge.userMessage.contains("Use this exact retry shape for Develop"))
+    try #require(nudge.userMessage.contains("\"status\": \"succeeded|blocked|failed\""))
+    try #require(nudge.userMessage.contains("\"feedback\""))
+    try #require(nudge.userMessage.contains("\"bypassVerify\": false"))
+    try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
+  }
+
+  @Test func testInvalidSubmitResultDecodeNudgeUsesReflectRetryShape() throws {
+    let nudge = AgentExecutor.invalidSubmitResultDecodeNudge(
+      errorMessage: "Missing required field `summary`.",
+      phase: .reflect
+    )
+
+    try #require(nudge.userMessage.contains("Use this exact retry shape for Reflect"))
+    try #require(nudge.userMessage.contains("\"state\": null"))
+    try #require(nudge.userMessage.contains("\"summary\""))
+    try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
+    try #require(
+      nudge.userMessage.contains("all three keys: `immediate`, `midTerm`, and `longTerm`"))
+  }
+
+  @Test func testInvalidSubmitResultDecodeNudgeUsesCriticRetryShape() throws {
+    let nudge = AgentExecutor.invalidSubmitResultDecodeNudge(
+      errorMessage: "Missing required field `verdict`.",
+      phase: .critic
+    )
+
+    try #require(nudge.userMessage.contains("Use this exact retry shape for Critic"))
+    try #require(nudge.userMessage.contains("\"verdict\": \"approve|request_changes\""))
+    try #require(nudge.userMessage.contains("\"summary\""))
+    try #require(nudge.userMessage.contains("\"feedback\""))
+    try #require(!nudge.userMessage.contains("\"lessonEdits\": []"))
   }
 
   @Test func testSubmitResultValidationNudgeUsesDecodeCopyForDecodingErrors() throws {
@@ -441,8 +497,9 @@ struct AgentExecutorTests {
       _ = try JSONDecoder().decode(ReflectSummary.self, from: payload)
       #expect(Bool(false), "expected decode to fail")
     } catch {
-      let nudge = AgentExecutor.submitResultValidationNudge(for: error)
+      let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .reflect)
       try #require(nudge.eventText == "submit_result contract rejected")
+      try #require(nudge.userMessage.contains("Use this exact retry shape for Reflect"))
     }
   }
 

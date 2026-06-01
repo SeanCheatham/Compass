@@ -179,7 +179,10 @@ enum FoundationModelsAgentRuntime {
       try validate(submitResultJSON)
       return nil
     } catch {
-      let nudge = AgentExecutor.submitResultValidationNudge(for: error)
+      let nudge = AgentExecutor.submitResultValidationNudge(
+        for: error,
+        phase: configuration.phase
+      )
       emit(
         LiveEvent(
           level: .warning,

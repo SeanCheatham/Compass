@@ -19,7 +19,10 @@ extension AgentExecutor {
   /// providers that omit it still produce invalid JSON the same way
   /// (mid-token cutoff), so we fall back to a generic "args wouldn't
   /// parse" nudge that nudges the model toward shorter output.
-  static func submitResultValidationNudge(for error: Error) -> InvalidToolArgumentsNudge {
+  static func submitResultValidationNudge(
+    for error: Error,
+    phase: AgentPhase? = nil
+  ) -> InvalidToolArgumentsNudge {
     if let error = error as? PlanTransitionValidationError {
       return invalidPlanTransitionNudge(error: error)
     }
@@ -33,7 +36,10 @@ extension AgentExecutor {
       return invalidCriticFeedbackNudge(error: error)
     }
     if error is DecodingError {
-      return invalidSubmitResultDecodeNudge(errorMessage: decodingErrorMessage(error))
+      return invalidSubmitResultDecodeNudge(
+        errorMessage: decodingErrorMessage(error),
+        phase: phase
+      )
     }
     return invalidLessonEditsNudge(errorMessage: error.localizedDescription)
   }
@@ -59,21 +65,93 @@ extension AgentExecutor {
     }
   }
 
-  static func invalidSubmitResultDecodeNudge(errorMessage: String) -> InvalidToolArgumentsNudge {
-    InvalidToolArgumentsNudge(
+  static func invalidSubmitResultDecodeNudge(
+    errorMessage: String,
+    phase: AgentPhase? = nil
+  ) -> InvalidToolArgumentsNudge {
+    let retryShape = submitResultDecodeRetryShape(for: phase)
+    return InvalidToolArgumentsNudge(
       eventText: "submit_result contract rejected",
       eventDetail: errorMessage,
       userMessage: """
         Your previous `submit_result` did not match this phase's required shape: \
         \(errorMessage)
 
-        Call `submit_result` again with arguments that decode to the schema shown in \
-        your original task — include every required top-level field and, when `state` is \
-        an object rather than null, all of its required nested fields (`immediate`, \
-        `midTerm`, `longTerm` for planning phases). Use `lessonEdits: []` when you have \
-        no lesson change. Do not wrap the payload in an extra object.
+        Call `submit_result` again with arguments that decode to this phase's schema. \
+        Include every required top-level field and, when `state` is an object rather than \
+        null, all of its required nested fields. Do not wrap the payload in an extra object.
+
+        \(retryShape)
         """
     )
+  }
+
+  private static func submitResultDecodeRetryShape(for phase: AgentPhase?) -> String {
+    switch phase {
+    case .plan:
+      return """
+        Use this exact retry shape for Plan. Keep shell commands only in `state.immediate.verify`:
+        {
+          "state": {
+            "immediate": {
+              "plan": "## Outcome\\n<one sentence: what will change>\\n\\n## Why it matters\\n<who this helps and why>\\n\\n## Acceptance checks\\n- <observable finish-line behavior>\\n- <another observable result; state.immediate.verify proves it>",
+              "verify": "<real shell command, no cd prefix>",
+              "verifyTimeoutMs": 600000,
+              "estimatedDifficulty": "low"
+            },
+            "midTerm": "<preserve or revise the queue>",
+            "longTerm": "<preserve or revise the strategic arc>"
+          },
+          "lessonEdits": []
+        }
+
+        Do not answer in prose.
+        """
+    case .develop:
+      return """
+        Use this exact retry shape for Develop:
+        {
+          "status": "succeeded|blocked|failed",
+          "summary": "<what changed or what stopped the attempt>",
+          "feedback": "<concrete handoff for the next Plan pass>",
+          "bypassVerify": false,
+          "lessonEdits": []
+        }
+
+        Do not answer in prose.
+        """
+    case .reflect:
+      return """
+        Use this exact retry shape for Reflect when no planning update is needed:
+        {
+          "state": null,
+          "summary": "<why the current plan is still on course>",
+          "lessonEdits": []
+        }
+
+        If planning needs revision, replace `state: null` with an object containing \
+        all three keys: `immediate`, `midTerm`, and `longTerm`. Do not include \
+        completed history. Do not answer in prose.
+        """
+    case .critic:
+      return """
+        Use this exact retry shape for Critic:
+        {
+          "verdict": "approve|request_changes",
+          "summary": "<concise review summary>",
+          "feedback": "<empty when approving, concrete fix list when requesting changes>"
+        }
+
+        Do not answer in prose.
+        """
+    case nil:
+      return """
+        Use the submit_result shape from your original task. Include `lessonEdits: []` when \
+        that field is required, and use `state: null` only in phases whose schema allows it.
+
+        Do not answer in prose.
+        """
+    }
   }
 
   static func invalidLessonEditsNudge(errorMessage: String) -> InvalidToolArgumentsNudge {

@@ -196,7 +196,10 @@ extension AgentExecutor {
                 nudgeIndices: &remediationNudgeIndices,
                 to: messageCountBeforeAssistant
               )
-              let nudge = Self.submitResultValidationNudge(for: error)
+              let nudge = Self.submitResultValidationNudge(
+                for: error,
+                phase: configuration.phase
+              )
               Self.appendRemediationNudge(
                 nudge.userMessage,
                 messages: &messages,
