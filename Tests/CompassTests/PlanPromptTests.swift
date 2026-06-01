@@ -285,6 +285,32 @@ struct PlanPromptTests {
     )
   }
 
+  @Test func testPlanPromptIncludesDraftReadinessMap() throws {
+    let prompt = try Prompts.planPrompt(
+      state: .empty,
+      completedCount: 0,
+      drafts: """
+        - Make setup faster because users get stuck; success looks like the setup check shows clear progress.
+
+        - Improve onboarding copy
+        """,
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature
+    )
+
+    try #require(prompt.contains("## Draft readiness map"))
+    try #require(prompt.contains("Raw drafts are still authoritative"))
+    try #require(prompt.contains("weaker Develop model"))
+    try #require(prompt.contains("Draft 1: Ready for Plan (3 of 3)"))
+    try #require(prompt.contains("Signals present: Outcome, Why, Success signal"))
+    try #require(prompt.contains("Draft 2: Add one more signal (1 of 3)"))
+    try #require(prompt.contains("Missing signals: Why, Success signal"))
+    try #require(prompt.contains("supply the"))
+    try #require(prompt.contains("missing clarity in the Immediate handoff"))
+  }
+
   /// Each PlanFocus variant carries its own detail block. If one is
   /// ever dropped from the prompt the planner silently loses the
   /// steer for that category, so pin every variant.

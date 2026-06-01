@@ -37,6 +37,39 @@ struct DraftRefinementTests {
     try #require(guide.cues.allSatisfy { $0.isSatisfied })
   }
 
+  @Test func testDraftIntakeGuideSummarizesQueuedDraftSignals() throws {
+    let guide = DraftIntakeGuide(
+      drafts: """
+        - Make setup faster because users get stuck; success looks like the setup check shows clear progress.
+
+        - Improve onboarding copy
+        """
+    )
+
+    try #require(guide.entries.count == 2)
+    try #require(guide.entries[0].readiness.status == .ready)
+    try #require(guide.entries[1].readiness.status == .needsDetail)
+    try #require(guide.promptText.contains("Draft 1: Ready for Plan (3 of 3)"))
+    try #require(guide.promptText.contains("Signals present: Outcome, Why, Success signal"))
+    try #require(guide.promptText.contains("Draft 2: Add one more signal (1 of 3)"))
+    try #require(guide.promptText.contains("Missing signals: Why, Success signal"))
+  }
+
+  @Test func testDraftIntakeGuideFallsBackToParagraphEntries() throws {
+    let guide = DraftIntakeGuide(
+      drafts: """
+        Make plan repair copy clearer because users get stuck.
+
+        Show a visible success state when the repair packet is copied.
+        """
+    )
+
+    try #require(guide.entries.map(\.number) == [1, 2])
+    try #require(guide.entries[0].draft == "Make plan repair copy clearer because users get stuck.")
+    try #require(
+      guide.entries[1].draft == "Show a visible success state when the repair packet is copied.")
+  }
+
   @Test func testParserAcceptsGeneratedJSONRefinement() throws {
     let context = makeContext()
     let refinement = try #require(

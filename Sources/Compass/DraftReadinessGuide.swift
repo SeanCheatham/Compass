@@ -174,3 +174,116 @@ struct DraftReadinessGuide: Equatable, Sendable {
       .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
   }
 }
+
+struct DraftIntakeGuide: Equatable, Sendable {
+  static let maxEntries = 6
+  static let draftTextLimit = 220
+
+  var entries: [Entry]
+
+  var isEmpty: Bool {
+    entries.isEmpty
+  }
+
+  init(drafts: String) {
+    entries = Self.extractDraftEntries(from: drafts)
+      .prefix(Self.maxEntries)
+      .enumerated()
+      .map { offset, text in
+        Entry(number: offset + 1, draft: text)
+      }
+  }
+
+  var promptText: String {
+    guard !entries.isEmpty else {
+      return "_(no draft readiness signals)_"
+    }
+
+    return entries.map(\.promptText).joined(separator: "\n\n")
+  }
+
+  struct Entry: Equatable, Sendable {
+    var number: Int
+    var draft: String
+    var readiness: DraftReadinessGuide
+
+    init(number: Int, draft: String) {
+      self.number = number
+      self.draft = StringUtils.boundedText(draft, limit: DraftIntakeGuide.draftTextLimit)
+      readiness = DraftReadinessGuide(draft: draft)
+    }
+
+    var promptText: String {
+      """
+      Draft \(number): \(readiness.title) (\(readiness.scoreLabel))
+      Text: \(draft)
+      Signals present: \(signalList(satisfied: true))
+      Missing signals: \(signalList(satisfied: false))
+      """
+    }
+
+    private func signalList(satisfied: Bool) -> String {
+      let signals = readiness.cues
+        .filter { $0.isSatisfied == satisfied }
+        .map(\.title)
+      return signals.isEmpty ? "none" : signals.joined(separator: ", ")
+    }
+  }
+
+  private static func extractDraftEntries(from drafts: String) -> [String] {
+    let normalized =
+      drafts
+      .replacingOccurrences(of: "\r\n", with: "\n")
+      .replacingOccurrences(of: "\r", with: "\n")
+    let lines = normalized.split(separator: "\n", omittingEmptySubsequences: false)
+      .map(String.init)
+
+    let bulletEntries = extractBulletEntries(from: lines)
+    if !bulletEntries.isEmpty {
+      return bulletEntries
+    }
+
+    return normalized.components(separatedBy: "\n\n")
+      .map(normalizedDraftText)
+      .filter { !$0.isEmpty }
+  }
+
+  private static func extractBulletEntries(from lines: [String]) -> [String] {
+    var entries: [String] = []
+    var current: [String] = []
+    var sawBullet = false
+
+    func flush() {
+      let text = normalizedDraftText(current.joined(separator: " "))
+      if !text.isEmpty {
+        entries.append(text)
+      }
+      current.removeAll()
+    }
+
+    for line in lines {
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty else { continue }
+
+      if let bullet = strippedBulletPrefix(from: trimmed) {
+        sawBullet = true
+        flush()
+        current.append(bullet)
+      } else if sawBullet {
+        current.append(trimmed)
+      }
+    }
+
+    flush()
+    return sawBullet ? entries : []
+  }
+
+  private static func strippedBulletPrefix(from line: String) -> String? {
+    guard line.hasPrefix("- ") || line.hasPrefix("* ") else { return nil }
+    return String(line.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private static func normalizedDraftText(_ text: String) -> String {
+    StringUtils.boundedText(text, limit: Int.max)
+  }
+}

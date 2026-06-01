@@ -16,6 +16,7 @@ extension Prompts {
   ) throws -> String {
     let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()
     let stateJSON = try CompassWorkspace.encodeProposal(promptState)
+    let draftIntakeGuide = DraftIntakeGuide(drafts: drafts)
     let hostXcodePlanningRule =
       hostXcodeBuildTestEnabled
       ? """
@@ -102,6 +103,11 @@ extension Prompts {
         it or rescope so Develop can make progress.
       - If drafts are empty, promote a useful `midTerm` item or originate a plan
         from the repo, lessons, completed history, and long-term arc.
+      - Use the Draft readiness map as a deterministic checklist for user
+        intent. Raw drafts are still authoritative; the map only tells you
+        whether each draft already names an Outcome, Why, and Success signal.
+        If a signal is missing, preserve the user's words and supply the
+        missing clarity in the Immediate handoff instead of inventing facts.
       - Keep `midTerm` to the next 3-7 useful increments.
       - Keep `longTerm` strategic and stable; revise it only when something
         material changes.
@@ -174,6 +180,12 @@ extension Prompts {
       this run will be picked up next iteration.
 
       \(fencedOrEmpty(drafts, empty: "_(no new drafts)_"))
+
+      ## Draft readiness map
+      Deterministic preflight over the snapshotted drafts. Use it to keep
+      the next Immediate Plan concrete enough for a weaker Develop model.
+
+      \(draftIntakeGuide.promptText)
 
       ## Feedback from the previous Develop pass
       This is the latest non-empty Develop feedback from a prior completed
