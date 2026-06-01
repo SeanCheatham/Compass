@@ -112,6 +112,40 @@ struct ProjectRecoveryGuideTests {
   }
 
   @Test
+  func recoveryClipboardPayloadPackagesFailureForReuse() throws {
+    let status = rejectedPlanStatus()
+    let guide = ProjectRecoveryGuide(status: status)
+
+    let payload = ProjectRecoveryClipboardPayload(status: status, guide: guide)
+
+    try #require(payload.text.contains("Compass Recovery Handoff"))
+    try #require(payload.text.contains("Recipient instructions:"))
+    try #require(payload.text.contains("Do not invent files, commands, credentials"))
+    try #require(payload.text.contains("return one executable Immediate Work handoff"))
+    try #require(payload.text.contains("Status: Plan rejected"))
+    try #require(payload.text.contains("Action: Retry Plan"))
+    try #require(payload.text.contains("Cue count: 1 cue"))
+    try #require(payload.text.contains("Failure detail:"))
+    try #require(payload.text.contains("Recovery plan: Repair the Plan output"))
+    try #require(payload.text.contains("1. Read the rejection:"))
+    try #require(payload.text.contains("2. Use coverage-ready verify:"))
+    try #require(payload.text.contains("3. Retry Plan:"))
+    try #require(payload.text.count <= ProjectRecoveryClipboardPayload.textLimit)
+    try #require(!payload.isEmpty)
+  }
+
+  @Test
+  func recoveryClipboardPayloadIsEmptyWithoutRecoverySteps() throws {
+    let status = emptyStatus()
+    let guide = ProjectRecoveryGuide(status: status)
+
+    let payload = ProjectRecoveryClipboardPayload(status: status, guide: guide)
+
+    try #require(payload.isEmpty)
+    try #require(payload.text.isEmpty)
+  }
+
+  @Test
   func narratorUsesFoundationModelsAsOptionalRecoveryPolish() async throws {
     let guide = ProjectRecoveryGuide(status: rejectedPlanStatus())
 

@@ -246,3 +246,66 @@ struct ProjectRecoveryGuide: Equatable {
       .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
   }
 }
+
+struct ProjectRecoveryClipboardPayload: Equatable, Sendable {
+  static let textLimit = 3_000
+
+  var text: String
+
+  init(status: ProjectReliabilityStatus, guide: ProjectRecoveryGuide) {
+    guard !status.isEmpty, !guide.isEmpty else {
+      text = ""
+      return
+    }
+
+    var sections: [String] = [
+      "Compass Recovery Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded recovery context. Do not invent files, commands, "
+        + "credentials, outcomes, or extra scope.",
+      "- Follow the recovery steps in order. If a step asks Plan to retry, return one "
+        + "executable Immediate Work handoff before Develop.",
+      "- If credentials, files, or decisions are missing, ask for that input instead of "
+        + "pretending it exists.",
+      "",
+      "Status: \(status.primaryCue)",
+      "Action: \(status.actionLabel)",
+      "Cue count: \(status.countLabel)",
+    ]
+
+    if let metadata = status.metadata {
+      sections.append("Metadata: \(metadata)")
+    }
+
+    sections.append("")
+    sections.append("Failure detail:")
+    sections.append(status.detail.isEmpty ? "No failure detail captured." : status.detail)
+    sections.append("")
+    sections.append("Recovery plan: \(guide.title)")
+
+    for (index, step) in guide.steps.enumerated() {
+      sections.append("\(index + 1). \(step.title): \(step.detail)")
+    }
+
+    text = ProjectRecoveryClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+private enum ProjectRecoveryClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}

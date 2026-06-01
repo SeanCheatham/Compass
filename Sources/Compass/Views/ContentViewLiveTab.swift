@@ -399,6 +399,8 @@ struct ProjectReliabilityBanner: View {
   var narration: ProjectRecoveryGuideNarration?
 
   var body: some View {
+    let recoveryPayload = ProjectRecoveryClipboardPayload(status: status, guide: recoveryGuide)
+
     VStack(alignment: .leading, spacing: 9) {
       HStack(alignment: .top, spacing: 10) {
         Image(systemName: status.systemImage)
@@ -447,9 +449,15 @@ struct ProjectReliabilityBanner: View {
         Divider()
 
         VStack(alignment: .leading, spacing: 6) {
-          Label(recoveryGuide.title, systemImage: "list.bullet.clipboard")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(color)
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Label(recoveryGuide.title, systemImage: "list.bullet.clipboard")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(color)
+
+            Spacer(minLength: 8)
+
+            CopyProjectRecoveryButton(payload: recoveryPayload)
+          }
 
           if let narration {
             HStack(alignment: .top, spacing: 7) {
@@ -520,6 +528,31 @@ struct ProjectReliabilityBanner: View {
     ]
     .compactMap { $0?.isEmpty == false ? $0 : nil }
     .joined(separator: " · ")
+  }
+}
+
+struct CopyProjectRecoveryButton: View {
+  var payload: ProjectRecoveryClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Recovery",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+        .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded recovery handoff for another model or teammate.")
   }
 }
 
