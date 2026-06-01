@@ -156,6 +156,18 @@ extension Prompts {
         tests are slow, failing, unavailable in your environment, or not yet run.
       - `lessonEdits`: exact find/replace edits against the lessons content
         shown above, or [].
+
+      Copy this shape when the implementation is complete:
+      {
+        "status": "succeeded",
+        "summary": "<what changed>",
+        "feedback": "<concrete handoff for the next Plan pass>",
+        "bypassVerify": false,
+        "lessonEdits": []
+      }
+      If the work is blocked or failed, keep the same shape but set `status`
+      to `"blocked"` or `"failed"` and make `feedback` name the blocker plus
+      the smallest Plan recovery action.
       """
   }
 

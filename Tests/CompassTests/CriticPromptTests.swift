@@ -80,7 +80,8 @@ struct CriticPromptTests {
       verifyCommand: "swift test --filter Parser",
       verifyExitCode: 0,
       verifyOutput: "ok",
-      gitDiff: "diff --git a/Sources/Parser.swift b/Sources/Parser.swift\n+let message = \"Readable\"\n",
+      gitDiff:
+        "diff --git a/Sources/Parser.swift b/Sources/Parser.swift\n+let message = \"Readable\"\n",
       priorCritiques: [],
       lessons: "",
       vision: "",
@@ -93,7 +94,8 @@ struct CriticPromptTests {
     try #require(prompt.contains("Review the acceptance checks before style preferences"))
     try #require(prompt.contains("Handoff status: Executable handoff"))
     try #require(prompt.contains("Planned outcome: Make parser errors readable to non-engineers."))
-    try #require(prompt.contains("Why it matters: Users can decide whether to retry or change their draft."))
+    try #require(
+      prompt.contains("Why it matters: Users can decide whether to retry or change their draft."))
     try #require(prompt.contains("Acceptance checks to audit:"))
     try #require(prompt.contains("- Empty input explains that there is nothing to parse."))
     try #require(prompt.contains("Verify meaning: Runs Swift tests"))
@@ -200,6 +202,29 @@ struct CriticPromptTests {
     try #require(prompt.contains("placeholder"))
     try #require(prompt.contains("if you cannot name a concrete"))
     try #require(prompt.contains("approve instead of requesting changes"))
+  }
+
+  @Test func testCriticPromptIncludesCopyableVerdictShapes() throws {
+    let prompt = Prompts.criticPrompt(
+      next: makePlanNext(),
+      developSummary: makeDevelopSummary(),
+      verifyCommand: "swift test",
+      verifyExitCode: 0,
+      verifyOutput: "",
+      gitDiff: "diff --git a/File.swift b/File.swift\n",
+      priorCritiques: [],
+      lessons: "",
+      vision: "",
+      iteration: 1,
+      maxIterations: 3
+    )
+
+    try #require(prompt.contains("Copy exactly one of these shapes"))
+    try #require(prompt.contains("\"verdict\": \"approve\""))
+    try #require(prompt.contains("\"feedback\": \"\""))
+    try #require(prompt.contains("\"verdict\": \"request_changes\""))
+    try #require(prompt.contains("<specific failing behavior or file>"))
+    try #require(!prompt.contains("approve|request_changes"))
   }
 
   @Test func testCriticVerdictDecodesApproveAndRequestChangesSnakeCase() throws {

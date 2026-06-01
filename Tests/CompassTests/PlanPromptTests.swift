@@ -461,6 +461,32 @@ struct PlanPromptTests {
     try #require(prompt.contains("smallest recovery action"))
   }
 
+  @Test func testDevelopPromptIncludesCopyableSubmitResultShape() throws {
+    let prompt = Prompts.developPrompt(
+      next: PlanNext(
+        plan: """
+          ## Outcome
+          Make Develop easier to finish.
+
+          ## Acceptance checks
+          - A schema-valid submit result example is available.
+          """,
+        verify: "swift test --filter PlanPromptTests"
+      ),
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: []
+    )
+
+    try #require(prompt.contains("Copy this shape when the implementation is complete"))
+    try #require(prompt.contains("\"status\": \"succeeded\""))
+    try #require(prompt.contains("\"bypassVerify\": false"))
+    try #require(prompt.contains("\"lessonEdits\": []"))
+    try #require(prompt.contains("`\"blocked\"` or `\"failed\"`"))
+    try #require(!prompt.contains("succeeded|blocked|failed"))
+  }
+
   @Test func testDevelopPromptRequiresConcreteVerifyBypassReason() throws {
     let prompt = Prompts.developPrompt(
       next: PlanNext(

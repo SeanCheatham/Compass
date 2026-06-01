@@ -94,6 +94,20 @@ extension Prompts {
         wording. Empty string when approving; if you cannot name a concrete
         recovery action, approve instead of requesting changes.
 
+      Copy exactly one of these shapes:
+      Approve:
+      {
+        "verdict": "approve",
+        "summary": "<why no blocking issue remains>",
+        "feedback": ""
+      }
+      Request changes:
+      {
+        "verdict": "request_changes",
+        "summary": "<blocking review summary>",
+        "feedback": "- <specific failing behavior or file>\\n- <smallest Develop recovery action>"
+      }
+
       ## Review brief
       \(reviewBrief)
 
