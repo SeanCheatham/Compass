@@ -299,6 +299,7 @@ private struct AgentSettingsGuidePanel: View {
 
 private struct FactorySettingsTab: View {
   @EnvironmentObject var model: AppModel
+  @State private var factoryNarration: FactorySettingsGuideNarration?
 
   private var sortedProjects: [CompassProject] {
     model.projects.sorted {
@@ -307,19 +308,14 @@ private struct FactorySettingsTab: View {
   }
 
   var body: some View {
+    let factoryGuide = FactorySettingsGuide(projects: factoryGuideProjects)
+
     Form {
       Section {
-        Text(
-          """
-          Develop runs in the Shared VM (Command Line Tools only). Swift, SwiftPM, \
-          and Xcode build/test need full Xcode on your Mac — enable Host Xcode \
-          Build/Test per project so agents use `host_xcode` and host-side verify \
-          instead of guest `swift test` (which fails without libraries like `_TestingInterop`).
-          """
+        FactorySettingsGuidePanel(
+          guide: factoryGuide,
+          narration: matchingNarration(for: factoryGuide)
         )
-        .font(.callout)
-        .foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
       }
 
       if sortedProjects.isEmpty {
@@ -341,7 +337,7 @@ private struct FactorySettingsTab: View {
 
         Section {
           Text(
-            "New SwiftPM and Xcode projects enable this automatically. When on, Plan/Develop agents get the `host_xcode` tool and verify can run `xcodebuild` on a host mirror of the guest workspace."
+            "New SwiftPM and Xcode projects enable this automatically. When on, agents still edit in the private workspace, while build and test verification can use full Xcode on this Mac."
           )
           .font(.callout)
           .foregroundStyle(.secondary)
@@ -351,6 +347,105 @@ private struct FactorySettingsTab: View {
     }
     .formStyle(.grouped)
     .padding()
+    .task(id: factoryGuide.narrationIdentifier) {
+      factoryNarration = nil
+      factoryNarration = await FactorySettingsGuideNarrator.narrate(guide: factoryGuide)
+    }
+  }
+
+  private var factoryGuideProjects: [FactorySettingsGuide.Project] {
+    sortedProjects.map { project in
+      FactorySettingsGuide.Project(
+        id: project.id,
+        displayName: project.displayName,
+        hostXcodeBuildTestEnabled: project.hostXcodeBuildTestEnabled,
+        recommendsHostXcode: ForgeProfileService.prefersHostXcodeBridge(in: project.repoURL),
+        isSelected: model.selectedProjectID == project.id
+      )
+    }
+  }
+
+  private func matchingNarration(
+    for guide: FactorySettingsGuide
+  ) -> FactorySettingsGuideNarration? {
+    guard factoryNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return factoryNarration
+  }
+}
+
+private struct FactorySettingsGuidePanel: View {
+  let guide: FactorySettingsGuide
+  let narration: FactorySettingsGuideNarration?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(guide.title, systemImage: guide.systemImageName)
+          .font(.headline)
+          .foregroundStyle(toneColor)
+
+        Spacer(minLength: 8)
+
+        Text(guide.actionLabel)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(toneColor)
+          .lineLimit(1)
+      }
+
+      Text(narration?.text ?? guide.detail)
+        .font(.callout)
+        .foregroundStyle(.primary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+
+      VStack(alignment: .leading, spacing: 7) {
+        ForEach(guide.rows) { row in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: rowIconName(row))
+              .foregroundStyle(rowColor(row))
+              .frame(width: 18, height: 18)
+              .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 2) {
+              Text(row.label)
+                .font(.caption.weight(.semibold))
+              Text(row.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.vertical, 4)
+  }
+
+  private var toneColor: Color {
+    switch guide.tone {
+    case .ready: return .green
+    case .attention: return .orange
+    case .empty: return .secondary
+    }
+  }
+
+  private func rowIconName(_ row: FactorySettingsGuide.Row) -> String {
+    switch row.status {
+    case .ready: return "checkmark.circle.fill"
+    case .recommended: return "exclamationmark.triangle.fill"
+    case .off: return "circle.slash"
+    }
+  }
+
+  private func rowColor(_ row: FactorySettingsGuide.Row) -> Color {
+    switch row.status {
+    case .ready: return .green
+    case .recommended: return .orange
+    case .off: return .secondary
+    }
   }
 }
 
