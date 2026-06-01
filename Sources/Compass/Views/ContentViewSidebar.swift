@@ -77,16 +77,17 @@ struct SidebarView: View {
       Spacer(minLength: 8)
 
       DisclosureGroup {
+        let runtimeSummary = AgentRuntimeSidebarSummary(
+          settings: model.agentSettings,
+          foundationModelsAvailable: FoundationModelsAvailability.isAvailable
+        )
         VStack(alignment: .leading, spacing: 8) {
-          Text(
-            "Agent endpoint: \(model.agentSettings.baseURL.host() ?? model.agentSettings.baseURL.absoluteString)"
-          )
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          Text("Model: \(model.agentSettings.model)")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Text("Agent: Settings… (⌘,) → Agent. Host Xcode: Settings → Factory.")
+          ForEach(runtimeSummary.lines) { line in
+            Text("\(line.label): \(line.value)")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          Text("Settings: Agent… (⌘,) → Agent. Host Xcode: Settings → Factory.")
             .font(.caption2)
             .foregroundStyle(.tertiary)
           if let diagnosticsAction = model.selectedProject?.runtimeDiagnosticsMenu
