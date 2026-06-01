@@ -190,14 +190,20 @@ struct ProjectRunControlGuideTests {
     )
 
     try #require(
-      guide.primaryHelp == "Repair Immediate Work before Develop: add Coverage-ready verify.")
+      guide.primaryHelp
+        == "Repair Immediate Work before Develop: add Coverage-ready verify. Add coverage to the verify command for Go (module)."
+    )
     try #require(guide.readiness.title == "Plan repair needed")
     try #require(
-      guide.readiness.detail == "Immediate Work needs Coverage-ready verify before Develop.")
+      guide.readiness.detail
+        == "Immediate Work needs Coverage-ready verify before Develop. Add coverage to the verify command for Go (module)."
+    )
     try #require(guide.primaryKind == .planOnly)
     try #require(!guide.options[2].isEnabled)
     try #require(
-      guide.options[2].detail == "Disabled until Immediate Work has Coverage-ready verify.")
+      guide.options[2].detail
+        == "Disabled until Immediate Work has Coverage-ready verify. Add coverage to the verify command for Go (module)."
+    )
   }
 
   @Test
@@ -218,17 +224,26 @@ struct ProjectRunControlGuideTests {
     )
 
     try #require(
-      guide.primaryHelp == "Repair Immediate Work before Develop: add Acceptance checks.")
+      guide.primaryHelp
+        == "Repair Immediate Work before Develop: add Acceptance checks. List observable finish-line checks."
+    )
     try #require(guide.readiness.title == "Plan repair needed")
-    try #require(guide.readiness.detail == "Immediate Work needs Acceptance checks before Develop.")
+    try #require(
+      guide.readiness.detail
+        == "Immediate Work needs Acceptance checks before Develop. List observable finish-line checks."
+    )
     try #require(guide.primaryKind == .planOnly)
     try #require(guide.primaryOption.title == "Run Plan Only")
     try #require(
-      guide.primaryOption.detail == "Ask Plan to add Acceptance checks before Develop starts.")
+      guide.primaryOption.detail
+        == "Ask Plan to add Acceptance checks before Develop starts. List observable finish-line checks."
+    )
     try #require(guide.options[0].detail.contains("repair Immediate Work"))
     try #require(!guide.options[2].isEnabled)
     try #require(
-      guide.options[2].detail == "Disabled until Immediate Work has Acceptance checks.")
+      guide.options[2].detail
+        == "Disabled until Immediate Work has Acceptance checks. List observable finish-line checks."
+    )
   }
 
   @Test
@@ -254,11 +269,59 @@ struct ProjectRunControlGuideTests {
       languageProfile: profile(.swift)
     )
 
-    try #require(guide.primaryHelp == "Repair Immediate Work before Develop: add Verify command.")
-    try #require(guide.readiness.detail == "Immediate Work needs Verify command before Develop.")
+    try #require(
+      guide.primaryHelp
+        == "Repair Immediate Work before Develop: add Verify command. Choose a real command Compass can run after Develop."
+    )
+    try #require(
+      guide.readiness.detail
+        == "Immediate Work needs Verify command before Develop. Choose a real command Compass can run after Develop."
+    )
     try #require(guide.primaryKind == .planOnly)
     try #require(!guide.options[2].isEnabled)
-    try #require(guide.options[2].detail == "Disabled until Immediate Work has Verify command.")
+    try #require(
+      guide.options[2].detail
+        == "Disabled until Immediate Work has Verify command. Choose a real command Compass can run after Develop."
+    )
+  }
+
+  @Test
+  func testFailureMaskingVerifyExplainsTheConcreteRepair() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(
+        immediate: PlanNext(
+          plan: """
+            ## Outcome
+            Keep failed verification visible.
+
+            ## Acceptance checks
+            - Failed tests still block the Develop handoff.
+            """,
+          verify: "swift test || true"
+        )
+      ),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      languageProfile: profile(.swift)
+    )
+
+    try #require(
+      guide.primaryHelp
+        == "Repair Immediate Work before Develop: add Verify command. Remove fallback no-op clauses so failed checks still fail."
+    )
+    try #require(
+      guide.readiness.detail
+        == "Immediate Work needs Verify command before Develop. Remove fallback no-op clauses so failed checks still fail."
+    )
+    try #require(guide.primaryKind == .planOnly)
+    try #require(!guide.options[2].isEnabled)
+    try #require(
+      guide.options[2].detail
+        == "Disabled until Immediate Work has Verify command. Remove fallback no-op clauses so failed checks still fail."
+    )
   }
 
   @Test
@@ -281,7 +344,8 @@ struct ProjectRunControlGuideTests {
     try #require(guide.previewSteps.map(\.title) == ["Plan one slice", "Stop for review"])
     try #require(
       guide.previewSteps[0].detail
-        == "Plan will add Acceptance checks so Develop has a clear finish line.")
+        == "Plan will add Acceptance checks so Develop has a clear finish line. List observable finish-line checks."
+    )
     try #require(guide.previewSteps[1].detail.contains("stops before Develop"))
   }
 

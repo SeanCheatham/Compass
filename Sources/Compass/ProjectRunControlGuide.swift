@@ -226,7 +226,10 @@ struct ProjectRunControlGuide: Equatable {
     }
 
     if handoffReadiness.hasImmediate && !handoffReadiness.canDevelop {
-      return "Ask Plan to add \(handoffReadiness.missingLabel) before Develop starts."
+      return Self.withRepairDetail(
+        "Ask Plan to add \(handoffReadiness.missingLabel) before Develop starts.",
+        handoffReadiness: handoffReadiness
+      )
     }
 
     if !handoffReadiness.hasImmediate, !draftIntakeGuide.isEmpty {
@@ -376,7 +379,10 @@ struct ProjectRunControlGuide: Equatable {
     draftIntakeGuide: DraftIntakeGuide
   ) -> String {
     if handoffReadiness.hasImmediate && !handoffReadiness.canDevelop {
-      return "Plan will add \(handoffReadiness.missingLabel) so Develop has a clear finish line."
+      return Self.withRepairDetail(
+        "Plan will add \(handoffReadiness.missingLabel) so Develop has a clear finish line.",
+        handoffReadiness: handoffReadiness
+      )
     }
 
     if !draftIntakeGuide.isEmpty {
@@ -438,7 +444,10 @@ struct ProjectRunControlGuide: Equatable {
     }
 
     guard handoffReadiness.canDevelop else {
-      return "Disabled until Immediate Work has \(handoffReadiness.missingLabel)."
+      return Self.withRepairDetail(
+        "Disabled until Immediate Work has \(handoffReadiness.missingLabel).",
+        handoffReadiness: handoffReadiness
+      )
     }
 
     switch reliabilityStatus.primaryKind {
@@ -495,7 +504,10 @@ struct ProjectRunControlGuide: Equatable {
     if handoffReadiness.hasImmediate && !handoffReadiness.canDevelop {
       return Readiness(
         title: "Plan repair needed",
-        detail: "Immediate Work needs \(handoffReadiness.missingLabel) before Develop.",
+        detail: Self.withRepairDetail(
+          "Immediate Work needs \(handoffReadiness.missingLabel) before Develop.",
+          handoffReadiness: handoffReadiness
+        ),
         systemImage: "list.bullet.clipboard"
       )
     }
@@ -546,7 +558,10 @@ struct ProjectRunControlGuide: Equatable {
       return "\(reliabilityStatus.primaryCue): \(reliabilityStatus.actionLabel)"
     }
     if hasImmediate && !handoffReadiness.canDevelop {
-      return "Repair Immediate Work before Develop: add \(handoffReadiness.missingLabel)."
+      return Self.withRepairDetail(
+        "Repair Immediate Work before Develop: add \(handoffReadiness.missingLabel).",
+        handoffReadiness: handoffReadiness
+      )
     }
     if hasImmediate {
       return "Choose whether to run the full loop, re-plan, or develop the current slice."
@@ -582,6 +597,16 @@ struct ProjectRunControlGuide: Equatable {
     }
   }
 
+  private static func withRepairDetail(
+    _ message: String,
+    handoffReadiness: HandoffReadiness
+  ) -> String {
+    guard !handoffReadiness.repairDetail.isEmpty else {
+      return message
+    }
+    return "\(message) \(handoffReadiness.repairDetail)"
+  }
+
   private static func narrationIdentifier(
     primaryHelp: String,
     primaryKind: Kind,
@@ -612,6 +637,7 @@ struct ProjectRunControlGuide: Equatable {
     var hasImmediate: Bool
     var canDevelop: Bool
     var missingLabel: String
+    var repairDetail: String
 
     init(
       state: PlanState,
@@ -626,13 +652,18 @@ struct ProjectRunControlGuide: Equatable {
         forgeProfile: forgeProfile
       )
       canDevelop = repairGuide.status == .ready
-      let missing = repairGuide.steps
+      let missingSteps = repairGuide.steps
         .filter { $0.isRequired && !$0.isSatisfied }
-        .map(\.title)
+      let missing = missingSteps.map(\.title)
       missingLabel =
         missing.isEmpty
         ? "an executable handoff"
         : missing.joined(separator: " and ")
+      repairDetail =
+        missingSteps
+        .map(\.detail)
+        .filter { !$0.isEmpty }
+        .joined(separator: " ")
     }
   }
 }
