@@ -1009,9 +1009,9 @@ struct DevelopSummaryDecoderTests {
         "bypass_verify": "false",
         "lesson_edits": [
           {
-            "find": "old lesson",
-            "replace": "new lesson",
-            "replace_all": "true"
+            "old_string": "old lesson",
+            "new_string": "new lesson",
+            "global": "true"
           }
         ]
       }
@@ -1027,6 +1027,8 @@ struct DevelopSummaryDecoderTests {
     )
     try #require(summary.bypassVerify == false)
     try #require(summary.lessonEdits.count == 1)
+    try #require(summary.lessonEdits[0].find == "old lesson")
+    try #require(summary.lessonEdits[0].replace == "new lesson")
     try #require(summary.lessonEdits[0].replaceAll == true)
   }
 

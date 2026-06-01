@@ -547,9 +547,25 @@ struct LessonEdit: Codable, Equatable {
 
   enum CodingKeys: String, CodingKey {
     case find
+    case old
+    case oldText
+    case oldTextSnake = "old_text"
+    case oldString
+    case oldStringSnake = "old_string"
+    case search
+    case original
     case replace
+    case new
+    case newText
+    case newTextSnake = "new_text"
+    case newString
+    case newStringSnake = "new_string"
+    case replacement
+    case to
     case replaceAll
     case replaceAllSnake = "replace_all"
+    case all
+    case global
   }
 
   init(find: String, replace: String, replaceAll: Bool?) {
@@ -560,11 +576,23 @@ struct LessonEdit: Codable, Equatable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    find = try container.decode(String.self, forKey: .find)
-    replace = try container.decode(String.self, forKey: .replace)
-    replaceAll =
-      FlexibleModelDecoder.decodeBool(from: container, forKey: .replaceAll)
-      ?? FlexibleModelDecoder.decodeBool(from: container, forKey: .replaceAllSnake)
+    find = try FlexibleModelDecoder.decodeRequiredString(
+      from: container,
+      preferredKey: .find,
+      aliases: [
+        .old, .oldText, .oldTextSnake, .oldString, .oldStringSnake, .search, .original,
+      ],
+      fieldName: "find"
+    )
+    replace = try FlexibleModelDecoder.decodeRequiredString(
+      from: container,
+      preferredKey: .replace,
+      aliases: [
+        .new, .newText, .newTextSnake, .newString, .newStringSnake, .replacement, .to,
+      ],
+      fieldName: "replace"
+    )
+    replaceAll = Self.decodeReplaceAll(from: container)
   }
 
   func encode(to encoder: Encoder) throws {
@@ -572,6 +600,22 @@ struct LessonEdit: Codable, Equatable {
     try container.encode(find, forKey: .find)
     try container.encode(replace, forKey: .replace)
     try container.encodeIfPresent(replaceAll, forKey: .replaceAll)
+  }
+
+  private static func decodeReplaceAll(
+    from container: KeyedDecodingContainer<CodingKeys>
+  ) -> Bool? {
+    for key in [
+      CodingKeys.replaceAll,
+      .replaceAllSnake,
+      .all,
+      .global,
+    ] {
+      if let value = FlexibleModelDecoder.decodeBool(from: container, forKey: key) {
+        return value
+      }
+    }
+    return nil
   }
 }
 
