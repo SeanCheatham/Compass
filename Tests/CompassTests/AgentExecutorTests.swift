@@ -346,6 +346,11 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("lessonEdits"))
     try #require(nudge.userMessage.contains("Call `submit_result` again"))
     try #require(nudge.userMessage.contains("Use `[]`"))
+    try #require(nudge.userMessage.contains("Use this exact `lessonEdits` field"))
+    try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
+    try #require(nudge.userMessage.contains("Use this exact item shape"))
+    try #require(nudge.userMessage.contains("\"find\": \"<exact current lesson text>\""))
+    try #require(nudge.userMessage.contains("\"replaceAll\": false"))
   }
 
   @Test func testInvalidDevelopFeedbackNudgeExplainsConcreteRetry() throws {

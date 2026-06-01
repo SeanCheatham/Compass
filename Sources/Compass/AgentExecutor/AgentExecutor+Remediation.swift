@@ -89,6 +89,18 @@ extension AgentExecutor {
         matches the current lessons content exactly — re-read the Lessons section in your \
         original task. Use `[]` when you have no lesson change. If `find` would match more \
         than once, include more surrounding context or set `replaceAll` to true.
+
+        Use this exact `lessonEdits` field when there is no durable lesson to update:
+        "lessonEdits": []
+
+        Use this exact item shape only after copying an exact current lesson into `find`:
+        "lessonEdits": [
+          {
+            "find": "<exact current lesson text>",
+            "replace": "<replacement lesson text>",
+            "replaceAll": false
+          }
+        ]
         """
     )
   }
