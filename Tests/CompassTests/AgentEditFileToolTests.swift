@@ -166,6 +166,43 @@ final class AgentEditFileToolTests {
     try #require(try String(contentsOf: fileURL, encoding: .utf8) == "new lesson")
   }
 
+  @Test func testAcceptsSingleEditObjectFromLessCapableModels() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("single-object.txt")
+    try "alpha\nbeta".write(to: fileURL, atomically: true, encoding: .utf8)
+
+    let result = try await invokeMarkingRead(
+      fileURL,
+      args: [
+        "path": "single-object.txt",
+        "edits": [
+          "find": "beta",
+          "replace": "BETA",
+        ],
+      ])
+
+    try #require(!result.isError)
+    try #require(result.content.contains("applied 1 edit to single-object.txt"))
+    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nBETA")
+  }
+
+  @Test func testAcceptsTopLevelEditOperationFromLessCapableModels() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("top-level.txt")
+    try "foo\nfoo\nfoo".write(to: fileURL, atomically: true, encoding: .utf8)
+
+    let result = try await invokeMarkingRead(
+      fileURL,
+      args: [
+        "file": "top-level.txt",
+        "old_string": "foo",
+        "new_string": "bar",
+        "replace_all": "true",
+      ])
+
+    try #require(!result.isError)
+    try #require(result.content.contains("replaced 3 occurrences"))
+    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "bar\nbar\nbar")
+  }
+
   @Test func testFailsWhenOldStringMissing() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
     try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)

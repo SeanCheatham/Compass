@@ -22,6 +22,16 @@ struct AgentEditFileTool: AgentTool {
       case edits
       case changes
       case operations
+      case oldString
+      case oldStringSnake = "old_string"
+      case old
+      case find
+      case newString
+      case newStringSnake = "new_string"
+      case replacement
+      case replace
+      case replaceAll
+      case replaceAllSnake = "replace_all"
     }
 
     init(from decoder: Decoder) throws {
@@ -32,12 +42,71 @@ struct AgentEditFileTool: AgentTool {
         aliases: [.filePath, .filePathSnake, .file],
         fieldName: "path"
       )
-      edits = try FlexibleModelDecoder.decodeRequiredValue(
-        from: container,
-        preferredKey: .edits,
-        aliases: [.changes, .operations],
-        fieldName: "edits"
+      edits = try Self.decodeEdits(from: container, decoder: decoder)
+    }
+
+    private static func decodeEdits(
+      from container: KeyedDecodingContainer<CodingKeys>,
+      decoder: Decoder
+    ) throws -> [EditOperation] {
+      var sawPresentKey = false
+      var firstTypeError: Error?
+
+      for key in [CodingKeys.edits, .changes, .operations] where container.contains(key) {
+        sawPresentKey = true
+        do {
+          if let edits = try? container.decodeIfPresent([EditOperation].self, forKey: key) {
+            return edits
+          }
+          if let edit = try? container.decodeIfPresent(EditOperation.self, forKey: key) {
+            return [edit]
+          }
+          _ = try container.decode([EditOperation].self, forKey: key)
+        } catch {
+          firstTypeError = firstTypeError ?? error
+        }
+      }
+
+      if containsTopLevelEditOperation(in: container) {
+        return [try EditOperation(from: decoder)]
+      }
+
+      if !sawPresentKey {
+        throw DecodingError.keyNotFound(
+          CodingKeys.edits,
+          .init(
+            codingPath: container.codingPath,
+            debugDescription: "Missing required edits field."
+          )
+        )
+      }
+      if let firstTypeError {
+        throw firstTypeError
+      }
+      throw DecodingError.valueNotFound(
+        [EditOperation].self,
+        .init(
+          codingPath: container.codingPath + [CodingKeys.edits],
+          debugDescription: "Expected non-null edits."
+        )
       )
+    }
+
+    private static func containsTopLevelEditOperation(
+      in container: KeyedDecodingContainer<CodingKeys>
+    ) -> Bool {
+      [
+        CodingKeys.oldString,
+        .oldStringSnake,
+        .old,
+        .find,
+        .newString,
+        .newStringSnake,
+        .replacement,
+        .replace,
+        .replaceAll,
+        .replaceAllSnake,
+      ].contains { container.contains($0) }
     }
   }
 
