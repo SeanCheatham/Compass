@@ -316,6 +316,31 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
+  func testHandoffDigestPreservesLeadingNumbersInAcceptanceChecks() throws {
+    let digest = PlanHandoffDigest(
+      plan: """
+        ## Outcome
+        Make error recovery understandable.
+
+        ## Acceptance checks
+        - [ ] 404 message explains the missing page.
+        1. 2FA recovery copy stays visible after retry.
+        2) [x] 500 error shows a support-safe next step.
+        """
+    )
+
+    try #require(digest.status == .ready)
+    try #require(
+      digest.acceptanceChecks == [
+        "404 message explains the missing page.",
+        "2FA recovery copy stays visible after retry.",
+        "500 error shows a support-safe next step.",
+      ]
+    )
+    try #require(digest.missingPieces == [.whyItMatters])
+  }
+
+  @Test
   func testHandoffDigestFlagsMissingAcceptanceChecks() throws {
     let digest = PlanHandoffDigest(
       plan: """
