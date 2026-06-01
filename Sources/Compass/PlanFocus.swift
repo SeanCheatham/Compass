@@ -15,12 +15,12 @@ enum PlanFocus: String, CaseIterable, Equatable {
   /// Relative weight used when sampling. The weights are tuned so
   /// feature work still dominates a single pass in expectation but
   /// not by enough to starve the other categories over a session.
-  /// Even-er split: feature 30 / test 25 / cleanup 25 / docs 10 / bugHunt 10.
+  /// Feature-forward split: feature 50 / test 15 / cleanup 15 / docs 10 / bugHunt 10.
   var weight: Double {
     switch self {
-    case .feature: return 30
-    case .test: return 25
-    case .cleanup: return 25
+    case .feature: return 50
+    case .test: return 15
+    case .cleanup: return 15
     case .docs: return 10
     case .bugHunt: return 10
     }

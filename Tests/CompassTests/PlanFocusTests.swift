@@ -11,9 +11,9 @@ struct PlanFocusTests {
   /// updated deliberately rather than drift silently.
   @Test
   func testWeightsMatchExpectedDistribution() throws {
-    try #require(PlanFocus.feature.weight == 30)
-    try #require(PlanFocus.test.weight == 25)
-    try #require(PlanFocus.cleanup.weight == 25)
+    try #require(PlanFocus.feature.weight == 50)
+    try #require(PlanFocus.test.weight == 15)
+    try #require(PlanFocus.cleanup.weight == 15)
     try #require(PlanFocus.docs.weight == 10)
     try #require(PlanFocus.bugHunt.weight == 10)
 
