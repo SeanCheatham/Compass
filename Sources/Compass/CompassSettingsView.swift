@@ -28,11 +28,17 @@ private struct AgentSettingsTab: View {
       settings: model.agentSettings,
       foundationModelsAvailable: FoundationModelsAvailability.isAvailable
     )
+    let settingsPayload = AgentSettingsClipboardPayload(
+      settings: model.agentSettings,
+      guide: settingsGuide,
+      foundationModelsAvailable: FoundationModelsAvailability.isAvailable
+    )
 
     Form {
       Section {
         AgentSettingsGuidePanel(
           guide: settingsGuide,
+          clipboardPayload: settingsPayload,
           narration: matchingNarration(for: settingsGuide)
         )
       }
@@ -221,6 +227,7 @@ private struct AgentSettingsTab: View {
 
 private struct AgentSettingsGuidePanel: View {
   let guide: AgentSettingsGuide
+  let clipboardPayload: AgentSettingsClipboardPayload
   let narration: AgentSettingsGuideNarration?
 
   var body: some View {
@@ -231,6 +238,8 @@ private struct AgentSettingsGuidePanel: View {
           .foregroundStyle(toneColor)
 
         Spacer(minLength: 8)
+
+        CopyAgentSettingsButton(payload: clipboardPayload)
 
         Text(guide.actionLabel)
           .font(.caption.weight(.semibold))
@@ -292,6 +301,31 @@ private struct AgentSettingsGuidePanel: View {
     case .off: return .secondary
     case .attention: return .orange
     }
+  }
+}
+
+private struct CopyAgentSettingsButton: View {
+  var payload: AgentSettingsClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Runtime",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a redacted runtime settings handoff for another model or teammate.")
   }
 }
 

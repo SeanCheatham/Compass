@@ -275,6 +275,156 @@ struct AgentSettingsGuide: Equatable, Sendable {
   }
 }
 
+struct AgentSettingsClipboardPayload: Equatable, Sendable {
+  static let textLimit = 3_800
+
+  var text: String
+
+  init(
+    settings: AgentRuntimeSettings,
+    guide: AgentSettingsGuide,
+    foundationModelsAvailable: Bool
+  ) {
+    let textReady = settings.isTextCapabilityRunnable(
+      foundationModelsAvailable: foundationModelsAvailable
+    )
+
+    var sections: [String] = [
+      "Compass Runtime Settings Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded runtime configuration context. Do not invent "
+        + "API keys, endpoints, model names, provider assignments, files, or run outcomes.",
+      "- Never ask the user to paste an API key into chat. Credentials are reported "
+        + "only as saved, missing, or not required.",
+      "- Text readiness is load-bearing for Plan and Develop. Media capabilities are "
+        + "optional unless the current project explicitly needs generated assets.",
+      "- Foundation Models availability is a local machine fact; ask the user to verify "
+        + "Settings or choose a network Text provider instead of assuming availability.",
+      "",
+      "Status: \(guide.title) (\(guide.tone.rawValue))",
+      "Action: \(guide.actionLabel)",
+      "Detail: \(guide.detail)",
+      "",
+      "Text:",
+      "Provider: \(settings.textProvider.displayName)",
+      "Runnable: \(Self.yesNo(textReady))",
+      "Foundation Models available: \(Self.yesNo(foundationModelsAvailable))",
+      "Credential requirement: \(Self.credentialRequirementLabel(settings.textProvider))",
+      "Credential saved: \(Self.credentialSavedLabel(settings.apiKey, provider: settings.textProvider))",
+      "Base URL: \(Self.baseURLLabel(settings.baseURL, provider: settings.textProvider))",
+      "Default model: \(Self.modelLabel(settings.model, provider: settings.textProvider, capability: .text))",
+      "Context window tokens: \(settings.contextWindowTokens)",
+      "Codemap model: \(Self.codemapModelLabel(settings))",
+      "Phase routing: \(Self.phaseRoutingLabel(settings))",
+      "",
+      "Optional media:",
+    ]
+
+    sections.append(Self.mediaLine(capability: .image, assignment: settings.imageAssignment))
+    sections.append(Self.mediaLine(capability: .audio, assignment: settings.audioAssignment))
+    sections.append(Self.mediaLine(capability: .video, assignment: settings.videoAssignment))
+
+    sections.append("")
+    sections.append("Guide rows:")
+    for row in guide.rows {
+      sections.append("- [\(row.status.rawValue)] \(row.label): \(row.detail)")
+    }
+
+    text = AgentSettingsClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private static func yesNo(_ value: Bool) -> String {
+    value ? "yes" : "no"
+  }
+
+  private static func credentialRequirementLabel(_ provider: AgentProviderKind) -> String {
+    provider.requiresCredentials ? "API key required" : "not required"
+  }
+
+  private static func credentialSavedLabel(_ apiKey: String, provider: AgentProviderKind) -> String {
+    guard provider.requiresCredentials else { return "not required" }
+    return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "missing" : "saved"
+  }
+
+  private static func baseURLLabel(_ baseURL: URL, provider: AgentProviderKind) -> String {
+    guard provider.requiresCredentials else { return "not used" }
+    return baseURL.absoluteString
+  }
+
+  private static func modelLabel(
+    _ model: String,
+    provider: AgentProviderKind,
+    capability: AgentCapability
+  ) -> String {
+    let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !trimmed.isEmpty { return trimmed }
+    return provider.defaultModel(for: capability) ?? "provider default"
+  }
+
+  private static func phaseRoutingLabel(_ settings: AgentRuntimeSettings) -> String {
+    let parts = AgentPhase.allCases.map { phase in
+      "\(phase.displayLabel)=\(phaseModelLabel(phase, settings: settings))"
+    }
+    return parts.joined(separator: ", ")
+  }
+
+  private static func phaseModelLabel(
+    _ phase: AgentPhase,
+    settings: AgentRuntimeSettings
+  ) -> String {
+    let override: String?
+    switch phase {
+    case .plan: override = settings.planModelOverride
+    case .develop: override = settings.developModelOverride
+    case .reflect: override = settings.reflectModelOverride
+    case .critic: override = settings.criticModelOverride
+    }
+    let trimmed = override?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if !trimmed.isEmpty { return trimmed }
+    return Self.modelLabel(settings.model, provider: settings.textProvider, capability: .text)
+  }
+
+  private static func codemapModelLabel(_ settings: AgentRuntimeSettings) -> String {
+    let override = settings.codemapModelOverride?.trimmingCharacters(in: .whitespacesAndNewlines)
+      ?? ""
+    if !override.isEmpty { return override }
+    return "default (\(Self.modelLabel(settings.model, provider: settings.textProvider, capability: .text)))"
+  }
+
+  private static func mediaLine(
+    capability: AgentCapability,
+    assignment: MediaAssignment?
+  ) -> String {
+    guard let assignment else {
+      return "- \(capability.displayName): off"
+    }
+
+    return "- \(capability.displayName): provider \(assignment.provider.displayName), "
+      + "credential \(Self.credentialSavedLabel(assignment.apiKey, provider: assignment.provider)), "
+      + "base URL \(assignment.baseURL.absoluteString), "
+      + "model \(Self.modelLabel(assignment.model, provider: assignment.provider, capability: capability))"
+  }
+}
+
+private enum AgentSettingsClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}
+
 extension AgentPhase {
   fileprivate var displayLabel: String {
     switch self {

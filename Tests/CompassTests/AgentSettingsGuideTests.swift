@@ -91,6 +91,84 @@ struct AgentSettingsGuideTests {
   }
 
   @Test
+  func settingsClipboardPayloadRedactsCredentialsAndPackagesRouting() throws {
+    let settings = AgentRuntimeSettings(
+      textProvider: .openAI,
+      baseURL: try #require(URL(string: "https://api.openai.com/v1")),
+      apiKey: "sk-text-secret",
+      model: "gpt-4o",
+      planModelOverride: "planner-model",
+      criticModelOverride: "critic-model",
+      codemapModelOverride: "cheap-codemap",
+      contextWindowTokens: 128_000,
+      imageAssignment: MediaAssignment(
+        provider: .minimaxToken,
+        baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
+        apiKey: "mm-image-secret",
+        model: "image-01"
+      ),
+      audioAssignment: MediaAssignment(
+        provider: .minimaxToken,
+        baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
+        apiKey: "",
+        model: "speech-02-hd"
+      )
+    )
+    let guide = AgentSettingsGuide(settings: settings, foundationModelsAvailable: false)
+
+    let payload = AgentSettingsClipboardPayload(
+      settings: settings,
+      guide: guide,
+      foundationModelsAvailable: false
+    )
+
+    #expect(payload.text.contains("Compass Runtime Settings Handoff"))
+    #expect(payload.text.contains("Never ask the user to paste an API key into chat"))
+    #expect(payload.text.contains("Status: Core Agent Ready (optionalAttention)"))
+    #expect(payload.text.contains("Provider: OpenAI API"))
+    #expect(payload.text.contains("Runnable: yes"))
+    #expect(payload.text.contains("Credential saved: saved"))
+    #expect(payload.text.contains("Base URL: https://api.openai.com/v1"))
+    #expect(payload.text.contains("Default model: gpt-4o"))
+    #expect(payload.text.contains("Context window tokens: 128000"))
+    #expect(payload.text.contains("Codemap model: cheap-codemap"))
+    #expect(payload.text.contains("Phase routing: Plan=planner-model"))
+    #expect(payload.text.contains("Develop=gpt-4o"))
+    #expect(payload.text.contains("Critic=critic-model"))
+    #expect(payload.text.contains("Image: provider MiniMax Token, credential saved"))
+    #expect(payload.text.contains("Audio: provider MiniMax Token, credential missing"))
+    #expect(payload.text.contains("Video: off"))
+    #expect(payload.text.contains("[ready] Image"))
+    #expect(payload.text.contains("[attention] Audio"))
+    #expect(!payload.text.contains("sk-text-secret"))
+    #expect(!payload.text.contains("mm-image-secret"))
+    #expect(payload.text.count <= AgentSettingsClipboardPayload.textLimit)
+    #expect(!payload.isEmpty)
+  }
+
+  @Test
+  func settingsClipboardPayloadNamesFoundationModelsMachineBlocker() {
+    let settings = AgentRuntimeSettings(textProvider: .appleFoundationModels)
+    let guide = AgentSettingsGuide(settings: settings, foundationModelsAvailable: false)
+
+    let payload = AgentSettingsClipboardPayload(
+      settings: settings,
+      guide: guide,
+      foundationModelsAvailable: false
+    )
+
+    #expect(payload.text.contains("Status: Agent Setup Needs Text (blocked)"))
+    #expect(payload.text.contains("Provider: Foundation Models"))
+    #expect(payload.text.contains("Runnable: no"))
+    #expect(payload.text.contains("Foundation Models available: no"))
+    #expect(payload.text.contains("Credential requirement: not required"))
+    #expect(payload.text.contains("Credential saved: not required"))
+    #expect(payload.text.contains("Base URL: not used"))
+    #expect(payload.text.contains("Default model: provider default"))
+    #expect(payload.text.contains("[blocked] Text provider"))
+  }
+
+  @Test
   func narratorUsesFoundationModelsAsOptionalSettingsPolish() async throws {
     let guide = AgentSettingsGuide(
       settings: AgentRuntimeSettings(
