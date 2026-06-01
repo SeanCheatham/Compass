@@ -4,6 +4,39 @@ import Testing
 @testable import Compass
 
 struct DraftRefinementTests {
+  @Test func testDraftReadinessGuideStartsEmptyDraftWithOutcomeCue() throws {
+    let guide = DraftReadinessGuide(draft: "   ")
+
+    try #require(guide.status == .empty)
+    try #require(guide.title == "Start with the outcome")
+    try #require(guide.scoreLabel == "0 of 3")
+    try #require(guide.cues.map(\.title) == ["Outcome", "Why", "Success signal"])
+    try #require(guide.cues.allSatisfy { !$0.isSatisfied })
+  }
+
+  @Test func testDraftReadinessGuideNamesMissingSignalsForPartialDraft() throws {
+    let guide = DraftReadinessGuide(draft: "make setup faster")
+
+    try #require(guide.status == .needsDetail)
+    try #require(guide.scoreLabel == "1 of 3")
+    try #require(guide.detail == "Missing: Why, Success signal.")
+    try #require(guide.cues[0].isSatisfied)
+    try #require(!guide.cues[1].isSatisfied)
+    try #require(!guide.cues[2].isSatisfied)
+  }
+
+  @Test func testDraftReadinessGuideMarksActionableDraftReady() throws {
+    let guide = DraftReadinessGuide(
+      draft:
+        "Make setup faster because users get stuck; success looks like the setup check shows clear progress."
+    )
+
+    try #require(guide.status == .ready)
+    try #require(guide.title == "Ready for Plan")
+    try #require(guide.scoreLabel == "3 of 3")
+    try #require(guide.cues.allSatisfy { $0.isSatisfied })
+  }
+
   @Test func testParserAcceptsGeneratedJSONRefinement() throws {
     let context = makeContext()
     let refinement = try #require(

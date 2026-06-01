@@ -32,6 +32,8 @@ struct DraftsTab: View {
           !project.hasRepository
             || project.draftEntry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
+      DraftReadinessGuideView(guide: DraftReadinessGuide(draft: project.draftEntry))
+
       if shouldShowDraftRefinementPreview {
         DraftRefinementPreviewCard(
           refinement: draftRefinementPreview,
@@ -261,6 +263,81 @@ struct DraftsTab: View {
     cancelDraftRefinementReschedule()
     cancelDraftRefinementPreview()
     project.modifyDraft(with: refinement)
+  }
+}
+
+struct DraftReadinessGuideView: View {
+  var guide: DraftReadinessGuide
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(guide.title, systemImage: systemImage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color)
+
+        Text(guide.scoreLabel)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 2)
+          .background(.quaternary.opacity(0.7), in: Capsule())
+
+        Spacer()
+      }
+
+      Text(guide.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      HStack(spacing: 6) {
+        ForEach(guide.cues) { cue in
+          Label(cue.title, systemImage: cue.systemImage)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(cue.isSatisfied ? color : .secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(
+              (cue.isSatisfied ? color.opacity(0.12) : Color.secondary.opacity(0.08)),
+              in: Capsule()
+            )
+            .help(cue.detail)
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay {
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(color.opacity(0.18))
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(guide.title). \(guide.detail). \(guide.scoreLabel) signals present.")
+  }
+
+  private var color: Color {
+    switch guide.status {
+    case .empty:
+      return .secondary
+    case .needsDetail:
+      return .orange
+    case .ready:
+      return .green
+    }
+  }
+
+  private var systemImage: String {
+    switch guide.status {
+    case .empty:
+      return "square.and.pencil"
+    case .needsDetail:
+      return "list.bullet.clipboard"
+    case .ready:
+      return "checkmark.seal"
+    }
   }
 }
 
