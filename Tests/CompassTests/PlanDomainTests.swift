@@ -1089,6 +1089,36 @@ struct CriticVerdictDecoderTests {
         == "- Retry copy does not mention the failed field.\n- Add the field name to the repair prompt."
     )
   }
+
+  @Test func decoderAcceptsReviewAliasesFromLessCapableModels() throws {
+    let data = Data(
+      """
+      {
+        "result": "needs_work",
+        "rationale": [
+          "One blocking issue remains.",
+          "The repair is local to run-control copy."
+        ],
+        "requested_changes": [
+          "- Develop retry copy does not name the rejected field.",
+          "- Add a focused test for the rejected-field message."
+        ]
+      }
+      """.utf8
+    )
+
+    let verdict = try JSONDecoder().decode(CriticVerdict.self, from: data)
+
+    try #require(verdict.verdict == .requestChanges)
+    try #require(
+      verdict.summary
+        == "One blocking issue remains.\nThe repair is local to run-control copy."
+    )
+    try #require(
+      verdict.feedback
+        == "- Develop retry copy does not name the rejected field.\n- Add a focused test for the rejected-field message."
+    )
+  }
 }
 
 struct PlanningEnvelopeDecoderTests {

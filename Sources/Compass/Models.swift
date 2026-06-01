@@ -1376,7 +1376,8 @@ struct CriticVerdict: Codable, Equatable {
       case "approve", "approved":
         self = .approve
       case "request_changes", "requestchanges", "changes_requested", "change_requested",
-        "changes_required", "needs_changes", "reject", "rejected":
+        "changes_required", "needs_changes", "needs_work", "needswork", "changes", "revise",
+        "reject", "rejected":
         self = .requestChanges
       default:
         throw DecodingError.dataCorrupted(
@@ -1410,7 +1411,19 @@ struct CriticVerdict: Codable, Equatable {
     case status
     case result
     case summary
+    case rationale
+    case reason
+    case details
+    case notes
     case feedback
+    case changes
+    case requestedChanges
+    case requestedChangesSnake = "requested_changes"
+    case actionItems
+    case actionItemsSnake = "action_items"
+    case punchList
+    case punchListSnake = "punch_list"
+    case issues
   }
 
   init(from decoder: Decoder) throws {
@@ -1421,8 +1434,21 @@ struct CriticVerdict: Codable, Equatable {
       aliases: [.decision, .status, .result],
       fieldName: "verdict"
     )
-    summary = try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .summary) ?? ""
-    feedback = try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .feedback) ?? ""
+    summary =
+      try FlexibleModelDecoder.decodeStringIfPresent(
+        from: container,
+        preferredKey: .summary,
+        aliases: [.rationale, .reason, .details, .notes]
+      ) ?? ""
+    feedback =
+      try FlexibleModelDecoder.decodeStringIfPresent(
+        from: container,
+        preferredKey: .feedback,
+        aliases: [
+          .changes, .requestedChanges, .requestedChangesSnake, .actionItems,
+          .actionItemsSnake, .punchList, .punchListSnake, .issues,
+        ]
+      ) ?? ""
   }
 
   func encode(to encoder: Encoder) throws {
