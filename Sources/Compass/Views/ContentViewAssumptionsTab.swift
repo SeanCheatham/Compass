@@ -4,9 +4,14 @@ import SwiftUI
 struct AssumptionsTab: View {
   @ObservedObject var project: CompassProject
   @State private var filter = AssumptionFilter.active
+  @State private var guideNarration: AssumptionReviewGuideNarration?
 
   private var ledger: AssumptionLedger {
     AssumptionLedger(assumptions: project.assumptions)
+  }
+
+  private var guide: AssumptionReviewGuide {
+    AssumptionReviewGuide(ledger: ledger)
   }
 
   private var visibleAssumptions: [AssumptionRecord] {
@@ -35,6 +40,10 @@ struct AssumptionsTab: View {
       }
 
       AssumptionSummaryStrip(ledger: ledger)
+      AssumptionReviewGuidePanel(
+        guide: guide,
+        narration: matchingNarration(for: guide)
+      )
 
       if visibleAssumptions.isEmpty {
         EmptyState(filter.emptyStateText)
@@ -50,6 +59,20 @@ struct AssumptionsTab: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .task(id: guide.narrationIdentifier) {
+      let guide = guide
+      guideNarration = nil
+      guideNarration = await AssumptionReviewGuideNarrator.narrate(guide: guide)
+    }
+  }
+
+  private func matchingNarration(
+    for guide: AssumptionReviewGuide
+  ) -> AssumptionReviewGuideNarration? {
+    guard guideNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return guideNarration
   }
 }
 
@@ -139,6 +162,109 @@ struct AssumptionSummaryStrip: View {
       .padding(.horizontal, 9)
       .padding(.vertical, 5)
       .background(color.opacity(0.12), in: Capsule())
+  }
+}
+
+struct AssumptionReviewGuidePanel: View {
+  var guide: AssumptionReviewGuide
+  var narration: AssumptionReviewGuideNarration?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(guide.title, systemImage: iconName(for: guide.tone))
+          .font(.callout.weight(.semibold))
+          .foregroundStyle(color(for: guide.tone))
+
+        Spacer(minLength: 8)
+
+        Text(guide.promptEffect)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+      }
+
+      Text(guide.detail)
+        .font(.callout)
+        .foregroundStyle(.primary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if let narration {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: "text.bubble")
+            .frame(width: 16)
+            .foregroundStyle(.secondary)
+          Text(narration.text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+      }
+
+      VStack(alignment: .leading, spacing: 7) {
+        ForEach(guide.steps) { step in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: step.systemImageName)
+              .frame(width: 16)
+              .foregroundStyle(color(for: step.tone))
+            VStack(alignment: .leading, spacing: 2) {
+              Text(step.label)
+                .font(.caption.weight(.semibold))
+              Text(step.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+      }
+
+      if !guide.queue.isEmpty {
+        Divider()
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Needs Review")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(guide.queue) { item in
+            VStack(alignment: .leading, spacing: 2) {
+              Text(item.label)
+                .font(.caption.weight(.semibold))
+                .lineLimit(2)
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+          }
+        }
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quaternary.opacity(0.22), in: RoundedRectangle(cornerRadius: 8))
+    .overlay {
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(color(for: guide.tone).opacity(0.18))
+    }
+  }
+
+  private func iconName(for tone: AssumptionReviewGuide.Tone) -> String {
+    switch tone {
+    case .empty: return "sparkle.magnifyingglass"
+    case .review: return "questionmark.circle"
+    case .steady: return "checkmark.circle"
+    case .correction: return "xmark.circle"
+    }
+  }
+
+  private func color(for tone: AssumptionReviewGuide.Tone) -> Color {
+    switch tone {
+    case .empty: return .secondary
+    case .review: return .blue
+    case .steady: return .green
+    case .correction: return .red
+    }
   }
 }
 
