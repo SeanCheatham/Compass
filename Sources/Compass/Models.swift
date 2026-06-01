@@ -619,6 +619,53 @@ struct LessonEdit: Codable, Equatable {
   }
 }
 
+extension FlexibleModelDecoder {
+  static func decodeLessonEditsIfPresent<Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    preferredKey: Key,
+    aliases: [Key]
+  ) throws -> [LessonEdit]? {
+    var firstTypeError: Error?
+
+    for key in [preferredKey] + aliases where container.contains(key) {
+      do {
+        if try container.decodeNil(forKey: key) {
+          return []
+        }
+        if let edits = try? container.decode([LessonEdit].self, forKey: key) {
+          return edits
+        }
+        if let edit = try? container.decode(LessonEdit.self, forKey: key) {
+          return [edit]
+        }
+        if let emptyMarker = try? container.decode(String.self, forKey: key),
+          isEmptyLessonEditMarker(emptyMarker)
+        {
+          return []
+        }
+
+        _ = try container.decode([LessonEdit].self, forKey: key)
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    return nil
+  }
+
+  private static func isEmptyLessonEditMarker(_ rawValue: String) -> Bool {
+    switch normalizedIdentifier(rawValue) {
+    case "", "none", "null", "nil", "no", "no_change", "no_changes", "no_lesson_edits":
+      return true
+    default:
+      return rawValue.trimmingCharacters(in: .whitespacesAndNewlines) == "[]"
+    }
+  }
+}
+
 struct PlanRunResult: Codable, Equatable {
   var state: PlanProposal
   var lessonEdits: [LessonEdit]
@@ -648,7 +695,7 @@ struct PlanRunResult: Codable, Equatable {
       fieldName: "state"
     )
     lessonEdits =
-      try FlexibleModelDecoder.decodeValueIfPresent(
+      try FlexibleModelDecoder.decodeLessonEditsIfPresent(
         from: container,
         preferredKey: .lessonEdits,
         aliases: [.lessonEditsSnake]
@@ -741,7 +788,7 @@ struct ReflectSummary: Codable, Equatable {
     )
     summary = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .summary)
     lessonEdits =
-      try FlexibleModelDecoder.decodeValueIfPresent(
+      try FlexibleModelDecoder.decodeLessonEditsIfPresent(
         from: container,
         preferredKey: .lessonEdits,
         aliases: [.lessonEditsSnake]
@@ -1273,7 +1320,7 @@ struct DevelopSummary: Codable, Equatable {
     )
     bypassVerify = Self.decodeBypassVerify(from: container)
     lessonEdits =
-      try FlexibleModelDecoder.decodeValueIfPresent(
+      try FlexibleModelDecoder.decodeLessonEditsIfPresent(
         from: container,
         preferredKey: .lessonEdits,
         aliases: [.lessonEditsSnake]

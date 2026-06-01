@@ -564,18 +564,27 @@ final class CompassWorkspaceTests {
     let payload = """
       {
         "state": {"immediate": null, "midTerm": [], "longTerm": "x"},
-        "lesson_edits": [
-          {
-            "old_text": "Existing",
-            "new_text": "Replacement",
-            "global": "yes"
-          }
-        ]
+        "lesson_edits": {
+          "old_text": "Existing",
+          "new_text": "Replacement",
+          "global": "yes"
+        }
       }
       """
 
     try workspace.validateSubmitResultLessonEdits(Data(payload.utf8))
     try #require(workspace.readLessons() == "- Existing\n- Existing\n")
+  }
+
+  @Test func testValidateSubmitResultLessonEditsAcceptsBenignEmptyString() throws {
+    let workspace = try makeInitializedWorkspace()
+    try workspace.writeLessons("- Existing\n")
+    let payload = """
+      {"state":{"immediate":null,"midTerm":[],"longTerm":"x"},"lesson_edits":"no changes"}
+      """
+
+    try workspace.validateSubmitResultLessonEdits(Data(payload.utf8))
+    try #require(workspace.readLessons() == "- Existing\n")
   }
 
   @Test func testValidateSubmitResultLessonEditsTreatsMissingFieldAsEmpty() throws {

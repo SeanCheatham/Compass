@@ -310,7 +310,7 @@ private struct SubmitResultLessonEditsPayload: Decodable {
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     lessonEdits =
-      try FlexibleModelDecoder.decodeValueIfPresent(
+      try FlexibleModelDecoder.decodeLessonEditsIfPresent(
         from: container,
         preferredKey: .lessonEdits,
         aliases: [.lessonEditsSnake]

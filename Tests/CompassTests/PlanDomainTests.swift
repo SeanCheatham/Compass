@@ -1007,13 +1007,11 @@ struct DevelopSummaryDecoderTests {
         "details": "Implemented the recovery copy.",
         "next_plan_handoff": "Run controls now name the exact handoff field that needs repair.",
         "bypass_verify": "false",
-        "lesson_edits": [
-          {
-            "old_string": "old lesson",
-            "new_string": "new lesson",
-            "global": "true"
-          }
-        ]
+        "lesson_edits": {
+          "old_string": "old lesson",
+          "new_string": "new lesson",
+          "global": "true"
+        }
       }
       """.utf8
     )
@@ -1106,13 +1104,11 @@ struct PlanningEnvelopeDecoderTests {
           "near_term_queue": "- Continue payload hardening",
           "strategic_arc": "Make Compass forgiving at the edges and strict at the core."
         },
-        "lesson_edits": [
-          {
-            "find": "old planning lesson",
-            "replace": "new planning lesson",
-            "replace_all": "false"
-          }
-        ]
+        "lesson_edits": {
+          "find": "old planning lesson",
+          "replace": "new planning lesson",
+          "replace_all": "false"
+        }
       }
       """.utf8
     )
@@ -1142,13 +1138,7 @@ struct PlanningEnvelopeDecoderTests {
           "The arc still points at non-engineer UX.",
           "No immediate planning update is needed."
         ],
-        "lesson_edits": [
-          {
-            "find": "old reflect lesson",
-            "replace": "new reflect lesson",
-            "replace_all": "true"
-          }
-        ]
+        "lesson_edits": "none"
       }
       """.utf8
     )
@@ -1162,8 +1152,7 @@ struct PlanningEnvelopeDecoderTests {
       summary.summary
         == "The arc still points at non-engineer UX.\nNo immediate planning update is needed."
     )
-    try #require(summary.lessonEdits.count == 1)
-    try #require(summary.lessonEdits[0].replaceAll == true)
+    try #require(summary.lessonEdits.isEmpty)
   }
 
   @Test func planProposalDecoderAcceptsRunwayArraysForFreeformText() throws {
