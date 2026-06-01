@@ -99,12 +99,12 @@ struct NativeFeedbackServiceTests {
 
     try #require(hints[.off] == "No notification permission request for Editor.")
     try #require(
-      hints[.notifications],
-      "Compass asks notification permission for Editor only when enabled or first delivered."
+      hints[.notifications]
+        == "Compass asks notification permission for Editor only when enabled or first delivered."
     )
     try #require(
-      hints[.speechAndNotifications],
-      "Speech uses local audio; notifications for Editor ask permission only when needed."
+      hints[.speechAndNotifications]
+        == "Speech uses local audio; notifications for Editor ask permission only when needed."
     )
   }
 
