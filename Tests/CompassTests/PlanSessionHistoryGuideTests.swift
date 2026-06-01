@@ -12,6 +12,9 @@ struct PlanSessionHistoryGuideTests {
     #expect(guide.tone == .empty)
     #expect(guide.statusLabel == "0 runs")
     #expect(guide.facts.map(\.id) == ["auditTrail"])
+    #expect(guide.auditCoverage.label == "No visible audit")
+    #expect(guide.auditCoverage.coveredCount == 0)
+    #expect(guide.auditCoverage.fraction == 0)
     #expect(!guide.allowsNarration)
 
     await withMockFoundationModels(response: "Should not be used.") {
@@ -89,6 +92,37 @@ struct PlanSessionHistoryGuideTests {
     #expect(guide.tone == .steady)
     #expect(guide.facts.map(\.id).contains("proof"))
     #expect(guide.facts.map(\.id).contains("commits"))
+    #expect(guide.auditCoverage.coveredCount == 3)
+    #expect(guide.auditCoverage.missingLabels == ["Runtime route"])
+    #expect(guide.auditCoverage.detail == "Latest run is missing: Runtime route.")
+  }
+
+  @Test
+  func auditCoverageMarksCompleteLatestRunAndFeedsNarrationPrompt() {
+    let display = PlanSessionHistoryDisplay(
+      items: [
+        historyItem(
+          6,
+          commits: [
+            SessionCommit(sha: "123456789abc", short: "1234567", subject: "Ship audit gauge")
+          ],
+          runtimeRouteSummary: "Develop used host Xcode on macOS."
+        )
+      ],
+      mode: .all
+    )
+
+    let guide = PlanSessionHistoryGuide(display: display)
+
+    #expect(guide.auditCoverage.label == "Audit trail complete")
+    #expect(guide.auditCoverage.coveredCount == 4)
+    #expect(guide.auditCoverage.totalCount == 4)
+    #expect(guide.auditCoverage.fraction == 1)
+    #expect(guide.auditCoverage.missingLabels.isEmpty)
+    #expect(guide.narrationIdentifier.contains("audit:Audit trail complete"))
+    #expect(
+      PlanSessionHistoryGuideNarrator.prompt(for: guide)
+        .contains("Audit coverage: Audit trail complete"))
   }
 
   @Test
@@ -104,6 +138,7 @@ struct PlanSessionHistoryGuideTests {
     #expect(guide.tone == .empty)
     #expect(guide.detail.contains("none match Failed/Rejected"))
     #expect(guide.facts.map(\.id) == ["filter"])
+    #expect(guide.auditCoverage.label == "No visible audit")
   }
 
   @Test
@@ -148,7 +183,8 @@ struct PlanSessionHistoryGuideTests {
     _ number: Int,
     status: SessionStatus = .succeeded,
     commits: [SessionCommit] = [],
-    failedVerify: PlanSessionHistoryItem.FailedVerify? = nil
+    failedVerify: PlanSessionHistoryItem.FailedVerify? = nil,
+    runtimeRouteSummary: String? = nil
   ) -> PlanSessionHistoryItem {
     PlanSessionHistoryItem(
       sessionNumber: number,
@@ -170,7 +206,7 @@ struct PlanSessionHistoryGuideTests {
       notes: [],
       commits: commits,
       failedVerify: failedVerify,
-      runtimeRouteSummary: nil
+      runtimeRouteSummary: runtimeRouteSummary
     )
   }
 

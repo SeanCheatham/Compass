@@ -150,6 +150,8 @@ struct PlanSessionHistoryGuidePanel: View {
         .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
 
+      PlanSessionHistoryAuditCoverageRow(coverage: guide.auditCoverage, color: color)
+
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 6) {
           ForEach(guide.facts) { fact in
@@ -183,7 +185,9 @@ struct PlanSessionHistoryGuidePanel: View {
         .stroke(color.opacity(0.2))
     }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(guide.title). \(narration?.text ?? guide.detail)")
+    .accessibilityLabel(
+      "\(guide.title). \(narration?.text ?? guide.detail). Audit coverage: \(guide.auditCoverage.label). \(guide.auditCoverage.detail)"
+    )
   }
 
   private var color: Color {
@@ -197,6 +201,40 @@ struct PlanSessionHistoryGuidePanel: View {
     case .attention:
       return .orange
     }
+  }
+}
+
+struct PlanSessionHistoryAuditCoverageRow: View {
+  var coverage: PlanSessionHistoryGuide.AuditCoverage
+  var color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack(alignment: .center, spacing: 8) {
+        Label(coverage.label, systemImage: "gauge.medium")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color)
+          .lineLimit(1)
+
+        ProgressView(value: coverage.fraction)
+          .tint(color)
+          .frame(width: 110)
+
+        Text("\(coverage.coveredCount)/\(coverage.totalCount)")
+          .font(.caption2.monospacedDigit().weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
+
+      Text(coverage.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(
+      "Audit coverage: \(coverage.label). \(coverage.detail). \(coverage.coveredCount) of \(coverage.totalCount)."
+    )
   }
 }
 

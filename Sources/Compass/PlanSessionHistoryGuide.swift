@@ -18,12 +18,22 @@ struct PlanSessionHistoryGuide: Equatable, Sendable {
     var systemImageName: String
   }
 
+  struct AuditCoverage: Equatable, Sendable {
+    var coveredCount: Int
+    var totalCount: Int
+    var fraction: Double
+    var label: String
+    var detail: String
+    var missingLabels: [String]
+  }
+
   var title: String
   var detail: String
   var statusLabel: String
   var tone: Tone
   var systemImageName: String
   var facts: [Fact]
+  var auditCoverage: AuditCoverage
   var narrationIdentifier: String
 
   var allowsNarration: Bool {
@@ -98,12 +108,14 @@ struct PlanSessionHistoryGuide: Equatable, Sendable {
       visibleRunCues: visibleRunCues,
       runCues: runCues
     )
+    auditCoverage = Self.auditCoverage(for: visibleItems.first)
     narrationIdentifier = Self.narrationIdentifier(
       title: title,
       detail: detail,
       statusLabel: statusLabel,
       tone: tone,
-      facts: facts
+      facts: facts,
+      auditCoverage: auditCoverage
     )
   }
 
@@ -225,6 +237,54 @@ struct PlanSessionHistoryGuide: Equatable, Sendable {
     return item.handoffDigest.detail
   }
 
+  private static func auditCoverage(for latest: PlanSessionHistoryItem?) -> AuditCoverage {
+    guard let latest else {
+      return AuditCoverage(
+        coveredCount: 0,
+        totalCount: 4,
+        fraction: 0,
+        label: "No visible audit",
+        detail: "Run History has no visible run to audit yet.",
+        missingLabels: ["Plan", "Verify", "Runtime route", "Result"]
+      )
+    }
+
+    let anchors: [(label: String, isCovered: Bool)] = [
+      ("Plan", latest.handoffDigest.status != .missingPlan),
+      ("Verify", latest.verifyCommand != nil || latest.failedVerify != nil),
+      (
+        "Runtime route",
+        latest.runtimeRouteDescriptor.isSnapshotAvailable || latest.runtimeRouteSummary != nil
+      ),
+      (
+        "Result",
+        latest.status == .succeeded || latest.status == .failed || latest.failedVerify != nil
+          || !latest.commits.isEmpty || !latest.notes.isEmpty || latest.feedback != nil
+      ),
+    ]
+
+    let coveredCount = anchors.filter { $0.isCovered }.count
+    let totalCount = anchors.count
+    let missingLabels = anchors.filter { !$0.isCovered }.map(\.label)
+    let label =
+      coveredCount == totalCount
+      ? "Audit trail complete"
+      : "\(coveredCount) of \(totalCount) audit anchors"
+    let detail =
+      missingLabels.isEmpty
+      ? "Latest run includes plan, verify proof, runtime route, and result."
+      : "Latest run is missing: \(missingLabels.joined(separator: ", "))."
+
+    return AuditCoverage(
+      coveredCount: coveredCount,
+      totalCount: totalCount,
+      fraction: totalCount == 0 ? 0 : Double(coveredCount) / Double(totalCount),
+      label: label,
+      detail: bounded(detail, limit: 180),
+      missingLabels: missingLabels
+    )
+  }
+
   private static func isActive(_ item: PlanSessionHistoryItem) -> Bool {
     item.status == .planning
       || item.status == .developing
@@ -273,13 +333,15 @@ struct PlanSessionHistoryGuide: Equatable, Sendable {
     detail: String,
     statusLabel: String,
     tone: Tone,
-    facts: [Fact]
+    facts: [Fact],
+    auditCoverage: AuditCoverage
   ) -> String {
     let raw = [
       "title:\(title)",
       "detail:\(detail)",
       "status:\(statusLabel)",
       "tone:\(tone.rawValue)",
+      "audit:\(auditCoverage.label):\(auditCoverage.detail)",
       "facts:\(facts.map { "\($0.id):\($0.label):\($0.detail)" }.joined(separator: "|"))",
     ].joined(separator: "\n")
     return StringUtils.boundedText(raw, limit: identifierLimit)
@@ -337,6 +399,7 @@ enum PlanSessionHistoryGuideNarrator {
     Detail: \(guide.detail)
     Badge: \(guide.statusLabel)
     Tone: \(guide.tone.rawValue)
+    Audit coverage: \(guide.auditCoverage.label) - \(guide.auditCoverage.detail)
     Facts: \(guide.facts.map { "\($0.label) - \($0.detail)" }.joined(separator: " | "))
     """
   }
