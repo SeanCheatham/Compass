@@ -3,6 +3,7 @@ import SwiftUI
 
 struct LiveTab: View {
   @ObservedObject var project: CompassProject
+  @State private var liveTimelineGuideNarration: LiveTimelineGuideNarration?
   @State private var liveActivitySummaryCache: [String: LiveActivitySummary] = [:]
   @State private var liveActivitySummaryInFlightKeys: Set<String> = []
   @State private var expandedLiveActivityClusterKeys: Set<String> = []
@@ -11,6 +12,14 @@ struct LiveTab: View {
 
   var body: some View {
     let reliabilityStatus = project.reliabilityStatus
+    let timelineGuide = LiveTimelineGuide(
+      phase: project.phase,
+      isRunning: project.isRunning,
+      isAutoPlaying: project.isAutoPlaying,
+      isPaused: project.isPaused,
+      liveLog: project.liveLog,
+      reliabilityStatus: reliabilityStatus
+    )
     let liveActivityInputIdentifier = LiveActivitySummaryPlanner.inputIdentifier(
       for: project.liveLog)
     let liveActivityPlan = LiveActivitySummaryPlanner.plan(
@@ -24,6 +33,13 @@ struct LiveTab: View {
     VStack(alignment: .leading, spacing: 10) {
       if !reliabilityStatus.isEmpty {
         ProjectReliabilityBanner(status: reliabilityStatus)
+      }
+
+      if timelineGuide.shouldShow {
+        LiveTimelineGuidePanel(
+          guide: timelineGuide,
+          narration: matchingNarration(for: timelineGuide)
+        )
       }
 
       ScrollViewReader { proxy in
@@ -75,6 +91,13 @@ struct LiveTab: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .task(id: timelineGuide.narrationIdentifier) {
+      liveTimelineGuideNarration = nil
+      guard !project.isRunning, !project.isAutoPlaying else { return }
+      liveTimelineGuideNarration = await LiveTimelineGuideNarrator.narrate(
+        guide: timelineGuide
+      )
+    }
   }
 
   private var showsThinkingIndicator: Bool {
@@ -139,6 +162,95 @@ struct LiveTab: View {
       proxy.scrollTo(Self.thinkingRowID, anchor: .bottom)
     } else if let last = liveActivityPlan.items.last {
       proxy.scrollTo(last.id, anchor: .bottom)
+    }
+  }
+
+  private func matchingNarration(
+    for guide: LiveTimelineGuide
+  ) -> LiveTimelineGuideNarration? {
+    guard liveTimelineGuideNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return liveTimelineGuideNarration
+  }
+}
+
+struct LiveTimelineGuidePanel: View {
+  var guide: LiveTimelineGuide
+  var narration: LiveTimelineGuideNarration?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(guide.title, systemImage: guide.systemImageName)
+          .font(.callout.weight(.semibold))
+          .foregroundStyle(color)
+
+        Spacer(minLength: 8)
+
+        Text(guide.statusLabel)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .padding(.horizontal, 7)
+          .padding(.vertical, 2)
+          .background(.quaternary.opacity(0.65), in: Capsule())
+      }
+
+      Text(narration?.text ?? guide.detail)
+        .font(.callout)
+        .foregroundStyle(.primary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 6) {
+          ForEach(guide.checkpoints) { checkpoint in
+            Label(checkpoint.label, systemImage: checkpoint.systemImageName)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .padding(.horizontal, 7)
+              .padding(.vertical, 3)
+              .background(color.opacity(0.1), in: Capsule())
+              .help(checkpoint.detail)
+          }
+
+          if narration != nil {
+            Label("On-device note", systemImage: "sparkles")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .padding(.horizontal, 7)
+              .padding(.vertical, 3)
+              .background(.quaternary.opacity(0.55), in: Capsule())
+          }
+        }
+      }
+    }
+    .padding(11)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay {
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(color.opacity(0.2))
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(guide.title). \(narration?.text ?? guide.detail)")
+  }
+
+  private var color: Color {
+    switch guide.tone {
+    case .idle:
+      return .secondary
+    case .running:
+      return .blue
+    case .paused:
+      return .teal
+    case .complete:
+      return .green
+    case .attention:
+      return .orange
     }
   }
 }
