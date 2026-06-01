@@ -182,6 +182,69 @@ struct AgentExecutorTests {
     }
   }
 
+  @Test func testCanonicalToolNameAcceptsCommonModelNameVariants() throws {
+    let names: Set<String> = [
+      AgentReadFileTool.toolName,
+      AgentListFilesTool.toolName,
+      AgentFindSymbolTool.toolName,
+      AgentExecutor.submitResultToolName,
+    ]
+
+    try #require(
+      AgentExecutor.canonicalToolName("read-file", availableToolNames: names)
+        == AgentReadFileTool.toolName)
+    try #require(
+      AgentExecutor.canonicalToolName("readFile", availableToolNames: names)
+        == AgentReadFileTool.toolName)
+    try #require(
+      AgentExecutor.canonicalToolName("read file tool", availableToolNames: names)
+        == AgentReadFileTool.toolName)
+    try #require(
+      AgentExecutor.canonicalToolName("list files", availableToolNames: names)
+        == AgentListFilesTool.toolName)
+    try #require(
+      AgentExecutor.canonicalToolName("find-symbol", availableToolNames: names)
+        == AgentFindSymbolTool.toolName)
+    try #require(
+      AgentExecutor.canonicalToolName("submitResult", availableToolNames: names)
+        == AgentExecutor.submitResultToolName)
+    try #require(
+      AgentExecutor.canonicalToolName("unknownTool", availableToolNames: names) == nil)
+  }
+
+  @Test func testEnsureUniqueToolNamesRejectsAliasCollisions() throws {
+    struct FakeTool: AgentTool {
+      let spec: AgentToolSpec
+
+      init(name: String) {
+        spec = AgentToolSpec(
+          name: name,
+          description: "fake",
+          parameters: AgentToolParametersSchema(literal: ["type": "object"])
+        )
+      }
+
+      func invoke(arguments: Data, context: AgentToolContext) async throws
+        -> AgentToolInvocationResult
+      { .ok("") }
+    }
+
+    do {
+      try AgentExecutor.ensureUniqueToolNames([
+        FakeTool(name: "read_file"),
+        FakeTool(name: "read-file"),
+      ])
+      #expect(Bool(false), "expected alias collision")
+    } catch let error as AgentExecutionError {
+      guard case .duplicateToolName = error else {
+        #expect(Bool(false), "expected duplicateToolName, got \(error)")
+        return
+      }
+    } catch {
+      #expect(Bool(false), "expected AgentExecutionError")
+    }
+  }
+
   @Test func testEnsureUniqueToolNamesRejectsCollisionWithSubmitResult() throws {
     struct FakeSubmit: AgentTool {
       let spec = AgentToolSpec(

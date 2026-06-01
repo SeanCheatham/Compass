@@ -18,6 +18,7 @@ extension AgentExecutor {
 
     try Self.ensureUniqueToolNames(configuration.tools)
     let registry = Dictionary(uniqueKeysWithValues: configuration.tools.map { ($0.spec.name, $0) })
+    let dispatchableToolNames = Set(registry.keys).union([Self.submitResultToolName])
 
     let requestRecorder = UpstreamRequestRecorder()
     let openAI = Self.makeClient(
@@ -109,20 +110,24 @@ extension AgentExecutor {
       // is exactly the 400 cascade MiniMax surfaces.
       let messageCountBeforeAssistant = messages.count
 
+      let toolCalls = aggregated.toolCalls.map {
+        Self.canonicalizedToolCall($0, availableToolNames: dispatchableToolNames)
+      }
+
       messages.append(
         .assistant(
           .init(
             content: aggregated.assistantText.isEmpty
               ? nil : .textContent(aggregated.assistantText),
-            toolCalls: aggregated.toolCalls.isEmpty
-              ? nil : aggregated.toolCalls.map { $0.asAssistantToolCall() }
+            toolCalls: toolCalls.isEmpty
+              ? nil : toolCalls.map { $0.asAssistantToolCall() }
           )))
 
       // No tool calls → either submit_result was missed, the turn was
       // truncated before the tool call, or the model gave up in prose.
       // Nudge with the phase-specific shape so the next loop can finish
       // without the user having to interpret a stalled transcript.
-      if aggregated.toolCalls.isEmpty {
+      if toolCalls.isEmpty {
         let nudge = Self.missingSubmitResultNudge(
           finishReason: aggregated.finishReason,
           maxCompletionTokens: Self.maxCompletionTokensPerTurn,
@@ -154,7 +159,7 @@ extension AgentExecutor {
       // assistant turn and inject a remediation nudge instead of
       // invoking any tools — replaying the bad turn would orphan
       // its tool responses too.
-      if let bad = aggregated.toolCalls.first(where: {
+      if let bad = toolCalls.first(where: {
         (try? JSONSerialization.jsonObject(with: Data($0.arguments.utf8))) == nil
       }) {
         Self.rollback(
@@ -193,7 +198,7 @@ extension AgentExecutor {
       }
 
       var rejectedSubmitResult = false
-      for toolCall in aggregated.toolCalls {
+      for toolCall in toolCalls {
         if cancelled { throw AgentExecutionError.cancelled }
 
         if toolCall.name == Self.submitResultToolName {
@@ -349,6 +354,88 @@ extension AgentExecutor {
         throw AgentExecutionError.duplicateToolName(tool.spec.name)
       }
     }
+    try ensureUniqueToolAliasKeys(seen.union([Self.submitResultToolName]))
+  }
+
+  static func canonicalizedToolCall(
+    _ toolCall: PendingToolCall,
+    availableToolNames: Set<String>
+  ) -> PendingToolCall {
+    guard let canonical = canonicalToolName(
+      toolCall.name,
+      availableToolNames: availableToolNames
+    ) else {
+      return toolCall
+    }
+    var canonicalized = toolCall
+    canonicalized.name = canonical
+    return canonicalized
+  }
+
+  static func canonicalToolName(
+    _ requestedName: String,
+    availableToolNames: Set<String>
+  ) -> String? {
+    let trimmed = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    if availableToolNames.contains(trimmed) {
+      return trimmed
+    }
+
+    let normalizedCandidates = toolNameNormalizedCandidates(for: trimmed)
+    if let normalizedMatch = uniqueToolNameMatch(
+      in: availableToolNames,
+      matching: normalizedCandidates,
+      key: { FlexibleModelDecoder.normalizedIdentifier($0) }
+    ) {
+      return normalizedMatch
+    }
+
+    let compactCandidates = Set(
+      normalizedCandidates.map { $0.replacingOccurrences(of: "_", with: "") })
+    return uniqueToolNameMatch(
+      in: availableToolNames,
+      matching: compactCandidates,
+      key: {
+        FlexibleModelDecoder.normalizedIdentifier($0).replacingOccurrences(of: "_", with: "")
+      }
+    )
+  }
+
+  private static func ensureUniqueToolAliasKeys(_ names: Set<String>) throws {
+    var seen = [String: String]()
+    for name in names {
+      let normalizedCandidates = toolNameNormalizedCandidates(for: name)
+      let keys = normalizedCandidates.union(
+        normalizedCandidates.map { $0.replacingOccurrences(of: "_", with: "") }
+      )
+      for key in keys where !key.isEmpty {
+        if let existing = seen[key], existing != name {
+          throw AgentExecutionError.duplicateToolName(name)
+        }
+        seen[key] = name
+      }
+    }
+  }
+
+  private static func toolNameNormalizedCandidates(for name: String) -> Set<String> {
+    let normalized = FlexibleModelDecoder.normalizedIdentifier(name)
+    guard !normalized.isEmpty else { return [] }
+    var candidates: Set<String> = [normalized]
+    if normalized.hasSuffix("_tool") {
+      candidates.insert(String(normalized.dropLast("_tool".count)))
+    }
+    return candidates
+  }
+
+  private static func uniqueToolNameMatch(
+    in availableToolNames: Set<String>,
+    matching requestedKeys: Set<String>,
+    key: (String) -> String
+  ) -> String? {
+    let matches = availableToolNames.filter { requestedKeys.contains(key($0)) }.sorted()
+    guard matches.count == 1 else { return nil }
+    return matches[0]
   }
 
   static func makeClient(
