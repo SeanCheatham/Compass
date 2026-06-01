@@ -21,6 +21,12 @@ extension Prompts {
     } else {
       verifyStatus = "was skipped (Develop requested bypassVerify=true)"
     }
+    let reviewBrief = criticReviewBrief(
+      next: next,
+      verifyCommand: verifyCommand,
+      verifyStatus: verifyStatus,
+      gitDiff: gitDiff
+    )
     let priorBlock: String
     if priorCritiques.isEmpty {
       priorBlock = "_(this is the first critic review for this Develop pass)_"
@@ -39,7 +45,8 @@ extension Prompts {
       message for how the loop works).
 
       A separate Develop agent just finished implementing the plan below
-      and its post-checks (Verify command + clean working tree) passed.
+      and its post-checks completed. Verify may have passed or been
+      explicitly bypassed; the exact outcome is listed below.
       Your job is an adversarial review: independently judge whether the
       diff actually delivers the planned increment and is fit to land,
       then either approve or request changes.
@@ -85,6 +92,9 @@ extension Prompts {
         important item; reference file paths and line numbers from the
         diff. Empty string when approving.
 
+      ## Review brief
+      \(reviewBrief)
+
       ## Plan that was implemented
       \(next.plan)
 
@@ -121,5 +131,48 @@ extension Prompts {
 
       Call submit_result when you have decided.
       """
+  }
+
+  private static func criticReviewBrief(
+    next: PlanNext,
+    verifyCommand: String,
+    verifyStatus: String,
+    gitDiff: String
+  ) -> String {
+    let digest = PlanHandoffDigest(plan: next.plan)
+    let verify = PlanVerifyCommandSummary(command: verifyCommand)
+    var lines: [String] = [
+      "Primary question: did this diff deliver the planned outcome without unrelated changes?",
+      "Review the acceptance checks before style preferences or nice-to-have cleanup.",
+      "Handoff status: \(digest.title). \(digest.detail)",
+    ]
+
+    if let outcome = digest.outcome {
+      lines.append("Planned outcome: \(outcome)")
+    }
+    if let whyItMatters = digest.whyItMatters {
+      lines.append("Why it matters: \(whyItMatters)")
+    }
+
+    if digest.acceptanceChecks.isEmpty {
+      let missing = digest.missingPieces.map(\.label).joined(separator: ", ")
+      lines.append("No explicit acceptance checks were extracted. Missing: \(missing).")
+    } else {
+      lines.append("Acceptance checks to audit:")
+      for check in digest.acceptanceChecks {
+        lines.append("- \(check)")
+      }
+    }
+
+    lines.append("Verify meaning: \(verify.title). \(verify.detail)")
+    lines.append("Verify result: \(verifyStatus).")
+
+    if gitDiff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      lines.append("Diff signal: empty diff; scrutinize whether Develop was a no-op.")
+    } else {
+      lines.append("Diff signal: review only the diff below plus any directly related callers.")
+    }
+
+    return lines.joined(separator: "\n")
   }
 }

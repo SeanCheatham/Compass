@@ -56,6 +56,50 @@ struct CriticPromptTests {
       maxIterations: 3
     )
     try #require(prompt.contains("bypassVerify"))
+    try #require(prompt.contains("Verify result: was skipped"))
+    try #require(prompt.contains("explicitly bypassed"))
+  }
+
+  @Test func testCriticPromptIncludesReviewBriefFromExecutableHandoff() throws {
+    let prompt = Prompts.criticPrompt(
+      next: makePlanNext(
+        plan: """
+          ## Outcome
+          Make parser errors readable to non-engineers.
+
+          ## Why it matters
+          Users can decide whether to retry or change their draft.
+
+          ## Acceptance checks
+          - Empty input explains that there is nothing to parse.
+          - Invalid syntax names the first broken section.
+          """,
+        verify: "swift test --filter Parser"
+      ),
+      developSummary: makeDevelopSummary(summary: "Parser errors now explain the failure."),
+      verifyCommand: "swift test --filter Parser",
+      verifyExitCode: 0,
+      verifyOutput: "ok",
+      gitDiff: "diff --git a/Sources/Parser.swift b/Sources/Parser.swift\n+let message = \"Readable\"\n",
+      priorCritiques: [],
+      lessons: "",
+      vision: "",
+      iteration: 1,
+      maxIterations: 3
+    )
+
+    try #require(prompt.contains("## Review brief"))
+    try #require(prompt.contains("Primary question: did this diff deliver the planned outcome"))
+    try #require(prompt.contains("Review the acceptance checks before style preferences"))
+    try #require(prompt.contains("Handoff status: Executable handoff"))
+    try #require(prompt.contains("Planned outcome: Make parser errors readable to non-engineers."))
+    try #require(prompt.contains("Why it matters: Users can decide whether to retry or change their draft."))
+    try #require(prompt.contains("Acceptance checks to audit:"))
+    try #require(prompt.contains("- Empty input explains that there is nothing to parse."))
+    try #require(prompt.contains("Verify meaning: Runs Swift tests"))
+    try #require(prompt.contains("focused on Parser"))
+    try #require(prompt.contains("Verify result: passed (exit 0)."))
+    try #require(prompt.contains("Diff signal: review only the diff below"))
   }
 
   @Test func testCriticPromptCountsIterationsTowardCap() throws {
