@@ -77,7 +77,7 @@ struct PlanHandoffClipboardPayload: Equatable, Sendable {
     sections.append("Original plan:")
     sections.append(plan.isEmpty ? "No immediate plan text selected." : plan)
 
-    text = Self.boundedMultilineText(
+    text = PlanClipboardText.boundedMultilineText(
       sections.joined(separator: "\n"),
       limit: Self.textLimit
     )
@@ -93,8 +93,62 @@ struct PlanHandoffClipboardPayload: Equatable, Sendable {
       .replacingOccurrences(of: "\r", with: "\n")
       .trimmingCharacters(in: .whitespacesAndNewlines)
   }
+}
 
-  private static func boundedMultilineText(_ text: String, limit: Int) -> String {
+struct PlanHandoffRepairClipboardPayload: Equatable, Sendable {
+  static let textLimit = 3_000
+
+  var text: String
+
+  init(guide: PlanHandoffRepairGuide) {
+    var sections: [String] = [
+      "Compass Plan Repair Handoff",
+      "",
+      "Status: \(guide.title)",
+      "Readiness: \(guide.scoreLabel)",
+      "",
+      "Repair goal:",
+      guide.detail,
+      "",
+      "Instruction for Plan:",
+      "Return one commit-sized Immediate Work handoff. Keep scope narrow. Include Outcome, Why it matters, Acceptance checks, and a runnable verify command.",
+      "",
+      "Repair checklist:",
+    ]
+
+    sections.append(
+      contentsOf: guide.steps.map { step in
+        let state = step.isSatisfied ? "Done" : "Needed"
+        let required = step.isRequired ? "required" : "optional"
+        return "- \(state) \(step.title) (\(required)): \(step.detail)"
+      }
+    )
+
+    if let suggestedVerifyCommand = guide.suggestedVerifyCommand {
+      sections.append("")
+      sections.append("Suggested verify:")
+      sections.append(suggestedVerifyCommand)
+    }
+
+    if let planTemplate = guide.planTemplate {
+      sections.append("")
+      sections.append("Suggested plan shape:")
+      sections.append(planTemplate)
+    }
+
+    text = PlanClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+private enum PlanClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
     guard limit > 3 else { return String(text.prefix(limit)) }

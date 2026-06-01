@@ -564,6 +564,8 @@ struct PlanHandoffRepairGuideView: View {
   var guide: PlanHandoffRepairGuide
 
   var body: some View {
+    let repairPayload = PlanHandoffRepairClipboardPayload(guide: guide)
+
     VStack(alignment: .leading, spacing: 8) {
       Divider()
         .padding(.vertical, 2)
@@ -581,6 +583,8 @@ struct PlanHandoffRepairGuideView: View {
           .background(.quaternary.opacity(0.7), in: Capsule())
 
         Spacer(minLength: 8)
+
+        CopyRepairHandoffButton(payload: repairPayload)
       }
 
       Text(guide.detail)
@@ -672,6 +676,31 @@ struct PlanHandoffRepairGuideView: View {
     case .ready:
       return "checkmark.seal"
     }
+  }
+}
+
+struct CopyRepairHandoffButton: View {
+  var payload: PlanHandoffRepairClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Repair",
+        systemImage: copied ? "checkmark" : "wrench.and.screwdriver"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a focused Plan repair packet for another model or teammate.")
   }
 }
 

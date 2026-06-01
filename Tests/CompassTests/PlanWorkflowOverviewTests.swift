@@ -485,6 +485,50 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
+  func testHandoffRepairClipboardPayloadPackagesWeakPlanForAnotherModel() throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: "Make the Plan tab easier to read.",
+      verify: "true",
+      languageProfile: profile(.typeScriptJavaScript, hints: [.packageJSON])
+    )
+
+    let payload = PlanHandoffRepairClipboardPayload(guide: guide)
+
+    try #require(payload.text.contains("Compass Plan Repair Handoff"))
+    try #require(payload.text.contains("Status: Make this executable"))
+    try #require(payload.text.contains("Readiness: 1 of 3 required"))
+    try #require(payload.text.contains("Instruction for Plan:"))
+    try #require(payload.text.contains("Return one commit-sized Immediate Work handoff."))
+    try #require(payload.text.contains("- Needed Acceptance checks (required)"))
+    try #require(payload.text.contains("- Needed Verify command (required)"))
+    try #require(payload.text.contains("- Needed Why (optional)"))
+    try #require(payload.text.contains("Suggested verify:\nnpm test"))
+    try #require(payload.text.contains("Suggested plan shape:"))
+    try #require(payload.text.contains("## Outcome\nMake the Plan tab easier to read."))
+    try #require(payload.text.count <= PlanHandoffRepairClipboardPayload.textLimit)
+  }
+
+  @Test
+  func testHandoffRepairClipboardPayloadPackagesMissingPlanTemplate() throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: "",
+      verify: nil,
+      languageProfile: profile(.swift, hints: [.packageSwift])
+    )
+
+    let payload = PlanHandoffRepairClipboardPayload(guide: guide)
+
+    try #require(payload.text.contains("Status: Create the handoff"))
+    try #require(payload.text.contains("Readiness: 0 of 3 required"))
+    try #require(payload.text.contains("- Needed Outcome (required)"))
+    try #require(payload.text.contains("- Needed Acceptance checks (required)"))
+    try #require(payload.text.contains("- Needed Verify command (required)"))
+    try #require(payload.text.contains("Suggested verify:\nswift test"))
+    try #require(payload.text.contains("Verify: swift test"))
+    try #require(!payload.isEmpty)
+  }
+
+  @Test
   func testFactoryBriefRoutesWeakHandoffsBackToPlan() throws {
     let state = makeState(
       immediate: PlanNext(
