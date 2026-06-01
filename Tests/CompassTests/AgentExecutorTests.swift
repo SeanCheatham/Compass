@@ -384,18 +384,70 @@ struct AgentExecutorTests {
 
   @Test func testSubmitResultValidationNudgeUsesPlanCopyForRejectedPlan() throws {
     let nudge = AgentExecutor.submitResultValidationNudge(
-      for: PlanTransitionValidationError(message: "Plan returned no immediate work.")
+      for: PlanTransitionValidationError(
+        message: "Plan returned no immediate work.",
+        reason: .noImmediateWork
+      )
     )
 
     try #require(nudge.eventText == "submit_result plan rejected")
     try #require(nudge.userMessage.contains("Immediate Plan"))
     try #require(nudge.userMessage.contains("Acceptance checks"))
+    try #require(nudge.userMessage.contains("Repair checklist:"))
+    try #require(nudge.userMessage.contains("Replace `state.immediate: null`"))
     try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
     try #require(nudge.userMessage.contains("\"state\""))
     try #require(nudge.userMessage.contains("\"immediate\""))
     try #require(nudge.userMessage.contains("\"verifyTimeoutMs\": 600000"))
     try #require(nudge.userMessage.contains("## Outcome\\n"))
     try #require(nudge.userMessage.contains("do not answer in prose"))
+  }
+
+  @Test func testSubmitResultValidationNudgeTargetsPlaceholderVerify() throws {
+    let nudge = AgentExecutor.submitResultValidationNudge(
+      for: PlanTransitionValidationError(
+        message: "Plan returned placeholder verify command `true`.",
+        reason: .placeholderVerify,
+        missingLabels: ["Verify command"],
+        rejectedVerify: "true"
+      )
+    )
+
+    try #require(nudge.userMessage.contains("Replace the placeholder verify command"))
+    try #require(nudge.userMessage.contains("Rejected verify: `true`"))
+    try #require(
+      nudge.userMessage.contains("Do not use `true`, `none`, `n/a`, or `not-running-tests`"))
+    try #require(
+      nudge.userMessage.contains("Keep the plan text if its Outcome and Acceptance checks"))
+  }
+
+  @Test func testSubmitResultValidationNudgeTargetsWeakHandoffFields() throws {
+    let nudge = AgentExecutor.submitResultValidationNudge(
+      for: PlanTransitionValidationError(
+        message: "Plan returned an immediate handoff that is not executable enough.",
+        reason: .weakHandoff,
+        missingLabels: ["Outcome", "Acceptance checks"]
+      )
+    )
+
+    try #require(nudge.userMessage.contains("Add Outcome and Acceptance checks"))
+    try #require(nudge.userMessage.contains("Keep the slice commit-sized"))
+    try #require(nudge.userMessage.contains("Make every acceptance check observable"))
+  }
+
+  @Test func testSubmitResultValidationNudgeTargetsCoverageRequirement() throws {
+    let nudge = AgentExecutor.submitResultValidationNudge(
+      for: PlanTransitionValidationError(
+        message: "Swift test verify must declare coverage.",
+        reason: .coverageRequirement,
+        missingLabels: ["Coverage-ready verify command"],
+        rejectedVerify: "swift test"
+      )
+    )
+
+    try #require(nudge.userMessage.contains("satisfy the forge profile coverage requirement"))
+    try #require(nudge.userMessage.contains("Keep the same Immediate Plan"))
+    try #require(nudge.userMessage.contains("Do not bypass coverage"))
   }
 
   @Test func testDecodingErrorMessageSurfacesMissingKey() throws {

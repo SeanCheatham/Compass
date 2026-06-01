@@ -21,7 +21,7 @@ extension AgentExecutor {
   /// parse" nudge that nudges the model toward shorter output.
   static func submitResultValidationNudge(for error: Error) -> InvalidToolArgumentsNudge {
     if let error = error as? PlanTransitionValidationError {
-      return invalidPlanTransitionNudge(errorMessage: error.message)
+      return invalidPlanTransitionNudge(error: error)
     }
     if error is DecodingError {
       return invalidSubmitResultDecodeNudge(errorMessage: decodingErrorMessage(error))
@@ -84,20 +84,26 @@ extension AgentExecutor {
     )
   }
 
-  static func invalidPlanTransitionNudge(errorMessage: String) -> InvalidToolArgumentsNudge {
-    InvalidToolArgumentsNudge(
+  static func invalidPlanTransitionNudge(error: PlanTransitionValidationError)
+    -> InvalidToolArgumentsNudge
+  {
+    let repairChecklist = planTransitionRepairChecklist(for: error)
+    return InvalidToolArgumentsNudge(
       eventText: "submit_result plan rejected",
-      eventDetail: errorMessage,
+      eventDetail: error.message,
       userMessage: """
         Your previous `submit_result` would stop the Compass loop instead of selecting valid immediate work: \
-        \(errorMessage)
+        \(error.message)
+
+        Repair checklist:
+        \(repairChecklist)
 
         Call `submit_result` again with a concrete `state.immediate` object containing one commit-sized \
         Immediate Plan and a real verify command. Write `state.immediate.plan` with short Markdown \
-        sections named `Outcome`, `Why it matters`, and `Acceptance checks`; make the acceptance checks \
-        observable enough for Develop to know when it is done. Preserve `midTerm` and `longTerm` unless \
-        you have a specific revision. Use `immediate: null` only when there was already no mid-term or \
-        long-term runway before this Plan pass and there is still none.
+        sections named `Outcome` and `Acceptance checks`; add `Why it matters` when it helps the \
+        non-engineer owner. Make the acceptance checks observable enough for Develop to know when it is \
+        done. Preserve `midTerm` and `longTerm` unless you have a specific revision. Use `immediate: null` \
+        only when there was already no mid-term or long-term runway before this Plan pass and there is still none.
 
         Use this exact retry shape. Replace the bracketed text, keep the top-level keys exactly as shown, \
         and do not answer in prose:
@@ -116,6 +122,52 @@ extension AgentExecutor {
         }
         """
     )
+  }
+
+  static func planTransitionRepairChecklist(for error: PlanTransitionValidationError) -> String {
+    switch error.reason {
+    case .noImmediateWork:
+      return """
+        - Replace `state.immediate: null` with one concrete Immediate Plan.
+        - Choose the next smallest slice from the remaining mid-term or long-term runway.
+        - Preserve `midTerm` and `longTerm` unless you are intentionally refining them.
+        """
+    case .placeholderVerify:
+      let rejected = error.rejectedVerify.map { " Rejected verify: `\($0)`." } ?? ""
+      return """
+        - Replace the placeholder verify command with a real shell command Compass can run.\(rejected)
+        - Do not use `true`, `none`, `n/a`, or `not-running-tests`.
+        - Keep the plan text if its Outcome and Acceptance checks are still correct.
+        """
+    case .coverageRequirement:
+      return """
+        - Revise `state.immediate.verify` to satisfy the forge profile coverage requirement.
+        - Keep the same Immediate Plan if the planned slice is still correct.
+        - Do not bypass coverage by switching to a placeholder or build-only command for test work.
+        """
+    case .weakHandoff:
+      let missing =
+        error.missingLabels.isEmpty
+        ? "Outcome and Acceptance checks"
+        : error.missingLabels.joined(separator: " and ")
+      return """
+        - Add \(missing) to `state.immediate.plan`.
+        - Keep the slice commit-sized; do not broaden scope to compensate for the rejection.
+        - Make every acceptance check observable by the verify command or the UI state.
+        """
+    case .invalidStateMutation:
+      return """
+        - Preserve existing planning runway unless you record a completed slice.
+        - Do not clear `midTerm`, `longTerm`, or completed context as a side effect of selecting Immediate Work.
+        - Return the smallest valid state change that keeps the factory moving.
+        """
+    case .unknown:
+      return """
+        - Choose one concrete Immediate Plan unless the project truly has no remaining runway.
+        - Include a real verify command and observable Acceptance checks.
+        - Preserve existing `midTerm` and `longTerm` unless you have a specific revision.
+        """
+    }
   }
 
   static func invalidSubmitResultNudge(

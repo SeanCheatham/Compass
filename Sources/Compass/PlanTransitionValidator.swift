@@ -1,7 +1,31 @@
 import Foundation
 
 struct PlanTransitionValidationError: LocalizedError, Equatable {
+  enum Reason: Equatable, Sendable {
+    case unknown
+    case invalidStateMutation
+    case noImmediateWork
+    case placeholderVerify
+    case coverageRequirement
+    case weakHandoff
+  }
+
   var message: String
+  var reason: Reason
+  var missingLabels: [String]
+  var rejectedVerify: String?
+
+  init(
+    message: String,
+    reason: Reason = .unknown,
+    missingLabels: [String] = [],
+    rejectedVerify: String? = nil
+  ) {
+    self.message = message
+    self.reason = reason
+    self.missingLabels = missingLabels
+    self.rejectedVerify = rejectedVerify
+  }
 
   var errorDescription: String? {
     message
@@ -20,7 +44,8 @@ enum PlanTransitionValidator {
     {
       throw PlanTransitionValidationError(
         message:
-          "Plan tried to clear a non-empty midTerm queue without recording a completion. Refusing to overwrite state.json."
+          "Plan tried to clear a non-empty midTerm queue without recording a completion. Refusing to overwrite state.json.",
+        reason: .invalidStateMutation
       )
     }
 
@@ -31,7 +56,8 @@ enum PlanTransitionValidator {
       guard remainingFields.isEmpty else {
         throw PlanTransitionValidationError(
           message:
-            "Plan returned no immediate work while \(formattedFields(remainingFields)) still contains work. Choose one commit-sized Immediate Plan instead; `immediate: null` is only valid when the project had no remaining midTerm or longTerm work before this pass and still has none."
+            "Plan returned no immediate work while \(formattedFields(remainingFields)) still contains work. Choose one commit-sized Immediate Plan instead; `immediate: null` is only valid when the project had no remaining midTerm or longTerm work before this pass and still has none.",
+          reason: .noImmediateWork
         )
       }
       return
@@ -47,14 +73,22 @@ enum PlanTransitionValidator {
     if rejectedVerifyCommands.contains(verify) {
       throw PlanTransitionValidationError(
         message:
-          "Plan returned placeholder verify command `\(immediate.verify)`. Refusing to overwrite state.json."
+          "Plan returned placeholder verify command `\(immediate.verify)`. Refusing to overwrite state.json.",
+        reason: .placeholderVerify,
+        missingLabels: ["Verify command"],
+        rejectedVerify: immediate.verify
       )
     }
     if let coverageError = ForgeVerifyValidator.coverageViolation(
       verify: immediate.verify,
       profile: forgeProfile
     ) {
-      throw PlanTransitionValidationError(message: coverageError)
+      throw PlanTransitionValidationError(
+        message: coverageError,
+        reason: .coverageRequirement,
+        missingLabels: ["Coverage-ready verify command"],
+        rejectedVerify: immediate.verify
+      )
     }
 
     let handoffDigest = PlanHandoffDigest(plan: immediate.plan)
@@ -62,12 +96,15 @@ enum PlanTransitionValidator {
       let requiredMissing = handoffDigest.missingPieces
         .filter { $0.isRequired }
         .map(\.label)
-      let missing = requiredMissing.isEmpty
+      let missing =
+        requiredMissing.isEmpty
         ? "a concrete Outcome and Acceptance checks"
         : requiredMissing.joined(separator: " and ")
       throw PlanTransitionValidationError(
         message:
-          "Plan returned an immediate handoff that is not executable enough for Develop. Missing \(missing). Write `immediate.plan` with short Markdown sections named Outcome, Why it matters, and Acceptance checks; the acceptance checks should state observable finish-line behavior Develop can verify."
+          "Plan returned an immediate handoff that is not executable enough for Develop. Missing \(missing). Write `immediate.plan` with short Markdown sections named Outcome and Acceptance checks; include Why it matters when it helps the non-engineer owner. The acceptance checks should state observable finish-line behavior Develop can verify.",
+        reason: .weakHandoff,
+        missingLabels: requiredMissing
       )
     }
   }

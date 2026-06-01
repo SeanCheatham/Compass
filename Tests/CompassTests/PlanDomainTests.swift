@@ -15,7 +15,11 @@ struct PlanTransitionValidatorTests {
     let current = makeState()
     let next = makeState(immediate: PlanNext(plan: "Do work", verify: " true "))
 
-    assertTransitionRejected(from: current, to: next, contains: "placeholder verify command")
+    let error = try rejectedTransition(from: current, to: next)
+    try #require(error.message.contains("placeholder verify command"))
+    try #require(error.reason == .placeholderVerify)
+    try #require(error.missingLabels == ["Verify command"])
+    try #require(error.rejectedVerify == "true")
   }
 
   @Test func testAcceptsNormalImmediateWork() throws {
@@ -55,7 +59,9 @@ struct PlanTransitionValidatorTests {
     let next = makeState(
       completed: ["done"], immediate: nil, midTerm: "- Next queued item", longTerm: "")
 
-    assertTransitionRejected(from: current, to: next, contains: "Immediate Plan")
+    let error = try rejectedTransition(from: current, to: next)
+    try #require(error.message.contains("Immediate Plan"))
+    try #require(error.reason == .noImmediateWork)
   }
 
   @Test func testRejectsWeakImmediateHandoff() throws {
@@ -68,11 +74,10 @@ struct PlanTransitionValidatorTests {
       midTerm: "- Make Plan easier to follow"
     )
 
-    assertTransitionRejected(
-      from: current,
-      to: next,
-      contains: "Missing Acceptance checks"
-    )
+    let error = try rejectedTransition(from: current, to: next)
+    try #require(error.message.contains("Missing Acceptance checks"))
+    try #require(error.reason == .weakHandoff)
+    try #require(error.missingLabels == ["Acceptance checks"])
   }
 
   @Test func testRejectsNoImmediateWorkWhenLongTermRemains() throws {
@@ -84,7 +89,9 @@ struct PlanTransitionValidatorTests {
       longTerm: "Build toward the Explore layer"
     )
 
-    assertTransitionRejected(from: current, to: next, contains: "proposed longTerm")
+    let error = try rejectedTransition(from: current, to: next)
+    try #require(error.message.contains("proposed longTerm"))
+    try #require(error.reason == .noImmediateWork)
   }
 
   @Test func testRejectsNoImmediateWorkWhenClearingExistingLongTerm() throws {
@@ -95,7 +102,9 @@ struct PlanTransitionValidatorTests {
     )
     let next = makeState(completed: ["done"], immediate: nil, midTerm: "", longTerm: "")
 
-    assertTransitionRejected(from: current, to: next, contains: "current longTerm")
+    let error = try rejectedTransition(from: current, to: next)
+    try #require(error.message.contains("current longTerm"))
+    try #require(error.reason == .noImmediateWork)
   }
 
   private func makeState(
@@ -121,12 +130,11 @@ struct PlanTransitionValidatorTests {
       )
     )
 
-    assertTransitionRejected(
-      from: current,
-      to: next,
-      contains: "enable-code-coverage",
-      forgeProfile: .swiftSPM
-    )
+    let error = try rejectedTransition(from: current, to: next, forgeProfile: .swiftSPM)
+    try #require(error.message.contains("enable-code-coverage"))
+    try #require(error.reason == .coverageRequirement)
+    try #require(error.missingLabels == ["Coverage-ready verify command"])
+    try #require(error.rejectedVerify == "swift test --filter FooTests")
   }
 
   private func assertTransitionRejected(
@@ -153,6 +161,21 @@ struct PlanTransitionValidatorTests {
       message.contains(expectedText),
       "Expected error containing `\(expectedText)`, got `\(message)`."
     )
+  }
+
+  private func rejectedTransition(
+    from current: PlanState,
+    to next: PlanState,
+    forgeProfile: ForgeProfile? = nil
+  ) throws -> PlanTransitionValidationError {
+    do {
+      try PlanTransitionValidator.validate(from: current, to: next, forgeProfile: forgeProfile)
+    } catch let error as PlanTransitionValidationError {
+      return error
+    }
+
+    Issue.record("Expected transition to be rejected but it succeeded")
+    throw PlanTransitionValidationError(message: "Expected rejection did not occur.")
   }
 
   private func executablePlan(_ outcome: String) -> String {
