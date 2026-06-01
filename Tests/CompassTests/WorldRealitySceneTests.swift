@@ -29,20 +29,40 @@ struct WorldRealitySceneTests {
       confidence: .high,
       position: WorldPosition(x: 1.2, y: 1.1, z: -2.4)
     )
+    let exit = WorldNode(
+      id: "exit",
+      kind: .function,
+      label: "finish",
+      detail: nil,
+      language: .swift,
+      location: WorldSourceLocation(filePath: "Sources/App.swift", line: 4, endLine: 4),
+      confidence: .high,
+      position: WorldPosition(x: 2.2, y: 0.9, z: -3.4)
+    )
     graph.addNode(entry)
     graph.addNode(branch)
+    graph.addNode(exit)
     graph.markEntrypoint(entry.id)
     graph.addEdge(from: entry.id, to: branch.id, kind: .branches, confidence: .high)
+    graph.addEdge(from: branch.id, to: exit.id, kind: .calls, confidence: .high)
 
     let scene = WorldRealitySceneFactory.makeScene(
       graph: graph,
       selectedNodeID: branch.id,
-      route: [entry.id, branch.id],
+      route: [entry.id, branch.id, exit.id],
       routeIndex: 1
     )
 
     #expect(scene.name == "CompassWorldRoot")
     #expect(scene.children.count > 0)
     #expect(scene.findEntity(named: "WorldCamera") != nil)
+    #expect(scene.findEntity(named: "WorldRouteBeacon-entry") != nil)
+    #expect(scene.findEntity(named: "WorldRouteBeacon-branch") != nil)
+    #expect(scene.findEntity(named: "WorldRouteBeaconVisited-entry") != nil)
+    #expect(scene.findEntity(named: "WorldRouteBeaconActive-branch") != nil)
+    #expect(scene.findEntity(named: "WorldRouteBeaconStep-1") != nil)
+    #expect(scene.findEntity(named: "WorldRouteBeaconStep-2") != nil)
+    #expect(scene.findEntity(named: "WorldRouteBeacon-exit") == nil)
+    #expect(scene.findEntity(named: "WorldRouteBeaconStep-3") == nil)
   }
 }

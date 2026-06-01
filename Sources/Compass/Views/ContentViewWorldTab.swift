@@ -864,6 +864,15 @@ enum WorldRealitySceneFactory {
           showLabel: showLabel
         )
       )
+      if let routeStepIndex = routePrefix.firstIndex(of: node.id) {
+        root.addChild(
+          routeBeaconEntity(
+            for: node,
+            step: routeStepIndex + 1,
+            active: active
+          )
+        )
+      }
     }
 
     let camera = PerspectiveCamera()
@@ -1036,6 +1045,56 @@ enum WorldRealitySceneFactory {
     let midpoint = (start + end) / 2
     entity.look(at: end, from: midpoint, relativeTo: nil)
     return entity
+  }
+
+  private static func routeBeaconEntity(
+    for node: WorldNode,
+    step: Int,
+    active: Bool
+  ) -> Entity {
+    let group = Entity()
+    group.name = "WorldRouteBeacon-\(node.id)"
+    let position = node.position.simd
+    let color =
+      active
+      ? NSColor(calibratedRed: 1.0, green: 0.76, blue: 0.25, alpha: 1)
+      : NSColor(calibratedRed: 0.96, green: 0.68, blue: 0.28, alpha: 0.78)
+    let height: Float = active ? 0.62 : 0.42
+
+    let stem = ModelEntity(
+      mesh: .generateBox(width: 0.04, height: height, depth: 0.04),
+      materials: [UnlitMaterial(color: color.withAlphaComponent(active ? 0.72 : 0.5))]
+    )
+    stem.name = "WorldRouteBeaconStem-\(node.id)"
+    stem.position = position + SIMD3<Float>(0, 0.36 + height / 2, 0)
+    group.addChild(stem)
+
+    let marker = ModelEntity(
+      mesh: .generateCylinder(height: 0.055, radius: active ? 0.23 : 0.17),
+      materials: [UnlitMaterial(color: color)]
+    )
+    marker.name =
+      active ? "WorldRouteBeaconActive-\(node.id)" : "WorldRouteBeaconVisited-\(node.id)"
+    marker.position = position + SIMD3<Float>(0, 0.78 + height, 0)
+    group.addChild(marker)
+
+    let stepLabel = ModelEntity(
+      mesh: .generateText(
+        "\(step)",
+        extrusionDepth: 0.004,
+        font: .monospacedDigitSystemFont(ofSize: active ? 0.17 : 0.13, weight: .bold)
+      ),
+      materials: [
+        UnlitMaterial(
+          color: NSColor(calibratedRed: 0.12, green: 0.085, blue: 0.035, alpha: 0.95)
+        )
+      ]
+    )
+    stepLabel.name = "WorldRouteBeaconStep-\(step)"
+    stepLabel.position = marker.position + SIMD3<Float>(active ? -0.045 : -0.035, 0.04, -0.04)
+    group.addChild(stepLabel)
+
+    return group
   }
 
   private static func labelEntity(_ text: String, position: SIMD3<Float>) -> Entity {
