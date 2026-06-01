@@ -81,6 +81,45 @@ struct ProjectRunControlGuideTests {
   }
 
   @Test
+  func testCappedQueuedDraftsKeepRawQueueScopeInRunControls() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(immediate: nil),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      drafts: """
+        - Make setup faster because users get stuck; success looks like tests pass.
+        - Show recovery copy because users get locked out; done when recovery copy appears.
+        - Explain failed verifies because owners get confused; success shows the first error.
+        - Add draft polish because planning starts rough; success shows clearer queue copy.
+        - Improve sandbox setup because onboarding is hard; done when the readiness panel shows progress.
+        - Surface provider failures because API keys expire; success shows a model connection repair.
+        - Improve onboarding copy
+        """
+    )
+
+    try #require(guide.readiness.title == "Drafts need detail")
+    try #require(guide.readiness.detail.contains("7 queued drafts"))
+    try #require(guide.readiness.detail.contains("Showing first 6"))
+    try #require(guide.readiness.detail.contains("1 more draft remains in the raw draft list"))
+    try #require(
+      guide.primaryHelp
+        == "6 of 7 ready in Drafts; Drafts is checking the first 6; 1 more draft remains in the raw queue. Plan will turn the queue into one executable slice.")
+    try #require(
+      guide.options[0].detail
+        == "Plan can use 7 queued drafts, but Drafts shows missing signals before Develop starts. Drafts is checking the first 6; 1 more draft remains in the raw queue.")
+    try #require(
+      guide.options[1].detail
+        == "Ask Plan to use the queue, with Drafts showing which signals still need detail. Drafts is checking the first 6; 1 more draft remains in the raw queue.")
+    try #require(
+      guide.previewSteps[0].detail
+        == "Plan will turn 7 queued drafts into one executable handoff. Drafts is checking the first 6; 1 more draft remains in the raw queue.")
+    try #require(guide.narrationIdentifier.contains("1 more draft remains"))
+  }
+
+  @Test
   func testReadyQueuedDraftsTellRunControlsPlanCanUseQueue() throws {
     let guide = ProjectRunControlGuide(
       state: makeState(immediate: nil),
