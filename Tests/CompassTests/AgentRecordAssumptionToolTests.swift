@@ -65,10 +65,57 @@ struct AgentRecordAssumptionToolTests {
     )
 
     try #require(!result.isError)
-    let record = try #require(try AssumptionLedgerStore(url: assumptionsURL).read().assumptions.first)
+    let record = try #require(
+      try AssumptionLedgerStore(url: assumptionsURL).read().assumptions.first
+    )
     try #require(record.text == "The next slice should finish the apply workflow.")
     try #require(record.evidence == ["state.json immediate item"])
     try #require(record.scope == .feature)
+  }
+
+  @Test func testRecordAssumptionAcceptsWeakModelAliasArguments() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let assumptionsURL = root.appending(path: "assumptions.json")
+    let tool = AgentRecordAssumptionTool()
+
+    let result = try await tool.invoke(
+      arguments: Data(
+        """
+        {
+          "claim": "The user cares more about plain-language status than raw logs.",
+          "reason": "Recent UX work adds recovery guides and readiness copy.",
+          "why_it_matters": "Plan should prioritize owner-facing explanations before deeper automation.",
+          "supporting_facts": [
+            "ProjectRecoveryGuide exists",
+            "Draft readiness guidance exists"
+          ],
+          "counter_evidence": "User asks for only low-level terminal output.",
+          "scope": "repo"
+        }
+        """.utf8),
+      context: AgentToolContext(
+        workingDirectory: root,
+        assumptionsURL: assumptionsURL,
+        phase: .reflect,
+        sessionNumber: 10
+      )
+    )
+
+    try #require(!result.isError)
+    let record = try #require(
+      try AssumptionLedgerStore(url: assumptionsURL).read().assumptions.first
+    )
+    try #require(record.text == "The user cares more about plain-language status than raw logs.")
+    try #require(record.rationale == "Recent UX work adds recovery guides and readiness copy.")
+    try #require(
+      record.impact == "Plan should prioritize owner-facing explanations before deeper automation."
+    )
+    try #require(
+      record.evidence == ["ProjectRecoveryGuide exists", "Draft readiness guidance exists"]
+    )
+    try #require(record.invalidation == "User asks for only low-level terminal output.")
+    try #require(record.scope == .project)
   }
 
   @Test func testRecordAssumptionRejectsMissingRequiredDetails() async throws {

@@ -97,10 +97,32 @@ private struct Arguments: Decodable {
   enum CodingKeys: String, CodingKey {
     case text
     case assumption
+    case claim
+    case statement
     case rationale
+    case reason
+    case why
+    case justification
     case evidence
+    case observations
+    case sources
+    case support
+    case supportingFacts
+    case supportingFactsSnake = "supporting_facts"
     case impact
+    case effect
+    case consequence
+    case whyItMatters
+    case whyItMattersSnake = "why_it_matters"
+    case dependsOn
+    case dependsOnSnake = "depends_on"
     case invalidation
+    case invalidates
+    case invalidationCondition
+    case invalidationConditionSnake = "invalidation_condition"
+    case counterEvidence
+    case counterEvidenceSnake = "counter_evidence"
+    case falsifier
     case scope
   }
 
@@ -108,26 +130,43 @@ private struct Arguments: Decodable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let text = try Self.firstString(
       in: container,
-      keys: [.text, .assumption]
+      keys: [.text, .assumption, .claim, .statement],
+      fieldName: "text"
     )
-    let rawScope = try Self.optionalString(in: container, key: .scope)
+    let rawScope = try Self.optionalString(in: container, keys: [.scope])
     let scope = try Self.scope(
       from: rawScope,
       codingPath: container.codingPath + [CodingKeys.scope]
     )
     draft = AssumptionDraft(
       text: text,
-      rationale: try Self.optionalString(in: container, key: .rationale),
+      rationale: try Self.optionalString(
+        in: container,
+        keys: [.rationale, .reason, .why, .justification]
+      ),
       evidence: try Self.optionalEvidence(in: container),
-      impact: try Self.optionalString(in: container, key: .impact),
-      invalidation: try Self.optionalString(in: container, key: .invalidation),
+      impact: try Self.optionalString(
+        in: container,
+        keys: [
+          .impact, .effect, .consequence, .whyItMatters, .whyItMattersSnake, .dependsOn,
+          .dependsOnSnake,
+        ]
+      ),
+      invalidation: try Self.optionalString(
+        in: container,
+        keys: [
+          .invalidation, .invalidates, .invalidationCondition, .invalidationConditionSnake,
+          .counterEvidence, .counterEvidenceSnake, .falsifier,
+        ]
+      ),
       scope: scope
     )
   }
 
   private static func firstString(
     in container: KeyedDecodingContainer<CodingKeys>,
-    keys: [CodingKeys]
+    keys: [CodingKeys],
+    fieldName: String
   ) throws -> String {
     var firstError: Error?
     for key in keys where container.contains(key) {
@@ -147,9 +186,29 @@ private struct Arguments: Decodable {
       DecodingError.Context(
         codingPath: container.codingPath,
         debugDescription:
-          "record_assumption requires a non-empty `text` string. `assumption` is also accepted as a compatibility alias."
+          "record_assumption requires a non-empty `\(fieldName)` string. `assumption`, `claim`, and `statement` are also accepted as compatibility aliases."
       )
     )
+  }
+
+  private static func optionalString(
+    in container: KeyedDecodingContainer<CodingKeys>,
+    keys: [CodingKeys]
+  ) throws -> String? {
+    var firstError: Error?
+    for key in keys where container.contains(key) {
+      do {
+        if let value = try optionalString(in: container, key: key), !value.isEmpty {
+          return value
+        }
+      } catch {
+        firstError = firstError ?? error
+      }
+    }
+    if let firstError {
+      throw firstError
+    }
+    return nil
   }
 
   private static func optionalString(
@@ -176,23 +235,47 @@ private struct Arguments: Decodable {
   private static func optionalEvidence(
     in container: KeyedDecodingContainer<CodingKeys>
   ) throws -> [String]? {
-    let key = CodingKeys.evidence
-    guard container.contains(key), try !container.decodeNil(forKey: key) else {
+    for key in [
+      CodingKeys.evidence,
+      .observations,
+      .sources,
+      .support,
+      .supportingFacts,
+      .supportingFactsSnake,
+    ] where container.contains(key) {
+      if try container.decodeNil(forKey: key) {
+        return nil
+      }
+      if let values = try? container.decode([String].self, forKey: key) {
+        return values
+      }
+      if let value = try? optionalString(in: container, key: key) {
+        return value.isEmpty ? [] : [value]
+      }
+      throw DecodingError.typeMismatch(
+        [String].self,
+        DecodingError.Context(
+          codingPath: container.codingPath + [key],
+          debugDescription:
+            "`\(key.stringValue)` must be an array of strings or a single string."
+        )
+      )
+    }
+    return nil
+  }
+
+  private static func normalizedScope(_ rawValue: String) -> AssumptionRecord.Scope? {
+    switch FlexibleModelDecoder.normalizedIdentifier(rawValue) {
+    case "project", "repo", "repository", "codebase", "workspace", "project_wide",
+      "projectwide":
+      return .project
+    case "feature", "feature_area", "featurearea", "slice", "workstream", "current_feature":
+      return .feature
+    case "session", "run", "current_run", "currentrun", "this_session", "thissession":
+      return .session
+    default:
       return nil
     }
-    if let values = try? container.decode([String].self, forKey: key) {
-      return values
-    }
-    if let value = try? optionalString(in: container, key: key) {
-      return value.isEmpty ? [] : [value]
-    }
-    throw DecodingError.typeMismatch(
-      [String].self,
-      DecodingError.Context(
-        codingPath: container.codingPath + [key],
-        debugDescription: "`evidence` must be an array of strings or a single string."
-      )
-    )
   }
 
   private static func scope(
@@ -200,9 +283,7 @@ private struct Arguments: Decodable {
     codingPath: [CodingKey]
   ) throws -> AssumptionRecord.Scope? {
     guard let rawValue, !rawValue.isEmpty else { return nil }
-    if let scope = AssumptionRecord.Scope.allCases.first(where: {
-      $0.rawValue.caseInsensitiveCompare(rawValue) == .orderedSame
-    }) {
+    if let scope = normalizedScope(rawValue) {
       return scope
     }
     let supported = AssumptionRecord.Scope.allCases.map(\.rawValue).joined(separator: ", ")
