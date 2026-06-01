@@ -99,6 +99,40 @@ struct DraftRefinementTests {
     try #require(guide.promptText.contains("Missing signals: Why, Success signal"))
   }
 
+  @Test func testDraftIntakeGuideNamesCappedQueuesWithoutLosingTotals() throws {
+    let guide = DraftIntakeGuide(
+      drafts: """
+        - Make setup faster because users get stuck; success looks like tests pass.
+        - Show recovery copy because users get locked out; done when recovery copy appears.
+        - Explain failed verifies because owners get confused; success shows the first error.
+        - Add draft polish because planning starts rough; success shows clearer queue copy.
+        - Improve sandbox setup because onboarding is hard; done when the readiness panel shows progress.
+        - Surface provider failures because API keys expire; success shows a model connection repair.
+        - Improve onboarding copy
+        """
+    )
+
+    try #require(guide.entries.count == DraftIntakeGuide.maxEntries)
+    try #require(guide.totalEntryCount == 7)
+    try #require(guide.hiddenEntryCount == 1)
+    try #require(guide.hiddenCountSentence == "1 more draft remains")
+    try #require(guide.scoreLabel == "6 of 7 ready")
+    try #require(guide.entryCountLabel == "7 queued drafts")
+    try #require(guide.status == .needsDetail)
+    try #require(guide.missingSignalTitles == ["Why", "Success signal"])
+    try #require(guide.detail.contains("Showing first 6"))
+    try #require(guide.detail.contains("1 more draft remains in the raw draft list"))
+    try #require(guide.promptText.contains("Readiness map note: Showing first 6 of 7 drafts."))
+    try #require(
+      guide.promptText
+        .contains("1 more draft remains in the raw drafts above; preserve them"))
+    try #require(
+      DraftIntakeGuideNarrator.prompt(for: guide)
+        .contains("Queue scope: 7 total drafts; 1 outside the visible checklist."))
+    try #require(guide.narrationIdentifier.contains("total:7"))
+    try #require(guide.narrationIdentifier.contains("hidden:1"))
+  }
+
   @Test func testDraftIntakeGuideFallsBackToParagraphEntries() throws {
     let guide = DraftIntakeGuide(
       drafts: """

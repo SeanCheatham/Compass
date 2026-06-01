@@ -297,14 +297,27 @@ struct DraftIntakeGuide: Equatable, Sendable {
   static let draftTextLimit = 220
   static let identifierLimit = 1_200
 
+  private var allEntries: [Entry]
   var entries: [Entry]
 
   var isEmpty: Bool {
-    entries.isEmpty
+    allEntries.isEmpty
   }
 
   var allowsNarration: Bool {
-    !entries.isEmpty
+    !allEntries.isEmpty
+  }
+
+  var totalEntryCount: Int {
+    allEntries.count
+  }
+
+  var hiddenEntryCount: Int {
+    max(0, totalEntryCount - entries.count)
+  }
+
+  var isCapped: Bool {
+    hiddenEntryCount > 0
   }
 
   var narrationIdentifier: String {
@@ -313,14 +326,16 @@ struct DraftIntakeGuide: Equatable, Sendable {
       "detail:\(detail)",
       "status:\(status)",
       "score:\(scoreLabel)",
+      "total:\(totalEntryCount)",
+      "hidden:\(hiddenEntryCount)",
       "entries:\(entries.map(\.narrationIdentifierFragment).joined(separator: "|"))",
     ].joined(separator: "\n")
     return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 
   var status: Status {
-    guard !entries.isEmpty else { return .empty }
-    return readyCount == entries.count ? .ready : .needsDetail
+    guard !allEntries.isEmpty else { return .empty }
+    return readyCount == totalEntryCount ? .ready : .needsDetail
   }
 
   var title: String {
@@ -339,33 +354,45 @@ struct DraftIntakeGuide: Equatable, Sendable {
     case .empty:
       return "Add one clear direction above when you are ready."
     case .ready:
+      if isCapped {
+        return
+          "All \(entryCountLabel) have the outcome, why, and done signal. Showing first \(entries.count) in the checklist."
+      }
       return "Every queued draft names the outcome, why it matters, and how done should look."
     case .needsDetail:
       let missing =
         missingSignalTitles.isEmpty
         ? "more detail"
         : missingSignalTitles.joined(separator: ", ")
+      let capNotice =
+        isCapped
+        ? " Showing first \(entries.count); \(hiddenCountSentence) in the raw draft list."
+        : ""
       return
-        "\(Self.countLabel(entries.count, singular: "queued draft", plural: "queued drafts")). \(scoreLabel). Missing across queue: \(missing)."
+        "\(entryCountLabel). \(scoreLabel).\(capNotice) Missing across queue: \(missing)."
     }
   }
 
   var scoreLabel: String {
-    guard !entries.isEmpty else { return "0 queued" }
-    return "\(readyCount) of \(entries.count) ready"
+    guard !allEntries.isEmpty else { return "0 queued" }
+    return "\(readyCount) of \(totalEntryCount) ready"
   }
 
   var entryCountLabel: String {
-    Self.countLabel(entries.count, singular: "queued draft", plural: "queued drafts")
+    Self.countLabel(totalEntryCount, singular: "queued draft", plural: "queued drafts")
+  }
+
+  var hiddenCountSentence: String {
+    hiddenEntryCount == 1 ? "1 more draft remains" : "\(hiddenEntryCount) more drafts remain"
   }
 
   var readyCount: Int {
-    entries.filter { $0.readiness.status == .ready }.count
+    allEntries.filter { $0.readiness.status == .ready }.count
   }
 
   var missingSignalTitles: [String] {
     DraftReadinessGuide.Kind.allCases.compactMap { kind in
-      let isMissing = entries.contains { entry in
+      let isMissing = allEntries.contains { entry in
         entry.readiness.cues.contains { $0.kind == kind && !$0.isSatisfied }
       }
       return isMissing ? kind.title : nil
@@ -373,20 +400,28 @@ struct DraftIntakeGuide: Equatable, Sendable {
   }
 
   init(drafts: String) {
-    entries = Self.extractDraftEntries(from: drafts)
-      .prefix(Self.maxEntries)
+    allEntries = Self.extractDraftEntries(from: drafts)
       .enumerated()
       .map { offset, text in
         Entry(number: offset + 1, draft: text)
       }
+    entries = Array(allEntries.prefix(Self.maxEntries))
   }
 
   var promptText: String {
-    guard !entries.isEmpty else {
+    guard !allEntries.isEmpty else {
       return "_(no draft readiness signals)_"
     }
 
-    return entries.map(\.promptText).joined(separator: "\n\n")
+    var sections = entries.map(\.promptText)
+    if isCapped {
+      sections.append(
+        """
+        Readiness map note: Showing first \(entries.count) of \(totalEntryCount) drafts. \(hiddenCountSentence) in the raw drafts above; preserve them instead of assuming they were checked here.
+        """
+      )
+    }
+    return sections.joined(separator: "\n\n")
   }
 
   enum Status: Equatable, Sendable {
