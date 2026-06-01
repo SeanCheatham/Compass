@@ -20,6 +20,8 @@ struct AgentSettingsGuideTests {
       ])
     #expect(guide.rows[0].status == .blocked)
     #expect(guide.rows[0].detail.contains("Apple Intelligence is unavailable"))
+    #expect(guide.runtimeCoverage.label == "Text blocked")
+    #expect(guide.runtimeCoverage.fraction == 0)
     #expect(guide.rows[4].status == .off)
     #expect(guide.rows[4].detail.contains("core planning and code work are unaffected"))
   }
@@ -44,6 +46,10 @@ struct AgentSettingsGuideTests {
     #expect(guide.title == "Core Agent Ready")
     #expect(guide.actionLabel == "Optional setup")
     #expect(guide.tone == .optionalAttention)
+    #expect(guide.runtimeCoverage.label == "0 of 1 optional ready")
+    #expect(guide.runtimeCoverage.readyCount == 1)
+    #expect(guide.runtimeCoverage.selectedCount == 2)
+    #expect(guide.runtimeCoverage.fraction == 0.5)
     #expect(guide.rows[0].status == .ready)
     let imageRow = try #require(guide.rows.first { $0.id == "image" })
     #expect(imageRow.status == .attention)
@@ -65,6 +71,8 @@ struct AgentSettingsGuideTests {
     )
 
     let phaseRow = try #require(guide.rows.first { $0.id == "phaseRouting" })
+    #expect(guide.runtimeCoverage.label == "Core Text ready")
+    #expect(guide.runtimeCoverage.fraction == 1)
     #expect(phaseRow.status == .ready)
     #expect(phaseRow.detail.contains("Plan=planner"))
     #expect(phaseRow.detail.contains("Critic=critic"))
@@ -118,6 +126,9 @@ struct AgentSettingsGuideTests {
 
     #expect(guide.title == "Agent Stack Ready")
     #expect(guide.tone == .ready)
+    #expect(guide.runtimeCoverage.label == "All 2 optional ready")
+    #expect(guide.runtimeCoverage.readyCount == 3)
+    #expect(guide.runtimeCoverage.selectedCount == 3)
     let searchRow = try #require(guide.rows.first { $0.id == "webSearch" })
     let imageRow = try #require(guide.rows.first { $0.id == "image" })
     #expect(searchRow.status == .ready)
@@ -171,6 +182,7 @@ struct AgentSettingsGuideTests {
     #expect(payload.text.contains("Compass Runtime Settings Handoff"))
     #expect(payload.text.contains("Never ask the user to paste an API key into chat"))
     #expect(payload.text.contains("Status: Core Agent Ready (optionalAttention)"))
+    #expect(payload.text.contains("Runtime coverage: 2 of 4 optional ready"))
     #expect(payload.text.contains("Provider: OpenAI API"))
     #expect(payload.text.contains("Runnable: yes"))
     #expect(payload.text.contains("Credential saved: saved"))
@@ -257,6 +269,9 @@ struct AgentSettingsGuideTests {
     try await withMockFoundationModels(
       response: "Add the Text API key, then Compass can unlock the core agent run."
     ) {
+      let prompt = AgentSettingsGuideNarrator.prompt(for: guide)
+      #expect(prompt.contains("Runtime coverage: Text blocked"))
+
       let generatedNarration = await AgentSettingsGuideNarrator.narrate(guide: guide)
       let narration = try #require(generatedNarration)
       #expect(narration.guideIdentifier == guide.narrationIdentifier)

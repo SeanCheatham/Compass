@@ -39,6 +39,7 @@ enum AgentSettingsGuideNarrator {
     Status: \(guide.title)
     Detail: \(guide.detail)
     Action: \(guide.actionLabel)
+    Runtime coverage: \(guide.runtimeCoverage.label) - \(guide.runtimeCoverage.detail)
     Rows: \(guide.rows.map { "\($0.label) - \($0.status.rawValue) - \($0.detail)" }.joined(separator: " | "))
     """
   }

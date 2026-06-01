@@ -25,11 +25,23 @@ struct AgentSettingsGuide: Equatable, Sendable {
     var status: RowStatus
   }
 
+  struct RuntimeCoverage: Equatable, Sendable {
+    static let labelLimit = 52
+    static let detailLimit = 190
+
+    var readyCount: Int
+    var selectedCount: Int
+    var fraction: Double
+    var label: String
+    var detail: String
+  }
+
   var title: String
   var detail: String
   var actionLabel: String
   var tone: Tone
   var systemImageName: String
+  var runtimeCoverage: RuntimeCoverage
   var rows: [Row]
   var narrationIdentifier: String
 
@@ -42,6 +54,7 @@ struct AgentSettingsGuide: Equatable, Sendable {
       foundationModelsAvailable: foundationModelsAvailable,
       textReady: textReady
     )
+    runtimeCoverage = Self.runtimeCoverage(rows: rows, textReady: textReady)
 
     let textBlocked = rows.contains { $0.id == "text" && $0.status == .blocked }
     let optionalNeedsAttention = rows.contains { $0.status == .attention }
@@ -83,6 +96,7 @@ struct AgentSettingsGuide: Equatable, Sendable {
       actionLabel: actionLabel,
       tone: tone,
       systemImageName: systemImageName,
+      runtimeCoverage: runtimeCoverage,
       rows: rows,
       settings: settings,
       foundationModelsAvailable: foundationModelsAvailable
@@ -242,6 +256,70 @@ struct AgentSettingsGuide: Equatable, Sendable {
       || id == AgentCapability.video.rawValue
   }
 
+  private static func runtimeCoverage(rows: [Row], textReady: Bool) -> RuntimeCoverage {
+    let selectedOptionalRows = rows.filter { row in
+      isOptionalToolRowID(row.id) && row.status != .off
+    }
+    let readyOptionalCount = selectedOptionalRows.filter { $0.status == .ready }.count
+    let selectedCount = 1 + selectedOptionalRows.count
+
+    if !textReady {
+      return coverage(
+        readyCount: 0,
+        selectedCount: selectedCount,
+        fraction: 0,
+        label: "Text blocked",
+        detail: "Plan and Develop stay locked until Text reaches a runnable provider."
+      )
+    }
+
+    if selectedOptionalRows.isEmpty {
+      return coverage(
+        readyCount: 1,
+        selectedCount: 1,
+        fraction: 1,
+        label: "Core Text ready",
+        detail: "No optional tools are selected; core planning and code work can run."
+      )
+    }
+
+    if readyOptionalCount == selectedOptionalRows.count {
+      return coverage(
+        readyCount: selectedCount,
+        selectedCount: selectedCount,
+        fraction: 1,
+        label: "All \(selectedOptionalRows.count) optional ready",
+        detail: "Text and every selected optional tool have runnable credentials."
+      )
+    }
+
+    let readyCount = 1 + readyOptionalCount
+    return coverage(
+      readyCount: readyCount,
+      selectedCount: selectedCount,
+      fraction: Double(readyCount) / Double(selectedCount),
+      label: "\(readyOptionalCount) of \(selectedOptionalRows.count) optional ready",
+      detail:
+        "Text is ready; selected optional tools with missing credentials stay unavailable until their keys are saved."
+    )
+  }
+
+  private static func coverage(
+    readyCount: Int,
+    selectedCount: Int,
+    fraction: Double,
+    label: String,
+    detail: String
+  ) -> RuntimeCoverage {
+    RuntimeCoverage(
+      readyCount: readyCount,
+      selectedCount: selectedCount,
+      fraction: fraction,
+      label: StringUtils.boundedText(label, limit: RuntimeCoverage.labelLimit),
+      detail: StringUtils.boundedText(detail, limit: RuntimeCoverage.detailLimit)
+    )
+  }
+
   private static func boundedRowDetail(_ detail: String) -> String {
     StringUtils.boundedText(detail, limit: Self.rowDetailLimit)
   }
@@ -252,6 +330,7 @@ struct AgentSettingsGuide: Equatable, Sendable {
     actionLabel: String,
     tone: Tone,
     systemImageName: String,
+    runtimeCoverage: RuntimeCoverage,
     rows: [Row],
     settings: AgentRuntimeSettings,
     foundationModelsAvailable: Bool
@@ -262,6 +341,7 @@ struct AgentSettingsGuide: Equatable, Sendable {
       "action:\(actionLabel)",
       "tone:\(tone.rawValue)",
       "image:\(systemImageName)",
+      "coverage:\(runtimeCoverage.label):\(runtimeCoverage.readyCount)/\(runtimeCoverage.selectedCount)",
       "provider:\(settings.textProvider.rawValue)",
       "textReady:\(settings.isTextCapabilityRunnable(foundationModelsAvailable: foundationModelsAvailable))",
       "fmAvailable:\(foundationModelsAvailable)",
@@ -302,6 +382,7 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
       "Status: \(guide.title) (\(guide.tone.rawValue))",
       "Action: \(guide.actionLabel)",
       "Detail: \(guide.detail)",
+      "Runtime coverage: \(guide.runtimeCoverage.label) - \(guide.runtimeCoverage.detail)",
       "",
       "Text:",
       "Provider: \(settings.textProvider.displayName)",
