@@ -73,7 +73,7 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
   func defaultModel(for capability: AgentCapability) -> String? {
     guard supports(capability) else { return nil }
     switch (self, capability) {
-    case (.minimaxToken, .text): return "MiniMax-M3"
+    case (.minimaxToken, .text): return "MiniMax-M2.7"
     case (.minimaxToken, .image): return "image-01"
     case (.minimaxToken, .audio): return "speech-02-hd"
     case (.minimaxToken, .video): return "MiniMax-Hailuo-02"
@@ -94,13 +94,13 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
   /// Numbers reflect each vendor's publicly-documented ceilings:
   /// - Apple Foundation Models is a ~3B-param on-device model with
   ///   a 4096-token rolling window the framework manages internally.
-  /// - MiniMax-M3 exposes a 1M-token window.
+  /// - MiniMax M-series exposes a 200k-token window.
   /// - OpenAI is sized for the GPT-4o family (128k); higher-window
   ///   models can opt in by setting the env var.
   var defaultTextContextWindowTokens: Int {
     switch self {
     case .appleFoundationModels: return 4_096
-    case .minimaxToken: return 1_000_000
+    case .minimaxToken: return 200_000
     case .openAI: return 128_000
     }
   }

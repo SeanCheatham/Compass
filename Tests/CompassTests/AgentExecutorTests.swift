@@ -619,7 +619,7 @@ struct AgentExecutorTests {
   }
 
   @Test func testShouldCompactReturnsTrueAtOrAboveThreshold() throws {
-    let window = 1_000_000
+    let window = 200_000
     let threshold = Int(Double(window) * AgentExecutor.compactionThresholdFraction)
     try #require(
       !AgentExecutor.shouldCompact(estimatedTokens: threshold - 1, contextWindowTokens: window))
