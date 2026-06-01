@@ -22,6 +22,10 @@ struct ProjectReliabilityStatusTests {
     try #require(status.countLabel == "0 cues")
     try #require(status.primaryCue == "")
     try #require(status.detail == "")
+    try #require(status.primaryKind == nil)
+
+    let guide = ProjectRecoveryGuide(status: status)
+    try #require(guide.isEmpty)
   }
 
   @Test
@@ -58,6 +62,7 @@ struct ProjectReliabilityStatusTests {
     try #require(status.actionLabel == "Retry Plan")
     try #require(status.metadata == "#1")
     try #require(status.countLabel == "2 cues")
+    try #require(status.primaryKind == .rejectedPlan)
   }
 
   @Test
@@ -118,12 +123,79 @@ struct ProjectReliabilityStatusTests {
     let status = ProjectReliabilityStatus(feedback: feedback)
 
     try #require(status.primaryCue == "Verify failed")
+    try #require(status.primaryKind == .failedVerify)
     try #require(status.severity == .failure)
     try #require(status.actionLabel == "Retry Develop")
     try #require(
       status.metadata == "swift test --filter ProjectReliabilityStatusTests · exit 65"
     )
     try #require(status.detail == "Test Suite failed Expected true but got false")
+  }
+
+  @Test
+  func testRecoveryGuideForRejectedPlanPointsBackToPlanRepair() throws {
+    let session = makeSession(
+      12,
+      status: .failed,
+      notes: [
+        "Plan returned an immediate handoff that is not executable enough for Develop. Missing Acceptance checks."
+      ]
+    )
+    let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+    let status = ProjectReliabilityStatus(feedback: feedback)
+
+    let guide = ProjectRecoveryGuide(status: status)
+
+    try #require(guide.title == "Repair the Plan handoff")
+    try #require(guide.steps.map(\.title) == ["Open Plan", "Add the missing fields", "Retry Plan"])
+    try #require(guide.steps[0].detail.contains("handoff repair guide"))
+    try #require(guide.steps[1].detail.contains("Acceptance checks"))
+  }
+
+  @Test
+  func testRecoveryGuideForVerifyFailureUsesCapturedOutput() throws {
+    let session = makeSession(
+      13,
+      status: .failed,
+      verifyOutput: VerifyOutput(
+        command: "swift test",
+        exitCode: 1,
+        tail: "Expected passing check, got failing check"
+      )
+    )
+    let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+    let status = ProjectReliabilityStatus(feedback: feedback)
+
+    let guide = ProjectRecoveryGuide(status: status)
+
+    try #require(guide.title == "Fix the failing check")
+    try #require(
+      guide.steps.map(\.title) == [
+        "Inspect verify output", "Patch the failing behavior", "Retry Develop",
+      ])
+    try #require(guide.steps[0].detail == "Expected passing check, got failing check")
+    try #require(guide.steps[2].detail == "Compass will rerun the planned verification command.")
+  }
+
+  @Test
+  func testRecoveryGuideBoundsLongDetails() throws {
+    let longTail = String(repeating: "verify output line ", count: 30)
+    let session = makeSession(
+      14,
+      status: .failed,
+      verifyOutput: VerifyOutput(command: "swift test", exitCode: 1, tail: longTail)
+    )
+    let feedback = PlanReliabilityFeedback(
+      state: makeState(),
+      sessions: [session],
+      tailLimit: 1_000
+    )
+    let status = ProjectReliabilityStatus(feedback: feedback, detailLimit: 1_000)
+
+    let guide = ProjectRecoveryGuide(status: status)
+
+    try #require(guide.steps[0].detail.count <= ProjectRecoveryGuide.detailLimit)
+    try #require(guide.steps[0].detail.hasSuffix("..."))
   }
 
   @Test

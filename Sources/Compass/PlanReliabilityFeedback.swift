@@ -274,6 +274,8 @@ struct PlanReliabilityFeedback: Equatable {
           "placeholder verify command",
           "plan tried to",
           "plan transition",
+          "not executable enough for develop",
+          "returned no immediate work while",
           "rejected plan",
         ])
     else {
@@ -550,6 +552,7 @@ struct ProjectReliabilityStatus: Equatable {
   var detail: String
   var systemImage: String
   var noticeCount: Int
+  var primaryKind: PlanReliabilityFeedback.Kind?
 
   var isEmpty: Bool {
     noticeCount == 0
@@ -568,6 +571,7 @@ struct ProjectReliabilityStatus: Equatable {
       detail = ""
       systemImage = "checkmark.circle"
       noticeCount = 0
+      primaryKind = nil
       return
     }
 
@@ -579,6 +583,7 @@ struct ProjectReliabilityStatus: Equatable {
     detail = Self.boundedDetail(primaryNotice.detail, limit: detailLimit)
     systemImage = primaryNotice.systemImage
     noticeCount = feedback.notices.count
+    primaryKind = primaryNotice.kind
   }
 
   private static func primaryNotice(in notices: [PlanReliabilityFeedback.Notice])

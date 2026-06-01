@@ -260,47 +260,86 @@ struct ProjectReliabilityBanner: View {
   var status: ProjectReliabilityStatus
 
   var body: some View {
-    HStack(alignment: .top, spacing: 10) {
-      Image(systemName: status.systemImage)
-        .font(.system(size: 16, weight: .semibold))
-        .foregroundStyle(color)
-        .frame(width: 22, height: 22)
+    let recoveryGuide = ProjectRecoveryGuide(status: status)
 
-      VStack(alignment: .leading, spacing: 5) {
-        HStack(alignment: .firstTextBaseline, spacing: 7) {
-          Text(status.primaryCue)
-            .font(.callout.weight(.semibold))
+    VStack(alignment: .leading, spacing: 9) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: status.systemImage)
+          .font(.system(size: 16, weight: .semibold))
+          .foregroundStyle(color)
+          .frame(width: 22, height: 22)
 
-          Text(status.actionLabel)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.12), in: Capsule())
+        VStack(alignment: .leading, spacing: 5) {
+          HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Text(status.primaryCue)
+              .font(.callout.weight(.semibold))
 
-          if let metadata = status.metadata {
-            Text(metadata)
-              .font(.caption.monospacedDigit())
+            Text(status.actionLabel)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(color)
+              .padding(.horizontal, 7)
+              .padding(.vertical, 2)
+              .background(color.opacity(0.12), in: Capsule())
+
+            if let metadata = status.metadata {
+              Text(metadata)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            Text(status.countLabel)
+              .font(.caption.weight(.semibold))
               .foregroundStyle(.secondary)
               .lineLimit(1)
           }
 
-          Spacer(minLength: 8)
-
-          Text(status.countLabel)
-            .font(.caption.weight(.semibold))
+          Text(status.detail)
+            .font(.callout)
             .foregroundStyle(.secondary)
-            .lineLimit(1)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
         }
-
-        Text(status.detail)
-          .font(.callout)
-          .foregroundStyle(.secondary)
-          .lineLimit(2)
-          .fixedSize(horizontal: false, vertical: true)
-          .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+
+      if !recoveryGuide.isEmpty {
+        Divider()
+
+        VStack(alignment: .leading, spacing: 6) {
+          Label(recoveryGuide.title, systemImage: "list.bullet.clipboard")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+
+          ForEach(Array(recoveryGuide.steps.enumerated()), id: \.offset) { index, step in
+            HStack(alignment: .top, spacing: 7) {
+              Text("\(index + 1)")
+                .font(.caption2.monospacedDigit().weight(.bold))
+                .foregroundStyle(color)
+                .frame(width: 16, height: 16)
+                .background(color.opacity(0.12), in: Circle())
+                .padding(.top, 1)
+
+              VStack(alignment: .leading, spacing: 2) {
+                Text(step.title)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.primary)
+
+                Text(step.detail)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+                  .fixedSize(horizontal: false, vertical: true)
+                  .textSelection(.enabled)
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+            }
+          }
+        }
+      }
     }
     .padding(11)
     .frame(maxWidth: .infinity, alignment: .leading)
