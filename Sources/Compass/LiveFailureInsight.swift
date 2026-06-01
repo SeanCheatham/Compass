@@ -89,7 +89,16 @@ struct LiveFailureInsight: Equatable, Sendable {
       )
     }
 
-    if containsAny(normalized, ["submit_result missing"]) {
+    if containsAny(
+      normalized,
+      [
+        "submit_result missing",
+        "ended without submit_result",
+        "model stopped without calling submit_result",
+        "agent exceeded max iterations",
+        "agent exceeded wall-clock timeout",
+      ])
+    {
       return (
         .missingResult,
         "Agent Did Not Hand Back A Result",
@@ -231,7 +240,15 @@ struct LiveFailureInsight: Equatable, Sendable {
 
     if containsAny(
       normalized,
-      ["invalid arguments", "failed to decode arguments", "missing required field", "expected "]
+      [
+        "invalid arguments",
+        "failed to decode arguments",
+        "had undecodable args",
+        "tool call decode",
+        "args are not valid json",
+        "missing required field",
+        "expected ",
+      ]
     ) {
       return (
         .argumentRepair,

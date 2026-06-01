@@ -110,6 +110,44 @@ struct LiveFailureInsightTests {
     try #require(insight.narrationIdentifier.contains("missingResult"))
   }
 
+  @Test func explainsDevelopAttemptWithoutSubmitResultAsResultHandoff() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .warning,
+          text: "Develop attempt 1 ended without submit_result",
+          detail: "Agent exceeded max iterations (10).",
+          kind: .lifecycle,
+          status: .failed
+        )
+      )
+    )
+
+    try #require(insight.kind == .missingResult)
+    try #require(insight.title == "Agent Did Not Hand Back A Result")
+    try #require(insight.explanation.contains("result tool"))
+    try #require(insight.nextStep.contains("`submit_result`"))
+  }
+
+  @Test func explainsMalformedToolCallNoteAsArgumentRepair() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .warning,
+          text: "Tool call edit_file had undecodable args",
+          detail: "Args are not valid JSON: missing required field `path`.",
+          kind: .agentMessage,
+          status: .failed
+        )
+      )
+    )
+
+    try #require(insight.kind == .argumentRepair)
+    try #require(insight.title == "Tool Request Needs Repair")
+    try #require(insight.nextStep.contains("required fields"))
+    try #require(insight.nextStep.contains("smaller JSON"))
+  }
+
   @Test func explainsRejectedPlanAsHandoffRepair() throws {
     let insight = try #require(
       LiveFailureInsight(
