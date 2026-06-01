@@ -386,7 +386,8 @@ struct ProjectRunControlGuide: Equatable {
     }
 
     if !draftIntakeGuide.isEmpty {
-      return "Plan will turn \(draftIntakeGuide.entryCountLabel) into one executable handoff.\(draftQueueScopeSuffix(draftIntakeGuide))"
+      return
+        "Plan will turn \(draftIntakeGuide.entryCountLabel) into one executable handoff.\(draftQueueScopeSuffix(draftIntakeGuide))"
     }
 
     return "Plan will choose one executable next slice from the repository and current arc."
@@ -592,9 +593,11 @@ struct ProjectRunControlGuide: Equatable {
     case .empty:
       return "Ask Plan to choose one executable next slice, then stop for review."
     case .ready:
-      return "Ask Plan to turn \(draftIntakeGuide.entryCountLabel) into one executable handoff.\(draftQueueScopeSuffix(draftIntakeGuide))"
+      return
+        "Ask Plan to turn \(draftIntakeGuide.entryCountLabel) into one executable handoff.\(draftQueueScopeSuffix(draftIntakeGuide))"
     case .needsDetail:
-      return "Ask Plan to use the queue, with Drafts showing which signals still need detail.\(draftQueueScopeSuffix(draftIntakeGuide))"
+      return
+        "Ask Plan to use the queue, with Drafts showing which signals still need detail.\(draftQueueScopeSuffix(draftIntakeGuide))"
     }
   }
 
@@ -677,5 +680,81 @@ struct ProjectRunControlGuide: Equatable {
         .filter { !$0.isEmpty }
         .joined(separator: " ")
     }
+  }
+}
+
+struct ProjectRunControlClipboardPayload: Equatable, Sendable {
+  static let textLimit = 3_200
+
+  var text: String
+
+  init(guide: ProjectRunControlGuide) {
+    var sections: [String] = [
+      "Compass Run Controls Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded run-control context. Do not invent repository state, hidden run modes, completed work, verification results, or model output.",
+      "- Use the Primary action as the safest default only when its option is enabled.",
+      "- Disabled options stay disabled until the named readiness or repair detail changes.",
+      "- Develop may start only when Readiness says Ready for Develop or an attention state explicitly says to retry or resume Develop.",
+      "",
+      "Primary: \(guide.primaryOption.title) (\(Self.kindLabel(guide.primaryOption.kind)), \(Self.enabledLabel(guide.primaryOption)))",
+      "Primary help: \(guide.primaryHelp)",
+      "Readiness: \(guide.readiness.title) - \(guide.readiness.detail)",
+      "",
+      "Run modes:",
+    ]
+
+    for option in guide.options {
+      sections.append(
+        "- [\(Self.enabledLabel(option))] \(option.title) (\(Self.kindLabel(option.kind))): \(option.detail)"
+      )
+    }
+
+    sections.append("")
+    sections.append("Next run preview:")
+
+    if guide.previewSteps.isEmpty {
+      sections.append("- No preview steps are available.")
+    } else {
+      for step in guide.previewSteps {
+        sections.append("- \(step.title): \(step.detail)")
+      }
+    }
+
+    text = ProjectRunControlClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private static func kindLabel(_ kind: ProjectRunControlGuide.Kind) -> String {
+    switch kind {
+    case .loop:
+      return "loop"
+    case .planOnly:
+      return "plan-only"
+    case .developOnly:
+      return "develop-only"
+    }
+  }
+
+  private static func enabledLabel(_ option: ProjectRunControlGuide.Option) -> String {
+    option.isEnabled ? "enabled" : "disabled"
+  }
+}
+
+private enum ProjectRunControlClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
   }
 }

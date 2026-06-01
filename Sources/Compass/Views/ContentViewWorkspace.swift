@@ -580,6 +580,7 @@ struct ProjectRunControls: View {
     )
     let runNarration = matchingNarration(for: runGuide)
     let primaryExplanation = runNarration?.text ?? runGuide.primaryHelp
+    let runControlPayload = ProjectRunControlClipboardPayload(guide: runGuide)
 
     HStack(spacing: 5) {
       Menu {
@@ -642,6 +643,8 @@ struct ProjectRunControls: View {
       }
       .menuStyle(.borderlessButton)
       .help(feedbackMenu.helpText)
+
+      CopyRunControlButton(payload: runControlPayload)
 
       Button {
         run(runGuide.primaryOption.kind)
@@ -751,6 +754,29 @@ struct ProjectRunControls: View {
       return nil
     }
     return runGuideNarration
+  }
+}
+
+private struct CopyRunControlButton: View {
+  var payload: ProjectRunControlClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Image(systemName: copied ? "checkmark" : "doc.on.doc")
+        .frame(width: 18, height: 18)
+    }
+    .buttonStyle(.borderless)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded run-control handoff for another model or teammate.")
+    .accessibilityLabel(copied ? "Copied run handoff" : "Copy run handoff")
   }
 }
 

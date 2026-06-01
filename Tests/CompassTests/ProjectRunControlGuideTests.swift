@@ -106,16 +106,20 @@ struct ProjectRunControlGuideTests {
     try #require(guide.readiness.detail.contains("1 more draft remains in the raw draft list"))
     try #require(
       guide.primaryHelp
-        == "6 of 7 ready in Drafts; Drafts is checking the first 6; 1 more draft remains in the raw queue. Plan will turn the queue into one executable slice.")
+        == "6 of 7 ready in Drafts; Drafts is checking the first 6; 1 more draft remains in the raw queue. Plan will turn the queue into one executable slice."
+    )
     try #require(
       guide.options[0].detail
-        == "Plan can use 7 queued drafts, but Drafts shows missing signals before Develop starts. Drafts is checking the first 6; 1 more draft remains in the raw queue.")
+        == "Plan can use 7 queued drafts, but Drafts shows missing signals before Develop starts. Drafts is checking the first 6; 1 more draft remains in the raw queue."
+    )
     try #require(
       guide.options[1].detail
-        == "Ask Plan to use the queue, with Drafts showing which signals still need detail. Drafts is checking the first 6; 1 more draft remains in the raw queue.")
+        == "Ask Plan to use the queue, with Drafts showing which signals still need detail. Drafts is checking the first 6; 1 more draft remains in the raw queue."
+    )
     try #require(
       guide.previewSteps[0].detail
-        == "Plan will turn 7 queued drafts into one executable handoff. Drafts is checking the first 6; 1 more draft remains in the raw queue.")
+        == "Plan will turn 7 queued drafts into one executable handoff. Drafts is checking the first 6; 1 more draft remains in the raw queue."
+    )
     try #require(guide.narrationIdentifier.contains("1 more draft remains"))
   }
 
@@ -202,6 +206,75 @@ struct ProjectRunControlGuideTests {
       guide.previewSteps[1].detail
         == "Host Xcode runs: swift test --filter ProjectRunControlGuideTests")
     try #require(guide.previewSteps[1].systemImage == "macwindow")
+  }
+
+  @Test
+  func testRunControlClipboardPayloadPackagesReadyRunModesForReuse() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false
+    )
+
+    let payload = ProjectRunControlClipboardPayload(guide: guide)
+
+    try #require(payload.text.contains("Compass Run Controls Handoff"))
+    try #require(payload.text.contains("Do not invent repository state"))
+    try #require(payload.text.contains("Primary: Run Loop (loop, enabled)"))
+    try #require(payload.text.contains("Readiness: Ready for Develop"))
+    try #require(payload.text.contains("[enabled] Run Develop Only (develop-only)"))
+    try #require(payload.text.contains("Next run preview:"))
+    try #require(payload.text.contains("Run verification: Compass runs"))
+    try #require(payload.text.count <= ProjectRunControlClipboardPayload.textLimit)
+    try #require(!payload.isEmpty)
+  }
+
+  @Test
+  func testRunControlClipboardPayloadNamesDisabledDevelopRepair() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(
+        immediate: PlanNext(
+          plan: "Make the Plan tab easier to read.",
+          verify: "swift test --filter ProjectRunControlGuideTests"
+        )
+      ),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      languageProfile: profile(.swift)
+    )
+
+    let payload = ProjectRunControlClipboardPayload(guide: guide)
+
+    try #require(payload.text.contains("Primary: Run Plan Only (plan-only, enabled)"))
+    try #require(payload.text.contains("Readiness: Plan repair needed"))
+    try #require(payload.text.contains("[disabled] Run Develop Only (develop-only)"))
+    try #require(payload.text.contains("Acceptance checks before Develop"))
+    try #require(payload.text.contains("Disabled options stay disabled"))
+  }
+
+  @Test
+  func testRunControlClipboardPayloadPreservesRunningLockout() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: true,
+      isAutoPlaying: false,
+      isPaused: false
+    )
+
+    let payload = ProjectRunControlClipboardPayload(guide: guide)
+
+    try #require(payload.text.contains("Primary: Run Loop (loop, disabled)"))
+    try #require(payload.text.contains("Readiness: Run in progress"))
+    try #require(payload.text.contains("[disabled] Run Plan Only (plan-only)"))
+    try #require(payload.text.contains("Finish the current run"))
   }
 
   @Test
