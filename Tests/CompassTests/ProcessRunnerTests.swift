@@ -34,9 +34,7 @@ struct ProcessRunnerTests {
     let stub = directory.appendingPathComponent("ssh-keyscan")
     let script = """
       #!/bin/bash
-      cat <<'OUTPUT'
-      192.168.64.9 ssh-ed25519 TEST_KEY
-      OUTPUT
+      printf '%s\\n' '192.168.64.9 ssh-ed25519 TEST_KEY'
       exit 0
       """
     try script.write(to: stub, atomically: true, encoding: .utf8)

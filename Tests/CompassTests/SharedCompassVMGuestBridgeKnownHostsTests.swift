@@ -29,14 +29,9 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
       .appendingPathComponent("compass-keyscan-stub-\(UUID().uuidString)", isDirectory: true)
     try? FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     let stub = tmpDir.appendingPathComponent("ssh-keyscan")
-    // Single-quoted here-doc emits the canned output verbatim so we
-    // don't have to wrestle with bash quoting of `\` / `"` that may
-    // legitimately appear inside ssh-keyscan output.
     let script = """
       #!/bin/bash
-      cat <<'KEYSCAN_OUTPUT'
-      \(cannedOutput)
-      KEYSCAN_OUTPUT
+      \(Self.printfScript(for: cannedOutput))
       exit \(exitCode)
       """
     do {
@@ -49,6 +44,16 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
       #expect(Bool(false), "could not write keyscan stub: \(error)")
     }
     return stub
+  }
+
+  private static func printfScript(for output: String) -> String {
+    let lines = output.split(separator: "\n", omittingEmptySubsequences: false)
+    guard !lines.isEmpty else { return ":" }
+    return "printf '%s\\n' " + lines.map { shellSingleQuote(String($0)) }.joined(separator: " ")
+  }
+
+  private static func shellSingleQuote(_ value: String) -> String {
+    "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
   }
 
   private func makeKnownHostsPath() -> URL {
