@@ -93,9 +93,11 @@ extension AgentExecutor {
         \(errorMessage)
 
         Call `submit_result` again with a concrete `state.immediate` object containing one commit-sized \
-        Immediate Plan and a real verify command. Preserve `midTerm` and `longTerm` unless you have a \
-        specific revision. Use `immediate: null` only when there was already no mid-term or long-term \
-        runway before this Plan pass and there is still none.
+        Immediate Plan and a real verify command. Write `state.immediate.plan` with short Markdown \
+        sections named `Outcome`, `Why it matters`, and `Acceptance checks`; make the acceptance checks \
+        observable enough for Develop to know when it is done. Preserve `midTerm` and `longTerm` unless \
+        you have a specific revision. Use `immediate: null` only when there was already no mid-term or \
+        long-term runway before this Plan pass and there is still none.
         """
     )
   }

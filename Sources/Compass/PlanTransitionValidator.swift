@@ -56,6 +56,20 @@ enum PlanTransitionValidator {
     ) {
       throw PlanTransitionValidationError(message: coverageError)
     }
+
+    let handoffDigest = PlanHandoffDigest(plan: immediate.plan)
+    guard handoffDigest.status == .ready else {
+      let requiredMissing = handoffDigest.missingPieces
+        .filter { $0.isRequired }
+        .map(\.label)
+      let missing = requiredMissing.isEmpty
+        ? "a concrete Outcome and Acceptance checks"
+        : requiredMissing.joined(separator: " and ")
+      throw PlanTransitionValidationError(
+        message:
+          "Plan returned an immediate handoff that is not executable enough for Develop. Missing \(missing). Write `immediate.plan` with short Markdown sections named Outcome, Why it matters, and Acceptance checks; the acceptance checks should state observable finish-line behavior Develop can verify."
+      )
+    }
   }
 
   private static func remainingPlanFields(in state: PlanState, label: String) -> [String] {

@@ -21,7 +21,7 @@ struct PlanTransitionValidatorTests {
   @Test func testAcceptsNormalImmediateWork() throws {
     let current = makeState(midTerm: "- Build the next slice")
     let next = makeState(
-      immediate: PlanNext(plan: "Build the next slice", verify: "swift test"),
+      immediate: PlanNext(plan: executablePlan("Build the next slice"), verify: "swift test"),
       midTerm: "- Build the next slice\n- Polish follow-up"
     )
 
@@ -31,7 +31,7 @@ struct PlanTransitionValidatorTests {
   @Test func testAcceptsMidTermRewriteWithoutChangingCompleted() throws {
     let current = makeState(completed: ["First slice"], midTerm: "- Old queue")
     let proposal = PlanProposal(
-      immediate: PlanNext(plan: "Take the rewritten next step", verify: "swift test"),
+      immediate: PlanNext(plan: executablePlan("Take the rewritten next step"), verify: "swift test"),
       midTerm: "- Rewritten queue",
       longTerm: "Long-term direction"
     )
@@ -55,6 +55,23 @@ struct PlanTransitionValidatorTests {
       completed: ["done"], immediate: nil, midTerm: "- Next queued item", longTerm: "")
 
     assertTransitionRejected(from: current, to: next, contains: "Immediate Plan")
+  }
+
+  @Test func testRejectsWeakImmediateHandoff() throws {
+    let current = makeState(midTerm: "- Make Plan easier to follow")
+    let next = makeState(
+      immediate: PlanNext(
+        plan: "Make Plan easier to follow.",
+        verify: "swift test --filter PlanWorkflowOverviewTests"
+      ),
+      midTerm: "- Make Plan easier to follow"
+    )
+
+    assertTransitionRejected(
+      from: current,
+      to: next,
+      contains: "Missing Acceptance checks"
+    )
   }
 
   @Test func testRejectsNoImmediateWorkWhenLongTermRemains() throws {
@@ -136,6 +153,19 @@ struct PlanTransitionValidatorTests {
       "Expected error containing `\(expectedText)`, got `\(message)`."
     )
   }
+
+  private func executablePlan(_ outcome: String) -> String {
+    """
+    ## Outcome
+    \(outcome).
+
+    ## Why it matters
+    The owner can understand the next slice before Develop starts.
+
+    ## Acceptance checks
+    - The planned behavior is implemented.
+    """
+  }
 }
 
 @MainActor
@@ -177,6 +207,49 @@ struct PlanSubmitResultValidationTests {
     } catch let error as PlanTransitionValidationError {
       try #require(error.message.contains("Immediate Plan"))
       try #require(error.message.contains("current longTerm"))
+    }
+  }
+
+  @Test func testRejectsWeakImmediateHandoffBeforeAgentFinishes() throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    let workspace = project.makeWorkspace(repoURL: repoURL)
+    try workspace.initialize()
+    try workspace.writeState(
+      PlanState(
+        completed: [],
+        immediate: nil,
+        midTerm: "- Make Plan safer for weak handoffs",
+        longTerm: "Build a better factory"
+      )
+    )
+
+    let payload = PlanRunResult(
+      state: PlanProposal(
+        immediate: PlanNext(
+          plan: "Make Plan safer for weak handoffs.",
+          verify: "swift test --filter PlanDomainTests"
+        ),
+        midTerm: "- Make Plan safer for weak handoffs",
+        longTerm: "Build a better factory"
+      )
+    )
+    let args = try JSONEncoder().encode(payload)
+    let validate = project.submitResultValidation(
+      for: .plan,
+      hostRepoURL: repoURL,
+      decode: PlanRunResult.self
+    )
+
+    do {
+      try validate(args)
+      Issue.record("Expected weak immediate handoff to be rejected.")
+    } catch let error as PlanTransitionValidationError {
+      try #require(error.message.contains("not executable enough"))
+      try #require(error.message.contains("Acceptance checks"))
     }
   }
 }

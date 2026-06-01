@@ -388,7 +388,7 @@ struct SharedCompassVMGuestBridge {
           "-t", "ed25519,rsa,ecdsa",
           host,
         ],
-        timeout: timeout + 2
+        timeout: max(timeout + 5, 10)
       )
       guard result.exitCode == 0, !result.stdout.isEmpty else { return nil }
       return result.stdout

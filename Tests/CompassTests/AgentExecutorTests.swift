@@ -388,6 +388,7 @@ struct AgentExecutorTests {
 
     try #require(nudge.eventText == "submit_result plan rejected")
     try #require(nudge.userMessage.contains("Immediate Plan"))
+    try #require(nudge.userMessage.contains("Acceptance checks"))
     try #require(!nudge.userMessage.contains("lessonEdits"))
   }
 
