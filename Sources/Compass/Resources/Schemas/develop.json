@@ -1,15 +1,24 @@
 {
   "type": "object",
+  "description": "Develop phase submit_result payload. Call once after implementing the immediate plan or identifying the smallest concrete blocker.",
   "additionalProperties": false,
   "required": ["status", "summary", "feedback", "bypassVerify", "lessonEdits"],
   "properties": {
     "status": {
       "type": "string",
+      "description": "Use succeeded only when the planned implementation is complete; blocked or failed must explain the blocker in feedback.",
       "enum": ["succeeded", "blocked", "failed"]
     },
-    "summary": { "type": "string" },
-    "feedback": { "type": "string" },
+    "summary": {
+      "type": "string",
+      "description": "One to three concise sentences naming what changed or what stopped the attempt."
+    },
+    "feedback": {
+      "type": "string",
+      "description": "Concrete handoff for the next Plan pass. Name what changed, the blocker, or the smallest Plan recovery action; do not use placeholders like done, ok, none, or fix it."
+    },
     "bypassVerify": {
+      "description": "Set true only when the planned verify command itself is wrong or out of scope. If true, feedback must name the exact verify-command problem and the smallest Plan recovery action; do not use true because tests are slow, failing, unavailable in your environment, or not yet run.",
       "anyOf": [
         { "type": "boolean" },
         { "type": "null" }
@@ -17,14 +26,22 @@
     },
     "lessonEdits": {
       "type": "array",
+      "description": "Exact lesson find/replace edits, or an empty array when there is no durable lesson to update.",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": ["find", "replace", "replaceAll"],
         "properties": {
-          "find": { "type": "string" },
-          "replace": { "type": "string" },
+          "find": {
+            "type": "string",
+            "description": "Exact existing lesson text to replace; empty only when appending to empty lessons."
+          },
+          "replace": {
+            "type": "string",
+            "description": "Replacement lesson text."
+          },
           "replaceAll": {
+            "description": "True only when every exact match should be replaced; otherwise false or null.",
             "anyOf": [
               { "type": "boolean" },
               { "type": "null" }

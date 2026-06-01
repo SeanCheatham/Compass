@@ -43,4 +43,40 @@ struct PromptSchemaLoadingTests {
     #expect(!Prompts.planSchema.contains("requiresHostXcode"))
     #expect(Prompts.planHostXcodeSchema.contains("requiresHostXcode"))
   }
+
+  @Test
+  func testDevelopAndCriticSchemasDescribeRepairContracts() throws {
+    let developProperties = try schemaProperties(Prompts.developSchema)
+    let criticProperties = try schemaProperties(Prompts.criticSchema)
+
+    try #require(
+      propertyDescription("feedback", in: developProperties)
+        .contains("Concrete handoff for the next Plan pass")
+    )
+    try #require(
+      propertyDescription("bypassVerify", in: developProperties)
+        .contains("verify command itself is wrong or out of scope")
+    )
+    try #require(propertyDescription("bypassVerify", in: developProperties).contains("not yet run"))
+
+    try #require(
+      propertyDescription("verdict", in: criticProperties)
+        .contains("real, fixable problem")
+    )
+    try #require(
+      propertyDescription("feedback", in: criticProperties)
+        .contains("concrete punch list")
+    )
+  }
+
+  private func schemaProperties(_ schema: String) throws -> [String: Any] {
+    let parsed = try JSONSerialization.jsonObject(with: Data(schema.utf8))
+    let root = try #require(parsed as? [String: Any])
+    return try #require(root["properties"] as? [String: Any])
+  }
+
+  private func propertyDescription(_ name: String, in properties: [String: Any]) throws -> String {
+    let property = try #require(properties[name] as? [String: Any])
+    return try #require(property["description"] as? String)
+  }
 }
