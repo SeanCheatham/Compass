@@ -343,8 +343,9 @@ extension AgentExecutor {
     case .placeholderVerify:
       let rejected = error.rejectedVerify.map { " Rejected verify: `\($0)`." } ?? ""
       return """
-        - Replace the placeholder verify command with a real shell command Compass can run.\(rejected)
+        - Replace the placeholder or failure-masking verify command with a real shell command Compass can run.\(rejected)
         - Do not use no-op commands such as \(PlanVerifyCommandPolicy.placeholderExamples).
+        - Do not hide failures behind fallback clauses such as \(PlanVerifyCommandPolicy.failureMaskingExamples).
         - Keep the plan text if its Outcome and Acceptance checks are still correct.
         """
     case .coverageRequirement:

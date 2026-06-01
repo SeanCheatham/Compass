@@ -3,6 +3,8 @@ import Foundation
 enum PlanVerifyCommandPolicy {
   static let placeholderExamples =
     "`true`, `exit 0`, `echo no tests`, `none`, `n/a`, or `not-running-tests`"
+  static let failureMaskingExamples =
+    "`swift test || true`, `swift test; true`, or `swift test || echo no tests`"
 
   static func normalizedCommand(_ rawCommand: String?) -> String? {
     let command = rawCommand?
@@ -23,6 +25,11 @@ enum PlanVerifyCommandPolicy {
       return false
     }
     return placeholderMessageKeys.contains(echoMessage)
+  }
+
+  static func masksFailures(_ command: String) -> Bool {
+    let key = placeholderKey(command)
+    return hasFallbackMask(in: key) || hasTrailingSequenceMask(in: key)
   }
 
   private static let placeholderCommandKeys: Set<String> = [
@@ -57,10 +64,18 @@ enum PlanVerifyCommandPolicy {
     "not running tests",
     "not-running-tests",
     "ok",
+    "pass",
+    "passed",
     "skip tests",
     "skipping tests",
+    "success",
+    "successful",
+    "tests pass",
+    "tests passed",
     "tests skipped",
     "true",
+    "verification pass",
+    "verification passed",
     "verification skipped",
     "verify skipped",
   ]
@@ -79,6 +94,44 @@ enum PlanVerifyCommandPolicy {
       return placeholderKey(message)
     }
     return nil
+  }
+
+  private static func hasFallbackMask(in key: String) -> Bool {
+    let clauses = key.components(separatedBy: "||")
+    guard clauses.count > 1 else { return false }
+    return clauses.dropFirst().contains { clauseStartsWithPlaceholder($0) }
+  }
+
+  private static func hasTrailingSequenceMask(in key: String) -> Bool {
+    let clauses = key.components(separatedBy: ";")
+    guard clauses.count > 1, let trailing = clauses.last else { return false }
+    return isPlaceholderClause(trailing)
+  }
+
+  private static func clauseStartsWithPlaceholder(_ clause: String) -> Bool {
+    let trimmed = placeholderKey(clause)
+    if isPlaceholderClause(trimmed) {
+      return true
+    }
+    for separator in ["&&", ";"] {
+      guard let range = trimmed.range(of: separator) else { continue }
+      let prefix = String(trimmed[..<range.lowerBound])
+      if isPlaceholderClause(prefix) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private static func isPlaceholderClause(_ clause: String) -> Bool {
+    let key = placeholderKey(clause)
+    if placeholderCommandKeys.contains(key) {
+      return true
+    }
+    guard let echoMessage = shellEchoMessage(from: key) else {
+      return false
+    }
+    return placeholderMessageKeys.contains(echoMessage)
   }
 
   private static func placeholderKey(_ text: String) -> String {

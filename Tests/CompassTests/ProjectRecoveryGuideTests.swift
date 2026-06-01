@@ -44,6 +44,22 @@ struct ProjectRecoveryGuideTests {
   }
 
   @Test
+  func failureMaskingVerifyRecoveryNamesTheRepair() throws {
+    let guide = ProjectRecoveryGuide(
+      status: rejectedPlanStatus(
+        note:
+          "Plan returned failure-masking verify command `swift test || true`. Verify commands must fail when the check fails."
+      )
+    )
+
+    try #require(!guide.isEmpty)
+    try #require(guide.steps[1].title == "Replace the verify command")
+    try #require(guide.steps[1].detail.contains("fallback clauses"))
+    try #require(guide.steps[1].detail.contains("|| true"))
+    try #require(guide.narrationIdentifier.contains("Replace the verify command"))
+  }
+
+  @Test
   func narratorUsesFoundationModelsAsOptionalRecoveryPolish() async throws {
     let guide = ProjectRecoveryGuide(status: rejectedPlanStatus())
 

@@ -17,6 +17,7 @@ struct PlanTransitionValidatorTests {
       (" true ", "true"),
       ("exit 0", "exit 0"),
       (#"echo "No tests available""#, #"echo "No tests available""#),
+      (#"echo "Tests passed""#, #"echo "Tests passed""#),
       (":", ":"),
     ]
 
@@ -28,6 +29,27 @@ struct PlanTransitionValidatorTests {
       try #require(error.reason == .placeholderVerify)
       try #require(error.missingLabels == ["Verify command"])
       try #require(error.rejectedVerify == rejectedVerify)
+    }
+  }
+
+  @Test func testRejectsFailureMaskingVerifyCommands() throws {
+    let current = makeState()
+    let commands = [
+      "swift test || true",
+      "swift test; true",
+      #"swift test || echo "No tests available""#,
+      "swift test || exit 0",
+    ]
+
+    for command in commands {
+      let next = makeState(immediate: PlanNext(plan: executablePlan("Do work"), verify: command))
+
+      let error = try rejectedTransition(from: current, to: next)
+      try #require(error.message.contains("failure-masking verify command"))
+      try #require(error.message.contains("Refusing to overwrite state.json"))
+      try #require(error.reason == .placeholderVerify)
+      try #require(error.missingLabels == ["Verify command"])
+      try #require(error.rejectedVerify == command)
     }
   }
 

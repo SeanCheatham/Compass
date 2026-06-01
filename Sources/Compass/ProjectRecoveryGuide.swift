@@ -137,12 +137,14 @@ struct ProjectRecoveryGuide: Equatable {
     let normalized = detail.lowercased()
     let retryDetail = "Let Plan resubmit one smaller executable slice before Develop starts."
 
-    if normalized.contains("placeholder verify command") {
+    if normalized.contains("placeholder verify command")
+      || normalized.contains("failure-masking verify command")
+    {
       return RejectedPlanRecovery(
         title: "Replace the verify command",
         detail:
-          "Use a real command Compass can run; do not use no-op commands such as "
-            + "true, exit 0, echo no tests, none, n/a, or not-running-tests.",
+          "Use a real command Compass can run; do not use no-op commands or fallback clauses such as "
+            + "true, exit 0, echo no tests, none, n/a, not-running-tests, || true, or ; true.",
         retryDetail: retryDetail
       )
     }

@@ -272,6 +272,7 @@ struct PlanReliabilityFeedback: Equatable {
         containsAny: [
           "refusing to overwrite state.json",
           "placeholder verify command",
+          "failure-masking verify command",
           "plan tried to",
           "plan transition",
           "not executable enough for develop",

@@ -86,6 +86,15 @@ enum PlanTransitionValidator {
         rejectedVerify: verify
       )
     }
+    if PlanVerifyCommandPolicy.masksFailures(verify) {
+      throw PlanTransitionValidationError(
+        message:
+          "Plan returned failure-masking verify command `\(verify)`. Verify commands must fail when the check fails; remove fallback no-op clauses such as \(PlanVerifyCommandPolicy.failureMaskingExamples). Refusing to overwrite state.json.",
+        reason: .placeholderVerify,
+        missingLabels: ["Verify command"],
+        rejectedVerify: verify
+      )
+    }
     if let coverageError = ForgeVerifyValidator.coverageViolation(
       verify: verify,
       profile: forgeProfile

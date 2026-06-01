@@ -635,6 +635,30 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
+  func testHandoffRepairGuideFlagsFailureMaskingVerify() throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: """
+        ## Outcome
+        Make retry recovery safer.
+
+        ## Acceptance checks
+        - Failed verification remains visible to the run controls.
+        """,
+      verify: "swift test || true",
+      languageProfile: profile(.swift, hints: [.packageSwift])
+    )
+
+    try #require(guide.status == .needsRepair)
+    try #require(guide.shouldShow)
+    try #require(guide.scoreLabel == "2 of 3 required")
+    try #require(guide.steps[0].isSatisfied)
+    try #require(guide.steps[1].isSatisfied)
+    try #require(!guide.steps[2].isSatisfied)
+    try #require(guide.steps[2].detail == "Remove fallback no-op clauses so failed checks still fail.")
+    try #require(guide.suggestedVerifyCommand == "swift test")
+  }
+
+  @Test
   func testHandoffRepairGuideExplainsCommandOnlyAcceptanceChecks() throws {
     let guide = PlanHandoffRepairGuide(
       plan: """

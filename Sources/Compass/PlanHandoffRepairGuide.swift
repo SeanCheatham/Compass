@@ -29,7 +29,9 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
   ) {
     let digest = PlanHandoffDigest(plan: rawPlan)
     let verifyCommand = PlanVerifyCommandPolicy.normalizedCommand(rawVerify)
-    let hasRealVerify = verifyCommand.map { !PlanVerifyCommandPolicy.isPlaceholder($0) } ?? false
+    let hasFailureMask = verifyCommand.map(PlanVerifyCommandPolicy.masksFailures) ?? false
+    let hasRealVerify =
+      verifyCommand.map { !PlanVerifyCommandPolicy.isPlaceholder($0) && !hasFailureMask } ?? false
     let coverageViolation =
       hasRealVerify
       ? verifyCommand.flatMap {
@@ -62,6 +64,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
           ? "Compass can run \(verifyCommand ?? "the planned check")."
           : Self.verifyRepairDetail(
             coverageViolation: coverageViolation,
+            hasFailureMask: hasFailureMask,
             forgeProfile: forgeProfile
           )
       ),
@@ -197,10 +200,14 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
 
   private static func verifyRepairDetail(
     coverageViolation: String?,
+    hasFailureMask: Bool,
     forgeProfile: ForgeProfile?
   ) -> String {
     if coverageViolation != nil, let forgeProfile {
       return "Add coverage to the verify command for \(forgeProfile.displayName)."
+    }
+    if hasFailureMask {
+      return "Remove fallback no-op clauses so failed checks still fail."
     }
     return "Choose a real command Compass can run after Develop."
   }
