@@ -98,6 +98,22 @@ extension AgentExecutor {
         observable enough for Develop to know when it is done. Preserve `midTerm` and `longTerm` unless \
         you have a specific revision. Use `immediate: null` only when there was already no mid-term or \
         long-term runway before this Plan pass and there is still none.
+
+        Use this exact retry shape. Replace the bracketed text, keep the top-level keys exactly as shown, \
+        and do not answer in prose:
+        {
+          "state": {
+            "immediate": {
+              "plan": "## Outcome\\n<one sentence: what will change>\\n\\n## Why it matters\\n<who this helps and why>\\n\\n## Acceptance checks\\n- <observable finish-line behavior>\\n- <the verify command proves the change>",
+              "verify": "<real shell command, no cd prefix>",
+              "verifyTimeoutMs": 600000,
+              "estimatedDifficulty": "low"
+            },
+            "midTerm": "<preserve the current queue unless you are intentionally revising it>",
+            "longTerm": "<preserve the current strategic arc unless it materially changed>"
+          },
+          "lessonEdits": []
+        }
         """
     )
   }

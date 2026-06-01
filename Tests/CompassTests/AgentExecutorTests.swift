@@ -389,7 +389,12 @@ struct AgentExecutorTests {
     try #require(nudge.eventText == "submit_result plan rejected")
     try #require(nudge.userMessage.contains("Immediate Plan"))
     try #require(nudge.userMessage.contains("Acceptance checks"))
-    try #require(!nudge.userMessage.contains("lessonEdits"))
+    try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
+    try #require(nudge.userMessage.contains("\"state\""))
+    try #require(nudge.userMessage.contains("\"immediate\""))
+    try #require(nudge.userMessage.contains("\"verifyTimeoutMs\": 600000"))
+    try #require(nudge.userMessage.contains("## Outcome\\n"))
+    try #require(nudge.userMessage.contains("do not answer in prose"))
   }
 
   @Test func testDecodingErrorMessageSurfacesMissingKey() throws {
