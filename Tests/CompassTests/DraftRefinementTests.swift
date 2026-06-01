@@ -81,18 +81,24 @@ struct DraftRefinementTests {
       drafts: """
         1. [ ] Make setup faster because users get stuck; success looks like tests pass.
         2) [x] Improve onboarding copy
+        [ ] Show 2FA recovery because users get locked out; done when recovery copy appears.
         """
     )
 
-    try #require(guide.entries.map(\.number) == [1, 2])
+    try #require(guide.entries.map(\.number) == [1, 2, 3])
     try #require(
       guide.entries[0].draft
         == "Make setup faster because users get stuck; success looks like tests pass.")
     try #require(guide.entries[0].readiness.status == .ready)
     try #require(guide.entries[1].draft == "Improve onboarding copy")
     try #require(guide.entries[1].readiness.status == .needsDetail)
+    try #require(
+      guide.entries[2].draft
+        == "Show 2FA recovery because users get locked out; done when recovery copy appears.")
+    try #require(guide.entries[2].readiness.status == .ready)
     try #require(guide.promptText.contains("Text: Improve onboarding copy"))
     try #require(!guide.promptText.contains("[x]"))
+    try #require(!guide.promptText.contains("[ ]"))
   }
 
   @Test func testDraftIntakeGuideSummarizesReadyAndEmptyQueueStates() throws {
@@ -304,6 +310,14 @@ struct DraftRefinementTests {
     try #require(refinement.refinedText.contains("2"))
     try #require(!refinement.refinedText.contains("Sources/App.swift"))
     try #require(!refinement.refinedText.contains("must"))
+
+    let taskRefinement = try #require(
+      DraftRefinementService.deterministicRefinement(
+        draft: "2) [ ] 2FA recovery copy stays visible",
+        context: context
+      )
+    )
+    try #require(taskRefinement.refinedText == "2FA recovery copy stays visible.")
   }
 
   @Test func testPreviewPlannerDebouncesAndUsesCacheKey() throws {

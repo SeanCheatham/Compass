@@ -375,7 +375,7 @@ struct DraftIntakeGuide: Equatable, Sendable {
       let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmed.isEmpty else { continue }
 
-      if let listEntry = strippedListPrefix(from: trimmed) {
+      if let listEntry = PlainTextListPrefix.strippedEntry(from: trimmed) {
         sawListEntry = true
         flush()
         current.append(listEntry)
@@ -386,26 +386,6 @@ struct DraftIntakeGuide: Equatable, Sendable {
 
     flush()
     return sawListEntry ? entries : []
-  }
-
-  private static func strippedListPrefix(from line: String) -> String? {
-    if line.hasPrefix("- ") || line.hasPrefix("* ") {
-      return strippedTaskPrefix(
-        from: String(line.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
-      )
-    }
-
-    guard let range = line.range(of: #"^\d{1,3}[\.)]\s+"#, options: .regularExpression)
-    else { return nil }
-    return strippedTaskPrefix(
-      from: String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-    )
-  }
-
-  private static func strippedTaskPrefix(from text: String) -> String {
-    guard let range = text.range(of: #"^\[( |x|X)\]\s*"#, options: .regularExpression)
-    else { return text }
-    return String(text[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private static func normalizedDraftText(_ text: String) -> String {

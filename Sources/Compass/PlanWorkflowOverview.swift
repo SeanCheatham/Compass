@@ -358,17 +358,7 @@ struct PlanHandoffDigest: Equatable, Sendable {
   }
 
   private static func cleanedContentLine(_ rawLine: String) -> String {
-    var line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
-    if let range = line.range(of: #"^[-*]\s+"#, options: .regularExpression) {
-      line = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-    } else if let range = line.range(of: #"^\d{1,3}[\.)]\s+"#, options: .regularExpression) {
-      line = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    if let range = line.range(of: #"^\[( |x|X)\]\s*"#, options: .regularExpression) {
-      line = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    return StringUtils.boundedText(line, limit: Self.textLimit)
+    StringUtils.boundedText(PlainTextListPrefix.cleanedLine(rawLine), limit: Self.textLimit)
   }
 }
 

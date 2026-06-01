@@ -237,9 +237,7 @@ enum DraftRefinementService {
     guard !trimmedDraft.isEmpty else { return nil }
 
     var refined =
-      trimmedDraft
-      .replacingOccurrences(of: #"^[-*]\s+"#, with: "", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+      PlainTextListPrefix.cleanedLine(trimmedDraft)
 
     if refined.count > refinedTextMaxCharacters {
       refined = fittedPlainText(refined, maxCharacters: refinedTextMaxCharacters)
