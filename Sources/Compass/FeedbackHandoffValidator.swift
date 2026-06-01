@@ -65,16 +65,48 @@ enum DevelopVerifyBypassValidator {
     "cannot",
     "cant",
     "coverage",
+    "deleted",
     "disabled",
+    "exist",
+    "exists",
     "host",
     "invalid",
     "missing",
     "out",
+    "removed",
+    "renamed",
     "scope",
     "unsupported",
     "wrong",
     "xcode",
     "xcodebuild",
+  ]
+  private static let concreteProblemDetailTokens: Set<String> = [
+    "coverage",
+    "deleted",
+    "destination",
+    "exist",
+    "exists",
+    "file",
+    "filter",
+    "flag",
+    "guest",
+    "host",
+    "module",
+    "package",
+    "path",
+    "removed",
+    "renamed",
+    "scheme",
+    "simulator",
+    "spm",
+    "suite",
+    "swiftpm",
+    "target",
+    "workspace",
+    "xcode",
+    "xcodebuild",
+    "xcodeproj",
   ]
 
   static func validate(_ summary: DevelopSummary) throws {
@@ -100,6 +132,26 @@ enum DevelopVerifyBypassValidator {
           "Develop set bypassVerify=true but did not name a concrete verify-command problem.",
         reason: .genericReason
       )
+    }
+
+    guard hasConcreteProblemDetail(in: combined, tokens: tokens) else {
+      throw DevelopVerifyBypassValidationError(
+        message:
+          "Develop set bypassVerify=true but did not name the concrete file, suite, command, or environment detail that makes the verify command wrong.",
+        reason: .genericReason
+      )
+    }
+  }
+
+  private static func hasConcreteProblemDetail(in text: String, tokens: Set<String>) -> Bool {
+    if text.contains("`") {
+      return true
+    }
+    if !tokens.isDisjoint(with: concreteProblemDetailTokens) {
+      return true
+    }
+    return tokens.contains { token in
+      token.count >= 18 || token.contains { $0.isNumber }
     }
   }
 }

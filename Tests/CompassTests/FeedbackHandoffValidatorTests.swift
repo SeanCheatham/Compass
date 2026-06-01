@@ -84,6 +84,16 @@ struct DevelopVerifyBypassValidatorTests {
         "Verify is unavailable in this environment; next Plan can continue with the queue.",
         .genericReason
       ),
+      (
+        "Implemented the slice and skipped verify.",
+        "Verify command is wrong; next Plan should replace it.",
+        .genericReason
+      ),
+      (
+        "Implemented the slice and skipped verify.",
+        "The planned verify command is out of scope for this work.",
+        .genericReason
+      ),
     ]
 
     for testCase in cases {
@@ -110,6 +120,16 @@ struct DevelopVerifyBypassValidatorTests {
         summary: "Implemented the slice; the planned verify command targets a deleted test suite.",
         feedback:
           "Verify command is wrong because DraftReadinessOldTests no longer exists; next Plan should replace it with DraftRefinementTests.",
+        bypassVerify: true
+      )
+    )
+
+    try DevelopVerifyBypassValidator.validate(
+      DevelopSummary(
+        status: .succeeded,
+        summary: "Implemented the slice; the planned verify command targets a removed suite.",
+        feedback:
+          "Verify command `swift test --filter RemovedSuite` points at a removed suite; next Plan should replace it with DraftRefinementTests.",
         bypassVerify: true
       )
     )
