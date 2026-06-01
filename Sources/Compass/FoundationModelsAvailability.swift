@@ -92,6 +92,9 @@ enum ExplainUnavailableReason: Sendable, CaseIterable {
 }
 
 enum FoundationModelsAvailability {
+  static let generatedExploreUnavailableMessage =
+    "Generated Explore insight needs Apple Intelligence, which is unavailable on this Mac. Deterministic change details remain available."
+
   struct TextProvider: Sendable {
     var isAvailable: @Sendable () -> Bool
     var streamText: @Sendable (_ prompt: String) async -> String?

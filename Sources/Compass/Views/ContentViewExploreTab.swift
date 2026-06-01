@@ -875,7 +875,7 @@ struct QnAPopoverExplore: View {
 
       if availabilityError {
         Label(
-          "Foundation Models is unavailable on this device.",
+          FoundationModelsAvailability.generatedExploreUnavailableMessage,
           systemImage: "exclamationmark.triangle"
         )
         .font(.caption)

@@ -199,7 +199,7 @@ struct PerCommitNarrativesPopover: View {
 
                 if narrative.availabilityError {
                   Label(
-                    "Foundation Models is unavailable on this device.",
+                    FoundationModelsAvailability.generatedExploreUnavailableMessage,
                     systemImage: "exclamationmark.triangle"
                   )
                   .font(.caption)
@@ -303,7 +303,7 @@ struct CommitTourRow: View {
         .padding(.vertical, 2)
         if tourAvailabilityError {
           Label(
-            "Foundation Models is unavailable on this device.",
+            FoundationModelsAvailability.generatedExploreUnavailableMessage,
             systemImage: "exclamationmark.triangle"
           )
           .font(.caption)
@@ -416,7 +416,7 @@ struct ArchitectureGraphPopover: View {
 
       if availabilityError {
         Label(
-          "Foundation Models is unavailable on this device.",
+          FoundationModelsAvailability.generatedExploreUnavailableMessage,
           systemImage: "exclamationmark.triangle"
         )
         .font(.caption)
@@ -620,7 +620,7 @@ struct QnAPopover: View {
 
       if availabilityError {
         Label(
-          "Foundation Models is unavailable on this device.",
+          FoundationModelsAvailability.generatedExploreUnavailableMessage,
           systemImage: "exclamationmark.triangle"
         )
         .font(.caption)

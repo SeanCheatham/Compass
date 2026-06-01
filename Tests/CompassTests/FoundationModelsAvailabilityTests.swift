@@ -4,6 +4,16 @@ import Testing
 
 struct FoundationModelsAvailabilityTests {
   @Test
+  func generatedExploreUnavailableMessageIsActionable() {
+    let message = FoundationModelsAvailability.generatedExploreUnavailableMessage
+
+    #expect(message.contains("Apple Intelligence"))
+    #expect(message.contains("Generated Explore insight"))
+    #expect(message.contains("Deterministic change details"))
+    #expect(!message.contains("Foundation Models is unavailable on this device"))
+  }
+
+  @Test
   func textProviderOverride_suppliesDeterministicAvailabilityAndResponse() async throws {
     try await withMockFoundationModels(available: true, response: "mocked text") {
       #expect(FoundationModelsAvailability.isAvailable)
