@@ -2,6 +2,7 @@ import Foundation
 
 struct PlanHandoffRepairGuide: Equatable, Sendable {
   static let templateLimit = 720
+  static let identifierLimit = 1_200
 
   var status: Status
   var title: String
@@ -10,9 +11,14 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
   var steps: [Step]
   var suggestedVerifyCommand: String?
   var planTemplate: String?
+  var narrationIdentifier: String
 
   var shouldShow: Bool {
     status != .ready
+  }
+
+  var allowsNarration: Bool {
+    shouldShow && !narrationIdentifier.isEmpty
   }
 
   init(
@@ -31,7 +37,8 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
       }
       : nil
     let hasUsableVerify = hasRealVerify && coverageViolation == nil
-    suggestedVerifyCommand = hasUsableVerify
+    suggestedVerifyCommand =
+      hasUsableVerify
       ? verifyCommand
       : Self.suggestedVerifyCommand(for: languageProfile, forgeProfile: forgeProfile)
 
@@ -77,7 +84,8 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     } else if digest.status == .missingPlan {
       status = .missingHandoff
       title = "Create the handoff"
-      detail = "Plan needs one commit-sized slice plus a verification command before Develop can start."
+      detail =
+        "Plan needs one commit-sized slice plus a verification command before Develop can start."
       planTemplate = Self.template(
         outcome: nil,
         whyItMatters: nil,
@@ -85,12 +93,14 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
         suggestedVerifyCommand: suggestedVerifyCommand
       )
     } else {
-      let missingLabels = steps
+      let missingLabels =
+        steps
         .filter { $0.isRequired && !$0.isSatisfied }
         .map(\.title)
       status = .needsRepair
       title = "Make this executable"
-      detail = "Add \(missingLabels.joined(separator: " and ")) before Develop has a clear finish line."
+      detail =
+        "Add \(missingLabels.joined(separator: " and ")) before Develop has a clear finish line."
       planTemplate = Self.template(
         outcome: digest.outcome,
         whyItMatters: digest.whyItMatters,
@@ -100,12 +110,31 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     }
 
     detail = StringUtils.boundedText(detail, limit: 220)
+    narrationIdentifier = Self.narrationIdentifier(
+      status: status,
+      title: title,
+      detail: detail,
+      scoreLabel: scoreLabel,
+      steps: steps,
+      suggestedVerifyCommand: suggestedVerifyCommand
+    )
   }
 
   enum Status: Equatable, Sendable {
     case missingHandoff
     case needsRepair
     case ready
+
+    var narrationKey: String {
+      switch self {
+      case .missingHandoff:
+        return "missingHandoff"
+      case .needsRepair:
+        return "needsRepair"
+      case .ready:
+        return "ready"
+      }
+    }
   }
 
   struct Step: Identifiable, Equatable, Sendable {
@@ -224,6 +253,31 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     }
   }
 
+  private static func narrationIdentifier(
+    status: Status,
+    title: String,
+    detail: String,
+    scoreLabel: String,
+    steps: [Step],
+    suggestedVerifyCommand: String?
+  ) -> String {
+    let stepFragment = steps.map { step in
+      "\(step.kind.narrationKey):satisfied:\(step.isSatisfied):required:\(step.isRequired):\(step.detail)"
+    }.joined(separator: "|")
+
+    return StringUtils.boundedText(
+      [
+        "status:\(status.narrationKey)",
+        "title:\(title)",
+        "detail:\(detail)",
+        "score:\(scoreLabel)",
+        "steps:\(stepFragment)",
+        "suggestedVerify:\(suggestedVerifyCommand ?? "")",
+      ].joined(separator: "\n"),
+      limit: Self.identifierLimit
+    )
+  }
+
   private static func template(
     outcome: String?,
     whyItMatters: String?,
@@ -260,5 +314,22 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     guard templateLimit > 3 else { return String(trimmed.prefix(templateLimit)) }
     return String(trimmed.prefix(templateLimit - 3))
       .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}
+
+extension PlanHandoffRepairGuide.Kind {
+  fileprivate var narrationKey: String {
+    switch self {
+    case .outcome:
+      return "outcome"
+    case .acceptanceChecks:
+      return "acceptanceChecks"
+    case .verifyCommand:
+      return "verifyCommand"
+    case .coverageReadyVerify:
+      return "coverageReadyVerify"
+    case .whyItMatters:
+      return "whyItMatters"
+    }
   }
 }

@@ -565,9 +565,11 @@ struct CopyHandoffButton: View {
 
 struct PlanHandoffRepairGuideView: View {
   var guide: PlanHandoffRepairGuide
+  @State private var guideNarration: PlanHandoffRepairGuideNarration?
 
   var body: some View {
     let repairPayload = PlanHandoffRepairClipboardPayload(guide: guide)
+    let repairNarration = matchingNarration(for: guide)
 
     VStack(alignment: .leading, spacing: 8) {
       Divider()
@@ -595,6 +597,22 @@ struct PlanHandoffRepairGuideView: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
+
+      if let repairNarration {
+        HStack(alignment: .top, spacing: 7) {
+          Image(systemName: "sparkles")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(color)
+            .frame(width: 16)
+            .padding(.top, 2)
+
+          Text(repairNarration.text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+        }
+      }
 
       VStack(alignment: .leading, spacing: 6) {
         ForEach(guide.steps) { step in
@@ -656,7 +674,13 @@ struct PlanHandoffRepairGuideView: View {
     }
     .padding(.top, 2)
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(guide.title). \(guide.detail). \(guide.scoreLabel).")
+    .accessibilityLabel(
+      "\(guide.title). \(repairNarration?.text ?? guide.detail). \(guide.scoreLabel)."
+    )
+    .task(id: guide.narrationIdentifier) {
+      guideNarration = nil
+      guideNarration = await PlanHandoffRepairGuideNarrator.narrate(guide: guide)
+    }
   }
 
   private var color: Color {
@@ -679,6 +703,15 @@ struct PlanHandoffRepairGuideView: View {
     case .ready:
       return "checkmark.seal"
     }
+  }
+
+  private func matchingNarration(
+    for guide: PlanHandoffRepairGuide
+  ) -> PlanHandoffRepairGuideNarration? {
+    guard guideNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return guideNarration
   }
 }
 

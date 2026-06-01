@@ -256,7 +256,8 @@ struct PlanWorkflowOverviewTests {
     try #require(swift.title == "Runs Swift coverage")
     try #require(
       swift.detail
-        == "Compass will run Swift tests focused on DraftRefinementTests. Coverage collection is enabled.")
+        == "Compass will run Swift tests focused on DraftRefinementTests. Coverage collection is enabled."
+    )
 
     let go = PlanVerifyCommandSummary(
       command: "go test -coverprofile=.compass/coverage.out ./..."
@@ -578,6 +579,98 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
+  func testHandoffRepairGuideNarrationIdentifierTracksRepairSteps() throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: "Make the Plan tab easier to read.",
+      verify: "true",
+      languageProfile: profile(.typeScriptJavaScript, hints: [.packageJSON])
+    )
+
+    try #require(guide.allowsNarration)
+    try #require(guide.narrationIdentifier.contains("status:needsRepair"))
+    try #require(guide.narrationIdentifier.contains("acceptanceChecks"))
+    try #require(guide.narrationIdentifier.contains("verifyCommand"))
+    try #require(guide.narrationIdentifier.contains("suggestedVerify:npm test"))
+  }
+
+  @Test
+  func testHandoffRepairNarratorUsesFoundationModelsAsOptionalPolish() async throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: "Make the Plan tab easier to read.",
+      verify: "true",
+      languageProfile: profile(.typeScriptJavaScript, hints: [.packageJSON])
+    )
+
+    try await withMockFoundationModels(
+      response:
+        "Plan needs observable acceptance checks and a real verify command before Develop can start."
+    ) {
+      let generatedNarration = await PlanHandoffRepairGuideNarrator.narrate(guide: guide)
+      let narration = try #require(generatedNarration)
+      try #require(narration.guideIdentifier == guide.narrationIdentifier)
+      try #require(
+        narration.text
+          == "Plan needs observable acceptance checks and a real verify command before Develop can start."
+      )
+    }
+  }
+
+  @Test
+  func testHandoffRepairNarratorSkipsReadyOrUnavailableGuides() async throws {
+    let readyGuide = PlanHandoffRepairGuide(
+      plan: """
+        ## Outcome
+        Add a readable factory launch checklist.
+
+        ## Acceptance checks
+        - Checklist appears beside the immediate plan.
+        """,
+      verify: "swift test --filter PlanWorkflowOverviewTests",
+      languageProfile: profile(.swift)
+    )
+    let repairGuide = PlanHandoffRepairGuide(
+      plan: "Make the Plan tab easier to read.",
+      verify: "true",
+      languageProfile: profile(.swift)
+    )
+
+    try #require(!readyGuide.allowsNarration)
+    await withMockFoundationModels(response: "Should not be used") {
+      let narration = await PlanHandoffRepairGuideNarrator.narrate(guide: readyGuide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(available: false, response: "Should not be used") {
+      let narration = await PlanHandoffRepairGuideNarrator.narrate(guide: repairGuide)
+      #expect(narration == nil)
+    }
+  }
+
+  @Test
+  func testHandoffRepairNarratorRejectsStructuredBulletedOrLinkedOutput() async throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: "Make the Plan tab easier to read.",
+      verify: "true",
+      languageProfile: profile(.swift)
+    )
+
+    await withMockFoundationModels(response: #"{"text":"Invented JSON"}"#) {
+      let narration = await PlanHandoffRepairGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "- Add hidden work before repair") {
+      let narration = await PlanHandoffRepairGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "Read more at https://example.com") {
+      let narration = await PlanHandoffRepairGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+  }
+
+  @Test
   func testHandoffRepairGuideFlagsMissingForgeCoverage() throws {
     let guide = PlanHandoffRepairGuide(
       plan: """
@@ -593,11 +686,13 @@ struct PlanWorkflowOverviewTests {
     )
 
     try #require(guide.status == .needsRepair)
-    try #require(guide.detail == "Add Coverage-ready verify before Develop has a clear finish line.")
+    try #require(
+      guide.detail == "Add Coverage-ready verify before Develop has a clear finish line.")
     try #require(guide.scoreLabel == "2 of 3 required")
     try #require(guide.steps[2].title == "Coverage-ready verify")
     try #require(guide.steps[2].detail == "Add coverage to the verify command for Go (module).")
-    try #require(guide.suggestedVerifyCommand == "go test -coverprofile=.compass/coverage.out ./...")
+    try #require(
+      guide.suggestedVerifyCommand == "go test -coverprofile=.compass/coverage.out ./...")
   }
 
   @Test
