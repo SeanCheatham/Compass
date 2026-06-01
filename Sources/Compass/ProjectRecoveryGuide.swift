@@ -181,6 +181,17 @@ struct ProjectRecoveryGuide: Equatable {
       )
     }
 
+    if normalized.contains("acceptance checks are too vague")
+      || normalized.contains("vague acceptance checks")
+    {
+      return RejectedPlanRecovery(
+        title: "Replace vague acceptance checks",
+        detail:
+          "Name the specific behavior, UI state, or test-proven signal Develop should make true.",
+        retryDetail: retryDetail
+      )
+    }
+
     if normalized.contains("not executable enough for develop")
       || normalized.contains("missing acceptance checks")
       || normalized.contains("missing outcome")

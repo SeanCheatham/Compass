@@ -28,6 +28,22 @@ struct ProjectRecoveryGuideTests {
   }
 
   @Test
+  func vagueAcceptanceCheckRecoveryNamesTheRepair() throws {
+    let guide = ProjectRecoveryGuide(
+      status: rejectedPlanStatus(
+        note:
+          "Plan returned an immediate handoff that is not executable enough for Develop. Acceptance checks are too vague (`The planned behavior is implemented.`)."
+      )
+    )
+
+    try #require(!guide.isEmpty)
+    try #require(guide.steps[1].title == "Replace vague acceptance checks")
+    try #require(guide.steps[1].detail.contains("specific behavior"))
+    try #require(guide.steps[1].detail.contains("test-proven signal"))
+    try #require(guide.narrationIdentifier.contains("Replace vague acceptance checks"))
+  }
+
+  @Test
   func narratorUsesFoundationModelsAsOptionalRecoveryPolish() async throws {
     let guide = ProjectRecoveryGuide(status: rejectedPlanStatus())
 
@@ -72,7 +88,12 @@ struct ProjectRecoveryGuideTests {
     )
   }
 
-  private func rejectedPlanStatus() -> ProjectReliabilityStatus {
+  private func rejectedPlanStatus(
+    note: String = """
+      Verify command must collect test coverage for Swift Package projects. \
+      test verify must declare coverage: guest `swift test --enable-code-coverage`.
+      """
+  ) -> ProjectReliabilityStatus {
     ProjectReliabilityStatus(
       feedback: PlanReliabilityFeedback(
         state: PlanState(
@@ -95,12 +116,7 @@ struct ProjectRecoveryGuideTests {
             afterSha: nil,
             commits: [],
             status: .rejectedByPlan,
-            notes: [
-              """
-              Verify command must collect test coverage for Swift Package projects. \
-              test verify must declare coverage: guest `swift test --enable-code-coverage`.
-              """
-            ],
+            notes: [note],
             verifyOutput: nil,
             feedback: nil
           )
