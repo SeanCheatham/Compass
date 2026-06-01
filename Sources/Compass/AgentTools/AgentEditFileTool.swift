@@ -258,11 +258,13 @@ struct AgentEditFileTool: AgentTool {
     } catch {
       return .failure(.ioFailure("read failed: \(error.localizedDescription)"))
     }
-    if originalData.prefix(8192).contains(0) {
-      return .failure(.binaryFile(args.path))
+    var current: String
+    switch AgentTextFile.decodeUTF8(originalData, path: args.path) {
+    case .success(let decoded):
+      current = decoded
+    case .failure(let error):
+      return .failure(error)
     }
-
-    var current = String(decoding: originalData, as: UTF8.self)
     var totalReplaced = 0
     let relative = context.relativize(url)
 

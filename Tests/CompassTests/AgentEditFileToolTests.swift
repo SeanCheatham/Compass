@@ -353,6 +353,24 @@ final class AgentEditFileToolTests {
     try #require(result.content.contains("binary"))
   }
 
+  @Test func testRejectsInvalidUTF8WithoutRewritingFile() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("invalid.txt")
+    let original = Data([0xC3, 0x28])
+    try original.write(to: fileURL)
+
+    let result = try await invokeMarkingRead(
+      fileURL,
+      args: [
+        "path": "invalid.txt",
+        "edits": [["oldString": "(", "newString": ")"]],
+      ])
+
+    try #require(result.isError)
+    try #require(result.errorKind == .binaryFile)
+    try #require(result.content.contains("binary"))
+    try #require(Data(contentsOf: fileURL) == original)
+  }
+
   fileprivate func invoke(_ args: [String: Any], context: AgentToolContext) async throws
     -> AgentToolInvocationResult
   {

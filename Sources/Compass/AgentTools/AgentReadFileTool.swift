@@ -145,11 +145,13 @@ struct AgentReadFileTool: AgentTool {
       return .failure(.ioFailure("read failed: \(error.localizedDescription)"))
     }
 
-    if data.prefix(8192).contains(0) {
-      return .failure(.binaryFile(args.path))
+    let text: String
+    switch AgentTextFile.decodeUTF8(data, path: args.path) {
+    case .success(let decoded):
+      text = decoded
+    case .failure(let error):
+      return .failure(error)
     }
-
-    let text = String(decoding: data, as: UTF8.self)
     let allLines = text.components(separatedBy: "\n")
     let totalLines = allLines.count
 

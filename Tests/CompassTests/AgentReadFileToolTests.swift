@@ -89,6 +89,18 @@ final class AgentReadFileToolTests {
     try #require(result.content.contains("binary"))
   }
 
+  @Test func testRejectsInvalidUTF8WithoutNulBytes() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("invalid.txt")
+    try Data([0xC3, 0x28]).write(to: fileURL)
+
+    let context = AgentToolContext(workingDirectory: temporaryDirectory)
+    let result = try await invoke(["path": "invalid.txt"], context: context)
+
+    try #require(result.isError)
+    try #require(result.errorKind == .binaryFile)
+    try #require(result.content.contains("binary"))
+  }
+
   @Test func testRejectsPathsThatEscapeTheWorkingDirectory() async throws {
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let result = try await invoke(["path": "../escape.txt"], context: context)
