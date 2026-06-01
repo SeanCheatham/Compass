@@ -21,6 +21,8 @@ struct AssumptionsTab: View {
   }
 
   var body: some View {
+    let clipboardPayload = AssumptionReviewClipboardPayload(ledger: ledger, guide: guide)
+
     VStack(alignment: .leading, spacing: 14) {
       HStack(alignment: .firstTextBaseline) {
         VStack(alignment: .leading, spacing: 3) {
@@ -42,6 +44,7 @@ struct AssumptionsTab: View {
       AssumptionSummaryStrip(ledger: ledger)
       AssumptionReviewGuidePanel(
         guide: guide,
+        clipboardPayload: clipboardPayload,
         narration: matchingNarration(for: guide)
       )
 
@@ -174,6 +177,7 @@ struct AssumptionSummaryStrip: View {
 
 struct AssumptionReviewGuidePanel: View {
   var guide: AssumptionReviewGuide
+  var clipboardPayload: AssumptionReviewClipboardPayload
   var narration: AssumptionReviewGuideNarration?
 
   var body: some View {
@@ -184,6 +188,8 @@ struct AssumptionReviewGuidePanel: View {
           .foregroundStyle(color(for: guide.tone))
 
         Spacer(minLength: 8)
+
+        CopyAssumptionsButton(payload: clipboardPayload)
 
         Text(guide.promptEffect)
           .font(.caption)
@@ -272,6 +278,31 @@ struct AssumptionReviewGuidePanel: View {
     case .steady: return .green
     case .correction: return .red
     }
+  }
+}
+
+struct CopyAssumptionsButton: View {
+  var payload: AssumptionReviewClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Memory",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded assumptions handoff for another model or teammate.")
   }
 }
 

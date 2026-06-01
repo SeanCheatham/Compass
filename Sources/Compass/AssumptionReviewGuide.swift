@@ -221,3 +221,149 @@ struct AssumptionReviewGuide: Equatable, Sendable {
     "\(count) \(count == 1 ? singular : plural)"
   }
 }
+
+struct AssumptionReviewClipboardPayload: Equatable, Sendable {
+  static let textLimit = 4_000
+  private static let bucketRecordLimit = 6
+  private static let evidenceLimit = 3
+
+  var text: String
+
+  init(ledger: AssumptionLedger, guide: AssumptionReviewGuide) {
+    guard !ledger.assumptions.isEmpty else {
+      text = ""
+      return
+    }
+
+    let active = ledger.activeAssumptions
+    var sections: [String] = [
+      "Compass Assumptions Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded, user-reviewable assumption memory. Do not invent "
+        + "files, credentials, product intent, user preferences, or extra decisions.",
+      "- Affirmed assumptions are strong guidance. Implicit assumptions need verification "
+        + "or a user check before load-bearing work.",
+      "- Denied assumptions are corrections; do not rely on them, and repair any work that "
+        + "depends on them.",
+      "",
+      "Status: \(guide.title)",
+      "Detail: \(guide.detail)",
+      "Prompt effect: \(guide.promptEffect)",
+      "Counts: \(ledger.implicitCount) implicit, \(ledger.affirmedCount) affirmed, "
+        + "\(ledger.deniedCount) denied, \(ledger.archivedCount) archived",
+    ]
+
+    if !guide.queue.isEmpty {
+      sections.append("")
+      sections.append("Needs review first:")
+      for item in guide.queue {
+        sections.append("- \(item.label)")
+        sections.append("  Context: \(item.detail)")
+      }
+    }
+
+    Self.appendBucket(
+      title: "User-affirmed assumptions (strong guidance)",
+      records: Self.records(status: .affirmed, in: active),
+      to: &sections
+    )
+    Self.appendBucket(
+      title: "Implicit assumptions (verify before relying)",
+      records: Self.records(status: .implicit, in: active),
+      to: &sections
+    )
+    Self.appendBucket(
+      title: "Denied assumptions (corrections; do not rely)",
+      records: Self.records(status: .denied, in: active),
+      to: &sections
+    )
+
+    if ledger.archivedCount > 0 {
+      sections.append("")
+      sections.append("Archived assumptions: \(ledger.archivedCount)")
+      sections.append("Archived entries are preserved in history but excluded from active prompts.")
+    }
+
+    text = AssumptionReviewClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private static func records(
+    status: AssumptionRecord.Status,
+    in records: [AssumptionRecord]
+  ) -> [AssumptionRecord] {
+    records
+      .filter { $0.status == status }
+      .sorted { lhs, rhs in
+        if lhs.updatedAt != rhs.updatedAt {
+          return lhs.updatedAt > rhs.updatedAt
+        }
+        return lhs.id < rhs.id
+      }
+  }
+
+  private static func appendBucket(
+    title: String,
+    records: [AssumptionRecord],
+    to sections: inout [String]
+  ) {
+    guard !records.isEmpty else { return }
+
+    sections.append("")
+    sections.append(title)
+    for record in records.prefix(bucketRecordLimit) {
+      sections.append("- [\(record.id)] \(singleLine(record.text))")
+      sections.append("  Scope: \(record.scope.displayName)\(sessionSuffix(for: record))")
+      appendDetail("Impact", record.impact, to: &sections)
+      appendDetail("Rationale", record.rationale, to: &sections)
+      appendDetail("Invalidated by", record.invalidation, to: &sections)
+      appendDetail("User comment", record.userComment ?? "", to: &sections)
+      if !record.evidence.isEmpty {
+        sections.append("  Evidence:")
+        for item in record.evidence.prefix(evidenceLimit) {
+          sections.append("    - \(singleLine(item))")
+        }
+        if record.evidence.count > evidenceLimit {
+          sections.append("    - ...\(record.evidence.count - evidenceLimit) more evidence items not shown")
+        }
+      }
+    }
+
+    if records.count > bucketRecordLimit {
+      sections.append("- ...\(records.count - bucketRecordLimit) more assumptions not shown")
+    }
+  }
+
+  private static func appendDetail(_ label: String, _ value: String, to sections: inout [String]) {
+    let bounded = singleLine(value)
+    guard !bounded.isEmpty else { return }
+    sections.append("  \(label): \(bounded)")
+  }
+
+  private static func sessionSuffix(for record: AssumptionRecord) -> String {
+    guard let session = record.createdInSession else { return "" }
+    return ", session #\(session)"
+  }
+
+  private static func singleLine(_ text: String) -> String {
+    StringUtils.boundedText(text, limit: 320)
+  }
+}
+
+private enum AssumptionReviewClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}
