@@ -9,6 +9,8 @@ struct PlanFactoryBriefView: View {
   ]
 
   var body: some View {
+    let clipboardPayload = PlanFactoryBriefClipboardPayload(brief: brief)
+
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 12) {
         Image(systemName: systemImage)
@@ -44,6 +46,8 @@ struct PlanFactoryBriefView: View {
         }
 
         Spacer(minLength: 8)
+
+        CopyFactoryBriefButton(payload: clipboardPayload)
       }
 
       LazyVGrid(columns: factColumns, alignment: .leading, spacing: 8) {
@@ -146,6 +150,31 @@ struct PlanFactoryBriefView: View {
     case .idle:
       return "tray"
     }
+  }
+}
+
+struct CopyFactoryBriefButton: View {
+  var payload: PlanFactoryBriefClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Brief",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded factory brief for another model or teammate.")
   }
 }
 

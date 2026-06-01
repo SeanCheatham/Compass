@@ -1043,6 +1043,79 @@ struct PlanFactoryBrief: Equatable, Sendable {
   }
 }
 
+struct PlanFactoryBriefClipboardPayload: Equatable, Sendable {
+  static let textLimit = 2_800
+
+  var text: String
+
+  init(brief: PlanFactoryBrief) {
+    var sections: [String] = [
+      "Compass Factory Brief Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded current-state context. Do not invent files, "
+        + "commands, credentials, outcomes, deadlines, or extra scope.",
+      "- Use the action, proof, handoff, and runtime fields to decide the next safe step.",
+      "- If the status needs attention or planning, repair the named issue before Develop.",
+      "",
+      "Status: \(brief.title) (\(brief.status.rawValue))",
+      "Action: \(brief.primaryActionLabel)",
+      "Detail: \(brief.detail)",
+      "",
+      "Proof:",
+      "\(brief.proofLabel): \(brief.proofDetail)",
+      brief.proofCommand ?? "No verification command selected.",
+      "",
+      "Runtime:",
+      "\(brief.routeLabel): \(brief.routeDetail)",
+      "",
+      "Handoff:",
+      "Status: \(brief.handoffDigest.title)",
+      brief.handoffDigest.detail,
+    ]
+
+    if let outcome = brief.handoffDigest.outcome {
+      sections.append("Outcome: \(outcome)")
+    }
+    if let whyItMatters = brief.handoffDigest.whyItMatters {
+      sections.append("Why it matters: \(whyItMatters)")
+    }
+    if !brief.handoffDigest.acceptanceChecks.isEmpty {
+      sections.append("Acceptance checks:")
+      sections.append(contentsOf: brief.handoffDigest.acceptanceChecks.map { "- \($0)" })
+    }
+    if !brief.handoffDigest.missingPieces.isEmpty {
+      sections.append("Missing handoff detail:")
+      sections.append(contentsOf: brief.handoffDigest.missingPieces.map { "- \($0.label)" })
+    }
+    if !brief.chips.isEmpty {
+      sections.append("")
+      sections.append("Context:")
+      sections.append(contentsOf: brief.chips.map { "- \($0.label)" })
+    }
+
+    text = PlanFactoryBriefClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+private enum PlanFactoryBriefClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}
+
 struct PlanFactoryBriefNarration: Equatable, Sendable {
   var briefIdentifier: String
   var text: String

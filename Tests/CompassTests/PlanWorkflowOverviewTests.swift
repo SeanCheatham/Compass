@@ -563,6 +563,58 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
+  func testFactoryBriefClipboardPayloadPackagesCurrentStateForReuse() throws {
+    let state = makeState(
+      completed: ["one", "two"],
+      immediate: PlanNext(
+        plan: """
+          ## Outcome
+          Make draft polish available when Apple Intelligence is off.
+
+          ## Why it matters
+          Non-engineers still need a clear next step.
+
+          ## Acceptance checks
+          - Preview appears when Foundation Models are unavailable.
+          """,
+        verify: "swift test --filter DraftRefinementTests",
+        verifyTimeoutMs: 90_000,
+        estimatedDifficulty: .medium
+      )
+    )
+    let brief = PlanFactoryBrief(
+      state: state,
+      reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
+      launchPlan: .host(fallbackReason: "Shared VM has not been provisioned yet."),
+      languageProfile: profile(.swift)
+    )
+    let payload = PlanFactoryBriefClipboardPayload(brief: brief)
+
+    try #require(payload.text.contains("Compass Factory Brief Handoff"))
+    try #require(payload.text.contains("Recipient instructions:"))
+    try #require(payload.text.contains("Do not invent files, commands, credentials"))
+    try #require(payload.text.contains("Status: Ready To Build (ready)"))
+    try #require(payload.text.contains("Action: Run Develop"))
+    try #require(payload.text.contains("Proof:\nRuns Swift tests"))
+    try #require(payload.text.contains("swift test --filter DraftRefinementTests"))
+    try #require(payload.text.contains("Runtime:\nNative macOS"))
+    try #require(payload.text.contains("Status: Executable handoff"))
+    try #require(
+      payload.text.contains("Outcome: Make draft polish available when Apple Intelligence is off.")
+    )
+    try #require(payload.text.contains("Why it matters: Non-engineers still need"))
+    try #require(
+      payload.text.contains("- Preview appears when Foundation Models are unavailable.")
+    )
+    try #require(payload.text.contains("Context:\n- 2 completed"))
+    try #require(payload.text.contains("- Swift"))
+    try #require(payload.text.contains("- Medium difficulty"))
+    try #require(payload.text.contains("- Timeout 90s"))
+    try #require(payload.text.count <= PlanFactoryBriefClipboardPayload.textLimit)
+    try #require(!payload.isEmpty)
+  }
+
+  @Test
   func testFactoryBriefRoutesCoverageRepairBackToPlan() throws {
     let state = makeState(
       immediate: PlanNext(
