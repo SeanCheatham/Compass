@@ -38,7 +38,7 @@ struct AgentRuntimeSidebarSummary: Equatable, Sendable {
       Line(id: "model", label: "Model", value: Self.modelValue(settings))
     )
     lines.append(
-      Line(id: "media", label: "Media", value: Self.mediaValue(settings))
+      Line(id: "tools", label: "Tools", value: Self.optionalToolsValue(settings))
     )
 
     self.lines = lines.map { line in
@@ -83,18 +83,23 @@ struct AgentRuntimeSidebarSummary: Equatable, Sendable {
     return settings.textProvider.defaultModel(for: .text) ?? "Provider default"
   }
 
-  private static func mediaValue(_ settings: AgentRuntimeSettings) -> String {
+  private static func optionalToolsValue(_ settings: AgentRuntimeSettings) -> String {
     let values = [
-      mediaStatus(label: "Image", assignment: settings.imageAssignment),
-      mediaStatus(label: "Audio", assignment: settings.audioAssignment),
-      mediaStatus(label: "Video", assignment: settings.videoAssignment),
+      capabilityStatus(label: "Search", assignment: settings.webSearchAssignment),
+      capabilityStatus(label: "Vision", assignment: settings.imageUnderstandingAssignment),
+      capabilityStatus(label: "Image", assignment: settings.imageAssignment),
+      capabilityStatus(label: "Audio", assignment: settings.audioAssignment),
+      capabilityStatus(label: "Video", assignment: settings.videoAssignment),
     ].compactMap { $0 }
 
     guard !values.isEmpty else { return "Optional tools off" }
     return values.joined(separator: "; ")
   }
 
-  private static func mediaStatus(label: String, assignment: MediaAssignment?) -> String? {
+  private static func capabilityStatus(
+    label: String,
+    assignment: CapabilityAssignment?
+  ) -> String? {
     guard let assignment else { return nil }
     let hasKey = !assignment.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     return hasKey

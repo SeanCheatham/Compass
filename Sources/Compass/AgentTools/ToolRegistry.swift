@@ -10,12 +10,13 @@ import Foundation
 /// keeps them from running mutating commands; bash itself can't enforce
 /// intent.
 ///
-/// Media-generation tools are conditional: the user-configured
+/// Provider-backed tools are conditional: the user-configured
 /// per-capability assignments on `AgentRuntimeSettings` decide whether
-/// the agent sees `generate_image` (and, eventually, audio/video
-/// siblings). When a capability is unassigned, the tool is absent
-/// from the palette — the model can't accidentally call something
-/// the user hasn't wired up.
+/// the agent sees web search, image understanding, or media generation.
+/// Read-only external services are available in every phase; artifact
+/// generation remains Develop-only. When a capability is unassigned, the
+/// tool is absent from the palette — the model can't accidentally call
+/// something the user hasn't wired up.
 enum ToolRegistry {
   /// Read-only file access + codemap-backed structural lookups + delegate.
   static func readOnlyTools() -> [AgentTool] {
@@ -58,9 +59,7 @@ enum ToolRegistry {
   }
 
   /// Phase tools assembled with the user's per-capability provider
-  /// assignments folded in. Media tools land in the Develop phase
-  /// only — Plan/Reflect/Critic are inspection passes that shouldn't
-  /// be producing artifacts.
+  /// assignments folded in.
   static func tools(
     for phase: AgentPhase,
     settings: AgentRuntimeSettings,
@@ -84,6 +83,12 @@ enum ToolRegistry {
       if hostXcodeService != nil {
         tools.append(AgentHostXcodeTool())
       }
+    }
+    if let webSearchAssignment = settings.webSearchAssignment {
+      tools.append(AgentWebSearchTool(assignment: webSearchAssignment))
+    }
+    if let imageUnderstandingAssignment = settings.imageUnderstandingAssignment {
+      tools.append(AgentUnderstandImageTool(assignment: imageUnderstandingAssignment))
     }
     if toolchainService != nil {
       tools.append(AgentListToolchainsTool())

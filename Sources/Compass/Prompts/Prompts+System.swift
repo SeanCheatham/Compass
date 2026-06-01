@@ -75,7 +75,8 @@ extension Prompts {
     workingDirectoryPath: String,
     executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM,
     installedToolchainIDs: [String] = [],
-    hostXcodeBuildTestEnabled: Bool = false
+    hostXcodeBuildTestEnabled: Bool = false,
+    externalToolNames: [String] = []
   ) -> String {
     let fileTools = "read_file, ls, grep, glob"
     let codemapTools = "outline, find_symbol, summary, list_files, importers_of"
@@ -88,6 +89,7 @@ extension Prompts {
       hostXcodeBuildTestEnabled
       ? "\n        - Host Xcode: host_xcode (host-side xcodebuild build/test only against a mirror; use instead of bash for Swift, SwiftPM, xcodebuild, and Apple-platform probes in the Shared VM)."
       : ""
+    let externalTools = externalToolList(names: externalToolNames)
     let toolList: String
     switch phase {
     case .plan:
@@ -97,7 +99,7 @@ extension Prompts {
         - Shell: bash (read-only intent — git inspection and guest-safe probes; do not mutate tracked files and do not commit).\(hostXcodeTool)
         - Plan history: plan_history (read paginated completed iterations managed by Compass).
         - Sub-agents: \(delegateTool).
-        - Assumptions: \(assumptionTools).
+        - Assumptions: \(assumptionTools).\(externalTools)
         - This phase must not write files or commit. The Develop phase has the write tools — do not request them here.
         """
     case .reflect:
@@ -106,7 +108,7 @@ extension Prompts {
         - File tools: \(fileTools).
         - Shell: bash (read-only intent — git inspection and guest-safe probes; do not mutate tracked files and do not commit).\(hostXcodeTool)
         - Sub-agents: \(delegateTool).
-        - Assumptions: \(assumptionTools).
+        - Assumptions: \(assumptionTools).\(externalTools)
         - This phase must not write files or commit. The Develop phase has the write tools — do not request them here.
         """
     case .develop:
@@ -115,7 +117,7 @@ extension Prompts {
         - File tools: \(fileTools).
         - Write tools: \(writeTools).
         - Sub-agents: \(delegateTool).\(hostXcodeTool)
-        - Assumptions: \(assumptionTools).
+        - Assumptions: \(assumptionTools).\(externalTools)
         """
     case .critic:
       toolList = """
@@ -123,7 +125,7 @@ extension Prompts {
         - File tools: \(fileTools).
         - Shell: bash (read-only intent — do not mutate the working tree, do not commit).\(hostXcodeTool)
         - Sub-agents: \(delegateTool).
-        - Assumptions: \(assumptionTools).
+        - Assumptions: \(assumptionTools).\(externalTools)
         - This phase is the adversarial review gate. Do not edit files; report a verdict via submit_result.
         """
     }
@@ -193,6 +195,23 @@ extension Prompts {
       message — always call the tool. The phase ends the moment you call
       it; no further messages will be processed.
       """
+  }
+
+  private static func externalToolList(names: [String]) -> String {
+    let uniqueNames = Array(Set(names)).sorted()
+    guard !uniqueNames.isEmpty else { return "" }
+    let descriptions = uniqueNames.map { name -> String in
+      switch name {
+      case AgentWebSearchTool.toolName:
+        return "web_search (read-only web lookup for current external information)"
+      case AgentUnderstandImageTool.toolName:
+        return
+          "image_understanding (read-only image analysis for workspace images, URLs, or data URLs)"
+      default:
+        return name
+      }
+    }
+    return "\n        - External services: \(descriptions.joined(separator: ", "))."
   }
 
   /// Product-level quality bar shared by every agent role. This is

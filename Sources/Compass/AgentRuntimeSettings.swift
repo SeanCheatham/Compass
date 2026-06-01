@@ -7,29 +7,34 @@ enum AgentPhase: String, Sendable, CaseIterable {
   case critic
 }
 
-/// Configuration for a media capability (image / audio / video) the
-/// user has assigned to a network-bound provider. Stored alongside
-/// `AgentRuntimeSettings` so the eventual media-execution paths can
-/// read each capability's chosen vendor + credentials + model.
+/// Configuration for an optional network-bound capability the user has
+/// assigned to a provider. Stored alongside `AgentRuntimeSettings` so
+/// tool-execution paths can read each capability's chosen vendor,
+/// credentials, endpoint, and optional model.
 ///
-/// Foundation Models is text-only, so there is no on-device variant
-/// of this struct; `MediaAssignment.provider` is always an
-/// OpenAI-compatible HTTP provider.
-struct MediaAssignment: Equatable, Sendable {
+/// Foundation Models is text-only, so there is no on-device variant of
+/// this struct; `CapabilityAssignment.provider` is always a network
+/// provider.
+struct CapabilityAssignment: Equatable, Sendable {
   var provider: AgentProviderKind
   var baseURL: URL
   var apiKey: String
   var model: String
 }
 
+/// Compatibility alias for the existing generated-media code. New
+/// optional services should use `CapabilityAssignment` directly.
+typealias MediaAssignment = CapabilityAssignment
+
 /// Runtime configuration for the active agent run.
 ///
 /// Compass talks to Apple's on-device `FoundationModels` framework
 /// *or* an OpenAI-compatible HTTP endpoint for text, and (when
-/// configured) separately to OpenAI-compatible endpoints for the
-/// media capabilities. Each capability picks its own provider in
-/// Settings; this struct flattens the resolved assignments into a
-/// shape `AgentExecutor` and the future media executors can consume.
+/// configured) separately to network providers for optional tools
+/// like web search, image understanding, and media generation. Each
+/// capability picks its own provider in Settings; this struct flattens
+/// the resolved assignments into a shape `AgentExecutor` and tool
+/// adapters can consume.
 ///
 /// The text-execution path stays the primary surface — its fields
 /// (`textProvider`, `baseURL`, `apiKey`, `model`, the per-phase
@@ -96,9 +101,11 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   var codemapModelOverride: String?
   var contextWindowTokens: Int
 
-  /// Optional assignments for the non-text capabilities. `nil` means
-  /// the user has selected "None" for that capability — Compass will
-  /// not attempt media generation in that modality.
+  /// Optional assignments for non-text capabilities. `nil` means the
+  /// user has selected "None" for that capability — Compass will not
+  /// expose the corresponding tool to the agent.
+  var webSearchAssignment: CapabilityAssignment?
+  var imageUnderstandingAssignment: CapabilityAssignment?
   var imageAssignment: MediaAssignment?
   var audioAssignment: MediaAssignment?
   var videoAssignment: MediaAssignment?
@@ -114,6 +121,8 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     criticModelOverride: String? = nil,
     codemapModelOverride: String? = nil,
     contextWindowTokens: Int = AgentRuntimeSettings.defaultContextWindowTokens,
+    webSearchAssignment: CapabilityAssignment? = nil,
+    imageUnderstandingAssignment: CapabilityAssignment? = nil,
     imageAssignment: MediaAssignment? = nil,
     audioAssignment: MediaAssignment? = nil,
     videoAssignment: MediaAssignment? = nil
@@ -128,6 +137,8 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     self.criticModelOverride = criticModelOverride
     self.codemapModelOverride = codemapModelOverride
     self.contextWindowTokens = contextWindowTokens
+    self.webSearchAssignment = webSearchAssignment
+    self.imageUnderstandingAssignment = imageUnderstandingAssignment
     self.imageAssignment = imageAssignment
     self.audioAssignment = audioAssignment
     self.videoAssignment = videoAssignment
@@ -180,6 +191,8 @@ struct AgentRuntimeSettings: Equatable, Sendable {
 
   /// Convenience: the image capability's configured model, or `nil`
   /// if the capability is unassigned.
+  var webSearchModel: String? { webSearchAssignment?.model }
+  var imageUnderstandingModel: String? { imageUnderstandingAssignment?.model }
   var imageModel: String? { imageAssignment?.model }
   var audioModel: String? { audioAssignment?.model }
   var videoModel: String? { videoAssignment?.model }

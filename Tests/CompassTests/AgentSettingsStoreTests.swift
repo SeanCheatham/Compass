@@ -30,6 +30,8 @@ struct AgentSettingsStoreTests: ~Copyable {
     try #require(settings.apiKey == "")
     try #require(settings.model == "")
     try #require(settings.planModelOverride == nil)
+    try #require(settings.webSearchAssignment == nil)
+    try #require(settings.imageUnderstandingAssignment == nil)
     try #require(settings.imageAssignment == nil)
     try #require(settings.audioAssignment == nil)
     try #require(settings.videoAssignment == nil)
@@ -140,12 +142,24 @@ struct AgentSettingsStoreTests: ~Copyable {
     store.setSelectedProvider(.minimaxToken, for: .image)
     try store.setCellAPIKey("mm-image", capability: .image, provider: .minimaxToken)
     store.setCellModel("image-99", capability: .image, provider: .minimaxToken)
+    // Web Search → MiniMax Token
+    store.setSelectedProvider(.minimaxToken, for: .webSearch)
+    try store.setCellAPIKey("mm-search", capability: .webSearch, provider: .minimaxToken)
+    // Image Understanding → MiniMax Token
+    store.setSelectedProvider(.minimaxToken, for: .imageUnderstanding)
+    try store.setCellAPIKey("mm-vision", capability: .imageUnderstanding, provider: .minimaxToken)
     // Audio/Video stay None.
 
     let settings = store.load()
     try #require(settings.textProvider == .openAI)
     try #require(settings.apiKey == "sk-text")
     try #require(settings.model == "gpt-5")
+    try #require(settings.webSearchAssignment?.provider == .minimaxToken)
+    try #require(settings.webSearchAssignment?.apiKey == "mm-search")
+    try #require(settings.webSearchAssignment?.model == "")
+    try #require(settings.imageUnderstandingAssignment?.provider == .minimaxToken)
+    try #require(settings.imageUnderstandingAssignment?.apiKey == "mm-vision")
+    try #require(settings.imageUnderstandingAssignment?.model == "")
     try #require(settings.imageAssignment?.provider == .minimaxToken)
     try #require(settings.imageAssignment?.apiKey == "mm-image")
     try #require(settings.imageAssignment?.model == "image-99")

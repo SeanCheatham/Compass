@@ -3,8 +3,8 @@ import Foundation
 /// Persists `AgentRuntimeSettings` across launches.
 ///
 /// Configuration is namespaced per `(AgentCapability, AgentProviderKind)`
-/// so users can mix and match — e.g. Text → OpenAI API, Image →
-/// MiniMax Token, Audio/Video → MiniMax Token — while each
+/// so users can mix and match — e.g. Text → OpenAI API, Web Search →
+/// MiniMax Token, Image → MiniMax Token — while each
 /// (capability, provider) cell keeps its own base URL / API key /
 /// model independently of the others.
 ///
@@ -55,7 +55,9 @@ final class AgentSettingsStore: @unchecked Sendable {
         cases.append(.capabilityProvider(capability))
         for provider in capability.availableProviders where provider.requiresCredentials {
           cases.append(.cellBaseURL(capability, provider))
-          cases.append(.cellModel(capability, provider))
+          if provider.usesModelField(for: capability) {
+            cases.append(.cellModel(capability, provider))
+          }
         }
       }
       for provider in AgentCapability.text.availableProviders where provider.requiresCredentials {
@@ -162,28 +164,37 @@ final class AgentSettingsStore: @unchecked Sendable {
       criticModelOverride: resolvePhaseOverride(.critic, provider: textProvider),
       codemapModelOverride: resolveEnvString("COMPASS_AGENT_MODEL_CODEMAP"),
       contextWindowTokens: contextWindowTokens,
-      imageAssignment: loadMediaAssignment(for: .image),
-      audioAssignment: loadMediaAssignment(for: .audio),
-      videoAssignment: loadMediaAssignment(for: .video)
+      webSearchAssignment: loadCapabilityAssignment(for: .webSearch),
+      imageUnderstandingAssignment: loadCapabilityAssignment(for: .imageUnderstanding),
+      imageAssignment: loadCapabilityAssignment(for: .image),
+      audioAssignment: loadCapabilityAssignment(for: .audio),
+      videoAssignment: loadCapabilityAssignment(for: .video)
     )
   }
 
-  private func loadMediaAssignment(for capability: AgentCapability) -> MediaAssignment? {
+  private func loadCapabilityAssignment(
+    for capability: AgentCapability
+  ) -> CapabilityAssignment? {
     guard let provider = selectedProvider(for: capability),
       provider.requiresCredentials,
-      let defaultBaseURL = provider.defaultBaseURL
+      capability != .text
     else {
       return nil
     }
     let baseURL = resolveBaseURL(for: capability, provider: provider)
     let apiKey = resolveAPIKey(for: capability, provider: provider)
-    let model =
-      resolveModel(for: capability, provider: provider)
-      ?? provider.defaultModel(for: capability)
-      ?? ""
-    return MediaAssignment(
+    let model: String
+    if provider.usesModelField(for: capability) {
+      model =
+        resolveModel(for: capability, provider: provider)
+        ?? provider.defaultModel(for: capability)
+        ?? ""
+    } else {
+      model = ""
+    }
+    return CapabilityAssignment(
       provider: provider,
-      baseURL: baseURL == AgentRuntimeSettings.defaultBaseURL ? defaultBaseURL : baseURL,
+      baseURL: baseURL,
       apiKey: apiKey,
       model: model
     )
@@ -217,7 +228,7 @@ final class AgentSettingsStore: @unchecked Sendable {
   func setCellModel(
     _ raw: String, capability: AgentCapability, provider: AgentProviderKind
   ) {
-    guard provider.requiresCredentials else { return }
+    guard provider.usesModelField(for: capability) else { return }
     setString(.cellModel(capability, provider), raw)
   }
 
@@ -284,7 +295,7 @@ final class AgentSettingsStore: @unchecked Sendable {
   private func resolveModel(
     for capability: AgentCapability, provider: AgentProviderKind
   ) -> String? {
-    guard provider.requiresCredentials else { return nil }
+    guard provider.usesModelField(for: capability) else { return nil }
     if let stored = trimmedDefault(for: .cellModel(capability, provider)) {
       return stored
     }

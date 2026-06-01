@@ -14,11 +14,14 @@ struct AgentSettingsGuideTests {
     #expect(guide.title == "Agent Setup Needs Text")
     #expect(guide.actionLabel == "Fix Text")
     #expect(guide.tone == .blocked)
-    #expect(guide.rows.map(\.id) == ["text", "phaseRouting", "image", "audio", "video"])
+    #expect(
+      guide.rows.map(\.id) == [
+        "text", "phaseRouting", "webSearch", "imageUnderstanding", "image", "audio", "video",
+      ])
     #expect(guide.rows[0].status == .blocked)
     #expect(guide.rows[0].detail.contains("Apple Intelligence is unavailable"))
-    #expect(guide.rows[2].status == .off)
-    #expect(guide.rows[2].detail.contains("core planning and code work are unaffected"))
+    #expect(guide.rows[4].status == .off)
+    #expect(guide.rows[4].detail.contains("core planning and code work are unaffected"))
   }
 
   @Test
@@ -42,8 +45,9 @@ struct AgentSettingsGuideTests {
     #expect(guide.actionLabel == "Optional setup")
     #expect(guide.tone == .optionalAttention)
     #expect(guide.rows[0].status == .ready)
-    #expect(guide.rows[2].status == .attention)
-    #expect(guide.rows[2].detail.contains("API key is missing"))
+    let imageRow = try #require(guide.rows.first { $0.id == "image" })
+    #expect(imageRow.status == .attention)
+    #expect(imageRow.detail.contains("API key is missing"))
   }
 
   @Test
@@ -75,6 +79,12 @@ struct AgentSettingsGuideTests {
         baseURL: try #require(URL(string: "https://api.openai.com/v1")),
         apiKey: "sk-text",
         model: "gpt-4o",
+        webSearchAssignment: CapabilityAssignment(
+          provider: .minimaxToken,
+          baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
+          apiKey: "mm-search",
+          model: ""
+        ),
         imageAssignment: MediaAssignment(
           provider: .minimaxToken,
           baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
@@ -87,7 +97,10 @@ struct AgentSettingsGuideTests {
 
     #expect(guide.title == "Agent Stack Ready")
     #expect(guide.tone == .ready)
-    #expect(guide.rows[2].status == .ready)
+    let searchRow = try #require(guide.rows.first { $0.id == "webSearch" })
+    let imageRow = try #require(guide.rows.first { $0.id == "image" })
+    #expect(searchRow.status == .ready)
+    #expect(imageRow.status == .ready)
   }
 
   @Test
@@ -101,6 +114,18 @@ struct AgentSettingsGuideTests {
       criticModelOverride: "critic-model",
       codemapModelOverride: "cheap-codemap",
       contextWindowTokens: 128_000,
+      webSearchAssignment: CapabilityAssignment(
+        provider: .minimaxToken,
+        baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
+        apiKey: "mm-search-secret",
+        model: ""
+      ),
+      imageUnderstandingAssignment: CapabilityAssignment(
+        provider: .minimaxToken,
+        baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
+        apiKey: "",
+        model: ""
+      ),
       imageAssignment: MediaAssignment(
         provider: .minimaxToken,
         baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
@@ -135,12 +160,18 @@ struct AgentSettingsGuideTests {
     #expect(payload.text.contains("Phase routing: Plan=planner-model"))
     #expect(payload.text.contains("Develop=gpt-4o"))
     #expect(payload.text.contains("Critic=critic-model"))
+    #expect(payload.text.contains("Web Search: provider MiniMax Token, credential saved"))
+    #expect(
+      payload.text.contains("Image Understanding: provider MiniMax Token, credential missing"))
     #expect(payload.text.contains("Image: provider MiniMax Token, credential saved"))
     #expect(payload.text.contains("Audio: provider MiniMax Token, credential missing"))
     #expect(payload.text.contains("Video: off"))
+    #expect(payload.text.contains("[ready] Web Search"))
+    #expect(payload.text.contains("[attention] Image Understanding"))
     #expect(payload.text.contains("[ready] Image"))
     #expect(payload.text.contains("[attention] Audio"))
     #expect(!payload.text.contains("sk-text-secret"))
+    #expect(!payload.text.contains("mm-search-secret"))
     #expect(!payload.text.contains("mm-image-secret"))
     #expect(payload.text.count <= AgentSettingsClipboardPayload.textLimit)
     #expect(!payload.isEmpty)

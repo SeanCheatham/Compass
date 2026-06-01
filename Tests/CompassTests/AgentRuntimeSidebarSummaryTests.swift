@@ -11,11 +11,11 @@ struct AgentRuntimeSidebarSummaryTests {
       foundationModelsAvailable: true
     )
 
-    #expect(summary.lines.map(\.id) == ["text", "status", "model", "media"])
+    #expect(summary.lines.map(\.id) == ["text", "status", "model", "tools"])
     #expect(summary.lineValue("text") == "Foundation Models on-device")
     #expect(summary.lineValue("status") == "Text ready")
     #expect(summary.lineValue("model") == "Apple Intelligence system model")
-    #expect(summary.lineValue("media") == "Optional tools off")
+    #expect(summary.lineValue("tools") == "Optional tools off")
     #expect(!summary.joinedText.contains("api.minimax.io"))
     #expect(!summary.joinedText.contains("MiniMax-M2.7"))
   }
@@ -42,7 +42,7 @@ struct AgentRuntimeSidebarSummaryTests {
       foundationModelsAvailable: true
     )
 
-    #expect(summary.lines.map(\.id) == ["text", "status", "endpoint", "model", "media"])
+    #expect(summary.lines.map(\.id) == ["text", "status", "endpoint", "model", "tools"])
     #expect(summary.lineValue("text") == "OpenAI API")
     #expect(summary.lineValue("status") == "OpenAI API needs API key")
     #expect(summary.lineValue("endpoint") == "api.openai.com")
@@ -57,6 +57,12 @@ struct AgentRuntimeSidebarSummaryTests {
         baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
         apiKey: "mm-text",
         model: "MiniMax-M2.7",
+        webSearchAssignment: CapabilityAssignment(
+          provider: .minimaxToken,
+          baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
+          apiKey: "mm-search",
+          model: ""
+        ),
         imageAssignment: MediaAssignment(
           provider: .minimaxToken,
           baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
@@ -73,7 +79,9 @@ struct AgentRuntimeSidebarSummaryTests {
       foundationModelsAvailable: false
     )
 
-    #expect(summary.lineValue("media") == "Image ready via MiniMax Token; Audio needs key")
+    #expect(
+      summary.lineValue("tools")
+        == "Search ready via MiniMax Token; Image ready via MiniMax Token; Audio needs key")
   }
 
   @Test

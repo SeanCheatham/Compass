@@ -57,20 +57,20 @@ struct AgentSettingsGuide: Equatable, Sendable {
     } else if optionalNeedsAttention {
       title = "Core Agent Ready"
       detail =
-        "Text can run now. One or more optional media tools are selected but need an API key before agents can use them."
+        "Text can run now. One or more optional tools are selected but need an API key before agents can use them."
       actionLabel = "Optional setup"
       tone = .optionalAttention
       systemImageName = "checkmark.seal"
-    } else if rows.contains(where: { $0.status == .ready && Self.isMediaRowID($0.id) }) {
+    } else if rows.contains(where: { $0.status == .ready && Self.isOptionalToolRowID($0.id) }) {
       title = "Agent Stack Ready"
-      detail = "Text can run, and every selected optional media tool has credentials."
+      detail = "Text can run, and every selected optional tool has credentials."
       actionLabel = "Ready"
       tone = .ready
       systemImageName = "checkmark.seal.fill"
     } else {
       title = "Core Agent Ready"
       detail =
-        "Text can run now. Optional Image, Audio, and Video tools can stay off until a project needs generated media."
+        "Text can run now. Optional search, vision, and media tools can stay off until a project needs them."
       actionLabel = "Ready"
       tone = .ready
       systemImageName = "checkmark.seal.fill"
@@ -101,9 +101,14 @@ struct AgentSettingsGuide: Equatable, Sendable {
         textReady: textReady
       ),
       phaseRoutingRow(settings: settings, textReady: textReady),
-      mediaRow(capability: .image, assignment: settings.imageAssignment),
-      mediaRow(capability: .audio, assignment: settings.audioAssignment),
-      mediaRow(capability: .video, assignment: settings.videoAssignment),
+      optionalToolRow(capability: .webSearch, assignment: settings.webSearchAssignment),
+      optionalToolRow(
+        capability: .imageUnderstanding,
+        assignment: settings.imageUnderstandingAssignment
+      ),
+      optionalToolRow(capability: .image, assignment: settings.imageAssignment),
+      optionalToolRow(capability: .audio, assignment: settings.audioAssignment),
+      optionalToolRow(capability: .video, assignment: settings.videoAssignment),
     ]
   }
 
@@ -178,9 +183,9 @@ struct AgentSettingsGuide: Equatable, Sendable {
     )
   }
 
-  private static func mediaRow(
+  private static func optionalToolRow(
     capability: AgentCapability,
-    assignment: MediaAssignment?
+    assignment: CapabilityAssignment?
   ) -> Row {
     guard let assignment else {
       return Row(
@@ -194,9 +199,14 @@ struct AgentSettingsGuide: Equatable, Sendable {
     }
 
     let hasKey = !assignment.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    let modelDetail = assignment.model.trimmingCharacters(in: .whitespacesAndNewlines)
+    let readyDetail =
+      modelDetail.isEmpty
+      ? "\(assignment.provider.displayName) is ready."
+      : "\(assignment.provider.displayName) is ready with \(modelDetail)."
     let detail =
       hasKey
-      ? "\(assignment.provider.displayName) is ready with \(assignment.model)."
+      ? readyDetail
       : "\(assignment.provider.displayName) is selected for \(capability.displayName), but its API key is missing. Core runs still work."
 
     return Row(
@@ -239,8 +249,10 @@ struct AgentSettingsGuide: Equatable, Sendable {
     return trimmed.isEmpty ? nil : trimmed
   }
 
-  private static func isMediaRowID(_ id: String) -> Bool {
-    id == AgentCapability.image.rawValue
+  private static func isOptionalToolRowID(_ id: String) -> Bool {
+    id == AgentCapability.webSearch.rawValue
+      || id == AgentCapability.imageUnderstanding.rawValue
+      || id == AgentCapability.image.rawValue
       || id == AgentCapability.audio.rawValue
       || id == AgentCapability.video.rawValue
   }
@@ -297,8 +309,8 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
         + "API keys, endpoints, model names, provider assignments, files, or run outcomes.",
       "- Never ask the user to paste an API key into chat. Credentials are reported "
         + "only as saved, missing, or not required.",
-      "- Text readiness is load-bearing for Plan and Develop. Media capabilities are "
-        + "optional unless the current project explicitly needs generated assets.",
+      "- Text readiness is load-bearing for Plan and Develop. Search, vision, and "
+        + "media capabilities are optional unless the current project explicitly needs them.",
       "- Foundation Models availability is a local machine fact; ask the user to verify "
         + "Settings or choose a network Text provider instead of assuming availability.",
       "",
@@ -318,12 +330,21 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
       "Codemap model: \(Self.codemapModelLabel(settings))",
       "Phase routing: \(Self.phaseRoutingLabel(settings))",
       "",
-      "Optional media:",
+      "Optional tools:",
     ]
 
-    sections.append(Self.mediaLine(capability: .image, assignment: settings.imageAssignment))
-    sections.append(Self.mediaLine(capability: .audio, assignment: settings.audioAssignment))
-    sections.append(Self.mediaLine(capability: .video, assignment: settings.videoAssignment))
+    sections.append(
+      Self.capabilityLine(capability: .webSearch, assignment: settings.webSearchAssignment)
+    )
+    sections.append(
+      Self.capabilityLine(
+        capability: .imageUnderstanding,
+        assignment: settings.imageUnderstandingAssignment
+      )
+    )
+    sections.append(Self.capabilityLine(capability: .image, assignment: settings.imageAssignment))
+    sections.append(Self.capabilityLine(capability: .audio, assignment: settings.audioAssignment))
+    sections.append(Self.capabilityLine(capability: .video, assignment: settings.videoAssignment))
 
     sections.append("")
     sections.append("Guide rows:")
@@ -349,7 +370,8 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
     provider.requiresCredentials ? "API key required" : "not required"
   }
 
-  private static func credentialSavedLabel(_ apiKey: String, provider: AgentProviderKind) -> String {
+  private static func credentialSavedLabel(_ apiKey: String, provider: AgentProviderKind) -> String
+  {
     guard provider.requiresCredentials else { return "not required" }
     return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "missing" : "saved"
   }
@@ -393,24 +415,34 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
   }
 
   private static func codemapModelLabel(_ settings: AgentRuntimeSettings) -> String {
-    let override = settings.codemapModelOverride?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let override =
+      settings.codemapModelOverride?.trimmingCharacters(in: .whitespacesAndNewlines)
       ?? ""
     if !override.isEmpty { return override }
-    return "default (\(Self.modelLabel(settings.model, provider: settings.textProvider, capability: .text)))"
+    return
+      "default (\(Self.modelLabel(settings.model, provider: settings.textProvider, capability: .text)))"
   }
 
-  private static func mediaLine(
+  private static func capabilityLine(
     capability: AgentCapability,
-    assignment: MediaAssignment?
+    assignment: CapabilityAssignment?
   ) -> String {
     guard let assignment else {
       return "- \(capability.displayName): off"
     }
 
-    return "- \(capability.displayName): provider \(assignment.provider.displayName), "
-      + "credential \(Self.credentialSavedLabel(assignment.apiKey, provider: assignment.provider)), "
-      + "base URL \(assignment.baseURL.absoluteString), "
-      + "model \(Self.modelLabel(assignment.model, provider: assignment.provider, capability: capability))"
+    var parts = [
+      "- \(capability.displayName): provider \(assignment.provider.displayName)",
+      "credential \(Self.credentialSavedLabel(assignment.apiKey, provider: assignment.provider))",
+      "base URL \(assignment.baseURL.absoluteString)",
+    ]
+    let model = assignment.model.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !model.isEmpty || assignment.provider.usesModelField(for: capability) {
+      parts.append(
+        "model \(Self.modelLabel(assignment.model, provider: assignment.provider, capability: capability))"
+      )
+    }
+    return parts.joined(separator: ", ")
   }
 }
 

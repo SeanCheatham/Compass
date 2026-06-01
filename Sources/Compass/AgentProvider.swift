@@ -56,7 +56,8 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
   var supportedCapabilities: [AgentCapability] {
     switch self {
     case .appleFoundationModels: return [.text]
-    case .minimaxToken: return [.text, .image, .audio, .video]
+    case .minimaxToken:
+      return [.text, .webSearch, .imageUnderstanding, .image, .audio, .video]
     case .openAI: return [.text]
     }
   }
@@ -79,6 +80,19 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
     case (.minimaxToken, .video): return "MiniMax-Hailuo-02"
     case (.openAI, .text): return "gpt-4o"
     default: return nil
+    }
+  }
+
+  /// Whether Settings should expose a model field for this
+  /// provider/capability cell. Some provider-backed tools are fixed
+  /// services rather than model-selectable generation endpoints.
+  func usesModelField(for capability: AgentCapability) -> Bool {
+    guard supports(capability), requiresCredentials else { return false }
+    switch (self, capability) {
+    case (.minimaxToken, .webSearch), (.minimaxToken, .imageUnderstanding):
+      return false
+    default:
+      return true
     }
   }
 
@@ -162,6 +176,8 @@ enum MiniMaxTextModelVersion: String, Sendable, CaseIterable, Codable, Identifia
 /// configured independently in Settings.
 enum AgentCapability: String, Sendable, CaseIterable, Codable {
   case text
+  case webSearch
+  case imageUnderstanding
   case image
   case audio
   case video
@@ -169,6 +185,8 @@ enum AgentCapability: String, Sendable, CaseIterable, Codable {
   var displayName: String {
     switch self {
     case .text: return "Text"
+    case .webSearch: return "Web Search"
+    case .imageUnderstanding: return "Image Understanding"
     case .image: return "Image"
     case .audio: return "Audio"
     case .video: return "Video"
@@ -178,6 +196,8 @@ enum AgentCapability: String, Sendable, CaseIterable, Codable {
   var systemImageName: String {
     switch self {
     case .text: return "text.bubble"
+    case .webSearch: return "globe"
+    case .imageUnderstanding: return "eye"
     case .image: return "photo"
     case .audio: return "waveform"
     case .video: return "film"

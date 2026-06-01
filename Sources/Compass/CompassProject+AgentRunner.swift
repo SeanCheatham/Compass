@@ -179,6 +179,20 @@ extension CompassProject {
       hostRepoURL: workingDirectory,
       decode: T.self
     )
+    let tools = ToolRegistry.tools(
+      for: phase,
+      settings: agentSettings,
+      toolchainService: toolchainService,
+      hostXcodeService: hostXcodeService
+    )
+    let externalToolNames = tools.compactMap { tool -> String? in
+      switch tool.spec.name {
+      case AgentWebSearchTool.toolName, AgentUnderstandImageTool.toolName:
+        return tool.spec.name
+      default:
+        return nil
+      }
+    }
     let configuration = AgentExecutionConfiguration(
       settings: agentSettings,
       phase: phase,
@@ -188,15 +202,11 @@ extension CompassProject {
         workingDirectoryPath: environment.workingDirectory.path,
         executionEnvironment: environment.kind == .sharedVM ? .sharedVM : .host,
         installedToolchainIDs: installedToolchainIDs,
-        hostXcodeBuildTestEnabled: hostXcodeService != nil
+        hostXcodeBuildTestEnabled: hostXcodeService != nil,
+        externalToolNames: externalToolNames
       ),
       userPrompt: userPrompt,
-      tools: ToolRegistry.tools(
-        for: phase,
-        settings: agentSettings,
-        toolchainService: toolchainService,
-        hostXcodeService: hostXcodeService
-      ),
+      tools: tools,
       submitResultSchema: schema,
       workingDirectory: environment.workingDirectory,
       filesystem: environment.filesystem,
@@ -704,7 +714,8 @@ extension CompassProject {
         hostRepoURL: mainRepoURL
       )
     } catch {
-      return "Guest git promotion failed while fast-forwarding host branch: \(error.localizedDescription)"
+      return
+        "Guest git promotion failed while fast-forwarding host branch: \(error.localizedDescription)"
     }
 
     let suffix = verifyPassed ? "." : " despite failed Verify."

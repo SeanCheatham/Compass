@@ -141,19 +141,25 @@ private struct AgentSettingsTab: View {
   private func cellModelFields(
     capability: AgentCapability, provider: AgentProviderKind
   ) -> some View {
-    if capability == .text, provider == .minimaxToken {
-      minimaxVersionPicker()
-    } else {
-      let placeholder = provider.defaultModel(for: capability) ?? "—"
-      TextField(
-        "\(capability == .text ? "Default model" : "\(capability.displayName) model")",
-        text: Binding(
-          get: { model.agentSettings.model(for: capability, provider: provider) },
-          set: { model.setCellModel($0, capability: capability, provider: provider) }
+    if provider.usesModelField(for: capability) {
+      if capability == .text, provider == .minimaxToken {
+        minimaxVersionPicker()
+      } else {
+        let placeholder = provider.defaultModel(for: capability) ?? "—"
+        TextField(
+          "\(capability == .text ? "Default model" : "\(capability.displayName) model")",
+          text: Binding(
+            get: { model.agentSettings.model(for: capability, provider: provider) },
+            set: { model.setCellModel($0, capability: capability, provider: provider) }
+          )
         )
-      )
-      .textFieldStyle(.roundedBorder)
-      .help("Default for \(provider.displayName): \(placeholder)")
+        .textFieldStyle(.roundedBorder)
+        .help("Default for \(provider.displayName): \(placeholder)")
+      }
+    } else {
+      Text("\(provider.displayName) uses a fixed \(capability.displayName) service endpoint.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 
     if capability == .text {
@@ -574,6 +580,8 @@ extension AgentRuntimeSettings {
   func selectedProvider(for capability: AgentCapability) -> AgentProviderKind? {
     switch capability {
     case .text: return textProvider
+    case .webSearch: return webSearchAssignment?.provider
+    case .imageUnderstanding: return imageUnderstandingAssignment?.provider
     case .image: return imageAssignment?.provider
     case .audio: return audioAssignment?.provider
     case .video: return videoAssignment?.provider
@@ -589,6 +597,8 @@ extension AgentRuntimeSettings {
     if selectedProvider(for: capability) == provider {
       switch capability {
       case .text: return baseURL.absoluteString
+      case .webSearch: return webSearchAssignment?.baseURL.absoluteString ?? ""
+      case .imageUnderstanding: return imageUnderstandingAssignment?.baseURL.absoluteString ?? ""
       case .image: return imageAssignment?.baseURL.absoluteString ?? ""
       case .audio: return audioAssignment?.baseURL.absoluteString ?? ""
       case .video: return videoAssignment?.baseURL.absoluteString ?? ""
@@ -602,6 +612,8 @@ extension AgentRuntimeSettings {
     if selectedProvider(for: capability) == provider {
       switch capability {
       case .text: return apiKey
+      case .webSearch: return webSearchAssignment?.apiKey ?? ""
+      case .imageUnderstanding: return imageUnderstandingAssignment?.apiKey ?? ""
       case .image: return imageAssignment?.apiKey ?? ""
       case .audio: return audioAssignment?.apiKey ?? ""
       case .video: return videoAssignment?.apiKey ?? ""
@@ -611,10 +623,12 @@ extension AgentRuntimeSettings {
   }
 
   func model(for capability: AgentCapability, provider: AgentProviderKind) -> String {
-    guard provider.requiresCredentials else { return "" }
+    guard provider.usesModelField(for: capability) else { return "" }
     if selectedProvider(for: capability) == provider {
       switch capability {
       case .text: return model
+      case .webSearch: return webSearchAssignment?.model ?? ""
+      case .imageUnderstanding: return imageUnderstandingAssignment?.model ?? ""
       case .image: return imageAssignment?.model ?? ""
       case .audio: return audioAssignment?.model ?? ""
       case .video: return videoAssignment?.model ?? ""
