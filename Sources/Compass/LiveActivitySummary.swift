@@ -278,6 +278,9 @@ enum LiveActivitySummaryService {
       sentences.append(
         "\(capitalizedCount(failureCount)) \(pluralize("failure", failureCount)) reported."
       )
+      if let insight = primaryFailureInsight(in: cluster.lines) {
+        sentences.append("Primary failure: \(insight.title).")
+      }
     } else if warningCount > 0 {
       sentences.append(
         "\(capitalizedCount(warningCount)) \(pluralize("warning", warningCount)) noted."
@@ -350,10 +353,18 @@ enum LiveActivitySummaryService {
   }
 
   private static func promptText(for line: LiveLine) -> String {
-    [statusName(line.status), kindName(line.kind), line.text, firstLine(line.detail)]
+    var parts = [statusName(line.status), kindName(line.kind), line.text]
       .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
-      .joined(separator: " | ")
+    if let insight = LiveFailureInsight(line: line) {
+      parts.append("failure insight: \(insight.title) - \(insight.nextStep)")
+    }
+    if let detail = firstLine(line.detail)?.trimmingCharacters(in: .whitespacesAndNewlines),
+      !detail.isEmpty
+    {
+      parts.append(detail)
+    }
+    return parts.joined(separator: " | ")
   }
 
   private static func kindName(_ kind: LiveLine.Kind) -> String {
@@ -413,6 +424,15 @@ enum LiveActivitySummaryService {
     let headCount = modelPromptMaxEvents / 2
     let tailCount = modelPromptMaxEvents - headCount
     return Array(lines.prefix(headCount)) + Array(lines.suffix(tailCount))
+  }
+
+  private static func primaryFailureInsight(in lines: [LiveLine]) -> LiveFailureInsight? {
+    for line in lines {
+      if let insight = LiveFailureInsight(line: line) {
+        return insight
+      }
+    }
+    return nil
   }
 
   private static func fittedPlainText(_ text: String, maxCharacters: Int) -> String {

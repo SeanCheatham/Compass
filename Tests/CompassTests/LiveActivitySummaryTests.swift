@@ -268,6 +268,47 @@ struct LiveActivitySummaryTests {
     try #require(summary.text.contains("One failure reported"))
   }
 
+  @Test func testDeterministicFallbackNamesPrimaryFailureInsight() throws {
+    var lines = completedBatch()
+    lines[1] = makeLine(
+      offset: 0.2,
+      text: "submit_result plan rejected",
+      detail: "Plan returned vague acceptance checks.",
+      level: .error,
+      kind: .lifecycle,
+      status: .failed
+    )
+    let cluster = LiveActivityCluster(lines: lines, freezeReason: .quietGap)
+
+    let summary = LiveActivitySummaryService.deterministicSummary(for: cluster)
+
+    try #require(summary.text.contains("One failure reported"))
+    try #require(summary.text.contains("Primary failure: Plan Needs A Clearer Handoff."))
+  }
+
+  @Test func testModelPromptLinesIncludeFailureInsightForFoundationModels() throws {
+    let cluster = LiveActivityCluster(
+      lines: [
+        makeLine(
+          offset: 0,
+          text: "submit_result verify bypass rejected",
+          detail:
+            "Develop set bypassVerify=true without explaining why the verify command itself is wrong or out of scope.",
+          level: .error,
+          kind: .lifecycle,
+          status: .failed
+        )
+      ],
+      freezeReason: .quietGap
+    )
+
+    let promptLines = LiveActivitySummaryService.modelPromptLines(for: cluster)
+
+    let line = try #require(promptLines.first)
+    try #require(line.contains("failure insight: Verify Bypass Needs A Reason"))
+    try #require(line.contains("run verification"))
+  }
+
   @Test func testPlansOnlyMissingNonInFlightSummariesAndPrunesStaleKeys() throws {
     let first = LiveActivityCluster(lines: completedBatch(seed: 0), freezeReason: .quietGap)
     let second = LiveActivityCluster(lines: completedBatch(seed: 10), freezeReason: .quietGap)
