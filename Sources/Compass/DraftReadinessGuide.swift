@@ -75,7 +75,7 @@ struct DraftReadinessGuide: Equatable, Sendable {
     }
   }
 
-  enum Kind: Equatable, Sendable {
+  enum Kind: CaseIterable, Equatable, Sendable {
     case outcome
     case why
     case success
@@ -185,6 +185,56 @@ struct DraftIntakeGuide: Equatable, Sendable {
     entries.isEmpty
   }
 
+  var status: Status {
+    guard !entries.isEmpty else { return .empty }
+    return readyCount == entries.count ? .ready : .needsDetail
+  }
+
+  var title: String {
+    switch status {
+    case .empty:
+      return "No queued drafts"
+    case .needsDetail:
+      return "Draft queue needs detail"
+    case .ready:
+      return "Draft queue ready"
+    }
+  }
+
+  var detail: String {
+    switch status {
+    case .empty:
+      return "Add one clear direction above when you are ready."
+    case .ready:
+      return "Every queued draft names the outcome, why it matters, and how done should look."
+    case .needsDetail:
+      let missing =
+        missingSignalTitles.isEmpty
+        ? "more detail"
+        : missingSignalTitles.joined(separator: ", ")
+      return
+        "\(Self.countLabel(entries.count, singular: "queued draft", plural: "queued drafts")). \(scoreLabel). Missing across queue: \(missing)."
+    }
+  }
+
+  var scoreLabel: String {
+    guard !entries.isEmpty else { return "0 queued" }
+    return "\(readyCount) of \(entries.count) ready"
+  }
+
+  var readyCount: Int {
+    entries.filter { $0.readiness.status == .ready }.count
+  }
+
+  var missingSignalTitles: [String] {
+    DraftReadinessGuide.Kind.allCases.compactMap { kind in
+      let isMissing = entries.contains { entry in
+        entry.readiness.cues.contains { $0.kind == kind && !$0.isSatisfied }
+      }
+      return isMissing ? kind.title : nil
+    }
+  }
+
   init(drafts: String) {
     entries = Self.extractDraftEntries(from: drafts)
       .prefix(Self.maxEntries)
@@ -202,10 +252,18 @@ struct DraftIntakeGuide: Equatable, Sendable {
     return entries.map(\.promptText).joined(separator: "\n\n")
   }
 
-  struct Entry: Equatable, Sendable {
+  enum Status: Equatable, Sendable {
+    case empty
+    case needsDetail
+    case ready
+  }
+
+  struct Entry: Identifiable, Equatable, Sendable {
     var number: Int
     var draft: String
     var readiness: DraftReadinessGuide
+
+    var id: Int { number }
 
     init(number: Int, draft: String) {
       self.number = number
@@ -220,6 +278,28 @@ struct DraftIntakeGuide: Equatable, Sendable {
       Signals present: \(signalList(satisfied: true))
       Missing signals: \(signalList(satisfied: false))
       """
+    }
+
+    var satisfiedSignalTitles: [String] {
+      signalTitles(satisfied: true)
+    }
+
+    var missingSignalTitles: [String] {
+      signalTitles(satisfied: false)
+    }
+
+    var satisfiedSignalText: String {
+      signalList(satisfied: true)
+    }
+
+    var missingSignalText: String {
+      signalList(satisfied: false)
+    }
+
+    private func signalTitles(satisfied: Bool) -> [String] {
+      readiness.cues
+        .filter { $0.isSatisfied == satisfied }
+        .map(\.title)
     }
 
     private func signalList(satisfied: Bool) -> String {
@@ -285,5 +365,9 @@ struct DraftIntakeGuide: Equatable, Sendable {
 
   private static func normalizedDraftText(_ text: String) -> String {
     StringUtils.boundedText(text, limit: Int.max)
+  }
+
+  private static func countLabel(_ count: Int, singular: String, plural: String) -> String {
+    count == 1 ? "1 \(singular)" : "\(count) \(plural)"
   }
 }

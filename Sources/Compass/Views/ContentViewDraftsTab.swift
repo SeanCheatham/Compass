@@ -54,6 +54,7 @@ struct DraftsTab: View {
         }
         .disabled(!project.hasRepository)
       }
+      DraftQueueReadinessView(guide: DraftIntakeGuide(drafts: pendingDraftsText))
       TextEditor(text: $pendingDraftsText)
         .font(.system(.body, design: .monospaced))
         .scrollContentBackground(.hidden)
@@ -263,6 +264,150 @@ struct DraftsTab: View {
     cancelDraftRefinementReschedule()
     cancelDraftRefinementPreview()
     project.modifyDraft(with: refinement)
+  }
+}
+
+struct DraftQueueReadinessView: View {
+  var guide: DraftIntakeGuide
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(guide.title, systemImage: systemImage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color)
+
+        Text(guide.scoreLabel)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 2)
+          .background(.quaternary.opacity(0.7), in: Capsule())
+
+        Spacer()
+      }
+
+      Text(guide.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if !guide.entries.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          ForEach(Array(guide.entries.enumerated()), id: \.element.id) { index, entry in
+            DraftQueueReadinessRow(entry: entry)
+
+            if index < guide.entries.count - 1 {
+              Divider()
+            }
+          }
+        }
+        .padding(.top, 2)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay {
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(color.opacity(0.18))
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(guide.title). \(guide.detail). \(guide.scoreLabel).")
+  }
+
+  private var color: Color {
+    switch guide.status {
+    case .empty:
+      return .secondary
+    case .needsDetail:
+      return .orange
+    case .ready:
+      return .green
+    }
+  }
+
+  private var systemImage: String {
+    switch guide.status {
+    case .empty:
+      return "tray"
+    case .needsDetail:
+      return "exclamationmark.triangle"
+    case .ready:
+      return "checkmark.seal"
+    }
+  }
+}
+
+struct DraftQueueReadinessRow: View {
+  var entry: DraftIntakeGuide.Entry
+
+  private let cueColumns = [
+    GridItem(.adaptive(minimum: 118), spacing: 6, alignment: .leading)
+  ]
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 9) {
+      Text("\(entry.number)")
+        .font(.caption2.weight(.bold))
+        .foregroundStyle(color)
+        .frame(width: 22, height: 22)
+        .background(color.opacity(0.12), in: Circle())
+        .accessibilityHidden(true)
+
+      VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+          Text(entry.readiness.title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.primary)
+
+          Text(entry.readiness.scoreLabel)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+
+          Spacer()
+        }
+
+        Text(entry.draft)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+          .fixedSize(horizontal: false, vertical: true)
+          .textSelection(.enabled)
+
+        LazyVGrid(columns: cueColumns, alignment: .leading, spacing: 6) {
+          ForEach(entry.readiness.cues) { cue in
+            Label(cue.title, systemImage: cue.systemImage)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(cue.isSatisfied ? color : .secondary)
+              .lineLimit(1)
+              .padding(.horizontal, 6)
+              .padding(.vertical, 3)
+              .background(
+                (cue.isSatisfied ? color.opacity(0.12) : Color.secondary.opacity(0.08)),
+                in: Capsule()
+              )
+              .help(cue.detail)
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(
+      "Draft \(entry.number). \(entry.readiness.title). \(entry.missingSignalText) missing."
+    )
+  }
+
+  private var color: Color {
+    switch entry.readiness.status {
+    case .empty:
+      return .secondary
+    case .needsDetail:
+      return .orange
+    case .ready:
+      return .green
+    }
   }
 }
 

@@ -49,6 +49,12 @@ struct DraftRefinementTests {
     try #require(guide.entries.count == 2)
     try #require(guide.entries[0].readiness.status == .ready)
     try #require(guide.entries[1].readiness.status == .needsDetail)
+    try #require(guide.status == .needsDetail)
+    try #require(guide.title == "Draft queue needs detail")
+    try #require(guide.scoreLabel == "1 of 2 ready")
+    try #require(guide.missingSignalTitles == ["Why", "Success signal"])
+    try #require(
+      guide.detail == "2 queued drafts. 1 of 2 ready. Missing across queue: Why, Success signal.")
     try #require(guide.promptText.contains("Draft 1: Ready for Plan (3 of 3)"))
     try #require(guide.promptText.contains("Signals present: Outcome, Why, Success signal"))
     try #require(guide.promptText.contains("Draft 2: Add one more signal (1 of 3)"))
@@ -68,6 +74,30 @@ struct DraftRefinementTests {
     try #require(guide.entries[0].draft == "Make plan repair copy clearer because users get stuck.")
     try #require(
       guide.entries[1].draft == "Show a visible success state when the repair packet is copied.")
+  }
+
+  @Test func testDraftIntakeGuideSummarizesReadyAndEmptyQueueStates() throws {
+    let empty = DraftIntakeGuide(drafts: " \n ")
+
+    try #require(empty.status == .empty)
+    try #require(empty.title == "No queued drafts")
+    try #require(empty.scoreLabel == "0 queued")
+    try #require(empty.detail == "Add one clear direction above when you are ready.")
+
+    let ready = DraftIntakeGuide(
+      drafts: """
+        - Make setup faster because users get stuck; success looks like tests pass.
+        - Show clearer progress because customers wait; done when the progress banner appears.
+        """
+    )
+
+    try #require(ready.status == .ready)
+    try #require(ready.title == "Draft queue ready")
+    try #require(ready.scoreLabel == "2 of 2 ready")
+    try #require(ready.missingSignalTitles.isEmpty)
+    try #require(
+      ready.detail
+        == "Every queued draft names the outcome, why it matters, and how done should look.")
   }
 
   @Test func testParserAcceptsGeneratedJSONRefinement() throws {
