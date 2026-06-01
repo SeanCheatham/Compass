@@ -57,6 +57,10 @@ struct PromptSchemaLoadingTests {
       propertyDescription("bypassVerify", in: developProperties)
         .contains("verify command itself is wrong or out of scope")
     )
+    try #require(
+      propertyDescription("bypassVerify", in: developProperties)
+        .contains("concrete file, suite, command, or environment detail")
+    )
     try #require(propertyDescription("bypassVerify", in: developProperties).contains("not yet run"))
 
     try #require(

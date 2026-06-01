@@ -530,7 +530,8 @@ struct PlanPromptTests {
     )
 
     try #require(prompt.contains("verify command itself is wrong or out"))
-    try #require(prompt.contains("feedback` must explicitly name"))
+    try #require(prompt.contains("feedback` must explicitly name the concrete file"))
+    try #require(prompt.contains("suite, command, or environment detail"))
     try #require(prompt.contains("smallest Plan recovery action"))
     try #require(prompt.contains("Do not use true because"))
     try #require(prompt.contains("not yet run"))
