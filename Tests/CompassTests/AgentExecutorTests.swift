@@ -454,8 +454,12 @@ struct AgentExecutorTests {
       phase: .develop
     )
 
-    try #require(nudge.userMessage.contains("Use this exact retry shape for Develop"))
-    try #require(nudge.userMessage.contains("\"status\": \"succeeded|blocked|failed\""))
+    try #require(
+      nudge.userMessage.contains("Use this exact retry shape when the implementation is complete")
+    )
+    try #require(nudge.userMessage.contains("Do not write `succeeded|blocked|failed`"))
+    try #require(nudge.userMessage.contains("\"status\": \"succeeded\""))
+    try #require(nudge.userMessage.contains("`\"blocked\"` or `\"failed\"`"))
     try #require(nudge.userMessage.contains("\"feedback\""))
     try #require(nudge.userMessage.contains("\"bypassVerify\": false"))
     try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
@@ -481,8 +485,10 @@ struct AgentExecutorTests {
       phase: .critic
     )
 
-    try #require(nudge.userMessage.contains("Use this exact retry shape for Critic"))
-    try #require(nudge.userMessage.contains("\"verdict\": \"approve|request_changes\""))
+    try #require(nudge.userMessage.contains("Use this exact retry shape when approving"))
+    try #require(nudge.userMessage.contains("\"verdict\": \"approve\""))
+    try #require(nudge.userMessage.contains("use this request-changes shape instead"))
+    try #require(nudge.userMessage.contains("\"verdict\": \"request_changes\""))
     try #require(nudge.userMessage.contains("\"summary\""))
     try #require(nudge.userMessage.contains("\"feedback\""))
     try #require(!nudge.userMessage.contains("\"lessonEdits\": []"))

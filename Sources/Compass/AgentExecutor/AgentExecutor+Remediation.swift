@@ -109,14 +109,19 @@ extension AgentExecutor {
         """
     case .develop:
       return """
-        Use this exact retry shape for Develop:
+        Pick exactly one status value. Do not write `succeeded|blocked|failed`.
+
+        Use this exact retry shape when the implementation is complete:
         {
-          "status": "succeeded|blocked|failed",
+          "status": "succeeded",
           "summary": "<what changed or what stopped the attempt>",
           "feedback": "<concrete handoff for the next Plan pass>",
           "bypassVerify": false,
           "lessonEdits": []
         }
+
+        If the work is blocked or failed, keep the same shape but set `"status"` to \
+        `"blocked"` or `"failed"` and make `feedback` name the smallest Plan recovery action.
 
         Do not answer in prose.
         """
@@ -135,11 +140,18 @@ extension AgentExecutor {
         """
     case .critic:
       return """
-        Use this exact retry shape for Critic:
+        Use this exact retry shape when approving:
         {
-          "verdict": "approve|request_changes",
+          "verdict": "approve",
           "summary": "<concise review summary>",
-          "feedback": "<empty when approving, concrete fix list when requesting changes>"
+          "feedback": ""
+        }
+
+        If there is a concrete blocking issue, use this request-changes shape instead:
+        {
+          "verdict": "request_changes",
+          "summary": "<concise review summary>",
+          "feedback": "- <specific failing behavior or file>\\n- <smallest Develop recovery action>"
         }
 
         Do not answer in prose.
