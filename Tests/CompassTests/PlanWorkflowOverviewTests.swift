@@ -237,6 +237,15 @@ struct PlanWorkflowOverviewTests {
       xcode.detail
         == "Compass will run Xcode tests focused on CompassTests/PlanWorkflowOverviewTests."
     )
+
+    let python = PlanVerifyCommandSummary(command: "uv run pytest tests/test_plan.py")
+    try #require(python.title == "Runs Python tests")
+    try #require(python.detail == "Compass will run the Python test suite with pytest.")
+
+    let js = PlanVerifyCommandSummary(command: "npm run test -- --run")
+    try #require(js.title == "Runs JavaScript tests")
+    try #require(
+      js.detail == "Compass will run the project's JavaScript or TypeScript test command.")
   }
 
   @Test
@@ -245,6 +254,12 @@ struct PlanWorkflowOverviewTests {
     try #require(swiftBuild.title == "Builds the Swift package")
     try #require(
       swiftBuild.detail == "Compass will compile the CompassTests target and fail on build errors.")
+
+    let webBuild = PlanVerifyCommandSummary(command: "pnpm run build")
+    try #require(webBuild.title == "Builds the web project")
+    try #require(
+      webBuild.detail
+        == "Compass will run the project's build script and fail on compile or bundling errors.")
 
     let unknown = PlanVerifyCommandSummary(command: "make verify")
     try #require(unknown.title == "Runs verification")

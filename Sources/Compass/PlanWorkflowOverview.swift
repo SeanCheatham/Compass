@@ -84,11 +84,44 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
         ? "Compass will run Go tests across every package in the module."
         : "Compass will run the selected Go tests."
       systemImage = "checkmark.seal"
-    } else if Self.containsAny(lowercased, ["vitest", "npm test", "pnpm test", "yarn test"]) {
+    } else if Self.containsAny(
+      lowercased,
+      [
+        "pytest",
+        "python -m unittest",
+        "python3 -m unittest",
+      ])
+    {
+      title = "Runs Python tests"
+      detail = lowercased.contains("pytest")
+        ? "Compass will run the Python test suite with pytest."
+        : "Compass will run the Python unittest suite."
+      systemImage = "checkmark.seal"
+    } else if Self.containsAny(
+      lowercased,
+      [
+        "vitest",
+        "npm test",
+        "npm run test",
+        "pnpm test",
+        "pnpm run test",
+        "yarn test",
+        "yarn run test",
+      ])
+    {
       title = "Runs JavaScript tests"
       detail = "Compass will run the project's JavaScript or TypeScript test command."
       systemImage = "checkmark.seal"
-    } else if Self.containsAny(lowercased, ["npm run build", "pnpm build", "yarn build"]) {
+    } else if Self.containsAny(
+      lowercased,
+      [
+        "npm run build",
+        "pnpm build",
+        "pnpm run build",
+        "yarn build",
+        "yarn run build",
+      ])
+    {
       title = "Builds the web project"
       detail = "Compass will run the project's build script and fail on compile or bundling errors."
       systemImage = "hammer"
