@@ -233,6 +233,8 @@ struct LiveTimelineGuidePanel: View {
         .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
 
+      LiveTimelineEvidenceCoverageRow(coverage: guide.evidenceCoverage, color: color)
+
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 6) {
           ForEach(guide.checkpoints) { checkpoint in
@@ -266,7 +268,9 @@ struct LiveTimelineGuidePanel: View {
         .stroke(color.opacity(0.2))
     }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(guide.title). \(narration?.text ?? guide.detail)")
+    .accessibilityLabel(
+      "\(guide.title). \(narration?.text ?? guide.detail). Evidence: \(guide.evidenceCoverage.label). \(guide.evidenceCoverage.detail)"
+    )
   }
 
   private var color: Color {
@@ -282,6 +286,40 @@ struct LiveTimelineGuidePanel: View {
     case .attention:
       return .orange
     }
+  }
+}
+
+struct LiveTimelineEvidenceCoverageRow: View {
+  var coverage: LiveTimelineGuide.EvidenceCoverage
+  var color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack(alignment: .center, spacing: 8) {
+        Label(coverage.label, systemImage: "gauge.medium")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color)
+          .lineLimit(1)
+
+        ProgressView(value: coverage.fraction)
+          .tint(color)
+          .frame(width: 110)
+
+        Text("\(coverage.coveredCount)/\(coverage.totalCount)")
+          .font(.caption2.monospacedDigit().weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
+
+      Text(coverage.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(
+      "Evidence: \(coverage.label). \(coverage.detail). \(coverage.coveredCount) of \(coverage.totalCount)."
+    )
   }
 }
 

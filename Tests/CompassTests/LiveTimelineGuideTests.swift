@@ -13,6 +13,9 @@ struct LiveTimelineGuideTests {
     #expect(guide.statusLabel == "No events yet")
     #expect(guide.tone == .idle)
     #expect(guide.checkpoints.map(\.id) == ["plan", "develop", "verify"])
+    #expect(guide.evidenceCoverage.label == "No live evidence yet")
+    #expect(guide.evidenceCoverage.coveredCount == 0)
+    #expect(guide.evidenceCoverage.missingLabels == ["Notes", "Commands", "Files", "Proof"])
     #expect(guide.allowsNarration)
   }
 
@@ -35,6 +38,8 @@ struct LiveTimelineGuideTests {
     #expect(guide.tone == .running)
     #expect(guide.systemImageName == "hammer.fill")
     #expect(guide.checkpoints.map(\.id) == ["notes", "commands", "files"])
+    #expect(guide.evidenceCoverage.label == "1 of 4 evidence anchors")
+    #expect(guide.evidenceCoverage.missingLabels == ["Notes", "Commands", "Proof"])
     #expect(!guide.allowsNarration)
   }
 
@@ -68,8 +73,46 @@ struct LiveTimelineGuideTests {
     #expect(guide.tone == .attention)
     #expect(guide.checkpoints.map(\.id) == ["symptom", "narrow", "proof"])
     #expect(guide.narrationIdentifier.contains("failedEvents:1"))
+    #expect(guide.narrationIdentifier.contains("evidence:2 of 4 evidence anchors"))
+    #expect(guide.evidenceCoverage.coveredCount == 2)
+    #expect(guide.evidenceCoverage.missingLabels == ["Notes", "Files"])
     #expect(guide.latestEvents.map(\.text) == ["Verify failed"])
     #expect(guide.latestEvents.map(\.detail) == ["Expected true but got false"])
+  }
+
+  @Test
+  func completedTimelineMarksFullEvidenceTrail() {
+    let guide = makeGuide(
+      phase: .succeeded,
+      liveLog: [
+        liveLine(
+          text: "Develop summarized the finished slice",
+          kind: .agentMessage,
+          status: .completed
+        ),
+        liveLine(
+          level: .success,
+          text: "swift test --filter LiveTimelineGuideTests",
+          kind: .command,
+          status: .completed
+        ),
+        liveLine(
+          text: "Sources/Compass/LiveTimelineGuide.swift",
+          detail: "Added evidence coverage.",
+          kind: .fileChange,
+          status: .completed
+        ),
+      ]
+    )
+
+    #expect(guide.title == "Latest Run Succeeded")
+    #expect(guide.evidenceCoverage.label == "Evidence trail complete")
+    #expect(guide.evidenceCoverage.coveredCount == 4)
+    #expect(guide.evidenceCoverage.fraction == 1)
+    #expect(guide.evidenceCoverage.missingLabels.isEmpty)
+    #expect(
+      LiveTimelineGuideNarrator.prompt(for: guide)
+        .contains("Evidence: Evidence trail complete"))
   }
 
   @Test
@@ -128,6 +171,8 @@ struct LiveTimelineGuideTests {
     #expect(payload.text.contains("Status: Developing Current Slice (running)"))
     #expect(payload.text.contains("Phase: Developing"))
     #expect(payload.text.contains("Events: 3 total, 1 running, 0 failed"))
+    #expect(payload.text.contains("Evidence: 3 of 4 evidence anchors"))
+    #expect(payload.text.contains("Waiting for: Proof."))
     #expect(payload.text.contains(runningCommandLine))
     #expect(payload.text.contains(fileChangeLine))
     #expect(payload.text.count <= LiveTimelineClipboardPayload.textLimit)

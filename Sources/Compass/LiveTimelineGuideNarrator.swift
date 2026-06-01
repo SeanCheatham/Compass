@@ -40,6 +40,7 @@ enum LiveTimelineGuideNarrator {
     Status: \(guide.title)
     Detail: \(guide.detail)
     Badge: \(guide.statusLabel)
+    Evidence: \(guide.evidenceCoverage.label) - \(guide.evidenceCoverage.detail)
     Checkpoints: \(guide.checkpoints.map { "\($0.label) - \($0.detail)" }.joined(separator: " | "))
     """
   }

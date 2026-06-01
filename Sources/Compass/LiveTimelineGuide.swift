@@ -28,6 +28,15 @@ struct LiveTimelineGuide: Equatable, Sendable {
     var detail: String?
   }
 
+  struct EvidenceCoverage: Equatable, Sendable {
+    var coveredCount: Int
+    var totalCount: Int
+    var fraction: Double
+    var label: String
+    var detail: String
+    var missingLabels: [String]
+  }
+
   static let latestEventLimit = 5
   static let eventTextLimit = 140
   static let eventDetailLimit = 220
@@ -44,6 +53,7 @@ struct LiveTimelineGuide: Equatable, Sendable {
   var runningEventCount: Int
   var failedEventCount: Int
   var latestEvents: [EventSummary]
+  var evidenceCoverage: EvidenceCoverage
   var narrationIdentifier: String
 
   var allowsNarration: Bool {
@@ -71,6 +81,7 @@ struct LiveTimelineGuide: Equatable, Sendable {
     self.runningEventCount = runningEventCount
     self.failedEventCount = failedEventCount
     latestEvents = Self.latestEvents(from: liveLog)
+    evidenceCoverage = Self.evidenceCoverage(from: liveLog)
 
     if isPaused {
       title = "Factory Paused"
@@ -139,6 +150,7 @@ struct LiveTimelineGuide: Equatable, Sendable {
       eventCount: eventCount,
       runningEventCount: runningEventCount,
       failedEventCount: failedEventCount,
+      evidenceCoverage: evidenceCoverage,
       checkpoints: checkpoints,
       liveLog: liveLog
     )
@@ -324,6 +336,7 @@ struct LiveTimelineGuide: Equatable, Sendable {
     eventCount: Int,
     runningEventCount: Int,
     failedEventCount: Int,
+    evidenceCoverage: EvidenceCoverage,
     checkpoints: [Checkpoint],
     liveLog: [LiveLine]
   ) -> String {
@@ -349,11 +362,56 @@ struct LiveTimelineGuide: Equatable, Sendable {
       "events:\(eventCount)",
       "runningEvents:\(runningEventCount)",
       "failedEvents:\(failedEventCount)",
+      "evidence:\(evidenceCoverage.label):\(evidenceCoverage.detail)",
       "checkpoints:\(checkpoints.map(\.id).joined(separator: ","))",
       "latest:\(latestEvents)",
     ].joined(separator: "|")
 
     return StringUtils.boundedText(raw, limit: Self.identifierLimit)
+  }
+
+  private static func evidenceCoverage(from liveLog: [LiveLine]) -> EvidenceCoverage {
+    let anchors: [(label: String, isCovered: Bool)] = [
+      (
+        "Notes",
+        liveLog.contains {
+          $0.kind == .agentMessage || $0.kind == .message || $0.kind == .lifecycle
+        }
+      ),
+      ("Commands", liveLog.contains { $0.kind == .command }),
+      ("Files", liveLog.contains { $0.kind == .fileChange }),
+      (
+        "Proof",
+        liveLog.contains {
+          $0.kind == .command
+            && ($0.status == .completed || $0.status == .failed || $0.level == .success
+              || $0.level == .error)
+        }
+      ),
+    ]
+
+    let coveredCount = anchors.filter { $0.isCovered }.count
+    let totalCount = anchors.count
+    let missingLabels = anchors.filter { !$0.isCovered }.map(\.label)
+    let label =
+      coveredCount == 0
+      ? "No live evidence yet"
+      : coveredCount == totalCount
+        ? "Evidence trail complete"
+        : "\(coveredCount) of \(totalCount) evidence anchors"
+    let detail =
+      missingLabels.isEmpty
+      ? "Timeline includes notes, commands, file changes, and proof."
+      : "Waiting for: \(missingLabels.joined(separator: ", "))."
+
+    return EvidenceCoverage(
+      coveredCount: coveredCount,
+      totalCount: totalCount,
+      fraction: totalCount == 0 ? 0 : Double(coveredCount) / Double(totalCount),
+      label: label,
+      detail: StringUtils.boundedText(detail, limit: eventDetailLimit),
+      missingLabels: missingLabels
+    )
   }
 
   private static func latestEvents(from liveLog: [LiveLine]) -> [EventSummary] {
@@ -461,6 +519,7 @@ struct LiveTimelineClipboardPayload: Equatable, Sendable {
       "Phase: \(guide.phaseLabel)",
       "Timeline: \(guide.statusLabel)",
       "Events: \(Self.countSummary(guide))",
+      "Evidence: \(guide.evidenceCoverage.label) - \(guide.evidenceCoverage.detail)",
       "Detail: \(guide.detail)",
       "",
       "Checkpoints:",
