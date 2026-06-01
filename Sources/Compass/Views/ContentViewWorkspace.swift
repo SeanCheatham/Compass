@@ -566,6 +566,14 @@ struct ProjectRunControls: View {
       deliverySnapshot: deliverySnapshot
     )
     let executionEnvironmentMenu = project.runtimeDiagnosticsMenu
+    let runGuide = ProjectRunControlGuide(
+      state: project.state,
+      reliabilityStatus: project.reliabilityStatus,
+      hasRepository: project.hasRepository,
+      isRunning: project.isRunning,
+      isAutoPlaying: project.isAutoPlaying,
+      isPaused: project.isPaused
+    )
 
     HStack(spacing: 5) {
       Menu {
@@ -629,12 +637,15 @@ struct ProjectRunControls: View {
       .menuStyle(.borderlessButton)
       .help(feedbackMenu.helpText)
 
-      Button {
-        Task {
-          await project.play(
-            agentSettings: model.agentSettings,
-            modelOverride: model.modelOverride
-          )
+      Menu {
+        ForEach(runGuide.options) { option in
+          Button {
+            run(option.kind)
+          } label: {
+            Label(option.title, systemImage: option.systemImage)
+          }
+          .disabled(!option.isEnabled)
+          Text(option.detail)
         }
       } label: {
         Image(systemName: "play.fill")
@@ -642,7 +653,7 @@ struct ProjectRunControls: View {
       }
       .buttonStyle(.borderedProminent)
       .disabled(project.isRunning || project.isAutoPlaying || !project.hasRepository)
-      .help(project.isPaused ? "Resume auto-play" : "Start auto-play")
+      .help(runGuide.primaryHelp)
 
       Menu {
         ForEach(PauseMode.allCases) { mode in
@@ -674,6 +685,28 @@ struct ProjectRunControls: View {
       .help("Stop")
     }
     .controlSize(.regular)
+  }
+
+  private func run(_ kind: ProjectRunControlGuide.Kind) {
+    Task {
+      switch kind {
+      case .loop:
+        await project.play(
+          agentSettings: model.agentSettings,
+          modelOverride: model.modelOverride
+        )
+      case .planOnly:
+        await project.runPlanOnly(
+          agentSettings: model.agentSettings,
+          modelOverride: model.modelOverride
+        )
+      case .developOnly:
+        await project.runDevelopOnly(
+          agentSettings: model.agentSettings,
+          modelOverride: model.modelOverride
+        )
+      }
+    }
   }
 }
 
