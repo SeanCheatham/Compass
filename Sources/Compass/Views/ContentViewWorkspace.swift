@@ -555,6 +555,7 @@ struct ProjectPhasePill: View {
 struct ProjectRunControls: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject var project: CompassProject
+  @State private var runGuideNarration: ProjectRunControlGuideNarration?
 
   var body: some View {
     let deliverySnapshot = NativeFeedbackService.shared.deliverySnapshot(
@@ -577,6 +578,8 @@ struct ProjectRunControls: View {
       forgeProfile: project.forgeProfile,
       drafts: project.drafts
     )
+    let runNarration = matchingNarration(for: runGuide)
+    let primaryExplanation = runNarration?.text ?? runGuide.primaryHelp
 
     HStack(spacing: 5) {
       Menu {
@@ -648,12 +651,17 @@ struct ProjectRunControls: View {
       }
       .buttonStyle(.borderedProminent)
       .disabled(!runGuide.primaryOption.isEnabled)
-      .help("\(runGuide.primaryHelp) \(runGuide.primaryOption.detail)")
+      .help("\(primaryExplanation) \(runGuide.primaryOption.detail)")
       .accessibilityHint(runGuide.primaryOption.detail)
 
       Menu {
         Label(runGuide.readiness.title, systemImage: runGuide.readiness.systemImage)
         Text(runGuide.readiness.detail)
+        if let runNarration {
+          Divider()
+          Label("Run note", systemImage: "sparkles")
+          Text(runNarration.text)
+        }
         Divider()
         ForEach(runGuide.options) { option in
           Button {
@@ -702,6 +710,10 @@ struct ProjectRunControls: View {
       .help("Stop")
     }
     .controlSize(.regular)
+    .task(id: runGuide.narrationIdentifier) {
+      runGuideNarration = nil
+      runGuideNarration = await ProjectRunControlGuideNarrator.narrate(guide: runGuide)
+    }
   }
 
   private func run(_ kind: ProjectRunControlGuide.Kind) {
@@ -724,6 +736,15 @@ struct ProjectRunControls: View {
         )
       }
     }
+  }
+
+  private func matchingNarration(
+    for guide: ProjectRunControlGuide
+  ) -> ProjectRunControlGuideNarration? {
+    guard runGuideNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return runGuideNarration
   }
 }
 

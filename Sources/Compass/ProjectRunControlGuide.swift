@@ -1,10 +1,17 @@
 import Foundation
 
 struct ProjectRunControlGuide: Equatable {
+  static let identifierLimit = 1_200
+
   var primaryHelp: String
   var primaryKind: Kind
   var readiness: Readiness
   var options: [Option]
+  var narrationIdentifier: String
+
+  var allowsNarration: Bool {
+    !narrationIdentifier.isEmpty && readiness.title != "Run in progress"
+  }
 
   var primaryOption: Option {
     options.first { $0.kind == primaryKind } ?? options[0]
@@ -111,12 +118,29 @@ struct ProjectRunControlGuide: Equatable {
       reliabilityStatus: reliabilityStatus,
       draftIntakeGuide: draftIntakeGuide
     )
+    narrationIdentifier = Self.narrationIdentifier(
+      primaryHelp: primaryHelp,
+      primaryKind: primaryKind,
+      readiness: readiness,
+      options: options
+    )
   }
 
   enum Kind: Hashable {
     case loop
     case planOnly
     case developOnly
+
+    var narrationKey: String {
+      switch self {
+      case .loop:
+        return "loop"
+      case .planOnly:
+        return "planOnly"
+      case .developOnly:
+        return "developOnly"
+      }
+    }
   }
 
   struct Readiness: Equatable {
@@ -354,6 +378,27 @@ struct ProjectRunControlGuide: Equatable {
     case .needsDetail:
       return "Ask Plan to use the queue, with Drafts showing which signals still need detail."
     }
+  }
+
+  private static func narrationIdentifier(
+    primaryHelp: String,
+    primaryKind: Kind,
+    readiness: Readiness,
+    options: [Option]
+  ) -> String {
+    let optionFragment = options.map { option in
+      "\(option.kind.narrationKey):\(option.title):\(option.detail):enabled:\(option.isEnabled)"
+    }.joined(separator: "|")
+
+    return StringUtils.boundedText(
+      [
+        "primary:\(primaryKind.narrationKey)",
+        "help:\(primaryHelp)",
+        "readiness:\(readiness.title):\(readiness.detail)",
+        "options:\(optionFragment)",
+      ].joined(separator: "\n"),
+      limit: Self.identifierLimit
+    )
   }
 
   private struct HandoffReadiness: Equatable {

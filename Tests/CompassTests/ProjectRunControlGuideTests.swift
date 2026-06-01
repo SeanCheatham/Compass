@@ -180,12 +180,12 @@ struct ProjectRunControlGuideTests {
       state: makeState(
         immediate: PlanNext(
           plan: """
-            ## Outcome
-            Make the run controls safer.
+              ## Outcome
+              Make the run controls safer.
 
-            ## Acceptance checks
-            - Develop is disabled until the verify command is real.
-          """,
+              ## Acceptance checks
+              - Develop is disabled until the verify command is real.
+            """,
           verify: "exit 0"
         )
       ),
@@ -312,6 +312,108 @@ struct ProjectRunControlGuideTests {
     try #require(
       missingRepository.primaryHelp == "Add a Git repository before running the factory.")
     try #require(missingRepository.options.allSatisfy { !$0.isEnabled })
+  }
+
+  @Test
+  func testNarrationIdentifierTracksRunControlFacts() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false
+    )
+
+    try #require(guide.allowsNarration)
+    try #require(guide.narrationIdentifier.contains("primary:loop"))
+    try #require(guide.narrationIdentifier.contains("Ready for Develop"))
+    try #require(guide.narrationIdentifier.contains("Run Develop Only"))
+  }
+
+  @Test
+  func testRunningGuideDoesNotNarrate() async {
+    let guide = ProjectRunControlGuide(
+      state: makeState(),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: true,
+      isAutoPlaying: false,
+      isPaused: false
+    )
+
+    #expect(!guide.allowsNarration)
+    await withMockFoundationModels(response: "Compass is already running.") {
+      let narration = await ProjectRunControlGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+  }
+
+  @Test
+  func testNarratorUsesFoundationModelsAsOptionalRunControlPolish() async throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false
+    )
+
+    try await withMockFoundationModels(
+      response: "Compass can run the full loop now, or you can choose Plan or Develop first."
+    ) {
+      let generatedNarration = await ProjectRunControlGuideNarrator.narrate(guide: guide)
+      let narration = try #require(generatedNarration)
+      #expect(narration.guideIdentifier == guide.narrationIdentifier)
+      #expect(
+        narration.text
+          == "Compass can run the full loop now, or you can choose Plan or Develop first.")
+    }
+  }
+
+  @Test
+  func testNarratorReturnsNilWhenFoundationModelsAreUnavailable() async {
+    let guide = ProjectRunControlGuide(
+      state: makeState(),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false
+    )
+
+    await withMockFoundationModels(available: false, response: "Should not be used") {
+      let narration = await ProjectRunControlGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+  }
+
+  @Test
+  func testNarratorRejectsStructuredBulletedOrLinkedOutput() async {
+    let guide = ProjectRunControlGuide(
+      state: makeState(),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false
+    )
+
+    await withMockFoundationModels(response: #"{"text":"Invented JSON"}"#) {
+      let narration = await ProjectRunControlGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "- Run a hidden setup step") {
+      let narration = await ProjectRunControlGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "Read more at https://example.com") {
+      let narration = await ProjectRunControlGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
   }
 
   private func emptyReliabilityStatus() -> ProjectReliabilityStatus {
