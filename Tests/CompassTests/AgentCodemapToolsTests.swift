@@ -222,6 +222,34 @@ struct AgentCodemapToolsTests: ~Copyable {
     try #require(!result.content.contains("Sources/Other.swift"))
   }
 
+  @Test func testListFilesAcceptsPatternAliasAsGlobFilter() async throws {
+    try seedEntry(path: "Sources/App.swift", symbols: [])
+    try seedEntry(path: "Tests/AppTests.swift", symbols: [])
+    try seedEntry(path: "README.md", symbols: [])
+    let result = try await AgentListFilesTool().invoke(
+      arguments: Data(#"{"pattern":"*.swift"}"#.utf8),
+      context: context
+    )
+    try #require(!result.isError)
+    try #require(result.content.contains("files: 2"))
+    try #require(result.content.contains("Sources/App.swift"))
+    try #require(result.content.contains("Tests/AppTests.swift"))
+    try #require(!result.content.contains("README.md"))
+  }
+
+  @Test func testListFilesAcceptsGlobAliasForDirectoryFilter() async throws {
+    try seedEntry(path: "Sources/App.swift", symbols: [])
+    try seedEntry(path: "Tests/AppTests.swift", symbols: [])
+    let result = try await AgentListFilesTool().invoke(
+      arguments: Data(#"{"glob":"Sources/*.swift"}"#.utf8),
+      context: context
+    )
+    try #require(!result.isError)
+    try #require(result.content.contains("files: 1"))
+    try #require(result.content.contains("Sources/App.swift"))
+    try #require(!result.content.contains("Tests/AppTests.swift"))
+  }
+
   // MARK: - importers_of
 
   @Test func testImportersOfMatchesRelativeImports() async throws {
