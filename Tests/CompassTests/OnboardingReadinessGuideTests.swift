@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import Compass
@@ -96,6 +97,75 @@ struct OnboardingReadinessGuideTests {
       model: "gpt-4o"
     )
     #expect(networkReady.isTextCapabilityRunnable(foundationModelsAvailable: false))
+  }
+
+  @Test
+  func setupClipboardPayloadPackagesBlockedSetupForReuse() throws {
+    let settings = AgentRuntimeSettings(
+      textProvider: .openAI,
+      baseURL: try #require(URL(string: "https://api.openai.com/v1")),
+      apiKey: "sk-secret-should-not-copy",
+      model: "gpt-4o"
+    )
+    let guide = OnboardingReadinessGuide(
+      settings: settings,
+      vmReadiness: .error(detail: String(repeating: "install failed ", count: 40)),
+      foundationModelsAvailable: false
+    )
+
+    let payload = OnboardingSetupClipboardPayload(
+      guide: guide,
+      settings: settings,
+      vmReadiness: .error(detail: String(repeating: "install failed ", count: 40)),
+      foundationModelsAvailable: false
+    )
+
+    #expect(payload.text.contains("Compass Setup Handoff"))
+    #expect(payload.text.contains("Do not invent credentials"))
+    #expect(payload.text.contains("Never ask the user to paste an API key into chat"))
+    #expect(payload.text.contains("Status: Prepare Private Workspace (needsWorkspace)"))
+    #expect(payload.text.contains("Run controls: locked"))
+    #expect(payload.text.contains("Provider: OpenAI API"))
+    #expect(payload.text.contains("Runnable: yes"))
+    #expect(payload.text.contains("Credential saved: yes"))
+    #expect(payload.text.contains("Base URL: https://api.openai.com/v1"))
+    #expect(payload.text.contains("Model: gpt-4o"))
+    #expect(payload.text.contains("Private workspace:"))
+    #expect(payload.text.contains("Ready: no"))
+    #expect(payload.text.contains("[complete] Text provider"))
+    #expect(payload.text.contains("[blocked] Private workspace"))
+    #expect(!payload.text.contains("sk-secret-should-not-copy"))
+    #expect(payload.text.count <= OnboardingSetupClipboardPayload.textLimit)
+    #expect(!payload.isEmpty)
+  }
+
+  @Test
+  func setupClipboardPayloadNamesUnavailableFoundationModelsWithoutNetworkFields() {
+    let settings = AgentRuntimeSettings(textProvider: .appleFoundationModels)
+    let guide = OnboardingReadinessGuide(
+      settings: settings,
+      vmReadiness: .ready(sshDestination: "compass@10.0.0.42"),
+      foundationModelsAvailable: false
+    )
+
+    let payload = OnboardingSetupClipboardPayload(
+      guide: guide,
+      settings: settings,
+      vmReadiness: .ready(sshDestination: "compass@10.0.0.42"),
+      foundationModelsAvailable: false
+    )
+
+    #expect(payload.text.contains("Status: Choose a Runnable Text Provider (needsText)"))
+    #expect(payload.text.contains("Run controls: locked"))
+    #expect(payload.text.contains("Provider: Foundation Models"))
+    #expect(payload.text.contains("Runnable: no"))
+    #expect(payload.text.contains("Foundation Models available: no"))
+    #expect(payload.text.contains("Credential requirement: No API key required"))
+    #expect(payload.text.contains("Credential saved: not required"))
+    #expect(payload.text.contains("[blocked] Text provider"))
+    #expect(payload.text.contains("[complete] Private workspace"))
+    #expect(!payload.text.contains("Base URL:"))
+    #expect(!payload.text.contains("Model:"))
   }
 
   @Test

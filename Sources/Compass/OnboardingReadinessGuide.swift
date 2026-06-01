@@ -216,3 +216,103 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 }
+
+struct OnboardingSetupClipboardPayload: Equatable, Sendable {
+  static let textLimit = 3_200
+
+  var text: String
+
+  init(
+    guide: OnboardingReadinessGuide,
+    settings: AgentRuntimeSettings,
+    vmReadiness: SharedCompassVMReadiness,
+    foundationModelsAvailable: Bool
+  ) {
+    let textReady = settings.isTextCapabilityRunnable(
+      foundationModelsAvailable: foundationModelsAvailable
+    )
+    let vmReady = vmReadiness.isReady
+
+    var sections: [String] = [
+      "Compass Setup Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded onboarding context. Do not invent credentials, "
+        + "device support, files, commands, outcomes, or extra setup state.",
+      "- Never ask the user to paste an API key into chat. This packet only reports "
+        + "whether a credential is saved.",
+      "- Use the checklist and raw readiness fields to identify the next safe setup action.",
+      "- If Text or the Shared VM is blocked, ask for the missing user-verifiable fact "
+        + "instead of assuming the environment can run.",
+      "",
+      "Status: \(guide.title) (\(guide.tone.rawValue))",
+      "Action: \(guide.actionLabel)",
+      "Detail: \(guide.detail)",
+      "Run controls: \(textReady && vmReady ? "unlocked" : "locked")",
+      "",
+      "Text provider:",
+      "Provider: \(settings.textProvider.displayName)",
+      "Runnable: \(Self.yesNo(textReady))",
+      "Foundation Models available: \(Self.yesNo(foundationModelsAvailable))",
+      "Credential requirement: \(Self.credentialRequirementLabel(settings))",
+      "Credential saved: \(Self.credentialSavedLabel(settings))",
+    ]
+
+    if settings.textProvider.requiresCredentials {
+      sections.append("Base URL: \(settings.baseURL.absoluteString)")
+      sections.append("Model: \(Self.modelLabel(settings.model))")
+    }
+
+    sections.append("")
+    sections.append("Private workspace:")
+    sections.append("Status: \(vmReadiness.statusSummary)")
+    sections.append("Ready: \(Self.yesNo(vmReady))")
+
+    sections.append("")
+    sections.append("Checklist:")
+    for step in guide.steps {
+      sections.append(
+        "- \(step.isComplete ? "[complete]" : "[blocked]") \(step.label): \(step.detail)"
+      )
+    }
+
+    text = OnboardingSetupClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private static func yesNo(_ value: Bool) -> String {
+    value ? "yes" : "no"
+  }
+
+  private static func credentialSavedLabel(_ settings: AgentRuntimeSettings) -> String {
+    guard settings.textProvider.requiresCredentials else { return "not required" }
+    return settings.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? "no" : "yes"
+  }
+
+  private static func credentialRequirementLabel(_ settings: AgentRuntimeSettings) -> String {
+    settings.textProvider.requiresCredentials ? "API key required" : "No API key required"
+  }
+
+  private static func modelLabel(_ model: String) -> String {
+    let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? "not set" : trimmed
+  }
+}
+
+private enum OnboardingSetupClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}

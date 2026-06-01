@@ -19,6 +19,12 @@ struct OnboardingView: View {
       vmReadiness: vmHost.readiness,
       foundationModelsAvailable: foundationModelsAvailable
     )
+    let setupPayload = OnboardingSetupClipboardPayload(
+      guide: readinessGuide,
+      settings: model.agentSettings,
+      vmReadiness: vmHost.readiness,
+      foundationModelsAvailable: foundationModelsAvailable
+    )
 
     ScrollView {
       VStack(alignment: .leading, spacing: 22) {
@@ -28,6 +34,7 @@ struct OnboardingView: View {
         }
         OnboardingReadinessGuidePanel(
           guide: readinessGuide,
+          setupPayload: setupPayload,
           narration: matchingNarration(for: readinessGuide)
         )
         OnboardingStep(
@@ -177,6 +184,7 @@ struct OnboardingView: View {
 
 private struct OnboardingReadinessGuidePanel: View {
   let guide: OnboardingReadinessGuide
+  let setupPayload: OnboardingSetupClipboardPayload
   let narration: OnboardingReadinessGuideNarration?
 
   var body: some View {
@@ -187,6 +195,8 @@ private struct OnboardingReadinessGuidePanel: View {
           .foregroundStyle(color)
 
         Spacer(minLength: 8)
+
+        CopySetupButton(payload: setupPayload)
 
         Text(guide.actionLabel)
           .font(.caption.weight(.semibold))
@@ -250,6 +260,31 @@ private struct OnboardingReadinessGuidePanel: View {
     case .inProgress:
       return .teal
     }
+  }
+}
+
+private struct CopySetupButton: View {
+  var payload: OnboardingSetupClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(
+        copied ? "Copied" : "Copy Setup",
+        systemImage: copied ? "checkmark" : "doc.on.doc"
+      )
+      .lineLimit(1)
+    }
+    .controlSize(.small)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded setup handoff for another model or teammate.")
   }
 }
 
