@@ -93,6 +93,25 @@ struct ProjectRecoveryGuideTests {
   }
 
   @Test
+  func developProviderFailureRecoveryNamesConnectionRepair() throws {
+    let guide = ProjectRecoveryGuide(
+      status: developFailedStatus(
+        note:
+          "Develop failed: Chat completions stream failed: status code: 401 - upstream body: unauthorized."
+      )
+    )
+
+    try #require(!guide.isEmpty)
+    try #require(guide.title == "Restore the model connection")
+    try #require(guide.steps[0].title == "Inspect the provider failure")
+    try #require(guide.steps[0].detail.contains("model provider failed"))
+    try #require(guide.steps[1].title == "Check the active provider")
+    try #require(guide.steps[1].detail.contains("selected model"))
+    try #require(guide.steps[1].detail.contains("credentials"))
+    try #require(guide.steps[2].detail.contains("stream a complete response"))
+  }
+
+  @Test
   func narratorUsesFoundationModelsAsOptionalRecoveryPolish() async throws {
     let guide = ProjectRecoveryGuide(status: rejectedPlanStatus())
 

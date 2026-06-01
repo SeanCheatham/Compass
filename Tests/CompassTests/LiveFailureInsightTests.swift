@@ -90,6 +90,27 @@ struct LiveFailureInsightTests {
     try #require(insight.title == "Step Ran Out Of Time")
   }
 
+  @Test func explainsProviderStreamFailuresAsConnectionRepair() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .error,
+          text: "Develop failed",
+          detail:
+            "Chat completions stream failed: status code: 401 - upstream body: unauthorized.",
+          kind: .lifecycle,
+          status: .failed
+        )
+      )
+    )
+
+    try #require(insight.kind == .providerFailure)
+    try #require(insight.title == "Model Provider Needs Attention")
+    try #require(insight.explanation.contains("Text provider"))
+    try #require(insight.nextStep.contains("API key"))
+    try #require(insight.narrationIdentifier.contains("providerFailure"))
+  }
+
   @Test func explainsMissingSubmitResultAsResultHandoff() throws {
     let insight = try #require(
       LiveFailureInsight(

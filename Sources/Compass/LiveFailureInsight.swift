@@ -14,6 +14,7 @@ struct LiveFailureInsight: Equatable, Sendable {
     case commandFailure
     case guestBridge
     case unavailableService
+    case providerFailure
     case missingResult
     case handoffRepair
     case verifyBypass
@@ -202,6 +203,32 @@ struct LiveFailureInsight: Equatable, Sendable {
         "The next attempt should list files, refresh the codemap if needed, or choose the current path.",
         "Find path",
         "questionmark.folder"
+      )
+    }
+
+    if containsAny(
+      normalized,
+      [
+        "chat completions stream failed",
+        "rate limit",
+        "unauthorized",
+        "forbidden",
+        "invalid api key",
+        "status code: 401",
+        "status code: 403",
+        "status code: 429",
+        "network connection lost",
+        "cannot connect to host",
+        "not connected to internet",
+      ]
+    ) {
+      return (
+        .providerFailure,
+        "Model Provider Needs Attention",
+        "The selected Text provider failed before Compass could receive a complete model response.",
+        "Check the selected model, endpoint, API key, and network connection before retrying the same phase.",
+        "Provider",
+        "antenna.radiowaves.left.and.right"
       )
     }
 
