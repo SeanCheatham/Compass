@@ -65,6 +65,26 @@ final class SessionRecordStoreTests {
     try #require(feedback == "newer feedback")
   }
 
+  @Test func testPreviousFeedbackUsesCompletionTimeBeforeStartTime() throws {
+    let compassURL = try makeTemporaryDirectory(prefix: "SessionRecordStoreFeedbackEndedAt")
+    let store = SessionRecordStore(compassURL: compassURL)
+    var longRunning = makeRecord(1)
+    longRunning.startedAt = 1_000
+    longRunning.endedAt = 3_000
+    longRunning.feedback = "completed later"
+    var recentlyStarted = makeRecord(2)
+    recentlyStarted.startedAt = 2_000
+    recentlyStarted.endedAt = 2_100
+    recentlyStarted.feedback = "started later"
+    try store.writeActiveSessions([longRunning, recentlyStarted])
+
+    let feedback = store.previousFeedback(
+      excluding: 99,
+      activeSessions: store.readActiveSessions()
+    )
+    try #require(feedback == "completed later")
+  }
+
   private func makeLargeRecord(_ number: Int) -> SessionRecord {
     var record = makeRecord(number)
     record.notes = Array(repeating: String(repeating: "x", count: 400), count: 120)

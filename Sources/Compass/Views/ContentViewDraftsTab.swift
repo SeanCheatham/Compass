@@ -10,7 +10,7 @@ struct DraftsTab: View {
   @State private var draftRefinementCache: [DraftRefinementPreviewKey: DraftRefinement] = [:]
   @State private var activeDraftRefinementKey: DraftRefinementPreviewKey?
   @State private var isDraftRefinementActive = false
-  @State private var isDraftRefinementModelAvailable = DraftRefinementService.isPreviewAvailable
+  @State private var isDraftRefinementPreviewAvailable = DraftRefinementService.isPreviewAvailable
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -106,7 +106,7 @@ struct DraftsTab: View {
   }
 
   private var shouldShowDraftRefinementPreview: Bool {
-    isDraftRefinementModelAvailable
+    isDraftRefinementPreviewAvailable
       && !trimmedDraftEntry.isEmpty
       && (isDraftRefinementActive || draftRefinementPreview != nil)
   }
@@ -126,8 +126,8 @@ struct DraftsTab: View {
   }
 
   private func refreshDraftRefinementAvailability() {
-    isDraftRefinementModelAvailable = DraftRefinementService.isPreviewAvailable
-    if isDraftRefinementModelAvailable {
+    isDraftRefinementPreviewAvailable = DraftRefinementService.isPreviewAvailable
+    if isDraftRefinementPreviewAvailable {
       requestDraftRefinementReschedule()
     } else {
       cancelDraftRefinementPreview()
@@ -150,7 +150,7 @@ struct DraftsTab: View {
   }
 
   private func scheduleDraftRefinementPreview() {
-    isDraftRefinementModelAvailable = DraftRefinementService.isPreviewAvailable
+    isDraftRefinementPreviewAvailable = DraftRefinementService.isPreviewAvailable
     if project.isRunning {
       cancelDraftRefinementPreview()
       return
@@ -159,12 +159,11 @@ struct DraftsTab: View {
     let plan = DraftRefinementPreviewPlanner.plan(
       draft: project.draftEntry,
       context: context,
-      isModelAvailable: isDraftRefinementModelAvailable,
       cachedKeys: Set(draftRefinementCache.keys)
     )
 
     switch plan.visibility {
-    case .hiddenEmptyDraft, .hiddenUnavailableModel:
+    case .hiddenEmptyDraft:
       cancelDraftRefinementPreview()
     case .cached:
       draftRefinementTask?.cancel()

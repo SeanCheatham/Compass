@@ -11,6 +11,7 @@ import Testing
 /// against a fake `ssh-keyscan` stand-in so we can validate parsing,
 /// dedup, and append behaviour without touching a real network.
 struct SharedCompassVMGuestBridgeKnownHostsTests {
+  private let fakeKeyscanTimeout: TimeInterval = 2
 
   // MARK: - Fixtures
 
@@ -72,7 +73,7 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
     let result = await SharedCompassVMGuestBridge.populateKnownHosts(
       host: "192.168.64.9",
       knownHostsFile: knownHosts.path,
-      timeout: 2,
+      timeout: fakeKeyscanTimeout,
       sshKeyscanPath: keyscan.path
     )
 
@@ -107,7 +108,7 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
     let result = await SharedCompassVMGuestBridge.populateKnownHosts(
       host: "192.168.64.9",
       knownHostsFile: knownHosts.path,
-      timeout: 2,
+      timeout: fakeKeyscanTimeout,
       sshKeyscanPath: keyscan.path
     )
 
@@ -140,7 +141,7 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
     let result = await SharedCompassVMGuestBridge.populateKnownHosts(
       host: "192.168.64.9",
       knownHostsFile: knownHosts.path,
-      timeout: 2,
+      timeout: fakeKeyscanTimeout,
       sshKeyscanPath: keyscan.path
     )
 
@@ -156,7 +157,7 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
     let result = await SharedCompassVMGuestBridge.populateKnownHosts(
       host: "192.168.64.9",
       knownHostsFile: knownHosts.path,
-      timeout: 2,
+      timeout: fakeKeyscanTimeout,
       sshKeyscanPath: keyscan.path
     )
 
@@ -182,7 +183,7 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
     let result = await SharedCompassVMGuestBridge.populateKnownHosts(
       host: "192.168.64.9",
       knownHostsFile: knownHosts.path,
-      timeout: 2,
+      timeout: fakeKeyscanTimeout,
       sshKeyscanPath: keyscan.path
     )
 

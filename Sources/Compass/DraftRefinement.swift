@@ -139,7 +139,6 @@ struct DraftRefinementPreviewKey: Equatable, Hashable, Sendable {
 struct DraftRefinementPreviewPlan: Equatable, Sendable {
   enum Visibility: Equatable, Sendable {
     case hiddenEmptyDraft
-    case hiddenUnavailableModel
     case cached
     case debounce
   }
@@ -150,7 +149,7 @@ struct DraftRefinementPreviewPlan: Equatable, Sendable {
 
   var shouldShowPreviewSurface: Bool {
     switch visibility {
-    case .hiddenEmptyDraft, .hiddenUnavailableModel:
+    case .hiddenEmptyDraft:
       return false
     case .cached, .debounce:
       return true
@@ -164,21 +163,12 @@ enum DraftRefinementPreviewPlanner {
   static func plan(
     draft: String,
     context: DraftRefinementContext,
-    isModelAvailable: Bool,
     cachedKeys: Set<DraftRefinementPreviewKey>
   ) -> DraftRefinementPreviewPlan {
     let trimmedDraft = DraftRefinementService.normalizeDraft(draft)
     guard !trimmedDraft.isEmpty else {
       return DraftRefinementPreviewPlan(
         visibility: .hiddenEmptyDraft,
-        cacheKey: nil,
-        delayNanoseconds: 0
-      )
-    }
-
-    guard isModelAvailable else {
-      return DraftRefinementPreviewPlan(
-        visibility: .hiddenUnavailableModel,
         cacheKey: nil,
         delayNanoseconds: 0
       )
@@ -205,6 +195,10 @@ enum DraftRefinementService {
   static let refinedTextMaxCharacters = 900
 
   static var isPreviewAvailable: Bool {
+    true
+  }
+
+  private static var isGeneratedPreviewAvailable: Bool {
     #if canImport(FoundationModels)
       if #available(macOS 26.0, *) {
         return FoundationModelDraftRefinementGenerator.isAvailable
@@ -222,7 +216,7 @@ enum DraftRefinementService {
     guard !trimmedDraft.isEmpty else { return nil }
 
     #if canImport(FoundationModels)
-      if #available(macOS 26.0, *), isPreviewAvailable {
+      if #available(macOS 26.0, *), isGeneratedPreviewAvailable {
         if let generated = try? await FoundationModelDraftRefinementGenerator.generate(
           draft: trimmedDraft,
           context: context

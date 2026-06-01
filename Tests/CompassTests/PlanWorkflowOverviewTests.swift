@@ -212,6 +212,255 @@ struct PlanWorkflowOverviewTests {
     try #require(overview.sections.map(\.completedCount) == [3, 3, 3])
   }
 
+  @Test
+  func testVerifyCommandSummaryExplainsCommonTestCommands() throws {
+    let swift = PlanVerifyCommandSummary(command: "swift test --filter DraftRefinementTests")
+    try #require(swift.title == "Runs Swift tests")
+    try #require(swift.detail == "Compass will run Swift tests focused on DraftRefinementTests.")
+    try #require(swift.command == "swift test --filter DraftRefinementTests")
+
+    let go = PlanVerifyCommandSummary(command: "go test ./...")
+    try #require(go.title == "Runs Go tests")
+    try #require(go.detail == "Compass will run Go tests across every package in the module.")
+
+    let rust = PlanVerifyCommandSummary(command: "cargo test --all-features")
+    try #require(rust.title == "Runs Rust tests")
+    try #require(rust.detail == "Compass will run the Rust test suite with all feature flags enabled.")
+
+    let xcode = PlanVerifyCommandSummary(
+      command: "xcodebuild -scheme Compass -only-testing:CompassTests/PlanWorkflowOverviewTests test"
+    )
+    try #require(xcode.title == "Runs Xcode tests")
+    try #require(
+      xcode.detail
+        == "Compass will run Xcode tests focused on CompassTests/PlanWorkflowOverviewTests."
+    )
+  }
+
+  @Test
+  func testVerifyCommandSummaryExplainsBuildAndFallbackCommands() throws {
+    let swiftBuild = PlanVerifyCommandSummary(command: "swift build --target CompassTests")
+    try #require(swiftBuild.title == "Builds the Swift package")
+    try #require(swiftBuild.detail == "Compass will compile the CompassTests target and fail on build errors.")
+
+    let unknown = PlanVerifyCommandSummary(command: "make verify")
+    try #require(unknown.title == "Runs verification")
+    try #require(
+      unknown.detail == "Compass will run the planned command and treat a non-zero exit as a failed check."
+    )
+  }
+
+  @Test
+  func testHandoffDigestExtractsPlainLanguageSections() throws {
+    let digest = PlanHandoffDigest(
+      plan: """
+        ## Outcome
+        Make draft polish available without Apple Intelligence.
+
+        ## Why it matters
+        Non-engineers still get a cleaner draft before planning.
+
+        ## Acceptance checks
+        - Preview appears for a non-empty draft.
+        - Generated polish is used only when available.
+        - Deterministic polish remains the fallback.
+        - Extra checks stay hidden from the compact digest.
+        """
+    )
+
+    try #require(digest.status == .ready)
+    try #require(digest.title == "Executable handoff")
+    try #require(digest.outcome == "Make draft polish available without Apple Intelligence.")
+    try #require(
+      digest.whyItMatters == "Non-engineers still get a cleaner draft before planning."
+    )
+    try #require(
+      digest.acceptanceChecks == [
+        "Preview appears for a non-empty draft.",
+        "Generated polish is used only when available.",
+        "Deterministic polish remains the fallback.",
+      ]
+    )
+    try #require(digest.missingPieces.isEmpty)
+  }
+
+  @Test
+  func testHandoffDigestFlagsMissingAcceptanceChecks() throws {
+    let digest = PlanHandoffDigest(
+      plan: """
+        Outcome: Explain why Develop is blocked.
+
+        Why it matters: Owners need a plain-language next step.
+        """
+    )
+
+    try #require(digest.status == .needsDetail)
+    try #require(digest.title == "Handoff needs detail")
+    try #require(digest.outcome == "Explain why Develop is blocked.")
+    try #require(digest.acceptanceChecks.isEmpty)
+    try #require(digest.missingPieces == [.acceptanceChecks])
+    try #require(digest.detail.contains("Acceptance checks"))
+  }
+
+  @Test
+  func testHandoffDigestFallsBackToFirstPlanLine() throws {
+    let digest = PlanHandoffDigest(
+      plan: """
+        Add a launch checklist to the Plan tab.
+
+        - Keep the exact verify command visible.
+        """
+    )
+
+    try #require(digest.status == .needsDetail)
+    try #require(digest.outcome == "Add a launch checklist to the Plan tab.")
+    try #require(digest.missingPieces == [.acceptanceChecks, .whyItMatters])
+  }
+
+  @Test
+  func testFactoryBriefSummarizesImmediateWorkForNonEngineers() throws {
+    let state = makeState(
+      completed: ["one", "two"],
+      immediate: PlanNext(
+        plan: """
+          ## Outcome
+          Make draft polish available when Apple Intelligence is off.
+
+          ## Acceptance checks
+          - Preview appears when Foundation Models are unavailable.
+          """,
+        verify: "swift test --filter DraftRefinementTests",
+        verifyTimeoutMs: 90_000,
+        estimatedDifficulty: .medium
+      )
+    )
+    let brief = PlanFactoryBrief(
+      state: state,
+      reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
+      launchPlan: .host(fallbackReason: "Shared VM has not been provisioned yet."),
+      languageProfile: profile(.swift)
+    )
+
+    try #require(brief.status == .ready)
+    try #require(brief.title == "Ready To Build")
+    try #require(
+      brief.detail == "Next slice: Make draft polish available when Apple Intelligence is off."
+    )
+    try #require(brief.primaryActionLabel == "Run Develop")
+    try #require(brief.proofLabel == "Runs Swift tests")
+    try #require(
+      brief.proofDetail == "Compass will run Swift tests focused on DraftRefinementTests."
+    )
+    try #require(brief.proofCommand == "swift test --filter DraftRefinementTests")
+    try #require(brief.handoffDigest.status == .ready)
+    try #require(
+      brief.handoffDigest.outcome
+        == "Make draft polish available when Apple Intelligence is off."
+    )
+    try #require(brief.routeLabel == "Native macOS")
+    try #require(brief.chips.map(\.label).contains("Swift"))
+    try #require(brief.chips.map(\.label).contains("Medium difficulty"))
+    try #require(brief.chips.map(\.label).contains("Timeout 90s"))
+  }
+
+  @Test
+  func testFactoryBriefRoutesWeakHandoffsBackToPlan() throws {
+    let state = makeState(
+      immediate: PlanNext(
+        plan: "Make the Plan tab easier to read.",
+        verify: "swift test --filter PlanWorkflowOverviewTests",
+        estimatedDifficulty: .low
+      )
+    )
+    let brief = PlanFactoryBrief(
+      state: state,
+      reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
+      launchPlan: .host(),
+      languageProfile: profile(.swift)
+    )
+
+    try #require(brief.status == .planning)
+    try #require(brief.title == "Clarify Before Building")
+    try #require(brief.primaryActionLabel == "Run Plan")
+    try #require(brief.detail.contains("Acceptance checks"))
+    try #require(brief.handoffDigest.status == .needsDetail)
+  }
+
+  @Test
+  func testFactoryBriefPrioritizesReliabilityNotice() throws {
+    let state = makeState()
+    let session = SessionRecord(
+      session: 4,
+      startedAt: 4_000,
+      endedAt: 4_500,
+      plan: "Plan",
+      verify: "swift test",
+      beforeSha: nil,
+      afterSha: nil,
+      commits: [],
+      status: .failed,
+      notes: ["Develop reported it was blocked but did not request verify bypass."],
+      verifyOutput: nil,
+      feedback: "Missing signing credentials."
+    )
+    let brief = PlanFactoryBrief(
+      state: state,
+      reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: [session]),
+      launchPlan: .host(fallbackReason: "Shared VM has not been provisioned yet."),
+      languageProfile: profile(.swift)
+    )
+
+    try #require(brief.status == .needsAttention)
+    try #require(brief.title == "Factory Needs Attention")
+    try #require(brief.detail.contains("Develop blocked"))
+    try #require(brief.detail.contains("Missing signing credentials"))
+    try #require(brief.primaryActionLabel == "Retry Develop")
+  }
+
+  @Test
+  func testFactoryBriefFallsBackToQueueWhenNoImmediateWorkExists() throws {
+    let state = makeState(
+      immediate: nil,
+      midTerm: "- Improve onboarding language\n- Add tests",
+      longTerm: "Make Compass understandable."
+    )
+    let brief = PlanFactoryBrief(
+      state: state,
+      reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
+      launchPlan: .host(),
+      languageProfile: .empty
+    )
+
+    try #require(brief.status == .planning)
+    try #require(brief.title == "Ready To Choose The Next Slice")
+    try #require(brief.detail.contains("Improve onboarding language"))
+    try #require(brief.primaryActionLabel == "Run Plan")
+    try #require(brief.proofDetail == "No verification command has been selected yet.")
+  }
+
+  @Test
+  func testFactoryBriefNarratorUsesFoundationModelsAsOptionalPolish() async throws {
+    let state = makeState()
+    let brief = PlanFactoryBrief(
+      state: state,
+      reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
+      launchPlan: .host(),
+      languageProfile: profile(.swift)
+    )
+
+    try await withMockFoundationModels(response: "Compass is ready to build the next slice.") {
+      let generatedNarration = await PlanFactoryBriefNarrator.narrate(brief: brief)
+      let narration = try #require(generatedNarration)
+      try #require(narration.briefIdentifier == brief.narrationIdentifier)
+      try #require(narration.text == "Compass is ready to build the next slice.")
+    }
+
+    try await withMockFoundationModels(available: false) {
+      let narration = await PlanFactoryBriefNarrator.narrate(brief: brief)
+      try #require(narration == nil)
+    }
+  }
+
   private func makeState(
     completed: [String] = [],
     immediate: PlanNext? = PlanNext(

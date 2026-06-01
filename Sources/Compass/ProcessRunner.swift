@@ -58,6 +58,16 @@ private final class TimeoutStore: @unchecked Sendable {
 }
 
 enum ProcessRunner {
+  private static let timeoutQueue = DispatchQueue(
+    label: "Compass.ProcessRunner.timeout",
+    qos: .userInitiated
+  )
+  private static let outputQueue = DispatchQueue(
+    label: "Compass.ProcessRunner.output",
+    qos: .userInitiated,
+    attributes: .concurrent
+  )
+
   typealias InvocationRunner = (
     _ invocation: AgentExecutionInvocation,
     _ input: String?,
@@ -86,73 +96,77 @@ enum ProcessRunner {
       let stdinPipe = Pipe()
       process.standardOutput = stdoutPipe
       process.standardError = stderrPipe
+      let stdinNull = input == nil ? FileHandle(forReadingAtPath: "/dev/null") : nil
       if input != nil {
         process.standardInput = stdinPipe
+      } else if let stdinNull {
+        process.standardInput = stdinNull
       }
 
       let outputStore = ProcessOutputStore()
       let timeoutStore = TimeoutStore()
+      let outputGroup = DispatchGroup()
+      outputGroup.enter()
+      outputGroup.enter()
 
       let finish: @Sendable (Result<ProcessResult, Error>) -> Void = { result in
         guard outputStore.claimFinish() else { return }
 
-        stdoutPipe.fileHandleForReading.readabilityHandler = nil
-        stderrPipe.fileHandleForReading.readabilityHandler = nil
+        try? stdinNull?.close()
         timeoutStore.cancel()
         continuation.resume(with: result)
       }
 
-      stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-        let data = handle.availableData
-        guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
-        outputStore.appendStdout(chunk)
-        onStdout?(chunk)
-      }
-
-      stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-        let data = handle.availableData
-        guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
-        outputStore.appendStderr(chunk)
-        onStderr?(chunk)
-      }
-
       process.terminationHandler = { process in
-        stdoutPipe.fileHandleForReading.readabilityHandler = nil
-        stderrPipe.fileHandleForReading.readabilityHandler = nil
-        let stdoutRemainder = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        if !stdoutRemainder.isEmpty,
-          let chunk = String(data: stdoutRemainder, encoding: .utf8)
-        {
-          outputStore.appendStdout(chunk)
-          onStdout?(chunk)
+        outputGroup.notify(queue: timeoutQueue) {
+          let snapshot = outputStore.snapshot()
+          finish(
+            .success(
+              ProcessResult(
+                exitCode: process.terminationStatus,
+                stdout: snapshot.stdout,
+                stderr: snapshot.stderr
+              )))
         }
-        let stderrRemainder = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        if !stderrRemainder.isEmpty,
-          let chunk = String(data: stderrRemainder, encoding: .utf8)
-        {
-          outputStore.appendStderr(chunk)
-          onStderr?(chunk)
-        }
-        let snapshot = outputStore.snapshot()
-        finish(
-          .success(
-            ProcessResult(
-              exitCode: process.terminationStatus,
-              stdout: snapshot.stdout,
-              stderr: snapshot.stderr
-            )))
       }
 
       do {
         try process.run()
-        if let input {
-          let data = Data(input.utf8)
-          stdinPipe.fileHandleForWriting.write(data)
-          try stdinPipe.fileHandleForWriting.close()
-        }
       } catch {
+        outputGroup.leave()
+        outputGroup.leave()
         finish(.failure(error))
         return
+      }
+      try? stdoutPipe.fileHandleForWriting.close()
+      try? stderrPipe.fileHandleForWriting.close()
+
+      outputQueue.async {
+        defer { outputGroup.leave() }
+        drainOutput(
+          from: stdoutPipe.fileHandleForReading,
+          append: outputStore.appendStdout,
+          callback: onStdout
+        )
+      }
+      outputQueue.async {
+        defer { outputGroup.leave() }
+        drainOutput(
+          from: stderrPipe.fileHandleForReading,
+          append: outputStore.appendStderr,
+          callback: onStderr
+        )
+      }
+
+      if let input {
+        let data = Data(input.utf8)
+        stdinPipe.fileHandleForWriting.write(data)
+        do {
+          try stdinPipe.fileHandleForWriting.close()
+        } catch {
+          finish(.failure(error))
+          return
+        }
       }
 
       if let timeout {
@@ -162,7 +176,24 @@ enum ProcessRunner {
           }
         }
         timeoutStore.set(work)
-        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: work)
+        timeoutQueue.asyncAfter(deadline: .now() + timeout, execute: work)
+      }
+    }
+  }
+
+  private static func drainOutput(
+    from handle: FileHandle,
+    append: @escaping (String) -> Void,
+    callback: ((String) -> Void)?
+  ) {
+    while true {
+      do {
+        guard let data = try handle.read(upToCount: 8_192), !data.isEmpty else { return }
+        let chunk = String(decoding: data, as: UTF8.self)
+        append(chunk)
+        callback?(chunk)
+      } catch {
+        return
       }
     }
   }

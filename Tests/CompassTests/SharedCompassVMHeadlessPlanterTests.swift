@@ -503,8 +503,6 @@ final class SharedCompassVMHeadlessPlanterTests {
 
   @Test
   func testPlantCleansUpStagingDirectoryEvenWhenElevatedScriptThrows() async throws {
-    let preexistingPlanterDirs = Set(temporaryHeadlessFirstBootDirectories().map(\.path))
-
     let attacher = FakeAttacher()
     attacher.deviceNode = "/dev/disk9"
     let locator = FakeLocator()
@@ -535,23 +533,11 @@ final class SharedCompassVMHeadlessPlanterTests {
     }
     try #require(threwExpected, "plant should rethrow elevator failures")
 
-    let leakedPlanterDirs = temporaryHeadlessFirstBootDirectories().filter {
-      !preexistingPlanterDirs.contains($0.path)
-    }
+    let stagingDirectory = try #require(elevator.invokedScriptURLs.first?.deletingLastPathComponent())
     try #require(
-      leakedPlanterDirs.isEmpty, "plant leaked staging directories: \(leakedPlanterDirs)")
-  }
-
-  private func temporaryHeadlessFirstBootDirectories() -> [URL] {
-    let temporaryDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-    let contents =
-      (try? FileManager.default.contentsOfDirectory(
-        at: temporaryDirectory,
-        includingPropertiesForKeys: nil
-      )) ?? []
-    return contents.filter {
-      $0.lastPathComponent.hasPrefix("Compass-HeadlessFirstBoot-")
-    }
+      !FileManager.default.fileExists(atPath: stagingDirectory.path),
+      "plant leaked staging directory: \(stagingDirectory)"
+    )
   }
 
   // MARK: - Test doubles

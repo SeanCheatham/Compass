@@ -2,11 +2,10 @@ import Foundation
 
 /// SSH helpers for the Compass shared VM guest.
 ///
-/// This type does NOT spawn processes itself — it builds the argument vectors
-/// that the existing Compass process plumbing will feed to `/usr/bin/ssh`.
-/// The probe helper (`probeSSHAvailable`) uses a tiny `Process` wrapper
-/// internally for the readiness gate; that is the only `Process` use in this
-/// file.
+/// Most helpers only build the argument vectors that the existing Compass
+/// process plumbing feeds to `/usr/bin/ssh`. The readiness, control-master,
+/// and known-hosts bootstrap helpers use tiny bounded `Process` wrappers
+/// because they are called before the normal agent transport is available.
 struct SharedCompassVMGuestBridge {
   /// Where Compass-managed `ssh` binaries / config live by default.
   static let defaultSSHExecutablePath = "/usr/bin/ssh"
@@ -209,10 +208,9 @@ struct SharedCompassVMGuestBridge {
       let process = Process()
       process.executableURL = URL(fileURLWithPath: options.executablePath)
       process.arguments = arguments
-      let devNull = FileHandle.nullDevice
-      process.standardOutput = devNull
-      process.standardError = devNull
-      process.standardInput = devNull
+      let devNull = ProcessNullDeviceHandles(output: true, error: true, input: true)
+      devNull.assign(to: process)
+      defer { devNull.close() }
       do {
         try process.run()
       } catch {
@@ -275,10 +273,9 @@ struct SharedCompassVMGuestBridge {
       let process = Process()
       process.executableURL = URL(fileURLWithPath: probeOptions.executablePath)
       process.arguments = arguments
-      let devNull = FileHandle.nullDevice
-      process.standardOutput = devNull
-      process.standardError = devNull
-      process.standardInput = devNull
+      let devNull = ProcessNullDeviceHandles(output: true, error: true, input: true)
+      devNull.assign(to: process)
+      defer { devNull.close() }
       do {
         try process.run()
       } catch {
@@ -330,41 +327,12 @@ struct SharedCompassVMGuestBridge {
     sshKeyscanPath: String = "/usr/bin/ssh-keyscan",
     fileManager: FileManager = .default
   ) async -> KnownHostsBootstrap {
-    let scanResult = await Task.detached { () -> Data? in
-      let process = Process()
-      process.executableURL = URL(fileURLWithPath: sshKeyscanPath)
-      process.arguments = [
-        "-T", String(max(1, Int(timeout.rounded(.up)))),
-        // ed25519 is what sshd advertises by default on macOS;
-        // request all three common types so we end up trusting
-        // whichever the guest happens to use.
-        "-t", "ed25519,rsa,ecdsa",
-        host,
-      ]
-      let stdout = Pipe()
-      process.standardOutput = stdout
-      process.standardError = FileHandle.nullDevice
-      process.standardInput = FileHandle.nullDevice
-      do {
-        try process.run()
-      } catch {
-        return nil
-      }
-      let deadline = Date().addingTimeInterval(timeout + 2)
-      while process.isRunning && Date() < deadline {
-        try? await Task.sleep(nanoseconds: 100_000_000)
-      }
-      if process.isRunning {
-        process.terminate()
-        return nil
-      }
-      guard process.terminationStatus == 0 else { return nil }
-      return try? stdout.fileHandleForReading.readToEnd()
-    }.value
-
-    guard let data = scanResult, !data.isEmpty,
-      let scanned = String(data: data, encoding: .utf8)
-    else {
+    let scanned = await runKeyscan(
+      host: host,
+      timeout: timeout,
+      sshKeyscanPath: sshKeyscanPath
+    )
+    guard let scanned, !scanned.isEmpty else {
       return KnownHostsBootstrap(succeeded: false, entriesAppended: 0)
     }
 
@@ -404,6 +372,58 @@ struct SharedCompassVMGuestBridge {
       return KnownHostsBootstrap(succeeded: true, entriesAppended: toAppend.count)
     } catch {
       return KnownHostsBootstrap(succeeded: false, entriesAppended: 0)
+    }
+  }
+
+  private static func runKeyscan(
+    host: String,
+    timeout: TimeInterval,
+    sshKeyscanPath: String
+  ) async -> String? {
+    do {
+      let result = try await ProcessRunner.run(
+        executable: sshKeyscanPath,
+        arguments: [
+          "-T", String(max(1, Int(timeout.rounded(.up)))),
+          "-t", "ed25519,rsa,ecdsa",
+          host,
+        ],
+        timeout: timeout + 2
+      )
+      guard result.exitCode == 0, !result.stdout.isEmpty else { return nil }
+      return result.stdout
+    } catch {
+      return nil
+    }
+  }
+
+  private struct ProcessNullDeviceHandles {
+    private let outputHandle: FileHandle?
+    private let errorHandle: FileHandle?
+    private let inputHandle: FileHandle?
+
+    init(output: Bool, error: Bool, input: Bool) {
+      outputHandle = output ? FileHandle(forWritingAtPath: "/dev/null") : nil
+      errorHandle = error ? FileHandle(forWritingAtPath: "/dev/null") : nil
+      inputHandle = input ? FileHandle(forReadingAtPath: "/dev/null") : nil
+    }
+
+    func assign(to process: Process) {
+      if let outputHandle {
+        process.standardOutput = outputHandle
+      }
+      if let errorHandle {
+        process.standardError = errorHandle
+      }
+      if let inputHandle {
+        process.standardInput = inputHandle
+      }
+    }
+
+    func close() {
+      try? outputHandle?.close()
+      try? errorHandle?.close()
+      try? inputHandle?.close()
     }
   }
 }

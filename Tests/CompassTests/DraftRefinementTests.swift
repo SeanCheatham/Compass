@@ -144,7 +144,6 @@ struct DraftRefinementTests {
     let plan = DraftRefinementPreviewPlanner.plan(
       draft: "  add parser tests  ",
       context: context,
-      isModelAvailable: true,
       cachedKeys: []
     )
 
@@ -157,7 +156,6 @@ struct DraftRefinementTests {
     let cachedPlan = DraftRefinementPreviewPlanner.plan(
       draft: "add parser tests",
       context: context,
-      isModelAvailable: true,
       cachedKeys: [key]
     )
 
@@ -167,25 +165,42 @@ struct DraftRefinementTests {
     try #require(cachedPlan.shouldShowPreviewSurface)
   }
 
-  @Test func testPreviewPlannerHidesForEmptyDraftAndUnavailableModel() throws {
+  @Test func testPreviewPlannerHidesForEmptyDraftButUsesQuickPolishWhenModelUnavailable()
+    throws
+  {
     let context = makeContext()
     let emptyPlan = DraftRefinementPreviewPlanner.plan(
       draft: "   ",
       context: context,
-      isModelAvailable: true,
       cachedKeys: []
     )
     let unavailablePlan = DraftRefinementPreviewPlanner.plan(
       draft: "add parser tests",
       context: context,
-      isModelAvailable: false,
       cachedKeys: []
     )
 
     try #require(emptyPlan.visibility == .hiddenEmptyDraft)
     try #require(!emptyPlan.shouldShowPreviewSurface)
-    try #require(unavailablePlan.visibility == .hiddenUnavailableModel)
-    try #require(!unavailablePlan.shouldShowPreviewSurface)
+    try #require(unavailablePlan.visibility == .debounce)
+    try #require(unavailablePlan.cacheKey != nil)
+    try #require(unavailablePlan.shouldShowPreviewSurface)
+  }
+
+  @Test func testPreviewAvailabilityIncludesDeterministicQuickPolish() async throws {
+    try await withMockFoundationModels(available: false) {
+      try #require(DraftRefinementService.isPreviewAvailable)
+
+      let refinement = try #require(
+        await DraftRefinementService.makeRefinement(
+          draft: "add parser tests",
+          context: makeContext()
+        )
+      )
+
+      try #require(refinement.source == .deterministic)
+      try #require(refinement.refinedText == "Add parser tests.")
+    }
   }
 
   private func makeContext() -> DraftRefinementContext {

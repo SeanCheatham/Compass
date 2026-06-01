@@ -75,6 +75,16 @@ struct PlanPromptTests {
     try #require(prompt.contains("no matches"))
   }
 
+  @Test func testPlanPromptRequiresPlainLanguageExecutableHandoffs() throws {
+    let prompt = try makePlanPrompt()
+    try #require(prompt.contains("non-engineer owner"))
+    try #require(prompt.contains("weaker Develop model"))
+    try #require(prompt.contains("Outcome"))
+    try #require(prompt.contains("Why it matters"))
+    try #require(prompt.contains("Acceptance checks"))
+    try #require(prompt.contains("explicit sequencing"))
+  }
+
   @Test func testPlanPromptDefaultsTowardImmediatePlan() throws {
     let prompt = try makePlanPrompt()
     try #require(

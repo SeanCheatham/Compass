@@ -1,5 +1,175 @@
 import SwiftUI
 
+struct PlanFactoryBriefView: View {
+  var brief: PlanFactoryBrief
+  var narration: PlanFactoryBriefNarration?
+
+  private let factColumns = [
+    GridItem(.adaptive(minimum: 220), spacing: 8, alignment: .top)
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: systemImage)
+          .font(.system(size: 18, weight: .semibold))
+          .foregroundStyle(color)
+          .frame(width: 34, height: 34)
+          .background(color.opacity(0.14), in: Circle())
+
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(brief.title)
+              .font(.headline)
+
+            Text(brief.primaryActionLabel)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(color)
+              .padding(.horizontal, 8)
+              .padding(.vertical, 3)
+              .background(color.opacity(0.12), in: Capsule())
+
+            if narration != nil {
+              Label("On-device brief", systemImage: "sparkles")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            }
+          }
+
+          Text(narration?.text ?? brief.detail)
+            .font(.callout)
+            .foregroundStyle(.primary)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+        }
+
+        Spacer(minLength: 8)
+      }
+
+      LazyVGrid(columns: factColumns, alignment: .leading, spacing: 8) {
+        briefFact(
+          title: brief.proofLabel,
+          detail: brief.proofDetail,
+          systemImage: "checkmark.seal",
+          command: brief.proofCommand
+        )
+
+        briefFact(
+          title: brief.routeLabel,
+          detail: brief.routeDetail,
+          systemImage: "macwindow.on.rectangle"
+        )
+
+        briefFact(
+          title: brief.handoffDigest.title,
+          detail: brief.handoffDigest.detail,
+          systemImage: brief.handoffDigest.systemImage
+        )
+      }
+
+      if !brief.chips.isEmpty {
+        FlowChipRow(chips: brief.chips, color: color)
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+    .overlay {
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(color.opacity(0.22))
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(brief.title). \(narration?.text ?? brief.detail)")
+  }
+
+  private func briefFact(
+    title: String,
+    detail: String,
+    systemImage: String,
+    command: String? = nil
+  ) -> some View {
+    HStack(alignment: .top, spacing: 7) {
+      Image(systemName: systemImage)
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(color)
+        .frame(width: 18, height: 18)
+
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+          .fixedSize(horizontal: false, vertical: true)
+          .textSelection(.enabled)
+
+        if let command {
+          Text(command)
+            .font(.caption.monospaced())
+            .foregroundStyle(.tertiary)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .textSelection(.enabled)
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+  }
+
+  private var color: Color {
+    switch brief.status {
+    case .ready:
+      return .blue
+    case .paused:
+      return .teal
+    case .needsAttention:
+      return .orange
+    case .planning:
+      return .purple
+    case .idle:
+      return .secondary
+    }
+  }
+
+  private var systemImage: String {
+    switch brief.status {
+    case .ready:
+      return "play.circle.fill"
+    case .paused:
+      return "pause.circle.fill"
+    case .needsAttention:
+      return "exclamationmark.triangle.fill"
+    case .planning:
+      return "map.fill"
+    case .idle:
+      return "tray"
+    }
+  }
+}
+
+struct FlowChipRow: View {
+  var chips: [PlanFactoryBrief.Chip]
+  var color: Color
+
+  var body: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 6) {
+        ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in
+          Label(chip.label, systemImage: chip.systemImage)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.1), in: Capsule())
+        }
+      }
+    }
+  }
+}
+
 struct PlanWorkflowOverviewView: View {
   var overview: PlanWorkflowOverview
   var selectedKind: PlanWorkflowOverview.Kind?
@@ -170,7 +340,10 @@ struct PlanWorkflowMetadataRow: View {
   var body: some View {
     HStack(spacing: 6) {
       if let verifyCommand = section.verifyCommand {
-        metadataLabel(verifyCommand, systemImage: "checkmark.seal")
+        metadataLabel(
+          PlanVerifyCommandSummary(command: verifyCommand).title,
+          systemImage: "checkmark.seal"
+        )
           .textSelection(.enabled)
       } else if section.kind == .immediate {
         metadataLabel("No verify command", systemImage: "checkmark.seal")
@@ -327,6 +500,10 @@ struct PlanFocusPanel: View {
 
       MarkdownContent(item.body, empty: item.emptyMessage)
 
+      if item.kind == .immediate {
+        PlanHandoffDigestView(digest: PlanHandoffDigest(plan: item.body))
+      }
+
       if let verify = item.verify {
         VerifyCommandView(command: verify)
       }
@@ -341,14 +518,106 @@ struct PlanFocusPanel: View {
   }
 }
 
+struct PlanHandoffDigestView: View {
+  var digest: PlanHandoffDigest
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Divider()
+        .padding(.vertical, 2)
+
+      Label(digest.title, systemImage: digest.systemImage)
+        .font(.callout.weight(.semibold))
+        .foregroundStyle(color)
+
+      Text(digest.detail)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+
+      if let outcome = digest.outcome {
+        digestLine(title: "Outcome", text: outcome, systemImage: "target")
+      }
+
+      if let whyItMatters = digest.whyItMatters {
+        digestLine(title: "Why", text: whyItMatters, systemImage: "person.crop.circle.badge.questionmark")
+      }
+
+      if !digest.acceptanceChecks.isEmpty {
+        VStack(alignment: .leading, spacing: 5) {
+          Text("Acceptance checks")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(Array(digest.acceptanceChecks.enumerated()), id: \.offset) { _, check in
+            Label(check, systemImage: "checkmark.circle")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+              .textSelection(.enabled)
+          }
+        }
+      }
+
+      if !digest.missingPieces.isEmpty {
+        Text("Missing: \(digest.missingPieces.map(\.label).joined(separator: ", "))")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+      }
+    }
+    .padding(.top, 2)
+  }
+
+  private func digestLine(title: String, text: String, systemImage: String) -> some View {
+    Label {
+      Text("\(title): \(text)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+    } icon: {
+      Image(systemName: systemImage)
+        .foregroundStyle(color)
+    }
+  }
+
+  private var color: Color {
+    switch digest.status {
+    case .ready:
+      return .green
+    case .needsDetail:
+      return .orange
+    case .missingPlan:
+      return .secondary
+    }
+  }
+}
+
 struct VerifyCommandView: View {
   var command: String
 
   var body: some View {
-    Label(command, systemImage: "checkmark.seal")
-      .font(.callout.monospaced())
-      .foregroundStyle(.secondary)
-      .textSelection(.enabled)
-      .padding(.top, 2)
+    let summary = PlanVerifyCommandSummary(command: command)
+
+    VStack(alignment: .leading, spacing: 5) {
+      Label(summary.title, systemImage: summary.systemImage)
+        .font(.callout.weight(.semibold))
+        .foregroundStyle(.secondary)
+
+      Text(summary.detail)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+
+      if let command = summary.command {
+        Text(command)
+          .font(.callout.monospaced())
+          .foregroundStyle(.tertiary)
+          .textSelection(.enabled)
+      }
+    }
+    .padding(.top, 2)
   }
 }

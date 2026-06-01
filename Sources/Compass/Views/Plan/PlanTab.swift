@@ -5,6 +5,7 @@ struct PlanTab: View {
   @State private var selectedItemID = PlanTimelineItem.immediateID
   @State private var showAllSessionHistory = false
   @State private var sessionHistoryFilter = PlanSessionHistoryFilter.all
+  @State private var factoryBriefNarration: PlanFactoryBriefNarration?
 
   var body: some View {
     let items = PlanTimelineItem.items(for: project.state)
@@ -22,6 +23,12 @@ struct PlanTab: View {
       sessions: historySessions,
       historyItems: sessionHistory
     )
+    let factoryBrief = PlanFactoryBrief(
+      state: project.state,
+      reliabilityFeedback: reliabilityFeedback,
+      launchPlan: launchPlan,
+      languageProfile: project.languageProfile
+    )
     let sessionHistoryDisplay = PlanSessionHistoryDisplay(
       items: sessionHistory,
       mode: showAllSessionHistory ? .all : .recent,
@@ -35,6 +42,11 @@ struct PlanTab: View {
           items: items,
           selectedItemID: $selectedItemID,
           completedCount: project.state.completed.count
+        )
+
+        PlanFactoryBriefView(
+          brief: factoryBrief,
+          narration: matchingNarration(for: factoryBrief)
         )
 
         PlanWorkflowOverviewView(
@@ -82,6 +94,11 @@ struct PlanTab: View {
     .onChange(of: project.state) {
       normalizeSelection(for: PlanTimelineItem.items(for: project.state))
     }
+    .task(id: "\(factoryBrief.narrationIdentifier)|running-\(project.isRunning)") {
+      factoryBriefNarration = nil
+      guard !project.isRunning else { return }
+      factoryBriefNarration = await PlanFactoryBriefNarrator.narrate(brief: factoryBrief)
+    }
   }
 
   private func selectedItem(in items: [PlanTimelineItem]) -> PlanTimelineItem {
@@ -93,5 +110,12 @@ struct PlanTab: View {
     if !items.contains(where: { $0.id == selectedItemID }) {
       selectedItemID = items.first { $0.id == PlanTimelineItem.immediateID }?.id ?? items[0].id
     }
+  }
+
+  private func matchingNarration(for brief: PlanFactoryBrief) -> PlanFactoryBriefNarration? {
+    guard factoryBriefNarration?.briefIdentifier == brief.narrationIdentifier else {
+      return nil
+    }
+    return factoryBriefNarration
   }
 }

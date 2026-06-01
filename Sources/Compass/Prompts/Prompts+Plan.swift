@@ -78,6 +78,11 @@ extension Prompts {
       - Pick one commit-sized `immediate` with a real verify command that proves
         the important behavior. If there are no relevant tests, use build or
         typecheck as the fallback.
+      - Write `immediate.plan` as a handoff that a non-engineer owner can
+        understand and a weaker Develop model can execute. Prefer short
+        markdown sections named `Outcome`, `Why it matters`, and
+        `Acceptance checks`; keep jargon explained, name the concrete surface
+        being changed, and include explicit sequencing when order matters.
       - If the increment touches feature-gated, optional-provider, platform-specific,
         or conditional-compilation code, plan a verify matrix that compiles the
         relevant variants (for Rust/Cargo this usually means including

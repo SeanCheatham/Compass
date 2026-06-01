@@ -304,7 +304,12 @@ struct SessionRecordStore: Equatable {
   ) -> String? {
     sessions
       .filter { $0.session != session && $0.endedAt != nil }
-      .sorted { $0.startedAt > $1.startedAt }
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt {
+          return lhs.startedAt > rhs.startedAt
+        }
+        return (lhs.endedAt ?? 0) > (rhs.endedAt ?? 0)
+      }
       .compactMap { $0.feedback?.trimmingCharacters(in: .whitespacesAndNewlines) }
       .first { !$0.isEmpty }
   }
