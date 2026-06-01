@@ -167,15 +167,16 @@ extension AgentExecutor {
         Immediate Plan and a real verify command. Write `state.immediate.plan` with short Markdown \
         sections named `Outcome` and `Acceptance checks`; add `Why it matters` when it helps the \
         non-engineer owner. Make the acceptance checks observable enough for Develop to know when it is \
-        done. Preserve `midTerm` and `longTerm` unless you have a specific revision. Use `immediate: null` \
-        only when there was already no mid-term or long-term runway before this Plan pass and there is still none.
+        done, and keep shell commands only in `state.immediate.verify`. Preserve `midTerm` and `longTerm` \
+        unless you have a specific revision. Use `immediate: null` only when there was already no mid-term \
+        or long-term runway before this Plan pass and there is still none.
 
         Use this exact retry shape. Replace the bracketed text, keep the top-level keys exactly as shown, \
         and do not answer in prose:
         {
           "state": {
             "immediate": {
-              "plan": "## Outcome\\n<one sentence: what will change>\\n\\n## Why it matters\\n<who this helps and why>\\n\\n## Acceptance checks\\n- <observable finish-line behavior>\\n- <the verify command proves the change>",
+              "plan": "## Outcome\\n<one sentence: what will change>\\n\\n## Why it matters\\n<who this helps and why>\\n\\n## Acceptance checks\\n- <observable finish-line behavior>\\n- <another observable result; state.immediate.verify proves it>",
               "verify": "<real shell command, no cd prefix>",
               "verifyTimeoutMs": 600000,
               "estimatedDifficulty": "low"

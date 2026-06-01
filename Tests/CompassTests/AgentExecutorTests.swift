@@ -451,6 +451,13 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("\"immediate\""))
     try #require(nudge.userMessage.contains("\"verifyTimeoutMs\": 600000"))
     try #require(nudge.userMessage.contains("## Outcome\\n"))
+    try #require(nudge.userMessage.contains("keep shell commands only in `state.immediate.verify`"))
+    try #require(
+      nudge.userMessage.contains(
+        "<another observable result; state.immediate.verify proves it>"
+      )
+    )
+    try #require(!nudge.userMessage.contains("<the verify command proves the change>"))
     try #require(nudge.userMessage.contains("do not answer in prose"))
   }
 
