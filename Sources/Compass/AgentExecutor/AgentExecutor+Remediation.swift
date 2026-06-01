@@ -439,21 +439,81 @@ extension AgentExecutor {
     argumentsPreview: String,
     maxCompletionTokens: Int
   ) -> InvalidToolArgumentsNudge {
+    let retryHint = toolArgumentsRetryHint(for: toolName)
     if finishReason == "length" {
       return InvalidToolArgumentsNudge(
         eventText: "\(toolName) truncated",
         eventDetail:
           "Output hit the max-tokens cap (\(maxCompletionTokens)); asking the model to retry with a smaller payload.",
-        userMessage:
-          "Your previous `\(toolName)` call was truncated by the output-token limit, so its arguments were not valid JSON. Retry with a smaller payload — for file edits, break the change into multiple smaller `edit_file` calls instead of one large one. The tool args must be complete, valid JSON."
+        userMessage: """
+          Your previous `\(toolName)` call was truncated by the output-token limit, so its arguments \
+          were not valid JSON. Retry with a smaller payload — for file edits, break the change into \
+          multiple smaller `edit_file` calls instead of one large one. The tool args must be complete, \
+          valid JSON.
+
+          \(retryHint)
+          """
       )
     }
     return InvalidToolArgumentsNudge(
       eventText: "\(toolName) rejected",
       eventDetail: "\(toolName) args are not valid JSON: \(argumentsPreview)",
-      userMessage:
-        "Your previous `\(toolName)` arguments could not be parsed as JSON. The upstream rejects the next request when any tool call's arguments are malformed, so the call was dropped without invoking the tool. Retry with valid JSON — pay attention to escaping (`\\n` for newlines, `\\\"` for quotes inside strings) and to closing all braces/brackets. If the payload is very large, split it into multiple smaller calls."
+      userMessage: """
+        Your previous `\(toolName)` arguments could not be parsed as JSON. The upstream rejects the \
+        next request when any tool call's arguments are malformed, so the call was dropped without \
+        invoking the tool. Retry with valid JSON — pay attention to escaping (`\\n` for newlines, \
+        `\\\"` for quotes inside strings) and to closing all braces/brackets. If the payload is very \
+        large, split it into multiple smaller calls.
+
+        \(retryHint)
+        """
     )
+  }
+
+  private static func toolArgumentsRetryHint(for toolName: String) -> String {
+    switch toolName {
+    case AgentEditFileTool.toolName:
+      return """
+        Use this compact `edit_file` retry shape:
+        {
+          "path": "relative/path.ext",
+          "edits": [
+            {
+              "oldString": "<exact text copied from a prior read_file result>",
+              "newString": "<replacement text>",
+              "replaceAll": false
+            }
+          ]
+        }
+
+        Keep `oldString` exact and small. Use JSON escapes for embedded newlines. Do not answer in prose.
+        """
+    case AgentWriteFileTool.toolName:
+      return """
+        Use this compact `write_file` retry shape:
+        {
+          "path": "relative/path.ext",
+          "content": "<complete UTF-8 file contents>"
+        }
+
+        Use JSON escapes for embedded newlines. Do not answer in prose.
+        """
+    case AgentReadFileTool.toolName:
+      return """
+        Use this compact `read_file` retry shape:
+        {
+          "path": "relative/path.ext",
+          "offset": 1,
+          "limit": 200
+        }
+
+        Omit `offset` and `limit` when you want the default slice. Do not answer in prose.
+        """
+    default:
+      return """
+        Retry with one valid JSON object matching the `\(toolName)` tool schema. Do not answer in prose.
+        """
+    }
   }
 
   /// Drop everything from `messages` from `targetCount` onward. Used when

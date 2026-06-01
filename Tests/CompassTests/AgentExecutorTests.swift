@@ -679,6 +679,10 @@ struct AgentExecutorTests {
     try #require(
       nudge.userMessage.contains("smaller"),
       "truncation nudge should push the model toward smaller payloads")
+    try #require(nudge.userMessage.contains("Use this compact `edit_file` retry shape"))
+    try #require(nudge.userMessage.contains("\"oldString\""))
+    try #require(nudge.userMessage.contains("\"newString\""))
+    try #require(nudge.userMessage.contains("\"replaceAll\": false"))
     try #require(nudge.userMessage.contains("complete, valid JSON"))
   }
 
@@ -710,10 +714,58 @@ struct AgentExecutorTests {
       try #require(
         nudge.userMessage.contains("escaping"),
         "rejected nudge should mention escaping — model-side escape bugs are a common cause")
+      try #require(nudge.userMessage.contains("Use this compact `edit_file` retry shape"))
+      try #require(nudge.userMessage.contains("oldString"))
+      try #require(nudge.userMessage.contains("Do not answer in prose"))
       try #require(
         !nudge.userMessage.contains("submit_result"),
         "generic-tool nudge must not leak submit_result-specific wording")
     }
+  }
+
+  @Test func testInvalidToolArgumentsNudgeIncludesWriteFileRetryShape() throws {
+    let nudge = AgentExecutor.invalidToolArgumentsNudge(
+      toolName: "write_file",
+      finishReason: "tool_calls",
+      argumentsPreview: "{\"path\":\"Sources/App.swift\",\"content\":\"import",
+      maxCompletionTokens: 80_000
+    )
+
+    try #require(nudge.eventText == "write_file rejected")
+    try #require(nudge.userMessage.contains("Use this compact `write_file` retry shape"))
+    try #require(nudge.userMessage.contains("\"path\": \"relative/path.ext\""))
+    try #require(nudge.userMessage.contains("\"content\": \"<complete UTF-8 file contents>\""))
+    try #require(nudge.userMessage.contains("Use JSON escapes for embedded newlines"))
+    try #require(nudge.userMessage.contains("Do not answer in prose"))
+  }
+
+  @Test func testInvalidToolArgumentsNudgeIncludesReadFileRetryShape() throws {
+    let nudge = AgentExecutor.invalidToolArgumentsNudge(
+      toolName: "read_file",
+      finishReason: nil,
+      argumentsPreview: "{\"path\":\"Sources/App.swift\",\"offset\":",
+      maxCompletionTokens: 80_000
+    )
+
+    try #require(nudge.eventText == "read_file rejected")
+    try #require(nudge.userMessage.contains("Use this compact `read_file` retry shape"))
+    try #require(nudge.userMessage.contains("\"offset\": 1"))
+    try #require(nudge.userMessage.contains("\"limit\": 200"))
+    try #require(nudge.userMessage.contains("Omit `offset` and `limit`"))
+    try #require(nudge.userMessage.contains("Do not answer in prose"))
+  }
+
+  @Test func testInvalidToolArgumentsNudgeFallsBackForUnknownToolShape() throws {
+    let nudge = AgentExecutor.invalidToolArgumentsNudge(
+      toolName: "custom_tool",
+      finishReason: nil,
+      argumentsPreview: "{\"value\":",
+      maxCompletionTokens: 80_000
+    )
+
+    try #require(nudge.eventText == "custom_tool rejected")
+    try #require(nudge.userMessage.contains("matching the `custom_tool` tool schema"))
+    try #require(nudge.userMessage.contains("Do not answer in prose"))
   }
 
   // MARK: - Rollback helpers
