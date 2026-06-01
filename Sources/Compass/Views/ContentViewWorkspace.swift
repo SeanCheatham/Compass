@@ -637,6 +637,17 @@ struct ProjectRunControls: View {
       .menuStyle(.borderlessButton)
       .help(feedbackMenu.helpText)
 
+      Button {
+        run(runGuide.primaryOption.kind)
+      } label: {
+        Label(runGuide.primaryOption.title, systemImage: runGuide.primaryOption.systemImage)
+          .lineLimit(1)
+      }
+      .buttonStyle(.borderedProminent)
+      .disabled(!runGuide.primaryOption.isEnabled)
+      .help("\(runGuide.primaryHelp) \(runGuide.primaryOption.detail)")
+      .accessibilityHint(runGuide.primaryOption.detail)
+
       Menu {
         ForEach(runGuide.options) { option in
           Button {
@@ -648,12 +659,12 @@ struct ProjectRunControls: View {
           Text(option.detail)
         }
       } label: {
-        Image(systemName: "play.fill")
+        Image(systemName: "chevron.down.circle")
           .frame(width: 18, height: 18)
       }
-      .buttonStyle(.borderedProminent)
+      .menuStyle(.borderlessButton)
       .disabled(project.isRunning || project.isAutoPlaying || !project.hasRepository)
-      .help(runGuide.primaryHelp)
+      .help("Choose a factory run mode. \(runGuide.primaryHelp)")
 
       Menu {
         ForEach(PauseMode.allCases) { mode in

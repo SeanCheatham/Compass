@@ -17,7 +17,10 @@ struct ProjectRunControlGuideTests {
 
     try #require(
       guide.primaryHelp == "Run Plan first, or let the full loop choose and build the next slice.")
+    try #require(guide.primaryKind == .loop)
+    try #require(guide.primaryOption.title == "Run Loop")
     try #require(guide.options.map(\.kind) == [.loop, .planOnly, .developOnly])
+    try #require(guide.alternativeOptions.map(\.kind) == [.planOnly, .developOnly])
     try #require(guide.options[0].isEnabled)
     try #require(guide.options[1].isEnabled)
     try #require(!guide.options[2].isEnabled)
@@ -38,6 +41,8 @@ struct ProjectRunControlGuideTests {
     try #require(
       guide.primaryHelp
         == "Choose whether to run the full loop, re-plan, or develop the current slice.")
+    try #require(guide.primaryKind == .loop)
+    try #require(guide.primaryOption.kind == .loop)
     try #require(guide.options.allSatisfy { $0.isEnabled })
     try #require(guide.options[0].title == "Run Loop")
     try #require(guide.options[1].title == "Run Plan Only")
@@ -57,6 +62,7 @@ struct ProjectRunControlGuideTests {
     )
 
     try #require(guide.primaryHelp == "Choose how to resume the paused factory.")
+    try #require(guide.primaryKind == .loop)
     try #require(guide.options[0].title == "Resume Loop")
     try #require(guide.options[0].detail == "Resume the factory from its paused gate.")
   }
@@ -88,7 +94,44 @@ struct ProjectRunControlGuideTests {
     )
 
     try #require(guide.primaryHelp == "Verify failed: Retry Develop")
+    try #require(guide.primaryKind == .developOnly)
+    try #require(guide.primaryOption.title == "Retry Develop")
+    try #require(
+      guide.primaryOption.detail
+        == "Retry the current Immediate Work with the captured issue still visible.")
     try #require(guide.options[0].detail == "Verify failed: Retry Develop.")
+  }
+
+  @Test
+  func testRejectedPlanMakesPlanThePrimaryRepairAction() throws {
+    let feedback = PlanReliabilityFeedback(
+      state: makeState(),
+      sessions: [
+        makeSession(
+          status: .failed,
+          notes: [
+            "Plan returned an immediate handoff that is not executable enough for Develop. Missing Acceptance checks."
+          ]
+        )
+      ]
+    )
+    let reliabilityStatus = ProjectReliabilityStatus(feedback: feedback)
+
+    let guide = ProjectRunControlGuide(
+      state: makeState(),
+      reliabilityStatus: reliabilityStatus,
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false
+    )
+
+    try #require(guide.primaryHelp == "Plan rejected: Retry Plan")
+    try #require(guide.primaryKind == ProjectRunControlGuide.Kind.planOnly)
+    try #require(guide.primaryOption.title == "Retry Plan")
+    try #require(
+      guide.primaryOption.detail == "Ask Plan to repair the rejected handoff before Develop starts."
+    )
   }
 
   @Test
@@ -139,6 +182,7 @@ struct ProjectRunControlGuideTests {
 
   private func makeSession(
     status: SessionStatus,
+    notes: [String] = [],
     verifyOutput: VerifyOutput? = nil
   ) -> SessionRecord {
     SessionRecord(
@@ -151,7 +195,7 @@ struct ProjectRunControlGuideTests {
       afterSha: nil,
       commits: [],
       status: status,
-      notes: [],
+      notes: notes,
       verifyOutput: verifyOutput,
       feedback: nil
     )
