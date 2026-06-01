@@ -84,6 +84,10 @@ extension Prompts {
         markdown sections named `Outcome`, `Why it matters`, and
         `Acceptance checks`; keep jargon explained, name the concrete surface
         being changed, and include explicit sequencing when order matters.
+        Acceptance checks describe observable behavior or UI/state outcomes,
+        not shell commands. Put commands only in `state.immediate.verify`;
+        never write checks like `swift test`, `npm test`, `cargo test`,
+        `pytest`, or `Verify: ...` as acceptance bullets.
       - If the increment touches feature-gated, optional-provider, platform-specific,
         or conditional-compilation code, plan a verify matrix that compiles the
         relevant variants (for Rust/Cargo this usually means including
@@ -135,7 +139,7 @@ extension Prompts {
 
       ## Acceptance checks
       - <observable finish-line behavior Develop can verify>
-      - <the planned verify command proves the change>
+      - <another observable result; `state.immediate.verify` must prove it>
       ```
       If sequencing matters, add a short `## Sequence` section after Why it
       matters with 2-4 ordered steps. Do not add speculative files, fake test

@@ -83,6 +83,9 @@ struct PlanPromptTests {
     try #require(prompt.contains("Why it matters"))
     try #require(prompt.contains("Acceptance checks"))
     try #require(prompt.contains("explicit sequencing"))
+    try #require(prompt.contains("Acceptance checks describe observable behavior"))
+    try #require(prompt.contains("Put commands only in `state.immediate.verify`"))
+    try #require(prompt.contains("or `Verify: ...` as acceptance bullets"))
   }
 
   @Test func testPlanPromptIncludesCopyableImmediateHandoffTemplate() throws {
@@ -96,9 +99,12 @@ struct PlanPromptTests {
       prompt.contains("## Why it matters\n<who benefits and why this slice is worth doing now>"))
     try #require(prompt.contains("## Acceptance checks"))
     try #require(prompt.contains("<observable finish-line behavior Develop can verify>"))
+    try #require(
+      prompt.contains("<another observable result; `state.immediate.verify` must prove it>"))
     try #require(prompt.contains("## Sequence"))
     try #require(prompt.contains("Do not add speculative files"))
     try #require(prompt.contains("acceptance checks that the verify command cannot observe"))
+    try #require(!prompt.contains("<the planned verify command proves the change>"))
   }
 
   @Test func testPlanPromptDefaultsTowardImmediatePlan() throws {

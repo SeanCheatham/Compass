@@ -15,8 +15,14 @@
               "additionalProperties": false,
               "required": ["plan", "verify", "verifyTimeoutMs", "estimatedDifficulty"],
               "properties": {
-                "plan": { "type": "string" },
-                "verify": { "type": "string" },
+                "plan": {
+                  "type": "string",
+                  "description": "Compact Markdown handoff with Outcome, Why it matters, and Acceptance checks. Acceptance checks must describe observable behavior or UI/state outcomes, not shell commands."
+                },
+                "verify": {
+                  "type": "string",
+                  "description": "Shell command Compass should run from the repository root. Put commands here, not in Acceptance checks."
+                },
                 "verifyTimeoutMs": {
                   "anyOf": [
                     { "type": "integer", "minimum": 1 },

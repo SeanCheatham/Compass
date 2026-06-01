@@ -69,6 +69,25 @@ struct PromptSchemaLoadingTests {
     )
   }
 
+  @Test
+  func testPlanSchemasKeepCommandsOutOfAcceptanceChecks() throws {
+    for schema in [Prompts.planSchema, Prompts.planHostXcodeSchema] {
+      let immediateProperties = try planImmediateProperties(schema)
+      try #require(
+        propertyDescription("plan", in: immediateProperties)
+          .contains("Acceptance checks must describe observable behavior")
+      )
+      try #require(
+        propertyDescription("plan", in: immediateProperties)
+          .contains("not shell commands")
+      )
+      try #require(
+        propertyDescription("verify", in: immediateProperties)
+          .contains("Put commands here, not in Acceptance checks")
+      )
+    }
+  }
+
   private func schemaProperties(_ schema: String) throws -> [String: Any] {
     let parsed = try JSONSerialization.jsonObject(with: Data(schema.utf8))
     let root = try #require(parsed as? [String: Any])
@@ -78,5 +97,15 @@ struct PromptSchemaLoadingTests {
   private func propertyDescription(_ name: String, in properties: [String: Any]) throws -> String {
     let property = try #require(properties[name] as? [String: Any])
     return try #require(property["description"] as? String)
+  }
+
+  private func planImmediateProperties(_ schema: String) throws -> [String: Any] {
+    let rootProperties = try schemaProperties(schema)
+    let state = try #require(rootProperties["state"] as? [String: Any])
+    let stateProperties = try #require(state["properties"] as? [String: Any])
+    let immediate = try #require(stateProperties["immediate"] as? [String: Any])
+    let variants = try #require(immediate["anyOf"] as? [[String: Any]])
+    let objectVariant = try #require(variants.first { $0["type"] as? String == "object" })
+    return try #require(objectVariant["properties"] as? [String: Any])
   }
 }
