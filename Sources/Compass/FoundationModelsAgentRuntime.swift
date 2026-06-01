@@ -122,6 +122,7 @@ enum FoundationModelsAgentRuntime {
             nextPrompt = rejection
             continue
           }
+          Self.emitSubmitResultAccepted(captured, emit: emit)
           return AgentExecutionResult(
             submitResultArguments: captured,
             iterations: iterations,
@@ -148,6 +149,7 @@ enum FoundationModelsAgentRuntime {
             nextPrompt = rejection
             continue
           }
+          Self.emitSubmitResultAccepted(captured, emit: emit)
           return AgentExecutionResult(
             submitResultArguments: captured,
             iterations: iterations,
@@ -169,7 +171,7 @@ enum FoundationModelsAgentRuntime {
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
   }
 
-  private static func rejectSubmitResultIfNeeded(
+  static func rejectSubmitResultIfNeeded(
     _ submitResultJSON: Data,
     configuration: AgentExecutionConfiguration,
     emit: @Sendable (LiveEvent) -> Void
@@ -196,6 +198,21 @@ enum FoundationModelsAgentRuntime {
     }
   }
 
+  private static func emitSubmitResultAccepted(
+    _ submitResultJSON: Data,
+    emit: @Sendable (LiveEvent) -> Void
+  ) {
+    emit(
+      LiveEvent(
+        level: .success,
+        text: "submit_result",
+        detail: previewString(String(decoding: submitResultJSON, as: UTF8.self)),
+        kind: .agentMessage,
+        status: .completed
+      )
+    )
+  }
+
   // MARK: - Tool construction
 
   private static func buildFoundationModelsTools(
@@ -215,8 +232,7 @@ enum FoundationModelsAgentRuntime {
     out.append(
       SubmitResultTool(
         capture: submitCapture,
-        schema: submitSchema,
-        emit: emit
+        schema: submitSchema
       )
     )
 
@@ -278,7 +294,6 @@ private struct SubmitResultTool: FoundationModels.Tool {
 
   let capture: SubmitResultCapture
   let schema: GenerationSchema
-  let emit: @Sendable (LiveEvent) -> Void
 
   var name: String { AgentExecutor.submitResultToolName }
   var description: String { "Submit the final structured result for this phase." }
@@ -289,15 +304,6 @@ private struct SubmitResultTool: FoundationModels.Tool {
     let json = arguments.jsonString
     let data = Data(json.utf8)
     capture.set(data)
-    emit(
-      LiveEvent(
-        level: .success,
-        text: "submit_result",
-        detail: previewString(json),
-        kind: .agentMessage,
-        status: .completed
-      )
-    )
     throw SubmitResultSignal()
   }
 }

@@ -541,6 +541,56 @@ struct AgentExecutorTests {
     }
   }
 
+  @Test func testFoundationModelsSubmitResultRejectionDoesNotEmitSuccess() throws {
+    let recorder = LiveEventRecorder()
+    let configuration = makeConfiguration(
+      phase: .plan,
+      tools: [],
+      validateSubmitResult: { _ in
+        throw DecodingError.keyNotFound(
+          TestCodingKey("state"),
+          .init(codingPath: [], debugDescription: "Missing state")
+        )
+      }
+    )
+
+    let retryPrompt = FoundationModelsAgentRuntime.rejectSubmitResultIfNeeded(
+      Data(#"{"state":null}"#.utf8),
+      configuration: configuration,
+      emit: { @Sendable event in recorder.record(event) }
+    )
+    let events = recorder.events
+
+    try #require(retryPrompt?.contains("Use this exact retry shape for Plan") == true)
+    try #require(events.count == 1)
+    try #require(events[0].level == .warning)
+    try #require(events[0].text == "submit_result contract rejected")
+    try #require(events[0].status == .failed)
+    try #require(
+      !events.contains { event in
+        event.text == "submit_result" && event.status == .completed
+      }
+    )
+  }
+
+  @Test func testFoundationModelsAcceptedSubmitResultLeavesSuccessEmissionToCaller() throws {
+    let recorder = LiveEventRecorder()
+    let configuration = makeConfiguration(
+      phase: .plan,
+      tools: [],
+      validateSubmitResult: { _ in }
+    )
+
+    let retryPrompt = FoundationModelsAgentRuntime.rejectSubmitResultIfNeeded(
+      Data(#"{"state":null}"#.utf8),
+      configuration: configuration,
+      emit: { @Sendable event in recorder.record(event) }
+    )
+
+    try #require(retryPrompt == nil)
+    try #require(recorder.events.isEmpty)
+  }
+
   @Test func testSubmitResultValidationNudgeUsesLessonEditCopyForOtherErrors() throws {
     let nudge = AgentExecutor.submitResultValidationNudge(
       for: NSError(
@@ -1045,7 +1095,8 @@ struct AgentExecutorTests {
   private func makeConfiguration(
     phase: AgentPhase,
     tools: [AgentTool],
-    submitResultSchema: AgentToolParametersSchema? = nil
+    submitResultSchema: AgentToolParametersSchema? = nil,
+    validateSubmitResult: (@Sendable (Data) throws -> Void)? = nil
   ) -> AgentExecutionConfiguration {
     let schema =
       submitResultSchema
@@ -1061,7 +1112,43 @@ struct AgentExecutorTests {
       userPrompt: "test",
       tools: tools,
       submitResultSchema: schema,
-      workingDirectory: FileManager.default.temporaryDirectory
+      workingDirectory: FileManager.default.temporaryDirectory,
+      validateSubmitResult: validateSubmitResult
     )
+  }
+}
+
+private struct TestCodingKey: CodingKey {
+  var stringValue: String
+  var intValue: Int?
+
+  init(_ stringValue: String) {
+    self.stringValue = stringValue
+  }
+
+  init?(stringValue: String) {
+    self.stringValue = stringValue
+  }
+
+  init?(intValue: Int) {
+    self.stringValue = "\(intValue)"
+    self.intValue = intValue
+  }
+}
+
+private final class LiveEventRecorder: @unchecked Sendable {
+  private let lock = NSLock()
+  private var storage: [LiveEvent] = []
+
+  var events: [LiveEvent] {
+    lock.lock()
+    defer { lock.unlock() }
+    return storage
+  }
+
+  func record(_ event: LiveEvent) {
+    lock.lock()
+    defer { lock.unlock() }
+    storage.append(event)
   }
 }
