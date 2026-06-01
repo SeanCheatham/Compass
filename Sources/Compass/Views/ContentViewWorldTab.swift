@@ -522,6 +522,8 @@ private struct WorldAtlasPanel: View {
   ]
 
   var body: some View {
+    let clipboardPayload = WorldAtlasClipboardPayload(atlas: atlas, narration: narration)
+
     VStack(alignment: .leading, spacing: 10) {
       Divider().overlay(.white.opacity(0.16))
 
@@ -529,6 +531,7 @@ private struct WorldAtlasPanel: View {
         Label(atlas.title, systemImage: "sparkles.rectangle.stack")
           .font(.caption.weight(.semibold))
         Spacer(minLength: 8)
+        CopyWorldAtlasButton(payload: clipboardPayload)
         Text(atlas.progressLabel)
           .font(.caption2.monospacedDigit())
           .foregroundStyle(.white.opacity(0.58))
@@ -665,6 +668,30 @@ private struct WorldAtlasPanel: View {
     case .warning: return Color(red: 0.95, green: 0.72, blue: 0.32)
     case .danger: return Color(red: 0.94, green: 0.39, blue: 0.32)
     }
+  }
+}
+
+private struct CopyWorldAtlasButton: View {
+  var payload: WorldAtlasClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Label(copied ? "Copied" : "Copy World", systemImage: copied ? "checkmark" : "doc.on.doc")
+        .labelStyle(.iconOnly)
+    }
+    .buttonStyle(.bordered)
+    .controlSize(.mini)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded World Atlas handoff for another model or teammate.")
+    .accessibilityLabel(copied ? "Copied World Atlas" : "Copy World Atlas")
   }
 }
 

@@ -43,6 +43,62 @@ struct WorldAtlasTests {
   }
 
   @Test
+  func clipboardPayloadPackagesWorldForReuse() {
+    var graph = WorldGraph()
+    let entry = makeNode(id: "entry", kind: .function, label: "main", confidence: .high)
+    let branch = makeNode(id: "branch", kind: .branch, label: "hasSession", confidence: .high)
+    let unresolved = makeNode(
+      id: "unknown", kind: .unresolvedPassage, label: "remoteConfig", confidence: .low)
+    let error = makeNode(
+      id: "error", kind: .errorPath, label: "throw MissingToken", confidence: .medium)
+
+    [entry, branch, unresolved, error].forEach { graph.addNode($0) }
+    graph.markEntrypoint(entry.id)
+    graph.addEdge(from: entry.id, to: branch.id, kind: .branches, confidence: .high)
+    graph.addEdge(from: branch.id, to: unresolved.id, kind: .calls, confidence: .low)
+    graph.addEdge(from: branch.id, to: error.id, kind: .throws, confidence: .medium)
+
+    let atlas = WorldAtlas(
+      graph: graph,
+      route: [entry.id, branch.id, unresolved.id],
+      routeIndex: 1,
+      selectedNodeID: error.id
+    )
+    let narration = WorldAtlasNarration(
+      atlasIdentifier: atlas.narrationIdentifier,
+      text: "Start at main, then inspect the session decision."
+    )
+
+    let payload = WorldAtlasClipboardPayload(atlas: atlas, narration: narration)
+
+    #expect(!payload.isEmpty)
+    #expect(payload.text.contains("Compass World Atlas Handoff"))
+    #expect(payload.text.contains("Progress: Step 2 of 3"))
+    #expect(payload.text.contains("On-device guide:"))
+    #expect(payload.text.contains("Start at main"))
+    #expect(payload.text.contains("- danger: 1 Error path"))
+    #expect(payload.text.contains("- Current: hasSession - Decision - step 2 of 3"))
+    #expect(payload.text.count <= WorldAtlasClipboardPayload.textLimit)
+  }
+
+  @Test
+  func clipboardPayloadCoversEmptyWorld() {
+    let atlas = WorldAtlas(
+      graph: WorldGraph(),
+      route: [],
+      routeIndex: 0,
+      selectedNodeID: nil
+    )
+
+    let payload = WorldAtlasClipboardPayload(atlas: atlas)
+
+    #expect(!payload.isEmpty)
+    #expect(payload.text.contains("No terrain available yet."))
+    #expect(payload.text.contains("No guided walk selected."))
+    #expect(payload.text.count <= WorldAtlasClipboardPayload.textLimit)
+  }
+
+  @Test
   func emptyWorldPromptsIndexing() {
     let atlas = WorldAtlas(
       graph: WorldGraph(),

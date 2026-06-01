@@ -377,3 +377,94 @@ struct WorldAtlas: Equatable, Sendable {
     "\(count) \(count == 1 ? singular : plural)"
   }
 }
+
+struct WorldAtlasClipboardPayload: Equatable, Sendable {
+  static let textLimit = 2_600
+
+  var text: String
+
+  init(atlas: WorldAtlas, narration: WorldAtlasNarration? = nil) {
+    var sections = [
+      "Compass World Atlas Handoff",
+      "",
+      "Recipient instructions:",
+      "- Treat this packet as bounded code-map context. Do not invent files, functions, risks, or outcomes.",
+      "- Use the World facts to orient the next explanation, review, or implementation step.",
+      "- If a notice says Compass is uncertain, treat it as a lead instead of a confirmed bug.",
+      "",
+      "Overview:",
+      atlas.detail,
+      "Progress: \(atlas.progressLabel)",
+    ]
+
+    if let narrationText = narration?.text.trimmingCharacters(in: .whitespacesAndNewlines),
+      !narrationText.isEmpty
+    {
+      sections.append(contentsOf: ["", "On-device guide:", narrationText])
+    }
+
+    sections.append(contentsOf: ["", "Metrics:"])
+    sections.append(
+      contentsOf:
+        atlas.metrics.prefix(8).map {
+          "- \($0.label): \($0.value) - \($0.detail)"
+        }
+    )
+
+    sections.append(contentsOf: ["", "Terrain:"])
+    if atlas.terrain.isEmpty {
+      sections.append("- No terrain available yet.")
+    } else {
+      sections.append(
+        contentsOf:
+          atlas.terrain.prefix(8).map {
+            "- \($0.label): \($0.count) - \($0.detail)"
+          }
+      )
+    }
+
+    sections.append(contentsOf: ["", "Notices:"])
+    if atlas.notices.isEmpty {
+      sections.append("- No current notices.")
+    } else {
+      sections.append(
+        contentsOf:
+          atlas.notices.prefix(8).map {
+            "- \($0.severity.rawValue): \($0.label) - \($0.detail)"
+          }
+      )
+    }
+
+    sections.append(contentsOf: ["", "Walk:"])
+    if atlas.routeStops.isEmpty {
+      sections.append("- No guided walk selected.")
+    } else {
+      sections.append(
+        contentsOf:
+          atlas.routeStops.prefix(8).map {
+            "- \($0.isCurrent ? "Current" : "Stop"): \($0.label) - \($0.detail)"
+          }
+      )
+    }
+
+    text = WorldAtlasClipboardText.boundedMultilineText(
+      sections.joined(separator: "\n"),
+      limit: Self.textLimit
+    )
+  }
+
+  var isEmpty: Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+private enum WorldAtlasClipboardText {
+  static func boundedMultilineText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard text.count > limit else { return text }
+    guard limit > 3 else { return String(text.prefix(limit)) }
+
+    return String(text.prefix(limit - 3))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+  }
+}
