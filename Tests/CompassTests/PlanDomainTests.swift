@@ -117,6 +117,9 @@ struct PlanTransitionValidatorTests {
     )
 
     let error = try rejectedTransition(from: current, to: next)
+    try #require(error.message.contains("Acceptance checks cannot be only verify commands"))
+    try #require(error.message.contains("`Verify: swift test --filter RecoveryTests`"))
+    try #require(error.rejectedAcceptanceChecks == ["Verify: swift test --filter RecoveryTests"])
     try #require(error.reason == .weakHandoff)
     try #require(error.missingLabels == ["Acceptance checks"])
   }

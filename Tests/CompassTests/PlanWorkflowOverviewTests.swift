@@ -410,6 +410,11 @@ struct PlanWorkflowOverviewTests {
       digest.acceptanceChecks == [
         "Retry button explains the saved failure before it runs again."
       ])
+    try #require(
+      digest.commandOnlyAcceptanceChecks == [
+        "Verify: swift test --filter RecoveryTests",
+        "npm test",
+      ])
 
     let commandOnly = PlanHandoffDigest(
       plan: """
@@ -424,6 +429,11 @@ struct PlanWorkflowOverviewTests {
 
     try #require(commandOnly.status == .needsDetail)
     try #require(commandOnly.acceptanceChecks.isEmpty)
+    try #require(
+      commandOnly.commandOnlyAcceptanceChecks == [
+        "swift test --filter RecoveryTests",
+        "true",
+      ])
     try #require(commandOnly.missingPieces == [.acceptanceChecks, .whyItMatters])
   }
 
@@ -576,6 +586,27 @@ struct PlanWorkflowOverviewTests {
     try #require(!guide.steps[3].isRequired)
     try #require(guide.suggestedVerifyCommand == "npm test")
     try #require(guide.planTemplate?.contains("Make the Plan tab easier to read.") == true)
+  }
+
+  @Test
+  func testHandoffRepairGuideExplainsCommandOnlyAcceptanceChecks() throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: """
+        ## Outcome
+        Make retry recovery safer.
+
+        ## Acceptance checks
+        - Verify: swift test --filter RecoveryTests
+        """,
+      verify: "swift test --filter RecoveryTests",
+      languageProfile: profile(.swift)
+    )
+
+    try #require(guide.status == .needsRepair)
+    try #require(!guide.steps[1].isSatisfied)
+    try #require(
+      guide.steps[1].detail == "Replace command-only checks with observable finish-line behavior."
+    )
   }
 
   @Test

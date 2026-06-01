@@ -14,17 +14,20 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
   var reason: Reason
   var missingLabels: [String]
   var rejectedVerify: String?
+  var rejectedAcceptanceChecks: [String]
 
   init(
     message: String,
     reason: Reason = .unknown,
     missingLabels: [String] = [],
-    rejectedVerify: String? = nil
+    rejectedVerify: String? = nil,
+    rejectedAcceptanceChecks: [String] = []
   ) {
     self.message = message
     self.reason = reason
     self.missingLabels = missingLabels
     self.rejectedVerify = rejectedVerify
+    self.rejectedAcceptanceChecks = rejectedAcceptanceChecks
   }
 
   var errorDescription: String? {
@@ -101,11 +104,17 @@ enum PlanTransitionValidator {
         requiredMissing.isEmpty
         ? "a concrete Outcome and Acceptance checks"
         : requiredMissing.joined(separator: " and ")
+      let rejectedAcceptanceChecks = handoffDigest.commandOnlyAcceptanceChecks
+      let commandOnlyDetail =
+        requiredMissing.contains("Acceptance checks") && !rejectedAcceptanceChecks.isEmpty
+        ? " Acceptance checks cannot be only verify commands (\(formattedRejectedChecks(rejectedAcceptanceChecks))). Put shell commands in `state.immediate.verify`, and describe observable behavior or UI state in `state.immediate.plan`."
+        : ""
       throw PlanTransitionValidationError(
         message:
-          "Plan returned an immediate handoff that is not executable enough for Develop. Missing \(missing). Write `immediate.plan` with short Markdown sections named Outcome and Acceptance checks; include Why it matters when it helps the non-engineer owner. The acceptance checks should state observable finish-line behavior Develop can verify.",
+          "Plan returned an immediate handoff that is not executable enough for Develop. Missing \(missing).\(commandOnlyDetail) Write `immediate.plan` with short Markdown sections named Outcome and Acceptance checks; include Why it matters when it helps the non-engineer owner. The acceptance checks should state observable finish-line behavior Develop can verify.",
         reason: .weakHandoff,
-        missingLabels: requiredMissing
+        missingLabels: requiredMissing,
+        rejectedAcceptanceChecks: rejectedAcceptanceChecks
       )
     }
   }
@@ -134,5 +143,9 @@ enum PlanTransitionValidator {
       return uniqueFields.dropLast().joined(separator: ", ")
         + ", and \(uniqueFields.last ?? "planning state")"
     }
+  }
+
+  private static func formattedRejectedChecks(_ checks: [String]) -> String {
+    checks.prefix(3).map { "`\($0)`" }.joined(separator: ", ")
   }
 }

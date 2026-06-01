@@ -488,6 +488,22 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("Make every acceptance check observable"))
   }
 
+  @Test func testSubmitResultValidationNudgeTargetsCommandOnlyAcceptanceChecks() throws {
+    let nudge = AgentExecutor.submitResultValidationNudge(
+      for: PlanTransitionValidationError(
+        message: "Plan returned command-only acceptance checks.",
+        reason: .weakHandoff,
+        missingLabels: ["Acceptance checks"],
+        rejectedAcceptanceChecks: ["Verify: swift test --filter RecoveryTests"]
+      )
+    )
+
+    try #require(nudge.userMessage.contains("Replace command-only acceptance checks"))
+    try #require(nudge.userMessage.contains("`Verify: swift test --filter RecoveryTests`"))
+    try #require(nudge.userMessage.contains("Keep shell commands in `state.immediate.verify`"))
+    try #require(nudge.userMessage.contains("observable finish-line behavior"))
+  }
+
   @Test func testSubmitResultValidationNudgeTargetsCoverageRequirement() throws {
     let nudge = AgentExecutor.submitResultValidationNudge(
       for: PlanTransitionValidationError(

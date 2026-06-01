@@ -215,6 +215,13 @@ extension AgentExecutor {
         error.missingLabels.isEmpty
         ? "Outcome and Acceptance checks"
         : error.missingLabels.joined(separator: " and ")
+      if !error.rejectedAcceptanceChecks.isEmpty {
+        return """
+          - Replace command-only acceptance checks (\(formattedRejectedAcceptanceChecks(error.rejectedAcceptanceChecks))) with observable finish-line behavior.
+          - Keep shell commands in `state.immediate.verify`; do not repeat them as acceptance checks.
+          - Add \(missing) to `state.immediate.plan` while keeping the slice commit-sized.
+          """
+      }
       return """
         - Add \(missing) to `state.immediate.plan`.
         - Keep the slice commit-sized; do not broaden scope to compensate for the rejection.
@@ -233,6 +240,10 @@ extension AgentExecutor {
         - Preserve existing `midTerm` and `longTerm` unless you have a specific revision.
         """
     }
+  }
+
+  private static func formattedRejectedAcceptanceChecks(_ checks: [String]) -> String {
+    checks.prefix(3).map { "`\($0)`" }.joined(separator: ", ")
   }
 
   static func invalidSubmitResultNudge(

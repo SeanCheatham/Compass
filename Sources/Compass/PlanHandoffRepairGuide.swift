@@ -52,7 +52,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
         kind: .acceptanceChecks,
         isSatisfied: !digest.acceptanceChecks.isEmpty,
         detail: digest.acceptanceChecks.isEmpty
-          ? "List observable finish-line checks."
+          ? Self.acceptanceChecksRepairDetail(digest: digest)
           : "\(digest.acceptanceChecks.count) check\(digest.acceptanceChecks.count == 1 ? "" : "s") listed."
       ),
       Step(
@@ -203,6 +203,13 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
       return "Add coverage to the verify command for \(forgeProfile.displayName)."
     }
     return "Choose a real command Compass can run after Develop."
+  }
+
+  private static func acceptanceChecksRepairDetail(digest: PlanHandoffDigest) -> String {
+    if !digest.commandOnlyAcceptanceChecks.isEmpty {
+      return "Replace command-only checks with observable finish-line behavior."
+    }
+    return "List observable finish-line checks."
   }
 
   private static func suggestedVerifyCommand(

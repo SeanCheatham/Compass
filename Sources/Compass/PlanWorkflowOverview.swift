@@ -222,6 +222,7 @@ struct PlanHandoffDigest: Equatable, Sendable {
   var outcome: String?
   var whyItMatters: String?
   var acceptanceChecks: [String]
+  var commandOnlyAcceptanceChecks: [String]
   var missingPieces: [MissingPiece]
 
   init(plan rawPlan: String?) {
@@ -234,6 +235,7 @@ struct PlanHandoffDigest: Equatable, Sendable {
       outcome = nil
       whyItMatters = nil
       acceptanceChecks = []
+      commandOnlyAcceptanceChecks = []
       missingPieces = [.outcome, .acceptanceChecks]
       return
     }
@@ -242,9 +244,17 @@ struct PlanHandoffDigest: Equatable, Sendable {
     outcome = Self.firstMeaningfulLine(in: sections[.outcome] ?? [])
       ?? Self.fallbackOutcome(in: plan)
     whyItMatters = Self.firstMeaningfulLine(in: sections[.whyItMatters] ?? [])
-    acceptanceChecks = (sections[.acceptanceChecks] ?? [])
+    let cleanedAcceptanceChecks = (sections[.acceptanceChecks] ?? [])
       .map(Self.cleanedContentLine)
-      .filter { !$0.isEmpty && !Self.isCommandOnlyAcceptanceCheck($0) }
+      .filter { !$0.isEmpty }
+    commandOnlyAcceptanceChecks =
+      cleanedAcceptanceChecks
+      .filter(Self.isCommandOnlyAcceptanceCheck)
+      .prefix(Self.checkLimit)
+      .map { StringUtils.boundedText($0, limit: Self.textLimit) }
+    acceptanceChecks =
+      cleanedAcceptanceChecks
+      .filter { !Self.isCommandOnlyAcceptanceCheck($0) }
       .prefix(Self.checkLimit)
       .map { StringUtils.boundedText($0, limit: Self.textLimit) }
 
