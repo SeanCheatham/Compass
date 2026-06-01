@@ -364,6 +364,71 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
+  func testHandoffRepairGuideCreatesTemplateForMissingImmediatePlan() throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: "",
+      verify: nil,
+      languageProfile: profile(.swift, hints: [.packageSwift])
+    )
+
+    try #require(guide.status == .missingHandoff)
+    try #require(guide.shouldShow)
+    try #require(guide.title == "Create the handoff")
+    try #require(guide.scoreLabel == "0 of 3 required")
+    try #require(guide.suggestedVerifyCommand == "swift test")
+    try #require(guide.steps.filter { $0.isRequired }.allSatisfy { !$0.isSatisfied })
+    try #require(guide.planTemplate?.contains("## Outcome") == true)
+    try #require(guide.planTemplate?.contains("\n\n## Why it matters\n") == true)
+    try #require(guide.planTemplate?.contains("Verify: swift test") == true)
+  }
+
+  @Test
+  func testHandoffRepairGuideFlagsWeakPlanAndPlaceholderVerify() throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: "Make the Plan tab easier to read.",
+      verify: "true",
+      languageProfile: profile(.typeScriptJavaScript, hints: [.packageJSON])
+    )
+
+    try #require(guide.status == .needsRepair)
+    try #require(guide.shouldShow)
+    try #require(guide.title == "Make this executable")
+    try #require(guide.detail == "Add Acceptance checks and Verify command before Develop has a clear finish line.")
+    try #require(guide.scoreLabel == "1 of 3 required")
+    try #require(guide.steps[0].isSatisfied)
+    try #require(!guide.steps[1].isSatisfied)
+    try #require(!guide.steps[2].isSatisfied)
+    try #require(!guide.steps[3].isSatisfied)
+    try #require(!guide.steps[3].isRequired)
+    try #require(guide.suggestedVerifyCommand == "npm test")
+    try #require(guide.planTemplate?.contains("Make the Plan tab easier to read.") == true)
+  }
+
+  @Test
+  func testHandoffRepairGuideHidesForExecutablePlanEvenWithoutOptionalWhy() throws {
+    let guide = PlanHandoffRepairGuide(
+      plan: """
+        ## Outcome
+        Add a readable factory launch checklist.
+
+        ## Acceptance checks
+        - Checklist appears beside the immediate plan.
+        - Focused Plan tests pass.
+        """,
+      verify: "swift test --filter PlanWorkflowOverviewTests",
+      languageProfile: profile(.swift)
+    )
+
+    try #require(guide.status == .ready)
+    try #require(!guide.shouldShow)
+    try #require(guide.scoreLabel == "3 of 3 required")
+    try #require(guide.planTemplate == nil)
+    try #require(guide.suggestedVerifyCommand == "swift test --filter PlanWorkflowOverviewTests")
+    try #require(guide.steps.filter { $0.isRequired }.allSatisfy { $0.isSatisfied })
+    try #require(!guide.steps[3].isSatisfied)
+  }
+
+  @Test
   func testFactoryBriefRoutesWeakHandoffsBackToPlan() throws {
     let state = makeState(
       immediate: PlanNext(
@@ -479,12 +544,15 @@ struct PlanWorkflowOverviewTests {
     )
   }
 
-  private func profile(_ language: RepositoryLanguage) -> RepositoryLanguageProfile {
+  private func profile(
+    _ language: RepositoryLanguage,
+    hints: [RepositoryManifestHint] = []
+  ) -> RepositoryLanguageProfile {
     var counts = RepositoryLanguageCounts()
     counts[language] = 1
     return RepositoryLanguageProfile(
       counts: counts,
-      manifestHints: [],
+      manifestHints: hints,
       primaryLanguage: language,
       scannedFileCount: 1,
       scannedDirectoryCount: 1,

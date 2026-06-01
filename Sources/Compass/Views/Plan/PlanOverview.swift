@@ -466,6 +466,7 @@ struct PlanReliabilityNoticeRow: View {
 
 struct PlanFocusPanel: View {
   var item: PlanTimelineItem
+  var languageProfile: RepositoryLanguageProfile
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -502,6 +503,15 @@ struct PlanFocusPanel: View {
 
       if item.kind == .immediate {
         PlanHandoffDigestView(digest: PlanHandoffDigest(plan: item.body))
+
+        let repairGuide = PlanHandoffRepairGuide(
+          plan: item.body,
+          verify: item.verify,
+          languageProfile: languageProfile
+        )
+        if repairGuide.shouldShow {
+          PlanHandoffRepairGuideView(guide: repairGuide)
+        }
       }
 
       if let verify = item.verify {
@@ -514,6 +524,121 @@ struct PlanFocusPanel: View {
     .overlay {
       RoundedRectangle(cornerRadius: 8)
         .stroke(item.kind.color.opacity(0.22))
+    }
+  }
+}
+
+struct PlanHandoffRepairGuideView: View {
+  var guide: PlanHandoffRepairGuide
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Divider()
+        .padding(.vertical, 2)
+
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(guide.title, systemImage: systemImage)
+          .font(.callout.weight(.semibold))
+          .foregroundStyle(color)
+
+        Text(guide.scoreLabel)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 7)
+          .padding(.vertical, 2)
+          .background(.quaternary.opacity(0.7), in: Capsule())
+
+        Spacer(minLength: 8)
+      }
+
+      Text(guide.detail)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+
+      VStack(alignment: .leading, spacing: 6) {
+        ForEach(guide.steps) { step in
+          HStack(alignment: .top, spacing: 7) {
+            Image(systemName: step.systemImage)
+              .font(.system(size: 12, weight: .semibold))
+              .foregroundStyle(step.isSatisfied ? color : .secondary)
+              .frame(width: 16)
+              .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 2) {
+              HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(step.title)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.primary)
+
+                if !step.isRequired {
+                  Text("optional")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(.quaternary.opacity(0.55), in: Capsule())
+                }
+              }
+
+              Text(step.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+          }
+        }
+      }
+
+      if let suggestedVerifyCommand = guide.suggestedVerifyCommand {
+        Label("Suggested verify: \(suggestedVerifyCommand)", systemImage: "terminal")
+          .font(.caption.monospaced())
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+      }
+
+      if let planTemplate = guide.planTemplate {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Plan shape")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+
+          Text(planTemplate)
+            .font(.caption.monospaced())
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+        }
+      }
+    }
+    .padding(.top, 2)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(guide.title). \(guide.detail). \(guide.scoreLabel).")
+  }
+
+  private var color: Color {
+    switch guide.status {
+    case .missingHandoff:
+      return .secondary
+    case .needsRepair:
+      return .orange
+    case .ready:
+      return .green
+    }
+  }
+
+  private var systemImage: String {
+    switch guide.status {
+    case .missingHandoff:
+      return "square.and.pencil"
+    case .needsRepair:
+      return "wrench.and.screwdriver"
+    case .ready:
+      return "checkmark.seal"
     }
   }
 }

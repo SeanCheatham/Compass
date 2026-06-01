@@ -65,7 +65,10 @@ struct PlanTab: View {
 
         PlanReliabilityFeedbackView(feedback: reliabilityFeedback)
 
-        PlanFocusPanel(item: selectedItem(in: items))
+        PlanFocusPanel(
+          item: selectedItem(in: items),
+          languageProfile: project.languageProfile
+        )
 
         PlanSessionHistorySection(
           display: sessionHistoryDisplay,
