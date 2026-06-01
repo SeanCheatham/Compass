@@ -313,6 +313,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     statusText: "Success",
     startedAt: Date(),
     planExcerpt: nil,
+    handoffDigest: PlanHandoffDigest(plan: nil),
     verifyCommand: nil,
     feedback: nil,
     notes: [],
@@ -326,6 +327,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
   var statusText: String
   var startedAt: Date
   var planExcerpt: String?
+  var handoffDigest: PlanHandoffDigest
   var verifyCommand: String?
   var feedback: String?
   var notes: [String]
@@ -340,6 +342,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     statusText: String,
     startedAt: Date,
     planExcerpt: String?,
+    handoffDigest: PlanHandoffDigest = PlanHandoffDigest(plan: nil),
     verifyCommand: String?,
     feedback: String?,
     notes: [String],
@@ -353,6 +356,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     self.statusText = statusText
     self.startedAt = startedAt
     self.planExcerpt = planExcerpt
+    self.handoffDigest = handoffDigest
     self.verifyCommand = verifyCommand
     self.feedback = feedback
     self.notes = notes
@@ -639,6 +643,7 @@ enum PlanSessionHistory {
           statusText: statusText(for: session.status),
           startedAt: Date(timeIntervalSince1970: session.startedAt / 1000),
           planExcerpt: excerpt(session.plan, limit: planExcerptLimit),
+          handoffDigest: PlanHandoffDigest(plan: session.plan),
           verifyCommand: nonEmpty(session.verify),
           feedback: nonEmpty(session.feedback),
           notes: session.notes,

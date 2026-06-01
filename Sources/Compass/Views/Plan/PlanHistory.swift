@@ -135,17 +135,10 @@ struct PlanSessionHistoryCard: View {
           .foregroundStyle(.secondary)
       }
 
-      Text(item.planExcerpt ?? "No plan recorded.")
-        .font(.callout)
-        .foregroundStyle(item.planExcerpt == nil ? .secondary : .primary)
-        .textSelection(.enabled)
-        .fixedSize(horizontal: false, vertical: true)
+      HistoryHandoffSummary(item: item)
 
       if let verifyCommand = item.verifyCommand {
-        Label(verifyCommand, systemImage: "checkmark.seal")
-          .font(.caption.monospaced())
-          .foregroundStyle(.secondary)
-          .textSelection(.enabled)
+        HistoryVerifySummary(command: verifyCommand)
       } else {
         Label("No verify command recorded.", systemImage: "checkmark.seal")
           .font(.caption)
@@ -261,6 +254,97 @@ struct RuntimeRouteBadge: View {
       .padding(.vertical, 4)
       .background(.quaternary.opacity(0.5), in: Capsule())
       .help(descriptor.helpText)
+  }
+}
+
+struct HistoryHandoffSummary: View {
+  var item: PlanSessionHistoryItem
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      if item.handoffDigest.status == .missingPlan {
+        Text("No plan recorded.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      } else {
+        Label(item.handoffDigest.title, systemImage: item.handoffDigest.systemImage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color)
+
+        Text(primarySummary)
+          .font(.callout)
+          .foregroundStyle(.primary)
+          .fixedSize(horizontal: false, vertical: true)
+          .textSelection(.enabled)
+
+        if !item.handoffDigest.acceptanceChecks.isEmpty {
+          VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(item.handoffDigest.acceptanceChecks.enumerated()), id: \.offset) {
+              _, check in
+              Label(check, systemImage: "checkmark.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+            }
+          }
+        } else if !item.handoffDigest.missingPieces.isEmpty {
+          Text(
+            "Missing handoff detail: \(item.handoffDigest.missingPieces.map(\.label).joined(separator: ", "))"
+          )
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+        }
+      }
+    }
+  }
+
+  private var primarySummary: String {
+    item.handoffDigest.outcome
+      ?? item.planExcerpt
+      ?? item.handoffDigest.detail
+  }
+
+  private var color: Color {
+    switch item.handoffDigest.status {
+    case .ready:
+      return .green
+    case .needsDetail:
+      return .orange
+    case .missingPlan:
+      return .secondary
+    }
+  }
+}
+
+struct HistoryVerifySummary: View {
+  var command: String
+
+  var body: some View {
+    let summary = PlanVerifyCommandSummary(command: command)
+
+    VStack(alignment: .leading, spacing: 4) {
+      Label(summary.title, systemImage: summary.systemImage)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+
+      Text(summary.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+
+      if let command = summary.command {
+        Text(command)
+          .font(.caption.monospaced())
+          .foregroundStyle(.tertiary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .textSelection(.enabled)
+      }
+    }
   }
 }
 

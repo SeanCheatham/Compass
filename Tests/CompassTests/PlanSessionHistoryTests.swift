@@ -149,6 +149,46 @@ struct PlanSessionHistoryTests: ~Copyable {
   }
 
   @Test
+  func testExtractsHandoffDigestFromFullPlanForHistoryRows() throws {
+    let items = PlanSessionHistory.displayItems(
+      for: [
+        makeSession(
+          1,
+          startedAt: 1_000,
+          plan: """
+            ## Outcome
+            Show a plain-language run summary in history.
+
+            ## Why it matters
+            Non-engineers can tell what happened without reading markdown.
+
+            ## Acceptance checks
+            - Run history shows the attempted outcome.
+            - Run history keeps the verify command available.
+            """,
+          verify: "swift test --filter PlanSessionHistoryTests"
+        )
+      ],
+      planExcerptLimit: 24
+    )
+
+    let digest = items[0].handoffDigest
+    try #require(items[0].planExcerpt == "## Outcome Show a pla...")
+    try #require(digest.status == .ready)
+    try #require(digest.title == "Executable handoff")
+    try #require(digest.outcome == "Show a plain-language run summary in history.")
+    try #require(
+      digest.whyItMatters == "Non-engineers can tell what happened without reading markdown."
+    )
+    try #require(
+      digest.acceptanceChecks == [
+        "Run history shows the attempted outcome.",
+        "Run history keeps the verify command available.",
+      ]
+    )
+  }
+
+  @Test
   func testDisplayDefaultsToRecentLimit() throws {
     let sessionCount = PlanSessionHistoryDisplay.defaultRecentLimit + 3
     let items = PlanSessionHistory.displayItems(
