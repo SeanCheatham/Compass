@@ -7,7 +7,8 @@ struct WorldTab: View {
   let repoURL: URL
   let workspace: CompassWorkspace?
   let isActive: Bool
-  let onOpenInExplore: (String) -> Void
+  let sessionRecords: () -> [SessionRecord]
+  let onLoadArchivedSessions: () async -> Void
 
   @StateObject private var model = WorldTabViewModel()
 
@@ -63,21 +64,32 @@ struct WorldTab: View {
           )
           .realityViewCameraControls(.orbit)
 
-          WorldMiniMap(
-            graph: graph,
-            selectedNodeID: model.selectedNodeID,
-            route: model.route,
-            onSelect: model.selectNode
-          )
-          .frame(width: 190, height: 150)
+          VStack(alignment: .leading, spacing: 10) {
+            if let script = model.tourScript {
+              WorldSceneGuideOverlay(script: script)
+                .frame(maxWidth: 430, alignment: .leading)
+            }
+
+            WorldMiniMap(
+              graph: graph,
+              selectedNodeID: model.selectedNodeID,
+              route: model.route,
+              onSelect: model.selectNode
+            )
+            .frame(width: 190, height: 150)
+          }
           .padding(14)
         }
 
-        WorldInspectorPanel(
+        WorldSidebarPanel(
           model: model,
-          onOpenInExplore: onOpenInExplore
+          repoURL: repoURL,
+          workspace: workspace,
+          isActive: isActive,
+          sessionRecords: sessionRecords,
+          onLoadArchivedSessions: onLoadArchivedSessions
         )
-        .frame(width: 300)
+        .frame(width: 340)
       }
       .padding(16)
     }
@@ -126,9 +138,13 @@ final class WorldTabViewModel: ObservableObject {
   @Published var route: [String] = []
   @Published var routeIndex = 0
   @Published private(set) var isPlaying = false
+  @Published private(set) var atlasNarration: WorldAtlasNarration?
+  @Published private(set) var tourScript: WorldTourScript?
 
   private var loadedRepoPath: String?
   private var playbackTask: Task<Void, Never>?
+  private var guideTask: Task<Void, Never>?
+  private var guideNarrationIdentifier: String?
 
   var selectedNode: WorldNode? {
     guard let graph, let selectedNodeID else { return nil }
@@ -147,6 +163,22 @@ final class WorldTabViewModel: ObservableObject {
 
   var branchChoices: [WorldNode] {
     WorldNavigator.branchChoices(in: graph ?? WorldGraph(), at: activeNodeID)
+  }
+
+  var atlas: WorldAtlas? {
+    guard let graph else { return nil }
+    return WorldAtlas(
+      graph: graph,
+      route: route,
+      routeIndex: routeIndex,
+      selectedNodeID: selectedNodeID
+    )
+  }
+
+  var matchingAtlasNarration: WorldAtlasNarration? {
+    guard let atlas else { return nil }
+    guard atlasNarration?.atlasIdentifier == atlas.narrationIdentifier else { return nil }
+    return atlasNarration
   }
 
   var searchResults: [WorldNode] {
@@ -169,6 +201,7 @@ final class WorldTabViewModel: ObservableObject {
     isLoading = true
     errorMessage = nil
     pause()
+    resetGuide()
 
     guard let workspace else {
       graph = nil
@@ -196,6 +229,7 @@ final class WorldTabViewModel: ObservableObject {
     loadedRepoPath = repoPath
     graph = built
     isLoading = false
+    refreshGuide()
   }
 
   func selectEntrypoint(_ id: String?) {
@@ -204,6 +238,7 @@ final class WorldTabViewModel: ObservableObject {
     route = WorldNavigator.route(in: graph, from: id)
     routeIndex = 0
     selectedNodeID = route.first ?? id
+    refreshGuide()
   }
 
   func selectNode(_ id: String) {
@@ -211,6 +246,7 @@ final class WorldTabViewModel: ObservableObject {
     if let index = route.firstIndex(of: id) {
       routeIndex = index
     }
+    refreshGuide()
   }
 
   func selectBranch(_ id: String) {
@@ -221,18 +257,21 @@ final class WorldTabViewModel: ObservableObject {
       route.insert(id, at: min(routeIndex + 1, route.count))
       routeIndex = min(routeIndex + 1, route.count - 1)
     }
+    refreshGuide()
   }
 
   func stepForward() {
     guard !route.isEmpty else { return }
     routeIndex = min(routeIndex + 1, route.count - 1)
     selectedNodeID = route[routeIndex]
+    refreshGuide()
   }
 
   func stepBackward() {
     guard !route.isEmpty else { return }
     routeIndex = max(routeIndex - 1, 0)
     selectedNodeID = route[routeIndex]
+    refreshGuide()
   }
 
   func togglePlayback() {
@@ -264,21 +303,133 @@ final class WorldTabViewModel: ObservableObject {
     playbackTask?.cancel()
     playbackTask = nil
   }
+
+  private func resetGuide() {
+    guideTask?.cancel()
+    guideTask = nil
+    guideNarrationIdentifier = nil
+    atlasNarration = nil
+    tourScript = nil
+  }
+
+  private func refreshGuide() {
+    guard let graph, let atlas else {
+      resetGuide()
+      return
+    }
+
+    let narration = matchingAtlasNarration
+    tourScript = WorldTourScript(
+      graph: graph,
+      atlas: atlas,
+      route: route,
+      routeIndex: routeIndex,
+      selectedNodeID: selectedNodeID,
+      narration: narration
+    )
+
+    guard guideNarrationIdentifier != atlas.narrationIdentifier else { return }
+    guideNarrationIdentifier = atlas.narrationIdentifier
+    if atlasNarration?.atlasIdentifier != atlas.narrationIdentifier {
+      atlasNarration = nil
+    }
+
+    guideTask?.cancel()
+    guideTask = Task { [weak self] in
+      let generated = await WorldAtlasNarrator.narrate(atlas: atlas)
+      guard !Task.isCancelled else { return }
+      await MainActor.run {
+        guard let self, self.atlas?.narrationIdentifier == atlas.narrationIdentifier else {
+          return
+        }
+        self.atlasNarration = generated
+        self.tourScript = WorldTourScript(
+          graph: graph,
+          atlas: atlas,
+          route: self.route,
+          routeIndex: self.routeIndex,
+          selectedNodeID: self.selectedNodeID,
+          narration: self.matchingAtlasNarration
+        )
+      }
+    }
+  }
+
+  deinit {
+    playbackTask?.cancel()
+    guideTask?.cancel()
+  }
+}
+
+private enum WorldPanelMode: String, CaseIterable, Identifiable {
+  case guide = "Guide"
+  case code = "Code"
+
+  var id: Self { self }
+
+  var systemImage: String {
+    switch self {
+    case .guide: return "sparkles.rectangle.stack"
+    case .code: return "doc.text.magnifyingglass"
+    }
+  }
+}
+
+private struct WorldSidebarPanel: View {
+  @ObservedObject var model: WorldTabViewModel
+  let repoURL: URL
+  let workspace: CompassWorkspace?
+  let isActive: Bool
+  let sessionRecords: () -> [SessionRecord]
+  let onLoadArchivedSessions: () async -> Void
+  @State private var mode: WorldPanelMode = .guide
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Picker("World panel", selection: $mode) {
+        ForEach(WorldPanelMode.allCases) { mode in
+          Label(mode.rawValue, systemImage: mode.systemImage)
+            .tag(mode)
+        }
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+
+      switch mode {
+      case .guide:
+        WorldInspectorPanel(
+          model: model,
+          onRevealInCode: { _ in mode = .code }
+        )
+      case .code:
+        WorldCodeBrowserPanel(
+          repoURL: repoURL,
+          workspace: workspace,
+          isActive: isActive,
+          sessionRecords: sessionRecords,
+          onLoadArchivedSessions: onLoadArchivedSessions
+        )
+      }
+    }
+    .frame(maxHeight: .infinity, alignment: .top)
+  }
 }
 
 struct WorldInspectorPanel: View {
   @ObservedObject var model: WorldTabViewModel
-  let onOpenInExplore: (String) -> Void
-  @State private var atlasNarration: WorldAtlasNarration?
+  let onRevealInCode: (String) -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       header
       controls
-      if let atlas = atlas {
+      if let script = model.tourScript {
+        WorldTourScriptPanel(script: script)
+      }
+      if let atlas = model.atlas {
         WorldAtlasPanel(
           atlas: atlas,
-          narration: matchingNarration(for: atlas)
+          narration: model.matchingAtlasNarration
         )
       }
       branchChoices
@@ -294,31 +445,6 @@ struct WorldInspectorPanel: View {
       RoundedRectangle(cornerRadius: 8)
         .stroke(.white.opacity(0.14), lineWidth: 1)
     )
-    .task(id: atlas?.narrationIdentifier) {
-      guard let atlas else {
-        atlasNarration = nil
-        return
-      }
-      atlasNarration = nil
-      atlasNarration = await WorldAtlasNarrator.narrate(atlas: atlas)
-    }
-  }
-
-  private var atlas: WorldAtlas? {
-    guard let graph = model.graph else { return nil }
-    return WorldAtlas(
-      graph: graph,
-      route: model.route,
-      routeIndex: model.routeIndex,
-      selectedNodeID: model.selectedNodeID
-    )
-  }
-
-  private func matchingNarration(for atlas: WorldAtlas) -> WorldAtlasNarration? {
-    guard atlasNarration?.atlasIdentifier == atlas.narrationIdentifier else {
-      return nil
-    }
-    return atlasNarration
   }
 
   private var header: some View {
@@ -459,9 +585,9 @@ struct WorldInspectorPanel: View {
           .foregroundStyle(.white.opacity(0.66))
 
           Button {
-            onOpenInExplore(location.filePath)
+            onRevealInCode(location.filePath)
           } label: {
-            Label("Open in Explore", systemImage: "arrowshape.turn.up.right")
+            Label("Show in Code", systemImage: "doc.text.magnifyingglass")
           }
           .buttonStyle(.borderedProminent)
           .controlSize(.small)
@@ -509,6 +635,155 @@ struct WorldInspectorPanel: View {
     case .errorPath: return Color(red: 0.94, green: 0.39, blue: 0.32)
     case .unresolvedPassage: return Color(red: 0.58, green: 0.62, blue: 0.68)
     }
+  }
+}
+
+private struct WorldSceneGuideOverlay: View {
+  let script: WorldTourScript
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      HStack(spacing: 7) {
+        Image(systemName: "quote.bubble")
+          .foregroundStyle(Color(red: 0.95, green: 0.72, blue: 0.32))
+        Text(script.progressLabel)
+          .font(.caption.monospacedDigit().weight(.semibold))
+          .foregroundStyle(.white.opacity(0.74))
+        Spacer(minLength: 0)
+      }
+
+      Text(script.currentStep?.title ?? script.title)
+        .font(.headline)
+        .lineLimit(1)
+      Text(script.currentStep?.narration ?? script.overview)
+        .font(.caption)
+        .foregroundStyle(.white.opacity(0.78))
+        .lineLimit(3)
+    }
+    .padding(12)
+    .foregroundStyle(.white)
+    .background(.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(.white.opacity(0.16), lineWidth: 1)
+    )
+    .accessibilityElement(children: .combine)
+  }
+}
+
+private struct WorldTourScriptPanel: View {
+  let script: WorldTourScript
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 9) {
+      Divider().overlay(.white.opacity(0.16))
+
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Tour Script", systemImage: "sparkles.tv")
+          .font(.caption.weight(.semibold))
+        Spacer(minLength: 8)
+        Text(script.progressLabel)
+          .font(.caption2.monospacedDigit())
+          .foregroundStyle(.white.opacity(0.58))
+      }
+
+      Text(script.overview)
+        .font(.caption)
+        .foregroundStyle(.white.opacity(0.72))
+        .lineLimit(3)
+
+      if let step = script.currentStep {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: iconName(for: step.sceneCue))
+            .frame(width: 16)
+            .foregroundStyle(color(for: step.sceneCue))
+          VStack(alignment: .leading, spacing: 3) {
+            Text(step.title)
+              .font(.caption.weight(.semibold))
+              .lineLimit(1)
+            Text(step.subtitle)
+              .font(.caption2)
+              .foregroundStyle(.white.opacity(0.56))
+              .lineLimit(2)
+            Text(step.narration)
+              .font(.caption2)
+              .foregroundStyle(.white.opacity(0.72))
+              .lineLimit(3)
+          }
+        }
+        .accessibilityElement(children: .combine)
+      }
+    }
+  }
+
+  private func iconName(for cue: WorldTourScript.SceneCue) -> String {
+    switch cue {
+    case .entrance: return "door.left.hand.open"
+    case .region: return "map"
+    case .chamber: return "cube.transparent"
+    case .structure: return "shippingbox"
+    case .action: return "circle.hexagongrid"
+    case .decision: return "arrow.triangle.branch"
+    case .warning: return "exclamationmark.triangle"
+    case .unknown: return "questionmark.diamond"
+    }
+  }
+
+  private func color(for cue: WorldTourScript.SceneCue) -> Color {
+    switch cue {
+    case .entrance, .region, .chamber:
+      return Color(red: 0.42, green: 0.67, blue: 0.74)
+    case .structure:
+      return Color(red: 0.62, green: 0.72, blue: 0.45)
+    case .action:
+      return Color(red: 0.88, green: 0.72, blue: 0.38)
+    case .decision:
+      return Color(red: 0.84, green: 0.48, blue: 0.38)
+    case .warning:
+      return Color(red: 0.94, green: 0.39, blue: 0.32)
+    case .unknown:
+      return Color(red: 0.58, green: 0.62, blue: 0.68)
+    }
+  }
+}
+
+private struct WorldCodeBrowserPanel: View {
+  let repoURL: URL
+  let workspace: CompassWorkspace?
+  let isActive: Bool
+  let sessionRecords: () -> [SessionRecord]
+  let onLoadArchivedSessions: () async -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(spacing: 8) {
+        Label("Code", systemImage: "doc.text.magnifyingglass")
+          .font(.headline)
+        Spacer()
+      }
+      Text("Repository browser")
+        .font(.caption)
+        .foregroundStyle(.white.opacity(0.62))
+
+      ExploreTab(
+        repoURL: repoURL,
+        workspace: workspace,
+        isActive: isActive,
+        sessionRecords: sessionRecords,
+        onLoadArchivedSessions: onLoadArchivedSessions
+      )
+      .equatable()
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 7))
+      .clipShape(RoundedRectangle(cornerRadius: 7))
+    }
+    .padding(14)
+    .foregroundStyle(.white)
+    .background(.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(.white.opacity(0.14), lineWidth: 1)
+    )
   }
 }
 

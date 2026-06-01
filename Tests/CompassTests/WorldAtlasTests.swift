@@ -185,6 +185,65 @@ struct WorldAtlasTests {
     }
   }
 
+  @Test
+  func tourScriptPackagesNarrationAndCurrentRouteStop() {
+    var graph = WorldGraph()
+    let entry = WorldNode(
+      id: "entry",
+      kind: .function,
+      label: "main",
+      detail: "Application entrypoint",
+      language: .swift,
+      location: WorldSourceLocation(filePath: "Sources/App.swift", line: 1, endLine: 4),
+      confidence: .high,
+      position: .zero
+    )
+    let branch = WorldNode(
+      id: "branch",
+      kind: .branch,
+      label: "hasSession",
+      detail: "if session exists",
+      language: .swift,
+      location: WorldSourceLocation(filePath: "Sources/App.swift", line: 3, endLine: 3),
+      confidence: .high,
+      position: .zero
+    )
+    graph.addNode(entry)
+    graph.addNode(branch)
+    graph.markEntrypoint(entry.id)
+    graph.addEdge(from: entry.id, to: branch.id, kind: .branches, confidence: .high)
+
+    let atlas = WorldAtlas(
+      graph: graph,
+      route: [entry.id, branch.id],
+      routeIndex: 1,
+      selectedNodeID: branch.id
+    )
+    let narration = WorldAtlasNarration(
+      atlasIdentifier: atlas.narrationIdentifier,
+      text: "Start at main, then inspect the session decision."
+    )
+
+    let script = WorldTourScript(
+      graph: graph,
+      atlas: atlas,
+      route: [entry.id, branch.id],
+      routeIndex: 1,
+      selectedNodeID: branch.id,
+      narration: narration
+    )
+
+    #expect(script.id == atlas.narrationIdentifier)
+    #expect(script.overview == narration.text)
+    #expect(script.progressLabel == "Step 2 of 2")
+    #expect(script.steps.count == 2)
+    #expect(script.currentStep?.nodeID == branch.id)
+    #expect(script.currentStep?.sceneCue == .decision)
+    #expect(script.currentStep?.filePath == "Sources/App.swift")
+    #expect(script.currentStep?.lineLabel == "L3")
+    #expect(script.currentStep?.narration.contains("Step 2 of 2 visits hasSession") == true)
+  }
+
   private func makeNode(
     id: String,
     kind: WorldNodeKind,

@@ -50,9 +50,11 @@ struct WorldTabViewModelTests {
     let graph = try #require(model.graph)
     #expect(!graph.entrypointIDs.isEmpty)
     #expect(!model.route.isEmpty)
+    #expect(model.tourScript?.currentStep?.nodeID == model.selectedNodeID)
     let first = model.selectedNodeID
     model.stepForward()
     #expect(model.selectedNodeID != nil)
+    #expect(model.tourScript?.currentStep?.nodeID == model.selectedNodeID)
     if model.route.count > 1 {
       #expect(model.selectedNodeID != first)
     }

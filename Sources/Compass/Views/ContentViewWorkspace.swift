@@ -861,7 +861,6 @@ struct WorkspaceTabButton: View {
 struct WorkspaceContent: View {
   @ObservedObject var project: CompassProject
   @Binding var selectedTab: WorkspaceTab
-  @State private var keepExploreTabMounted = false
 
   var body: some View {
     ZStack(alignment: .topLeading) {
@@ -883,36 +882,11 @@ struct WorkspaceContent: View {
           repoURL: project.repoURL,
           workspace: project.workspace,
           isActive: selectedTab == .world,
-          onOpenInExplore: { _ in
-            keepExploreTabMounted = true
-            selectedTab = .explore
-          }
-        )
-      case .explore:
-        Color.clear
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .accessibilityHidden(true)
-      }
-
-      if keepExploreTabMounted {
-        ExploreTab(
-          repoURL: project.repoURL,
-          workspace: project.workspace,
-          isActive: selectedTab == .explore,
           sessionRecords: { project.allSessions },
           onLoadArchivedSessions: {
             await project.loadArchivedSessionsIfNeeded()
           }
         )
-        .equatable()
-        .opacity(selectedTab == .explore ? 1 : 0)
-        .allowsHitTesting(selectedTab == .explore)
-        .accessibilityHidden(selectedTab != .explore)
-      }
-    }
-    .onChange(of: selectedTab) { _, tab in
-      if tab == .explore {
-        keepExploreTabMounted = true
       }
     }
   }
@@ -926,7 +900,6 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
   case vision
   case lessons
   case world
-  case explore
 
   var id: Self { self }
 
@@ -939,7 +912,6 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .vision: return "Vision"
     case .lessons: return "Lessons"
     case .world: return "World"
-    case .explore: return "Explore"
     }
   }
 
@@ -952,7 +924,6 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .vision: return "scope"
     case .lessons: return "book.closed"
     case .world: return "cube.transparent"
-    case .explore: return "magnifyingglass"
     }
   }
 
