@@ -572,7 +572,8 @@ struct ProjectRunControls: View {
       hasRepository: project.hasRepository,
       isRunning: project.isRunning,
       isAutoPlaying: project.isAutoPlaying,
-      isPaused: project.isPaused
+      isPaused: project.isPaused,
+      languageProfile: project.languageProfile
     )
 
     HStack(spacing: 5) {
@@ -649,6 +650,9 @@ struct ProjectRunControls: View {
       .accessibilityHint(runGuide.primaryOption.detail)
 
       Menu {
+        Label(runGuide.readiness.title, systemImage: runGuide.readiness.systemImage)
+        Text(runGuide.readiness.detail)
+        Divider()
         ForEach(runGuide.options) { option in
           Button {
             run(option.kind)

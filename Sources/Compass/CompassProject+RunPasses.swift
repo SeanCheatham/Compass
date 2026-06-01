@@ -219,6 +219,25 @@ extension CompassProject {
       return
     }
 
+    let repairGuide = PlanHandoffRepairGuide(
+      plan: next.plan,
+      verify: next.verify,
+      languageProfile: languageProfile
+    )
+    guard repairGuide.status == .ready else {
+      let missing = repairGuide.steps
+        .filter { $0.isRequired && !$0.isSatisfied }
+        .map(\.title)
+      let missingLabel =
+        missing.isEmpty
+        ? "an executable handoff"
+        : missing.joined(separator: " and ")
+      let message = "Develop needs a stronger handoff. Add \(missingLabel) before editing."
+      errorMessage = message
+      log("\(message) \(repairGuide.detail)", level: .warning)
+      return
+    }
+
     isRunning = true
     phase = .developing
     errorMessage = nil

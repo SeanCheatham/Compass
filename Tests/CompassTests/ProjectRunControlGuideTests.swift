@@ -41,6 +41,8 @@ struct ProjectRunControlGuideTests {
     try #require(
       guide.primaryHelp
         == "Choose whether to run the full loop, re-plan, or develop the current slice.")
+    try #require(guide.readiness.title == "Ready for Develop")
+    try #require(guide.readiness.detail.contains("runnable verify command"))
     try #require(guide.primaryKind == .loop)
     try #require(guide.primaryOption.kind == .loop)
     try #require(guide.options.allSatisfy { $0.isEnabled })
@@ -48,6 +50,67 @@ struct ProjectRunControlGuideTests {
     try #require(guide.options[1].title == "Run Plan Only")
     try #require(guide.options[2].title == "Run Develop Only")
     try #require(guide.options[2].detail.contains("Immediate Work"))
+  }
+
+  @Test
+  func testWeakImmediateWorkMakesPlanPrimaryAndDisablesDevelop() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(
+        immediate: PlanNext(
+          plan: "Make the Plan tab easier to read.",
+          verify: "swift test --filter ProjectRunControlGuideTests"
+        )
+      ),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      languageProfile: profile(.swift)
+    )
+
+    try #require(
+      guide.primaryHelp == "Repair Immediate Work before Develop: add Acceptance checks.")
+    try #require(guide.readiness.title == "Plan repair needed")
+    try #require(guide.readiness.detail == "Immediate Work needs Acceptance checks before Develop.")
+    try #require(guide.primaryKind == .planOnly)
+    try #require(guide.primaryOption.title == "Run Plan Only")
+    try #require(
+      guide.primaryOption.detail == "Ask Plan to add Acceptance checks before Develop starts.")
+    try #require(guide.options[0].detail.contains("repair Immediate Work"))
+    try #require(!guide.options[2].isEnabled)
+    try #require(
+      guide.options[2].detail == "Disabled until Immediate Work has Acceptance checks.")
+  }
+
+  @Test
+  func testPlaceholderVerifyMakesPlanPrimaryAndDisablesDevelop() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(
+        immediate: PlanNext(
+          plan: """
+            ## Outcome
+            Make the run controls safer.
+
+            ## Acceptance checks
+            - Develop is disabled until the verify command is real.
+            """,
+          verify: "true"
+        )
+      ),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      languageProfile: profile(.swift)
+    )
+
+    try #require(guide.primaryHelp == "Repair Immediate Work before Develop: add Verify command.")
+    try #require(guide.readiness.detail == "Immediate Work needs Verify command before Develop.")
+    try #require(guide.primaryKind == .planOnly)
+    try #require(!guide.options[2].isEnabled)
+    try #require(guide.options[2].detail == "Disabled until Immediate Work has Verify command.")
   }
 
   @Test
@@ -177,6 +240,19 @@ struct ProjectRunControlGuideTests {
       immediate: immediate,
       midTerm: "",
       longTerm: ""
+    )
+  }
+
+  private func profile(_ language: RepositoryLanguage) -> RepositoryLanguageProfile {
+    var counts = RepositoryLanguageCounts()
+    counts[language] = 1
+    return RepositoryLanguageProfile(
+      counts: counts,
+      manifestHints: [],
+      primaryLanguage: language,
+      scannedFileCount: 1,
+      scannedDirectoryCount: 1,
+      wasTruncated: false
     )
   }
 

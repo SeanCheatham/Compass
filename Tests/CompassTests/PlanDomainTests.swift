@@ -31,7 +31,8 @@ struct PlanTransitionValidatorTests {
   @Test func testAcceptsMidTermRewriteWithoutChangingCompleted() throws {
     let current = makeState(completed: ["First slice"], midTerm: "- Old queue")
     let proposal = PlanProposal(
-      immediate: PlanNext(plan: executablePlan("Take the rewritten next step"), verify: "swift test"),
+      immediate: PlanNext(
+        plan: executablePlan("Take the rewritten next step"), verify: "swift test"),
       midTerm: "- Rewritten queue",
       longTerm: "Long-term direction"
     )
@@ -252,6 +253,57 @@ struct PlanSubmitResultValidationTests {
       try #require(error.message.contains("Acceptance checks"))
     }
   }
+
+  @Test func testDevelopStartRefusesWeakExistingImmediateHandoff() async throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    project.languageProfile = swiftProfile()
+    let workspace = project.makeWorkspace(repoURL: repoURL)
+    try workspace.initialize()
+    try workspace.writeState(
+      PlanState(
+        completed: [],
+        immediate: PlanNext(
+          plan: "Make Plan safer for weak handoffs.",
+          verify: "swift test --filter PlanDomainTests"
+        ),
+        midTerm: "",
+        longTerm: ""
+      )
+    )
+
+    await project.runDevelopOnly(
+      agentSettings: AgentRuntimeSettings(),
+      modelOverride: ""
+    )
+
+    try #require(!project.isRunning)
+    try #require(project.sessions.isEmpty)
+    try #require(project.errorMessage?.contains("stronger handoff") == true)
+    try #require(project.errorMessage?.contains("Acceptance checks") == true)
+    try #require(
+      project.liveLog.contains {
+        $0.text.contains("Develop needs a stronger handoff")
+          && $0.level == .warning
+      }
+    )
+  }
+
+  private func swiftProfile() -> RepositoryLanguageProfile {
+    var counts = RepositoryLanguageCounts()
+    counts[.swift] = 1
+    return RepositoryLanguageProfile(
+      counts: counts,
+      manifestHints: [.packageSwift],
+      primaryLanguage: .swift,
+      scannedFileCount: 1,
+      scannedDirectoryCount: 1,
+      wasTruncated: false
+    )
+  }
 }
 
 struct PlanCompletionRecorderTests {
@@ -298,7 +350,8 @@ struct PlanCompletionRecorderTests {
   }
 
   @Test func testCompletionSummaryBoundsVerboseOneLinePlan() throws {
-    let longPlan = String(repeating: "Add missing typechecker coverage for nested branch cases. ", count: 8)
+    let longPlan = String(
+      repeating: "Add missing typechecker coverage for nested branch cases. ", count: 8)
     let session = makeSucceededSession(1, plan: longPlan)
 
     let summary = PlanCompletionRecorder.completionSummary(for: session)
@@ -389,7 +442,8 @@ struct PlanHistoryPageTests {
   }
 
   @Test func testFormattedHistoryBoundsVerboseEntries() throws {
-    let longEntry = String(repeating: "Add detailed coverage for the remaining command branches. ", count: 8)
+    let longEntry = String(
+      repeating: "Add detailed coverage for the remaining command branches. ", count: 8)
     let page = PlanHistoryPage.read(entries: [longEntry], limit: 1)
 
     let formatted = page.formatted()
