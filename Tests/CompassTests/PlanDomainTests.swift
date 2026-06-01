@@ -981,14 +981,14 @@ struct PlanNextDecoderTests {
 }
 
 struct DevelopSummaryDecoderTests {
-  @Test func decoderAcceptsStatusBooleanAndLessonEditAliasesFromLessCapableModels() throws {
+  @Test func decoderAcceptsKeyStatusBooleanAndLessonEditAliasesFromLessCapableModels() throws {
     let data = Data(
       """
       {
-        "status": "completed",
-        "summary": "Implemented the recovery copy.",
-        "feedback": "Run controls now name the exact handoff field that needs repair.",
-        "bypassVerify": "false",
+        "outcome": "completed",
+        "details": "Implemented the recovery copy.",
+        "handoff": "Run controls now name the exact handoff field that needs repair.",
+        "skipVerify": "false",
         "lessonEdits": [
           {
             "find": "old lesson",
@@ -1003,6 +1003,10 @@ struct DevelopSummaryDecoderTests {
     let summary = try JSONDecoder().decode(DevelopSummary.self, from: data)
 
     try #require(summary.status == .succeeded)
+    try #require(summary.summary == "Implemented the recovery copy.")
+    try #require(
+      summary.feedback == "Run controls now name the exact handoff field that needs repair."
+    )
     try #require(summary.bypassVerify == false)
     try #require(summary.lessonEdits.count == 1)
     try #require(summary.lessonEdits[0].replaceAll == true)
@@ -1045,7 +1049,7 @@ struct CriticVerdictDecoderTests {
     let data = Data(
       """
       {
-        "verdict": "changes_requested",
+        "decision": "changes_requested",
         "summary": [
           "One blocking issue remains.",
           "The fix is localized."

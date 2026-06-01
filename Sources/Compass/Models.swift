@@ -32,6 +32,39 @@ enum FlexibleModelDecoder {
     return try container.decode(String.self, forKey: key)
   }
 
+  static func decodeRequiredString<Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    preferredKey: Key,
+    aliases: [Key],
+    fieldName: String
+  ) throws -> String {
+    var sawPresentKey = false
+    var firstTypeError: Error?
+
+    for key in [preferredKey] + aliases where container.contains(key) {
+      sawPresentKey = true
+      do {
+        return try decodeRequiredString(from: container, forKey: key)
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+
+    if !sawPresentKey {
+      throw DecodingError.keyNotFound(
+        preferredKey,
+        .init(
+          codingPath: container.codingPath,
+          debugDescription: "Missing required \(fieldName) field."
+        )
+      )
+    }
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    return ""
+  }
+
   static func decodeStringIfPresent<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     forKey key: Key
@@ -45,6 +78,47 @@ enum FlexibleModelDecoder {
       return value
     }
     return try container.decode(String.self, forKey: key)
+  }
+
+  static func decodeRequiredValue<Value: Decodable, Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    preferredKey: Key,
+    aliases: [Key],
+    fieldName: String
+  ) throws -> Value {
+    var sawPresentKey = false
+    var firstTypeError: Error?
+
+    for key in [preferredKey] + aliases where container.contains(key) {
+      sawPresentKey = true
+      do {
+        if let value = try container.decodeIfPresent(Value.self, forKey: key) {
+          return value
+        }
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+
+    if !sawPresentKey {
+      throw DecodingError.keyNotFound(
+        preferredKey,
+        .init(
+          codingPath: container.codingPath,
+          debugDescription: "Missing required \(fieldName) field."
+        )
+      )
+    }
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    throw DecodingError.valueNotFound(
+      Value.self,
+      .init(
+        codingPath: container.codingPath + [preferredKey],
+        debugDescription: "Expected non-null \(fieldName)."
+      )
+    )
   }
 
   static func decodeBool<Key: CodingKey>(
@@ -910,9 +984,20 @@ struct DevelopSummary: Codable, Equatable {
 
   enum CodingKeys: String, CodingKey {
     case status
+    case result
+    case outcome
+    case completionStatus
     case summary
+    case description
+    case details
     case feedback
+    case handoff
+    case nextPlanHandoff
     case bypassVerify
+    case verifyBypass
+    case skipVerify
+    case skipVerification
+    case verificationBypassed
     case lessonEdits
   }
 
@@ -932,11 +1017,52 @@ struct DevelopSummary: Codable, Equatable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    status = try container.decode(Status.self, forKey: .status)
-    summary = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .summary)
-    feedback = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .feedback)
-    bypassVerify = FlexibleModelDecoder.decodeBool(from: container, forKey: .bypassVerify)
+    status = try FlexibleModelDecoder.decodeRequiredValue(
+      from: container,
+      preferredKey: .status,
+      aliases: [.result, .outcome, .completionStatus],
+      fieldName: "status"
+    )
+    summary = try FlexibleModelDecoder.decodeRequiredString(
+      from: container,
+      preferredKey: .summary,
+      aliases: [.description, .details],
+      fieldName: "summary"
+    )
+    feedback = try FlexibleModelDecoder.decodeRequiredString(
+      from: container,
+      preferredKey: .feedback,
+      aliases: [.handoff, .nextPlanHandoff],
+      fieldName: "feedback"
+    )
+    bypassVerify = Self.decodeBypassVerify(from: container)
     lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(status, forKey: .status)
+    try container.encode(summary, forKey: .summary)
+    try container.encode(feedback, forKey: .feedback)
+    try container.encodeIfPresent(bypassVerify, forKey: .bypassVerify)
+    try container.encode(lessonEdits, forKey: .lessonEdits)
+  }
+
+  private static func decodeBypassVerify(
+    from container: KeyedDecodingContainer<CodingKeys>
+  ) -> Bool? {
+    for key in [
+      CodingKeys.bypassVerify,
+      .verifyBypass,
+      .skipVerify,
+      .skipVerification,
+      .verificationBypassed,
+    ] {
+      if let value = FlexibleModelDecoder.decodeBool(from: container, forKey: key) {
+        return value
+      }
+    }
+    return nil
   }
 }
 
@@ -987,15 +1113,30 @@ struct CriticVerdict: Codable, Equatable {
 
   enum CodingKeys: String, CodingKey {
     case verdict
+    case decision
+    case status
+    case result
     case summary
     case feedback
   }
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    verdict = try container.decode(Verdict.self, forKey: .verdict)
+    verdict = try FlexibleModelDecoder.decodeRequiredValue(
+      from: container,
+      preferredKey: .verdict,
+      aliases: [.decision, .status, .result],
+      fieldName: "verdict"
+    )
     summary = try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .summary) ?? ""
     feedback = try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .feedback) ?? ""
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(verdict, forKey: .verdict)
+    try container.encode(summary, forKey: .summary)
+    try container.encode(feedback, forKey: .feedback)
   }
 }
 
