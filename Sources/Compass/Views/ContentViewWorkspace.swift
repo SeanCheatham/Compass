@@ -573,7 +573,8 @@ struct ProjectRunControls: View {
       isRunning: project.isRunning,
       isAutoPlaying: project.isAutoPlaying,
       isPaused: project.isPaused,
-      languageProfile: project.languageProfile
+      languageProfile: project.languageProfile,
+      drafts: project.drafts
     )
 
     HStack(spacing: 5) {

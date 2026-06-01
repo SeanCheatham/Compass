@@ -238,6 +238,10 @@ struct DraftIntakeGuide: Equatable, Sendable {
     return "\(readyCount) of \(entries.count) ready"
   }
 
+  var entryCountLabel: String {
+    Self.countLabel(entries.count, singular: "queued draft", plural: "queued drafts")
+  }
+
   var readyCount: Int {
     entries.filter { $0.readiness.status == .ready }.count
   }

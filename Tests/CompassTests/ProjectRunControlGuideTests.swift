@@ -28,6 +28,62 @@ struct ProjectRunControlGuideTests {
   }
 
   @Test
+  func testQueuedDraftsSurfaceInRunReadinessBeforePlanning() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(immediate: nil),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      drafts: """
+        - Make setup faster because users get stuck; success looks like tests pass.
+        - Improve onboarding copy
+        """
+    )
+
+    try #require(guide.readiness.title == "Drafts need detail")
+    try #require(
+      guide.readiness.detail
+        == "2 queued drafts. 1 of 2 ready. Missing across queue: Why, Success signal.")
+    try #require(
+      guide.primaryHelp
+        == "1 of 2 ready in Drafts; Plan will turn the queue into one executable slice.")
+    try #require(
+      guide.options[0].detail
+        == "Plan can use 2 queued drafts, but Drafts shows missing signals before Develop starts.")
+    try #require(
+      guide.options[1].detail
+        == "Ask Plan to use the queue, with Drafts showing which signals still need detail.")
+    try #require(!guide.options[2].isEnabled)
+  }
+
+  @Test
+  func testReadyQueuedDraftsTellRunControlsPlanCanUseQueue() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(immediate: nil),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      drafts: """
+        - Make setup faster because users get stuck; success looks like tests pass.
+        - Show clearer progress because customers wait; done when the progress banner appears.
+        """
+    )
+
+    try #require(guide.readiness.title == "Drafts ready for Plan")
+    try #require(guide.readiness.detail.contains("Every queued draft"))
+    try #require(
+      guide.options[0].detail
+        == "Plan will use 2 queued drafts to choose one executable slice, then Develop it.")
+    try #require(
+      guide.options[1].detail
+        == "Ask Plan to turn 2 queued drafts into one executable handoff.")
+  }
+
+  @Test
   func testImmediateWorkEnablesDevelopOnly() throws {
     let guide = ProjectRunControlGuide(
       state: makeState(),
