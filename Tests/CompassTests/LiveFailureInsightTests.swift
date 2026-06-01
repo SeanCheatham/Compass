@@ -90,6 +90,84 @@ struct LiveFailureInsightTests {
     try #require(insight.title == "Step Ran Out Of Time")
   }
 
+  @Test func explainsMissingSubmitResultAsResultHandoff() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .error,
+          text: "submit_result missing",
+          detail: "Model ended with finish_reason=stop without calling submit_result.",
+          kind: .lifecycle,
+          status: .failed
+        )
+      )
+    )
+
+    try #require(insight.kind == .missingResult)
+    try #require(insight.title == "Agent Did Not Hand Back A Result")
+    try #require(insight.explanation.contains("result tool"))
+    try #require(insight.nextStep.contains("`submit_result`"))
+    try #require(insight.narrationIdentifier.contains("missingResult"))
+  }
+
+  @Test func explainsRejectedPlanAsHandoffRepair() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .error,
+          text: "submit_result plan rejected",
+          detail: "Plan returned vague acceptance checks.",
+          kind: .lifecycle,
+          status: .failed
+        )
+      )
+    )
+
+    try #require(insight.kind == .handoffRepair)
+    try #require(insight.title == "Plan Needs A Clearer Handoff")
+    try #require(insight.explanation.contains("Immediate Work"))
+    try #require(insight.nextStep.contains("real verify command"))
+  }
+
+  @Test func explainsVerifyBypassAsVerifyGateRepair() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .error,
+          text: "submit_result verify bypass rejected",
+          detail:
+            "Develop set bypassVerify=true without explaining why the verify command itself is wrong or out of scope.",
+          kind: .lifecycle,
+          status: .failed
+        )
+      )
+    )
+
+    try #require(insight.kind == .verifyBypass)
+    try #require(insight.title == "Verify Bypass Needs A Reason")
+    try #require(insight.explanation.contains("skip the verification command"))
+    try #require(insight.nextStep.contains("run verification"))
+  }
+
+  @Test func explainsWeakSubmitFeedbackAsConcreteRepairNeed() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .error,
+          text: "submit_result feedback rejected",
+          detail: "submit_result.feedback was too weak to hand to the next Plan pass.",
+          kind: .lifecycle,
+          status: .failed
+        )
+      )
+    )
+
+    try #require(insight.kind == .feedbackRepair)
+    try #require(insight.title == "Follow-Up Feedback Was Too Vague")
+    try #require(insight.explanation.contains("next Plan pass"))
+    try #require(insight.nextStep.contains("exact blocker"))
+  }
+
   @Test func narratorUsesFoundationModelsAsOptionalFailurePolish() async throws {
     let insight = try #require(
       LiveFailureInsight(

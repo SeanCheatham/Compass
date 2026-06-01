@@ -14,6 +14,10 @@ struct LiveFailureInsight: Equatable, Sendable {
     case commandFailure
     case guestBridge
     case unavailableService
+    case missingResult
+    case handoffRepair
+    case verifyBypass
+    case feedbackRepair
     case unknownTool
     case generic
   }
@@ -82,6 +86,69 @@ struct LiveFailureInsight: Equatable, Sendable {
         "Compass will feed that failure back to the agent. If it repeats, the plan may be naming the wrong capability.",
         "Tool palette",
         "wrench.and.screwdriver"
+      )
+    }
+
+    if containsAny(normalized, ["submit_result missing"]) {
+      return (
+        .missingResult,
+        "Agent Did Not Hand Back A Result",
+        "The model ended its turn without the result tool Compass needs to safely finish this phase.",
+        "Compass will ask for the same answer again as a `submit_result` call instead of accepting prose.",
+        "Result handoff",
+        "arrow.uturn.backward.circle"
+      )
+    }
+
+    if containsAny(
+      normalized,
+      [
+        "submit_result verify bypass rejected", "bypassverify=true", "bypassverify: true",
+      ]
+    ) {
+      return (
+        .verifyBypass,
+        "Verify Bypass Needs A Reason",
+        "Develop tried to skip the verification command without proving the command itself is wrong or impossible.",
+        "The next attempt should run verification, or explain the exact verify-command problem and leave a repair for Plan.",
+        "Verify gate",
+        "checkmark.seal"
+      )
+    }
+
+    if containsAny(
+      normalized,
+      [
+        "submit_result plan rejected", "placeholder verify command",
+        "failure-masking verify command", "command-only acceptance checks",
+        "vague acceptance checks", "missing acceptance checks",
+        "forge profile coverage requirement",
+      ]
+    ) {
+      return (
+        .handoffRepair,
+        "Plan Needs A Clearer Handoff",
+        "Compass rejected the Immediate Work because Develop would not have a safe, observable finish line.",
+        "Plan should return one concrete outcome, a real verify command, and acceptance checks a non-engineer can recognize.",
+        "Finish line",
+        "target"
+      )
+    }
+
+    if containsAny(
+      normalized,
+      [
+        "submit_result feedback rejected", "submit_result critic feedback rejected",
+        "too weak to hand", "without actionable", "weak handoff",
+      ]
+    ) {
+      return (
+        .feedbackRepair,
+        "Follow-Up Feedback Was Too Vague",
+        "Compass rejected the handoff because the next Plan pass would not know the smallest concrete repair.",
+        "The next attempt should name the exact blocker, failed proof, or punch-list item before handing control back.",
+        "Next repair",
+        "text.bubble"
       )
     }
 
