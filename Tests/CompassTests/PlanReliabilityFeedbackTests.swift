@@ -66,6 +66,29 @@ struct PlanReliabilityFeedbackTests {
     try #require(feedback.recentRunCues[15]?.kind == .rejectedPlan)
   }
 
+  @Test func testVerifyBypassHandoffBecomesRejectedPlanNotice() throws {
+    let session = makeSession(
+      16,
+      status: .failed,
+      notes: [
+        """
+        [verify] Verify was skipped because Develop reported the planned command is wrong or out of scope.
+        Planned verify command: `swift test --filter RemovedSuite`
+        Develop handoff: Verify command is wrong because RemovedSuite no longer exists.
+        Plan should replace the verify command or rescope Immediate Work before Develop continues.
+        """
+      ]
+    )
+
+    let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+    try #require(feedback.notices.map(\.kind) == [.rejectedPlan])
+    try #require(feedback.notices[0].title == "Plan rejected")
+    try #require(feedback.notices[0].actionLabel == "Retry Plan")
+    try #require(feedback.notices[0].detail.contains("Verify was skipped"))
+    try #require(feedback.recentRunCues[16]?.label == "Retry Plan")
+  }
+
   @Test func testDevelopBlockerUsesFeedbackText() throws {
     let session = makeSession(
       3,

@@ -388,6 +388,11 @@ extension CompassProject {
           }
           try? persistSessions()
 
+          if post.requiresPlanRepair {
+            developHandOffToPlan = true
+            break criticLoop
+          }
+
           if post.ok {
             postChecksPassed = true
             postCheckSummary = summary
@@ -741,6 +746,7 @@ extension CompassProject {
     var verifyIssues: [String] = []
     var gitStatusIssues: [String] = []
     var verifyOutput: VerifyOutput?
+    var requiresPlanRepair = false
 
     switch summary.status {
     case .succeeded:
@@ -755,7 +761,18 @@ extension CompassProject {
     }
 
     if summary.bypassVerify == true {
-      log("Post-check: skipping verify per Develop bypassVerify=true.", level: .warning)
+      requiresPlanRepair = true
+      let issue = """
+        [verify] Verify was skipped because Develop reported the planned command is wrong or out of scope.
+        Planned verify command: `\(next.verify)`
+        Develop handoff: \(summary.feedback)
+        Plan should replace the verify command or rescope Immediate Work before Develop continues.
+        """
+      verifyIssues.append(issue)
+      log(
+        "Post-check: skipping verify per Develop bypassVerify=true; handing back to Plan.",
+        level: .warning
+      )
     } else {
       phase = .verifying
       let timeoutMs = verifyTimeoutMs(for: next)
@@ -899,6 +916,7 @@ extension CompassProject {
 
     return PostCheckResult(
       ok: verifyIssues.isEmpty && gitStatusIssues.isEmpty,
+      requiresPlanRepair: requiresPlanRepair,
       verifyIssues: verifyIssues,
       gitStatusIssues: gitStatusIssues,
       verifyOutput: verifyOutput

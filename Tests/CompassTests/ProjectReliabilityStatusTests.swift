@@ -180,6 +180,31 @@ struct ProjectReliabilityStatusTests {
   }
 
   @Test
+  func testRecoveryGuideForVerifyBypassNamesPlanRepair() throws {
+    let session = makeSession(
+      16,
+      status: .failed,
+      notes: [
+        """
+        [verify] Verify was skipped because Develop reported the planned command is wrong or out of scope.
+        Planned verify command: `swift test --filter RemovedSuite`
+        Plan should replace the verify command or rescope Immediate Work before Develop continues.
+        """
+      ]
+    )
+    let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+    let status = ProjectReliabilityStatus(feedback: feedback)
+
+    let guide = ProjectRecoveryGuide(status: status)
+
+    try #require(status.primaryCue == "Plan rejected")
+    try #require(status.actionLabel == "Retry Plan")
+    try #require(guide.title == "Repair the Plan output")
+    try #require(guide.steps.map(\.title).contains("Replace the verify command"))
+    try #require(guide.steps[1].detail.contains("matches the current slice"))
+  }
+
+  @Test
   func testRecoveryGuideForVerifyFailureUsesCapturedOutput() throws {
     let session = makeSession(
       13,

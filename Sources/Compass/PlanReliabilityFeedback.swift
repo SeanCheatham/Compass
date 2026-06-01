@@ -275,7 +275,10 @@ struct PlanReliabilityFeedback: Equatable {
           "plan tried to",
           "plan transition",
           "not executable enough for develop",
+          "plan should replace the verify command",
+          "planned command is wrong or out of scope",
           "returned no immediate work while",
+          "verify was skipped because develop reported",
           "must collect test coverage",
           "rejected plan",
         ])

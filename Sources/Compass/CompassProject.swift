@@ -121,6 +121,9 @@ final class CompassProject: ObservableObject, Identifiable {
 /// command output for the session record.
 struct PostCheckResult {
   var ok: Bool
+  /// True when Develop found that the planned verify command itself
+  /// needs a new Plan pass.
+  var requiresPlanRepair: Bool
   /// Issues from the verify step (non-zero exit, blocked without bypass, etc.).
   var verifyIssues: [String]
   /// Issues from the git-status check (unexpected failure, dirty tree).

@@ -146,6 +146,18 @@ struct ProjectRecoveryGuide: Equatable {
       )
     }
 
+    if normalized.contains("plan should replace the verify command")
+      || normalized.contains("planned command is wrong or out of scope")
+      || normalized.contains("verify was skipped because develop reported")
+    {
+      return RejectedPlanRecovery(
+        title: "Replace the verify command",
+        detail:
+          "Choose a verify command that matches the current slice before asking Develop to run again.",
+        retryDetail: retryDetail
+      )
+    }
+
     if normalized.contains("must collect test coverage")
       || normalized.contains("enable-code-coverage")
       || normalized.contains("-coverprofile")
