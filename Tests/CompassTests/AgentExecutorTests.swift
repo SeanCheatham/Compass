@@ -460,6 +460,7 @@ struct AgentExecutorTests {
     )
     try #require(nudge.eventText == "submit_result contract rejected")
     try #require(nudge.userMessage.contains("required shape"))
+    try #require(nudge.userMessage.contains("canonical keys"))
     try #require(nudge.userMessage.contains("lessonEdits: []"))
     try #require(nudge.userMessage.contains("Do not answer in prose"))
   }
@@ -672,7 +673,7 @@ struct AgentExecutorTests {
       #expect(Bool(false), "expected decode to fail")
     } catch {
       let message = AgentExecutor.decodingErrorMessage(error)
-      try #require(message.contains("longTerm"), "message was: \(message)")
+      try #require(message.contains("state.longTerm"), "message was: \(message)")
     }
   }
 

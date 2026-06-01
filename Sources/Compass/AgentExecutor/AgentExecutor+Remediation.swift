@@ -49,8 +49,11 @@ extension AgentExecutor {
       return error.localizedDescription
     }
     switch decoding {
-    case .keyNotFound(let key, _):
-      return "Missing required field `\(key.stringValue)`."
+    case .keyNotFound(let key, let context):
+      let path = (context.codingPath.map(\.stringValue) + [key.stringValue])
+        .filter { !$0.isEmpty }
+        .joined(separator: ".")
+      return "Missing required field `\(path.isEmpty ? key.stringValue : path)`."
     case .valueNotFound(let type, let context):
       let path = context.codingPath.map(\.stringValue).joined(separator: ".")
       let label = path.isEmpty ? String(describing: type) : path
@@ -79,7 +82,8 @@ extension AgentExecutor {
 
         Call `submit_result` again with arguments that decode to this phase's schema. \
         Include every required top-level field and, when `state` is an object rather than \
-        null, all of its required nested fields. Do not wrap the payload in an extra object.
+        null, all of its required nested fields. Use the canonical keys shown below; \
+        aliases are only a recovery fallback. Do not wrap the payload in an extra object.
 
         \(retryShape)
         """
