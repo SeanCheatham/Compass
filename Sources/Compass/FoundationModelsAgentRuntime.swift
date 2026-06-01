@@ -377,6 +377,15 @@ private struct DynamicAgentTool: FoundationModels.Tool {
 
 // MARK: - Schema translation
 
+enum CompassJSONSchemaTranslation {
+  static func concreteNullableAnyOfBranch(in dict: [String: Any]) -> [String: Any]? {
+    guard let branches = dict["anyOf"] as? [[String: Any]] else { return nil }
+    let concreteBranches = branches.filter { ($0["type"] as? String) != "null" }
+    guard concreteBranches.count == 1 else { return nil }
+    return concreteBranches[0]
+  }
+}
+
 /// Translates Compass's JSON-Schema-shaped `AgentToolParametersSchema`
 /// into the `DynamicGenerationSchema` graph FoundationModels expects.
 ///
@@ -388,6 +397,7 @@ private struct DynamicAgentTool: FoundationModels.Tool {
 /// - `type: "integer"` / `type: "number"`
 /// - `type: "boolean"`
 /// - `type: "array"` with `items`
+/// - nullable `anyOf` pairs such as `[{"type": "boolean"}, {"type": "null"}]`
 /// - `description` strings on any node
 ///
 /// Unknown shapes degrade to a permissive `String` node so the
@@ -427,6 +437,17 @@ enum FoundationModelsSchemaTranslator {
     }
     let nodeDescription =
       (dict["description"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? description
+    if let branch = CompassJSONSchemaTranslation.concreteNullableAnyOfBranch(in: dict) {
+      var branchWithDescription = branch
+      if branchWithDescription["description"] == nil, let nodeDescription {
+        branchWithDescription["description"] = nodeDescription
+      }
+      return translateNode(
+        name: name,
+        description: nodeDescription,
+        node: branchWithDescription
+      )
+    }
     let type = (dict["type"] as? String) ?? "object"
     switch type {
     case "object":
