@@ -46,6 +46,26 @@ struct PlanReliabilityFeedbackTests {
     )
   }
 
+  @Test func testCoverageRequirementNoteBecomesRejectedPlanNotice() throws {
+    let session = makeSession(
+      15,
+      status: .failed,
+      notes: [
+        """
+        Verify command must collect test coverage for Swift Package projects. \
+        test verify must declare coverage: guest `swift test --enable-code-coverage`.
+        """
+      ]
+    )
+
+    let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+    try #require(feedback.notices.map(\.kind) == [.rejectedPlan])
+    try #require(feedback.notices[0].title == "Plan rejected")
+    try #require(feedback.notices[0].detail.contains("must collect test coverage"))
+    try #require(feedback.recentRunCues[15]?.kind == .rejectedPlan)
+  }
+
   @Test func testDevelopBlockerUsesFeedbackText() throws {
     let session = makeSession(
       3,

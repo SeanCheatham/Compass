@@ -146,10 +146,37 @@ struct ProjectReliabilityStatusTests {
 
     let guide = ProjectRecoveryGuide(status: status)
 
-    try #require(guide.title == "Repair the Plan handoff")
-    try #require(guide.steps.map(\.title) == ["Open Plan", "Add the missing fields", "Retry Plan"])
-    try #require(guide.steps[0].detail.contains("handoff repair guide"))
-    try #require(guide.steps[1].detail.contains("Acceptance checks"))
+    try #require(guide.title == "Repair the Plan output")
+    try #require(
+      guide.steps.map(\.title) == [
+        "Read the rejection", "Add the missing handoff fields", "Retry Plan",
+      ])
+    try #require(guide.steps[0].detail.contains("Missing Acceptance checks"))
+    try #require(guide.steps[1].detail.contains("Outcome and Acceptance checks"))
+    try #require(guide.steps[2].detail.contains("one smaller executable slice"))
+  }
+
+  @Test
+  func testRecoveryGuideForCoverageRejectedPlanNamesCoverageRepair() throws {
+    let session = makeSession(
+      15,
+      status: .rejectedByPlan,
+      notes: [
+        """
+        Verify command must collect test coverage for Swift Package projects. \
+        test verify must declare coverage: guest `swift test --enable-code-coverage`.
+        """
+      ]
+    )
+    let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+    let status = ProjectReliabilityStatus(feedback: feedback)
+
+    let guide = ProjectRecoveryGuide(status: status)
+
+    try #require(guide.title == "Repair the Plan output")
+    try #require(guide.steps.map(\.title).contains("Use coverage-ready verify"))
+    try #require(guide.steps[1].detail.contains("coverage flag or artifact"))
+    try #require(guide.steps[1].detail.contains("build-only"))
   }
 
   @Test

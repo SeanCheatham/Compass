@@ -41,7 +41,8 @@ extension CompassProject {
     ), !feedback.isEmpty {
       return feedback
     }
-    return sessions
+    return
+      sessions
       .filter { $0.session != session && $0.endedAt != nil }
       .sorted { $0.startedAt > $1.startedAt }
       .compactMap { $0.feedback?.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -61,8 +62,14 @@ extension CompassProject {
       log("Run stopped.", level: .warning)
       feedback(.stopped)
     } else {
+      let failedStatus: SessionStatus
+      if let error = error as? AppModelError, case .rejectedPlan = error {
+        failedStatus = .rejectedByPlan
+      } else {
+        failedStatus = .failed
+      }
       appendSessionNote(error?.localizedDescription ?? "Unknown error", to: sessionIndex)
-      endSession(sessionIndex, status: .failed)
+      endSession(sessionIndex, status: failedStatus)
       phase = .failed
       fail(error ?? AppModelError.internalInvariant("Unknown error in session cleanup."))
     }

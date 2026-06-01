@@ -19,19 +19,20 @@ struct ProjectRecoveryGuide: Equatable {
 
     switch kind {
     case .rejectedPlan:
-      title = "Repair the Plan handoff"
+      let recovery = Self.rejectedPlanRecovery(for: status.detail)
+      title = "Repair the Plan output"
       steps = [
         Step(
-          title: "Open Plan",
-          detail: "Use the handoff repair guide on the Immediate Work panel."
+          title: "Read the rejection",
+          detail: status.detail
         ),
         Step(
-          title: "Add the missing fields",
-          detail: "Include Outcome, Acceptance checks, and a real verify command."
+          title: recovery.title,
+          detail: recovery.detail
         ),
         Step(
           title: status.actionLabel,
-          detail: "Let Plan submit a smaller executable slice before Develop starts."
+          detail: recovery.retryDetail
         ),
       ]
     case .developBlocked:
@@ -116,6 +117,79 @@ struct ProjectRecoveryGuide: Equatable {
     var id: String {
       "\(title)\n\(detail)"
     }
+  }
+
+  private struct RejectedPlanRecovery: Equatable {
+    var title: String
+    var detail: String
+    var retryDetail: String
+  }
+
+  private static func rejectedPlanRecovery(for detail: String) -> RejectedPlanRecovery {
+    let normalized = detail.lowercased()
+    let retryDetail = "Let Plan resubmit one smaller executable slice before Develop starts."
+
+    if normalized.contains("placeholder verify command") {
+      return RejectedPlanRecovery(
+        title: "Replace the verify command",
+        detail:
+          "Use a real command Compass can run; do not use true, none, n/a, or not-running-tests.",
+        retryDetail: retryDetail
+      )
+    }
+
+    if normalized.contains("must collect test coverage")
+      || normalized.contains("enable-code-coverage")
+      || normalized.contains("-coverprofile")
+      || normalized.contains("coverage.reporter")
+    {
+      return RejectedPlanRecovery(
+        title: "Use coverage-ready verify",
+        detail:
+          "Include the coverage flag or artifact named in the rejection instead of switching to a build-only check.",
+        retryDetail: retryDetail
+      )
+    }
+
+    if normalized.contains("returned no immediate work") {
+      return RejectedPlanRecovery(
+        title: "Choose one immediate slice",
+        detail:
+          "Keep the remaining runway and select the smallest next item instead of returning empty Immediate Work.",
+        retryDetail: retryDetail
+      )
+    }
+
+    if normalized.contains("not executable enough for develop")
+      || normalized.contains("missing acceptance checks")
+      || normalized.contains("missing outcome")
+    {
+      return RejectedPlanRecovery(
+        title: "Add the missing handoff fields",
+        detail:
+          "Include Outcome and Acceptance checks; add Why it matters when it helps the owner understand the value.",
+        retryDetail: retryDetail
+      )
+    }
+
+    if normalized.contains("clear a non-empty")
+      || normalized.contains("shrink completed")
+      || normalized.contains("overwrite state.json")
+    {
+      return RejectedPlanRecovery(
+        title: "Preserve the existing runway",
+        detail:
+          "Do not clear completed, midTerm, or longTerm unless the previous slice really shipped.",
+        retryDetail: retryDetail
+      )
+    }
+
+    return RejectedPlanRecovery(
+      title: "Return executable Immediate Work",
+      detail:
+        "Include Outcome, Acceptance checks, and a real verify command; add Why it matters when useful.",
+      retryDetail: retryDetail
+    )
   }
 
   private static func bounded(_ text: String, limit: Int) -> String {

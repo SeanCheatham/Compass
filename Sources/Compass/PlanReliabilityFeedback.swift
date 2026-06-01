@@ -276,6 +276,7 @@ struct PlanReliabilityFeedback: Equatable {
           "plan transition",
           "not executable enough for develop",
           "returned no immediate work while",
+          "must collect test coverage",
           "rejected plan",
         ])
     else {
