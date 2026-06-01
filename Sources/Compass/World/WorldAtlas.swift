@@ -43,6 +43,7 @@ struct WorldAtlas: Equatable, Sendable {
   var terrain: [Terrain]
   var notices: [Notice]
   var routeStops: [RouteStop]
+  var narrationIdentifier: String
 
   init(
     graph: WorldGraph,
@@ -69,7 +70,7 @@ struct WorldAtlas: Equatable, Sendable {
     )
     progressLabel =
       route.isEmpty ? "No route selected" : "Step \(safeRouteIndex + 1) of \(route.count)"
-    metrics = [
+    let builtMetrics = [
       Metric(
         id: "entrypoints",
         label: "Entrances",
@@ -95,18 +96,33 @@ struct WorldAtlas: Equatable, Sendable {
         detail: "Branches, loops, and cases"
       ),
     ]
-    terrain = Self.terrain(from: nodeCounts)
-    notices = Self.notices(
+    let builtTerrain = Self.terrain(from: nodeCounts)
+    let builtNotices = Self.notices(
       graph: graph,
       nodeCounts: nodeCounts,
       route: route,
       selectedNodeID: selectedNodeID,
       lookup: lookup
     )
-    routeStops = Self.routeStops(
+    let builtRouteStops = Self.routeStops(
       route: route,
       routeIndex: safeRouteIndex,
       lookup: lookup
+    )
+
+    metrics = builtMetrics
+    terrain = builtTerrain
+    notices = builtNotices
+    routeStops = builtRouteStops
+    narrationIdentifier = Self.narrationIdentifier(
+      graph: graph,
+      route: route,
+      routeIndex: safeRouteIndex,
+      selectedNodeID: selectedNodeID,
+      metrics: builtMetrics,
+      terrain: builtTerrain,
+      notices: builtNotices,
+      routeStops: builtRouteStops
     )
   }
 
@@ -269,6 +285,33 @@ struct WorldAtlas: Equatable, Sendable {
         isCurrent: absoluteIndex == routeIndex
       )
     }
+  }
+
+  private static func narrationIdentifier(
+    graph: WorldGraph,
+    route: [String],
+    routeIndex: Int,
+    selectedNodeID: String?,
+    metrics: [Metric],
+    terrain: [Terrain],
+    notices: [Notice],
+    routeStops: [RouteStop]
+  ) -> String {
+    let graphKey =
+      graph.fingerprint.isEmpty
+      ? "nodes:\(graph.nodes.count)|edges:\(graph.edges.count)|entrypoints:\(graph.entrypointIDs.count)"
+      : graph.fingerprint
+    let raw = [
+      "graph:\(graphKey)",
+      "route:\(route.joined(separator: ">"))",
+      "routeIndex:\(routeIndex)",
+      "selected:\(selectedNodeID ?? "none")",
+      "metrics:\(metrics.map { "\($0.id)=\($0.value)" }.joined(separator: ","))",
+      "terrain:\(terrain.map { "\($0.id)=\($0.count)" }.joined(separator: ","))",
+      "notices:\(notices.map(\.id).joined(separator: ","))",
+      "walk:\(routeStops.map { "\($0.label):\($0.detail):\($0.isCurrent)" }.joined(separator: ","))",
+    ].joined(separator: "|")
+    return StringUtils.boundedText(raw, limit: 1_200)
   }
 
   private static func label(for kind: WorldNodeKind) -> String {

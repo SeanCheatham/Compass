@@ -269,13 +269,17 @@ final class WorldTabViewModel: ObservableObject {
 struct WorldInspectorPanel: View {
   @ObservedObject var model: WorldTabViewModel
   let onOpenInExplore: (String) -> Void
+  @State private var atlasNarration: WorldAtlasNarration?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       header
       controls
       if let atlas = atlas {
-        WorldAtlasPanel(atlas: atlas)
+        WorldAtlasPanel(
+          atlas: atlas,
+          narration: matchingNarration(for: atlas)
+        )
       }
       branchChoices
       search
@@ -290,6 +294,14 @@ struct WorldInspectorPanel: View {
       RoundedRectangle(cornerRadius: 8)
         .stroke(.white.opacity(0.14), lineWidth: 1)
     )
+    .task(id: atlas?.narrationIdentifier) {
+      guard let atlas else {
+        atlasNarration = nil
+        return
+      }
+      atlasNarration = nil
+      atlasNarration = await WorldAtlasNarrator.narrate(atlas: atlas)
+    }
   }
 
   private var atlas: WorldAtlas? {
@@ -300,6 +312,13 @@ struct WorldInspectorPanel: View {
       routeIndex: model.routeIndex,
       selectedNodeID: model.selectedNodeID
     )
+  }
+
+  private func matchingNarration(for atlas: WorldAtlas) -> WorldAtlasNarration? {
+    guard atlasNarration?.atlasIdentifier == atlas.narrationIdentifier else {
+      return nil
+    }
+    return atlasNarration
   }
 
   private var header: some View {
@@ -495,6 +514,7 @@ struct WorldInspectorPanel: View {
 
 private struct WorldAtlasPanel: View {
   let atlas: WorldAtlas
+  let narration: WorldAtlasNarration?
 
   private let metricColumns = [
     GridItem(.flexible(), spacing: 8, alignment: .leading),
@@ -519,6 +539,19 @@ private struct WorldAtlasPanel: View {
         .font(.caption)
         .foregroundStyle(.white.opacity(0.72))
         .lineLimit(3)
+
+      if let narration {
+        HStack(alignment: .top, spacing: 7) {
+          Image(systemName: "text.bubble")
+            .frame(width: 14)
+            .foregroundStyle(Color(red: 0.95, green: 0.72, blue: 0.32))
+          Text(narration.text)
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.78))
+            .lineLimit(4)
+        }
+        .accessibilityElement(children: .combine)
+      }
 
       LazyVGrid(columns: metricColumns, alignment: .leading, spacing: 8) {
         ForEach(atlas.metrics) { metric in

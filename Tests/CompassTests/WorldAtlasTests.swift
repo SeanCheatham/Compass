@@ -39,6 +39,7 @@ struct WorldAtlasTests {
     #expect(atlas.notices.contains { $0.id == "lowConfidence" })
     #expect(atlas.notices.contains { $0.id == "offRouteSelection" })
     #expect(atlas.routeStops.first { $0.id == "1-branch" }?.isCurrent == true)
+    #expect(!atlas.narrationIdentifier.isEmpty)
   }
 
   @Test
@@ -65,6 +66,69 @@ struct WorldAtlasTests {
       ])
   }
 
+  @Test
+  func narrationIdentifierChangesWithRouteProgress() {
+    let graph = makeNarrationGraph()
+    let first = WorldAtlas(
+      graph: graph,
+      route: ["entry", "branch"],
+      routeIndex: 0,
+      selectedNodeID: "entry"
+    )
+    let second = WorldAtlas(
+      graph: graph,
+      route: ["entry", "branch"],
+      routeIndex: 1,
+      selectedNodeID: "branch"
+    )
+
+    #expect(first.narrationIdentifier != second.narrationIdentifier)
+  }
+
+  @Test
+  func narratorUsesFoundationModelsAsOptionalPolish() async throws {
+    let atlas = WorldAtlas(
+      graph: makeNarrationGraph(),
+      route: ["entry", "branch"],
+      routeIndex: 1,
+      selectedNodeID: "branch"
+    )
+
+    try await withMockFoundationModels(
+      response: "Start at main, then inspect the session decision."
+    ) {
+      let generatedNarration = await WorldAtlasNarrator.narrate(atlas: atlas)
+      let narration = try #require(generatedNarration)
+      #expect(narration.atlasIdentifier == atlas.narrationIdentifier)
+      #expect(narration.text == "Start at main, then inspect the session decision.")
+    }
+
+    try await withMockFoundationModels(available: false) {
+      let narration = await WorldAtlasNarrator.narrate(atlas: atlas)
+      #expect(narration == nil)
+    }
+  }
+
+  @Test
+  func narratorRejectsStructuredOrLinkedOutput() async throws {
+    let atlas = WorldAtlas(
+      graph: makeNarrationGraph(),
+      route: ["entry", "branch"],
+      routeIndex: 1,
+      selectedNodeID: "branch"
+    )
+
+    try await withMockFoundationModels(response: #"{"text":"Invented JSON"}"#) {
+      let narration = await WorldAtlasNarrator.narrate(atlas: atlas)
+      #expect(narration == nil)
+    }
+
+    try await withMockFoundationModels(response: "Read more at https://example.com") {
+      let narration = await WorldAtlasNarrator.narrate(atlas: atlas)
+      #expect(narration == nil)
+    }
+  }
+
   private func makeNode(
     id: String,
     kind: WorldNodeKind,
@@ -81,5 +145,16 @@ struct WorldAtlasTests {
       confidence: confidence,
       position: WorldPosition(x: 0, y: 0, z: 0)
     )
+  }
+
+  private func makeNarrationGraph() -> WorldGraph {
+    var graph = WorldGraph()
+    let entry = makeNode(id: "entry", kind: .function, label: "main", confidence: .high)
+    let branch = makeNode(id: "branch", kind: .branch, label: "hasSession", confidence: .high)
+    graph.addNode(entry)
+    graph.addNode(branch)
+    graph.markEntrypoint(entry.id)
+    graph.addEdge(from: entry.id, to: branch.id, kind: .branches, confidence: .high)
+    return graph
   }
 }
