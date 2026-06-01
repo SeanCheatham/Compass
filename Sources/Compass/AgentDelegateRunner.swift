@@ -113,13 +113,18 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
 
   /// Build the child's tool list from the parent's, dropping the
   /// `delegate` tool unconditionally (depth-cap) and intersecting with
-  /// `requested` when non-nil. Unknown names are silently dropped so a
-  /// misspelled tool name doesn't blow up the whole turn — the sub-agent
+  /// `requested` when non-nil. Requested names accept the same common model
+  /// variants as top-level tool dispatch. Unknown names are silently dropped
+  /// so a misspelled tool name doesn't blow up the whole turn — the sub-agent
   /// will simply find that name absent from its system prompt.
   static func filterTools(parentTools: [AgentTool], requested: [String]?) -> [AgentTool] {
     let withoutDelegate = parentTools.filter { $0.spec.name != AgentDelegateTool.toolName }
     guard let requested else { return withoutDelegate }
-    let allowed = Set(requested.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+    let availableNames = Set(withoutDelegate.map(\.spec.name))
+    let allowed = Set(
+      requested.compactMap {
+        AgentExecutor.canonicalToolName($0, availableToolNames: availableNames)
+      })
     return withoutDelegate.filter { allowed.contains($0.spec.name) }
   }
 }

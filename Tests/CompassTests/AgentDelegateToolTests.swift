@@ -123,6 +123,26 @@ struct AgentDelegateToolTests {
     try #require(names == [AgentReadFileTool.toolName])
   }
 
+  @Test func testFilterToolsAcceptsCommonToolNameVariants() throws {
+    let parents: [AgentTool] = [
+      AgentReadFileTool(),
+      AgentListFilesTool(),
+      AgentBashTool(),
+      AgentDelegateTool(),
+    ]
+    let filtered = AgentExecutorDelegateRunner.filterTools(
+      parentTools: parents,
+      requested: ["read-file", "list file", "bash tool", "delegate"]
+    )
+    let names = filtered.map { $0.spec.name }
+    try #require(
+      names == [
+        AgentReadFileTool.toolName,
+        AgentListFilesTool.toolName,
+        AgentBashTool.toolName,
+      ])
+  }
+
   @Test func testFilterToolsWithEmptyRequestedListReturnsNoTools() throws {
     let parents: [AgentTool] = [AgentReadFileTool(), AgentBashTool(), AgentDelegateTool()]
     let filtered = AgentExecutorDelegateRunner.filterTools(parentTools: parents, requested: [])
