@@ -232,6 +232,32 @@ private struct OnboardingReadinessGuidePanel: View {
         }
       }
 
+      Divider()
+        .opacity(0.6)
+
+      VStack(alignment: .leading, spacing: 7) {
+        Label(unlockTitle, systemImage: "sparkles")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        ForEach(guide.unlockPreview) { unlock in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: unlock.isUnlocked ? "checkmark.circle.fill" : unlock.systemImageName)
+              .foregroundStyle(unlock.isUnlocked ? .green : color)
+              .frame(width: 18, height: 18)
+              .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(unlock.label)
+                .font(.caption.weight(.semibold))
+              Text(unlock.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+      }
+
       if narration != nil {
         Label("On-device setup note", systemImage: "sparkles")
           .font(.caption.weight(.semibold))
@@ -247,6 +273,10 @@ private struct OnboardingReadinessGuidePanel: View {
     }
     .accessibilityElement(children: .combine)
     .accessibilityLabel("\(guide.title). \(narration?.text ?? guide.detail)")
+  }
+
+  private var unlockTitle: String {
+    guide.unlockPreview.allSatisfy { $0.isUnlocked } ? "Unlocked now" : "Unlocks after setup"
   }
 
   private var color: Color {

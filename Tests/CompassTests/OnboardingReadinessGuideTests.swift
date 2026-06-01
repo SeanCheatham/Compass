@@ -17,6 +17,9 @@ struct OnboardingReadinessGuideTests {
     #expect(guide.tone == .ready)
     #expect(guide.steps.map(\.id) == ["text", "workspace", "firstRun"])
     #expect(guide.steps.allSatisfy { $0.isComplete })
+    #expect(guide.unlockPreview.map(\.id) == ["plan", "develop", "review"])
+    #expect(guide.unlockPreview.allSatisfy { $0.isUnlocked })
+    #expect(guide.unlockPreview[0].detail.contains("rough goal"))
     #expect(guide.allowsNarration)
   }
 
@@ -35,6 +38,7 @@ struct OnboardingReadinessGuideTests {
     #expect(guide.steps[0].detail == "Apple Intelligence is unavailable on this Mac.")
     #expect(!guide.steps[0].isComplete)
     #expect(!guide.steps[2].isComplete)
+    #expect(guide.unlockPreview.allSatisfy { !$0.isUnlocked })
     #expect(!guide.allowsNarration)
   }
 
@@ -134,6 +138,9 @@ struct OnboardingReadinessGuideTests {
     #expect(payload.text.contains("Ready: no"))
     #expect(payload.text.contains("[complete] Text provider"))
     #expect(payload.text.contains("[blocked] Private workspace"))
+    #expect(payload.text.contains("After setup:"))
+    #expect(payload.text.contains("[locked] Plan"))
+    #expect(payload.text.contains("[locked] Verify + review"))
     #expect(!payload.text.contains("sk-secret-should-not-copy"))
     #expect(payload.text.count <= OnboardingSetupClipboardPayload.textLimit)
     #expect(!payload.isEmpty)
@@ -177,6 +184,10 @@ struct OnboardingReadinessGuideTests {
     )
 
     try await withMockFoundationModels(response: "Compass is ready to start a safe run.") {
+      let prompt = OnboardingReadinessGuideNarrator.prompt(for: guide)
+      #expect(prompt.contains("Unlocks:"))
+      #expect(prompt.contains("Plan - Turn a rough goal"))
+
       let generatedNarration = await OnboardingReadinessGuideNarrator.narrate(guide: guide)
       let narration = try #require(generatedNarration)
       #expect(narration.guideIdentifier == guide.narrationIdentifier)

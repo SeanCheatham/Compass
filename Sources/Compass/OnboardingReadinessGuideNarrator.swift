@@ -43,6 +43,7 @@ enum OnboardingReadinessGuideNarrator {
     Detail: \(guide.detail)
     Action: \(guide.actionLabel)
     Steps: \(guide.steps.map { "\($0.label) - \($0.detail)" }.joined(separator: " | "))
+    Unlocks: \(guide.unlockPreview.map { "\($0.label) - \($0.detail) - unlocked: \($0.isUnlocked)" }.joined(separator: " | "))
     """
   }
 

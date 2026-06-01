@@ -19,12 +19,21 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     var isComplete: Bool
   }
 
+  struct UnlockPreview: Identifiable, Equatable, Sendable {
+    var id: String
+    var label: String
+    var detail: String
+    var systemImageName: String
+    var isUnlocked: Bool
+  }
+
   var title: String
   var detail: String
   var actionLabel: String
   var tone: Tone
   var systemImageName: String
   var steps: [Step]
+  var unlockPreview: [UnlockPreview]
   var narrationIdentifier: String
 
   var allowsNarration: Bool {
@@ -85,6 +94,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
       textReady: textReady,
       vmReady: vmReady
     )
+    unlockPreview = Self.unlockPreview(isUnlocked: textReady && vmReady)
     narrationIdentifier = Self.narrationIdentifier(
       title: title,
       detail: detail,
@@ -92,6 +102,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
       tone: tone,
       systemImageName: systemImageName,
       steps: steps,
+      unlockPreview: unlockPreview,
       settings: settings,
       vmReadiness: vmReadiness,
       foundationModelsAvailable: foundationModelsAvailable
@@ -149,6 +160,32 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     ]
   }
 
+  private static func unlockPreview(isUnlocked: Bool) -> [UnlockPreview] {
+    [
+      UnlockPreview(
+        id: "plan",
+        label: "Plan",
+        detail: "Turn a rough goal into one executable next slice.",
+        systemImageName: "map",
+        isUnlocked: isUnlocked
+      ),
+      UnlockPreview(
+        id: "develop",
+        label: "Develop",
+        detail: "Edit and run commands inside the private workspace.",
+        systemImageName: "hammer.fill",
+        isUnlocked: isUnlocked
+      ),
+      UnlockPreview(
+        id: "review",
+        label: "Verify + review",
+        detail: "Save the check result and decide whether to continue.",
+        systemImageName: "checkmark.seal",
+        isUnlocked: isUnlocked
+      ),
+    ]
+  }
+
   private static func textStepDetail(
     settings: AgentRuntimeSettings,
     foundationModelsAvailable: Bool,
@@ -196,6 +233,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     tone: Tone,
     systemImageName: String,
     steps: [Step],
+    unlockPreview: [UnlockPreview],
     settings: AgentRuntimeSettings,
     vmReadiness: SharedCompassVMReadiness,
     foundationModelsAvailable: Bool
@@ -211,6 +249,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
       "fmAvailable:\(foundationModelsAvailable)",
       "vm:\(vmReadiness.statusSummary)",
       "steps:\(steps.map { "\($0.id):\($0.isComplete)" }.joined(separator: ","))",
+      "unlocks:\(unlockPreview.map { "\($0.id):\($0.isUnlocked)" }.joined(separator: ","))",
     ].joined(separator: "|")
 
     return StringUtils.boundedText(raw, limit: Self.identifierLimit)
@@ -273,6 +312,14 @@ struct OnboardingSetupClipboardPayload: Equatable, Sendable {
     for step in guide.steps {
       sections.append(
         "- \(step.isComplete ? "[complete]" : "[blocked]") \(step.label): \(step.detail)"
+      )
+    }
+
+    sections.append("")
+    sections.append("After setup:")
+    for unlock in guide.unlockPreview {
+      sections.append(
+        "- \(unlock.isUnlocked ? "[unlocked]" : "[locked]") \(unlock.label): \(unlock.detail)"
       )
     }
 
