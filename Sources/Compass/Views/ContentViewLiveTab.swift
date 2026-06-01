@@ -773,8 +773,29 @@ struct LiveStatusIcon: View {
 struct LiveDetail: View {
   var line: LiveLine
   var detail: String
+  @State private var failureNarration: LiveFailureInsightNarration?
 
   var body: some View {
+    let insight = LiveFailureInsight(line: line)
+    VStack(alignment: .leading, spacing: 6) {
+      if let insight {
+        LiveFailureInsightPanel(
+          insight: insight,
+          narration: matchingNarration(for: insight)
+        )
+      }
+
+      rawDetailView
+    }
+    .task(id: insight?.narrationIdentifier ?? "no-failure-insight") {
+      failureNarration = nil
+      guard let insight else { return }
+      failureNarration = await LiveFailureInsightNarrator.narrate(insight: insight)
+    }
+  }
+
+  @ViewBuilder
+  private var rawDetailView: some View {
     switch line.kind {
     case .command:
       Text(detail)
@@ -797,5 +818,65 @@ struct LiveDetail: View {
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+  }
+
+  private func matchingNarration(
+    for insight: LiveFailureInsight
+  ) -> LiveFailureInsightNarration? {
+    guard failureNarration?.insightIdentifier == insight.narrationIdentifier else {
+      return nil
+    }
+    return failureNarration
+  }
+}
+
+struct LiveFailureInsightPanel: View {
+  var insight: LiveFailureInsight
+  var narration: LiveFailureInsightNarration?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .firstTextBaseline, spacing: 7) {
+        Label(insight.title, systemImage: insight.systemImageName)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.red)
+
+        Text(insight.badge)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.red)
+          .lineLimit(1)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 2)
+          .background(.red.opacity(0.12), in: Capsule())
+      }
+
+      Text(narration?.text ?? insight.explanation)
+        .font(.caption)
+        .foregroundStyle(.primary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+
+      Label(insight.nextStep, systemImage: "arrow.turn.down.right")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+
+      if narration != nil {
+        Label("On-device note", systemImage: "sparkles")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(.horizontal, 8)
+    .padding(.vertical, 7)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.red.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
+    .overlay {
+      RoundedRectangle(cornerRadius: 6)
+        .stroke(.red.opacity(0.18))
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(insight.title). \(narration?.text ?? insight.explanation)")
   }
 }

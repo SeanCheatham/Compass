@@ -1,0 +1,293 @@
+import Foundation
+
+struct LiveFailureInsight: Equatable, Sendable {
+  static let detailLimit = 420
+  static let identifierLimit = 1_200
+
+  enum Kind: String, Equatable, Sendable {
+    case argumentRepair
+    case safetyGate
+    case sandboxBoundary
+    case editConflict
+    case missingFile
+    case timeout
+    case commandFailure
+    case guestBridge
+    case unavailableService
+    case unknownTool
+    case generic
+  }
+
+  var kind: Kind
+  var title: String
+  var explanation: String
+  var nextStep: String
+  var badge: String
+  var systemImageName: String
+  var lineTitle: String
+  var detail: String
+  var narrationIdentifier: String
+
+  init?(line: LiveLine) {
+    guard line.status == .failed || line.level == .error else { return nil }
+
+    let lineTitle = Self.normalized(line.text)
+    let detail = Self.normalized(line.detail ?? "")
+    let combined = "\(lineTitle)\n\(detail)"
+    let normalized = combined.lowercased()
+
+    let presentation = Self.presentation(for: normalized, line: line)
+    self.kind = presentation.kind
+    self.title = presentation.title
+    self.explanation = presentation.explanation
+    self.nextStep = presentation.nextStep
+    self.badge = presentation.badge
+    self.systemImageName = presentation.systemImageName
+    self.lineTitle = StringUtils.boundedText(lineTitle, limit: 160)
+    self.detail = StringUtils.boundedText(detail, limit: Self.detailLimit)
+    self.narrationIdentifier = Self.identifier(
+      kind: presentation.kind,
+      title: presentation.title,
+      explanation: presentation.explanation,
+      nextStep: presentation.nextStep,
+      lineTitle: lineTitle,
+      detail: detail
+    )
+  }
+
+  var allowsNarration: Bool {
+    !narrationIdentifier.isEmpty
+  }
+
+  private static func normalized(_ text: String) -> String {
+    StringUtils.boundedText(text, limit: detailLimit)
+  }
+
+  private static func presentation(
+    for normalized: String,
+    line: LiveLine
+  ) -> (
+    kind: Kind,
+    title: String,
+    explanation: String,
+    nextStep: String,
+    badge: String,
+    systemImageName: String
+  ) {
+    if containsAny(normalized, ["unknown tool"]) {
+      return (
+        .unknownTool,
+        "Tool Is Not Available",
+        "The agent asked for a tool Compass does not expose in this phase.",
+        "Compass will feed that failure back to the agent. If it repeats, the plan may be naming the wrong capability.",
+        "Tool palette",
+        "wrench.and.screwdriver"
+      )
+    }
+
+    if containsAny(normalized, ["has not been read", "would overwrite"]) {
+      return (
+        .safetyGate,
+        "File Safety Gate Stopped It",
+        "Compass blocked an overwrite because the agent had not read the current file contents in this session.",
+        "The next attempt should read the file first, then retry the smallest exact edit.",
+        "Protected",
+        "shield.checkered"
+      )
+    }
+
+    if containsAny(normalized, ["escapes", "outside the working directory", "path escape"]) {
+      return (
+        .sandboxBoundary,
+        "Workspace Boundary Blocked It",
+        "Compass refused a path outside the project workspace so the run cannot touch unrelated files.",
+        "The agent should retry with a project-relative path or explain why the requested file is out of scope.",
+        "Sandbox",
+        "lock.shield"
+      )
+    }
+
+    if containsAny(normalized, ["oldstring not found", "edit conflict", "old string not found"]) {
+      return (
+        .editConflict,
+        "Edit Did Not Match",
+        "The exact text the agent wanted to replace was not found, usually because the file changed or the snippet was too broad.",
+        "The next attempt should reread the file and apply a narrower edit against the current text.",
+        "Reread",
+        "doc.text.magnifyingglass"
+      )
+    }
+
+    if containsAny(normalized, ["file not found", "no such file", "no codemap entry"]) {
+      return (
+        .missingFile,
+        "File Was Not Found",
+        "The agent looked for a file or index entry Compass cannot currently see.",
+        "The next attempt should list files, refresh the codemap if needed, or choose the current path.",
+        "Find path",
+        "questionmark.folder"
+      )
+    }
+
+    if containsAny(normalized, ["timed out", "timeout", "wall-clock"]) {
+      return (
+        .timeout,
+        "Step Ran Out Of Time",
+        "A command or agent step exceeded its time budget before it could finish cleanly.",
+        "The next attempt should narrow the command, raise the explicit timeout only when justified, or split the work.",
+        "Time budget",
+        "timer"
+      )
+    }
+
+    if containsAny(normalized, ["guest rpc", "vsock", "transport", "guest internal error"]) {
+      return (
+        .guestBridge,
+        "Sandbox Connection Had Trouble",
+        "Compass reached a problem talking to the guest workspace or its tool bridge.",
+        "Retry after the sandbox is ready; if it repeats, repair or restart the shared workspace route.",
+        "Bridge",
+        "network"
+      )
+    }
+
+    if containsAny(normalized, ["not enabled", "not available", "unavailable"]) {
+      return (
+        .unavailableService,
+        "Required Service Is Unavailable",
+        "The agent requested a capability that is not enabled or ready for this project route.",
+        "Check the related settings or let the next plan choose a route that is available.",
+        "Unavailable",
+        "exclamationmark.icloud"
+      )
+    }
+
+    if containsAny(
+      normalized,
+      ["invalid arguments", "failed to decode arguments", "missing required field", "expected "]
+    ) {
+      return (
+        .argumentRepair,
+        "Tool Request Needs Repair",
+        "Compass could not understand the tool arguments, so it rejected the call before trusting the result.",
+        "The agent should retry the same intent with the tool's required fields and smaller JSON if needed.",
+        "Schema",
+        "curlybraces"
+      )
+    }
+
+    if line.kind == .command || containsAny(normalized, ["[exit ", "bash command failed"]) {
+      return (
+        .commandFailure,
+        "Command Reported A Failure",
+        "A command finished with a failing result; Compass preserved the output as the concrete symptom.",
+        "Use the first clear error in the output as the next fix target, then rerun the proof.",
+        "Command",
+        "terminal"
+      )
+    }
+
+    return (
+      .generic,
+      "Run Step Needs Review",
+      "This live event failed, and Compass kept the detail so the next attempt does not have to guess.",
+      "Start from the preserved detail, fix the smallest concrete cause, and rerun the relevant proof.",
+      "Review",
+      "exclamationmark.triangle"
+    )
+  }
+
+  private static func containsAny(_ haystack: String, _ needles: [String]) -> Bool {
+    needles.contains { haystack.contains($0) }
+  }
+
+  private static func identifier(
+    kind: Kind,
+    title: String,
+    explanation: String,
+    nextStep: String,
+    lineTitle: String,
+    detail: String
+  ) -> String {
+    let raw = [
+      "kind:\(kind.rawValue)",
+      "title:\(title)",
+      "explanation:\(explanation)",
+      "next:\(nextStep)",
+      "line:\(StringUtils.boundedText(lineTitle, limit: 160))",
+      "detail:\(StringUtils.boundedText(detail, limit: detailLimit))",
+    ].joined(separator: "|")
+    return StringUtils.boundedText(raw, limit: identifierLimit)
+  }
+}
+
+struct LiveFailureInsightNarration: Equatable, Sendable {
+  var insightIdentifier: String
+  var text: String
+}
+
+enum LiveFailureInsightNarrator {
+  static let maxCharacters = 340
+
+  static func narrate(insight: LiveFailureInsight) async -> LiveFailureInsightNarration? {
+    guard insight.allowsNarration else { return nil }
+    guard FoundationModelsAvailability.isAvailable else { return nil }
+
+    if #available(macOS 26.0, *) {
+      guard
+        let generated = await FoundationModelsAvailability._streamText(
+          prompt: prompt(for: insight)
+        )
+      else {
+        return nil
+      }
+      let text = sanitized(generated)
+      guard !text.isEmpty else { return nil }
+      return LiveFailureInsightNarration(
+        insightIdentifier: insight.narrationIdentifier,
+        text: text
+      )
+    }
+
+    return nil
+  }
+
+  static func prompt(for insight: LiveFailureInsight) -> String {
+    """
+    You are Compass explaining one failed live event to a non-engineer.
+    Use only the facts below. Do not invent project facts, files, commands, outcomes, or promises.
+    Return one calm sentence under 45 words. No Markdown.
+
+    Failure type: \(insight.title)
+    Plain explanation: \(insight.explanation)
+    Safe next step: \(insight.nextStep)
+    Raw live row: \(insight.lineTitle)
+    Raw detail: \(insight.detail)
+    """
+  }
+
+  private static func sanitized(_ text: String) -> String {
+    let normalized = StringUtils.boundedText(
+      text
+        .components(separatedBy: .newlines)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+        .joined(separator: " "),
+      limit: maxCharacters
+    )
+    .trimmingCharacters(in: CharacterSet(charactersIn: "\"'` "))
+
+    let lowercased = normalized.lowercased()
+    guard
+      !normalized.contains("{"),
+      !normalized.contains("}"),
+      !normalized.contains("```"),
+      !normalized.hasPrefix("-"),
+      !lowercased.contains("http://"),
+      !lowercased.contains("https://")
+    else {
+      return ""
+    }
+    return normalized
+  }
+}

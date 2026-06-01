@@ -62,37 +62,76 @@ extension AgentExecutor {
       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     else { return nil }
 
-    func string(_ key: String) -> String? {
-      guard let raw = json[key] as? String else { return nil }
-      let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-      return trimmed.isEmpty ? nil : trimmed
+    func string(_ keys: String...) -> String? {
+      for key in keys {
+        guard let raw = json[key] as? String else { continue }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+          return trimmed
+        }
+      }
+      return nil
     }
 
     switch name {
     case AgentBashTool.toolName:
-      return string("command").map { truncateOneLine($0, limit: 100) }
+      return string("command", "cmd", "shellCommand", "shell_command", "script").map {
+        truncateOneLine($0, limit: 100)
+      }
     case AgentReadFileTool.toolName,
       AgentWriteFileTool.toolName,
       AgentEditFileTool.toolName:
-      return string("path")
+      return string("path", "filePath", "file_path", "file")
     case AgentLsTool.toolName:
-      return string("path") ?? "."
-    case AgentGrepTool.toolName, AgentGlobTool.toolName:
-      guard let pattern = string("pattern") else { return nil }
-      if let path = string("path") {
+      return string("path", "directory", "dir", "root") ?? "."
+    case AgentGrepTool.toolName:
+      guard let pattern = string("pattern", "query", "regex", "search") else {
+        return nil
+      }
+      if let path = string("path", "filePath", "file_path", "file", "directory", "dir", "root") {
+        return "\(pattern) in \(path)"
+      }
+      return pattern
+    case AgentGlobTool.toolName:
+      guard let pattern = string("pattern", "glob", "query") else { return nil }
+      if let path = string("path", "directory", "dir", "root") {
         return "\(pattern) in \(path)"
       }
       return pattern
     case AgentOutlineTool.toolName,
       AgentSummaryTool.toolName,
       AgentImportersOfTool.toolName:
-      return string("path")
+      return string("path", "filePath", "file_path", "file", "relativePath", "relative_path")
     case AgentFindSymbolTool.toolName:
-      guard let name = string("name") else { return nil }
-      if let kind = string("kind") { return "\(name) (\(kind))" }
+      guard let name = string("name", "symbol", "symbolName", "symbol_name", "query") else {
+        return nil
+      }
+      if let kind = string("kind", "symbolKind", "symbol_kind", "type") {
+        return "\(name) (\(kind))"
+      }
       return name
     case AgentListFilesTool.toolName:
-      return string("filter") ?? "(all)"
+      return string("filter", "query", "search", "path", "directory", "dir") ?? "(all)"
+    case AgentGenerateImageTool.toolName:
+      return string(
+        "output_path", "outputPath", "path", "filePath", "file_path", "output", "destination"
+      )
+      ?? string("prompt", "description", "imagePrompt", "image_prompt").map {
+        truncateOneLine($0, limit: 80)
+      }
+    case AgentDelegateTool.toolName:
+      return string("task", "prompt", "instructions", "instruction", "question", "subtask").map {
+        truncateOneLine($0, limit: 100)
+      }
+    case AgentHostXcodeTool.toolName:
+      return string("action", "operation", "command")
+    case AgentInstallToolchainTool.toolName:
+      return string("id", "toolchain", "toolchainID", "toolchain_id", "name")
+    case AgentPlanHistoryTool.toolName:
+      if let offset = string("offset", "start", "skip") {
+        return "offset \(offset)"
+      }
+      return "latest"
     default:
       return nil
     }
