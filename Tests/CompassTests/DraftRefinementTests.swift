@@ -37,6 +37,31 @@ struct DraftRefinementTests {
     try #require(guide.cues.allSatisfy { $0.isSatisfied })
   }
 
+  @Test func testDraftReadinessGuideRejectsVagueSuccessSignals() throws {
+    let guide = DraftReadinessGuide(
+      draft: "Make setup easier because users are stuck; it works."
+    )
+
+    try #require(guide.status == .needsDetail)
+    try #require(guide.scoreLabel == "2 of 3")
+    try #require(guide.detail == "Missing: Success signal.")
+    try #require(guide.cues[0].isSatisfied)
+    try #require(guide.cues[1].isSatisfied)
+    try #require(!guide.cues[2].isSatisfied)
+    try #require(
+      guide.cues[2].detail == "Replace vague words like works or done with visible proof.")
+  }
+
+  @Test func testDraftReadinessGuideAcceptsSpecificDoneWhenSignals() throws {
+    let guide = DraftReadinessGuide(
+      draft: "Show recovery copy because users get locked out; done when the recovery banner appears."
+    )
+
+    try #require(guide.status == .ready)
+    try #require(guide.scoreLabel == "3 of 3")
+    try #require(guide.cues[2].isSatisfied)
+  }
+
   @Test func testDraftIntakeGuideSummarizesQueuedDraftSignals() throws {
     let guide = DraftIntakeGuide(
       drafts: """

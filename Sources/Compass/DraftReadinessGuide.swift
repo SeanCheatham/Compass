@@ -14,6 +14,7 @@ struct DraftReadinessGuide: Equatable, Sendable {
     let outcome = Self.hasOutcomeSignal(in: draft)
     let why = Self.hasWhySignal(in: draft)
     let success = Self.hasSuccessSignal(in: draft)
+    let vagueSuccess = !success && Self.hasVagueSuccessSignal(in: draft)
 
     cues = [
       Cue(
@@ -29,7 +30,11 @@ struct DraftReadinessGuide: Equatable, Sendable {
       Cue(
         kind: .success,
         isSatisfied: success,
-        detail: success ? "Done signal is visible." : "Say how done should look."
+        detail: success
+          ? "Done signal is visible."
+          : vagueSuccess
+            ? "Replace vague words like works or done with visible proof."
+            : "Say how done should look."
       ),
     ]
 
@@ -134,7 +139,6 @@ struct DraftReadinessGuide: Equatable, Sendable {
         "appears",
         "check",
         "checks",
-        "done",
         "error",
         "fails",
         "passes",
@@ -143,12 +147,31 @@ struct DraftReadinessGuide: Equatable, Sendable {
         "tests",
         "verify",
         "visible",
-        "when",
-        "works",
       ]
     )
       || draft.localizedCaseInsensitiveContains("no longer")
-      || draft.localizedCaseInsensitiveContains("success looks like")
+  }
+
+  private static func hasVagueSuccessSignal(in draft: String) -> Bool {
+    let normalized = draft
+      .lowercased()
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    let vaguePhrases = [
+      "all done",
+      "complete",
+      "completed",
+      "done",
+      "everything works",
+      "it works",
+      "looks good",
+      "works",
+    ]
+
+    return vaguePhrases.contains { phrase in
+      containsWord(phrase, in: normalized)
+    }
   }
 
   private static func missingDetail(for cues: [Cue]) -> String {
@@ -161,10 +184,14 @@ struct DraftReadinessGuide: Equatable, Sendable {
 
   private static func containsAnyWord(in text: String, _ words: [String]) -> Bool {
     words.contains { word in
-      let escaped = NSRegularExpression.escapedPattern(for: word)
-      let pattern = #"(?<![A-Za-z0-9])"# + escaped + #"(?![A-Za-z0-9])"#
-      return text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+      containsWord(word, in: text)
     }
+  }
+
+  private static func containsWord(_ word: String, in text: String) -> Bool {
+    let escaped = NSRegularExpression.escapedPattern(for: word)
+    let pattern = #"(?<![A-Za-z0-9])"# + escaped + #"(?![A-Za-z0-9])"#
+    return text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
   }
 
   private static func bounded(_ text: String) -> String {
