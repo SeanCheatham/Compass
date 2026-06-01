@@ -28,6 +28,28 @@ struct ProjectRunControlGuideTests {
   }
 
   @Test
+  func testNoImmediateWorkPreviewExplainsFullLoopPath() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(immediate: nil),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false
+    )
+
+    try #require(
+      guide.previewSteps.map(\.title) == [
+        "Plan one slice", "Develop in the private workspace", "Verify and review",
+      ])
+    try #require(
+      guide.previewSteps[0].detail
+        == "Plan will choose one executable next slice from the repository and current arc.")
+    try #require(guide.previewSteps[1].detail.contains("outside your host checkout"))
+    try #require(guide.previewSteps[2].detail.contains("saved check"))
+  }
+
+  @Test
   func testQueuedDraftsSurfaceInRunReadinessBeforePlanning() throws {
     let guide = ProjectRunControlGuide(
       state: makeState(immediate: nil),
@@ -106,6 +128,41 @@ struct ProjectRunControlGuideTests {
     try #require(guide.options[1].title == "Run Plan Only")
     try #require(guide.options[2].title == "Run Develop Only")
     try #require(guide.options[2].detail.contains("Immediate Work"))
+  }
+
+  @Test
+  func testImmediateWorkPreviewNamesCurrentSliceAndVerify() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(
+        immediate: PlanNext(
+          plan: """
+            ## Outcome
+            Make run controls explain the next factory action.
+
+            ## Acceptance checks
+            - The run menu previews the next action before starting.
+            """,
+          verify: "swift test --filter ProjectRunControlGuideTests",
+          requiresHostXcode: true
+        )
+      ),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false
+    )
+
+    try #require(
+      guide.previewSteps.map(\.title) == [
+        "Develop current slice", "Run verification", "Review and continue",
+      ])
+    try #require(
+      guide.previewSteps[0].detail == "Make run controls explain the next factory action.")
+    try #require(
+      guide.previewSteps[1].detail
+        == "Host Xcode runs: swift test --filter ProjectRunControlGuideTests")
+    try #require(guide.previewSteps[1].systemImage == "macwindow")
   }
 
   @Test
@@ -202,6 +259,30 @@ struct ProjectRunControlGuideTests {
     try #require(guide.primaryKind == .planOnly)
     try #require(!guide.options[2].isEnabled)
     try #require(guide.options[2].detail == "Disabled until Immediate Work has Verify command.")
+  }
+
+  @Test
+  func testRepairPreviewNamesMissingHandoffPiece() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(
+        immediate: PlanNext(
+          plan: "Make the Plan tab easier to read.",
+          verify: "swift test --filter ProjectRunControlGuideTests"
+        )
+      ),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      languageProfile: profile(.swift)
+    )
+
+    try #require(guide.previewSteps.map(\.title) == ["Plan one slice", "Stop for review"])
+    try #require(
+      guide.previewSteps[0].detail
+        == "Plan will add Acceptance checks so Develop has a clear finish line.")
+    try #require(guide.previewSteps[1].detail.contains("stops before Develop"))
   }
 
   @Test

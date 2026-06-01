@@ -2,11 +2,13 @@ import Foundation
 
 struct ProjectRunControlGuide: Equatable {
   static let identifierLimit = 1_200
+  static let previewDetailLimit = 180
 
   var primaryHelp: String
   var primaryKind: Kind
   var readiness: Readiness
   var options: [Option]
+  var previewSteps: [PreviewStep]
   var narrationIdentifier: String
 
   var allowsNarration: Bool {
@@ -108,6 +110,18 @@ struct ProjectRunControlGuide: Equatable {
       ),
     ]
 
+    previewSteps = Self.previewSteps(
+      state: state,
+      primaryKind: primaryKind,
+      reliabilityStatus: reliabilityStatus,
+      handoffReadiness: handoffReadiness,
+      hasRepository: hasRepository,
+      isRunning: isRunning,
+      isAutoPlaying: isAutoPlaying,
+      isPaused: isPaused,
+      draftIntakeGuide: draftIntakeGuide
+    )
+
     primaryHelp = Self.primaryHelp(
       hasRepository: hasRepository,
       isRunning: isRunning,
@@ -122,7 +136,8 @@ struct ProjectRunControlGuide: Equatable {
       primaryHelp: primaryHelp,
       primaryKind: primaryKind,
       readiness: readiness,
-      options: options
+      options: options,
+      previewSteps: previewSteps
     )
   }
 
@@ -157,6 +172,13 @@ struct ProjectRunControlGuide: Equatable {
     var isEnabled: Bool
 
     var id: Kind { kind }
+  }
+
+  struct PreviewStep: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var detail: String
+    var systemImage: String
   }
 
   private static func primaryKind(
@@ -214,6 +236,186 @@ struct ProjectRunControlGuide: Equatable {
     return handoffReadiness.hasImmediate
       ? "Ask Plan to refine or replace the next slice, then stop before Develop."
       : "Ask Plan to choose one executable next slice, then stop for review."
+  }
+
+  private static func previewSteps(
+    state: PlanState,
+    primaryKind: Kind,
+    reliabilityStatus: ProjectReliabilityStatus,
+    handoffReadiness: HandoffReadiness,
+    hasRepository: Bool,
+    isRunning: Bool,
+    isAutoPlaying: Bool,
+    isPaused: Bool,
+    draftIntakeGuide: DraftIntakeGuide
+  ) -> [PreviewStep] {
+    if !hasRepository {
+      return [
+        PreviewStep(
+          id: "repository",
+          title: "Add a repository",
+          detail: "Choose a Git repository before Compass can run the factory.",
+          systemImage: "folder.badge.plus"
+        )
+      ]
+    }
+
+    if isRunning || isAutoPlaying {
+      return [
+        PreviewStep(
+          id: "inProgress",
+          title: "Finish the current run",
+          detail: "Compass is already running this project.",
+          systemImage: "play.circle"
+        )
+      ]
+    }
+
+    if isPaused {
+      return [
+        PreviewStep(
+          id: "resume",
+          title: "Resume from the gate",
+          detail: "Compass will continue from the paused factory gate.",
+          systemImage: "pause.circle"
+        )
+      ]
+    }
+
+    if !reliabilityStatus.isEmpty {
+      return [
+        PreviewStep(
+          id: "attention",
+          title: reliabilityStatus.actionLabel,
+          detail: "\(reliabilityStatus.primaryCue): \(reliabilityStatus.detail)",
+          systemImage: reliabilityStatus.systemImage
+        ),
+        PreviewStep(
+          id: "continue",
+          title: primaryKind == .planOnly ? "Repair before Develop" : "Keep the issue visible",
+          detail: primaryKind == .planOnly
+            ? "Plan runs first so the next handoff is executable before Develop starts."
+            : "Develop retries the current slice with the captured issue still attached.",
+          systemImage: primaryKind == .planOnly ? "map" : "hammer.fill"
+        ),
+      ]
+    }
+
+    switch primaryKind {
+    case .planOnly:
+      return planPreviewSteps(
+        handoffReadiness: handoffReadiness,
+        draftIntakeGuide: draftIntakeGuide
+      )
+    case .developOnly:
+      return developPreviewSteps(state: state)
+    case .loop:
+      if handoffReadiness.canDevelop, state.immediate != nil {
+        return developPreviewSteps(state: state)
+          + [
+            PreviewStep(
+              id: "review",
+              title: "Review and continue",
+              detail: "Verify and Critic run after Develop, then Compass chooses the next gate.",
+              systemImage: "checkmark.seal"
+            )
+          ]
+      }
+      return [
+        PreviewStep(
+          id: "plan",
+          title: "Plan one slice",
+          detail: planPreviewDetail(
+            handoffReadiness: handoffReadiness,
+            draftIntakeGuide: draftIntakeGuide
+          ),
+          systemImage: "map"
+        ),
+        PreviewStep(
+          id: "develop",
+          title: "Develop in the private workspace",
+          detail: "Develop edits the selected slice outside your host checkout.",
+          systemImage: "hammer.fill"
+        ),
+        PreviewStep(
+          id: "verify",
+          title: "Verify and review",
+          detail:
+            "Compass runs the saved check, records feedback, and decides whether to continue.",
+          systemImage: "checkmark.seal"
+        ),
+      ]
+    }
+  }
+
+  private static func planPreviewSteps(
+    handoffReadiness: HandoffReadiness,
+    draftIntakeGuide: DraftIntakeGuide
+  ) -> [PreviewStep] {
+    [
+      PreviewStep(
+        id: "plan",
+        title: "Plan one slice",
+        detail: planPreviewDetail(
+          handoffReadiness: handoffReadiness,
+          draftIntakeGuide: draftIntakeGuide
+        ),
+        systemImage: "map"
+      ),
+      PreviewStep(
+        id: "stop",
+        title: "Stop for review",
+        detail: "Compass stops before Develop so you can inspect the handoff.",
+        systemImage: "pause.circle"
+      ),
+    ]
+  }
+
+  private static func planPreviewDetail(
+    handoffReadiness: HandoffReadiness,
+    draftIntakeGuide: DraftIntakeGuide
+  ) -> String {
+    if handoffReadiness.hasImmediate && !handoffReadiness.canDevelop {
+      return "Plan will add \(handoffReadiness.missingLabel) so Develop has a clear finish line."
+    }
+
+    if !draftIntakeGuide.isEmpty {
+      return "Plan will turn \(draftIntakeGuide.entryCountLabel) into one executable handoff."
+    }
+
+    return "Plan will choose one executable next slice from the repository and current arc."
+  }
+
+  private static func developPreviewSteps(state: PlanState) -> [PreviewStep] {
+    guard let immediate = state.immediate else {
+      return [
+        PreviewStep(
+          id: "plan",
+          title: "Plan first",
+          detail: "Develop is disabled until Plan selects Immediate Work.",
+          systemImage: "map"
+        )
+      ]
+    }
+
+    let digest = PlanHandoffDigest(plan: immediate.plan)
+    let outcome = digest.outcome ?? "Use the current Immediate Work."
+    let verifyPrefix = immediate.requiresHostXcode ? "Host Xcode runs" : "Compass runs"
+    return [
+      PreviewStep(
+        id: "develop",
+        title: "Develop current slice",
+        detail: StringUtils.boundedText(outcome, limit: previewDetailLimit),
+        systemImage: "hammer.fill"
+      ),
+      PreviewStep(
+        id: "verify",
+        title: "Run verification",
+        detail:
+          "\(verifyPrefix): \(StringUtils.boundedText(immediate.verify, limit: previewDetailLimit))",
+        systemImage: immediate.requiresHostXcode ? "macwindow" : "terminal"
+      ),
+    ]
   }
 
   private static func developOnlyTitle(for reliabilityStatus: ProjectReliabilityStatus) -> String {
@@ -384,10 +586,14 @@ struct ProjectRunControlGuide: Equatable {
     primaryHelp: String,
     primaryKind: Kind,
     readiness: Readiness,
-    options: [Option]
+    options: [Option],
+    previewSteps: [PreviewStep]
   ) -> String {
     let optionFragment = options.map { option in
       "\(option.kind.narrationKey):\(option.title):\(option.detail):enabled:\(option.isEnabled)"
+    }.joined(separator: "|")
+    let previewFragment = previewSteps.map { step in
+      "\(step.id):\(step.title):\(step.detail)"
     }.joined(separator: "|")
 
     return StringUtils.boundedText(
@@ -396,6 +602,7 @@ struct ProjectRunControlGuide: Equatable {
         "help:\(primaryHelp)",
         "readiness:\(readiness.title):\(readiness.detail)",
         "options:\(optionFragment)",
+        "preview:\(previewFragment)",
       ].joined(separator: "\n"),
       limit: Self.identifierLimit
     )

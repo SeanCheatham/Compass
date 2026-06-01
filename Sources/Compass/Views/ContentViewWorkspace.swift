@@ -663,6 +663,12 @@ struct ProjectRunControls: View {
           Text(runNarration.text)
         }
         Divider()
+        Label("Next run preview", systemImage: "list.bullet.rectangle")
+        ForEach(runGuide.previewSteps) { step in
+          Label(step.title, systemImage: step.systemImage)
+          Text(step.detail)
+        }
+        Divider()
         ForEach(runGuide.options) { option in
           Button {
             run(option.kind)

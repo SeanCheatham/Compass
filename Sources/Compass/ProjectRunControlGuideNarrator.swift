@@ -40,6 +40,7 @@ enum ProjectRunControlGuideNarrator {
     Readiness: \(guide.readiness.title) - \(guide.readiness.detail)
     Primary explanation: \(guide.primaryHelp)
     Primary action: \(guide.primaryOption.title) - \(guide.primaryOption.detail)
+    Next run preview: \(guide.previewSteps.map { "\($0.title) - \($0.detail)" }.joined(separator: " | "))
     Available modes: \(guide.options.map { "\($0.title) - \($0.detail) - enabled: \($0.isEnabled)" }.joined(separator: " | "))
     """
   }
