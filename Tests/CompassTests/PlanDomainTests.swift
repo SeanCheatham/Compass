@@ -1007,6 +1007,66 @@ struct DevelopSummaryDecoderTests {
     try #require(summary.lessonEdits.count == 1)
     try #require(summary.lessonEdits[0].replaceAll == true)
   }
+
+  @Test func decoderAcceptsSummaryAndFeedbackArraysForFreeformText() throws {
+    let data = Data(
+      """
+      {
+        "status": "succeeded",
+        "summary": [
+          "Implemented the recovery copy.",
+          "Covered the missing-submit retry path."
+        ],
+        "feedback": [
+          "Missing submit_result turns now retry with a phase-shaped packet.",
+          "No follow-up unless live copy needs tuning."
+        ],
+        "bypassVerify": false,
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+
+    let summary = try JSONDecoder().decode(DevelopSummary.self, from: data)
+
+    try #require(
+      summary.summary
+        == "Implemented the recovery copy.\nCovered the missing-submit retry path."
+    )
+    try #require(
+      summary.feedback
+        == "Missing submit_result turns now retry with a phase-shaped packet.\nNo follow-up unless live copy needs tuning."
+    )
+  }
+}
+
+struct CriticVerdictDecoderTests {
+  @Test func decoderAcceptsSummaryAndFeedbackArraysForFreeformText() throws {
+    let data = Data(
+      """
+      {
+        "verdict": "changes_requested",
+        "summary": [
+          "One blocking issue remains.",
+          "The fix is localized."
+        ],
+        "feedback": [
+          "- Retry copy does not mention the failed field.",
+          "- Add the field name to the repair prompt."
+        ]
+      }
+      """.utf8
+    )
+
+    let verdict = try JSONDecoder().decode(CriticVerdict.self, from: data)
+
+    try #require(verdict.verdict == .requestChanges)
+    try #require(verdict.summary == "One blocking issue remains.\nThe fix is localized.")
+    try #require(
+      verdict.feedback
+        == "- Retry copy does not mention the failed field.\n- Add the field name to the repair prompt."
+    )
+  }
 }
 
 struct PlanningEnvelopeDecoderTests {
@@ -1046,7 +1106,10 @@ struct PlanningEnvelopeDecoderTests {
           "nearTermQueue": "",
           "strategicArc": "Keep the factory understandable to non-engineers."
         },
-        "summary": "The arc still points at non-engineer UX.",
+        "summary": [
+          "The arc still points at non-engineer UX.",
+          "No immediate planning update is needed."
+        ],
         "lessonEdits": []
       }
       """.utf8
@@ -1057,6 +1120,40 @@ struct PlanningEnvelopeDecoderTests {
     try #require(summary.state?.immediate == nil)
     try #require(summary.state?.midTerm == "")
     try #require(summary.state?.longTerm == "Keep the factory understandable to non-engineers.")
+    try #require(
+      summary.summary
+        == "The arc still points at non-engineer UX.\nNo immediate planning update is needed."
+    )
+  }
+
+  @Test func planProposalDecoderAcceptsRunwayArraysForFreeformText() throws {
+    let data = Data(
+      """
+      {
+        "next": null,
+        "nearTermQueue": [
+          "- Harden weak-model recovery.",
+          "- Keep owner-facing status clear."
+        ],
+        "strategicArc": [
+          "Keep the factory understandable to non-engineers.",
+          "Make model mistakes recoverable instead of mysterious."
+        ]
+      }
+      """.utf8
+    )
+
+    let proposal = try JSONDecoder().decode(PlanProposal.self, from: data)
+
+    try #require(proposal.immediate == nil)
+    try #require(
+      proposal.midTerm
+        == "- Harden weak-model recovery.\n- Keep owner-facing status clear."
+    )
+    try #require(
+      proposal.longTerm
+        == "Keep the factory understandable to non-engineers.\nMake model mistakes recoverable instead of mysterious."
+    )
   }
 }
 

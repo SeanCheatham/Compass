@@ -1,6 +1,52 @@
 import Foundation
 
 enum FlexibleModelDecoder {
+  static func decodeRequiredString<Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    forKey key: Key
+  ) throws -> String {
+    guard container.contains(key) else {
+      throw DecodingError.keyNotFound(
+        key,
+        .init(
+          codingPath: container.codingPath,
+          debugDescription: "Missing required string field."
+        )
+      )
+    }
+    if try container.decodeNil(forKey: key) {
+      throw DecodingError.valueNotFound(
+        String.self,
+        .init(
+          codingPath: container.codingPath + [key],
+          debugDescription: "Expected string but found null."
+        )
+      )
+    }
+    if let value = try? container.decode(String.self, forKey: key) {
+      return value
+    }
+    if let value = try? decodeStringArray(from: container, forKey: key) {
+      return value
+    }
+    return try container.decode(String.self, forKey: key)
+  }
+
+  static func decodeStringIfPresent<Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    forKey key: Key
+  ) throws -> String? {
+    guard container.contains(key) else { return nil }
+    if try container.decodeNil(forKey: key) { return nil }
+    if let value = try? container.decode(String.self, forKey: key) {
+      return value
+    }
+    if let value = try? decodeStringArray(from: container, forKey: key) {
+      return value
+    }
+    return try container.decode(String.self, forKey: key)
+  }
+
   static func decodeBool<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     forKey key: Key
@@ -38,6 +84,17 @@ enum FlexibleModelDecoder {
       .lowercased()
       .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "_", options: .regularExpression)
       .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+  }
+
+  private static func decodeStringArray<Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    forKey key: Key
+  ) throws -> String {
+    let values = try container.decode([String].self, forKey: key)
+    return values
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+      .joined(separator: "\n")
   }
 }
 
@@ -233,8 +290,9 @@ struct PlanState: Codable, Equatable {
       try container.decodeIfPresent([LossyString].self, forKey: .completed) ?? []
     completed = completedValues.compactMap(\.value)
     immediate = try container.decodeIfPresent(PlanNext.self, forKey: .immediate)
-    midTerm = try container.decodeIfPresent(String.self, forKey: .midTerm) ?? ""
-    longTerm = try container.decodeIfPresent(String.self, forKey: .longTerm) ?? ""
+    midTerm = try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .midTerm) ?? ""
+    longTerm =
+      try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .longTerm) ?? ""
   }
 
   var proposal: PlanProposal {
@@ -384,7 +442,7 @@ struct ReflectSummary: Codable, Equatable {
       preferredKey: .state,
       aliases: [.planState, .plan_state, .planningState, .planning_state, .proposal]
     )
-    summary = try container.decode(String.self, forKey: .summary)
+    summary = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .summary)
     lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
   }
 
@@ -875,8 +933,8 @@ struct DevelopSummary: Codable, Equatable {
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     status = try container.decode(Status.self, forKey: .status)
-    summary = try container.decode(String.self, forKey: .summary)
-    feedback = try container.decode(String.self, forKey: .feedback)
+    summary = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .summary)
+    feedback = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .feedback)
     bypassVerify = FlexibleModelDecoder.decodeBool(from: container, forKey: .bypassVerify)
     lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
   }
@@ -936,8 +994,8 @@ struct CriticVerdict: Codable, Equatable {
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     verdict = try container.decode(Verdict.self, forKey: .verdict)
-    summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? ""
-    feedback = try container.decodeIfPresent(String.self, forKey: .feedback) ?? ""
+    summary = try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .summary) ?? ""
+    feedback = try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .feedback) ?? ""
   }
 }
 

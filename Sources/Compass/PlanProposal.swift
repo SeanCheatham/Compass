@@ -136,7 +136,7 @@ struct PlanProposal: Codable, Equatable {
     for key in [preferredKey] + aliases where container.contains(key) {
       sawPresentKey = true
       do {
-        return try container.decode(String.self, forKey: key)
+        return try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: key)
       } catch {
         firstTypeError = firstTypeError ?? error
       }
