@@ -274,6 +274,9 @@ struct WorldInspectorPanel: View {
     VStack(alignment: .leading, spacing: 14) {
       header
       controls
+      if let atlas = atlas {
+        WorldAtlasPanel(atlas: atlas)
+      }
       branchChoices
       search
       Divider().overlay(.white.opacity(0.2))
@@ -286,6 +289,16 @@ struct WorldInspectorPanel: View {
     .overlay(
       RoundedRectangle(cornerRadius: 8)
         .stroke(.white.opacity(0.14), lineWidth: 1)
+    )
+  }
+
+  private var atlas: WorldAtlas? {
+    guard let graph = model.graph else { return nil }
+    return WorldAtlas(
+      graph: graph,
+      route: model.route,
+      routeIndex: model.routeIndex,
+      selectedNodeID: model.selectedNodeID
     )
   }
 
@@ -476,6 +489,148 @@ struct WorldInspectorPanel: View {
     case .switchCase: return Color(red: 0.72, green: 0.58, blue: 0.86)
     case .errorPath: return Color(red: 0.94, green: 0.39, blue: 0.32)
     case .unresolvedPassage: return Color(red: 0.58, green: 0.62, blue: 0.68)
+    }
+  }
+}
+
+private struct WorldAtlasPanel: View {
+  let atlas: WorldAtlas
+
+  private let metricColumns = [
+    GridItem(.flexible(), spacing: 8, alignment: .leading),
+    GridItem(.flexible(), spacing: 8, alignment: .leading),
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Divider().overlay(.white.opacity(0.16))
+
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(atlas.title, systemImage: "sparkles.rectangle.stack")
+          .font(.caption.weight(.semibold))
+        Spacer(minLength: 8)
+        Text(atlas.progressLabel)
+          .font(.caption2.monospacedDigit())
+          .foregroundStyle(.white.opacity(0.58))
+          .lineLimit(1)
+      }
+
+      Text(atlas.detail)
+        .font(.caption)
+        .foregroundStyle(.white.opacity(0.72))
+        .lineLimit(3)
+
+      LazyVGrid(columns: metricColumns, alignment: .leading, spacing: 8) {
+        ForEach(atlas.metrics) { metric in
+          VStack(alignment: .leading, spacing: 2) {
+            Text(metric.value)
+              .font(.callout.monospacedDigit().weight(.semibold))
+              .foregroundStyle(.white)
+              .lineLimit(1)
+            Text(metric.label)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.white.opacity(0.64))
+              .lineLimit(1)
+            Text(metric.detail)
+              .font(.caption2)
+              .foregroundStyle(.white.opacity(0.48))
+              .lineLimit(2)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .accessibilityElement(children: .combine)
+        }
+      }
+
+      if !atlas.terrain.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Terrain")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.58))
+          ForEach(atlas.terrain.prefix(4)) { terrain in
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+              Image(systemName: terrain.systemImageName)
+                .frame(width: 14)
+                .foregroundStyle(.white.opacity(0.72))
+              VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 5) {
+                  Text(terrain.label)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                  Text("\(terrain.count)")
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                }
+                Text(terrain.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.white.opacity(0.52))
+                  .lineLimit(2)
+              }
+            }
+          }
+        }
+      }
+
+      if !atlas.routeStops.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Walk")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.58))
+          ForEach(atlas.routeStops.prefix(4)) { stop in
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+              Image(systemName: stop.isCurrent ? "circle.fill" : "circle")
+                .font(.system(size: 7, weight: .semibold))
+                .frame(width: 14)
+                .foregroundStyle(stop.isCurrent ? .yellow : .white.opacity(0.45))
+              VStack(alignment: .leading, spacing: 1) {
+                Text(stop.label)
+                  .font(.caption.weight(stop.isCurrent ? .semibold : .regular))
+                  .lineLimit(1)
+                Text(stop.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.white.opacity(0.52))
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
+      if !atlas.notices.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          ForEach(atlas.notices.prefix(3)) { notice in
+            HStack(alignment: .top, spacing: 7) {
+              Image(systemName: iconName(for: notice.severity))
+                .frame(width: 14)
+                .foregroundStyle(color(for: notice.severity))
+              VStack(alignment: .leading, spacing: 1) {
+                Text(notice.label)
+                  .font(.caption.weight(.semibold))
+                  .lineLimit(1)
+                Text(notice.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.white.opacity(0.54))
+                  .lineLimit(2)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private func iconName(for severity: WorldAtlas.Notice.Severity) -> String {
+    switch severity {
+    case .info: return "info.circle"
+    case .warning: return "exclamationmark.triangle"
+    case .danger: return "bolt.trianglebadge.exclamationmark"
+    }
+  }
+
+  private func color(for severity: WorldAtlas.Notice.Severity) -> Color {
+    switch severity {
+    case .info: return .white.opacity(0.62)
+    case .warning: return Color(red: 0.95, green: 0.72, blue: 0.32)
+    case .danger: return Color(red: 0.94, green: 0.39, blue: 0.32)
     }
   }
 }
