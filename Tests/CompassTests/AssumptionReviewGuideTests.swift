@@ -10,6 +10,8 @@ struct AssumptionReviewGuideTests {
     #expect(guide.title == "No Memory Yet")
     #expect(guide.tone == .empty)
     #expect(guide.promptEffect == "Future prompts are not receiving assumption guidance yet.")
+    #expect(guide.reviewProgress.label == "No active memory")
+    #expect(guide.reviewProgress.fraction == 1)
     #expect(guide.steps.map(\.id) == ["waitForSignals"])
     #expect(guide.queue.isEmpty)
     #expect(!guide.narrationIdentifier.isEmpty)
@@ -59,6 +61,11 @@ struct AssumptionReviewGuideTests {
       guide.promptEffect
         == "Implicit assumptions are still sent to agents, but marked as lower confidence.")
     #expect(guide.steps.map(\.id) == ["reviewImplicit", "keepCorrections", "reuseGuidance"])
+    #expect(guide.reviewProgress.reviewedCount == 2)
+    #expect(guide.reviewProgress.activeCount == 4)
+    #expect(guide.reviewProgress.fraction == 0.5)
+    #expect(guide.reviewProgress.label == "2 of 4 active reviewed")
+    #expect(guide.reviewProgress.detail.contains("2 guesses"))
     #expect(guide.queue.map(\.id) == ["newerImplicit", "olderImplicit"])
     #expect(guide.queue.first?.detail.contains("session 2") == true)
     #expect(
@@ -79,6 +86,8 @@ struct AssumptionReviewGuideTests {
     #expect(
       guide.promptEffect
         == "Denied assumptions are injected as corrections agents must not rely on.")
+    #expect(guide.reviewProgress.label == "All 2 active reviewed")
+    #expect(guide.reviewProgress.fraction == 1)
     #expect(guide.queue.isEmpty)
   }
 
@@ -140,6 +149,7 @@ struct AssumptionReviewGuideTests {
     #expect(payload.text.contains("Recipient instructions:"))
     #expect(payload.text.contains("Do not invent files, credentials, product intent"))
     #expect(payload.text.contains("Status: Review Needed"))
+    #expect(payload.text.contains("Review progress: 2 of 3 active reviewed"))
     #expect(payload.text.contains("Counts: 1 implicit, 1 affirmed, 1 denied, 1 archived"))
     #expect(payload.text.contains("Needs review first:"))
     #expect(payload.text.contains("- The target user is a non-engineer operator."))
@@ -177,6 +187,9 @@ struct AssumptionReviewGuideTests {
     )
 
     try await withMockFoundationModels(response: "Compass has one guess waiting for review.") {
+      let prompt = AssumptionReviewGuideNarrator.prompt(for: guide)
+      #expect(prompt.contains("Review progress: 0 of 1 active reviewed"))
+
       let generatedNarration = await AssumptionReviewGuideNarrator.narrate(guide: guide)
       let narration = try #require(generatedNarration)
       #expect(narration.guideIdentifier == guide.narrationIdentifier)

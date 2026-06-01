@@ -22,10 +22,22 @@ struct AssumptionReviewGuide: Equatable, Sendable {
     var detail: String
   }
 
+  struct ReviewProgress: Equatable, Sendable {
+    static let labelLimit = 48
+    static let detailLimit = 180
+
+    var reviewedCount: Int
+    var activeCount: Int
+    var fraction: Double
+    var label: String
+    var detail: String
+  }
+
   var title: String
   var detail: String
   var promptEffect: String
   var tone: Tone
+  var reviewProgress: ReviewProgress
   var steps: [Step]
   var queue: [QueueItem]
   var narrationIdentifier: String
@@ -71,6 +83,12 @@ struct AssumptionReviewGuide: Equatable, Sendable {
       tone = .steady
     }
 
+    reviewProgress = Self.reviewProgress(
+      implicitCount: implicit.count,
+      affirmedCount: affirmed.count,
+      deniedCount: denied.count,
+      archivedCount: archivedCount
+    )
     steps = Self.steps(
       implicit: implicit,
       affirmed: affirmed,
@@ -89,6 +107,7 @@ struct AssumptionReviewGuide: Equatable, Sendable {
       detail: detail,
       promptEffect: promptEffect,
       tone: tone,
+      reviewProgress: reviewProgress,
       active: active,
       steps: steps,
       queue: queue
@@ -196,11 +215,60 @@ struct AssumptionReviewGuide: Equatable, Sendable {
     return StringUtils.boundedText(parts.joined(separator: " - "), limit: 220)
   }
 
+  private static func reviewProgress(
+    implicitCount: Int,
+    affirmedCount: Int,
+    deniedCount: Int,
+    archivedCount: Int
+  ) -> ReviewProgress {
+    let activeCount = implicitCount + affirmedCount + deniedCount
+    let reviewedCount = affirmedCount + deniedCount
+
+    if activeCount == 0 {
+      let detail =
+        archivedCount > 0
+        ? "Archived assumptions are preserved in history and excluded from active prompts."
+        : "Compass has not recorded active assumption memory yet."
+      return ReviewProgress(
+        reviewedCount: 0,
+        activeCount: 0,
+        fraction: 1,
+        label: "No active memory",
+        detail: StringUtils.boundedText(detail, limit: ReviewProgress.detailLimit)
+      )
+    }
+
+    if implicitCount == 0 {
+      return ReviewProgress(
+        reviewedCount: reviewedCount,
+        activeCount: activeCount,
+        fraction: 1,
+        label: StringUtils.boundedText(
+          "All \(activeCount) active reviewed",
+          limit: ReviewProgress.labelLimit
+        ),
+        detail: "Every active assumption is affirmed or corrected for future prompts."
+      )
+    }
+
+    let label = "\(reviewedCount) of \(activeCount) active reviewed"
+    let detail =
+      "\(countLabel(implicitCount, singular: "guess", plural: "guesses")) still need a yes-or-no check."
+    return ReviewProgress(
+      reviewedCount: reviewedCount,
+      activeCount: activeCount,
+      fraction: Double(reviewedCount) / Double(activeCount),
+      label: StringUtils.boundedText(label, limit: ReviewProgress.labelLimit),
+      detail: StringUtils.boundedText(detail, limit: ReviewProgress.detailLimit)
+    )
+  }
+
   private static func narrationIdentifier(
     title: String,
     detail: String,
     promptEffect: String,
     tone: Tone,
+    reviewProgress: ReviewProgress,
     active: [AssumptionRecord],
     steps: [Step],
     queue: [QueueItem]
@@ -210,6 +278,7 @@ struct AssumptionReviewGuide: Equatable, Sendable {
       "detail:\(detail)",
       "prompt:\(promptEffect)",
       "tone:\(tone.rawValue)",
+      "progress:\(reviewProgress.label):\(reviewProgress.reviewedCount)/\(reviewProgress.activeCount)",
       "active:\(active.map { "\($0.id):\($0.status.rawValue):\($0.updatedAt)" }.joined(separator: ","))",
       "steps:\(steps.map(\.id).joined(separator: ","))",
       "queue:\(queue.map(\.id).joined(separator: ","))",
@@ -250,6 +319,7 @@ struct AssumptionReviewClipboardPayload: Equatable, Sendable {
       "Status: \(guide.title)",
       "Detail: \(guide.detail)",
       "Prompt effect: \(guide.promptEffect)",
+      "Review progress: \(guide.reviewProgress.label) - \(guide.reviewProgress.detail)",
       "Counts: \(ledger.implicitCount) implicit, \(ledger.affirmedCount) affirmed, "
         + "\(ledger.deniedCount) denied, \(ledger.archivedCount) archived",
     ]
@@ -331,7 +401,8 @@ struct AssumptionReviewClipboardPayload: Equatable, Sendable {
           sections.append("    - \(singleLine(item))")
         }
         if record.evidence.count > evidenceLimit {
-          sections.append("    - ...\(record.evidence.count - evidenceLimit) more evidence items not shown")
+          sections.append(
+            "    - ...\(record.evidence.count - evidenceLimit) more evidence items not shown")
         }
       }
     }

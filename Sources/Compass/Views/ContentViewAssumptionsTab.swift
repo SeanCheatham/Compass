@@ -202,6 +202,18 @@ struct AssumptionReviewGuidePanel: View {
         .foregroundStyle(.primary)
         .fixedSize(horizontal: false, vertical: true)
 
+      VStack(alignment: .leading, spacing: 4) {
+        Label(guide.reviewProgress.label, systemImage: "chart.bar.doc.horizontal")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color(for: guide.tone))
+        ProgressView(value: guide.reviewProgress.fraction)
+          .tint(color(for: guide.tone))
+        Text(guide.reviewProgress.detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
       if let narration {
         HStack(alignment: .top, spacing: 8) {
           Image(systemName: "text.bubble")
