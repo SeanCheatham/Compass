@@ -47,6 +47,24 @@ struct AgentGenerateImageToolTests: ~Copyable {
     try #require(generator.recordedAssignments.map(\.provider) == [.minimaxToken])
   }
 
+  @Test func testInvokeAcceptsCommonAliasArgumentsFromLessCapableModels() async throws {
+    let imageBytes = Data([1, 2, 3, 4])
+    let generator = StubImageGenerator(result: .success(imageBytes))
+    let tool = AgentGenerateImageTool(
+      assignment: stubAssignment(),
+      generator: generator
+    )
+    let context = AgentToolContext(workingDirectory: workingDirectory, filesystem: filesystem)
+
+    let args = #"{"image_prompt": "diagram of a factory", "file_path": "art/factory.png"}"#
+    let result = try await tool.invoke(arguments: Data(args.utf8), context: context)
+    try #require(!result.isError, "tool reported failure: \(result.content)")
+
+    let written = try Data(contentsOf: workingDirectory.appendingPathComponent("art/factory.png"))
+    try #require(written == imageBytes)
+    try #require(generator.recordedPrompts == ["diagram of a factory"])
+  }
+
   @Test func testInvokeRejectsUnsupportedExtension() async throws {
     let generator = StubImageGenerator(result: .success(Data([0])))
     let tool = AgentGenerateImageTool(

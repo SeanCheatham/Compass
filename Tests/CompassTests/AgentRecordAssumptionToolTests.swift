@@ -178,6 +178,46 @@ struct AgentRecordAssumptionToolTests {
     try #require(try store.read().formattedForPrompt().isEmpty)
   }
 
+  @Test func testRemoveAssumptionAcceptsCommonAliasArguments() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let assumptionsURL = root.appending(path: "assumptions.json")
+    let store = AssumptionLedgerStore(url: assumptionsURL)
+    let existing = try store.record(
+      draft: AssumptionDraft(
+        text: "The codebase is purely Swift.",
+        rationale: "The first scan only saw Swift files.",
+        evidence: ["initial grep"],
+        impact: "Planning might skip web assets.",
+        invalidation: "New frontend files appear.",
+        scope: .project
+      ),
+      phase: .plan,
+      sessionNumber: 5
+    )
+
+    let result = try await AgentRemoveAssumptionTool().invoke(
+      arguments: Data(
+        """
+        {
+          "assumption_id": "\(existing.id)",
+          "comment": "Frontend assets now exist."
+        }
+        """.utf8),
+      context: AgentToolContext(
+        workingDirectory: root,
+        assumptionsURL: assumptionsURL,
+        phase: .develop,
+        sessionNumber: 6
+      )
+    )
+
+    try #require(!result.isError)
+    let record = try #require(try store.read().assumptions.first)
+    try #require(record.status == .superseded)
+    try #require(record.userComment == "Frontend assets now exist.")
+  }
+
   @Test func testToolRegistryExposesAssumptionsToEveryPhase() throws {
     for phase in AgentPhase.allCases {
       let names = Set(ToolRegistry.tools(for: phase).map { $0.spec.name })

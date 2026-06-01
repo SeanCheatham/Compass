@@ -167,6 +167,61 @@ enum FlexibleModelDecoder {
     return nil
   }
 
+  static func decodeIntIfPresent<Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    preferredKey: Key,
+    aliases: [Key]
+  ) throws -> Int? {
+    var firstTypeError: Error?
+
+    for key in [preferredKey] + aliases where container.contains(key) {
+      do {
+        if let value = try decodeIntIfPresent(from: container, forKey: key) {
+          return value
+        }
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    return nil
+  }
+
+  private static func decodeIntIfPresent<Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    forKey key: Key
+  ) throws -> Int? {
+    guard container.contains(key) else { return nil }
+    if try container.decodeNil(forKey: key) { return nil }
+    if let value = try? container.decode(Int.self, forKey: key) {
+      return value
+    }
+    if let value = try? container.decode(Double.self, forKey: key),
+      value.isFinite,
+      value >= Double(Int.min),
+      value <= Double(Int.max)
+    {
+      return Int(value)
+    }
+    if let rawValue = try? container.decode(String.self, forKey: key) {
+      let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+      if let value = Int(trimmed) {
+        return value
+      }
+      if let value = Double(trimmed),
+        value.isFinite,
+        value >= Double(Int.min),
+        value <= Double(Int.max)
+      {
+        return Int(value)
+      }
+    }
+    return try container.decode(Int.self, forKey: key)
+  }
+
   static func decodeBool<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     forKey key: Key

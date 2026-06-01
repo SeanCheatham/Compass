@@ -10,10 +10,47 @@ struct AgentBashTool: AgentTool {
   static let maxTimeoutMs = 1_800_000
   static let maxOutputBytes = 100_000
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let command: String
     let timeoutMs: Int?
     let cwd: String?
+
+    enum CodingKeys: String, CodingKey {
+      case command
+      case cmd
+      case shellCommand
+      case shellCommandSnake = "shell_command"
+      case script
+      case timeoutMs
+      case timeoutMsSnake = "timeout_ms"
+      case timeoutMillis
+      case timeoutMillisSnake = "timeout_millis"
+      case cwd
+      case workingDirectory
+      case workingDirectorySnake = "working_directory"
+      case directory
+      case dir
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      command = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .command,
+        aliases: [.cmd, .shellCommand, .shellCommandSnake, .script],
+        fieldName: "command"
+      )
+      timeoutMs = try FlexibleModelDecoder.decodeIntIfPresent(
+        from: container,
+        preferredKey: .timeoutMs,
+        aliases: [.timeoutMsSnake, .timeoutMillis, .timeoutMillisSnake]
+      )
+      cwd = try FlexibleModelDecoder.decodeStringIfPresent(
+        from: container,
+        preferredKey: .cwd,
+        aliases: [.workingDirectory, .workingDirectorySnake, .directory, .dir]
+      )
+    }
   }
 
   let spec: AgentToolSpec
@@ -56,7 +93,7 @@ struct AgentBashTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments(error.localizedDescription))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
     let command = args.command.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !command.isEmpty else {

@@ -7,9 +7,36 @@ struct AgentFindSymbolTool: AgentTool {
   static let toolName = "find_symbol"
   static let maxResults = 100
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let name: String
     let kind: String?
+
+    enum CodingKeys: String, CodingKey {
+      case name
+      case symbol
+      case symbolName
+      case symbolNameSnake = "symbol_name"
+      case query
+      case kind
+      case symbolKind
+      case symbolKindSnake = "symbol_kind"
+      case type
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      name = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .name,
+        aliases: [.symbol, .symbolName, .symbolNameSnake, .query],
+        fieldName: "name"
+      )
+      kind = try FlexibleModelDecoder.decodeStringIfPresent(
+        from: container,
+        preferredKey: .kind,
+        aliases: [.symbolKind, .symbolKindSnake, .type]
+      )
+    }
   }
 
   let spec: AgentToolSpec
@@ -48,7 +75,7 @@ struct AgentFindSymbolTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments(error.localizedDescription))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
     let targetName = args.name.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !targetName.isEmpty else {

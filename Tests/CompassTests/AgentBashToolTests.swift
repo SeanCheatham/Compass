@@ -76,6 +76,24 @@ final class AgentBashToolTests {
     try #require(result.content.contains("deep"))
   }
 
+  @Test func testAcceptsCommonAliasArgumentsFromLessCapableModels() async throws {
+    let subdir = temporaryDirectory.appendingPathComponent("alias-dir")
+    try FileManager.default.createDirectory(at: subdir, withIntermediateDirectories: false)
+    try "alias-ok".write(
+      to: subdir.appendingPathComponent("file.txt"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let result = try await invoke([
+      "cmd": "cat file.txt",
+      "working_directory": "alias-dir",
+      "timeout_ms": "5000",
+    ])
+    try #require(!result.isError)
+    try #require(result.content.contains("alias-ok"))
+  }
+
   @Test func testTimeoutTerminatesLongRunningCommand() async throws {
     let result = try await invoke([
       "command": "sleep 5",

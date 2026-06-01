@@ -12,10 +12,85 @@ struct AgentDelegateTool: AgentTool {
   static let toolName = "delegate"
   static let maxTaskLength = 8_000
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let task: String
     let tools: [String]?
     let model: String?
+
+    enum CodingKeys: String, CodingKey {
+      case task
+      case prompt
+      case instructions
+      case instruction
+      case question
+      case subtask
+      case tools
+      case toolNames
+      case toolNamesSnake = "tool_names"
+      case allowedTools
+      case allowedToolsSnake = "allowed_tools"
+      case toolWhitelist
+      case toolWhitelistSnake = "tool_whitelist"
+      case model
+      case modelOverride
+      case modelOverrideSnake = "model_override"
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      task = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .task,
+        aliases: [.prompt, .instructions, .instruction, .question, .subtask],
+        fieldName: "task"
+      )
+      tools = try Self.decodeToolListIfPresent(
+        from: container,
+        preferredKey: .tools,
+        aliases: [
+          .toolNames, .toolNamesSnake, .allowedTools, .allowedToolsSnake,
+          .toolWhitelist, .toolWhitelistSnake,
+        ]
+      )
+      model = try FlexibleModelDecoder.decodeStringIfPresent(
+        from: container,
+        preferredKey: .model,
+        aliases: [.modelOverride, .modelOverrideSnake]
+      )
+    }
+
+    private static func decodeToolListIfPresent(
+      from container: KeyedDecodingContainer<CodingKeys>,
+      preferredKey: CodingKeys,
+      aliases: [CodingKeys]
+    ) throws -> [String]? {
+      var firstTypeError: Error?
+
+      for key in [preferredKey] + aliases where container.contains(key) {
+        if try container.decodeNil(forKey: key) {
+          continue
+        }
+        if let values = try? container.decode([String].self, forKey: key) {
+          return values
+        }
+        if let rawValue = try? container.decode(String.self, forKey: key) {
+          return rawValue
+            .split(whereSeparator: { $0 == "," || $0 == "\n" })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        }
+        do {
+          _ = try container.decode([String].self, forKey: key)
+        } catch {
+          firstTypeError = error
+        }
+      }
+
+      if let firstTypeError {
+        throw firstTypeError
+      }
+      return nil
+    }
   }
 
   let spec: AgentToolSpec
@@ -58,7 +133,7 @@ struct AgentDelegateTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments(error.localizedDescription))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
     let trimmedTask = args.task.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTask.isEmpty else {

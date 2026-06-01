@@ -6,9 +6,35 @@ import Foundation
 struct AgentPlanHistoryTool: AgentTool {
   static let toolName = "plan_history"
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let offset: Int?
     let limit: Int?
+
+    enum CodingKeys: String, CodingKey {
+      case offset
+      case start
+      case skip
+      case limit
+      case count
+      case pageSize
+      case pageSizeSnake = "page_size"
+      case maxResults
+      case maxResultsSnake = "max_results"
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      offset = try FlexibleModelDecoder.decodeIntIfPresent(
+        from: container,
+        preferredKey: .offset,
+        aliases: [.start, .skip]
+      )
+      limit = try FlexibleModelDecoder.decodeIntIfPresent(
+        from: container,
+        preferredKey: .limit,
+        aliases: [.count, .pageSize, .pageSizeSnake, .maxResults, .maxResultsSnake]
+      )
+    }
   }
 
   let spec: AgentToolSpec
@@ -47,7 +73,7 @@ struct AgentPlanHistoryTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments(error.localizedDescription))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
 
     let page = PlanHistoryPage.read(

@@ -8,8 +8,26 @@ struct AgentListFilesTool: AgentTool {
   static let toolName = "list_files"
   static let maxResults = 500
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let filter: String?
+
+    enum CodingKeys: String, CodingKey {
+      case filter
+      case query
+      case search
+      case path
+      case directory
+      case dir
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      filter = try FlexibleModelDecoder.decodeStringIfPresent(
+        from: container,
+        preferredKey: .filter,
+        aliases: [.query, .search, .path, .directory, .dir]
+      )
+    }
   }
 
   let spec: AgentToolSpec
@@ -40,7 +58,7 @@ struct AgentListFilesTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments(error.localizedDescription))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
     let filter = args.filter?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     let store = context.codemapStore()

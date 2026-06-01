@@ -845,6 +845,24 @@ struct AgentPlanHistoryToolTests {
     try #require(result.content.contains("#2: Second"))
     try #require(!result.content.contains("#1: First"))
   }
+
+  @Test func testAcceptsCommonAliasArguments() async throws {
+    let tool = AgentPlanHistoryTool()
+    let context = AgentToolContext(
+      workingDirectory: FileManager.default.temporaryDirectory,
+      planHistoryEntries: ["First", "Second", "Third", "Fourth"]
+    )
+
+    let result = try await tool.invoke(
+      arguments: Data(#"{"skip":"1","max_results":2}"#.utf8),
+      context: context
+    )
+
+    try #require(!result.isError)
+    try #require(result.content.contains("#3: Third"))
+    try #require(result.content.contains("#2: Second"))
+    try #require(!result.content.contains("#4: Fourth"))
+  }
 }
 
 struct PlanNextDecoderTests {

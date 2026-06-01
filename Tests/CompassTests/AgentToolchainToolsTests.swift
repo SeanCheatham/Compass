@@ -71,6 +71,30 @@ struct AgentToolchainToolsTests {
     try #require(result.content.contains("already installed"))
   }
 
+  @Test func testInstallToolchainAcceptsCommonAliasArguments() async throws {
+    let service = FakeToolchainService(
+      statuses: [],
+      installHandler: { id in
+        SharedCompassVMToolchainManager.InstallReport(
+          toolchainID: id,
+          alreadyInstalled: true,
+          logTail: ""
+        )
+      }
+    )
+    let tool = AgentInstallToolchainTool()
+    let context = AgentToolContext(
+      workingDirectory: URL(fileURLWithPath: "/tmp/work"),
+      toolchainService: service
+    )
+    let result = try await tool.invoke(
+      arguments: Data(#"{"toolchain_id":"rust"}"#.utf8),
+      context: context
+    )
+    try #require(!result.isError)
+    try #require(result.content.contains("Toolchain rust is already installed"))
+  }
+
   @Test func testToolRegistryIncludesToolchainToolsWhenServiceProvided() throws {
     let service = FakeToolchainService(statuses: [])
     let names = Set(

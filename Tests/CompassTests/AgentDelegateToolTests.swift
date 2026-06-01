@@ -48,6 +48,26 @@ struct AgentDelegateToolTests {
     try #require(runner.lastModelOverride == "alt-model")
   }
 
+  @Test func testInvokeAcceptsCommonAliasArgumentsFromLessCapableModels() async throws {
+    let runner = StubRunner(reply: "alias findings")
+    let result = try await tool.invoke(
+      arguments: Data(
+        """
+        {
+          "instructions": "inspect the codemap tools",
+          "tool_names": "read_file,bash",
+          "model_override": "small-model"
+        }
+        """.utf8),
+      context: context(runner: runner)
+    )
+    try #require(!result.isError)
+    try #require(result.content == "alias findings")
+    try #require(runner.lastTask == "inspect the codemap tools")
+    try #require(runner.lastToolNames == ["read_file", "bash"])
+    try #require(runner.lastModelOverride == "small-model")
+  }
+
   @Test func testInvokeRejectsOversizedTaskTextWithoutCallingRunner() async throws {
     let huge = String(repeating: "x", count: AgentDelegateTool.maxTaskLength + 1)
     let payload = #"{"task":"\#(huge)"}"#

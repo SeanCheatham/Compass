@@ -64,6 +64,28 @@ struct AgentHostXcodeToolTests {
     #expect(calls[0].timeout == 5)
   }
 
+  @Test func testAcceptsCommonAliasArgumentsFromLessCapableModels() async throws {
+    let service = FakeHostXcodeService(
+      runResult: ProcessResult(exitCode: 0, stdout: "alias ok", stderr: "")
+    )
+    let tool = AgentHostXcodeTool()
+    let result = try await tool.invoke(
+      arguments: Data(
+        #"{"operation":"test","xcodebuild_args":["-scheme","App"],"timeout_ms":"7000"}"#.utf8),
+      context: AgentToolContext(
+        workingDirectory: URL(fileURLWithPath: "/tmp/work"),
+        hostXcodeService: service
+      )
+    )
+    let calls = await service.calls
+
+    #expect(!result.isError)
+    #expect(result.content.contains("alias ok"))
+    #expect(calls.map(\.action) == [.test])
+    #expect(calls[0].arguments == ["-scheme", "App"])
+    #expect(calls[0].timeout == 7)
+  }
+
   @Test func testToolRegistryOmitsHostXcodeByDefaultAndAddsItWhenServiceProvided() throws {
     let defaultNames = Set(ToolRegistry.tools(for: .develop).map(\.spec.name))
     let service = FakeHostXcodeService()

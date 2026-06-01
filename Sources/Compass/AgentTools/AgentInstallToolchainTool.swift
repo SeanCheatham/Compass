@@ -8,8 +8,26 @@ struct AgentInstallToolchainTool: AgentTool {
     .filter { !$0.defaultProvisioned && $0.installableViaGenericProvisioner }
     .map(\.stringID)
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let id: String
+
+    enum CodingKeys: String, CodingKey {
+      case id
+      case toolchain
+      case toolchainID
+      case toolchainIDSnake = "toolchain_id"
+      case name
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      id = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .id,
+        aliases: [.toolchain, .toolchainID, .toolchainIDSnake, .name],
+        fieldName: "id"
+      )
+    }
   }
 
   let spec: AgentToolSpec
@@ -49,19 +67,23 @@ struct AgentInstallToolchainTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments(error.localizedDescription))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
 
     do {
+      let id = args.id.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !id.isEmpty else {
+        return .failure(.invalidArguments("id is empty"))
+      }
       let report = try await service.installToolchain(
-        id: args.id,
+        id: id,
         runner: context.bashRunner,
         progress: { _ in }
       )
       if report.alreadyInstalled {
-        return .ok("Toolchain \(args.id) is already installed.")
+        return .ok("Toolchain \(id) is already installed.")
       }
-      var message = "Toolchain \(args.id) installed successfully."
+      var message = "Toolchain \(id) installed successfully."
       if !report.logTail.isEmpty {
         message += "\n\nInstall log tail:\n\(report.logTail)"
       }

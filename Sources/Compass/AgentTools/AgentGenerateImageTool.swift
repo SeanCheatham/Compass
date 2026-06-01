@@ -13,13 +13,40 @@ import Foundation
 struct AgentGenerateImageTool: AgentTool {
   static let toolName = "generate_image"
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let prompt: String
     let outputPath: String
 
     enum CodingKeys: String, CodingKey {
       case prompt
+      case description
+      case imagePrompt
+      case imagePromptSnake = "image_prompt"
       case outputPath = "output_path"
+      case outputPathCamel = "outputPath"
+      case path
+      case filePath
+      case filePathSnake = "file_path"
+      case output
+      case destination
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      prompt = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .prompt,
+        aliases: [.description, .imagePrompt, .imagePromptSnake],
+        fieldName: "prompt"
+      )
+      outputPath = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .outputPath,
+        aliases: [
+          .outputPathCamel, .path, .filePath, .filePathSnake, .output, .destination,
+        ],
+        fieldName: "output_path"
+      )
     }
   }
 
@@ -64,7 +91,7 @@ struct AgentGenerateImageTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments(error.localizedDescription))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
 
     let trimmedPrompt = args.prompt.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -71,4 +71,29 @@ struct AgentRemoveAssumptionTool: AgentTool {
 private struct Arguments: Decodable {
   var id: String
   var reason: String?
+
+  enum CodingKeys: String, CodingKey {
+    case id
+    case assumptionID
+    case assumptionIDSnake = "assumption_id"
+    case assumption
+    case reason
+    case rationale
+    case comment
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try FlexibleModelDecoder.decodeRequiredString(
+      from: container,
+      preferredKey: .id,
+      aliases: [.assumptionID, .assumptionIDSnake, .assumption],
+      fieldName: "id"
+    )
+    reason = try FlexibleModelDecoder.decodeStringIfPresent(
+      from: container,
+      preferredKey: .reason,
+      aliases: [.rationale, .comment]
+    )
+  }
 }

@@ -5,10 +5,50 @@ struct AgentHostXcodeTool: AgentTool {
   static let defaultTimeoutMs = 120_000
   static let maxTimeoutMs = 1_800_000
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let action: String
     let arguments: [String]?
     let timeoutMs: Int?
+
+    enum CodingKeys: String, CodingKey {
+      case action
+      case operation
+      case command
+      case arguments
+      case args
+      case argv
+      case xcodebuildArguments
+      case xcodebuildArgumentsSnake = "xcodebuild_arguments"
+      case xcodebuildArgs
+      case xcodebuildArgsSnake = "xcodebuild_args"
+      case timeoutMs
+      case timeoutMsSnake = "timeout_ms"
+      case timeoutMillis
+      case timeoutMillisSnake = "timeout_millis"
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      action = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .action,
+        aliases: [.operation, .command],
+        fieldName: "action"
+      )
+      arguments = try FlexibleModelDecoder.decodeValueIfPresent(
+        from: container,
+        preferredKey: .arguments,
+        aliases: [
+          .args, .argv, .xcodebuildArguments, .xcodebuildArgumentsSnake,
+          .xcodebuildArgs, .xcodebuildArgsSnake,
+        ]
+      )
+      timeoutMs = try FlexibleModelDecoder.decodeIntIfPresent(
+        from: container,
+        preferredKey: .timeoutMs,
+        aliases: [.timeoutMsSnake, .timeoutMillis, .timeoutMillisSnake]
+      )
+    }
   }
 
   let spec: AgentToolSpec
@@ -54,7 +94,7 @@ struct AgentHostXcodeTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments(error.localizedDescription))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
     guard let service = context.hostXcodeService else {
       return .failure(

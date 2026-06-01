@@ -11,8 +11,27 @@ struct AgentImportersOfTool: AgentTool {
   static let toolName = "importers_of"
   static let maxResults = 200
 
-  struct Arguments: Codable {
+  struct Arguments: Decodable {
     let path: String
+
+    enum CodingKeys: String, CodingKey {
+      case path
+      case filePath
+      case filePathSnake = "file_path"
+      case file
+      case relativePath
+      case relativePathSnake = "relative_path"
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      path = try FlexibleModelDecoder.decodeRequiredString(
+        from: container,
+        preferredKey: .path,
+        aliases: [.filePath, .filePathSnake, .file, .relativePath, .relativePathSnake],
+        fieldName: "path"
+      )
+    }
   }
 
   let spec: AgentToolSpec
@@ -44,7 +63,7 @@ struct AgentImportersOfTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments(error.localizedDescription))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
     let normalized = AgentCodemapPath.normalize(
       args.path, workingDirectory: context.workingDirectory)

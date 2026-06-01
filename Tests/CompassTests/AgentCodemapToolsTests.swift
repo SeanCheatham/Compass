@@ -52,6 +52,20 @@ struct AgentCodemapToolsTests: ~Copyable {
     try #require(result.content.contains("No codemap entry"))
   }
 
+  @Test func testOutlineAcceptsCommonPathAliases() async throws {
+    try seedEntry(
+      path: "Sources/Alias.swift",
+      symbols: [CodemapSymbol(kind: .struct, name: "Alias", line: 3, endLine: 5)]
+    )
+
+    let result = try await AgentOutlineTool().invoke(
+      arguments: Data(#"{"file_path":"Sources/Alias.swift"}"#.utf8),
+      context: context
+    )
+    try #require(!result.isError)
+    try #require(result.content.contains("L3-5  struct  Alias"))
+  }
+
   // MARK: - find_symbol
 
   @Test func testFindSymbolReturnsAllMatches() async throws {
@@ -95,6 +109,24 @@ struct AgentCodemapToolsTests: ~Copyable {
     try #require(!result.content.contains("a.swift:50"))
   }
 
+  @Test func testFindSymbolAcceptsCommonAliasArguments() async throws {
+    try seedEntry(
+      path: "alias.swift",
+      symbols: [
+        CodemapSymbol(kind: .function, name: "makeAlias", line: 2, endLine: 4),
+        CodemapSymbol(kind: .class, name: "makeAlias", line: 8, endLine: 12),
+      ]
+    )
+
+    let result = try await AgentFindSymbolTool().invoke(
+      arguments: Data(#"{"symbol_name":"makeAlias","symbol_kind":"function"}"#.utf8),
+      context: context
+    )
+    try #require(!result.isError)
+    try #require(result.content.contains("alias.swift:2  function"))
+    try #require(!result.content.contains("alias.swift:8"))
+  }
+
   @Test func testFindSymbolReportsMissAsOkay() async throws {
     let result = try await AgentFindSymbolTool().invoke(
       arguments: try JSONEncoder().encode(["name": "Nope"]),
@@ -135,6 +167,21 @@ struct AgentCodemapToolsTests: ~Copyable {
     try #require(result.content.contains("No summary yet"))
   }
 
+  @Test func testSummaryAcceptsCommonPathAliases() async throws {
+    try seedEntry(
+      path: "Sources/SummaryAlias.swift",
+      symbols: [],
+      summary: "Alias summary text.",
+      summaryModel: "fixture"
+    )
+    let result = try await AgentSummaryTool().invoke(
+      arguments: Data(#"{"relative_path":"Sources/SummaryAlias.swift"}"#.utf8),
+      context: context
+    )
+    try #require(!result.isError)
+    try #require(result.content.contains("Alias summary text."))
+  }
+
   // MARK: - list_files
 
   @Test func testListFilesReturnsEverythingWhenNoFilter() async throws {
@@ -161,6 +208,18 @@ struct AgentCodemapToolsTests: ~Copyable {
     try #require(result.content.contains("files: 1"))
     try #require(result.content.contains("lib/beta.swift"))
     try #require(!result.content.contains("alpha.swift"))
+  }
+
+  @Test func testListFilesAcceptsCommonFilterAliases() async throws {
+    try seedEntry(path: "Sources/AliasedList.swift", symbols: [])
+    try seedEntry(path: "Sources/Other.swift", symbols: [])
+    let result = try await AgentListFilesTool().invoke(
+      arguments: Data(#"{"query":"AliasedList"}"#.utf8),
+      context: context
+    )
+    try #require(!result.isError)
+    try #require(result.content.contains("Sources/AliasedList.swift"))
+    try #require(!result.content.contains("Sources/Other.swift"))
   }
 
   // MARK: - importers_of
@@ -214,6 +273,24 @@ struct AgentCodemapToolsTests: ~Copyable {
     )
     try #require(!result.isError)
     try #require(result.content.contains("No codemap entries import"))
+  }
+
+  @Test func testImportersOfAcceptsCommonPathAliases() async throws {
+    try seedEntry(
+      path: "src/alias.ts",
+      symbols: [CodemapSymbol(kind: .function, name: "alias", line: 1, endLine: 1)]
+    )
+    try seedEntry(
+      path: "src/use-alias.ts",
+      symbols: [],
+      imports: [CodemapImport(raw: "./alias", line: 2)]
+    )
+    let result = try await AgentImportersOfTool().invoke(
+      arguments: Data(#"{"file_path":"src/alias.ts"}"#.utf8),
+      context: context
+    )
+    try #require(!result.isError)
+    try #require(result.content.contains("src/use-alias.ts:2"))
   }
 
   // MARK: - Decoupled store directory
