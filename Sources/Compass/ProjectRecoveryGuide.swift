@@ -56,14 +56,15 @@ struct ProjectRecoveryGuide: Equatable {
         ),
       ]
     case .developFailed:
-      title = "Retry with the captured failure"
+      let insight = DevelopFailureInsight(detail: status.detail)
+      title = insight.guideTitle
       steps = [
-        Step(title: "Keep the failure visible", detail: status.detail),
+        Step(title: insight.inspectTitle, detail: insight.inspectDetail),
         Step(
-          title: "Ask for a smaller fix",
-          detail: "Have Develop address the first concrete error before broadening scope."
+          title: insight.repairTitle,
+          detail: insight.repairDetail
         ),
-        Step(title: status.actionLabel, detail: "Compass will preserve the current plan context."),
+        Step(title: status.actionLabel, detail: insight.retryDetail),
       ]
     case .failedVerify:
       let insight = VerifyFailureInsight(detail: status.detail, metadata: status.metadata)

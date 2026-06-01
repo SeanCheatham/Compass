@@ -318,6 +318,13 @@ struct PlanReliabilityFeedback: Equatable {
       containsAny: [
         "develop reported failure:",
         "develop failed",
+        "ended without submit_result",
+        "model stopped without calling submit_result",
+        "agent exceeded max iterations",
+        "agent exceeded wall-clock timeout",
+        "had undecodable args",
+        "tool call decode",
+        "chat completions stream failed",
       ])
     if let matchingNote {
       return boundedPrefix(session.feedback, limit: detailLimit)

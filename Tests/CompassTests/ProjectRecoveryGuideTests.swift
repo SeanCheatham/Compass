@@ -60,6 +60,39 @@ struct ProjectRecoveryGuideTests {
   }
 
   @Test
+  func developMissingSubmitResultRecoveryNamesHandoffRepair() throws {
+    let guide = ProjectRecoveryGuide(
+      status: developFailedStatus(
+        note: "Develop attempt 1 ended without submit_result: Agent exceeded max iterations (10)."
+      )
+    )
+
+    try #require(!guide.isEmpty)
+    try #require(guide.title == "Finish the Develop handoff")
+    try #require(guide.steps[0].title == "Inspect the missing result")
+    try #require(guide.steps[0].detail.contains("`submit_result` handoff"))
+    try #require(guide.steps[1].title == "Ask for one smaller finish")
+    try #require(guide.steps[1].detail.contains("one narrow change"))
+    try #require(guide.steps[2].detail.contains("result handoff requirement"))
+  }
+
+  @Test
+  func developMalformedToolCallRecoveryNamesToolShapeRepair() throws {
+    let guide = ProjectRecoveryGuide(
+      status: developFailedStatus(
+        note: "Tool call edit_file had undecodable args: Missing required field `path`."
+      )
+    )
+
+    try #require(!guide.isEmpty)
+    try #require(guide.title == "Repair the tool request")
+    try #require(guide.steps[0].title == "Inspect the malformed tool call")
+    try #require(guide.steps[1].title == "Use simpler tool arguments")
+    try #require(guide.steps[1].detail.contains("required fields"))
+    try #require(guide.steps[1].detail.contains("smaller JSON"))
+  }
+
+  @Test
   func narratorUsesFoundationModelsAsOptionalRecoveryPolish() async throws {
     let guide = ProjectRecoveryGuide(status: rejectedPlanStatus())
 
@@ -132,6 +165,38 @@ struct ProjectRecoveryGuideTests {
             afterSha: nil,
             commits: [],
             status: .rejectedByPlan,
+            notes: [note],
+            verifyOutput: nil,
+            feedback: nil
+          )
+        ]
+      )
+    )
+  }
+
+  private func developFailedStatus(note: String) -> ProjectReliabilityStatus {
+    ProjectReliabilityStatus(
+      feedback: PlanReliabilityFeedback(
+        state: PlanState(
+          completed: [],
+          immediate: PlanNext(
+            plan: "## Outcome\nImprove recovery copy.\n\n## Acceptance checks\n- Tests pass.",
+            verify: "swift test --filter ProjectRecoveryGuideTests"
+          ),
+          midTerm: "",
+          longTerm: ""
+        ),
+        sessions: [
+          SessionRecord(
+            session: 43,
+            startedAt: 1_000,
+            endedAt: 1_500,
+            plan: "Plan",
+            verify: "swift test",
+            beforeSha: nil,
+            afterSha: nil,
+            commits: [],
+            status: .failed,
             notes: [note],
             verifyOutput: nil,
             feedback: nil

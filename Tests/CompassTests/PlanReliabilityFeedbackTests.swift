@@ -122,6 +122,23 @@ struct PlanReliabilityFeedbackTests {
     try #require(feedback.recentRunCues[4]?.label == "Retry Develop")
   }
 
+  @Test func testAgentHandoffFailureNoteBecomesDevelopFailedNotice() throws {
+    let session = makeSession(
+      17,
+      status: .failed,
+      notes: [
+        "Develop attempt 1 ended without submit_result: Agent exceeded max iterations (10)."
+      ]
+    )
+
+    let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+    try #require(feedback.notices.map(\.kind) == [.developFailed])
+    try #require(feedback.notices[0].title == "Develop failed")
+    try #require(feedback.notices[0].detail.contains("ended without submit_result"))
+    try #require(feedback.recentRunCues[17]?.label == "Retry Develop")
+  }
+
   @Test func testFailedVerifyIncludesTailMetadata() throws {
     let session = makeSession(
       5,
