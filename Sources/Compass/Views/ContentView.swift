@@ -10,20 +10,11 @@ struct ContentView: View {
       if sharedVMHost.isShuttingDown {
         ShutdownView()
       } else if isOnboardingComplete {
-        NavigationSplitView {
+        HSplitView {
           SidebarView()
-        } detail: {
-          switch model.workspaceSelection {
-          case .sandbox:
-            SandboxView()
-          case .project:
-            if let project = model.selectedProject {
-              MainWorkspaceView(project: project)
-                .id(project.id)
-            } else {
-              NoProjectView()
-            }
-          }
+            .frame(minWidth: 260, idealWidth: 310, maxWidth: 380, maxHeight: .infinity)
+          workspaceDetail
+            .frame(minWidth: 640, maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       } else {
@@ -40,6 +31,21 @@ struct ContentView: View {
   /// Mac; HTTP providers need a key.
   private var isOnboardingComplete: Bool {
     sharedVMHost.readiness.isReady && model.agentSettings.isTextCapabilityReady
+  }
+
+  @ViewBuilder
+  private var workspaceDetail: some View {
+    switch model.workspaceSelection {
+    case .sandbox:
+      SandboxView()
+    case .project:
+      if let project = model.selectedProject {
+        MainWorkspaceView(project: project)
+          .id(project.id)
+      } else {
+        NoProjectView()
+      }
+    }
   }
 }
 

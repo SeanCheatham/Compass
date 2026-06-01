@@ -65,6 +65,10 @@ struct CompassApp: App {
   @StateObject private var model = AppModel()
   @ObservedObject private var sharedVMHost: SharedCompassVM = .shared
 
+  init() {
+    CompassWindowStateRepair.repairNavigationSplitViewFrames()
+  }
+
   /// Mirrors `ContentView.isOnboardingComplete` so menu shortcuts
   /// (⌘O / ⌘R / ⌘Return) can't bypass the onboarding gate.
   private var isOnboardingComplete: Bool {
