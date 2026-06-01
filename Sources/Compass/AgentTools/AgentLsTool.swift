@@ -53,8 +53,7 @@ struct AgentLsTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(
-        .invalidArguments("Failed to decode arguments: \(error.localizedDescription)"))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
 
     let url: URL

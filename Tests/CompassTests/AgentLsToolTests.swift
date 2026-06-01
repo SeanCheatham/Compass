@@ -79,6 +79,18 @@ struct AgentLsToolTests {
   }
 
   @Test
+  func wrongTypePathReportsRepairableFieldName() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    let result = try await test.invoke(["path": 123])
+    try #require(result.isError)
+    try #require(result.errorKind == .invalidArguments)
+    try #require(result.content.contains("Expected String at path"))
+  }
+
+  @Test
   func emptyDirectoryReportsPlaceholder() async throws {
     var test = Self()
     test.setUp()

@@ -122,6 +122,13 @@ final class AgentGrepToolTests {
     try #require(result.content.contains("pattern is empty"))
   }
 
+  @Test func testMissingPatternReportsRepairableFieldName() async throws {
+    let result = try await invoke([:])
+    try #require(result.isError)
+    try #require(result.errorKind == .invalidArguments)
+    try #require(result.content.contains("Missing required field `pattern`"))
+  }
+
   @Test func testRejectsPathThatEscapesWorkingDirectory() async throws {
     let result = try await invoke([
       "pattern": "x",

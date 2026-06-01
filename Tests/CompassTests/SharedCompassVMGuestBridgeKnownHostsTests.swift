@@ -10,6 +10,7 @@ import Testing
 /// trust the freshly-generated host key. These tests exercise the bootstrap
 /// against a fake `ssh-keyscan` stand-in so we can validate parsing,
 /// dedup, and append behaviour without touching a real network.
+@Suite(.serialized)
 struct SharedCompassVMGuestBridgeKnownHostsTests {
   private let fakeKeyscanTimeout: TimeInterval = 2
 

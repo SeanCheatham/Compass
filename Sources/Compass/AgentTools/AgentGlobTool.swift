@@ -73,7 +73,7 @@ struct AgentGlobTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments(error.localizedDescription))
+      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
     let pattern = args.pattern.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !pattern.isEmpty else {

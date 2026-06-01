@@ -3,6 +3,7 @@ import Testing
 
 @testable import Compass
 
+@Suite(.serialized)
 struct ProcessRunnerTests {
   @Test func testRunClosesEmptyInputWithDevNull() async throws {
     let result = try await ProcessRunner.run(

@@ -203,6 +203,19 @@ final class AgentEditFileToolTests {
     try #require(try String(contentsOf: fileURL, encoding: .utf8) == "bar\nbar\nbar")
   }
 
+  @Test func testMissingEditsReportsRepairableFieldName() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("missing-edits.txt")
+    try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)
+
+    let result = try await invokeMarkingRead(
+      fileURL,
+      args: ["path": "missing-edits.txt"])
+
+    try #require(result.isError)
+    try #require(result.errorKind == .invalidArguments)
+    try #require(result.content.contains("Missing required field `edits`"))
+  }
+
   @Test func testFailsWhenOldStringMissing() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
     try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)

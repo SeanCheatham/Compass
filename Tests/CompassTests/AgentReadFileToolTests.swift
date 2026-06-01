@@ -69,6 +69,15 @@ final class AgentReadFileToolTests {
     try #require(!result.content.contains("alias4"))
   }
 
+  @Test func testMissingPathReportsRepairableFieldName() async throws {
+    let context = AgentToolContext(workingDirectory: temporaryDirectory)
+    let result = try await invoke([:], context: context)
+
+    try #require(result.isError)
+    try #require(result.errorKind == .invalidArguments)
+    try #require(result.content.contains("Missing required field `path`"))
+  }
+
   @Test func testRejectsBinaryFiles() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("binary.bin")
     try Data([0x89, 0x00, 0x01, 0xFF, 0x00]).write(to: fileURL)

@@ -43,6 +43,14 @@ final class AgentWriteFileToolTests {
     try #require(written == "hello alias")
   }
 
+  @Test func missingContentReportsRepairableFieldName() async throws {
+    let result = try await invoke(["path": "missing-content.txt"])
+
+    try #require(result.isError)
+    try #require(result.errorKind == .invalidArguments)
+    try #require(result.content.contains("Missing required field `content`"))
+  }
+
   @Test func overwritesExistingFileAfterRead() async throws {
     let url = temporaryDirectory.appendingPathComponent("existing.txt")
     try "old".write(to: url, atomically: true, encoding: .utf8)
