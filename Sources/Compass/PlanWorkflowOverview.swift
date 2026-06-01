@@ -305,9 +305,22 @@ struct PlanHandoffDigest: Equatable, Sendable {
     switch heading {
     case "outcome", "result":
       return .outcome
-    case "why it matters", "why this matters", "why":
+    case "why it matters", "why this matters", "why", "reason", "value":
       return .whyItMatters
-    case "acceptance checks", "acceptance criteria", "done when", "definition of done":
+    case "acceptance",
+      "acceptance checks",
+      "acceptance criteria",
+      "checks",
+      "definition of done",
+      "done signal",
+      "done signals",
+      "done when",
+      "finish line",
+      "success",
+      "success signal",
+      "success signals",
+      "success looks like",
+      "verification criteria":
       return .acceptanceChecks
     default:
       return nil

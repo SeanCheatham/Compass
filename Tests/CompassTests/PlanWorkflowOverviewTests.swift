@@ -289,6 +289,33 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
+  func testHandoffDigestAcceptsSuccessSignalWording() throws {
+    let digest = PlanHandoffDigest(
+      plan: """
+        Outcome: Make setup progress understandable.
+
+        Value: Non-engineers can decide whether to wait or change their draft.
+
+        Success looks like:
+        - Setup check shows the current stage.
+        - A finish-line message appears when setup is done.
+        """
+    )
+
+    try #require(digest.status == .ready)
+    try #require(digest.outcome == "Make setup progress understandable.")
+    try #require(
+      digest.whyItMatters == "Non-engineers can decide whether to wait or change their draft.")
+    try #require(
+      digest.acceptanceChecks == [
+        "Setup check shows the current stage.",
+        "A finish-line message appears when setup is done.",
+      ]
+    )
+    try #require(digest.missingPieces.isEmpty)
+  }
+
+  @Test
   func testHandoffDigestFlagsMissingAcceptanceChecks() throws {
     let digest = PlanHandoffDigest(
       plan: """
