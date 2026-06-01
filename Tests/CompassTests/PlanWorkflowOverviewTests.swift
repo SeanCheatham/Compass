@@ -391,6 +391,42 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
+  func testHandoffDigestIgnoresCommandOnlyAcceptanceChecks() throws {
+    let digest = PlanHandoffDigest(
+      plan: """
+        ## Outcome
+        Make run recovery safer.
+
+        ## Acceptance checks
+        - Verify: swift test --filter RecoveryTests
+        - npm test
+        - Retry button explains the saved failure before it runs again.
+        """
+    )
+
+    try #require(digest.status == .ready)
+    try #require(
+      digest.acceptanceChecks == [
+        "Retry button explains the saved failure before it runs again."
+      ])
+
+    let commandOnly = PlanHandoffDigest(
+      plan: """
+        ## Outcome
+        Make run recovery safer.
+
+        ## Acceptance checks
+        - swift test --filter RecoveryTests
+        - true
+        """
+    )
+
+    try #require(commandOnly.status == .needsDetail)
+    try #require(commandOnly.acceptanceChecks.isEmpty)
+    try #require(commandOnly.missingPieces == [.acceptanceChecks, .whyItMatters])
+  }
+
+  @Test
   func testHandoffDigestFlagsMissingAcceptanceChecks() throws {
     let digest = PlanHandoffDigest(
       plan: """

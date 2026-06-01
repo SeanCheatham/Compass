@@ -244,7 +244,7 @@ struct PlanHandoffDigest: Equatable, Sendable {
     whyItMatters = Self.firstMeaningfulLine(in: sections[.whyItMatters] ?? [])
     acceptanceChecks = (sections[.acceptanceChecks] ?? [])
       .map(Self.cleanedContentLine)
-      .filter { !$0.isEmpty }
+      .filter { !$0.isEmpty && !Self.isCommandOnlyAcceptanceCheck($0) }
       .prefix(Self.checkLimit)
       .map { StringUtils.boundedText($0, limit: Self.textLimit) }
 
@@ -420,6 +420,94 @@ struct PlanHandoffDigest: Equatable, Sendable {
   private static func cleanedContentLine(_ rawLine: String) -> String {
     StringUtils.boundedText(PlainTextListPrefix.cleanedLine(rawLine), limit: Self.textLimit)
   }
+
+  private static func isCommandOnlyAcceptanceCheck(_ line: String) -> Bool {
+    guard let command = commandCandidate(fromAcceptanceLine: line) else { return false }
+    if PlanVerifyCommandPolicy.isPlaceholder(command) {
+      return true
+    }
+
+    let normalized =
+      command
+      .lowercased()
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+
+    if commandOnlyVerifyPhrases.contains(normalized) {
+      return true
+    }
+
+    for prefix in commandOnlyVerifyPhrases where normalized.hasPrefix("\(prefix) ") {
+      let suffix = String(normalized.dropFirst(prefix.count))
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      if suffix.rangeOfCharacter(from: shellArgumentCharacters) != nil {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  private static func commandCandidate(fromAcceptanceLine line: String) -> String? {
+    var candidate = line.trimmingCharacters(in: .whitespacesAndNewlines)
+    let labels = [
+      "verify command:",
+      "verification command:",
+      "test command:",
+      "command:",
+      "verify:",
+      "verification:",
+      "tests:",
+      "run:",
+    ]
+
+    for label in labels {
+      if candidate.lowercased().hasPrefix(label) {
+        candidate = String(candidate.dropFirst(label.count))
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+        break
+      }
+    }
+
+    if candidate.lowercased().hasPrefix("run ") {
+      candidate = String(candidate.dropFirst(4))
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    return candidate.nilIfEmpty
+  }
+
+  private static let commandOnlyVerifyPhrases: Set<String> = [
+    "bun test",
+    "cargo llvm-cov",
+    "cargo test",
+    "go test",
+    "npm run build",
+    "npm run test",
+    "npm test",
+    "pnpm build",
+    "pnpm run build",
+    "pnpm run test",
+    "pnpm test",
+    "pytest",
+    "python -m pytest",
+    "python -m unittest",
+    "python3 -m pytest",
+    "python3 -m unittest",
+    "swift build",
+    "swift test",
+    "vitest",
+    "vitest run",
+    "xcodebuild",
+    "yarn build",
+    "yarn run build",
+    "yarn run test",
+    "yarn test",
+  ]
+
+  private static let shellArgumentCharacters = CharacterSet(
+    charactersIn: #"./\-:=|&"'`$*[]()"#
+  )
 }
 
 private extension Array where Element == PlanHandoffDigest.MissingPiece {

@@ -100,6 +100,27 @@ struct PlanTransitionValidatorTests {
     try #require(error.missingLabels == ["Acceptance checks"])
   }
 
+  @Test func testRejectsCommandOnlyAcceptanceChecks() throws {
+    let current = makeState(midTerm: "- Make retry recovery safer")
+    let next = makeState(
+      immediate: PlanNext(
+        plan: """
+          ## Outcome
+          Make retry recovery safer.
+
+          ## Acceptance checks
+          - Verify: swift test --filter RecoveryTests
+          """,
+        verify: "swift test --filter RecoveryTests"
+      ),
+      midTerm: "- Make retry recovery safer"
+    )
+
+    let error = try rejectedTransition(from: current, to: next)
+    try #require(error.reason == .weakHandoff)
+    try #require(error.missingLabels == ["Acceptance checks"])
+  }
+
   @Test func testRejectsNoImmediateWorkWhenLongTermRemains() throws {
     let current = makeState(completed: ["done"], midTerm: "", longTerm: "")
     let next = makeState(
