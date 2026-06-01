@@ -12,8 +12,11 @@ import Virtualization
 struct SandboxView: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject private var vmHost: SharedCompassVM = .shared
+  @State private var readinessGuideNarration: SandboxReadinessGuideNarration?
 
   var body: some View {
+    let readinessGuide = SandboxReadinessGuide(readiness: vmHost.readiness)
+
     VStack(spacing: 0) {
       SandboxHeader(readiness: vmHost.readiness)
       Divider()
@@ -29,12 +32,22 @@ struct SandboxView: View {
               SandboxPlaceholder(readiness: vmHost.readiness)
             }
           }
-        SandboxSidePanel(vmHost: vmHost)
+        SandboxSidePanel(
+          vmHost: vmHost,
+          readinessGuide: readinessGuide,
+          narration: matchingNarration(for: readinessGuide)
+        )
           .frame(minWidth: 280, idealWidth: 320, maxWidth: 380)
       }
     }
     .task(id: vmHost.readiness.headlessAutoStartToken) {
       await autoStartHeadlessGuestIfNeeded()
+    }
+    .task(id: readinessGuide.narrationIdentifier) {
+      readinessGuideNarration = nil
+      readinessGuideNarration = await SandboxReadinessGuideNarrator.narrate(
+        guide: readinessGuide
+      )
     }
   }
 
@@ -49,6 +62,15 @@ struct SandboxView: View {
     } catch {
       // `start()` publishes the visible error state.
     }
+  }
+
+  private func matchingNarration(
+    for guide: SandboxReadinessGuide
+  ) -> SandboxReadinessGuideNarration? {
+    guard readinessGuideNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return readinessGuideNarration
   }
 }
 
@@ -123,11 +145,17 @@ private struct SandboxStatusChip: View {
 
 private struct SandboxSidePanel: View {
   @ObservedObject var vmHost: SharedCompassVM
+  var readinessGuide: SandboxReadinessGuide
+  var narration: SandboxReadinessGuideNarration?
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         SandboxReadinessSection(readiness: vmHost.readiness)
+        SandboxReadinessGuideSection(
+          guide: readinessGuide,
+          narration: narration
+        )
 
         switch vmHost.readiness {
         case .downloadingIPSW(let fraction):
@@ -191,6 +219,67 @@ private struct SandboxReadinessSection: View {
           .font(.body.weight(.medium))
           .fixedSize(horizontal: false, vertical: true)
       }
+    }
+  }
+}
+
+private struct SandboxReadinessGuideSection: View {
+  let guide: SandboxReadinessGuide
+  let narration: SandboxReadinessGuideNarration?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Image(systemName: guide.systemImageName)
+          .foregroundStyle(tintColor)
+        Text(guide.title)
+          .font(.subheadline.weight(.semibold))
+        Spacer(minLength: 0)
+      }
+      Text(guide.actionLabel)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(tintColor)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+
+      Text(narration?.text ?? guide.detail)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      VStack(alignment: .leading, spacing: 7) {
+        ForEach(guide.steps) { step in
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: step.isComplete ? "checkmark.circle.fill" : step.systemImageName)
+              .font(.caption)
+              .foregroundStyle(step.isComplete ? Color.green : tintColor)
+              .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+              Text(step.title)
+                .font(.caption.weight(.semibold))
+              Text(step.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+      }
+    }
+    .padding(12)
+    .background(tintColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+    .overlay(RoundedRectangle(cornerRadius: 10).stroke(tintColor.opacity(0.25)))
+    .accessibilityLabel("\(guide.title). \(narration?.text ?? guide.detail)")
+  }
+
+  private var tintColor: Color {
+    switch guide.tone {
+    case .ready:
+      return .green
+    case .action, .progress:
+      return .blue
+    case .blocked:
+      return .orange
     }
   }
 }
