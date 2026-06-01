@@ -158,13 +158,17 @@ private final class StubImageGenerator: AgentImageGenerator, @unchecked Sendable
   }
 
   func generate(prompt: String, assignment: MediaAssignment) async throws -> Data {
-    lock.lock()
-    recordedPrompts.append(prompt)
-    recordedAssignments.append(assignment)
-    lock.unlock()
+    record(prompt: prompt, assignment: assignment)
     switch outcome {
     case .success(let data): return data
     case .failure(let error): throw error
     }
+  }
+
+  private func record(prompt: String, assignment: MediaAssignment) {
+    lock.lock()
+    defer { lock.unlock() }
+    recordedPrompts.append(prompt)
+    recordedAssignments.append(assignment)
   }
 }
