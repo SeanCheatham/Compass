@@ -40,6 +40,7 @@ enum FactorySettingsGuideNarrator {
     Status: \(guide.title)
     Detail: \(guide.detail)
     Action: \(guide.actionLabel)
+    Routing coverage: \(guide.routingCoverage.label) - \(guide.routingCoverage.detail)
     Rows: \(guide.rows.map { "\($0.label) - \($0.status.rawValue) - \($0.detail)" }.joined(separator: " | "))
     """
   }

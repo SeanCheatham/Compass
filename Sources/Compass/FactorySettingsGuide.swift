@@ -32,11 +32,23 @@ struct FactorySettingsGuide: Equatable, Sendable {
     var status: RowStatus
   }
 
+  struct RoutingCoverage: Equatable, Sendable {
+    static let labelLimit = 52
+    static let detailLimit = 190
+
+    var enabledRecommendedCount: Int
+    var recommendedCount: Int
+    var fraction: Double
+    var label: String
+    var detail: String
+  }
+
   var title: String
   var detail: String
   var actionLabel: String
   var tone: Tone
   var systemImageName: String
+  var routingCoverage: RoutingCoverage
   var rows: [Row]
   var narrationIdentifier: String
 
@@ -47,6 +59,10 @@ struct FactorySettingsGuide: Equatable, Sendable {
     let recommendedOff = sortedProjects.filter {
       $0.recommendsHostXcode && !$0.hostXcodeBuildTestEnabled
     }
+    let recommendedCount = sortedProjects.filter(\.recommendsHostXcode).count
+    let enabledRecommendedCount = sortedProjects.filter {
+      $0.recommendsHostXcode && $0.hostXcodeBuildTestEnabled
+    }.count
     let enabledCount = sortedProjects.filter(\.hostXcodeBuildTestEnabled).count
 
     if sortedProjects.isEmpty {
@@ -83,6 +99,11 @@ struct FactorySettingsGuide: Equatable, Sendable {
     }
 
     detail = StringUtils.boundedText(detail, limit: Self.detailLimit)
+    routingCoverage = Self.routingCoverage(
+      projectCount: sortedProjects.count,
+      enabledRecommendedCount: enabledRecommendedCount,
+      recommendedCount: recommendedCount
+    )
     rows = Self.rows(for: sortedProjects)
     narrationIdentifier = Self.narrationIdentifier(
       title: title,
@@ -90,6 +111,7 @@ struct FactorySettingsGuide: Equatable, Sendable {
       actionLabel: actionLabel,
       tone: tone,
       systemImageName: systemImageName,
+      routingCoverage: routingCoverage,
       rows: rows
     )
   }
@@ -140,12 +162,62 @@ struct FactorySettingsGuide: Equatable, Sendable {
     return .off
   }
 
+  private static func routingCoverage(
+    projectCount: Int,
+    enabledRecommendedCount: Int,
+    recommendedCount: Int
+  ) -> RoutingCoverage {
+    if projectCount == 0 {
+      return RoutingCoverage(
+        enabledRecommendedCount: 0,
+        recommendedCount: 0,
+        fraction: 0,
+        label: "No projects yet",
+        detail: "Add a repository before Compass can recommend build/test routing."
+      )
+    }
+
+    if recommendedCount == 0 {
+      return RoutingCoverage(
+        enabledRecommendedCount: 0,
+        recommendedCount: 0,
+        fraction: 1,
+        label: "No recommended toggles",
+        detail:
+          "Current projects can keep Host Xcode Build/Test off unless new repo evidence appears."
+      )
+    }
+
+    if enabledRecommendedCount == recommendedCount {
+      let label = "All \(recommendedCount) recommended enabled"
+      return RoutingCoverage(
+        enabledRecommendedCount: enabledRecommendedCount,
+        recommendedCount: recommendedCount,
+        fraction: 1,
+        label: StringUtils.boundedText(label, limit: RoutingCoverage.labelLimit),
+        detail:
+          "Recommended Swift and Xcode projects are routed through full Xcode for verification."
+      )
+    }
+
+    let label = "\(enabledRecommendedCount) of \(recommendedCount) recommended enabled"
+    return RoutingCoverage(
+      enabledRecommendedCount: enabledRecommendedCount,
+      recommendedCount: recommendedCount,
+      fraction: Double(enabledRecommendedCount) / Double(recommendedCount),
+      label: StringUtils.boundedText(label, limit: RoutingCoverage.labelLimit),
+      detail:
+        "Enable the remaining recommended rows before planning Swift or Xcode build/test verification."
+    )
+  }
+
   private static func narrationIdentifier(
     title: String,
     detail: String,
     actionLabel: String,
     tone: Tone,
     systemImageName: String,
+    routingCoverage: RoutingCoverage,
     rows: [Row]
   ) -> String {
     let raw = [
@@ -154,6 +226,7 @@ struct FactorySettingsGuide: Equatable, Sendable {
       "action:\(actionLabel)",
       "tone:\(tone.rawValue)",
       "image:\(systemImageName)",
+      "coverage:\(routingCoverage.label):\(routingCoverage.enabledRecommendedCount)/\(routingCoverage.recommendedCount)",
       "rows:\(rows.map { "\($0.id):\($0.status.rawValue):\($0.detail)" }.joined(separator: ","))",
     ].joined(separator: "|")
 
@@ -181,6 +254,7 @@ struct FactorySettingsClipboardPayload: Equatable, Sendable {
       "Status: \(guide.title) (\(guide.tone.rawValue))",
       "Action: \(guide.actionLabel)",
       "Detail: \(guide.detail)",
+      "Routing coverage: \(guide.routingCoverage.label) - \(guide.routingCoverage.detail)",
       "Rows: \(Self.countSummary(guide.rows))",
       "",
       "Projects:",

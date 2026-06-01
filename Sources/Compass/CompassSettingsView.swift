@@ -535,6 +535,18 @@ private struct FactorySettingsGuidePanel: View {
         .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
 
+      VStack(alignment: .leading, spacing: 4) {
+        Label(guide.routingCoverage.label, systemImage: "checklist")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(toneColor)
+        ProgressView(value: guide.routingCoverage.fraction)
+          .tint(toneColor)
+        Text(guide.routingCoverage.detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
       VStack(alignment: .leading, spacing: 7) {
         ForEach(guide.rows) { row in
           HStack(alignment: .top, spacing: 8) {

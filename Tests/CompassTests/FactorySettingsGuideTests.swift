@@ -11,6 +11,8 @@ struct FactorySettingsGuideTests {
     #expect(guide.title == "Add a Project")
     #expect(guide.actionLabel == "No projects")
     #expect(guide.tone == .empty)
+    #expect(guide.routingCoverage.label == "No projects yet")
+    #expect(guide.routingCoverage.fraction == 0)
     #expect(guide.rows.map(\.id) == ["projects"])
     #expect(guide.rows[0].detail.contains("Add a repository"))
   }
@@ -30,6 +32,8 @@ struct FactorySettingsGuideTests {
     #expect(guide.actionLabel == "1 recommended")
     #expect(guide.tone == .attention)
     #expect(guide.detail.contains("Enable Host Xcode Build/Test"))
+    #expect(guide.routingCoverage.label == "0 of 1 recommended enabled")
+    #expect(guide.routingCoverage.fraction == 0)
     #expect(guide.rows[0].label == "Swift App (selected)")
     #expect(guide.rows[0].status == .recommended)
     #expect(guide.rows[0].detail.contains("Recommended for this repo"))
@@ -44,6 +48,7 @@ struct FactorySettingsGuideTests {
 
     #expect(guide.title == "Factory Needs 2 Toggles")
     #expect(guide.actionLabel == "2 recommended")
+    #expect(guide.routingCoverage.label == "0 of 2 recommended enabled")
     #expect(guide.rows.map(\.label) == ["One", "Two"])
     #expect(guide.rows.allSatisfy { $0.status == .recommended })
   }
@@ -57,6 +62,8 @@ struct FactorySettingsGuideTests {
     #expect(guide.title == "Factory Verification Ready")
     #expect(guide.actionLabel == "Ready")
     #expect(guide.tone == .ready)
+    #expect(guide.routingCoverage.label == "All 1 recommended enabled")
+    #expect(guide.routingCoverage.fraction == 1)
     #expect(guide.rows[0].status == .ready)
     #expect(guide.rows[0].detail.contains("full Xcode on this Mac"))
   }
@@ -69,6 +76,8 @@ struct FactorySettingsGuideTests {
 
     #expect(guide.title == "Factory Defaults Ready")
     #expect(guide.tone == .ready)
+    #expect(guide.routingCoverage.label == "No recommended toggles")
+    #expect(guide.routingCoverage.fraction == 1)
     #expect(guide.rows[0].status == .off)
     #expect(guide.rows[0].detail.contains("no SwiftPM, Xcode project, or workspace signal"))
   }
@@ -100,6 +109,7 @@ struct FactorySettingsGuideTests {
     #expect(payload.text.contains("Do not invent projects"))
     #expect(payload.text.contains("Status: Factory Needs One Toggle (attention)"))
     #expect(payload.text.contains("Action: 1 recommended"))
+    #expect(payload.text.contains("Routing coverage: 1 of 2 recommended enabled"))
     #expect(payload.text.contains("Rows: 1 ready, 1 recommended, 1 off"))
     #expect(payload.text.contains("[recommended] Swift App (selected)"))
     #expect(payload.text.contains("[ready] CLI Tools"))
@@ -130,11 +140,15 @@ struct FactorySettingsGuideTests {
     try await withMockFoundationModels(
       response: "Enable Host Xcode for Swift App so build and test checks use full Xcode."
     ) {
+      let prompt = FactorySettingsGuideNarrator.prompt(for: guide)
+      #expect(prompt.contains("Routing coverage: 0 of 1 recommended enabled"))
+
       let generatedNarration = await FactorySettingsGuideNarrator.narrate(guide: guide)
       let narration = try #require(generatedNarration)
       #expect(narration.guideIdentifier == guide.narrationIdentifier)
       #expect(
-        narration.text == "Enable Host Xcode for Swift App so build and test checks use full Xcode.")
+        narration.text == "Enable Host Xcode for Swift App so build and test checks use full Xcode."
+      )
     }
   }
 
