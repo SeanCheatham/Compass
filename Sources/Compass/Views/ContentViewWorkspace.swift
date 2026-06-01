@@ -658,6 +658,7 @@ struct ProjectRunControls: View {
       .help(feedbackMenu.helpText)
 
       CopyRunControlButton(payload: runControlPayload)
+      ProjectRunDecisionBadge(badge: runGuide.decisionBadge)
 
       Button {
         run(runGuide.primaryOption.kind)
@@ -767,6 +768,46 @@ struct ProjectRunControls: View {
       return nil
     }
     return runGuideNarration
+  }
+}
+
+private struct ProjectRunDecisionBadge: View {
+  var badge: ProjectRunControlGuide.DecisionBadge
+
+  var body: some View {
+    HStack(spacing: 5) {
+      Image(systemName: badge.systemImage)
+        .font(.system(size: 12, weight: .semibold))
+      Text(badge.label)
+        .lineLimit(1)
+    }
+    .font(.caption.weight(.semibold))
+    .foregroundStyle(color)
+    .padding(.horizontal, 9)
+    .padding(.vertical, 5)
+    .background(color.opacity(0.11), in: Capsule())
+    .overlay {
+      Capsule()
+        .stroke(color.opacity(0.24))
+    }
+    .help("Run signal: \(badge.detail)")
+    .accessibilityLabel("Run signal, \(badge.label)")
+    .accessibilityHint(badge.detail)
+  }
+
+  private var color: Color {
+    switch badge.tone {
+    case .ready:
+      return .green
+    case .info:
+      return .blue
+    case .warning:
+      return .orange
+    case .failure:
+      return .red
+    case .paused:
+      return .blue
+    }
   }
 }
 

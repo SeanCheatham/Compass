@@ -38,6 +38,7 @@ enum ProjectRunControlGuideNarrator {
     Return one calm sentence under 35 words. No Markdown.
 
     Readiness: \(guide.readiness.title) - \(guide.readiness.detail)
+    Run signal: \(guide.decisionBadge.label) - \(guide.decisionBadge.detail)
     Primary explanation: \(guide.primaryHelp)
     Primary action: \(guide.primaryOption.title) - \(guide.primaryOption.detail)
     Next run preview: \(guide.previewSteps.map { "\($0.title) - \($0.detail)" }.joined(separator: " | "))

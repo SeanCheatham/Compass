@@ -25,6 +25,9 @@ struct ProjectRunControlGuideTests {
     try #require(guide.options[1].isEnabled)
     try #require(!guide.options[2].isEnabled)
     try #require(guide.options[2].detail == "Disabled until Plan selects Immediate Work.")
+    try #require(guide.decisionBadge.label == "Plan first")
+    try #require(guide.decisionBadge.tone == .info)
+    try #require(guide.decisionBadge.detail.contains("one executable slice"))
   }
 
   @Test
@@ -78,6 +81,9 @@ struct ProjectRunControlGuideTests {
       guide.options[1].detail
         == "Ask Plan to use the queue, with Drafts showing which signals still need detail.")
     try #require(!guide.options[2].isEnabled)
+    try #require(guide.decisionBadge.label == "Draft details")
+    try #require(guide.decisionBadge.tone == .warning)
+    try #require(guide.decisionBadge.detail.contains("Missing across queue"))
   }
 
   @Test
@@ -146,6 +152,9 @@ struct ProjectRunControlGuideTests {
     try #require(
       guide.options[1].detail
         == "Ask Plan to turn 2 queued drafts into one executable handoff.")
+    try #require(guide.decisionBadge.label == "Draft queue")
+    try #require(guide.decisionBadge.tone == .info)
+    try #require(guide.decisionBadge.detail.contains("2 queued drafts"))
   }
 
   @Test
@@ -171,6 +180,9 @@ struct ProjectRunControlGuideTests {
     try #require(guide.options[1].title == "Run Plan Only")
     try #require(guide.options[2].title == "Run Develop Only")
     try #require(guide.options[2].detail.contains("Immediate Work"))
+    try #require(guide.decisionBadge.label == "Ready")
+    try #require(guide.decisionBadge.tone == .ready)
+    try #require(guide.decisionBadge.detail.contains("verify command"))
   }
 
   @Test
@@ -225,6 +237,7 @@ struct ProjectRunControlGuideTests {
     try #require(payload.text.contains("Do not invent repository state"))
     try #require(payload.text.contains("Primary: Run Loop (loop, enabled)"))
     try #require(payload.text.contains("Readiness: Ready for Develop"))
+    try #require(payload.text.contains("Run signal: Ready -"))
     try #require(payload.text.contains("[enabled] Run Develop Only (develop-only)"))
     try #require(payload.text.contains("Next run preview:"))
     try #require(payload.text.contains("Run verification: Compass runs"))
@@ -356,6 +369,9 @@ struct ProjectRunControlGuideTests {
       guide.options[2].detail
         == "Disabled until Immediate Work has Acceptance checks. List observable finish-line checks."
     )
+    try #require(guide.decisionBadge.label == "Repair first")
+    try #require(guide.decisionBadge.tone == .warning)
+    try #require(guide.decisionBadge.detail.contains("Acceptance checks"))
   }
 
   @Test
@@ -476,6 +492,8 @@ struct ProjectRunControlGuideTests {
     try #require(guide.primaryKind == .loop)
     try #require(guide.options[0].title == "Resume Loop")
     try #require(guide.options[0].detail == "Resume the factory from its paused gate.")
+    try #require(guide.decisionBadge.label == "Paused")
+    try #require(guide.decisionBadge.tone == .paused)
   }
 
   @Test
@@ -511,6 +529,8 @@ struct ProjectRunControlGuideTests {
       guide.primaryOption.detail
         == "Retry the current Immediate Work with the captured issue still visible.")
     try #require(guide.options[0].detail == "Verify failed: Retry Develop.")
+    try #require(guide.decisionBadge.label == "Verify failed")
+    try #require(guide.decisionBadge.tone == .failure)
   }
 
   @Test
@@ -566,9 +586,13 @@ struct ProjectRunControlGuideTests {
 
     try #require(running.primaryHelp == "Compass is already running.")
     try #require(running.options.allSatisfy { !$0.isEnabled })
+    try #require(running.decisionBadge.label == "Running")
+    try #require(running.decisionBadge.tone == .info)
     try #require(
       missingRepository.primaryHelp == "Add a Git repository before running the factory.")
     try #require(missingRepository.options.allSatisfy { !$0.isEnabled })
+    try #require(missingRepository.decisionBadge.label == "Needs repo")
+    try #require(missingRepository.decisionBadge.tone == .warning)
   }
 
   @Test
@@ -585,6 +609,7 @@ struct ProjectRunControlGuideTests {
     try #require(guide.allowsNarration)
     try #require(guide.narrationIdentifier.contains("primary:loop"))
     try #require(guide.narrationIdentifier.contains("Ready for Develop"))
+    try #require(guide.narrationIdentifier.contains("signal:Ready"))
     try #require(guide.narrationIdentifier.contains("Run Develop Only"))
   }
 

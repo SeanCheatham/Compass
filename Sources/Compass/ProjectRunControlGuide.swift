@@ -7,6 +7,7 @@ struct ProjectRunControlGuide: Equatable {
   var primaryHelp: String
   var primaryKind: Kind
   var readiness: Readiness
+  var decisionBadge: DecisionBadge
   var options: [Option]
   var previewSteps: [PreviewStep]
   var narrationIdentifier: String
@@ -44,6 +45,15 @@ struct ProjectRunControlGuide: Equatable {
     let hasImmediate = handoffReadiness.hasImmediate
     let canDevelop = hasImmediate && handoffReadiness.canDevelop
     readiness = Self.readiness(
+      handoffReadiness: handoffReadiness,
+      reliabilityStatus: reliabilityStatus,
+      hasRepository: hasRepository,
+      isRunning: isRunning,
+      isAutoPlaying: isAutoPlaying,
+      isPaused: isPaused,
+      draftIntakeGuide: draftIntakeGuide
+    )
+    decisionBadge = Self.decisionBadge(
       handoffReadiness: handoffReadiness,
       reliabilityStatus: reliabilityStatus,
       hasRepository: hasRepository,
@@ -136,6 +146,7 @@ struct ProjectRunControlGuide: Equatable {
       primaryHelp: primaryHelp,
       primaryKind: primaryKind,
       readiness: readiness,
+      decisionBadge: decisionBadge,
       options: options,
       previewSteps: previewSteps
     )
@@ -162,6 +173,24 @@ struct ProjectRunControlGuide: Equatable {
     var title: String
     var detail: String
     var systemImage: String
+  }
+
+  struct DecisionBadge: Equatable {
+    static let labelLimit = 32
+    static let detailLimit = 150
+
+    var label: String
+    var detail: String
+    var systemImage: String
+    var tone: Tone
+
+    enum Tone: String, Equatable {
+      case ready
+      case info
+      case warning
+      case failure
+      case paused
+    }
   }
 
   struct Option: Identifiable, Equatable {
@@ -461,6 +490,128 @@ struct ProjectRunControlGuide: Equatable {
     }
   }
 
+  private static func decisionBadge(
+    handoffReadiness: HandoffReadiness,
+    reliabilityStatus: ProjectReliabilityStatus,
+    hasRepository: Bool,
+    isRunning: Bool,
+    isAutoPlaying: Bool,
+    isPaused: Bool,
+    draftIntakeGuide: DraftIntakeGuide
+  ) -> DecisionBadge {
+    if !hasRepository {
+      return badge(
+        label: "Needs repo",
+        detail: "Add a Git repository before any factory run can start.",
+        systemImage: "folder.badge.plus",
+        tone: .warning
+      )
+    }
+
+    if isRunning || isAutoPlaying {
+      return badge(
+        label: "Running",
+        detail: "Compass is already working through this project.",
+        systemImage: "play.circle",
+        tone: .info
+      )
+    }
+
+    if isPaused {
+      return badge(
+        label: "Paused",
+        detail: "Resume from the current factory gate when you are ready.",
+        systemImage: "pause.circle",
+        tone: .paused
+      )
+    }
+
+    if !reliabilityStatus.isEmpty {
+      return badge(
+        label: reliabilityStatus.primaryCue,
+        detail: "\(reliabilityStatus.actionLabel). \(reliabilityStatus.detail)",
+        systemImage: reliabilityStatus.systemImage,
+        tone: tone(for: reliabilityStatus.severity)
+      )
+    }
+
+    if handoffReadiness.hasImmediate && !handoffReadiness.canDevelop {
+      return badge(
+        label: "Repair first",
+        detail: Self.withRepairDetail(
+          "Plan should add \(handoffReadiness.missingLabel) before Develop.",
+          handoffReadiness: handoffReadiness
+        ),
+        systemImage: "list.bullet.clipboard",
+        tone: .warning
+      )
+    }
+
+    if handoffReadiness.canDevelop {
+      return badge(
+        label: "Ready",
+        detail: "Immediate Work has an outcome, acceptance checks, and a verify command.",
+        systemImage: "checkmark.seal",
+        tone: .ready
+      )
+    }
+
+    if !draftIntakeGuide.isEmpty {
+      switch draftIntakeGuide.status {
+      case .ready:
+        return badge(
+          label: "Draft queue",
+          detail: "\(draftIntakeGuide.entryCountLabel) can feed the next Plan run.",
+          systemImage: "text.badge.checkmark",
+          tone: .info
+        )
+      case .needsDetail:
+        return badge(
+          label: "Draft details",
+          detail: draftIntakeGuide.detail,
+          systemImage: "list.bullet.clipboard",
+          tone: .warning
+        )
+      case .empty:
+        break
+      }
+    }
+
+    return badge(
+      label: "Plan first",
+      detail: "Plan should choose one executable slice before Develop starts.",
+      systemImage: "map",
+      tone: .info
+    )
+  }
+
+  private static func badge(
+    label: String,
+    detail: String,
+    systemImage: String,
+    tone: DecisionBadge.Tone
+  ) -> DecisionBadge {
+    DecisionBadge(
+      label: StringUtils.boundedText(label, limit: DecisionBadge.labelLimit),
+      detail: StringUtils.boundedText(detail, limit: DecisionBadge.detailLimit),
+      systemImage: systemImage,
+      tone: tone
+    )
+  }
+
+  private static func tone(
+    for severity: PlanReliabilityFeedback.Severity
+  ) -> DecisionBadge.Tone {
+    switch severity {
+    case .warning:
+      return .warning
+    case .failure:
+      return .failure
+    case .paused:
+      return .paused
+    }
+  }
+
   private static func readiness(
     handoffReadiness: HandoffReadiness,
     reliabilityStatus: ProjectReliabilityStatus,
@@ -626,6 +777,7 @@ struct ProjectRunControlGuide: Equatable {
     primaryHelp: String,
     primaryKind: Kind,
     readiness: Readiness,
+    decisionBadge: DecisionBadge,
     options: [Option],
     previewSteps: [PreviewStep]
   ) -> String {
@@ -641,6 +793,7 @@ struct ProjectRunControlGuide: Equatable {
         "primary:\(primaryKind.narrationKey)",
         "help:\(primaryHelp)",
         "readiness:\(readiness.title):\(readiness.detail)",
+        "signal:\(decisionBadge.label):\(decisionBadge.detail):\(decisionBadge.tone.rawValue)",
         "options:\(optionFragment)",
         "preview:\(previewFragment)",
       ].joined(separator: "\n"),
@@ -701,6 +854,7 @@ struct ProjectRunControlClipboardPayload: Equatable, Sendable {
       "Primary: \(guide.primaryOption.title) (\(Self.kindLabel(guide.primaryOption.kind)), \(Self.enabledLabel(guide.primaryOption)))",
       "Primary help: \(guide.primaryHelp)",
       "Readiness: \(guide.readiness.title) - \(guide.readiness.detail)",
+      "Run signal: \(guide.decisionBadge.label) - \(guide.decisionBadge.detail)",
       "",
       "Run modes:",
     ]
