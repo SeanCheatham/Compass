@@ -221,7 +221,8 @@ struct DraftReadinessGuide: Equatable, Sendable {
   }
 
   private static func hasVagueSuccessSignal(in draft: String) -> Bool {
-    let normalized = draft
+    let normalized =
+      draft
       .lowercased()
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -326,6 +327,7 @@ struct DraftIntakeGuide: Equatable, Sendable {
       "detail:\(detail)",
       "status:\(status)",
       "score:\(scoreLabel)",
+      "next:\(nextAction.title) - \(nextAction.detail)",
       "total:\(totalEntryCount)",
       "hidden:\(hiddenEntryCount)",
       "entries:\(entries.map(\.narrationIdentifierFragment).joined(separator: "|"))",
@@ -386,6 +388,48 @@ struct DraftIntakeGuide: Equatable, Sendable {
     hiddenEntryCount == 1 ? "1 more draft remains" : "\(hiddenEntryCount) more drafts remain"
   }
 
+  var nextAction: NextAction {
+    switch status {
+    case .empty:
+      return NextAction(
+        kind: .startDraft,
+        title: "Add a first draft",
+        detail:
+          "Write one direction above; Compass will check whether it names the outcome, why, and proof.",
+        systemImage: "square.and.pencil"
+      )
+    case .ready:
+      let scope = isCapped ? " The visible checklist is ready; preserve hidden raw drafts." : ""
+      return NextAction(
+        kind: .sendToPlan,
+        title: "Send the queue to Plan",
+        detail:
+          "Turn the first ready direction into a commit-sized handoff, then keep the queue ordered.\(scope)",
+        systemImage: "arrow.forward.circle"
+      )
+    case .needsDetail:
+      if readyCount > 0 {
+        return NextAction(
+          kind: .planReadyDrafts,
+          title: readyCount == 1 ? "Plan the ready draft" : "Plan ready drafts",
+          detail:
+            "\(Self.countLabel(readyCount, singular: "draft is", plural: "drafts are")) ready; keep the rest queued for the missing signals.",
+          systemImage: "arrowshape.turn.up.right.circle"
+        )
+      }
+      let missing =
+        missingSignalTitles.isEmpty
+        ? "the missing details"
+        : missingSignalTitles.joined(separator: ", ")
+      return NextAction(
+        kind: .clarifyDrafts,
+        title: "Clarify before Plan",
+        detail: "Add \(missing.lowercased()) so Plan can make a focused first slice.",
+        systemImage: "questionmark.circle"
+      )
+    }
+  }
+
   var readyCount: Int {
     allEntries.filter { $0.readiness.status == .ready }.count
   }
@@ -428,6 +472,20 @@ struct DraftIntakeGuide: Equatable, Sendable {
     case empty
     case needsDetail
     case ready
+  }
+
+  struct NextAction: Equatable, Sendable {
+    var kind: NextActionKind
+    var title: String
+    var detail: String
+    var systemImage: String
+  }
+
+  enum NextActionKind: Equatable, Sendable {
+    case startDraft
+    case clarifyDrafts
+    case planReadyDrafts
+    case sendToPlan
   }
 
   struct Entry: Identifiable, Equatable, Sendable {
@@ -573,6 +631,7 @@ struct DraftIntakeClipboardPayload: Equatable, Sendable {
       "Status: \(guide.title)",
       "Score: \(guide.scoreLabel)",
       "Detail: \(guide.detail)",
+      "Next action: \(guide.nextAction.title) - \(guide.nextAction.detail)",
       "Queue: \(guide.entryCountLabel)",
     ]
 

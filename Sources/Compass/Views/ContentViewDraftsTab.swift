@@ -341,6 +341,8 @@ struct DraftQueueReadinessView: View {
         .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
 
+      DraftQueueNextActionRow(action: guide.nextAction, color: color)
+
       if !guide.entries.isEmpty {
         VStack(alignment: .leading, spacing: 8) {
           ForEach(Array(guide.entries.enumerated()), id: \.element.id) { index, entry in
@@ -368,7 +370,9 @@ struct DraftQueueReadinessView: View {
         .stroke(color.opacity(0.18))
     }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(guide.title). \(narration?.text ?? guide.detail). \(guide.scoreLabel).")
+    .accessibilityLabel(
+      "\(guide.title). \(narration?.text ?? guide.detail). \(guide.scoreLabel). Next action: \(guide.nextAction.title). \(guide.nextAction.detail)"
+    )
   }
 
   private var color: Color {
@@ -391,6 +395,36 @@ struct DraftQueueReadinessView: View {
     case .ready:
       return "checkmark.seal"
     }
+  }
+}
+
+struct DraftQueueNextActionRow: View {
+  var action: DraftIntakeGuide.NextAction
+  var color: Color
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 7) {
+      Image(systemName: action.systemImage)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+        .frame(width: 18)
+        .accessibilityHidden(true)
+
+      VStack(alignment: .leading, spacing: 2) {
+        Text("Next action: \(action.title)")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.primary)
+          .lineLimit(2)
+
+        Text(action.detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(.top, 2)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("Next action: \(action.title). \(action.detail)")
   }
 }
 

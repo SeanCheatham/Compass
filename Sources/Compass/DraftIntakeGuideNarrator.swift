@@ -41,6 +41,7 @@ enum DraftIntakeGuideNarrator {
     Queue title: \(guide.title)
     Queue detail: \(guide.detail)
     Queue score: \(guide.scoreLabel)
+    Next action: \(guide.nextAction.title) - \(guide.nextAction.detail)
     Queue scope: \(guide.totalEntryCount) total drafts; \(guide.hiddenEntryCount) outside the visible checklist.
     Drafts:
     \(guide.entries.map(entrySummary).joined(separator: "\n"))

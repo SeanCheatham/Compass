@@ -25,10 +25,11 @@ struct DraftRefinementTests {
     try #require(guide.cues[0].isSatisfied)
     try #require(!guide.cues[1].isSatisfied)
     try #require(!guide.cues[2].isSatisfied)
-    try #require(guide.coachingPrompts.map(\.question) == [
-      "Who is stuck, and why?",
-      "How will you know it worked?",
-    ])
+    try #require(
+      guide.coachingPrompts.map(\.question) == [
+        "Who is stuck, and why?",
+        "How will you know it worked?",
+      ])
     try #require(
       guide.coachingPrompts[1].detail
         == "Name a visible result, error, test, or check Compass can verify.")
@@ -67,7 +68,8 @@ struct DraftRefinementTests {
 
   @Test func testDraftReadinessGuideAcceptsSpecificDoneWhenSignals() throws {
     let guide = DraftReadinessGuide(
-      draft: "Show recovery copy because users get locked out; done when the recovery banner appears."
+      draft:
+        "Show recovery copy because users get locked out; done when the recovery banner appears."
     )
 
     try #require(guide.status == .ready)
@@ -129,8 +131,12 @@ struct DraftRefinementTests {
     try #require(
       DraftIntakeGuideNarrator.prompt(for: guide)
         .contains("Queue scope: 7 total drafts; 1 outside the visible checklist."))
+    try #require(
+      DraftIntakeGuideNarrator.prompt(for: guide)
+        .contains("Next action: Plan ready drafts"))
     try #require(guide.narrationIdentifier.contains("total:7"))
     try #require(guide.narrationIdentifier.contains("hidden:1"))
+    try #require(guide.narrationIdentifier.contains("next:Plan ready drafts"))
   }
 
   @Test func testDraftIntakeGuideFallsBackToParagraphEntries() throws {
@@ -199,6 +205,35 @@ struct DraftRefinementTests {
         == "Every queued draft names the outcome, why it matters, and how done should look.")
   }
 
+  @Test func testDraftIntakeGuideRecommendsNextQueueAction() throws {
+    let empty = DraftIntakeGuide(drafts: "")
+    try #require(empty.nextAction.kind == .startDraft)
+    try #require(empty.nextAction.title == "Add a first draft")
+
+    let clarify = DraftIntakeGuide(drafts: "- Improve onboarding copy")
+    try #require(clarify.nextAction.kind == .clarifyDrafts)
+    try #require(clarify.nextAction.title == "Clarify before Plan")
+    try #require(clarify.nextAction.detail.contains("why, success signal"))
+
+    let mixed = DraftIntakeGuide(
+      drafts: """
+        - Make setup faster because users get stuck; success looks like tests pass.
+        - Improve onboarding copy
+        """
+    )
+    try #require(mixed.nextAction.kind == .planReadyDrafts)
+    try #require(mixed.nextAction.title == "Plan the ready draft")
+    try #require(mixed.nextAction.detail.contains("1 draft is ready"))
+
+    let ready = DraftIntakeGuide(
+      drafts:
+        "- Show recovery copy because users get locked out; done when recovery copy appears."
+    )
+    try #require(ready.nextAction.kind == .sendToPlan)
+    try #require(ready.nextAction.title == "Send the queue to Plan")
+    try #require(ready.nextAction.detail.contains("commit-sized handoff"))
+  }
+
   @Test func testDraftIntakeClipboardPayloadPackagesQueueForReuse() throws {
     let guide = DraftIntakeGuide(
       drafts: """
@@ -213,6 +248,8 @@ struct DraftRefinementTests {
     try #require(payload.text.contains("Do not invent user intent, files, commands"))
     try #require(payload.text.contains("Status: Draft queue needs detail"))
     try #require(payload.text.contains("Score: 1 of 2 ready"))
+    try #require(payload.text.contains("Next action: Plan the ready draft"))
+    try #require(payload.text.contains("1 draft is ready; keep the rest queued"))
     try #require(payload.text.contains("Queue: 2 queued drafts"))
     try #require(payload.text.contains("Missing across queue: Why, Success signal"))
     try #require(payload.text.contains("Draft #1"))
@@ -249,7 +286,8 @@ struct DraftRefinementTests {
     let payload = DraftIntakeClipboardPayload(guide: guide)
 
     try #require(payload.text.contains("Visible checklist: first 6 of 7"))
-    try #require(payload.text.contains("Hidden drafts: 1 more draft remains in the raw draft list."))
+    try #require(
+      payload.text.contains("Hidden drafts: 1 more draft remains in the raw draft list."))
     try #require(payload.text.contains("Draft #6"))
     try #require(!payload.text.contains("Draft #7"))
   }
