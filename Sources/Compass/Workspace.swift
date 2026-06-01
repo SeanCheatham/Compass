@@ -156,10 +156,10 @@ struct CompassWorkspace {
 
   /// Validate `lessonEdits` embedded in a phase's `submit_result` payload.
   func validateSubmitResultLessonEdits(_ submitResultJSON: Data) throws {
-    struct Payload: Decodable {
-      var lessonEdits: [LessonEdit]
-    }
-    let payload = try JSONDecoder().decode(Payload.self, from: submitResultJSON)
+    let payload = try JSONDecoder().decode(
+      SubmitResultLessonEditsPayload.self,
+      from: submitResultJSON
+    )
     try validateLessonEdits(payload.lessonEdits)
   }
 
@@ -296,6 +296,25 @@ struct CompassWorkspace {
     }
     text += "\(marker)\n"
     try text.write(to: gitignoreURL, atomically: true, encoding: .utf8)
+  }
+}
+
+private struct SubmitResultLessonEditsPayload: Decodable {
+  var lessonEdits: [LessonEdit]
+
+  enum CodingKeys: String, CodingKey {
+    case lessonEdits
+    case lessonEditsSnake = "lesson_edits"
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    lessonEdits =
+      try FlexibleModelDecoder.decodeValueIfPresent(
+        from: container,
+        preferredKey: .lessonEdits,
+        aliases: [.lessonEditsSnake]
+      ) ?? []
   }
 }
 

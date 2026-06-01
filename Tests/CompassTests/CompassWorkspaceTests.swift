@@ -538,6 +538,37 @@ final class CompassWorkspaceTests {
     try #require(workspace.readLessons() == "- Existing\n")
   }
 
+  @Test func testValidateSubmitResultLessonEditsAcceptsSnakeCasePayloadWithoutApplying() throws {
+    let workspace = try makeInitializedWorkspace()
+    try workspace.writeLessons("- Existing\n- Existing\n")
+    let payload = """
+      {
+        "state": {"immediate": null, "midTerm": [], "longTerm": "x"},
+        "lesson_edits": [
+          {
+            "find": "Existing",
+            "replace": "Replacement",
+            "replace_all": "true"
+          }
+        ]
+      }
+      """
+
+    try workspace.validateSubmitResultLessonEdits(Data(payload.utf8))
+    try #require(workspace.readLessons() == "- Existing\n- Existing\n")
+  }
+
+  @Test func testValidateSubmitResultLessonEditsTreatsMissingFieldAsEmpty() throws {
+    let workspace = try makeInitializedWorkspace()
+    try workspace.writeLessons("- Existing\n")
+    let payload = """
+      {"state":{"immediate":null,"midTerm":[],"longTerm":"x"}}
+      """
+
+    try workspace.validateSubmitResultLessonEdits(Data(payload.utf8))
+    try #require(workspace.readLessons() == "- Existing\n")
+  }
+
   private func makeInitializedWorkspace() throws -> CompassWorkspace {
     let repoURL = try makeTemporaryGitRepository()
     let workspace = CompassWorkspace(repoURL: repoURL)
