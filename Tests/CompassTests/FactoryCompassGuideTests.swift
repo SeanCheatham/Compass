@@ -70,6 +70,27 @@ struct FactoryCompassGuideTests {
   }
 
   @Test
+  func testWarningBriefUsesSpecificSignalLabel() throws {
+    let runGuide = ProjectRunControlGuide(
+      state: makeState(immediate: nil),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      vision: ""
+    )
+
+    let guide = FactoryCompassGuide(runGuide: runGuide)
+
+    try #require(guide.title == "Vision missing")
+    try #require(guide.controlLabel == "Vision first")
+    try #require(guide.tone == .warning)
+    try #require(guide.primaryActionTitle == "Run Loop")
+    try #require(guide.handoffText.contains("Run signal: Vision first -"))
+  }
+
+  @Test
   func testReliabilityFailureBriefPointsAtRepairAction() throws {
     let feedback = PlanReliabilityFeedback(
       state: makeState(),

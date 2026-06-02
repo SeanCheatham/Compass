@@ -26,7 +26,7 @@ struct FactoryCompassGuide: Equatable {
     case .info:
       return signalLabel
     case .warning:
-      return "Needs signal"
+      return signalLabel.isEmpty ? "Needs signal" : signalLabel
     case .failure:
       return "Needs repair"
     case .paused:
