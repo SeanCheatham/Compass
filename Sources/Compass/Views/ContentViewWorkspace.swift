@@ -5,23 +5,15 @@ struct NoProjectView: View {
   @EnvironmentObject private var model: AppModel
 
   var body: some View {
-    VStack(spacing: 12) {
-      Image(systemName: "folder.badge.plus")
-        .font(.system(size: 42, weight: .regular))
-        .foregroundStyle(.secondary)
-      Text("Choose a project")
-        .font(.title2.weight(.semibold))
-      Text("Compass remembers Git repositories here, then lets each one run independently.")
-        .font(.callout)
-        .foregroundStyle(.secondary)
-      Button {
+    ProjectIntakeGuideCard(
+      guide: ProjectIntakeGuide(projectCount: model.projects.count),
+      addProject: {
         Task { await model.chooseRepository() }
-      } label: {
-        Label("Add Project", systemImage: "folder.badge.plus")
       }
-      .buttonStyle(.borderedProminent)
-    }
+    )
+    .frame(maxWidth: 540)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .padding(28)
   }
 }
 

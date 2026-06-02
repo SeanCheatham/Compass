@@ -44,7 +44,9 @@ struct SidebarView: View {
       }
 
       if model.projects.isEmpty {
-        EmptyProjectList()
+        EmptyProjectList {
+          Task { await model.chooseRepository() }
+        }
       } else {
         ScrollView {
           LazyVStack(alignment: .leading, spacing: 6) {
@@ -121,21 +123,14 @@ struct SidebarView: View {
 }
 
 struct EmptyProjectList: View {
+  var addProject: () -> Void
+
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Image(systemName: "folder")
-        .font(.title2)
-        .foregroundStyle(.secondary)
-      Text("No projects yet.")
-        .font(.headline)
-      Text("Add a Git repository to start using Compass.")
-        .font(.callout)
-        .foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(14)
-    .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+    ProjectIntakeGuideCard(
+      guide: ProjectIntakeGuide(projectCount: 0),
+      compact: true,
+      addProject: addProject
+    )
   }
 }
 
