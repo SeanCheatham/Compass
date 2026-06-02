@@ -147,6 +147,13 @@ struct CompassApp: App {
         }
         .disabled(selectedAssumptionMemoryPayload == nil)
 
+        Button("Copy Draft Queue") {
+          if let payload = selectedDraftQueuePayload {
+            copyTextToPasteboard(payload.text)
+          }
+        }
+        .disabled(selectedDraftQueuePayload == nil)
+
         Button(PauseMode.afterIteration.label) {
           model.selectedProject?.requestPause(.afterIteration)
         }
@@ -227,6 +234,13 @@ struct CompassApp: App {
     let ledger = AssumptionLedger(assumptions: project.assumptions)
     let guide = AssumptionReviewGuide(ledger: ledger)
     let payload = AssumptionReviewClipboardPayload(ledger: ledger, guide: guide)
+    return payload.isEmpty ? nil : payload
+  }
+
+  private var selectedDraftQueuePayload: DraftIntakeClipboardPayload? {
+    guard isOnboardingComplete, let project = model.selectedProject else { return nil }
+    let guide = DraftIntakeGuide(drafts: project.drafts)
+    let payload = DraftIntakeClipboardPayload(guide: guide)
     return payload.isEmpty ? nil : payload
   }
 
