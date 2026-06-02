@@ -1242,6 +1242,87 @@ struct PlanningEnvelopeDecoderTests {
     try #require(result.lessonEdits[0].replaceAll == false)
   }
 
+  @Test func planRunResultDecoderAcceptsScalarCandidateListFields() throws {
+    let data = Data(
+      """
+      {
+        "state": {
+          "immediate": null,
+          "candidates": [
+            {
+              "id": "array-recovery",
+              "title": "Recover scalar array fields",
+              "outcome": "Candidate metadata survives common scalar-list mistakes.",
+              "category": "reliability",
+              "origin": "plan",
+              "priority": "high",
+              "status": "available",
+              "why": "It avoids wasting a retry on advisory candidate metadata.",
+              "evidence": "Recent submit_result rejection named state.candidates.Index 0.evidence.",
+              "blockedBy": "Follow-up verify is not ready yet.",
+              "risk": null
+            }
+          ],
+          "strategicContext": {
+            "thesis": "Make schema recovery boring.",
+            "principles": [],
+            "constraints": [],
+            "nonGoals": [],
+            "risks": []
+          },
+          "openQuestions": []
+        },
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+
+    let result = try JSONDecoder().decode(PlanRunResult.self, from: data)
+
+    try #require(
+      result.state.candidates[0].evidence
+        == ["Recent submit_result rejection named state.candidates.Index 0.evidence."]
+    )
+    try #require(result.state.candidates[0].blockedBy == ["Follow-up verify is not ready yet."])
+    try #require(result.lessonEdits.isEmpty)
+  }
+
+  @Test func planRunResultDecoderAcceptsLessonEditsWrapperObject() throws {
+    let data = Data(
+      """
+      {
+        "state": {
+          "immediate": null,
+          "candidates": [],
+          "strategicContext": {
+            "thesis": "Keep lesson edit recovery narrow.",
+            "principles": [],
+            "constraints": [],
+            "nonGoals": [],
+            "risks": []
+          },
+          "openQuestions": []
+        },
+        "lessonEdits": {
+          "edits": [
+            {
+              "find": "old lesson",
+              "replace": "new lesson",
+              "replaceAll": false
+            }
+          ]
+        }
+      }
+      """.utf8
+    )
+
+    let result = try JSONDecoder().decode(PlanRunResult.self, from: data)
+
+    try #require(result.lessonEdits.count == 1)
+    try #require(result.lessonEdits[0].find == "old lesson")
+    try #require(result.lessonEdits[0].replace == "new lesson")
+  }
+
   @Test func reflectSummaryDecoderAcceptsCanonicalTypedPlanningState() throws {
     let data = Data(
       """

@@ -103,6 +103,23 @@ enum FlexibleModelDecoder {
     return nil
   }
 
+  static func decodeStringArrayIfPresent<Key: CodingKey>(
+    from container: KeyedDecodingContainer<Key>,
+    forKey key: Key
+  ) throws -> [String]? {
+    guard container.contains(key) else { return nil }
+    if try container.decodeNil(forKey: key) {
+      return []
+    }
+    if let values = try? container.decode([String].self, forKey: key) {
+      return cleanedStringArray(values)
+    }
+    if let rawValue = try? container.decode(String.self, forKey: key) {
+      return cleanedStringArrayValue(rawValue)
+    }
+    return try container.decode([String].self, forKey: key)
+  }
+
   static func decodeRequiredValue<Value: Decodable, Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,
@@ -266,10 +283,23 @@ enum FlexibleModelDecoder {
     forKey key: Key
   ) throws -> String {
     let values = try container.decode([String].self, forKey: key)
-    return values
+    return cleanedStringArray(values).joined(separator: "\n")
+  }
+
+  private static func cleanedStringArray(_ values: [String]) -> [String] {
+    values
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
-      .joined(separator: "\n")
+  }
+
+  private static func cleanedStringArrayValue(_ rawValue: String) -> [String] {
+    let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    switch normalizedIdentifier(trimmed) {
+    case "", "none", "null", "nil", "no", "no_change", "no_changes":
+      return []
+    default:
+      return [trimmed].filter { !$0.isEmpty }
+    }
   }
 }
 
@@ -572,6 +602,20 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
   var blockedBy: [String]
   var risk: String?
 
+  enum CodingKeys: String, CodingKey {
+    case id
+    case title
+    case outcome
+    case why
+    case category
+    case origin
+    case priority
+    case status
+    case evidence
+    case blockedBy
+    case risk
+  }
+
   enum Category: String, Codable, CaseIterable {
     case feature
     case test
@@ -640,6 +684,38 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     self.evidence = evidence.map(Self.trimmed).filter { !$0.isEmpty }
     self.blockedBy = blockedBy.map(Self.trimmed).filter { !$0.isEmpty }
     self.risk = risk.map(Self.trimmed)?.nilIfEmpty
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let id = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .id)
+    let title = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .title)
+    let outcome = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .outcome)
+    let why =
+      try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .why) ?? ""
+    let category = try container.decode(Category.self, forKey: .category)
+    let origin = try container.decode(Origin.self, forKey: .origin)
+    let priority = try container.decode(Priority.self, forKey: .priority)
+    let status = try container.decode(Status.self, forKey: .status)
+    let evidence =
+      try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: .evidence) ?? []
+    let blockedBy =
+      try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: .blockedBy) ?? []
+    let risk = try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .risk)
+
+    self.init(
+      id: id,
+      title: title,
+      outcome: outcome,
+      why: why,
+      category: category,
+      origin: origin,
+      priority: priority,
+      status: status,
+      evidence: evidence,
+      blockedBy: blockedBy,
+      risk: risk
+    )
   }
 
   private static func trimmed(_ value: String) -> String {
@@ -923,6 +999,11 @@ extension FlexibleModelDecoder {
         {
           return []
         }
+        if let envelope = try? container.decode(LessonEditsEnvelope.self, forKey: key),
+          let edits = envelope.lessonEdits
+        {
+          return edits
+        }
 
         _ = try container.decode([LessonEdit].self, forKey: key)
       } catch {
@@ -942,6 +1023,49 @@ extension FlexibleModelDecoder {
       return true
     default:
       return rawValue.trimmingCharacters(in: .whitespacesAndNewlines) == "[]"
+    }
+  }
+
+  private struct LessonEditsEnvelope: Decodable {
+    var lessonEdits: [LessonEdit]?
+
+    enum CodingKeys: String, CodingKey {
+      case lessonEdits
+      case lessonEditsSnake = "lesson_edits"
+      case edits
+      case changes
+      case items
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      for key in [
+        CodingKeys.lessonEdits,
+        .lessonEditsSnake,
+        .edits,
+        .changes,
+        .items,
+      ] where container.contains(key) {
+        if try container.decodeNil(forKey: key) {
+          lessonEdits = []
+          return
+        }
+        if let edits = try? container.decode([LessonEdit].self, forKey: key) {
+          lessonEdits = edits
+          return
+        }
+        if let edit = try? container.decode(LessonEdit.self, forKey: key) {
+          lessonEdits = [edit]
+          return
+        }
+        if let emptyMarker = try? container.decode(String.self, forKey: key),
+          FlexibleModelDecoder.isEmptyLessonEditMarker(emptyMarker)
+        {
+          lessonEdits = []
+          return
+        }
+      }
+      lessonEdits = nil
     }
   }
 }
