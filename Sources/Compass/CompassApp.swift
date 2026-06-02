@@ -160,6 +160,13 @@ struct CompassApp: App {
         .disabled(!canStopSelectedProject)
       }
       CommandMenu("Runtime") {
+        Button("Copy Runtime Settings") {
+          copyTextToPasteboard(runtimeSettingsPayload.text)
+        }
+        .disabled(runtimeSettingsPayload.isEmpty)
+
+        Divider()
+
         if let runtimeMenu = model.selectedProject?.runtimeDiagnosticsMenu {
           let diagnosticsAction = runtimeMenu.copyDiagnosticsAction
           Button(diagnosticsAction.title) {
@@ -199,6 +206,19 @@ struct CompassApp: App {
   private var projectIntakePayload: ProjectIntakeClipboardPayload {
     ProjectIntakeClipboardPayload(
       guide: ProjectIntakeGuide(projectCount: model.projects.count)
+    )
+  }
+
+  private var runtimeSettingsPayload: AgentSettingsClipboardPayload {
+    let foundationModelsAvailable = FoundationModelsAvailability.isAvailable
+    let guide = AgentSettingsGuide(
+      settings: model.agentSettings,
+      foundationModelsAvailable: foundationModelsAvailable
+    )
+    return AgentSettingsClipboardPayload(
+      settings: model.agentSettings,
+      guide: guide,
+      foundationModelsAvailable: foundationModelsAvailable
     )
   }
 
