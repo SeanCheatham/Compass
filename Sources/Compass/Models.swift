@@ -117,6 +117,9 @@ enum FlexibleModelDecoder {
     if let rawValue = try? container.decode(String.self, forKey: key) {
       return cleanedStringArrayValue(rawValue)
     }
+    if let value = try? container.decode(LossyStringArrayValue.self, forKey: key) {
+      return cleanedStringArray(value.values)
+    }
     return try container.decode([String].self, forKey: key)
   }
 
@@ -299,6 +302,86 @@ enum FlexibleModelDecoder {
       return []
     default:
       return [trimmed].filter { !$0.isEmpty }
+    }
+  }
+
+  private struct LossyStringArrayValue: Decodable {
+    var values: [String]
+
+    init(from decoder: Decoder) throws {
+      let value = try LossyJSONValue(from: decoder)
+      values = value.stringArrayValue
+    }
+  }
+
+  private enum LossyJSONValue: Decodable {
+    case null
+    case string(String)
+    case number(String)
+    case bool(Bool)
+    case array([LossyJSONValue])
+    case object([String: LossyJSONValue])
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.singleValueContainer()
+      if container.decodeNil() {
+        self = .null
+      } else if let value = try? container.decode(String.self) {
+        self = .string(value)
+      } else if let value = try? container.decode(Int.self) {
+        self = .number(String(value))
+      } else if let value = try? container.decode(Double.self), value.isFinite {
+        self = .number(String(value))
+      } else if let value = try? container.decode(Bool.self) {
+        self = .bool(value)
+      } else if let value = try? container.decode([LossyJSONValue].self) {
+        self = .array(value)
+      } else {
+        self = .object(try container.decode([String: LossyJSONValue].self))
+      }
+    }
+
+    var stringArrayValue: [String] {
+      switch self {
+      case .null:
+        return []
+      case .array(let values):
+        return values.flatMap(\.stringArrayItemValues)
+      default:
+        return stringArrayItemValues
+      }
+    }
+
+    private var stringArrayItemValues: [String] {
+      switch self {
+      case .null:
+        return []
+      case .string(let value), .number(let value):
+        return [value]
+      case .bool(let value):
+        return [value ? "true" : "false"]
+      case .array(let values):
+        return values.flatMap(\.stringArrayItemValues)
+      case .object:
+        return [rendered]
+      }
+    }
+
+    private var rendered: String {
+      switch self {
+      case .null:
+        return "null"
+      case .string(let value), .number(let value):
+        return value
+      case .bool(let value):
+        return value ? "true" : "false"
+      case .array(let values):
+        return values.map(\.rendered).joined(separator: "; ")
+      case .object(let object):
+        return object.keys.sorted().map { key in
+          "\(key): \(object[key]?.rendered ?? "")"
+        }.joined(separator: "; ")
+      }
     }
   }
 }

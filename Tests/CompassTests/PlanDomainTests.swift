@@ -1287,6 +1287,62 @@ struct PlanningEnvelopeDecoderTests {
     try #require(result.lessonEdits.isEmpty)
   }
 
+  @Test func planRunResultDecoderAcceptsStructuredCandidateEvidence() throws {
+    let data = Data(
+      """
+      {
+        "state": {
+          "immediate": null,
+          "candidates": [
+            {
+              "id": "structured-evidence",
+              "title": "Recover structured evidence",
+              "outcome": "Candidate metadata survives object-shaped evidence.",
+              "category": "reliability",
+              "origin": "plan",
+              "priority": "high",
+              "status": "available",
+              "why": "On-device tool repair sometimes emits evidence as structured notes.",
+              "evidence": [
+                {
+                  "file": "tessera-cli/src/commands.rs",
+                  "note": "grep showed the command module"
+                },
+                79,
+                true
+              ],
+              "blockedBy": {
+                "reason": "Need a smaller Develop finish"
+              },
+              "risk": null
+            }
+          ],
+          "strategicContext": {
+            "thesis": "Make candidate metadata forgiving.",
+            "principles": [],
+            "constraints": [],
+            "nonGoals": [],
+            "risks": []
+          },
+          "openQuestions": []
+        },
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+
+    let result = try JSONDecoder().decode(PlanRunResult.self, from: data)
+
+    try #require(
+      result.state.candidates[0].evidence
+        == [
+          "file: tessera-cli/src/commands.rs; note: grep showed the command module",
+          "79",
+          "true",
+        ])
+    try #require(result.state.candidates[0].blockedBy == ["reason: Need a smaller Develop finish"])
+  }
+
   @Test func planRunResultDecoderAcceptsLessonEditsWrapperObject() throws {
     let data = Data(
       """
