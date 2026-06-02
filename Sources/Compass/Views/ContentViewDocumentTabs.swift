@@ -3,8 +3,13 @@ import SwiftUI
 
 struct VisionTab: View {
   @ObservedObject var project: CompassProject
-  @State private var mode = MarkdownDocumentMode.preview
+  @State private var mode: MarkdownDocumentMode
   @State private var guideNarration: ProjectVisionGuideNarration?
+
+  init(project: CompassProject) {
+    self.project = project
+    _mode = State(initialValue: MarkdownDocumentMode.initial(for: project.vision))
+  }
 
   var body: some View {
     let guide = ProjectVisionGuide(vision: project.vision)
@@ -359,6 +364,10 @@ enum MarkdownDocumentMode: String, CaseIterable, Identifiable {
   case edit = "Edit"
 
   var id: Self { self }
+
+  static func initial(for text: String) -> Self {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .edit : .preview
+  }
 }
 
 struct MarkdownDocumentBody: View {

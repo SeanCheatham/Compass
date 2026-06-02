@@ -20,6 +20,13 @@ struct ProjectVisionGuideTests {
   }
 
   @Test
+  func emptyVisionStartsInEditMode() {
+    #expect(MarkdownDocumentMode.initial(for: "") == .edit)
+    #expect(MarkdownDocumentMode.initial(for: " \n\t ") == .edit)
+    #expect(MarkdownDocumentMode.initial(for: "Compass helps non-developers.") == .preview)
+  }
+
+  @Test
   func groundedVisionAsksForGuardrails() {
     let guide = ProjectVisionGuide(
       vision:
