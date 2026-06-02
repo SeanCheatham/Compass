@@ -6,6 +6,9 @@ struct VisionTab: View {
   @State private var mode = MarkdownDocumentMode.preview
 
   var body: some View {
+    let guide = ProjectVisionGuide(vision: project.vision)
+    let clipboardPayload = ProjectVisionClipboardPayload(guide: guide)
+
     VStack(alignment: .leading, spacing: 12) {
       HStack {
         SectionHeader("Project Vision", systemImage: "scope")
@@ -24,8 +27,117 @@ struct VisionTab: View {
           Label("Save", systemImage: "square.and.arrow.down")
         }
       }
+      ProjectVisionGuidePanel(guide: guide, clipboardPayload: clipboardPayload)
       MarkdownDocumentBody(text: $project.vision, mode: mode, empty: "No project vision.")
     }
+  }
+}
+
+private struct ProjectVisionGuidePanel: View {
+  var guide: ProjectVisionGuide
+  var clipboardPayload: ProjectVisionClipboardPayload
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(guide.title, systemImage: systemImage)
+          .font(.callout.weight(.semibold))
+          .foregroundStyle(color)
+
+        Spacer(minLength: 8)
+
+        CopyProjectVisionButton(payload: clipboardPayload)
+
+        Text(guide.scoreLabel)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .padding(.horizontal, 7)
+          .padding(.vertical, 2)
+          .background(.quaternary.opacity(0.65), in: Capsule())
+      }
+
+      Text(guide.detail)
+        .font(.callout)
+        .foregroundStyle(.primary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 6) {
+          ForEach(guide.cues) { cue in
+            Label(cue.title, systemImage: cue.systemImage)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(cue.isSatisfied ? color : .secondary)
+              .lineLimit(1)
+              .padding(.horizontal, 7)
+              .padding(.vertical, 3)
+              .background((cue.isSatisfied ? color : Color.secondary).opacity(0.1), in: Capsule())
+              .help(cue.detail)
+          }
+        }
+      }
+
+      Label(guide.nextAction.detail, systemImage: guide.nextAction.systemImage)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .help(guide.nextAction.title)
+    }
+    .padding(12)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay {
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(color.opacity(0.18))
+    }
+  }
+
+  private var color: Color {
+    switch guide.status {
+    case .empty:
+      return .secondary
+    case .needsFocus:
+      return .orange
+    case .grounded:
+      return .blue
+    case .ready:
+      return .green
+    }
+  }
+
+  private var systemImage: String {
+    switch guide.status {
+    case .empty:
+      return "scope"
+    case .needsFocus:
+      return "questionmark.circle"
+    case .grounded:
+      return "scope"
+    case .ready:
+      return "checkmark.seal"
+    }
+  }
+}
+
+private struct CopyProjectVisionButton: View {
+  var payload: ProjectVisionClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Image(systemName: copied ? "checkmark" : "doc.on.doc")
+        .frame(width: 18, height: 18)
+    }
+    .buttonStyle(.borderless)
+    .disabled(payload.isEmpty)
+    .help("Copy a bounded project-vision handoff.")
+    .accessibilityLabel(copied ? "Copied project vision" : "Copy project vision")
   }
 }
 
