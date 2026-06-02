@@ -187,6 +187,14 @@ struct SidebarSharedVMStatusButton: View {
   let readiness: SharedCompassVMReadiness
   let action: () -> Void
 
+  var helpText: String {
+    "Private workspace status: \(readiness.privateWorkspaceStatusSummary)"
+  }
+
+  var accessibilityText: String {
+    "Private workspace status, \(readiness.privateWorkspaceStatusSummary)"
+  }
+
   var body: some View {
     Button(action: action) {
       HStack(spacing: 4) {
@@ -201,8 +209,8 @@ struct SidebarSharedVMStatusButton: View {
       .overlay(Capsule().stroke(readiness.tintColor.opacity(0.30)))
     }
     .buttonStyle(.plain)
-    .help("Shared VM status: \(readiness.statusSummary)")
-    .accessibilityLabel("Shared VM status, \(readiness.statusSummary)")
+    .help(helpText)
+    .accessibilityLabel(accessibilityText)
   }
 }
 

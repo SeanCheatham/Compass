@@ -1,7 +1,7 @@
 import Foundation
 
 extension SharedCompassVMReadiness {
-  var onboardingWorkspaceStatusSummary: String {
+  var privateWorkspaceStatusSummary: String {
     switch self {
     case .unavailable(let reason):
       return "Unavailable. \(reason)"
@@ -235,7 +235,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     case .notProvisioned:
       return "Prepare the private workspace once; first install downloads about 14 GB."
     case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
-      return readiness.onboardingWorkspaceStatusSummary
+      return readiness.privateWorkspaceStatusSummary
     case .unavailable(let reason):
       return "Private workspace is unavailable: \(reason)"
     case .error(let detail):
@@ -273,7 +273,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
       "provider:\(settings.textProvider.rawValue)",
       "textReady:\(settings.isTextCapabilityRunnable(foundationModelsAvailable: foundationModelsAvailable))",
       "fmAvailable:\(foundationModelsAvailable)",
-      "vm:\(vmReadiness.onboardingWorkspaceStatusSummary)",
+      "vm:\(vmReadiness.privateWorkspaceStatusSummary)",
       "steps:\(steps.map { "\($0.id):\($0.isComplete)" }.joined(separator: ","))",
       "unlocks:\(unlockPreview.map { "\($0.id):\($0.isUnlocked)" }.joined(separator: ","))",
     ].joined(separator: "|")
@@ -330,7 +330,7 @@ struct OnboardingSetupClipboardPayload: Equatable, Sendable {
 
     sections.append("")
     sections.append("Private workspace:")
-    sections.append("Status: \(vmReadiness.onboardingWorkspaceStatusSummary)")
+    sections.append("Status: \(vmReadiness.privateWorkspaceStatusSummary)")
     sections.append("Ready: \(Self.yesNo(vmReady))")
 
     sections.append("")

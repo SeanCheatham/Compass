@@ -5,6 +5,16 @@ import Testing
 
 struct ProjectSidebarStatusTests {
   @Test
+  func testWorkspaceStatusButtonUsesPrivateWorkspaceAccessibilityCopy() throws {
+    let button = SidebarSharedVMStatusButton(readiness: .guestPrepping, action: {})
+
+    try #require(button.helpText == "Private workspace status: Finishing workspace setup")
+    try #require(button.accessibilityText == "Private workspace status, Finishing workspace setup")
+    try #require(!button.helpText.contains("Shared VM"))
+    try #require(!button.accessibilityText.contains("headless"))
+  }
+
+  @Test
   func testCleanFeedbackProducesImmediatePlanSubtitleWithoutCue() throws {
     let feedback = PlanReliabilityFeedback(
       state: makeState(immediate: nil),

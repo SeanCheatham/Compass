@@ -139,7 +139,7 @@ struct OnboardingView: View {
               .foregroundStyle(.secondary)
           }
           if blockedByVM {
-            Text("• \(vmHost.readiness.onboardingWorkspaceStatusSummary).")
+            Text("• \(vmHost.readiness.privateWorkspaceStatusSummary).")
               .font(.caption)
               .foregroundStyle(.secondary)
           }
@@ -588,7 +588,7 @@ private struct SharedVMOnboardingPanel: View {
   private var statusRow: some View {
     HStack(spacing: 8) {
       SandboxReadinessDot(readiness: vmHost.readiness, size: 10)
-      Text(vmHost.readiness.onboardingWorkspaceStatusSummary)
+      Text(vmHost.readiness.privateWorkspaceStatusSummary)
         .font(.callout.weight(.medium))
         .fixedSize(horizontal: false, vertical: true)
       Spacer()
