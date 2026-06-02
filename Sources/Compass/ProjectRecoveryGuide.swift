@@ -88,12 +88,14 @@ struct ProjectRecoveryGuide: Equatable {
       title = "Finish the pending files"
       steps = [
         Step(
-          title: "Review source control", detail: status.metadata ?? "Check the pending changes."),
+          title: "Review pending file changes",
+          detail: status.metadata ?? "Check the files that changed."),
         Step(
-          title: "Keep or discard intentionally",
-          detail: "Commit wanted edits, ignore generated files, or remove accidental leftovers."
+          title: "Choose what belongs",
+          detail:
+            "Commit intended edits, add expected generated files to the ignore list, or remove accidental leftovers."
         ),
-        Step(title: status.actionLabel, detail: "Retry when the working tree is clean."),
+        Step(title: status.actionLabel, detail: "Retry when no pending file changes remain."),
       ]
     case .promotionFailed:
       title = "Resolve the promotion"

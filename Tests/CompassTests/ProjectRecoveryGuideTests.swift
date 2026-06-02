@@ -112,6 +112,22 @@ struct ProjectRecoveryGuideTests {
   }
 
   @Test
+  func dirtyWorktreeRecoveryUsesPlainFileLanguage() throws {
+    let guide = ProjectRecoveryGuide(status: dirtyWorktreeStatus())
+
+    try #require(!guide.isEmpty)
+    try #require(guide.title == "Finish the pending files")
+    try #require(guide.steps.map(\.title) == [
+      "Review pending file changes", "Choose what belongs", "Clean Worktree",
+    ])
+    try #require(guide.steps[0].detail.contains("1 pending change"))
+    try #require(guide.steps[1].detail.contains("intended edits"))
+    try #require(guide.steps[1].detail.contains("remove accidental leftovers"))
+    try #require(guide.steps[2].detail == "Retry when no pending file changes remain.")
+    try #require(!guide.narrationIdentifier.contains("source control"))
+  }
+
+  @Test
   func recoveryClipboardPayloadPackagesFailureForReuse() throws {
     let status = rejectedPlanStatus()
     let guide = ProjectRecoveryGuide(status: status)
@@ -251,6 +267,47 @@ struct ProjectRecoveryGuideTests {
             commits: [],
             status: .failed,
             notes: [note],
+            verifyOutput: nil,
+            feedback: nil
+          )
+        ]
+      )
+    )
+  }
+
+  private func dirtyWorktreeStatus() -> ProjectReliabilityStatus {
+    ProjectReliabilityStatus(
+      feedback: PlanReliabilityFeedback(
+        state: PlanState(
+          completed: [],
+          immediate: PlanNext(
+            plan: "## Outcome\nImprove recovery copy.\n\n## Acceptance checks\n- Tests pass.",
+            verify: "swift test --filter ProjectRecoveryGuideTests"
+          ),
+          candidates: "",
+          strategicContext: ""
+        ),
+        sessions: [
+          SessionRecord(
+            session: 44,
+            startedAt: 1_000,
+            endedAt: 1_500,
+            plan: "Plan",
+            verify: "swift test",
+            beforeSha: nil,
+            afterSha: nil,
+            commits: [],
+            status: .failed,
+            notes: [
+              """
+              Uncommitted or untracked changes remain after Develop ran. \
+              Commit them or add them to .gitignore.
+              `git status --porcelain` output:
+              ```
+               M Sources/Compass/AppModel.swift
+              ```
+              """
+            ],
             verifyOutput: nil,
             feedback: nil
           )
