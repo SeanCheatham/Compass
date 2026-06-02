@@ -132,11 +132,49 @@ struct PlanSessionHistoryTests: ~Copyable {
   }
 
   @Test
+  func testIncludesAuditArtifactsFromManifest() throws {
+    let manifest = SessionAuditManifest(
+      session: 7,
+      artifacts: [
+        SessionAuditArtifact(
+          path: "sessions/000007/verify-attempt-1-full.log",
+          kind: "verify_output",
+          byteCount: 2_048,
+          note: "Full Verify output."
+        )
+      ]
+    )
+    let items = PlanSessionHistory.displayItems(
+      for: [
+        makeSession(7, startedAt: 1_000)
+      ],
+      auditManifests: [7: manifest]
+    )
+
+    let artifact = try #require(items.first?.auditArtifacts.first)
+    try #require(artifact.label == "Verify output - 2.0 KB")
+    try #require(artifact.systemImageName == "checkmark.seal")
+    try #require(artifact.detail.contains("Full Verify output."))
+    try #require(artifact.detail.contains("sessions/000007/verify-attempt-1-full.log"))
+  }
+
+  @Test
   func testHistoryClipboardPayloadPackagesRunAuditForReuse() throws {
     let commit = SessionCommit(
       sha: "abcdef123456",
       short: "abcdef1",
       subject: "Ship run-history copy"
+    )
+    let auditManifest = SessionAuditManifest(
+      session: 7,
+      artifacts: [
+        SessionAuditArtifact(
+          path: "sessions/000007/verify-attempt-1-full.log",
+          kind: "verify_output",
+          byteCount: 512,
+          note: "Full Verify output."
+        )
+      ]
     )
     let items = PlanSessionHistory.displayItems(
       for: [
@@ -165,7 +203,8 @@ struct PlanSessionHistoryTests: ~Copyable {
           ),
           feedback: "Next Plan should tighten the copied run packet."
         )
-      ]
+      ],
+      auditManifests: [7: auditManifest]
     )
     let item = try #require(items.first)
     let payload = PlanSessionHistoryClipboardPayload(
@@ -189,6 +228,9 @@ struct PlanSessionHistoryTests: ~Copyable {
     )
     try #require(payload.text.contains("Failed verify:"))
     try #require(payload.text.contains("Expected copy packet to include failed verify output."))
+    try #require(payload.text.contains("Audit artifacts:"))
+    try #require(payload.text.contains("- Verify output - 512 B: Full Verify output."))
+    try #require(payload.text.contains("sessions/000007/verify-attempt-1-full.log"))
     try #require(payload.text.contains("Feedback:\nNext Plan should tighten"))
     try #require(payload.text.contains("Notes:\n- Plan retry needed."))
     try #require(payload.text.contains("Commits:\n- abcdef1 Ship run-history copy"))

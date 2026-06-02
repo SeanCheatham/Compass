@@ -294,6 +294,27 @@ struct PlanSessionHistoryCard: View {
         RuntimeRouteBadge(descriptor: item.runtimeRouteDescriptor)
       }
 
+      if !item.auditArtifacts.isEmpty {
+        LabeledHistoryBlock(title: "Audit Artifacts", systemImage: "archivebox") {
+          VStack(alignment: .leading, spacing: 7) {
+            ForEach(item.auditArtifacts) { artifact in
+              VStack(alignment: .leading, spacing: 2) {
+                Label(artifact.label, systemImage: artifact.systemImageName)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+
+                Text(artifact.detail)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+                  .textSelection(.enabled)
+              }
+            }
+          }
+        }
+      }
+
       if let feedback = item.feedback {
         LabeledHistoryBlock(title: "Feedback", systemImage: "text.bubble") {
           MarkdownContent(feedback, compact: true)

@@ -7,6 +7,97 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     var tail: String
   }
 
+  struct AuditArtifact: Identifiable, Equatable, Sendable {
+    static let labelLimit = 120
+    static let detailLimit = 260
+    static let pathLimit = 180
+
+    var id: String { path }
+
+    var path: String
+    var kind: String
+    var byteCount: UInt64
+    var note: String?
+    var label: String
+    var detail: String
+    var systemImageName: String
+
+    init(_ artifact: SessionAuditArtifact) {
+      path = Self.bounded(artifact.path, limit: Self.pathLimit)
+      kind = Self.bounded(artifact.kind, limit: 80)
+      byteCount = artifact.byteCount
+      note = artifact.note.map { Self.bounded($0, limit: 140) }
+
+      let kindTitle = Self.kindTitle(kind)
+      label = Self.bounded("\(kindTitle) - \(Self.byteCountLabel(byteCount))", limit: Self.labelLimit)
+      detail = Self.bounded(
+        [note, path.isEmpty ? nil : "Saved at \(path)."]
+          .compactMap { $0 }
+          .joined(separator: " "),
+        limit: Self.detailLimit
+      )
+      systemImageName = Self.systemImageName(for: kind)
+    }
+
+    private static func kindTitle(_ kind: String) -> String {
+      switch kind {
+      case "verify_output":
+        return "Verify output"
+      case "develop_output":
+        return "Develop output"
+      case "plan_output":
+        return "Plan output"
+      default:
+        let title =
+          kind
+          .replacingOccurrences(of: "_", with: " ")
+          .split(whereSeparator: \.isWhitespace)
+          .map { word in word.prefix(1).uppercased() + String(word.dropFirst()) }
+          .joined(separator: " ")
+        return title.isEmpty ? "Audit artifact" : title
+      }
+    }
+
+    private static func systemImageName(for kind: String) -> String {
+      switch kind {
+      case "verify_output":
+        return "checkmark.seal"
+      case "develop_output":
+        return "hammer"
+      case "plan_output":
+        return "map"
+      default:
+        return "doc.text.magnifyingglass"
+      }
+    }
+
+    private static func byteCountLabel(_ bytes: UInt64) -> String {
+      if bytes >= 1_048_576 {
+        let mb = Double(bytes) / 1_048_576
+        return String(format: "%.1f MB", mb)
+      }
+      if bytes >= 1_024 {
+        let kb = Double(bytes) / 1_024
+        return String(format: "%.1f KB", kb)
+      }
+      return "\(bytes) B"
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+      let normalized =
+        text
+        .replacingOccurrences(of: "\r", with: " ")
+        .replacingOccurrences(of: "\n", with: " ")
+        .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      guard limit > 0 else { return "" }
+      guard normalized.count > limit else { return normalized }
+      guard limit > 3 else { return String(normalized.prefix(limit)) }
+      return String(normalized.prefix(limit - 3))
+        .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+  }
+
   struct RuntimeRouteDescriptor: Equatable {
     static let badgeTextLimit = 120
     static let helpTextLimit = 260
@@ -335,6 +426,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
   var failedVerify: FailedVerify?
   var runtimeRouteSummary: String?
   var runtimeRouteDescriptor: RuntimeRouteDescriptor
+  var auditArtifacts: [AuditArtifact]
 
   init(
     sessionNumber: Int,
@@ -349,7 +441,8 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     commits: [SessionCommit],
     failedVerify: FailedVerify?,
     runtimeRouteSummary: String?,
-    runtimeRouteDescriptor: RuntimeRouteDescriptor = .unavailable
+    runtimeRouteDescriptor: RuntimeRouteDescriptor = .unavailable,
+    auditArtifacts: [AuditArtifact] = []
   ) {
     self.sessionNumber = sessionNumber
     self.status = status
@@ -364,6 +457,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     self.failedVerify = failedVerify
     self.runtimeRouteSummary = runtimeRouteSummary
     self.runtimeRouteDescriptor = runtimeRouteDescriptor
+    self.auditArtifacts = auditArtifacts
   }
 }
 
@@ -436,6 +530,19 @@ struct PlanSessionHistoryClipboardPayload: Equatable, Sendable {
       sections.append("")
       sections.append("Runtime route:")
       sections.append(runtimeRouteSummary)
+    }
+
+    if !item.auditArtifacts.isEmpty {
+      sections.append("")
+      sections.append("Audit artifacts:")
+      sections.append(
+        contentsOf: item.auditArtifacts.prefix(6).map { artifact in
+          "- \(artifact.label): \(artifact.detail)"
+        }
+      )
+      if item.auditArtifacts.count > 6 {
+        sections.append("- ...\(item.auditArtifacts.count - 6) more audit artifacts not shown")
+      }
     }
 
     if let failedVerify = item.failedVerify {
@@ -749,7 +856,8 @@ enum PlanSessionHistory {
 
   static func displayItems(
     for sessions: [SessionRecord],
-    planExcerptLimit: Int = defaultPlanExcerptLimit
+    planExcerptLimit: Int = defaultPlanExcerptLimit,
+    auditManifests: [Int: SessionAuditManifest] = [:]
   ) -> [PlanSessionHistoryItem] {
     return
       sessions
@@ -761,6 +869,8 @@ enum PlanSessionHistory {
       }
       .map { session in
         let latestRuntimeSnapshot = session.latestExecutionEnvironmentSnapshot
+        let auditArtifacts = (auditManifests[session.session]?.artifacts ?? [])
+          .map(PlanSessionHistoryItem.AuditArtifact.init)
         return PlanSessionHistoryItem(
           sessionNumber: session.session,
           status: session.status,
@@ -776,7 +886,8 @@ enum PlanSessionHistory {
           runtimeRouteSummary: latestRuntimeSnapshot?.routeSummary,
           runtimeRouteDescriptor: PlanSessionHistoryItem.RuntimeRouteDescriptor(
             snapshot: latestRuntimeSnapshot
-          )
+          ),
+          auditArtifacts: auditArtifacts
         )
       }
   }

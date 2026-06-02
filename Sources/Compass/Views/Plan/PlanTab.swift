@@ -17,7 +17,10 @@ struct PlanTab: View {
       launchPlan: launchPlan
     )
     let historySessions = showAllSessionHistory ? project.allSessions : project.sessions
-    let sessionHistory = PlanSessionHistory.displayItems(for: historySessions)
+    let sessionHistory = PlanSessionHistory.displayItems(
+      for: historySessions,
+      auditManifests: auditManifests(for: historySessions)
+    )
     let reliabilityFeedback = PlanReliabilityFeedback(
       state: project.state,
       sessions: historySessions,
@@ -114,6 +117,13 @@ struct PlanTab: View {
   private func normalizeSelection(for items: [PlanTimelineItem]) {
     if !items.contains(where: { $0.id == selectedItemID }) {
       selectedItemID = items.first { $0.id == PlanTimelineItem.immediateID }?.id ?? items[0].id
+    }
+  }
+
+  private func auditManifests(for sessions: [SessionRecord]) -> [Int: SessionAuditManifest] {
+    guard let workspace = project.workspace else { return [:] }
+    return sessions.reduce(into: [Int: SessionAuditManifest]()) { result, session in
+      result[session.session] = workspace.readSessionAuditManifest(session: session.session)
     }
   }
 
