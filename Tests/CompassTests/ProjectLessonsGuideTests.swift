@@ -15,6 +15,7 @@ struct ProjectLessonsGuideTests {
     #expect(guide.entryCount == 0)
     #expect(guide.missingSignalTitles == ["Learning", "Proof", "Decision", "Reuse cue"])
     #expect(guide.nextAction.title == "Capture a first lesson")
+    #expect(!guide.allowsNarration)
     #expect(payload.isEmpty)
     #expect(payload.text.isEmpty)
   }
@@ -32,6 +33,7 @@ struct ProjectLessonsGuideTests {
     #expect(guide.satisfiedSignalTitles == ["Learning", "Proof"])
     #expect(guide.missingSignalTitles == ["Decision", "Reuse cue"])
     #expect(guide.detail == "Missing: Decision, Reuse cue.")
+    #expect(guide.allowsNarration)
   }
 
   @Test
@@ -57,6 +59,7 @@ struct ProjectLessonsGuideTests {
     #expect(payload.text.contains("[present] Proof"))
     #expect(payload.text.count <= ProjectLessonsClipboardPayload.textLimit)
     #expect(!payload.isEmpty)
+    #expect(guide.allowsNarration)
   }
 
   @Test
@@ -70,5 +73,70 @@ struct ProjectLessonsGuideTests {
     #expect(initial.narrationIdentifier.contains("missing:Proof,Decision,Reuse cue"))
     #expect(refined.narrationIdentifier.contains("present:Learning,Proof,Decision,Reuse cue"))
     #expect(initial.narrationIdentifier != refined.narrationIdentifier)
+  }
+
+  @Test
+  func narratorUsesFoundationModelsAsOptionalLessonsCoaching() async throws {
+    let guide = ProjectLessonsGuide(
+      lessons: "- Learned that Verify output was hidden even though tests passed."
+    )
+
+    try await withMockFoundationModels(
+      response: "This lesson has learning and proof; add the decision and when to reuse it."
+    ) {
+      let prompt = ProjectLessonsGuideNarrator.prompt(for: guide)
+      #expect(prompt.contains("Status: Lessons need context"))
+      #expect(prompt.contains("Missing signals: Decision, Reuse cue"))
+      #expect(prompt.contains("Do not invent files, commands"))
+
+      let generatedNarration = await ProjectLessonsGuideNarrator.narrate(guide: guide)
+      let narration = try #require(generatedNarration)
+      #expect(narration.guideIdentifier == guide.narrationIdentifier)
+      #expect(
+        narration.text
+          == "This lesson has learning and proof; add the decision and when to reuse it.")
+    }
+  }
+
+  @Test
+  func narratorSkipsEmptyLessonsAndUnavailableFoundationModels() async {
+    let emptyGuide = ProjectLessonsGuide(lessons: "")
+    let reusableGuide = ProjectLessonsGuide(
+      lessons:
+        "Learned setup is confusing; tests passed after the fix. Decision: prefer visible setup proof next time."
+    )
+
+    await withMockFoundationModels(response: "Should not be used") {
+      let narration = await ProjectLessonsGuideNarrator.narrate(guide: emptyGuide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(available: false, response: "Should not be used") {
+      let narration = await ProjectLessonsGuideNarrator.narrate(guide: reusableGuide)
+      #expect(narration == nil)
+    }
+  }
+
+  @Test
+  func narratorRejectsStructuredBulletedOrLinkedOutput() async {
+    let guide = ProjectLessonsGuide(
+      lessons:
+        "Learned setup is confusing; tests passed after the fix. Decision: prefer visible setup proof next time."
+    )
+
+    await withMockFoundationModels(response: #"{"text":"Invented JSON"}"#) {
+      let narration = await ProjectLessonsGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "- Add a hidden requirement") {
+      let narration = await ProjectLessonsGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "Read more at https://example.com") {
+      let narration = await ProjectLessonsGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
   }
 }

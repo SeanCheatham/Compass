@@ -180,6 +180,7 @@ private struct CopyProjectVisionButton: View {
 
 struct LessonsTab: View {
   @ObservedObject var project: CompassProject
+  @State private var guideNarration: ProjectLessonsGuideNarration?
 
   var body: some View {
     let guide = ProjectLessonsGuide(lessons: project.lessons)
@@ -187,7 +188,11 @@ struct LessonsTab: View {
 
     VStack(alignment: .leading, spacing: 12) {
       SectionHeader("Lessons", systemImage: "book.closed")
-      ProjectLessonsGuidePanel(guide: guide, clipboardPayload: clipboardPayload)
+      ProjectLessonsGuidePanel(
+        guide: guide,
+        clipboardPayload: clipboardPayload,
+        narration: matchingNarration(for: guide)
+      )
       ScrollView {
         MarkdownBlock(project.lessons, empty: "No lessons captured.")
           .padding(12)
@@ -195,12 +200,29 @@ struct LessonsTab: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
     }
+    .task(id: "\(guide.narrationIdentifier)|running-\(project.isRunning)") {
+      guideNarration = nil
+      guard !project.isRunning, guide.allowsNarration else { return }
+      try? await Task.sleep(nanoseconds: 700_000_000)
+      guard !Task.isCancelled else { return }
+      guideNarration = await ProjectLessonsGuideNarrator.narrate(guide: guide)
+    }
+  }
+
+  private func matchingNarration(
+    for guide: ProjectLessonsGuide
+  ) -> ProjectLessonsGuideNarration? {
+    guard guideNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return guideNarration
   }
 }
 
 private struct ProjectLessonsGuidePanel: View {
   var guide: ProjectLessonsGuide
   var clipboardPayload: ProjectLessonsClipboardPayload
+  var narration: ProjectLessonsGuideNarration?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -222,7 +244,7 @@ private struct ProjectLessonsGuidePanel: View {
           .background(.quaternary.opacity(0.65), in: Capsule())
       }
 
-      Text(guide.detail)
+      Text(narration?.text ?? guide.detail)
         .font(.callout)
         .foregroundStyle(.primary)
         .fixedSize(horizontal: false, vertical: true)
@@ -239,6 +261,16 @@ private struct ProjectLessonsGuidePanel: View {
               .padding(.vertical, 3)
               .background((cue.isSatisfied ? color : Color.secondary).opacity(0.1), in: Capsule())
               .help(cue.detail)
+          }
+
+          if narration != nil {
+            Label("On-device lessons note", systemImage: "sparkles")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .padding(.horizontal, 7)
+              .padding(.vertical, 3)
+              .background(.quaternary.opacity(0.55), in: Capsule())
           }
         }
       }
@@ -257,7 +289,7 @@ private struct ProjectLessonsGuidePanel: View {
     }
     .accessibilityElement(children: .combine)
     .accessibilityLabel(
-      "\(guide.title). \(guide.detail). \(guide.scoreLabel). Next action: \(guide.nextAction.title). \(guide.nextAction.detail)"
+      "\(guide.title). \(narration?.text ?? guide.detail). \(guide.scoreLabel). Next action: \(guide.nextAction.title). \(guide.nextAction.detail)"
     )
   }
 

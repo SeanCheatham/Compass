@@ -19,6 +19,10 @@ struct ProjectLessonsGuide: Equatable, Sendable {
     status == .empty
   }
 
+  var allowsNarration: Bool {
+    !isEmpty
+  }
+
   var satisfiedSignalTitles: [String] {
     cues.filter(\.isSatisfied).map(\.title)
   }
