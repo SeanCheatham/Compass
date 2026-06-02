@@ -58,13 +58,31 @@ struct ProjectSnapshotGuideTests {
       )
     )
     let settingsGuide = AgentSettingsGuide(settings: settings, foundationModelsAvailable: false)
+    let historyGuide = PlanSessionHistoryGuide(
+      display: PlanSessionHistoryDisplay(
+        items: [
+          historyItem(
+            4,
+            commits: [
+              SessionCommit(
+                sha: "abcdef123456",
+                short: "abcdef1",
+                subject: "Add project snapshot handoff"
+              )
+            ]
+          )
+        ],
+        mode: .all
+      )
+    )
 
     let payload = ProjectSnapshotClipboardPayload(
       projectName: "Compass",
       runGuide: runGuide,
       draftGuide: draftGuide,
       assumptionGuide: assumptionGuide,
-      settingsGuide: settingsGuide
+      settingsGuide: settingsGuide,
+      historyGuide: historyGuide
     )
 
     #expect(payload.text.contains("Compass Project Snapshot"))
@@ -83,6 +101,10 @@ struct ProjectSnapshotGuideTests {
     #expect(payload.text.contains("Prompt lane: 3 active prompt signals"))
     #expect(payload.text.contains("Assumptions needing review:"))
     #expect(payload.text.contains("The target user is a non-engineer operator."))
+    #expect(payload.text.contains("Run history:"))
+    #expect(payload.text.contains("Status: Latest Run Succeeded"))
+    #expect(payload.text.contains("Audit coverage: 3 of 4 audit anchors"))
+    #expect(payload.text.contains("1 commit: Explore can open file changes"))
     #expect(payload.text.contains("Runtime readiness:"))
     #expect(payload.text.contains("Status: Agent Stack Ready"))
     #expect(payload.text.contains("Runtime coverage: All 1 optional ready"))
@@ -109,13 +131,15 @@ struct ProjectSnapshotGuideTests {
       settings: AgentRuntimeSettings(textProvider: .appleFoundationModels),
       foundationModelsAvailable: true
     )
+    let historyGuide = PlanSessionHistoryGuide(display: PlanSessionHistoryDisplay(items: []))
 
     let payload = ProjectSnapshotClipboardPayload(
       projectName: "  \n  ",
       runGuide: runGuide,
       draftGuide: draftGuide,
       assumptionGuide: assumptionGuide,
-      settingsGuide: settingsGuide
+      settingsGuide: settingsGuide,
+      historyGuide: historyGuide
     )
 
     #expect(payload.text.contains("Project: Untitled project"))
@@ -125,6 +149,9 @@ struct ProjectSnapshotGuideTests {
     #expect(payload.text.contains("Plan scope: No queued drafts."))
     #expect(payload.text.contains("Assumption memory:"))
     #expect(payload.text.contains("Prompt lane: No active prompt signals"))
+    #expect(payload.text.contains("Run history:"))
+    #expect(payload.text.contains("Status: No Runs Yet"))
+    #expect(payload.text.contains("Audit coverage: No visible audit"))
     #expect(payload.text.contains("Runtime readiness:"))
     #expect(payload.text.contains("Runtime coverage: Core Text ready"))
     #expect(payload.text.count <= ProjectSnapshotClipboardPayload.textLimit)
@@ -174,6 +201,34 @@ struct ProjectSnapshotGuideTests {
       createdInSession: 2,
       createdAt: 1,
       updatedAt: updatedAt
+    )
+  }
+
+  private func historyItem(
+    _ number: Int,
+    commits: [SessionCommit] = []
+  ) -> PlanSessionHistoryItem {
+    PlanSessionHistoryItem(
+      sessionNumber: number,
+      status: .succeeded,
+      statusText: "Succeeded",
+      startedAt: Date(timeIntervalSince1970: Double(number)),
+      planExcerpt: "Improve project snapshots.",
+      handoffDigest: PlanHandoffDigest(
+        plan: """
+          ## Outcome
+          Improve project snapshots.
+
+          ## Acceptance checks
+          - The snapshot includes the latest run audit.
+          """
+      ),
+      verifyCommand: "swift test --filter ProjectSnapshotGuideTests",
+      feedback: nil,
+      notes: [],
+      commits: commits,
+      failedVerify: nil,
+      runtimeRouteSummary: nil
     )
   }
 }

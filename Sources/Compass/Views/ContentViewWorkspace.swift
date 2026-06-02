@@ -581,12 +581,27 @@ struct ProjectRunControls: View {
       settings: model.agentSettings,
       foundationModelsAvailable: FoundationModelsAvailability.isAvailable
     )
+    let historyItems = PlanSessionHistory.displayItems(for: project.sessions)
+    let historyFeedback = PlanReliabilityFeedback(
+      state: project.state,
+      sessions: project.sessions,
+      historyItems: historyItems
+    )
+    let historyDisplay = PlanSessionHistoryDisplay(
+      items: historyItems,
+      runCues: historyFeedback.recentRunCues
+    )
+    let historyGuide = PlanSessionHistoryGuide(
+      display: historyDisplay,
+      runCues: historyFeedback.recentRunCues
+    )
     let snapshotPayload = ProjectSnapshotClipboardPayload(
       projectName: project.displayName,
       runGuide: runGuide,
       draftGuide: draftGuide,
       assumptionGuide: assumptionGuide,
-      settingsGuide: settingsGuide
+      settingsGuide: settingsGuide,
+      historyGuide: historyGuide
     )
     let factoryGuide = FactoryCompassGuide(runGuide: runGuide)
 

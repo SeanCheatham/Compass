@@ -12,7 +12,8 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
     runGuide: ProjectRunControlGuide,
     draftGuide: DraftIntakeGuide,
     assumptionGuide: AssumptionReviewGuide,
-    settingsGuide: AgentSettingsGuide
+    settingsGuide: AgentSettingsGuide,
+    historyGuide: PlanSessionHistoryGuide? = nil
   ) {
     var sections: [String] = [
       "Compass Project Snapshot",
@@ -55,6 +56,9 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
 
     Self.appendDraftQueue(guide: draftGuide, to: &sections)
     Self.appendAssumptionMemory(guide: assumptionGuide, to: &sections)
+    if let historyGuide {
+      Self.appendRunHistory(guide: historyGuide, to: &sections)
+    }
     Self.appendRuntime(guide: settingsGuide, to: &sections)
 
     text = ProjectSnapshotClipboardText.boundedMultilineText(
@@ -136,6 +140,24 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
     sections.append("Runtime rows:")
     for row in guide.rows.prefix(rowLimit) {
       sections.append("- [\(row.status.rawValue)] \(row.label): \(row.detail)")
+    }
+  }
+
+  private static func appendRunHistory(
+    guide: PlanSessionHistoryGuide,
+    to sections: inout [String]
+  ) {
+    sections.append("")
+    sections.append("Run history:")
+    sections.append("- Status: \(guide.title) - \(guide.detail)")
+    sections.append("- Visible runs: \(guide.statusLabel)")
+    sections.append("- Audit coverage: \(guide.auditCoverage.label) - \(guide.auditCoverage.detail)")
+
+    guard !guide.facts.isEmpty else { return }
+
+    sections.append("History facts:")
+    for fact in guide.facts {
+      sections.append("- \(fact.label): \(fact.detail)")
     }
   }
 

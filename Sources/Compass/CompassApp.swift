@@ -230,6 +230,7 @@ struct CompassApp: App {
     let draftGuide = DraftIntakeGuide(drafts: project.drafts)
     let ledger = AssumptionLedger(assumptions: project.assumptions)
     let assumptionGuide = AssumptionReviewGuide(ledger: ledger)
+    let historyGuide = runHistoryGuide(for: project)
     let foundationModelsAvailable = FoundationModelsAvailability.isAvailable
     let settingsGuide = AgentSettingsGuide(
       settings: model.agentSettings,
@@ -240,9 +241,24 @@ struct CompassApp: App {
       runGuide: runGuide(for: project),
       draftGuide: draftGuide,
       assumptionGuide: assumptionGuide,
-      settingsGuide: settingsGuide
+      settingsGuide: settingsGuide,
+      historyGuide: historyGuide
     )
     return payload.isEmpty ? nil : payload
+  }
+
+  private func runHistoryGuide(for project: CompassProject) -> PlanSessionHistoryGuide {
+    let historyItems = PlanSessionHistory.displayItems(for: project.sessions)
+    let feedback = PlanReliabilityFeedback(
+      state: project.state,
+      sessions: project.sessions,
+      historyItems: historyItems
+    )
+    let display = PlanSessionHistoryDisplay(
+      items: historyItems,
+      runCues: feedback.recentRunCues
+    )
+    return PlanSessionHistoryGuide(display: display, runCues: feedback.recentRunCues)
   }
 
   private var projectIntakePayload: ProjectIntakeClipboardPayload {
