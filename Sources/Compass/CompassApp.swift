@@ -147,6 +147,13 @@ struct CompassApp: App {
         }
         .disabled(selectedProjectSnapshotPayload == nil)
 
+        Button("Copy Project Recovery") {
+          if let payload = selectedProjectRecoveryPayload {
+            copyTextToPasteboard(payload.text)
+          }
+        }
+        .disabled(selectedProjectRecoveryPayload == nil)
+
         Button("Copy Project Vision") {
           if let payload = selectedProjectVisionPayload {
             copyTextToPasteboard(payload.text)
@@ -259,6 +266,14 @@ struct CompassApp: App {
     let ledger = AssumptionLedger(assumptions: project.assumptions)
     let guide = AssumptionReviewGuide(ledger: ledger)
     let payload = AssumptionReviewClipboardPayload(ledger: ledger, guide: guide)
+    return payload.isEmpty ? nil : payload
+  }
+
+  private var selectedProjectRecoveryPayload: ProjectRecoveryClipboardPayload? {
+    guard isOnboardingComplete, let project = model.selectedProject else { return nil }
+    let status = project.reliabilityStatus
+    let guide = ProjectRecoveryGuide(status: status)
+    let payload = ProjectRecoveryClipboardPayload(status: status, guide: guide)
     return payload.isEmpty ? nil : payload
   }
 
