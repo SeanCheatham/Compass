@@ -80,10 +80,11 @@ struct ProjectVisionGuide: Equatable, Sendable {
     if vision.isEmpty {
       status = .empty
       title = "Vision empty"
-      detail = "Write who the software helps, what pain it removes, and how success should look."
+      detail =
+        "Write who the software helps, what pain it removes, how success should look, and any must-have guardrails."
       nextAction = NextAction(
         title: "Add a first vision",
-        detail: "Start with the audience, the problem, and one visible success signal.",
+        detail: "Start with audience, problem, one visible success signal, and one guardrail.",
         systemImage: "square.and.pencil"
       )
     } else if audience && problem && success && guardrails {

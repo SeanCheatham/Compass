@@ -11,9 +11,11 @@ struct ProjectVisionGuideTests {
 
     #expect(guide.status == .empty)
     #expect(guide.title == "Vision empty")
+    #expect(guide.detail.contains("must-have guardrails"))
     #expect(guide.scoreLabel == "0 of 4 signals")
     #expect(guide.missingSignalTitles == ["Audience", "Problem", "Success signal", "Guardrails"])
     #expect(guide.nextAction.title == "Add a first vision")
+    #expect(guide.nextAction.detail.contains("one guardrail"))
     #expect(!guide.allowsNarration)
     #expect(payload.isEmpty)
     #expect(payload.text.isEmpty)
