@@ -37,7 +37,7 @@ struct DraftsTab: View {
         project.draftEntry = idea.text
       }
       HStack(alignment: .top, spacing: 10) {
-        TextField("Describe the next direction", text: $project.draftEntry, axis: .vertical)
+        TextField(DraftReadinessGuide.entryPlaceholder, text: $project.draftEntry, axis: .vertical)
           .lineLimit(2...5)
           .textFieldStyle(.roundedBorder)
           .onKeyPress(keys: [.return], phases: .down) { press in

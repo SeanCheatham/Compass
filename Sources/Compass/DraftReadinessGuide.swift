@@ -4,6 +4,7 @@ struct DraftReadinessGuide: Equatable, Sendable {
   static let detailLimit = 160
   static let draftPreviewLimit = 220
   static let identifierLimit = 1_000
+  static let entryPlaceholder = "Describe the change, why it matters, and how success should look"
 
   var status: Status
   var title: String

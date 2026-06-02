@@ -9,6 +9,9 @@ struct DraftRefinementTests {
 
     try #require(guide.status == .empty)
     try #require(guide.title == "Start with the outcome")
+    try #require(DraftReadinessGuide.entryPlaceholder.contains("change"))
+    try #require(DraftReadinessGuide.entryPlaceholder.contains("why"))
+    try #require(DraftReadinessGuide.entryPlaceholder.contains("success"))
     try #require(guide.scoreLabel == "0 of 3")
     try #require(guide.cues.map(\.title) == ["Outcome", "Why", "Success signal"])
     try #require(guide.cues.allSatisfy { !$0.isSatisfied })
