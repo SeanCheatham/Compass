@@ -416,7 +416,7 @@ struct ProjectRunControlGuide: Equatable {
 
     if !draftIntakeGuide.isEmpty {
       return
-        "Plan will turn \(draftIntakeGuide.entryCountLabel) into one executable handoff.\(draftQueueScopeSuffix(draftIntakeGuide))"
+        "\(draftIntakeGuide.planScope.summary) Plan will create one executable handoff.\(draftQueueScopeSuffix(draftIntakeGuide))"
     }
 
     return "Plan will choose one executable next slice from the repository and strategic context."
@@ -561,7 +561,7 @@ struct ProjectRunControlGuide: Equatable {
       case .ready:
         return badge(
           label: "Draft queue",
-          detail: "\(draftIntakeGuide.entryCountLabel) can feed the next Plan run.",
+          detail: draftIntakeGuide.planScope.summary,
           systemImage: "text.badge.checkmark",
           tone: .info
         )
@@ -721,7 +721,7 @@ struct ProjectRunControlGuide: Equatable {
     if !draftIntakeGuide.isEmpty {
       let scopePrefix = draftQueueScope(draftIntakeGuide).map { "\($0) " } ?? ""
       return
-        "\(draftIntakeGuide.scoreLabel) in Drafts; \(scopePrefix)Plan will turn the queue into one executable slice."
+        "\(draftIntakeGuide.planScope.summary) \(scopePrefix)Plan will turn the queue into one executable slice."
     }
     return "Run Plan first, or let the full loop choose and build the next slice."
   }
@@ -732,10 +732,10 @@ struct ProjectRunControlGuide: Equatable {
       return "Let Plan choose the next slice, then Develop it if one is found."
     case .ready:
       return
-        "Plan will use \(draftIntakeGuide.entryCountLabel) to choose one executable slice, then Develop it.\(draftQueueScopeSuffix(draftIntakeGuide))"
+        "\(draftIntakeGuide.planScope.summary) Plan will choose one executable slice, then Develop it.\(draftQueueScopeSuffix(draftIntakeGuide))"
     case .needsDetail:
       return
-        "Plan can use \(draftIntakeGuide.entryCountLabel), but Drafts shows missing signals before Develop starts.\(draftQueueScopeSuffix(draftIntakeGuide))"
+        "\(draftIntakeGuide.planScope.summary) Drafts shows missing signals before Develop starts.\(draftQueueScopeSuffix(draftIntakeGuide))"
     }
   }
 
@@ -745,10 +745,10 @@ struct ProjectRunControlGuide: Equatable {
       return "Ask Plan to choose one executable next slice, then stop for review."
     case .ready:
       return
-        "Ask Plan to turn \(draftIntakeGuide.entryCountLabel) into one executable handoff.\(draftQueueScopeSuffix(draftIntakeGuide))"
+        "\(draftIntakeGuide.planScope.summary) Ask Plan to create one executable handoff.\(draftQueueScopeSuffix(draftIntakeGuide))"
     case .needsDetail:
       return
-        "Ask Plan to use the queue, with Drafts showing which signals still need detail.\(draftQueueScopeSuffix(draftIntakeGuide))"
+        "\(draftIntakeGuide.planScope.summary) Ask Plan to use ready drafts and keep unclear drafts queued.\(draftQueueScopeSuffix(draftIntakeGuide))"
     }
   }
 

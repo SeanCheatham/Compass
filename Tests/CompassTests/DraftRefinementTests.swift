@@ -272,7 +272,7 @@ struct DraftRefinementTests {
     let clarify = DraftIntakeGuide(drafts: "- Improve onboarding copy")
     try #require(clarify.nextAction.kind == .clarifyDrafts)
     try #require(clarify.nextAction.title == "Clarify before Plan")
-    try #require(clarify.nextAction.detail.contains("why, success signal"))
+    try #require(clarify.nextAction.detail == "Clarify before Plan: Draft #1 needs Why, Success signal.")
 
     let mixed = DraftIntakeGuide(
       drafts: """
@@ -282,7 +282,10 @@ struct DraftRefinementTests {
     )
     try #require(mixed.nextAction.kind == .planReadyDrafts)
     try #require(mixed.nextAction.title == "Plan the ready draft")
-    try #require(mixed.nextAction.detail.contains("1 draft is ready"))
+    try #require(
+      mixed.nextAction.detail
+        == "Plan can use Draft #1 first; keep the rest queued: Draft #2 needs Why, Success signal."
+    )
 
     let ready = DraftIntakeGuide(
       drafts:
@@ -290,7 +293,41 @@ struct DraftRefinementTests {
     )
     try #require(ready.nextAction.kind == .sendToPlan)
     try #require(ready.nextAction.title == "Send the queue to Plan")
-    try #require(ready.nextAction.detail.contains("commit-sized handoff"))
+    try #require(ready.nextAction.detail == "Plan can use Draft #1 while preserving queue order.")
+  }
+
+  @Test func testDraftIntakePlanScopeSeparatesReadyAndWaitingDrafts() throws {
+    let mixed = DraftIntakeGuide(
+      drafts: """
+        - Make setup faster because users get stuck; success looks like tests pass.
+        - Improve onboarding copy
+        """
+    )
+
+    try #require(mixed.planScope.readyEntryNumbers == [1])
+    try #require(mixed.planScope.waitingEntries.map(\.number) == [2])
+    try #require(
+      mixed.planScope.summary == "1 draft is ready for Plan; 1 draft needs detail.")
+    try #require(
+      mixed.planScope.detail
+        == "Plan can use Draft #1 first; keep the rest queued: Draft #2 needs Why, Success signal."
+    )
+
+    let capped = DraftIntakeGuide(
+      drafts: """
+        - Make setup faster because users get stuck; success looks like tests pass.
+        - Show recovery copy because users get locked out; done when recovery copy appears.
+        - Explain failed verifies because owners get confused; success shows the first error.
+        - Add draft polish because planning starts rough; success shows clearer queue copy.
+        - Improve sandbox setup because onboarding is hard; done when the readiness panel shows progress.
+        - Surface provider failures because API keys expire; success shows a model connection repair.
+        - Improve onboarding copy
+        """
+    )
+
+    try #require(capped.planScope.summary == "6 drafts are ready for Plan; 1 draft needs detail.")
+    try #require(capped.planScope.detail.contains("hidden draft needs detail"))
+    try #require(!capped.planScope.detail.contains("Draft #7"))
   }
 
   @Test func testDraftIntakeClipboardPayloadPackagesQueueForReuse() throws {
@@ -308,7 +345,12 @@ struct DraftRefinementTests {
     try #require(payload.text.contains("Status: Draft queue needs detail"))
     try #require(payload.text.contains("Score: 1 of 2 ready"))
     try #require(payload.text.contains("Next action: Plan the ready draft"))
-    try #require(payload.text.contains("1 draft is ready; keep the rest queued"))
+    try #require(payload.text.contains("Plan scope: 1 draft is ready for Plan; 1 draft needs detail."))
+    try #require(
+      payload.text.contains(
+        "Plan scope detail: Plan can use Draft #1 first; keep the rest queued: Draft #2 needs Why, Success signal."
+      )
+    )
     try #require(payload.text.contains("Queue: 2 queued drafts"))
     try #require(payload.text.contains("Missing across queue: Why, Success signal"))
     try #require(payload.text.contains("Draft #1"))
@@ -347,6 +389,9 @@ struct DraftRefinementTests {
     try #require(payload.text.contains("Visible checklist: first 6 of 7"))
     try #require(
       payload.text.contains("Hidden drafts: 1 more draft remains in the raw draft list."))
+    try #require(
+      payload.text.contains("Plan scope: 6 drafts are ready for Plan; 1 draft needs detail."))
+    try #require(payload.text.contains("hidden draft needs detail"))
     try #require(payload.text.contains("Draft #6"))
     try #require(!payload.text.contains("Draft #7"))
   }

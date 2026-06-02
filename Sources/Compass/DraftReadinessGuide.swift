@@ -297,6 +297,7 @@ struct DraftIntakeGuide: Equatable, Sendable {
   static let maxEntries = 6
   static let draftTextLimit = 220
   static let identifierLimit = 1_200
+  static let planScopeDetailLimit = 260
 
   private var allEntries: [Entry]
   var entries: [Entry]
@@ -388,6 +389,13 @@ struct DraftIntakeGuide: Equatable, Sendable {
     hiddenEntryCount == 1 ? "1 more draft remains" : "\(hiddenEntryCount) more drafts remain"
   }
 
+  var planScope: PlanScope {
+    PlanScope(
+      entries: allEntries,
+      visibleEntryNumbers: Set(entries.map(\.number))
+    )
+  }
+
   var nextAction: NextAction {
     switch status {
     case .empty:
@@ -403,8 +411,7 @@ struct DraftIntakeGuide: Equatable, Sendable {
       return NextAction(
         kind: .sendToPlan,
         title: "Send the queue to Plan",
-        detail:
-          "Turn the first ready direction into a commit-sized handoff, then keep the queue ordered.\(scope)",
+        detail: "\(planScope.detail)\(scope)",
         systemImage: "arrow.forward.circle"
       )
     case .needsDetail:
@@ -412,26 +419,21 @@ struct DraftIntakeGuide: Equatable, Sendable {
         return NextAction(
           kind: .planReadyDrafts,
           title: readyCount == 1 ? "Plan the ready draft" : "Plan ready drafts",
-          detail:
-            "\(Self.countLabel(readyCount, singular: "draft is", plural: "drafts are")) ready; keep the rest queued for the missing signals.",
+          detail: planScope.detail,
           systemImage: "arrowshape.turn.up.right.circle"
         )
       }
-      let missing =
-        missingSignalTitles.isEmpty
-        ? "the missing details"
-        : missingSignalTitles.joined(separator: ", ")
       return NextAction(
         kind: .clarifyDrafts,
         title: "Clarify before Plan",
-        detail: "Add \(missing.lowercased()) so Plan can make a focused first slice.",
+        detail: planScope.detail,
         systemImage: "questionmark.circle"
       )
     }
   }
 
   var readyCount: Int {
-    allEntries.filter { $0.readiness.status == .ready }.count
+    planScope.readyCount
   }
 
   var missingSignalTitles: [String] {
@@ -526,6 +528,10 @@ struct DraftIntakeGuide: Equatable, Sendable {
       signalList(satisfied: false)
     }
 
+    var isReadyForPlan: Bool {
+      readiness.status == .ready
+    }
+
     fileprivate var narrationIdentifierFragment: String {
       [
         "draft\(number):\(draft)",
@@ -547,6 +553,152 @@ struct DraftIntakeGuide: Equatable, Sendable {
         .filter { $0.isSatisfied == satisfied }
         .map(\.title)
       return signals.isEmpty ? "none" : signals.joined(separator: ", ")
+    }
+  }
+
+  struct PlanScope: Equatable, Sendable {
+    var readyEntryNumbers: [Int]
+    var waitingEntries: [WaitingEntry]
+    var summary: String
+    var detail: String
+
+    var readyCount: Int {
+      readyEntryNumbers.count
+    }
+
+    var waitingCount: Int {
+      waitingEntries.count
+    }
+
+    var hasReadyEntries: Bool {
+      readyCount > 0
+    }
+
+    fileprivate init(entries: [Entry], visibleEntryNumbers: Set<Int>) {
+      readyEntryNumbers = entries
+        .filter(\.isReadyForPlan)
+        .map(\.number)
+      waitingEntries = entries
+        .filter { !$0.isReadyForPlan }
+        .map {
+          WaitingEntry(
+            number: $0.number,
+            missingSignalText: $0.missingSignalText,
+            isVisible: visibleEntryNumbers.contains($0.number)
+          )
+        }
+
+      summary = Self.summary(readyCount: readyEntryNumbers.count, waitingCount: waitingEntries.count)
+      detail = StringUtils.boundedText(
+        Self.detail(
+          readyEntryNumbers: readyEntryNumbers,
+          waitingEntries: waitingEntries,
+          visibleEntryNumbers: visibleEntryNumbers
+        ),
+        limit: DraftIntakeGuide.planScopeDetailLimit
+      )
+    }
+
+    struct WaitingEntry: Equatable, Sendable {
+      var number: Int
+      var missingSignalText: String
+      var isVisible: Bool
+    }
+
+    private static func summary(readyCount: Int, waitingCount: Int) -> String {
+      switch (readyCount, waitingCount) {
+      case (0, 0):
+        return "No queued drafts."
+      case (0, _):
+        return "\(countLabel(waitingCount, singular: "draft needs", plural: "drafts need")) detail before Plan."
+      case (_, 0):
+        return "\(countLabel(readyCount, singular: "draft is", plural: "drafts are")) ready for Plan."
+      default:
+        return "\(countLabel(readyCount, singular: "draft is", plural: "drafts are")) ready for Plan; \(countLabel(waitingCount, singular: "draft needs", plural: "drafts need")) detail."
+      }
+    }
+
+    private static func detail(
+      readyEntryNumbers: [Int],
+      waitingEntries: [WaitingEntry],
+      visibleEntryNumbers: Set<Int>
+    ) -> String {
+      let visibleReadyEntryNumbers = readyEntryNumbers.filter { visibleEntryNumbers.contains($0) }
+      let hiddenReadyCount = readyEntryNumbers.count - visibleReadyEntryNumbers.count
+      let visibleWaitingEntries = waitingEntries.filter(\.isVisible)
+      let hiddenWaitingCount = waitingEntries.count - visibleWaitingEntries.count
+
+      if readyEntryNumbers.isEmpty, waitingEntries.isEmpty {
+        return "Add one clear direction above before planning."
+      }
+
+      if readyEntryNumbers.isEmpty {
+        return
+          "Clarify before Plan: \(waitingSentence(for: visibleWaitingEntries, hiddenCount: hiddenWaitingCount))."
+      }
+
+      if waitingEntries.isEmpty {
+        let hiddenSuffix =
+          hiddenReadyCount > 0
+          ? " \(countLabel(hiddenReadyCount, singular: "hidden ready draft remains", plural: "hidden ready drafts remain")) in the raw queue."
+          : ""
+        return
+          "Plan can use \(draftNumberList(visibleReadyEntryNumbers)) while preserving queue order.\(hiddenSuffix)"
+      }
+
+      let readyTarget =
+        visibleReadyEntryNumbers.isEmpty
+        ? countLabel(readyEntryNumbers.count, singular: "ready draft", plural: "ready drafts")
+        : draftNumberList(visibleReadyEntryNumbers)
+      return
+        "Plan can use \(readyTarget) first; keep the rest queued: \(waitingSentence(for: visibleWaitingEntries, hiddenCount: hiddenWaitingCount))."
+    }
+
+    private static func waitingSentence(
+      for entries: [WaitingEntry],
+      hiddenCount: Int
+    ) -> String {
+      let visible = entries.prefix(3).map { entry in
+        "Draft #\(entry.number) needs \(entry.missingSignalText)"
+      }
+      let extraVisibleCount = entries.count - visible.count
+      let hiddenLabel =
+        hiddenCount > 0
+        ? countLabel(hiddenCount, singular: "hidden draft needs", plural: "hidden drafts need")
+          + " detail"
+        : nil
+      let extraVisibleLabel =
+        extraVisibleCount > 0
+        ? countLabel(extraVisibleCount, singular: "draft also needs", plural: "drafts also need")
+          + " detail"
+        : nil
+      let hiddenAndExtra = [extraVisibleLabel, hiddenLabel].compactMap(\.self)
+
+      if hiddenAndExtra.isEmpty {
+        return visible.joined(separator: "; ")
+      }
+      if visible.isEmpty {
+        return hiddenAndExtra.joined(separator: "; ")
+      }
+      return visible.joined(separator: "; ") + "; " + hiddenAndExtra.joined(separator: "; ")
+    }
+
+    private static func draftNumberList(_ numbers: [Int]) -> String {
+      let labels = numbers.map { "Draft #\($0)" }
+      switch labels.count {
+      case 0:
+        return "no drafts"
+      case 1:
+        return labels[0]
+      case 2:
+        return labels.joined(separator: " or ")
+      default:
+        return labels.dropLast().joined(separator: ", ") + ", or \(labels.last ?? "")"
+      }
+    }
+
+    private static func countLabel(_ count: Int, singular: String, plural: String) -> String {
+      count == 1 ? "1 \(singular)" : "\(count) \(plural)"
     }
   }
 
@@ -632,6 +784,8 @@ struct DraftIntakeClipboardPayload: Equatable, Sendable {
       "Score: \(guide.scoreLabel)",
       "Detail: \(guide.detail)",
       "Next action: \(guide.nextAction.title) - \(guide.nextAction.detail)",
+      "Plan scope: \(guide.planScope.summary)",
+      "Plan scope detail: \(guide.planScope.detail)",
       "Queue: \(guide.entryCountLabel)",
     ]
 

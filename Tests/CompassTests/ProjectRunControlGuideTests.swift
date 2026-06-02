@@ -73,13 +73,13 @@ struct ProjectRunControlGuideTests {
         == "2 queued drafts. 1 of 2 ready. Missing across queue: Why, Success signal.")
     try #require(
       guide.primaryHelp
-        == "1 of 2 ready in Drafts; Plan will turn the queue into one executable slice.")
+        == "1 draft is ready for Plan; 1 draft needs detail. Plan will turn the queue into one executable slice.")
     try #require(
       guide.options[0].detail
-        == "Plan can use 2 queued drafts, but Drafts shows missing signals before Develop starts.")
+        == "1 draft is ready for Plan; 1 draft needs detail. Drafts shows missing signals before Develop starts.")
     try #require(
       guide.options[1].detail
-        == "Ask Plan to use the queue, with Drafts showing which signals still need detail.")
+        == "1 draft is ready for Plan; 1 draft needs detail. Ask Plan to use ready drafts and keep unclear drafts queued.")
     try #require(!guide.options[2].isEnabled)
     try #require(guide.decisionBadge.label == "Draft details")
     try #require(guide.decisionBadge.tone == .warning)
@@ -112,19 +112,19 @@ struct ProjectRunControlGuideTests {
     try #require(guide.readiness.detail.contains("1 more draft remains in the raw draft list"))
     try #require(
       guide.primaryHelp
-        == "6 of 7 ready in Drafts; Drafts is checking the first 6; 1 more draft remains in the raw queue. Plan will turn the queue into one executable slice."
+        == "6 drafts are ready for Plan; 1 draft needs detail. Drafts is checking the first 6; 1 more draft remains in the raw queue. Plan will turn the queue into one executable slice."
     )
     try #require(
       guide.options[0].detail
-        == "Plan can use 7 queued drafts, but Drafts shows missing signals before Develop starts. Drafts is checking the first 6; 1 more draft remains in the raw queue."
+        == "6 drafts are ready for Plan; 1 draft needs detail. Drafts shows missing signals before Develop starts. Drafts is checking the first 6; 1 more draft remains in the raw queue."
     )
     try #require(
       guide.options[1].detail
-        == "Ask Plan to use the queue, with Drafts showing which signals still need detail. Drafts is checking the first 6; 1 more draft remains in the raw queue."
+        == "6 drafts are ready for Plan; 1 draft needs detail. Ask Plan to use ready drafts and keep unclear drafts queued. Drafts is checking the first 6; 1 more draft remains in the raw queue."
     )
     try #require(
       guide.previewSteps[0].detail
-        == "Plan will turn 7 queued drafts into one executable handoff. Drafts is checking the first 6; 1 more draft remains in the raw queue."
+        == "6 drafts are ready for Plan; 1 draft needs detail. Plan will create one executable handoff. Drafts is checking the first 6; 1 more draft remains in the raw queue."
     )
     try #require(guide.narrationIdentifier.contains("1 more draft remains"))
   }
@@ -148,13 +148,13 @@ struct ProjectRunControlGuideTests {
     try #require(guide.readiness.detail.contains("Every queued draft"))
     try #require(
       guide.options[0].detail
-        == "Plan will use 2 queued drafts to choose one executable slice, then Develop it.")
+        == "2 drafts are ready for Plan. Plan will choose one executable slice, then Develop it.")
     try #require(
       guide.options[1].detail
-        == "Ask Plan to turn 2 queued drafts into one executable handoff.")
+        == "2 drafts are ready for Plan. Ask Plan to create one executable handoff.")
     try #require(guide.decisionBadge.label == "Draft queue")
     try #require(guide.decisionBadge.tone == .info)
-    try #require(guide.decisionBadge.detail.contains("2 queued drafts"))
+    try #require(guide.decisionBadge.detail == "2 drafts are ready for Plan.")
   }
 
   @Test
