@@ -95,6 +95,12 @@ struct CompassApp: App {
         .keyboardShortcut("o", modifiers: [.command])
         .disabled(!isOnboardingComplete)
 
+        Button("Copy Project Intake") {
+          copyTextToPasteboard(projectIntakePayload.text)
+        }
+        .keyboardShortcut("i", modifiers: [.command, .option])
+        .disabled(!isOnboardingComplete)
+
         Button("Refresh Project") {
           Task { await model.refreshSelectedProject() }
         }
@@ -166,6 +172,12 @@ struct CompassApp: App {
       drafts: project.drafts
     )
     return FactoryCompassGuide(runGuide: runGuide)
+  }
+
+  private var projectIntakePayload: ProjectIntakeClipboardPayload {
+    ProjectIntakeClipboardPayload(
+      guide: ProjectIntakeGuide(projectCount: model.projects.count)
+    )
   }
 
   private var canPauseSelectedProject: Bool {
