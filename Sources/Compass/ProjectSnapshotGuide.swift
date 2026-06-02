@@ -13,6 +13,7 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
     draftGuide: DraftIntakeGuide,
     assumptionGuide: AssumptionReviewGuide,
     settingsGuide: AgentSettingsGuide,
+    lessonsGuide: ProjectLessonsGuide? = nil,
     historyGuide: PlanSessionHistoryGuide? = nil
   ) {
     var sections: [String] = [
@@ -56,6 +57,9 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
 
     Self.appendDraftQueue(guide: draftGuide, to: &sections)
     Self.appendAssumptionMemory(guide: assumptionGuide, to: &sections)
+    if let lessonsGuide {
+      Self.appendProjectLessons(guide: lessonsGuide, to: &sections)
+    }
     if let historyGuide {
       Self.appendRunHistory(guide: historyGuide, to: &sections)
     }
@@ -122,6 +126,24 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
       sections.append("- \(Self.singleLine(item.label, limit: 220))")
       sections.append("  Context: \(Self.singleLine(item.detail, limit: 240))")
     }
+  }
+
+  private static func appendProjectLessons(
+    guide: ProjectLessonsGuide,
+    to sections: inout [String]
+  ) {
+    sections.append("")
+    sections.append("Project lessons:")
+    sections.append("- Status: \(guide.title) - \(guide.detail)")
+    sections.append("- Score: \(guide.scoreLabel)")
+    sections.append("- Entries: \(guide.entryCount)")
+    sections.append("- Next action: \(guide.nextAction.title) - \(guide.nextAction.detail)")
+    sections.append("- Signals present: \(guide.satisfiedSignalText)")
+    sections.append("- Missing signals: \(guide.missingSignalText)")
+
+    guard !guide.lessonsPreview.isEmpty else { return }
+
+    sections.append("- Lesson preview: \(singleLine(guide.lessonsPreview, limit: 520))")
   }
 
   private static func appendRuntime(

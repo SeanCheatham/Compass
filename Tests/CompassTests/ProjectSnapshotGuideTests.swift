@@ -32,6 +32,10 @@ struct ProjectSnapshotGuideTests {
     )
     project.drafts =
       "- Improve snapshots because users get lost; success shows the latest run audit."
+    project.lessons = """
+      - Learned snapshots are trusted when they include durable project memory; tests passed with ProjectSnapshotGuideTests.
+      - Decision: reuse lesson signals before future handoff work.
+      """
     project.assumptions = [
       record(
         id: "affirmed",
@@ -77,6 +81,10 @@ struct ProjectSnapshotGuideTests {
     #expect(payload.text.contains("Draft queue:"))
     #expect(payload.text.contains("1 draft is ready for Plan"))
     #expect(payload.text.contains("Prompt lane: 1 active prompt signal"))
+    #expect(payload.text.contains("Project lessons:"))
+    #expect(payload.text.contains("Status: Lessons reusable"))
+    #expect(payload.text.contains("Lesson preview:"))
+    #expect(payload.text.contains("reuse lesson signals"))
     #expect(payload.text.contains("Run history:"))
     #expect(payload.text.contains("Status: Latest Run Succeeded"))
     #expect(payload.text.contains("Latest #2: Succeeded: Add a shared snapshot builder."))
@@ -144,6 +152,12 @@ struct ProjectSnapshotGuideTests {
       )
     )
     let settingsGuide = AgentSettingsGuide(settings: settings, foundationModelsAvailable: false)
+    let lessonsGuide = ProjectLessonsGuide(
+      lessons: """
+        - Learned snapshots need durable memory because handoffs lose context; tests passed with ProjectSnapshotGuideTests.
+        - Decision: preserve project lessons and reuse them before future snapshot work.
+        """
+    )
     let historyGuide = PlanSessionHistoryGuide(
       display: PlanSessionHistoryDisplay(
         items: [
@@ -168,6 +182,7 @@ struct ProjectSnapshotGuideTests {
       draftGuide: draftGuide,
       assumptionGuide: assumptionGuide,
       settingsGuide: settingsGuide,
+      lessonsGuide: lessonsGuide,
       historyGuide: historyGuide
     )
 
@@ -187,6 +202,11 @@ struct ProjectSnapshotGuideTests {
     #expect(payload.text.contains("Prompt lane: 3 active prompt signals"))
     #expect(payload.text.contains("Assumptions needing review:"))
     #expect(payload.text.contains("The target user is a non-engineer operator."))
+    #expect(payload.text.contains("Project lessons:"))
+    #expect(payload.text.contains("Status: Lessons reusable"))
+    #expect(payload.text.contains("Signals present: Learning, Proof, Decision, Reuse cue"))
+    #expect(payload.text.contains("Missing signals: none"))
+    #expect(payload.text.contains("Lesson preview:"))
     #expect(payload.text.contains("Run history:"))
     #expect(payload.text.contains("Status: Latest Run Succeeded"))
     #expect(payload.text.contains("Audit coverage: 3 of 4 audit anchors"))
@@ -217,6 +237,7 @@ struct ProjectSnapshotGuideTests {
       settings: AgentRuntimeSettings(textProvider: .appleFoundationModels),
       foundationModelsAvailable: true
     )
+    let lessonsGuide = ProjectLessonsGuide(lessons: "")
     let historyGuide = PlanSessionHistoryGuide(display: PlanSessionHistoryDisplay(items: []))
 
     let payload = ProjectSnapshotClipboardPayload(
@@ -225,6 +246,7 @@ struct ProjectSnapshotGuideTests {
       draftGuide: draftGuide,
       assumptionGuide: assumptionGuide,
       settingsGuide: settingsGuide,
+      lessonsGuide: lessonsGuide,
       historyGuide: historyGuide
     )
 
@@ -235,6 +257,9 @@ struct ProjectSnapshotGuideTests {
     #expect(payload.text.contains("Plan scope: No queued drafts."))
     #expect(payload.text.contains("Assumption memory:"))
     #expect(payload.text.contains("Prompt lane: No active prompt signals"))
+    #expect(payload.text.contains("Project lessons:"))
+    #expect(payload.text.contains("Status: Lessons empty"))
+    #expect(payload.text.contains("Missing signals: Learning, Proof, Decision, Reuse cue"))
     #expect(payload.text.contains("Run history:"))
     #expect(payload.text.contains("Status: No Runs Yet"))
     #expect(payload.text.contains("Audit coverage: No visible audit"))

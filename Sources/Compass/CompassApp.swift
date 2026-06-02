@@ -161,6 +161,13 @@ struct CompassApp: App {
         }
         .disabled(selectedDraftQueuePayload == nil)
 
+        Button("Copy Project Lessons") {
+          if let payload = selectedProjectLessonsPayload {
+            copyTextToPasteboard(payload.text)
+          }
+        }
+        .disabled(selectedProjectLessonsPayload == nil)
+
         Button(PauseMode.afterIteration.label) {
           model.selectedProject?.requestPause(.afterIteration)
         }
@@ -252,6 +259,13 @@ struct CompassApp: App {
     guard isOnboardingComplete, let project = model.selectedProject else { return nil }
     let guide = DraftIntakeGuide(drafts: project.drafts)
     let payload = DraftIntakeClipboardPayload(guide: guide)
+    return payload.isEmpty ? nil : payload
+  }
+
+  private var selectedProjectLessonsPayload: ProjectLessonsClipboardPayload? {
+    guard isOnboardingComplete, let project = model.selectedProject else { return nil }
+    let guide = ProjectLessonsGuide(lessons: project.lessons)
+    let payload = ProjectLessonsClipboardPayload(guide: guide)
     return payload.isEmpty ? nil : payload
   }
 
