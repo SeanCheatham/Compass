@@ -164,6 +164,109 @@ struct ProjectSnapshotGuideTests {
   }
 
   @Test
+  @MainActor
+  func snapshotBuilderKeepsRuntimeVisibleWithRecoveryAndProjectMemory() throws {
+    let parentURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: parentURL) }
+    let repoURL = parentURL.appending(path: "CompassFullSnapshot", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: repoURL, withIntermediateDirectories: true)
+    try initGitRepo(at: repoURL)
+    let project = CompassProject(
+      repoURL: repoURL
+    )
+    project.vision = """
+      Compass helps non-engineer operators ship trustworthy macOS software because agent work can otherwise feel opaque.
+      Success shows a copyable project snapshot with recovery, memory, proof, and runtime readiness.
+      It must preserve secrets, keep user files safe, and explain what happened in plain language.
+      """
+    project.drafts = """
+      - Improve recovery handoffs because failed runs need clear next steps; success shows the copied snapshot names the repair.
+      - Polish the snapshot button because users need to know what context will be copied.
+      """
+    project.lessons = """
+      - Learned full project snapshots must preserve runtime readiness even when new memory sections are added; tests passed with ProjectSnapshotGuideTests.
+      - Decision: keep recovery, vision, lessons, and proof visible together before expanding snapshot scope again.
+      """
+    project.assumptions = [
+      record(
+        id: "implicit",
+        text: "The project owner is reviewing output without reading raw logs.",
+        status: .implicit,
+        impact: "Snapshot copy should summarize recovery and proof in plain language.",
+        updatedAt: 30
+      ),
+      record(
+        id: "affirmed",
+        text: "Recovery guidance should be available outside the Live tab.",
+        status: .affirmed,
+        impact: "Menu and snapshot handoffs should keep recovery visible.",
+        updatedAt: 20
+      ),
+    ]
+    project.sessions = [
+      sessionRecord(
+        9,
+        plan: """
+          ## Outcome
+          Keep full project snapshots useful during recovery.
+
+          ## Why it matters
+          Non-developers need one packet that carries memory, failure context, and proof.
+
+          ## Acceptance checks
+          - Snapshot includes project recovery.
+          - Snapshot still includes runtime readiness.
+          """,
+        verify: "swift test --filter ProjectSnapshotGuideTests",
+        commits: [
+          SessionCommit(
+            sha: "fedcba987654",
+            short: "fedcba9",
+            subject: "Keep snapshot runtime visible"
+          )
+        ],
+        status: .failed,
+        verifyOutput: VerifyOutput(
+          command: "swift test --filter ProjectSnapshotGuideTests",
+          exitCode: 1,
+          tail: "Expected runtime readiness to remain visible in full snapshots."
+        )
+      )
+    ]
+    let settings = AgentRuntimeSettings(
+      textProvider: .openAI,
+      baseURL: try #require(URL(string: "https://api.openai.com/v1")),
+      apiKey: "sk-full-snapshot-secret",
+      model: "gpt-4o",
+      webSearchAssignment: CapabilityAssignment(
+        provider: .minimaxToken,
+        baseURL: try #require(URL(string: "https://api.minimax.io/v1")),
+        apiKey: "mm-full-snapshot-secret",
+        model: ""
+      )
+    )
+
+    let payload = ProjectSnapshotBuilder.payload(
+      for: project,
+      agentSettings: settings,
+      foundationModelsAvailable: false
+    )
+
+    #expect(payload.text.contains("Project recovery:"))
+    #expect(payload.text.contains("Project vision:"))
+    #expect(payload.text.contains("Draft queue:"))
+    #expect(payload.text.contains("Assumption memory:"))
+    #expect(payload.text.contains("Project lessons:"))
+    #expect(payload.text.contains("Run history:"))
+    #expect(payload.text.contains("Runtime readiness:"))
+    #expect(payload.text.contains("Status: Agent Stack Ready"))
+    #expect(payload.text.contains("[ready] Web Search"))
+    #expect(!payload.text.contains("sk-full-snapshot-secret"))
+    #expect(!payload.text.contains("mm-full-snapshot-secret"))
+    #expect(payload.text.count <= ProjectSnapshotClipboardPayload.textLimit)
+  }
+
+  @Test
   func snapshotPayloadPackagesProjectStateWithoutSecrets() throws {
     let drafts = """
       - Make setup faster because users get stuck; success looks like tests pass.
