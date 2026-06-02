@@ -107,6 +107,21 @@ struct CompassApp: App {
         .keyboardShortcut("r", modifiers: [.command])
         .disabled(!isOnboardingComplete || model.selectedProject == nil)
 
+        Button("Reveal Project in Finder") {
+          if let repoURL = model.selectedProject?.repoURL {
+            NSWorkspace.shared.activateFileViewerSelecting([repoURL])
+          }
+        }
+        .keyboardShortcut("f", modifiers: [.command, .option])
+        .disabled(!isOnboardingComplete || model.selectedProject == nil)
+
+        Button("Copy Project Path") {
+          if let repoPath = model.selectedProject?.repoURL.path {
+            copyTextToPasteboard(repoPath)
+          }
+        }
+        .disabled(!isOnboardingComplete || model.selectedProject == nil)
+
         Button("Play") {
           Task { await model.playSelectedProject() }
         }
