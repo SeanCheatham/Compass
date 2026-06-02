@@ -628,7 +628,8 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("\"summary\""))
     try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
     try #require(
-      nudge.userMessage.contains("all three keys: `immediate`, `midTerm`, and `longTerm`"))
+      nudge.userMessage.contains(
+        "all required planning keys: `immediate`, `candidates`, `strategicContext`, and `openQuestions`"))
   }
 
   @Test func testInvalidSubmitResultDecodeNudgeUsesCriticRetryShape() throws {
@@ -649,7 +650,7 @@ struct AgentExecutorTests {
   @Test func testSubmitResultValidationNudgeUsesDecodeCopyForDecodingErrors() throws {
     let payload = Data(
       """
-      {"state":{"midTerm":"x","immediate":null},"summary":"done"}
+      {"state":{"candidates":[],"immediate":null},"summary":"done"}
       """.utf8)
     do {
       _ = try JSONDecoder().decode(ReflectSummary.self, from: payload)
@@ -836,14 +837,14 @@ struct AgentExecutorTests {
   @Test func testDecodingErrorMessageSurfacesMissingKey() throws {
     let payload = Data(
       """
-      {"state":{"midTerm":"x","immediate":null},"summary":"done"}
+      {"state":{"candidates":[],"immediate":null},"summary":"done"}
       """.utf8)
     do {
       _ = try JSONDecoder().decode(ReflectSummary.self, from: payload)
       #expect(Bool(false), "expected decode to fail")
     } catch {
       let message = AgentExecutor.decodingErrorMessage(error)
-      try #require(message.contains("state.longTerm"), "message was: \(message)")
+      try #require(message.contains("state.strategicContext"), "message was: \(message)")
     }
   }
 

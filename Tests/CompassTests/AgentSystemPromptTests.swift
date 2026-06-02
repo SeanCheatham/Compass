@@ -180,7 +180,7 @@ struct AgentSystemPromptTests {
 
   @Test func testLessonEditsGuidanceIsSharedAcrossPhases() throws {
     let plan = try Prompts.planPrompt(
-      state: PlanProposal(immediate: nil, midTerm: "", longTerm: ""),
+      state: PlanProposal(immediate: nil, candidates: "", strategicContext: ""),
       completedCount: 0,
       drafts: "",
       feedback: "",
@@ -202,7 +202,7 @@ struct AgentSystemPromptTests {
 
   @Test func testPlanPromptDiscouragesBareSwiftTestDuringXCTestMigration() throws {
     let prompt = try Prompts.planPrompt(
-      state: PlanProposal(immediate: nil, midTerm: "", longTerm: ""),
+      state: PlanProposal(immediate: nil, candidates: "", strategicContext: ""),
       completedCount: 0,
       drafts: "",
       feedback: "",
@@ -301,7 +301,7 @@ struct AgentSystemPromptTests {
 
   @Test func testPlanPromptMarksFoundationModelsAsHostXcodeRequiredWhenEnabled() throws {
     let prompt = try Prompts.planPrompt(
-      state: PlanProposal(immediate: nil, midTerm: "", longTerm: ""),
+      state: PlanProposal(immediate: nil, candidates: "", strategicContext: ""),
       completedCount: 0,
       drafts: "",
       feedback: "",

@@ -3,12 +3,26 @@ import Testing
 
 @testable import Compass
 
-struct PlanTransitionValidatorTests {
-  @Test func testRejectsClearingMidTermWithoutCompletion() throws {
-    let current = makeState(completed: ["done"], midTerm: "- Next queued item")
-    let next = makeState(completed: ["done"], midTerm: "   \n")
+private func testPlanProposal(
+  immediate: PlanNext?,
+  candidates: String,
+  strategicContext: String,
+  openQuestions: [PlanQuestion] = []
+) -> PlanProposal {
+  PlanProposal(
+    immediate: immediate,
+    candidates: testPlanCandidates(candidates),
+    strategicContext: testStrategicContext(strategicContext),
+    openQuestions: openQuestions
+  )
+}
 
-    assertTransitionRejected(from: current, to: next, contains: "clear a non-empty midTerm queue")
+struct PlanTransitionValidatorTests {
+  @Test func testRejectsClearingCandidatesWithoutCompletion() throws {
+    let current = makeState(completed: ["done"], candidates: "- Next queued item")
+    let next = makeState(completed: ["done"], candidates: "   \n")
+
+    assertTransitionRejected(from: current, to: next, contains: "clear all actionable candidates")
   }
 
   @Test func testRejectsPlaceholderVerifyCommands() throws {
@@ -65,22 +79,22 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test func testAcceptsNormalImmediateWork() throws {
-    let current = makeState(midTerm: "- Build the next slice")
+    let current = makeState(candidates: "- Build the next slice")
     let next = makeState(
       immediate: PlanNext(plan: executablePlan("Build the next slice"), verify: "swift test"),
-      midTerm: "- Build the next slice\n- Polish follow-up"
+      candidates: "- Build the next slice\n- Polish follow-up"
     )
 
     try PlanTransitionValidator.validate(from: current, to: next)
   }
 
-  @Test func testAcceptsMidTermRewriteWithoutChangingCompleted() throws {
-    let current = makeState(completed: ["First slice"], midTerm: "- Old queue")
-    let proposal = PlanProposal(
+  @Test func testAcceptsCandidateRewriteWithoutChangingCompleted() throws {
+    let current = makeState(completed: ["First slice"], candidates: "- Old queue")
+    let proposal = testPlanProposal(
       immediate: PlanNext(
         plan: executablePlan("Take the rewritten next step"), verify: "swift test"),
-      midTerm: "- Rewritten queue",
-      longTerm: "Long-term direction"
+      candidates: "- Rewritten queue",
+      strategicContext: "Long-term direction"
     )
     let next = current.applying(proposal: proposal)
 
@@ -89,17 +103,17 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test func testAcceptsNoImmediateWorkState() throws {
-    let current = makeState(completed: ["Everything shipped"], midTerm: "", longTerm: "")
+    let current = makeState(completed: ["Everything shipped"], candidates: "", strategicContext: "")
     let next = makeState(
-      completed: ["Everything shipped"], immediate: nil, midTerm: "", longTerm: "")
+      completed: ["Everything shipped"], immediate: nil, candidates: "", strategicContext: "")
 
     try PlanTransitionValidator.validate(from: current, to: next)
   }
 
-  @Test func testRejectsNoImmediateWorkWhenMidTermRemains() throws {
-    let current = makeState(completed: ["done"], midTerm: "- Next queued item", longTerm: "")
+  @Test func testRejectsNoImmediateWorkWhenCandidatesRemain() throws {
+    let current = makeState(completed: ["done"], candidates: "- Next queued item", strategicContext: "")
     let next = makeState(
-      completed: ["done"], immediate: nil, midTerm: "- Next queued item", longTerm: "")
+      completed: ["done"], immediate: nil, candidates: "- Next queued item", strategicContext: "")
 
     let error = try rejectedTransition(from: current, to: next)
     try #require(error.message.contains("Immediate Plan"))
@@ -107,13 +121,13 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test func testRejectsWeakImmediateHandoff() throws {
-    let current = makeState(midTerm: "- Make Plan easier to follow")
+    let current = makeState(candidates: "- Make Plan easier to follow")
     let next = makeState(
       immediate: PlanNext(
         plan: "Make Plan easier to follow.",
         verify: "swift test --filter PlanWorkflowOverviewTests"
       ),
-      midTerm: "- Make Plan easier to follow"
+      candidates: "- Make Plan easier to follow"
     )
 
     let error = try rejectedTransition(from: current, to: next)
@@ -123,7 +137,7 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test func testRejectsCommandOnlyAcceptanceChecks() throws {
-    let current = makeState(midTerm: "- Make retry recovery safer")
+    let current = makeState(candidates: "- Make retry recovery safer")
     let next = makeState(
       immediate: PlanNext(
         plan: """
@@ -135,7 +149,7 @@ struct PlanTransitionValidatorTests {
           """,
         verify: "swift test --filter RecoveryTests"
       ),
-      midTerm: "- Make retry recovery safer"
+      candidates: "- Make retry recovery safer"
     )
 
     let error = try rejectedTransition(from: current, to: next)
@@ -147,7 +161,7 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test func testRejectsVagueAcceptanceChecks() throws {
-    let current = makeState(midTerm: "- Make Plan handoffs clearer")
+    let current = makeState(candidates: "- Make Plan handoffs clearer")
     let next = makeState(
       immediate: PlanNext(
         plan: """
@@ -159,7 +173,7 @@ struct PlanTransitionValidatorTests {
           """,
         verify: "swift test --filter PlanDomainTests"
       ),
-      midTerm: "- Make Plan handoffs clearer"
+      candidates: "- Make Plan handoffs clearer"
     )
 
     let error = try rejectedTransition(from: current, to: next)
@@ -170,44 +184,40 @@ struct PlanTransitionValidatorTests {
     try #require(error.missingLabels == ["Acceptance checks"])
   }
 
-  @Test func testRejectsNoImmediateWorkWhenLongTermRemains() throws {
-    let current = makeState(completed: ["done"], midTerm: "", longTerm: "")
+  @Test func testAcceptsNoImmediateWorkWhenOnlyStrategicContextRemains() throws {
+    let current = makeState(completed: ["done"], candidates: "", strategicContext: "")
     let next = makeState(
       completed: ["done"],
       immediate: nil,
-      midTerm: "",
-      longTerm: "Build toward the Explore layer"
+      candidates: "",
+      strategicContext: "Build toward the Explore layer"
     )
 
-    let error = try rejectedTransition(from: current, to: next)
-    try #require(error.message.contains("proposed longTerm"))
-    try #require(error.reason == .noImmediateWork)
+    try PlanTransitionValidator.validate(from: current, to: next)
   }
 
-  @Test func testRejectsNoImmediateWorkWhenClearingExistingLongTerm() throws {
+  @Test func testAcceptsNoImmediateWorkWhenClearingExistingStrategicContext() throws {
     let current = makeState(
       completed: ["done"],
-      midTerm: "",
-      longTerm: "Build toward the Explore layer"
+      candidates: "",
+      strategicContext: "Build toward the Explore layer"
     )
-    let next = makeState(completed: ["done"], immediate: nil, midTerm: "", longTerm: "")
+    let next = makeState(completed: ["done"], immediate: nil, candidates: "", strategicContext: "")
 
-    let error = try rejectedTransition(from: current, to: next)
-    try #require(error.message.contains("current longTerm"))
-    try #require(error.reason == .noImmediateWork)
+    try PlanTransitionValidator.validate(from: current, to: next)
   }
 
   private func makeState(
     completed: [String] = [],
     immediate: PlanNext? = nil,
-    midTerm: String = "",
-    longTerm: String = "Long-term direction"
+    candidates: String = "",
+    strategicContext: String = "Long-term direction"
   ) -> PlanState {
     PlanState(
       completed: completed,
       immediate: immediate,
-      midTerm: midTerm,
-      longTerm: longTerm
+      candidates: testPlanCandidates(candidates),
+      strategicContext: testStrategicContext(strategicContext)
     )
   }
 
@@ -296,16 +306,16 @@ struct PlanSubmitResultValidationTests {
       PlanState(
         completed: ["Prior slice"],
         immediate: nil,
-        midTerm: "",
-        longTerm: "Build toward the Explore layer"
+        candidates: testPlanCandidates("- Build toward the Explore layer"),
+        strategicContext: testStrategicContext("Build toward the Explore layer")
       )
     )
 
     let payload = PlanRunResult(
-      state: PlanProposal(
+      state: testPlanProposal(
         immediate: nil,
-        midTerm: "",
-        longTerm: "Build toward the Explore layer"
+        candidates: "- Build toward the Explore layer",
+        strategicContext: "Build toward the Explore layer"
       )
     )
     let args = try JSONEncoder().encode(payload)
@@ -320,7 +330,7 @@ struct PlanSubmitResultValidationTests {
       Issue.record("Expected no-immediate plan submit_result to be rejected.")
     } catch let error as PlanTransitionValidationError {
       try #require(error.message.contains("Immediate Plan"))
-      try #require(error.message.contains("current longTerm"))
+      try #require(error.message.contains("current candidates"))
     }
   }
 
@@ -336,19 +346,19 @@ struct PlanSubmitResultValidationTests {
       PlanState(
         completed: [],
         immediate: nil,
-        midTerm: "- Make Plan safer for weak handoffs",
-        longTerm: "Build a better factory"
+        candidates: testPlanCandidates("- Make Plan safer for weak handoffs"),
+        strategicContext: testStrategicContext("Build a better factory")
       )
     )
 
     let payload = PlanRunResult(
-      state: PlanProposal(
+      state: testPlanProposal(
         immediate: PlanNext(
           plan: "Make Plan safer for weak handoffs.",
           verify: "swift test --filter PlanDomainTests"
         ),
-        midTerm: "- Make Plan safer for weak handoffs",
-        longTerm: "Build a better factory"
+        candidates: "- Make Plan safer for weak handoffs",
+        strategicContext: "Build a better factory"
       )
     )
     let args = try JSONEncoder().encode(payload)
@@ -565,8 +575,8 @@ struct PlanSubmitResultValidationTests {
           plan: "Make Plan safer for weak handoffs.",
           verify: "swift test --filter PlanDomainTests"
         ),
-        midTerm: "",
-        longTerm: ""
+        candidates: [],
+        strategicContext: .empty
       )
     )
 
@@ -607,11 +617,11 @@ struct PlanSubmitResultValidationTests {
 
             ## Acceptance checks
             - Rust tests exercise parser failures.
-            """,
+          """,
           verify: "cargo test"
         ),
-        midTerm: "",
-        longTerm: ""
+        candidates: [],
+        strategicContext: .empty
       )
     )
 
@@ -765,8 +775,8 @@ struct PlanCompletionRecorderTests {
     PlanState(
       completed: completed,
       immediate: nil,
-      midTerm: "",
-      longTerm: ""
+      candidates: [],
+      strategicContext: .empty
     )
   }
 
@@ -1175,17 +1185,40 @@ struct CriticVerdictDecoderTests {
 }
 
 struct PlanningEnvelopeDecoderTests {
-  @Test func planRunResultDecoderAcceptsPlanningStateAliasesFromLessCapableModels() throws {
+  @Test func planRunResultDecoderAcceptsCanonicalTypedPlanningState() throws {
     let data = Data(
       """
       {
-        "planState": {
-          "next": {
-            "handoff": "Build the envelope decoder tolerance.",
-            "test_command": "swift test --filter PlanningEnvelopeDecoderTests"
+        "state": {
+          "immediate": {
+            "plan": "Build the envelope decoder tolerance.",
+            "verify": "swift test --filter PlanningEnvelopeDecoderTests",
+            "selectedBecause": "It is the smallest decoder-hardening slice.",
+            "source": "candidate",
+            "candidateID": "decoder-hardening"
           },
-          "near_term_queue": "- Continue payload hardening",
-          "strategic_arc": "Make Compass forgiving at the edges and strict at the core."
+          "candidates": [
+            {
+              "id": "payload-hardening",
+              "title": "Continue payload hardening",
+              "outcome": "Planning payloads stay strict and readable.",
+              "category": "reliability",
+              "origin": "plan",
+              "priority": "medium",
+              "status": "available",
+              "why": "It keeps submit-result failures actionable.",
+              "evidence": [],
+              "blockedBy": []
+            }
+          ],
+          "strategicContext": {
+            "thesis": "Make Compass forgiving at the edges and strict at the core.",
+            "principles": [],
+            "constraints": [],
+            "nonGoals": [],
+            "risks": []
+          },
+          "openQuestions": []
         },
         "lesson_edits": {
           "find": "old planning lesson",
@@ -1201,24 +1234,32 @@ struct PlanningEnvelopeDecoderTests {
     try #require(result.state.immediate?.plan == "Build the envelope decoder tolerance.")
     try #require(
       result.state.immediate?.verify == "swift test --filter PlanningEnvelopeDecoderTests")
-    try #require(result.state.midTerm == "- Continue payload hardening")
+    try #require(result.state.candidates.map(\.title) == ["Continue payload hardening"])
     try #require(
-      result.state.longTerm == "Make Compass forgiving at the edges and strict at the core.")
+      result.state.strategicContext.thesis
+        == "Make Compass forgiving at the edges and strict at the core.")
     try #require(result.lessonEdits.count == 1)
     try #require(result.lessonEdits[0].replaceAll == false)
   }
 
-  @Test func reflectSummaryDecoderAcceptsPlanningStateAliasesFromLessCapableModels() throws {
+  @Test func reflectSummaryDecoderAcceptsCanonicalTypedPlanningState() throws {
     let data = Data(
       """
       {
-        "planning_state": {
+        "state": {
           "immediate": null,
-          "nearTermQueue": "",
-          "strategicArc": "Keep the factory understandable to non-engineers."
+          "candidates": [],
+          "strategicContext": {
+            "thesis": "Keep the factory understandable to non-engineers.",
+            "principles": [],
+            "constraints": [],
+            "nonGoals": [],
+            "risks": []
+          },
+          "openQuestions": []
         },
         "reflection": [
-          "The arc still points at non-engineer UX.",
+          "The strategy still points at non-engineer UX.",
           "No immediate planning update is needed."
         ],
         "lesson_edits": "none"
@@ -1229,28 +1270,44 @@ struct PlanningEnvelopeDecoderTests {
     let summary = try JSONDecoder().decode(ReflectSummary.self, from: data)
 
     try #require(summary.state?.immediate == nil)
-    try #require(summary.state?.midTerm == "")
-    try #require(summary.state?.longTerm == "Keep the factory understandable to non-engineers.")
+    try #require(summary.state?.candidates == [])
+    try #require(
+      summary.state?.strategicContext.thesis
+        == "Keep the factory understandable to non-engineers.")
     try #require(
       summary.summary
-        == "The arc still points at non-engineer UX.\nNo immediate planning update is needed."
+        == "The strategy still points at non-engineer UX.\nNo immediate planning update is needed."
     )
     try #require(summary.lessonEdits.isEmpty)
   }
 
-  @Test func planProposalDecoderAcceptsRunwayArraysForFreeformText() throws {
+  @Test func planProposalDecoderAcceptsCanonicalTypedState() throws {
     let data = Data(
       """
       {
-        "next_immediate": null,
-        "near_term_queue": [
-          "- Harden weak-model recovery.",
-          "- Keep owner-facing status clear."
+        "immediate": null,
+        "candidates": [
+          {
+            "id": "weak-model-recovery",
+            "title": "Harden weak-model recovery",
+            "outcome": "Recovery copy names the repairable field.",
+            "category": "reliability",
+            "origin": "reflect",
+            "priority": "high",
+            "status": "available",
+            "why": "It makes model mistakes recoverable instead of mysterious.",
+            "evidence": ["Recent submit_result rejection was confusing."],
+            "blockedBy": []
+          }
         ],
-        "strategic_arc": [
-          "Keep the factory understandable to non-engineers.",
-          "Make model mistakes recoverable instead of mysterious."
-        ]
+        "strategicContext": {
+          "thesis": "Keep the factory understandable to non-engineers.",
+          "principles": ["Make model mistakes recoverable instead of mysterious."],
+          "constraints": [],
+          "nonGoals": [],
+          "risks": []
+        },
+        "openQuestions": []
       }
       """.utf8
     )
@@ -1258,14 +1315,11 @@ struct PlanningEnvelopeDecoderTests {
     let proposal = try JSONDecoder().decode(PlanProposal.self, from: data)
 
     try #require(proposal.immediate == nil)
+    try #require(proposal.candidates.map(\.title) == ["Harden weak-model recovery"])
+    try #require(proposal.strategicContext.thesis == "Keep the factory understandable to non-engineers.")
     try #require(
-      proposal.midTerm
-        == "- Harden weak-model recovery.\n- Keep owner-facing status clear."
-    )
-    try #require(
-      proposal.longTerm
-        == "Keep the factory understandable to non-engineers.\nMake model mistakes recoverable instead of mysterious."
-    )
+      proposal.strategicContext.principles
+        == ["Make model mistakes recoverable instead of mysterious."])
   }
 }
 

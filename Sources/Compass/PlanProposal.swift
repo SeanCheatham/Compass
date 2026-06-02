@@ -4,68 +4,61 @@ import Foundation
 /// by Compass and is not part of the Plan/Reflect submit_result contract.
 struct PlanProposal: Codable, Equatable {
   var immediate: PlanNext?
-  var midTerm: String
-  var longTerm: String
+  var candidates: [PlanCandidate]
+  var strategicContext: PlanStrategicContext
+  var openQuestions: [PlanQuestion]
+
+  var candidatesMarkdown: String {
+    candidates.map { "- \($0.title)" }.joined(separator: "\n")
+  }
+
+  var strategicContextMarkdown: String {
+    strategicContext.markdownSummary
+  }
 
   enum CodingKeys: String, CodingKey {
     case immediate
-    case next
-    case nextImmediate
-    case nextImmediateSnake = "next_immediate"
-    case immediatePlan
-    case immediatePlanSnake = "immediate_plan"
-    case midTerm
-    case midterm
-    case mid_term
-    case nearTerm
-    case nearTermSnake = "near_term"
-    case nearTermQueue
-    case nearTermQueueSnake = "near_term_queue"
-    case longTerm
-    case longterm
-    case long_term
-    case strategicArc
-    case strategicArcSnake = "strategic_arc"
+    case candidates
+    case strategicContext
+    case openQuestions
   }
 
-  init(immediate: PlanNext?, midTerm: String, longTerm: String) {
+  init(
+    immediate: PlanNext?,
+    candidates: [PlanCandidate],
+    strategicContext: PlanStrategicContext,
+    openQuestions: [PlanQuestion] = []
+  ) {
     self.immediate = immediate
-    self.midTerm = midTerm
-    self.longTerm = longTerm
+    self.candidates = candidates
+    self.strategicContext = strategicContext
+    self.openQuestions = openQuestions
   }
 
   init(from state: PlanState) {
     immediate = state.immediate
-    midTerm = state.midTerm
-    longTerm = state.longTerm
+    candidates = state.candidates
+    strategicContext = state.strategicContext
+    openQuestions = state.openQuestions
   }
 
-  static let empty = PlanProposal(immediate: nil, midTerm: "", longTerm: "")
+  static let empty = PlanProposal(
+    immediate: nil,
+    candidates: [],
+    strategicContext: .empty,
+    openQuestions: []
+  )
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     immediate = try Self.decodeRequiredOptionalPlanNext(
       from: container,
       preferredKey: .immediate,
-      aliases: [
-        .next, .nextImmediate, .nextImmediateSnake, .immediatePlan, .immediatePlanSnake,
-      ],
       fieldName: "immediate"
     )
-    midTerm = try Self.decodeRequiredString(
-      from: container,
-      preferredKey: .midTerm,
-      aliases: [
-        .midterm, .mid_term, .nearTerm, .nearTermSnake, .nearTermQueue, .nearTermQueueSnake,
-      ],
-      fieldName: "midTerm"
-    )
-    longTerm = try Self.decodeRequiredString(
-      from: container,
-      preferredKey: .longTerm,
-      aliases: [.longterm, .long_term, .strategicArc, .strategicArcSnake],
-      fieldName: "longTerm"
-    )
+    candidates = try container.decode([PlanCandidate].self, forKey: .candidates)
+    strategicContext = try container.decode(PlanStrategicContext.self, forKey: .strategicContext)
+    openQuestions = try container.decode([PlanQuestion].self, forKey: .openQuestions)
   }
 
   func encode(to encoder: Encoder) throws {
@@ -74,36 +67,103 @@ struct PlanProposal: Codable, Equatable {
     if immediate == nil {
       try container.encodeNil(forKey: .immediate)
     }
-    try container.encode(midTerm, forKey: .midTerm)
-    try container.encode(longTerm, forKey: .longTerm)
+    try container.encode(candidates, forKey: .candidates)
+    try container.encode(strategicContext, forKey: .strategicContext)
+    try container.encode(openQuestions, forKey: .openQuestions)
   }
 
   func applying(to state: PlanState) -> PlanState {
     PlanState(
       completed: state.completed,
       immediate: immediate,
-      midTerm: midTerm,
-      longTerm: longTerm
+      candidates: candidates,
+      strategicContext: strategicContext,
+      openQuestions: openQuestions
     )
   }
 
   func removingHostXcodeRequirement() -> PlanProposal {
     guard var immediate else { return self }
     immediate.requiresHostXcode = false
-    return PlanProposal(immediate: immediate, midTerm: midTerm, longTerm: longTerm)
+    return PlanProposal(
+      immediate: immediate,
+      candidates: candidates,
+      strategicContext: strategicContext,
+      openQuestions: openQuestions
+    )
+  }
+
+  func promptDigest(
+    maxCandidates: Int = 6,
+    maxStrategicBullets: Int = 5,
+    maxOpenQuestions: Int = 4
+  ) -> PlanProposal {
+    let compactCandidates =
+      candidates
+      .filter { $0.status != .done && $0.status != .stale }
+      .prefix(max(0, maxCandidates))
+      .map { candidate in
+        PlanCandidate(
+          id: candidate.id,
+          title: Self.bounded(candidate.title, limit: 96),
+          outcome: Self.bounded(candidate.outcome, limit: 160),
+          why: Self.bounded(candidate.why, limit: 160),
+          category: candidate.category,
+          origin: candidate.origin,
+          priority: candidate.priority,
+          status: candidate.status,
+          evidence: candidate.evidence.prefix(3).map { Self.bounded($0, limit: 160) },
+          blockedBy: candidate.blockedBy.prefix(2).map { Self.bounded($0, limit: 120) },
+          risk: candidate.risk.map { Self.bounded($0, limit: 160) }
+        )
+      }
+    let compactContext = PlanStrategicContext(
+      thesis: Self.bounded(strategicContext.thesis, limit: 500),
+      principles: strategicContext.principles.prefix(maxStrategicBullets).map {
+        Self.bounded($0, limit: 180)
+      },
+      constraints: strategicContext.constraints.prefix(maxStrategicBullets).map {
+        Self.bounded($0, limit: 180)
+      },
+      nonGoals: strategicContext.nonGoals.prefix(maxStrategicBullets).map {
+        Self.bounded($0, limit: 180)
+      },
+      risks: strategicContext.risks.prefix(maxStrategicBullets).map {
+        Self.bounded($0, limit: 180)
+      }
+    )
+    let compactQuestions = openQuestions.prefix(maxOpenQuestions).map {
+      PlanQuestion(
+        id: $0.id,
+        question: Self.bounded($0.question, limit: 180),
+        impact: Self.bounded($0.impact, limit: 160)
+      )
+    }
+    return PlanProposal(
+      immediate: immediate,
+      candidates: Array(compactCandidates),
+      strategicContext: compactContext,
+      openQuestions: Array(compactQuestions)
+    )
+  }
+
+  private static func bounded(_ value: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    guard value.count > limit else { return value }
+    guard limit > 3 else { return String(value.prefix(limit)) }
+    return value.prefix(limit - 3).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
   }
 
   private static func decodeRequiredOptionalPlanNext(
     from container: KeyedDecodingContainer<CodingKeys>,
     preferredKey: CodingKeys,
-    aliases: [CodingKeys],
     fieldName: String
   ) throws -> PlanNext? {
     var sawPresentKey = false
     var decodedNull = false
     var firstTypeError: Error?
 
-    for key in [preferredKey] + aliases where container.contains(key) {
+    for key in [preferredKey] where container.contains(key) {
       sawPresentKey = true
       do {
         if let value = try container.decodeIfPresent(PlanNext.self, forKey: key) {
@@ -131,39 +191,6 @@ struct PlanProposal: Codable, Equatable {
       throw firstTypeError
     }
     return nil
-  }
-
-  private static func decodeRequiredString(
-    from container: KeyedDecodingContainer<CodingKeys>,
-    preferredKey: CodingKeys,
-    aliases: [CodingKeys],
-    fieldName: String
-  ) throws -> String {
-    var sawPresentKey = false
-    var firstTypeError: Error?
-
-    for key in [preferredKey] + aliases where container.contains(key) {
-      sawPresentKey = true
-      do {
-        return try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: key)
-      } catch {
-        firstTypeError = firstTypeError ?? error
-      }
-    }
-
-    if !sawPresentKey {
-      throw DecodingError.keyNotFound(
-        preferredKey,
-        .init(
-          codingPath: container.codingPath,
-          debugDescription: "PlanProposal requires \(fieldName)."
-        )
-      )
-    }
-    if let firstTypeError {
-      throw firstTypeError
-    }
-    return ""
   }
 }
 

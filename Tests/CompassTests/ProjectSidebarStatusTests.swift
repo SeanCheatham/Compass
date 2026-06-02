@@ -308,8 +308,8 @@ struct ProjectSidebarStatusTests {
     PlanState(
       completed: [],
       immediate: immediate,
-      midTerm: "",
-      longTerm: ""
+      candidates: "",
+      strategicContext: ""
     )
   }
 

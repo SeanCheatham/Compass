@@ -56,8 +56,8 @@ final class CompassWorkspaceTests {
     let state = makeState(
       completed: ["external"],
       immediate: PlanNext(plan: "Use injected storage", verify: "swift test"),
-      midTerm: "next",
-      longTerm: "later"
+      candidates: "next",
+      strategicContext: "later"
     )
     let records = [SessionRecord.started(4)]
 
@@ -306,7 +306,7 @@ final class CompassWorkspaceTests {
     try createDirectory(workspace.compassURL)
     try createDirectory(workspace.sessionsURL)
 
-    let state = makeState(completed: ["keep"], midTerm: "queued", longTerm: "vision")
+    let state = makeState(completed: ["keep"], candidates: "queued", strategicContext: "vision")
     try write(try CompassWorkspace.encodeState(state), to: workspace.stateURL)
     try write("existing drafts\n", to: workspace.draftsURL)
     try write("existing lessons\n", to: workspace.lessonsURL)
@@ -329,7 +329,7 @@ final class CompassWorkspaceTests {
     let workspace = CompassWorkspace(repoURL: repoURL)
     try createDirectory(workspace.compassURL)
 
-    let preservedState = makeState(completed: ["preserve"], midTerm: "next", longTerm: "later")
+    let preservedState = makeState(completed: ["preserve"], candidates: "next", strategicContext: "later")
     try write(try CompassWorkspace.encodeState(preservedState), to: workspace.stateURL)
     try write("existing lessons\n", to: workspace.lessonsURL)
     try write("build", to: repoURL.appending(path: ".gitignore"))
@@ -378,8 +378,8 @@ final class CompassWorkspaceTests {
         verifyTimeoutMs: 120_000,
         estimatedDifficulty: .medium
       ),
-      midTerm: "- Follow up",
-      longTerm: "Ship it"
+      candidates: "- Follow up",
+      strategicContext: "Ship it"
     )
 
     try workspace.writeState(state)
@@ -532,7 +532,7 @@ final class CompassWorkspaceTests {
     let workspace = try makeInitializedWorkspace()
     try workspace.writeLessons("- Existing\n")
     let payload = """
-      {"state":{"immediate":null,"midTerm":[],"longTerm":"x"},"lessonEdits":[{"find":"Missing","replace":"Replacement"}]}
+      {"state":{"immediate":null,"candidates":[],"strategicContext":"x"},"lessonEdits":[{"find":"Missing","replace":"Replacement"}]}
       """
 
     try assertLessonEditFailure(
@@ -547,7 +547,7 @@ final class CompassWorkspaceTests {
     try workspace.writeLessons("- Existing\n- Existing\n")
     let payload = """
       {
-        "state": {"immediate": null, "midTerm": [], "longTerm": "x"},
+        "state": {"immediate": null, "candidates": [], "strategicContext": "x"},
         "lesson_edits": [
           {
             "find": "Existing",
@@ -567,7 +567,7 @@ final class CompassWorkspaceTests {
     try workspace.writeLessons("- Existing\n- Existing\n")
     let payload = """
       {
-        "state": {"immediate": null, "midTerm": [], "longTerm": "x"},
+        "state": {"immediate": null, "candidates": [], "strategicContext": "x"},
         "lesson_edits": {
           "old_text": "Existing",
           "new_text": "Replacement",
@@ -584,7 +584,7 @@ final class CompassWorkspaceTests {
     let workspace = try makeInitializedWorkspace()
     try workspace.writeLessons("- Existing\n")
     let payload = """
-      {"state":{"immediate":null,"midTerm":[],"longTerm":"x"},"lesson_edits":"no changes"}
+      {"state":{"immediate":null,"candidates":[],"strategicContext":"x"},"lesson_edits":"no changes"}
       """
 
     try workspace.validateSubmitResultLessonEdits(Data(payload.utf8))
@@ -595,7 +595,7 @@ final class CompassWorkspaceTests {
     let workspace = try makeInitializedWorkspace()
     try workspace.writeLessons("- Existing\n")
     let payload = """
-      {"state":{"immediate":null,"midTerm":[],"longTerm":"x"}}
+      {"state":{"immediate":null,"candidates":[],"strategicContext":"x"}}
       """
 
     try workspace.validateSubmitResultLessonEdits(Data(payload.utf8))
@@ -626,14 +626,14 @@ final class CompassWorkspaceTests {
   private func makeState(
     completed: [String] = [],
     immediate: PlanNext? = nil,
-    midTerm: String = "",
-    longTerm: String = ""
+    candidates: String = "",
+    strategicContext: String = ""
   ) -> PlanState {
     PlanState(
       completed: completed,
       immediate: immediate,
-      midTerm: midTerm,
-      longTerm: longTerm
+      candidates: candidates,
+      strategicContext: strategicContext
     )
   }
 

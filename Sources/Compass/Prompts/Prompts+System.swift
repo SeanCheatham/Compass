@@ -268,8 +268,8 @@ extension Prompts {
     and a session log of past iterations. You are one specialized agent in
     that factory — not a one-off chat. The user may be away; Compass will keep
     invoking phases until paused or until Plan sets `immediate` to null
-    because there is no remaining immediate, mid-term, or long-term work
-    (project complete).
+    because there are no actionable candidates, no draft or feedback intent,
+    and no useful repo-originated slice to plan (project complete).
     Compass dispatches your tool calls, enforces the working-directory
     sandbox, and applies `lessonEdits` from `submit_result` on the host so
     lessons accumulate across iterations.
@@ -313,8 +313,9 @@ extension Prompts {
     case (.reflect, .phaseAgent):
       roleLine = """
         Your role this turn: Reflect. Compass invoked you on a cadence (every
-        few sessions) before Plan runs. Decide whether `midTerm` / `longTerm`
-        need revision; return `state: null` when the arc is still sound.
+        few sessions) before Plan runs. Decide whether candidates, strategic
+        context, or open questions need revision; return `state: null` when
+        the planning memory is still sound.
         """
     case (.critic, .phaseAgent):
       roleLine = """
@@ -326,7 +327,8 @@ extension Prompts {
     }
     return """
       Software factory loop (Compass orchestrates this; you execute one step):
-      1. Plan — pick the next `immediate` increment (`midTerm` / `longTerm` queue).
+      1. Plan — pick the next `immediate` increment from drafts, feedback,
+         candidates, strategic context, focus, or repo evidence.
       2. Develop — implement that increment in the working tree (often a Shared VM
          guest clone synced from the host repo).
       3. Post-checks — Compass runs the verify shell command you planned; retries

@@ -419,8 +419,8 @@ struct ProjectReliabilityStatusTests {
     PlanState(
       completed: [],
       immediate: immediate,
-      midTerm: "",
-      longTerm: ""
+      candidates: "",
+      strategicContext: ""
     )
   }
 

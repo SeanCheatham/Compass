@@ -299,8 +299,8 @@ struct LiveTimelineGuideTests {
         state: PlanState(
           completed: [],
           immediate: nil,
-          midTerm: "",
-          longTerm: ""
+          candidates: "",
+          strategicContext: ""
         ),
         sessions: []
       )
@@ -316,8 +316,8 @@ struct LiveTimelineGuideTests {
             plan: "Fix the failing check.",
             verify: "swift test --filter LiveTimelineGuideTests"
           ),
-          midTerm: "",
-          longTerm: ""
+          candidates: "",
+          strategicContext: ""
         ),
         sessions: [
           SessionRecord(

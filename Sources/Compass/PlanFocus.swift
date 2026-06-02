@@ -41,16 +41,14 @@ enum PlanFocus: String, CaseIterable, Equatable {
   /// Guidance injected into the Plan prompt. Drafts still win over
   /// the focus — the language here mirrors the "Strong steer"
   /// interaction model: when the planner has discretion, it picks a
-  /// midTerm item that matches the focus (even if it means skipping
-  /// the head of the queue) or originates work in that category.
+  /// candidate that matches the focus or originates work in that category.
   var promptGuidance: String {
     let header = "## Focus for this iteration: \(displayName)"
     let interaction = """
       Drafts always win — if the user supplied drafts, honor them and
       ignore the focus. Otherwise let the focus steer your choice:
-      pick the midTerm item that best matches the focus (even if it
-      means skipping the head of the queue), or originate a new
-      increment in this category from the repo state. If absolutely
+      pick the available candidate that best matches the focus, or
+      originate a new candidate in this category from the repo state. If absolutely
       nothing in the repo fits this focus right now, pick the most
       useful increment you can and note in the plan body why the
       focus did not apply.

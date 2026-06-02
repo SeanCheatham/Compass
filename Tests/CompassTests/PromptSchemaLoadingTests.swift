@@ -104,12 +104,30 @@ struct PromptSchemaLoadingTests {
   }
 
   private func planImmediateProperties(_ schema: String) throws -> [String: Any] {
-    let rootProperties = try schemaProperties(schema)
+    let parsed = try JSONSerialization.jsonObject(with: Data(schema.utf8))
+    let root = try #require(parsed as? [String: Any])
+    let rootProperties = try #require(root["properties"] as? [String: Any])
     let state = try #require(rootProperties["state"] as? [String: Any])
     let stateProperties = try #require(state["properties"] as? [String: Any])
-    let immediate = try #require(stateProperties["immediate"] as? [String: Any])
+    let immediate = try resolvedSchemaObject(
+      try #require(stateProperties["immediate"] as? [String: Any]),
+      root: root
+    )
     let variants = try #require(immediate["anyOf"] as? [[String: Any]])
     let objectVariant = try #require(variants.first { $0["type"] as? String == "object" })
     return try #require(objectVariant["properties"] as? [String: Any])
+  }
+
+  private func resolvedSchemaObject(
+    _ object: [String: Any],
+    root: [String: Any]
+  ) throws -> [String: Any] {
+    guard let ref = object["$ref"] as? String else { return object }
+    let components = ref.split(separator: "/").map(String.init)
+    guard components == ["#", "$defs", "immediate"] else {
+      return object
+    }
+    let defs = try #require(root["$defs"] as? [String: Any])
+    return try #require(defs["immediate"] as? [String: Any])
   }
 }

@@ -15,10 +15,16 @@ extension Prompts {
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
     let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()
-    let stateJSON = try CompassWorkspace.encodeProposal(promptState)
+    let stateJSON = try CompassWorkspace.encodeProposal(promptState.promptDigest())
     let draftIntakeGuide = DraftIntakeGuide(drafts: drafts)
+    let lessonsDigest = compactPromptBlock(lessons, maxLines: 8, maxCharacters: 1800)
+    let assumptionsDigest = compactPromptBlock(assumptions, maxLines: 8, maxCharacters: 1800)
+    let feedbackDigest = compactPromptBlock(feedback, maxLines: 8, maxCharacters: 1800)
+    let visionDigest = compactPromptBlock(vision, maxLines: 10, maxCharacters: 2400)
+    let includeHostXcodeGuidance =
+      hostXcodeBuildTestEnabled && forgeProfile != .rustCargo && forgeProfile != .typeScriptVitest
     let hostXcodePlanningRule =
-      hostXcodeBuildTestEnabled
+      includeHostXcodeGuidance
       ? """
       - Shared VM develop/verify runs in the guest unless this increment uses
         host Xcode. For Swift, SwiftPM, macOS/iOS/tvOS/watchOS,
@@ -37,7 +43,7 @@ extension Prompts {
       """
       : sharedVMApplePlatformPlanningRuleWhenHostXcodeDisabled(forgeProfile: forgeProfile)
     let compassTestsMigrationRule =
-      hostXcodeBuildTestEnabled
+      includeHostXcodeGuidance
       ? """
       - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
         guest `swift test` as verify. Use host `xcodebuild ... test` with
@@ -50,11 +56,11 @@ extension Prompts {
         for compile-only guest increments.
       """
     let hostXcodeShape =
-      hostXcodeBuildTestEnabled
+      includeHostXcodeGuidance
       ? ",\n            \"requiresHostXcode\": true"
       : ""
     let hostXcodeShapeGuidance =
-      hostXcodeBuildTestEnabled
+      includeHostXcodeGuidance
       ? "When the field appears, set `requiresHostXcode` to the boolean `true` or `false`; do not combine both choices in the JSON value."
       : ""
     return """
@@ -73,8 +79,8 @@ extension Prompts {
       - Completed plan history is managed by Compass, not by submit_result.
         Compass has \(completedCount) completed iteration(s) on record. Use the
         `plan_history` tool when prior shipped work would inform your choice.
-      - Revise `midTerm` and `longTerm` when this iteration has a concrete
-        reason to change them.
+      - Revise `candidates`, `strategicContext`, and `openQuestions` only when
+        this iteration has a concrete reason. Do not use them as archives.
       - Ground the plan in the repository before choosing work.
       - Default to returning an Immediate Plan. Compass projects are almost
         never truly done; if you can name any useful cleanup, test, polish,
@@ -94,6 +100,10 @@ extension Prompts {
         `pytest`, or `Verify: ...` as acceptance bullets.
         Do not use placeholder checks like `the planned behavior is
         implemented`, `it works`, or unedited template text.
+      - Set `immediate.selectedBecause` to a one-sentence reason for choosing
+        this slice now. Set `immediate.source` to one of: `draft`, `feedback`,
+        `candidate`, `focus`, `repository`, `repair`. If the slice came from a
+        candidate, set `immediate.candidateID` to that candidate's `id`.
       - If the increment touches feature-gated, optional-provider, platform-specific,
         or conditional-compilation code, plan a verify matrix that compiles the
         relevant variants (for Rust/Cargo this usually means including
@@ -106,21 +116,26 @@ extension Prompts {
       - Avoid brittle grep-only verify commands. If a verify step uses `grep`,
         make the intended presence/absence semantics explicit so "no matches"
         cannot accidentally fail a successful build.
-      - Use `immediate: null` only when the project is genuinely complete:
-        every goal is shipped, `midTerm` and `longTerm` were already exhausted,
-        they remain exhausted, and you cannot identify a useful next increment.
+      - Use `immediate: null` only when there are no actionable candidates,
+        no blocking feedback, no useful repo-originated cleanup/test/docs slice,
+        and no draft intent waiting to be turned into work.
+        Strategic context alone is not remaining work.
       - If feedback reports a blocker, plan the next smallest step that resolves
         it or rescope so Develop can make progress.
-      - If drafts are empty, promote a useful `midTerm` item or originate a plan
-        from the repo, lessons, completed history, and long-term arc.
+      - If drafts are empty, choose a useful candidate that matches the focus, or
+        originate a new candidate from the repo, lessons, completed history, and
+        strategic context.
       - Use the Draft readiness map as a deterministic checklist for user
         intent. Raw drafts are still authoritative; the map only tells you
         whether each draft already names an Outcome, Why, and Success signal.
         If a signal is missing, preserve the user's words and supply the
         missing clarity in the Immediate handoff instead of inventing facts.
-      - Keep `midTerm` to the next 3-7 useful increments.
-      - Keep `longTerm` strategic and stable; revise it only when something
-        material changes.
+      - Keep `candidates` to at most 6 active candidate directions. Drop `done`
+        and `stale` entries instead of carrying shipped archives forward.
+      - Keep `strategicContext` strategic and stable: thesis, principles,
+        constraints, non-goals, and risks. Do not put task lists or shipped
+        milestone inventories there.
+      - Keep `openQuestions` to at most 4 consequential unresolved questions.
       - Never choose placeholder verify commands like `true`, `exit 0`,
         `echo no tests`, `not-running-tests`, `none`, or `n/a`.
       \(compassTestsMigrationRule)
@@ -163,10 +178,34 @@ extension Prompts {
             "plan": "markdown plan for one implementation increment",
             "verify": "shell command — no `cd` prefix, no absolute paths",
             "verifyTimeoutMs": 600000,
-            "estimatedDifficulty": "low"\(hostXcodeShape)
+            "estimatedDifficulty": "low",
+            "selectedBecause": "why this slice is the right next step",
+            "source": "candidate",
+            "candidateID": "candidate-id-if-applicable"\(hostXcodeShape)
           },
-          "midTerm": "markdown",
-          "longTerm": "markdown"
+          "candidates": [
+            {
+              "id": "stable-slug",
+              "title": "short candidate title",
+              "outcome": "what would change",
+              "why": "why this remains worth doing",
+              "category": "feature",
+              "origin": "plan",
+              "priority": "medium",
+              "status": "available",
+              "evidence": [],
+              "blockedBy": [],
+              "risk": null
+            }
+          ],
+          "strategicContext": {
+            "thesis": "durable product intent",
+            "principles": [],
+            "constraints": [],
+            "nonGoals": [],
+            "risks": []
+          },
+          "openQuestions": []
         },
         "lessonEdits": [
           {
@@ -178,12 +217,15 @@ extension Prompts {
       }
       Replace `"estimatedDifficulty": "low"` with `"medium"` or `"high"` only when \
       that better fits. If the project is genuinely complete, replace the entire \
-      `immediate` object with `null`; keep `midTerm`, `longTerm`, and `lessonEdits` \
-      present. \(hostXcodeShapeGuidance)
+      `immediate` object with `null`; keep `candidates`, `strategicContext`, \
+      `openQuestions`, and `lessonEdits` present. \(hostXcodeShapeGuidance)
 
       \(focus.promptGuidance)
 
       ## Current planning state
+      Compact digest only. Compass intentionally omits shipped roadmap archives
+      from this block; use `plan_history` if older shipped work matters.
+
       ```json
       \(stateJSON)
       ```
@@ -205,16 +247,16 @@ extension Prompts {
       This is the latest non-empty Develop feedback from a prior completed
       session. Use it to fix a blocker or continue from state alone.
 
-      \(fencedOrEmpty(feedback, empty: "_(no feedback)_"))
+      \(fencedOrEmpty(feedbackDigest, empty: "_(no feedback)_"))
 
       ## Lessons
-      \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
+      \(fencedOrEmpty(lessonsDigest, empty: "_(no lessons yet)_"))
 
       ## Assumptions
-      \(fencedOrEmpty(assumptions, empty: "_(no assumptions recorded)_"))
+      \(fencedOrEmpty(assumptionsDigest, empty: "_(no assumptions recorded)_"))
 
       ## Vision
-      \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
+      \(fencedOrEmpty(visionDigest, empty: "_(no vision set)_"))
 
       \(forgeProfileSection(forgeProfile: forgeProfile))
 
@@ -224,5 +266,29 @@ extension Prompts {
       When you have decided the next increment, call submit_result with the
       arguments shape above.
       """
+  }
+
+  private static func compactPromptBlock(
+    _ text: String,
+    maxLines: Int,
+    maxCharacters: Int
+  ) -> String {
+    let normalized = text
+      .replacingOccurrences(of: "\r\n", with: "\n")
+      .replacingOccurrences(of: "\r", with: "\n")
+    var seen = Set<String>()
+    var lines: [String] = []
+    for rawLine in normalized.components(separatedBy: "\n") {
+      let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !line.isEmpty else { continue }
+      guard !seen.contains(line) else { continue }
+      seen.insert(line)
+      lines.append(line)
+      if lines.count >= maxLines { break }
+    }
+    let joined = lines.joined(separator: "\n")
+    guard joined.count > maxCharacters else { return joined }
+    return String(joined.prefix(max(0, maxCharacters - 3)))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
   }
 }

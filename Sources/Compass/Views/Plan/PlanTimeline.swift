@@ -108,8 +108,9 @@ struct PlanTimelineTickButton: View {
 
 struct PlanTimelineItem: Identifiable, Equatable {
   static let immediateID = PlanWorkflowOverview.TimelineDestination.immediate.itemID
-  private static let midTermID = PlanWorkflowOverview.TimelineDestination.midTerm.itemID
-  private static let longTermID = PlanWorkflowOverview.TimelineDestination.longTerm.itemID
+  private static let candidatesID = PlanWorkflowOverview.TimelineDestination.candidates.itemID
+  private static let strategicContextID =
+    PlanWorkflowOverview.TimelineDestination.strategicContext.itemID
 
   var id: String
   var kind: Kind
@@ -154,37 +155,37 @@ struct PlanTimelineItem: Identifiable, Equatable {
       emptyMessage: "No immediate plan."
     )
 
-    let midTerm = PlanTimelineItem(
-      id: midTermID,
-      kind: .midTerm,
-      title: "Mid-Term",
-      body: state.midTerm,
-      emptyMessage: "No mid-term queue."
+    let candidates = PlanTimelineItem(
+      id: candidatesID,
+      kind: .candidates,
+      title: "Candidates",
+      body: state.candidatesMarkdown,
+      emptyMessage: "No candidate directions."
     )
 
-    let longTerm = PlanTimelineItem(
-      id: longTermID,
-      kind: .longTerm,
-      title: "Long-Term",
-      body: state.longTerm,
-      emptyMessage: "No long-term arc."
+    let strategicContext = PlanTimelineItem(
+      id: strategicContextID,
+      kind: .strategicContext,
+      title: "Strategy",
+      body: state.strategicContextMarkdown,
+      emptyMessage: "No strategic context."
     )
 
-    return history + [immediate, midTerm, longTerm]
+    return history + [immediate, candidates, strategicContext]
   }
 
   enum Kind: Equatable {
     case history
     case immediate
-    case midTerm
-    case longTerm
+    case candidates
+    case strategicContext
 
     var label: String {
       switch self {
       case .history: return "History"
       case .immediate: return "Next"
-      case .midTerm: return "Queue"
-      case .longTerm: return "Arc"
+      case .candidates: return "Candidates"
+      case .strategicContext: return "Context"
       }
     }
 
@@ -192,8 +193,8 @@ struct PlanTimelineItem: Identifiable, Equatable {
       switch self {
       case .history: return "circle.fill"
       case .immediate: return "target"
-      case .midTerm: return "point.3.connected.trianglepath.dotted"
-      case .longTerm: return "mountain.2.fill"
+      case .candidates: return "point.3.connected.trianglepath.dotted"
+      case .strategicContext: return "mountain.2.fill"
       }
     }
 
@@ -201,43 +202,43 @@ struct PlanTimelineItem: Identifiable, Equatable {
       switch self {
       case .history: return .secondary
       case .immediate: return .blue
-      case .midTerm: return .orange
-      case .longTerm: return .purple
+      case .candidates: return .orange
+      case .strategicContext: return .purple
       }
     }
 
     var width: CGFloat {
       switch self {
       case .history: return 18
-      case .immediate, .midTerm, .longTerm: return 112
+      case .immediate, .candidates, .strategicContext: return 112
       }
     }
 
     var hitSize: CGFloat {
       switch self {
       case .history: return 14
-      case .immediate, .midTerm, .longTerm: return 34
+      case .immediate, .candidates, .strategicContext: return 34
       }
     }
 
     var iconSize: CGFloat {
       switch self {
       case .history: return 5
-      case .immediate, .midTerm, .longTerm: return 16
+      case .immediate, .candidates, .strategicContext: return 16
       }
     }
 
     var backgroundOpacity: Double {
       switch self {
       case .history: return 0.05
-      case .immediate, .midTerm, .longTerm: return 0.13
+      case .immediate, .candidates, .strategicContext: return 0.13
       }
     }
 
     var idleOpacity: Double {
       switch self {
       case .history: return 0.36
-      case .immediate, .midTerm, .longTerm: return 0.85
+      case .immediate, .candidates, .strategicContext: return 0.85
       }
     }
 

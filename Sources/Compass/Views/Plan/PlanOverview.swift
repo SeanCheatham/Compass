@@ -213,7 +213,7 @@ struct PlanWorkflowOverviewView: View {
       HStack(alignment: .firstTextBaseline) {
         VStack(alignment: .leading, spacing: 3) {
           SectionHeader("Workflow Overview", systemImage: "rectangle.3.group")
-          Text("Current work, queued direction, and the strategic arc stay visible together.")
+          Text("Current work, candidate directions, and strategic context stay visible together.")
             .font(.callout)
             .foregroundStyle(.secondary)
         }
@@ -338,9 +338,9 @@ struct PlanWorkflowOverviewCard: View {
     switch section.kind {
     case .immediate:
       return .blue
-    case .midTerm:
+    case .candidates:
       return .orange
-    case .longTerm:
+    case .strategicContext:
       return .purple
     }
   }

@@ -122,8 +122,8 @@ struct PlanPromptTests {
       "plan prompt must frame project completion as rare"
     )
     try #require(
-      prompt.contains("were already exhausted"),
-      "plan prompt must not let the agent clear queues and stop in the same pass"
+      prompt.contains("Strategic context alone is not remaining work"),
+      "plan prompt must not treat strategic context as a task queue"
     )
   }
 
@@ -158,8 +158,8 @@ struct PlanPromptTests {
         verify: "xcodebuild -scheme App build",
         requiresHostXcode: true
       ),
-      midTerm: "",
-      longTerm: ""
+      candidates: "",
+      strategicContext: ""
     )
 
     let prompt = try Prompts.planPrompt(
@@ -293,10 +293,11 @@ struct PlanPromptTests {
     try #require(prompt.contains("\"state\": null"))
     try #require(prompt.contains("\"summary\": \"<why the current plan is still on course>\""))
     try #require(prompt.contains("\"lessonEdits\": []"))
-    try #require(prompt.contains("containing all three keys"))
+    try #require(prompt.contains("containing all required keys"))
     try #require(prompt.contains("\"immediate\": null"))
-    try #require(prompt.contains("\"midTerm\": \"<revised near-term queue>\""))
-    try #require(prompt.contains("\"longTerm\": \"<revised strategic arc>\""))
+    try #require(prompt.contains("\"candidates\": []"))
+    try #require(prompt.contains("\"strategicContext\": {"))
+    try #require(prompt.contains("\"openQuestions\": []"))
     try #require(prompt.contains("copy the full current immediate"))
     try #require(prompt.contains("Do not include completed"))
   }
@@ -324,8 +325,8 @@ struct PlanPromptTests {
       "plan prompt must keep the drafts-win-over-focus rule"
     )
     try #require(
-      prompt.contains("skipping the head of the queue"),
-      "plan prompt must permit the focus to override midTerm order"
+      prompt.contains("pick the available candidate that best matches the focus"),
+      "plan prompt must permit the focus to override candidate order"
     )
   }
 

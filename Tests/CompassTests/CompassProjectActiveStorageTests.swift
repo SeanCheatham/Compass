@@ -96,8 +96,8 @@ final class CompassProjectActiveStorageTests {
     let state = PlanState(
       completed: ["application support"],
       immediate: PlanNext(plan: "Honor active storage", verify: "swift test"),
-      midTerm: "persist",
-      longTerm: "factory"
+      candidates: "persist",
+      strategicContext: "factory"
     )
     let records = [
       SessionRecord(
@@ -158,8 +158,8 @@ final class CompassProjectActiveStorageTests {
     let supportState = PlanState(
       completed: ["scan support sessions"],
       immediate: PlanNext(plan: "Keep Plan state stable", verify: "swift test"),
-      midTerm: "support activity",
-      longTerm: "factory"
+      candidates: "support activity",
+      strategicContext: "factory"
     )
     let supportSessions = [
       makeActivitySession(21, status: .failed, endedAt: 21_000, commits: 1),
@@ -409,8 +409,8 @@ final class CompassProjectActiveStorageTests {
     let state = PlanState(
       completed: ["prepared"],
       immediate: PlanNext(plan: "Use support state", verify: "swift test"),
-      midTerm: "storage",
-      longTerm: "factory"
+      candidates: "storage",
+      strategicContext: "factory"
     )
     try workspace.writeState(state)
     try workspace.writeDrafts("support draft\n")

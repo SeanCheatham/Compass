@@ -16,11 +16,12 @@ struct FoundationModelsSchemaTranslatorTests {
     let developReplaceAll = try property("replaceAll", in: developLessonProperties)
     #expect(try nullableBranchType(in: developReplaceAll) == "boolean")
 
-    let planProperties = try properties(in: schemaObject(Prompts.planSchema))
+    let planSchema = try schemaObject(Prompts.planSchema)
+    let planProperties = try properties(in: planSchema)
     let state = try property("state", in: planProperties)
     let stateProperties = try properties(in: state)
     let immediate = try property("immediate", in: stateProperties)
-    let immediateBranch = try nullableBranch(in: immediate)
+    let immediateBranch = try nullableBranch(in: immediate, root: planSchema)
     #expect(immediateBranch["type"] as? String == "object")
 
     let immediateProperties = try properties(in: immediateBranch)
@@ -50,8 +51,11 @@ struct FoundationModelsSchemaTranslatorTests {
     return try #require(branch["type"] as? String)
   }
 
-  private func nullableBranch(in property: [String: Any]) throws -> [String: Any] {
-    try #require(CompassJSONSchemaTranslation.concreteNullableAnyOfBranch(in: property))
+  private func nullableBranch(
+    in property: [String: Any],
+    root: [String: Any]? = nil
+  ) throws -> [String: Any] {
+    try #require(CompassJSONSchemaTranslation.concreteNullableAnyOfBranch(in: property, root: root))
   }
 
   private func schemaObject(_ schema: String) throws -> [String: Any] {

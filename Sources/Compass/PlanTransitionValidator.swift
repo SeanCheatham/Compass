@@ -44,13 +44,13 @@ enum PlanTransitionValidator {
   )
     throws
   {
-    if !current.midTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && next.midTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    if !current.actionableCandidates.isEmpty
+      && next.actionableCandidates.isEmpty
       && next.completed.count == current.completed.count
     {
       throw PlanTransitionValidationError(
         message:
-          "Plan tried to clear a non-empty midTerm queue without recording a completion. Refusing to overwrite state.json.",
+          "Plan tried to clear all actionable candidates without recording a completion. Refusing to overwrite state.json.",
         reason: .invalidStateMutation
       )
     }
@@ -62,7 +62,7 @@ enum PlanTransitionValidator {
       guard remainingFields.isEmpty else {
         throw PlanTransitionValidationError(
           message:
-            "Plan returned no immediate work while \(formattedFields(remainingFields)) still contains work. Choose one commit-sized Immediate Plan instead; `immediate: null` is only valid when the project had no remaining midTerm or longTerm work before this pass and still has none.",
+            "Plan returned no immediate work while \(formattedFields(remainingFields)) still contains actionable candidates. Choose one commit-sized Immediate Plan instead; `immediate: null` is only valid when there are no available or active candidates and no useful repo-originated slice.",
           reason: .noImmediateWork
         )
       }
@@ -106,6 +106,22 @@ enum PlanTransitionValidator {
         rejectedVerify: verify
       )
     }
+    if immediate.selectedBecause?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+      throw PlanTransitionValidationError(
+        message:
+          "Plan returned an immediate handoff without `selectedBecause`. Explain why this slice is the right next step so the user can audit planning choice quality.",
+        reason: .weakHandoff,
+        missingLabels: ["Selection rationale"]
+      )
+    }
+    if immediate.source == nil {
+      throw PlanTransitionValidationError(
+        message:
+          "Plan returned an immediate handoff without `source`. Set `source` to draft, feedback, candidate, focus, repository, or repair so Compass can explain why this work was selected.",
+        reason: .weakHandoff,
+        missingLabels: ["Selection source"]
+      )
+    }
 
     let handoffDigest = PlanHandoffDigest(plan: immediate.plan)
     guard handoffDigest.status == .ready else {
@@ -136,11 +152,8 @@ enum PlanTransitionValidator {
 
   private static func remainingPlanFields(in state: PlanState, label: String) -> [String] {
     var fields: [String] = []
-    if !state.midTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      fields.append("\(label) midTerm")
-    }
-    if !state.longTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      fields.append("\(label) longTerm")
+    if !state.actionableCandidates.isEmpty {
+      fields.append("\(label) candidates")
     }
     return fields
   }

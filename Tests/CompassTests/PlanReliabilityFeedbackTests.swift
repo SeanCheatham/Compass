@@ -344,7 +344,7 @@ struct PlanReliabilityFeedbackTests {
       startedAt: 8_000,
       status: .failed,
       notes: [
-        "Plan tried to clear a non-empty midTerm queue without recording a completion. Refusing to overwrite state.json."
+        "Plan tried to clear all actionable candidates without recording a completion. Refusing to overwrite state.json."
       ]
     )
 
@@ -369,8 +369,8 @@ struct PlanReliabilityFeedbackTests {
     PlanState(
       completed: [],
       immediate: immediate,
-      midTerm: "",
-      longTerm: ""
+      candidates: "",
+      strategicContext: ""
     )
   }
 

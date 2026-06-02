@@ -26,21 +26,21 @@ struct DraftRefinementContext: Equatable, Hashable, Sendable {
 
   var repoName: String
   var immediatePlan: String
-  var midTermPlan: String
-  var longTermPlan: String
+  var candidates: String
+  var strategicContext: String
   var primaryLanguage: String
 
   init(
     repoName: String,
     immediatePlan: String = "",
-    midTermPlan: String = "",
-    longTermPlan: String = "",
+    candidates: String = "",
+    strategicContext: String = "",
     primaryLanguage: String = ""
   ) {
     self.repoName = Self.bounded(repoName)
     self.immediatePlan = Self.bounded(immediatePlan)
-    self.midTermPlan = Self.bounded(midTermPlan)
-    self.longTermPlan = Self.bounded(longTermPlan)
+    self.candidates = Self.bounded(candidates)
+    self.strategicContext = Self.bounded(strategicContext)
     self.primaryLanguage = Self.bounded(primaryLanguage)
   }
 
@@ -52,8 +52,8 @@ struct DraftRefinementContext: Equatable, Hashable, Sendable {
     self.init(
       repoName: repoName,
       immediatePlan: state.immediate?.plan ?? "",
-      midTermPlan: state.midTerm,
-      longTermPlan: state.longTerm,
+      candidates: state.candidatesMarkdown,
+      strategicContext: state.strategicContextMarkdown,
       primaryLanguage: languageProfile.primaryLanguage == .unknown
         ? ""
         : languageProfile.primaryLanguage.displayName
@@ -73,8 +73,8 @@ struct DraftRefinementContext: Equatable, Hashable, Sendable {
     [
       repoName,
       immediatePlan,
-      midTermPlan,
-      longTermPlan,
+      candidates,
+      strategicContext,
       primaryLanguage,
     ]
     .map(Self.normalizedPlainText)
@@ -85,8 +85,8 @@ struct DraftRefinementContext: Equatable, Hashable, Sendable {
     """
     Repository: \(repoName.isEmpty ? "unknown" : repoName)
     Immediate plan: \(immediatePlan.isEmpty ? "none" : immediatePlan)
-    Mid-term direction: \(midTermPlan.isEmpty ? "none" : midTermPlan)
-    Long-term direction: \(longTermPlan.isEmpty ? "none" : longTermPlan)
+    Candidate directions: \(candidates.isEmpty ? "none" : candidates)
+    Strategic context: \(strategicContext.isEmpty ? "none" : strategicContext)
     Primary language: \(primaryLanguage.isEmpty ? "unknown" : primaryLanguage)
     """
   }
@@ -95,8 +95,8 @@ struct DraftRefinementContext: Equatable, Hashable, Sendable {
     [
       repoName,
       immediatePlan,
-      midTermPlan,
-      longTermPlan,
+      candidates,
+      strategicContext,
       primaryLanguage,
     ]
     .joined(separator: " ")

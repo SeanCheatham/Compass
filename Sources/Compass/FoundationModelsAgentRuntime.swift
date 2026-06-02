@@ -400,11 +400,40 @@ private struct DynamicAgentTool: FoundationModels.Tool {
 // MARK: - Schema translation
 
 enum CompassJSONSchemaTranslation {
-  static func concreteNullableAnyOfBranch(in dict: [String: Any]) -> [String: Any]? {
-    guard let branches = dict["anyOf"] as? [[String: Any]] else { return nil }
-    let concreteBranches = branches.filter { ($0["type"] as? String) != "null" }
+  static func concreteNullableAnyOfBranch(
+    in dict: [String: Any],
+    root: [String: Any]? = nil
+  ) -> [String: Any]? {
+    let resolved = root.map { resolveReference(in: dict, root: $0) } ?? dict
+    guard let branches = resolved["anyOf"] as? [[String: Any]] else { return nil }
+    let concreteBranches = branches
+      .map { branch in
+        root.map { resolveReference(in: branch, root: $0) } ?? branch
+      }
+      .filter { ($0["type"] as? String) != "null" }
     guard concreteBranches.count == 1 else { return nil }
     return concreteBranches[0]
+  }
+
+  static func resolveReference(in dict: [String: Any], root: [String: Any]) -> [String: Any] {
+    guard let ref = dict["$ref"] as? String, ref.hasPrefix("#/") else {
+      return dict
+    }
+    let path = ref.dropFirst(2).split(separator: "/").map { component in
+      component
+        .replacingOccurrences(of: "~1", with: "/")
+        .replacingOccurrences(of: "~0", with: "~")
+    }
+    var current: Any = root
+    for component in path {
+      guard let object = current as? [String: Any],
+        let next = object[String(component)]
+      else {
+        return dict
+      }
+      current = next
+    }
+    return (current as? [String: Any]) ?? dict
   }
 }
 
@@ -446,20 +475,26 @@ enum FoundationModelsSchemaTranslator {
     json: Data
   ) throws -> DynamicGenerationSchema {
     let object = try JSONSerialization.jsonObject(with: json)
-    return translateNode(name: name, description: description, node: object)
+    let root = (object as? [String: Any]) ?? [:]
+    return translateNode(name: name, description: description, node: object, root: root)
   }
 
   private static func translateNode(
     name: String,
     description: String?,
-    node: Any
+    node: Any,
+    root: [String: Any]
   ) -> DynamicGenerationSchema {
     guard let dict = node as? [String: Any] else {
       return DynamicGenerationSchema(type: String.self)
     }
+    let resolved = CompassJSONSchemaTranslation.resolveReference(in: dict, root: root)
     let nodeDescription =
-      (dict["description"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? description
-    if let branch = CompassJSONSchemaTranslation.concreteNullableAnyOfBranch(in: dict) {
+      (resolved["description"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? description
+    if let branch = CompassJSONSchemaTranslation.concreteNullableAnyOfBranch(
+      in: resolved,
+      root: root
+    ) {
       var branchWithDescription = branch
       if branchWithDescription["description"] == nil, let nodeDescription {
         branchWithDescription["description"] = nodeDescription
@@ -467,14 +502,15 @@ enum FoundationModelsSchemaTranslator {
       return translateNode(
         name: name,
         description: nodeDescription,
-        node: branchWithDescription
+        node: branchWithDescription,
+        root: root
       )
     }
-    let type = (dict["type"] as? String) ?? "object"
+    let type = (resolved["type"] as? String) ?? "object"
     switch type {
     case "object":
-      let properties = (dict["properties"] as? [String: Any]) ?? [:]
-      let required = Set((dict["required"] as? [String]) ?? [])
+      let properties = (resolved["properties"] as? [String: Any]) ?? [:]
+      let required = Set((resolved["required"] as? [String]) ?? [])
       let translated = properties.map {
         (propertyName, propertyNode) -> DynamicGenerationSchema.Property in
         let propertyDescription =
@@ -482,7 +518,8 @@ enum FoundationModelsSchemaTranslator {
         let childSchema = translateNode(
           name: "\(name).\(propertyName)",
           description: propertyDescription,
-          node: propertyNode
+          node: propertyNode,
+          root: root
         )
         return DynamicGenerationSchema.Property(
           name: propertyName,
@@ -497,7 +534,7 @@ enum FoundationModelsSchemaTranslator {
         properties: translated
       )
     case "string":
-      if let choices = dict["enum"] as? [String], !choices.isEmpty {
+      if let choices = resolved["enum"] as? [String], !choices.isEmpty {
         return DynamicGenerationSchema(
           name: name,
           description: nodeDescription,
@@ -512,11 +549,12 @@ enum FoundationModelsSchemaTranslator {
     case "boolean":
       return DynamicGenerationSchema(type: Bool.self)
     case "array":
-      let items = dict["items"] ?? [String: Any]()
+      let items = resolved["items"] ?? [String: Any]()
       let itemSchema = translateNode(
         name: "\(name).item",
         description: nil,
-        node: items
+        node: items,
+        root: root
       )
       return DynamicGenerationSchema(arrayOf: itemSchema)
     default:

@@ -101,10 +101,20 @@ extension AgentExecutor {
               "plan": "## Outcome\\n<one sentence: what will change>\\n\\n## Why it matters\\n<who this helps and why>\\n\\n## Acceptance checks\\n- <observable finish-line behavior>\\n- <another observable result; state.immediate.verify proves it>",
               "verify": "<real shell command, no cd prefix>",
               "verifyTimeoutMs": 600000,
-              "estimatedDifficulty": "low"
+              "estimatedDifficulty": "low",
+              "selectedBecause": "<why this slice is the right next step>",
+              "source": "candidate",
+              "candidateID": null
             },
-            "midTerm": "<preserve or revise the queue>",
-            "longTerm": "<preserve or revise the strategic arc>"
+            "candidates": [],
+            "strategicContext": {
+              "thesis": "<durable product intent>",
+              "principles": [],
+              "constraints": [],
+              "nonGoals": [],
+              "risks": []
+            },
+            "openQuestions": []
           },
           "lessonEdits": []
         }
@@ -139,8 +149,8 @@ extension AgentExecutor {
         }
 
         If planning needs revision, replace `state: null` with an object containing \
-        all three keys: `immediate`, `midTerm`, and `longTerm`. Do not include \
-        completed history. Do not answer in prose.
+        all required planning keys: `immediate`, `candidates`, `strategicContext`, \
+        and `openQuestions`. Do not include completed history. Do not answer in prose.
         """
     case .critic:
       return """
@@ -313,9 +323,10 @@ extension AgentExecutor {
         Immediate Plan and a real verify command. Write `state.immediate.plan` with short Markdown \
         sections named `Outcome` and `Acceptance checks`; add `Why it matters` when it helps the \
         non-engineer owner. Make the acceptance checks observable enough for Develop to know when it is \
-        done, and keep shell commands only in `state.immediate.verify`. Preserve `midTerm` and `longTerm` \
-        unless you have a specific revision. Use `immediate: null` only when there was already no mid-term \
-        or long-term runway before this Plan pass and there is still none.
+        done, keep shell commands only in `state.immediate.verify`, and explain the selection with \
+        `state.immediate.selectedBecause` plus `state.immediate.source`. Preserve existing candidates \
+        and strategic context unless you have a specific revision. Use `immediate: null` only when \
+        there are no actionable candidates and no useful repo-originated slice.
 
         Use this exact retry shape. Replace the bracketed text, keep the top-level keys exactly as shown, \
         and do not answer in prose:
@@ -325,10 +336,20 @@ extension AgentExecutor {
               "plan": "## Outcome\\n<one sentence: what will change>\\n\\n## Why it matters\\n<who this helps and why>\\n\\n## Acceptance checks\\n- <observable finish-line behavior>\\n- <another observable result; state.immediate.verify proves it>",
               "verify": "<real shell command, no cd prefix>",
               "verifyTimeoutMs": 600000,
-              "estimatedDifficulty": "low"
+              "estimatedDifficulty": "low",
+              "selectedBecause": "<why this slice is the right next step>",
+              "source": "candidate",
+              "candidateID": null
             },
-            "midTerm": "<preserve the current queue unless you are intentionally revising it>",
-            "longTerm": "<preserve the current strategic arc unless it materially changed>"
+            "candidates": [],
+            "strategicContext": {
+              "thesis": "<durable product intent>",
+              "principles": [],
+              "constraints": [],
+              "nonGoals": [],
+              "risks": []
+            },
+            "openQuestions": []
           },
           "lessonEdits": []
         }
@@ -341,8 +362,8 @@ extension AgentExecutor {
     case .noImmediateWork:
       return """
         - Replace `state.immediate: null` with one concrete Immediate Plan.
-        - Choose the next smallest slice from the remaining mid-term or long-term runway.
-        - Preserve `midTerm` and `longTerm` unless you are intentionally refining them.
+        - Choose the next smallest slice from the remaining actionable candidates or repo state.
+        - Preserve `candidates`, `strategicContext`, and `openQuestions` unless you are intentionally refining them.
         """
     case .placeholderVerify:
       let rejected = error.rejectedVerify.map { " Rejected verify: `\($0)`." } ?? ""
@@ -390,15 +411,15 @@ extension AgentExecutor {
         """
     case .invalidStateMutation:
       return """
-        - Preserve existing planning runway unless you record a completed slice.
-        - Do not clear `midTerm`, `longTerm`, or completed context as a side effect of selecting Immediate Work.
+        - Preserve existing actionable candidates unless you record a completed slice or mark stale work explicitly.
+        - Do not clear candidates, strategic context, open questions, or completed context as a side effect of selecting Immediate Work.
         - Return the smallest valid state change that keeps the factory moving.
         """
     case .unknown:
       return """
-        - Choose one concrete Immediate Plan unless the project truly has no remaining runway.
+        - Choose one concrete Immediate Plan unless the project truly has no actionable candidates or useful repo-originated work.
         - Include a real verify command and observable Acceptance checks.
-        - Preserve existing `midTerm` and `longTerm` unless you have a specific revision.
+        - Preserve existing `candidates`, `strategicContext`, and `openQuestions` unless you have a specific revision.
         """
     }
   }

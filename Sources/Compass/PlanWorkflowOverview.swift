@@ -584,11 +584,11 @@ struct PlanWorkflowOverview: Equatable {
 
   var completedCount: Int
   var immediate: Section
-  var midTerm: Section
-  var longTerm: Section
+  var candidates: Section
+  var strategicContext: Section
 
   var sections: [Section] {
-    [immediate, midTerm, longTerm]
+    [immediate, candidates, strategicContext]
   }
 
   init(
@@ -613,23 +613,23 @@ struct PlanWorkflowOverview: Equatable {
       completedCount: completedCount,
       excerptLimit: excerptLimit
     )
-    midTerm = Section(
-      kind: .midTerm,
-      title: "Queued Direction",
-      label: "Next Up",
+    candidates = Section(
+      kind: .candidates,
+      title: "Candidate Directions",
+      label: "Candidates",
       systemImage: "point.3.connected.trianglepath.dotted",
-      rawBody: state.midTerm,
-      emptyMessage: "No mid-term queue. Future planning has no staged direction yet.",
+      rawBody: state.candidatesMarkdown,
+      emptyMessage: "No candidate directions yet. Plan can originate the next useful slice from the repo, drafts, feedback, or focus.",
       completedCount: completedCount,
       excerptLimit: excerptLimit
     )
-    longTerm = Section(
-      kind: .longTerm,
-      title: "Strategic Arc",
-      label: "Destination",
+    strategicContext = Section(
+      kind: .strategicContext,
+      title: "Strategic Context",
+      label: "Context",
       systemImage: "mountain.2.fill",
-      rawBody: state.longTerm,
-      emptyMessage: "No long-term arc. Add the larger product direction when it becomes clear.",
+      rawBody: state.strategicContextMarkdown,
+      emptyMessage: "No strategic context yet. Add durable thesis, principles, constraints, risks, or non-goals when they become clear.",
       completedCount: completedCount,
       excerptLimit: excerptLimit
     )
@@ -688,14 +688,14 @@ struct PlanWorkflowOverview: Equatable {
 
   enum Kind: String, Equatable {
     case immediate
-    case midTerm
-    case longTerm
+    case candidates
+    case strategicContext
   }
 
   enum TimelineDestination: String, CaseIterable, Equatable {
     case immediate = "plan-immediate"
-    case midTerm = "plan-mid-term"
-    case longTerm = "plan-long-term"
+    case candidates = "plan-candidates"
+    case strategicContext = "plan-strategic-context"
 
     var itemID: String {
       rawValue
@@ -705,10 +705,10 @@ struct PlanWorkflowOverview: Equatable {
       switch self {
       case .immediate:
         return .immediate
-      case .midTerm:
-        return .midTerm
-      case .longTerm:
-        return .longTerm
+      case .candidates:
+        return .candidates
+      case .strategicContext:
+        return .strategicContext
       }
     }
   }
@@ -863,18 +863,18 @@ struct PlanFactoryBrief: Equatable, Sendable {
         detail = Self.bounded(repairGuide.detail)
         primaryActionLabel = "Run Plan"
       }
-    } else if let queued = Self.firstMeaningfulLine(in: state.midTerm).nilIfEmpty {
+    } else if let candidate = state.actionableCandidates.first {
       status = .planning
       title = "Ready To Choose The Next Slice"
       detail = Self.bounded(
-        "No immediate implementation is selected. The queue starts with: \(queued)"
+        "No immediate implementation is selected. An available candidate starts with: \(candidate.title)"
       )
       primaryActionLabel = "Run Plan"
-    } else if let arc = Self.firstMeaningfulLine(in: state.longTerm).nilIfEmpty {
+    } else if let context = Self.firstMeaningfulLine(in: state.strategicContextMarkdown).nilIfEmpty {
       status = .planning
       title = "Ready To Turn Strategy Into Work"
       detail = Self.bounded(
-        "No immediate implementation is selected. The strategic arc is: \(arc)"
+        "No immediate implementation is selected. Strategic context is available: \(context)"
       )
       primaryActionLabel = "Run Plan"
     } else {
@@ -1169,10 +1169,10 @@ extension PlanWorkflowOverview.Kind {
     switch self {
     case .immediate:
       return .immediate
-    case .midTerm:
-      return .midTerm
-    case .longTerm:
-      return .longTerm
+    case .candidates:
+      return .candidates
+    case .strategicContext:
+      return .strategicContext
     }
   }
 

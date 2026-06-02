@@ -279,11 +279,23 @@ struct PlanNext: Codable, Equatable {
   var verifyTimeoutMs: Int?
   var estimatedDifficulty: Difficulty?
   var requiresHostXcode: Bool
+  var selectedBecause: String?
+  var source: Source?
+  var candidateID: String?
 
   enum Difficulty: String, Codable, CaseIterable {
     case low
     case medium
     case high
+  }
+
+  enum Source: String, Codable, CaseIterable {
+    case draft
+    case feedback
+    case candidate
+    case focus
+    case repository
+    case repair
   }
 
   enum CodingKeys: String, CodingKey {
@@ -317,6 +329,11 @@ struct PlanNext: Codable, Equatable {
     case estimatedDifficultySnake = "estimated_difficulty"
     case requiresHostXcode
     case requiresHostXcodeSnake = "requires_host_xcode"
+    case selectedBecause
+    case selectedBecauseSnake = "selected_because"
+    case source
+    case candidateID
+    case candidateIDSnake = "candidate_id"
   }
 
   init(
@@ -324,13 +341,20 @@ struct PlanNext: Codable, Equatable {
     verify: String,
     verifyTimeoutMs: Int? = nil,
     estimatedDifficulty: Difficulty? = nil,
-    requiresHostXcode: Bool = false
+    requiresHostXcode: Bool = false,
+    selectedBecause: String? = "Selected by Compass as the next useful slice.",
+    source: Source? = .repository,
+    candidateID: String? = nil
   ) {
     self.plan = plan.trimmingCharacters(in: .whitespacesAndNewlines)
     self.verify = verify.trimmingCharacters(in: .whitespacesAndNewlines)
     self.verifyTimeoutMs = verifyTimeoutMs
     self.estimatedDifficulty = estimatedDifficulty
     self.requiresHostXcode = requiresHostXcode
+    self.selectedBecause = selectedBecause?.trimmingCharacters(in: .whitespacesAndNewlines)
+      .nilIfEmpty
+    self.source = source
+    self.candidateID = candidateID?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
   }
 
   init(from decoder: Decoder) throws {
@@ -372,6 +396,17 @@ struct PlanNext: Codable, Equatable {
         preferredKey: .requiresHostXcode,
         aliases: [.requiresHostXcodeSnake]
       ) ?? false
+    self.selectedBecause = try FlexibleModelDecoder.decodeStringIfPresent(
+      from: container,
+      preferredKey: .selectedBecause,
+      aliases: [.selectedBecauseSnake]
+    )?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    self.source = Self.decodeSource(from: container)
+    self.candidateID = try FlexibleModelDecoder.decodeStringIfPresent(
+      from: container,
+      preferredKey: .candidateID,
+      aliases: [.candidateIDSnake]
+    )?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
   }
 
   func encode(to encoder: Encoder) throws {
@@ -383,6 +418,9 @@ struct PlanNext: Codable, Equatable {
     if requiresHostXcode {
       try container.encode(true, forKey: .requiresHostXcode)
     }
+    try container.encodeIfPresent(selectedBecause, forKey: .selectedBecause)
+    try container.encodeIfPresent(source, forKey: .source)
+    try container.encodeIfPresent(candidateID, forKey: .candidateID)
   }
 
   private static func decodePositiveInt(
@@ -464,6 +502,17 @@ struct PlanNext: Codable, Equatable {
     return nil
   }
 
+  private static func decodeSource(from container: KeyedDecodingContainer<CodingKeys>) -> Source? {
+    guard
+      let rawValue = try? container.decodeIfPresent(String.self, forKey: .source)?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    else {
+      return nil
+    }
+    return Source(rawValue: rawValue)
+  }
+
   private static func decodeRequiredTrimmedString(
     from container: KeyedDecodingContainer<CodingKeys>,
     preferredKey: CodingKeys,
@@ -510,31 +559,224 @@ struct PlanNext: Codable, Equatable {
   }
 }
 
+struct PlanCandidate: Codable, Equatable, Identifiable {
+  var id: String
+  var title: String
+  var outcome: String
+  var why: String
+  var category: Category
+  var origin: Origin
+  var priority: Priority
+  var status: Status
+  var evidence: [String]
+  var blockedBy: [String]
+  var risk: String?
+
+  enum Category: String, Codable, CaseIterable {
+    case feature
+    case test
+    case cleanup
+    case docs
+    case bugHunt
+    case reliability
+    case exploration
+  }
+
+  enum Origin: String, Codable, CaseIterable {
+    case draft
+    case feedback
+    case repository
+    case plan
+    case reflect
+    case lesson
+    case user
+  }
+
+  enum Priority: String, Codable, CaseIterable {
+    case low
+    case medium
+    case high
+  }
+
+  enum Status: String, Codable, CaseIterable {
+    case available
+    case active
+    case blocked
+    case deferred
+    case done
+    case stale
+
+    var isActionable: Bool {
+      switch self {
+      case .available, .active:
+        return true
+      case .blocked, .deferred, .done, .stale:
+        return false
+      }
+    }
+  }
+
+  init(
+    id: String,
+    title: String,
+    outcome: String,
+    why: String = "",
+    category: Category = .feature,
+    origin: Origin = .plan,
+    priority: Priority = .medium,
+    status: Status = .available,
+    evidence: [String] = [],
+    blockedBy: [String] = [],
+    risk: String? = nil
+  ) {
+    self.id = Self.normalizedID(id.isEmpty ? title : id)
+    self.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.outcome = outcome.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.why = why.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.category = category
+    self.origin = origin
+    self.priority = priority
+    self.status = status
+    self.evidence = evidence.map(Self.trimmed).filter { !$0.isEmpty }
+    self.blockedBy = blockedBy.map(Self.trimmed).filter { !$0.isEmpty }
+    self.risk = risk.map(Self.trimmed)?.nilIfEmpty
+  }
+
+  private static func trimmed(_ value: String) -> String {
+    value.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private static func normalizedID(_ value: String) -> String {
+    let slug =
+      value
+      .lowercased()
+      .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "-", options: .regularExpression)
+      .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    return slug.isEmpty ? UUID().uuidString.lowercased() : String(slug.prefix(64))
+  }
+}
+
+struct PlanStrategicContext: Codable, Equatable {
+  var thesis: String
+  var principles: [String]
+  var constraints: [String]
+  var nonGoals: [String]
+  var risks: [String]
+
+  static let empty = PlanStrategicContext(
+    thesis: "",
+    principles: [],
+    constraints: [],
+    nonGoals: [],
+    risks: []
+  )
+
+  init(
+    thesis: String = "",
+    principles: [String] = [],
+    constraints: [String] = [],
+    nonGoals: [String] = [],
+    risks: [String] = []
+  ) {
+    self.thesis = thesis.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.principles = Self.cleaned(principles)
+    self.constraints = Self.cleaned(constraints)
+    self.nonGoals = Self.cleaned(nonGoals)
+    self.risks = Self.cleaned(risks)
+  }
+
+  var digestLines: [String] {
+    var lines: [String] = []
+    if !thesis.isEmpty {
+      lines.append("Thesis: \(thesis)")
+    }
+    lines += principles.prefix(5).map { "Principle: \($0)" }
+    lines += constraints.prefix(5).map { "Constraint: \($0)" }
+    lines += nonGoals.prefix(4).map { "Non-goal: \($0)" }
+    lines += risks.prefix(4).map { "Risk: \($0)" }
+    return lines
+  }
+
+  var markdownSummary: String {
+    var sections: [String] = []
+    if !thesis.isEmpty {
+      sections.append(thesis)
+    }
+    if !principles.isEmpty {
+      sections.append(principles.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
+    }
+    if !constraints.isEmpty {
+      sections.append("Constraints:\n" + constraints.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
+    }
+    if !nonGoals.isEmpty {
+      sections.append("Non-goals:\n" + nonGoals.prefix(4).map { "- \($0)" }.joined(separator: "\n"))
+    }
+    if !risks.isEmpty {
+      sections.append("Risks:\n" + risks.prefix(4).map { "- \($0)" }.joined(separator: "\n"))
+    }
+    return sections.joined(separator: "\n\n")
+  }
+
+  private static func cleaned(_ values: [String]) -> [String] {
+    values.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+  }
+}
+
+struct PlanQuestion: Codable, Equatable, Identifiable {
+  var id: String
+  var question: String
+  var impact: String
+
+  init(id: String, question: String, impact: String = "") {
+    self.id = id.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+      ?? UUID().uuidString.lowercased()
+    self.question = question.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.impact = impact.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+}
+
+private extension String {
+  var nilIfEmpty: String? {
+    isEmpty ? nil : self
+  }
+}
+
 struct PlanState: Codable, Equatable {
   var completed: [String]
   var immediate: PlanNext?
-  var midTerm: String
-  var longTerm: String
+  var candidates: [PlanCandidate]
+  var strategicContext: PlanStrategicContext
+  var openQuestions: [PlanQuestion]
 
   static let empty = PlanState(
     completed: [],
     immediate: nil,
-    midTerm: "",
-    longTerm: ""
+    candidates: [],
+    strategicContext: .empty,
+    openQuestions: []
   )
 
   enum CodingKeys: String, CodingKey {
     case completed
     case immediate
-    case midTerm
-    case longTerm
+    case candidates
+    case strategicContext
+    case openQuestions
   }
 
-  init(completed: [String], immediate: PlanNext?, midTerm: String, longTerm: String) {
+  init(
+    completed: [String],
+    immediate: PlanNext?,
+    candidates: [PlanCandidate] = [],
+    strategicContext: PlanStrategicContext = .empty,
+    openQuestions: [PlanQuestion] = []
+  ) {
     self.completed = completed
     self.immediate = immediate
-    self.midTerm = midTerm
-    self.longTerm = longTerm
+    self.candidates = candidates
+    self.strategicContext = strategicContext
+    self.openQuestions = openQuestions
   }
 
   init(from decoder: Decoder) throws {
@@ -543,9 +785,30 @@ struct PlanState: Codable, Equatable {
       try container.decodeIfPresent([LossyString].self, forKey: .completed) ?? []
     completed = completedValues.compactMap(\.value)
     immediate = try container.decodeIfPresent(PlanNext.self, forKey: .immediate)
-    midTerm = try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .midTerm) ?? ""
-    longTerm =
-      try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .longTerm) ?? ""
+    candidates = try container.decodeIfPresent([PlanCandidate].self, forKey: .candidates) ?? []
+    strategicContext =
+      try container.decodeIfPresent(PlanStrategicContext.self, forKey: .strategicContext) ?? .empty
+    openQuestions = try container.decodeIfPresent([PlanQuestion].self, forKey: .openQuestions) ?? []
+  }
+
+  var candidatesMarkdown: String {
+    candidates.map { candidate in
+      let statusPrefix = candidate.status == .available ? "" : "[\(candidate.status.rawValue)] "
+      let title = candidate.title.isEmpty ? candidate.outcome : candidate.title
+      let outcome =
+        candidate.outcome.isEmpty || candidate.outcome == title
+        ? ""
+        : " - \(candidate.outcome)"
+      return "- \(statusPrefix)\(title)\(outcome)"
+    }.joined(separator: "\n")
+  }
+
+  var strategicContextMarkdown: String {
+    strategicContext.markdownSummary
+  }
+
+  var actionableCandidates: [PlanCandidate] {
+    candidates.filter { $0.status.isActionable }
   }
 
   var proposal: PlanProposal {

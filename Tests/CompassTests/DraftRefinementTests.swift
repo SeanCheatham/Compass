@@ -602,8 +602,8 @@ struct DraftRefinementTests {
     DraftRefinementContext(
       repoName: "Compass",
       immediatePlan: "Add parser tests for Package.swift",
-      midTermPlan: "Refine drafts",
-      longTermPlan: "Keep Compass read-only until explicit actions",
+      candidates: "Refine drafts",
+      strategicContext: "Keep Compass read-only until explicit actions",
       primaryLanguage: "Swift"
     )
   }

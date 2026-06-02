@@ -184,7 +184,7 @@ struct ProjectRecoveryGuideTests {
   private func emptyStatus() -> ProjectReliabilityStatus {
     ProjectReliabilityStatus(
       feedback: PlanReliabilityFeedback(
-        state: PlanState(completed: [], immediate: nil, midTerm: "", longTerm: ""),
+        state: PlanState(completed: [], immediate: nil, candidates: "", strategicContext: ""),
         sessions: []
       )
     )
@@ -204,8 +204,8 @@ struct ProjectRecoveryGuideTests {
             plan: "## Outcome\nImprove recovery copy.\n\n## Acceptance checks\n- Tests pass.",
             verify: "swift test --filter ProjectRecoveryGuideTests"
           ),
-          midTerm: "",
-          longTerm: ""
+          candidates: "",
+          strategicContext: ""
         ),
         sessions: [
           SessionRecord(
@@ -236,8 +236,8 @@ struct ProjectRecoveryGuideTests {
             plan: "## Outcome\nImprove recovery copy.\n\n## Acceptance checks\n- Tests pass.",
             verify: "swift test --filter ProjectRecoveryGuideTests"
           ),
-          midTerm: "",
-          longTerm: ""
+          candidates: "",
+          strategicContext: ""
         ),
         sessions: [
           SessionRecord(

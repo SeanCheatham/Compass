@@ -419,7 +419,7 @@ struct ProjectRunControlGuide: Equatable {
         "Plan will turn \(draftIntakeGuide.entryCountLabel) into one executable handoff.\(draftQueueScopeSuffix(draftIntakeGuide))"
     }
 
-    return "Plan will choose one executable next slice from the repository and current arc."
+    return "Plan will choose one executable next slice from the repository and strategic context."
   }
 
   private static func developPreviewSteps(state: PlanState) -> [PreviewStep] {

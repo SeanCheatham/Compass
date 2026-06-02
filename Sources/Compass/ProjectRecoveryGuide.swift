@@ -103,7 +103,7 @@ struct ProjectRecoveryGuide: Equatable {
         Step(title: status.actionLabel, detail: "Promote only after the branch is unambiguous."),
       ]
     case .resumeDevelop:
-      title = "Continue the queued build"
+      title = "Continue the selected build"
       steps = [
         Step(title: "Review the ready slice", detail: status.detail),
         Step(
@@ -215,7 +215,7 @@ struct ProjectRecoveryGuide: Equatable {
       return RejectedPlanRecovery(
         title: "Preserve the existing runway",
         detail:
-          "Do not clear completed, midTerm, or longTerm unless the previous slice really shipped.",
+          "Do not clear completed history, candidates, strategic context, or open questions unless the previous slice really shipped or stale work is explicitly retired.",
         retryDetail: retryDetail
       )
     }

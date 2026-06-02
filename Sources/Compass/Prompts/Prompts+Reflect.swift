@@ -11,9 +11,12 @@ extension Prompts {
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
     let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()
-    let stateJSON = try CompassWorkspace.encodeProposal(promptState)
-    let sessionsJSON = try encodeSessions(recentSessions)
+    let stateJSON = try CompassWorkspace.encodeProposal(promptState.promptDigest())
+    let sessionsJSON = try encodeSessions(Array(recentSessions.prefix(5)))
     let sessionBrief = ReflectSessionBrief(sessions: recentSessions).text
+    let lessonsDigest = reflectCompactPromptBlock(lessons, maxLines: 8, maxCharacters: 1800)
+    let assumptionsDigest = reflectCompactPromptBlock(assumptions, maxLines: 8, maxCharacters: 1800)
+    let visionDigest = reflectCompactPromptBlock(vision, maxLines: 10, maxCharacters: 2400)
     let hostXcodeGuidance =
       hostXcodeBuildTestEnabled
       ? """
@@ -34,10 +37,10 @@ extension Prompts {
 
       Finish by calling the `submit_result` tool with these arguments:
       - `state`: null if everything is on course.
-      - `state`: a planning update if `midTerm` and/or `longTerm` should be
-        rewritten. Completed history is managed by Compass and is not part of
-        this payload. Preserve `immediate` unless there is a concrete reason
-        to adjust it.
+      - `state`: a planning update if `candidates`, `strategicContext`, or
+        `openQuestions` should be rewritten. Completed history is managed by
+        Compass and is not part of this payload. Preserve `immediate` unless
+        there is a concrete reason to adjust it.
       - `summary`: a concise explanation of the reflection result.
       - `lessonEdits`: exact find/replace edits against the lessons content
         shown below, or `[]` when nothing durable should be recorded.
@@ -50,12 +53,19 @@ extension Prompts {
       }
 
       If planning needs revision, replace `state: null` with an object
-      containing all three keys:
+      containing all required keys:
       {
         "state": {
           "immediate": null,
-          "midTerm": "<revised near-term queue>",
-          "longTerm": "<revised strategic arc>"
+          "candidates": [],
+          "strategicContext": {
+            "thesis": "<durable product intent>",
+            "principles": [],
+            "constraints": [],
+            "nonGoals": [],
+            "risks": []
+          },
+          "openQuestions": []
         },
         "summary": "<what changed and why>",
         "lessonEdits": []
@@ -67,13 +77,17 @@ extension Prompts {
 
       \(lessonEditsGuidance())
 
-      Keep this tight. Do not rewrite state defensively.
+      Keep this tight. Do not rewrite state defensively. Do not copy shipped
+      history into candidates or strategicContext.
       \(hostXcodeGuidance)
 
       ## Recent session brief
       \(sessionBrief)
 
       ## Current planning state
+      Compact digest only. Use recent sessions and plan history rather than
+      copying shipped archives back into state.
+
       ```json
       \(stateJSON)
       ```
@@ -84,13 +98,37 @@ extension Prompts {
       ```
 
       ## Lessons
-      \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
+      \(fencedOrEmpty(lessonsDigest, empty: "_(no lessons yet)_"))
 
       ## Assumptions
-      \(fencedOrEmpty(assumptions, empty: "_(no assumptions recorded)_"))
+      \(fencedOrEmpty(assumptionsDigest, empty: "_(no assumptions recorded)_"))
 
       ## Vision
-      \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
+      \(fencedOrEmpty(visionDigest, empty: "_(no vision set)_"))
       """
+  }
+
+  private static func reflectCompactPromptBlock(
+    _ text: String,
+    maxLines: Int,
+    maxCharacters: Int
+  ) -> String {
+    let normalized = text
+      .replacingOccurrences(of: "\r\n", with: "\n")
+      .replacingOccurrences(of: "\r", with: "\n")
+    var seen = Set<String>()
+    var lines: [String] = []
+    for rawLine in normalized.components(separatedBy: "\n") {
+      let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !line.isEmpty else { continue }
+      guard !seen.contains(line) else { continue }
+      seen.insert(line)
+      lines.append(line)
+      if lines.count >= maxLines { break }
+    }
+    let joined = lines.joined(separator: "\n")
+    guard joined.count > maxCharacters else { return joined }
+    return String(joined.prefix(max(0, maxCharacters - 3)))
+      .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
   }
 }

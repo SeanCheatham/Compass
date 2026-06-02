@@ -13,29 +13,29 @@ struct PlanWorkflowOverviewTests {
         verify: " swift test ",
         estimatedDifficulty: .medium
       ),
-      midTerm: "- Queue the next planning polish",
-      longTerm: "Make waiting time easier to understand."
+      candidates: "- Queue the next planning polish",
+      strategicContext: "Make waiting time easier to understand."
     )
 
     let overview = PlanWorkflowOverview(state: state)
 
-    try #require(overview.sections.map(\.kind) == [.immediate, .midTerm, .longTerm])
+    try #require(overview.sections.map(\.kind) == [.immediate, .candidates, .strategicContext])
     try #require(
       overview.immediate.body == "Build the overview\n\n- Keep completed summaries selectable")
-    try #require(overview.midTerm.body == "- Queue the next planning polish")
-    try #require(overview.longTerm.body == "Make waiting time easier to understand.")
+    try #require(overview.candidates.body == "- Queue the next planning polish")
+    try #require(overview.strategicContext.body == "Make waiting time easier to understand.")
     try #require(!overview.immediate.isEmpty)
   }
 
   @Test
   func testOverviewKindsMapToStableTimelineDestinations() throws {
     try #require(PlanWorkflowOverview.Kind.immediate.timelineItemID == "plan-immediate")
-    try #require(PlanWorkflowOverview.Kind.midTerm.timelineItemID == "plan-mid-term")
-    try #require(PlanWorkflowOverview.Kind.longTerm.timelineItemID == "plan-long-term")
+    try #require(PlanWorkflowOverview.Kind.candidates.timelineItemID == "plan-candidates")
+    try #require(PlanWorkflowOverview.Kind.strategicContext.timelineItemID == "plan-strategic-context")
 
     try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-immediate") == .immediate)
-    try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-mid-term") == .midTerm)
-    try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-long-term") == .longTerm)
+    try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-candidates") == .candidates)
+    try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-strategic-context") == .strategicContext)
     try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-history-0") == nil)
   }
 
@@ -44,32 +44,32 @@ struct PlanWorkflowOverviewTests {
     let overview = PlanWorkflowOverview(
       state: makeState(
         completed: ["Past work"],
-        midTerm: "Queue",
-        longTerm: "Arc"
+        candidates: "Queue",
+        strategicContext: "Arc"
       )
     )
 
-    try #require(overview.sections.map(\.kind) == [.immediate, .midTerm, .longTerm])
+    try #require(overview.sections.map(\.kind) == [.immediate, .candidates, .strategicContext])
     try #require(
       overview.sections.map(\.timelineItemID) == [
-        "plan-immediate", "plan-mid-term", "plan-long-term",
+        "plan-immediate", "plan-candidates", "plan-strategic-context",
       ]
     )
     try #require(
       PlanWorkflowOverview.TimelineDestination.allCases.map(\.overviewKind) == [
-        .immediate, .midTerm, .longTerm,
+        .immediate, .candidates, .strategicContext,
       ]
     )
   }
 
   @Test
-  func testNoImmediateStateKeepsQueueAndArcVisible() throws {
+  func testNoImmediateStateKeepsCandidatesAndStrategyVisible() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
         completed: ["Everything shipped"],
         immediate: nil,
-        midTerm: "- Later work",
-        longTerm: "Long arc"
+        candidates: "- Later work",
+        strategicContext: "Long arc"
       )
     )
 
@@ -79,54 +79,54 @@ struct PlanWorkflowOverviewTests {
     try #require(overview.immediate.verifyCommand == nil)
     try #require(overview.immediate.verifyTimeoutLabel == nil)
     try #require(overview.immediate.estimatedDifficulty == nil)
-    try #require(overview.midTerm.excerpt == "- Later work")
-    try #require(overview.longTerm.excerpt == "Long arc")
+    try #require(overview.candidates.excerpt == "- Later work")
+    try #require(overview.strategicContext.excerpt == "Long arc")
   }
 
   @Test
-  func testEmptyQueueAndArcExposeSpecificEmptyMessages() throws {
+  func testEmptyCandidatesAndStrategyExposeSpecificEmptyMessages() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
         immediate: nil,
-        midTerm: " \n ",
-        longTerm: "\t"
+        candidates: " \n ",
+        strategicContext: "\t"
       )
     )
 
-    try #require(overview.midTerm.isEmpty)
-    try #require(overview.longTerm.isEmpty)
+    try #require(overview.candidates.isEmpty)
+    try #require(overview.strategicContext.isEmpty)
     try #require(
-      overview.midTerm.emptyMessage
-        == "No mid-term queue. Future planning has no staged direction yet.")
+      overview.candidates.emptyMessage
+        == "No candidate directions yet. Plan can originate the next useful slice from the repo, drafts, feedback, or focus.")
     try #require(
-      overview.longTerm.emptyMessage
-        == "No long-term arc. Add the larger product direction when it becomes clear.")
+      overview.strategicContext.emptyMessage
+        == "No strategic context yet. Add durable thesis, principles, constraints, risks, or non-goals when they become clear.")
   }
 
   @Test
   func testNormalizesMarkdownWhitespace() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
-        midTerm: " \tFirst\t\titem  \r\n\r\n\r\n  - Queue\t two  \r Continued    text \n\n",
-        longTerm: "  Arc\t\twith   spacing  "
+        candidates: " \tFirst\t\titem  \r\n\r\n\r\n  - Queue\t two  \r Continued    text \n\n",
+        strategicContext: "  Arc\t\twith   spacing  "
       )
     )
 
-    try #require(overview.midTerm.body == "First item\n\n- Queue two\nContinued text")
-    try #require(overview.longTerm.body == "Arc with spacing")
+    try #require(overview.candidates.body == "- First item\n- Queue two\n- Continued text")
+    try #require(overview.strategicContext.body == "Arc with spacing")
   }
 
   @Test
   func testBoundsDenseExcerpts() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
-        longTerm: "Alpha beta gamma delta epsilon zeta eta theta iota"
+        strategicContext: "Alpha beta gamma delta epsilon zeta eta theta iota"
       ),
       excerptLimit: 25
     )
 
-    try #require(overview.longTerm.excerpt == "Alpha beta gamma delta...")
-    try #require(overview.longTerm.excerpt?.count ?? 0 <= 25)
+    try #require(overview.strategicContext.excerpt == "Alpha beta gamma delta...")
+    try #require(overview.strategicContext.excerpt?.count ?? 0 <= 25)
   }
 
   @Test
@@ -178,8 +178,8 @@ struct PlanWorkflowOverviewTests {
           verifyTimeoutMs: 90_000,
           estimatedDifficulty: .medium
         ),
-        midTerm: "Queue",
-        longTerm: "Arc"
+        candidates: "Queue",
+        strategicContext: "Arc"
       )
     )
 
@@ -1043,11 +1043,11 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
-  func testFactoryBriefFallsBackToQueueWhenNoImmediateWorkExists() throws {
+  func testFactoryBriefFallsBackToCandidatesWhenNoImmediateWorkExists() throws {
     let state = makeState(
       immediate: nil,
-      midTerm: "- Improve onboarding language\n- Add tests",
-      longTerm: "Make Compass understandable."
+      candidates: "- Improve onboarding language\n- Add tests",
+      strategicContext: "Make Compass understandable."
     )
     let brief = PlanFactoryBrief(
       state: state,
@@ -1093,15 +1093,25 @@ struct PlanWorkflowOverviewTests {
       verify: "swift test",
       estimatedDifficulty: .low
     ),
-    midTerm: String = "",
-    longTerm: String = ""
+    candidates: String = "",
+    strategicContext: String = ""
   ) -> PlanState {
     PlanState(
       completed: completed,
       immediate: immediate,
-      midTerm: midTerm,
-      longTerm: longTerm
+      candidates: makeCandidates(candidates),
+      strategicContext: PlanStrategicContext(thesis: strategicContext)
     )
+  }
+
+  private func makeCandidates(_ text: String) -> [PlanCandidate] {
+    text.components(separatedBy: .newlines)
+      .map { line in
+        line.trimmingCharacters(in: .whitespacesAndNewlines)
+          .replacingOccurrences(of: #"^[-*]\s*"#, with: "", options: .regularExpression)
+      }
+      .filter { !$0.isEmpty }
+      .map { PlanCandidate(id: $0, title: $0, outcome: $0) }
   }
 
   private func profile(
