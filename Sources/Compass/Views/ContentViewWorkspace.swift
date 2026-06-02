@@ -581,6 +581,7 @@ struct ProjectRunControls: View {
     let runNarration = matchingNarration(for: runGuide)
     let primaryExplanation = runNarration?.text ?? runGuide.primaryHelp
     let runControlPayload = ProjectRunControlClipboardPayload(guide: runGuide)
+    let factoryGuide = FactoryCompassGuide(runGuide: runGuide)
 
     HStack(spacing: 5) {
       Menu {
@@ -658,6 +659,7 @@ struct ProjectRunControls: View {
       .help(feedbackMenu.helpText)
 
       CopyRunControlButton(payload: runControlPayload)
+      FactoryCompassButton(guide: factoryGuide)
       ProjectRunDecisionBadge(badge: runGuide.decisionBadge)
 
       Button {
@@ -768,6 +770,162 @@ struct ProjectRunControls: View {
       return nil
     }
     return runGuideNarration
+  }
+}
+
+private struct FactoryCompassButton: View {
+  var guide: FactoryCompassGuide
+  @State private var isShowingBrief = false
+
+  var body: some View {
+    Button {
+      isShowingBrief.toggle()
+    } label: {
+      Label(guide.controlLabel, systemImage: "location.north.circle.fill")
+        .lineLimit(1)
+        .frame(minWidth: 78)
+    }
+    .buttonStyle(.bordered)
+    .controlSize(.small)
+    .foregroundStyle(color)
+    .help("\(guide.title): \(guide.headline)")
+    .accessibilityLabel("Factory compass, \(guide.controlLabel)")
+    .accessibilityValue(guide.title)
+    .accessibilityHint(guide.headline)
+    .popover(isPresented: $isShowingBrief, arrowEdge: .bottom) {
+      FactoryCompassPopover(guide: guide)
+    }
+  }
+
+  private var color: Color {
+    factoryCompassColor(for: guide.tone)
+  }
+}
+
+private struct FactoryCompassPopover: View {
+  var guide: FactoryCompassGuide
+  @State private var copied = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: guide.systemImage)
+          .font(.system(size: 20, weight: .semibold))
+          .foregroundStyle(color)
+          .frame(width: 26, height: 26)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(guide.title)
+            .font(.headline)
+          Text(guide.headline)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      Divider()
+
+      VStack(alignment: .leading, spacing: 10) {
+        FactoryCompassFactRow(
+          systemImage: guide.primaryActionIsEnabled ? "bolt.circle.fill" : "lock.circle",
+          title: guide.primaryActionTitle,
+          detail: guide.primaryActionDetail,
+          color: guide.primaryActionIsEnabled ? color : .secondary
+        )
+        FactoryCompassFactRow(
+          systemImage: guide.systemImage,
+          title: guide.readinessTitle,
+          detail: guide.readinessDetail,
+          color: color
+        )
+        FactoryCompassFactRow(
+          systemImage: "dot.radiowaves.left.and.right",
+          title: guide.signalLabel,
+          detail: guide.signalDetail,
+          color: color
+        )
+      }
+
+      if !guide.previewSteps.isEmpty {
+        Divider()
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Next run")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(guide.previewSteps) { step in
+            FactoryCompassFactRow(
+              systemImage: step.systemImage,
+              title: step.title,
+              detail: step.detail,
+              color: .secondary
+            )
+          }
+        }
+      }
+
+      Divider()
+
+      HStack {
+        Spacer()
+        Button {
+          copyTextToPasteboard(guide.handoffText)
+          copied = true
+          Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            copied = false
+          }
+        } label: {
+          Label(copied ? "Copied" : "Copy Brief", systemImage: copied ? "checkmark" : "doc.on.doc")
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+    .padding(16)
+    .frame(width: 440)
+  }
+
+  private var color: Color {
+    factoryCompassColor(for: guide.tone)
+  }
+}
+
+private struct FactoryCompassFactRow: View {
+  var systemImage: String
+  var title: String
+  var detail: String
+  var color: Color
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 9) {
+      Image(systemName: systemImage)
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(color)
+        .frame(width: 18, height: 18)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.callout.weight(.semibold))
+          .lineLimit(2)
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+}
+
+private func factoryCompassColor(for tone: FactoryCompassGuide.Tone) -> Color {
+  switch tone {
+  case .ready:
+    return .green
+  case .info:
+    return .blue
+  case .warning:
+    return .orange
+  case .failure:
+    return .red
+  case .paused:
+    return .blue
   }
 }
 

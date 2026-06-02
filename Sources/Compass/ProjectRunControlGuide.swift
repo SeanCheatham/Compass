@@ -902,7 +902,7 @@ struct ProjectRunControlClipboardPayload: Equatable, Sendable {
   }
 }
 
-private enum ProjectRunControlClipboardText {
+enum ProjectRunControlClipboardText {
   static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
