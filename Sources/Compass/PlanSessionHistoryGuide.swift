@@ -191,6 +191,22 @@ struct PlanSessionHistoryGuide: Equatable, Sendable {
       )
     }
 
+    if let latest = visibleItems.first, !latest.auditArtifacts.isEmpty {
+      let firstArtifact = latest.auditArtifacts[0]
+      facts.append(
+        Fact(
+          id: "artifacts",
+          label: countLabel(
+            latest.auditArtifacts.count,
+            singular: "audit artifact",
+            plural: "audit artifacts"
+          ),
+          detail: "\(firstArtifact.label) is saved with the session audit manifest.",
+          systemImageName: "archivebox"
+        )
+      )
+    }
+
     let commitCount = visibleItems.reduce(0) { $0 + $1.commits.count }
     if commitCount > 0 {
       facts.append(

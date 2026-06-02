@@ -98,6 +98,33 @@ struct PlanSessionHistoryGuideTests {
   }
 
   @Test
+  func latestRunWithAuditArtifactsAddsArtifactFact() {
+    let artifact = PlanSessionHistoryItem.AuditArtifact(
+      SessionAuditArtifact(
+        path: "sessions/000008/verify-attempt-1-full.log",
+        kind: "verify_output",
+        byteCount: 1_024,
+        note: "Full Verify output."
+      )
+    )
+    let display = PlanSessionHistoryDisplay(
+      items: [
+        historyItem(8, auditArtifacts: [artifact])
+      ],
+      mode: .all
+    )
+
+    let guide = PlanSessionHistoryGuide(display: display)
+    let artifactFact = guide.facts.first { $0.id == "artifacts" }
+
+    #expect(artifactFact?.label == "1 audit artifact")
+    #expect(
+      artifactFact?.detail == "Verify output - 1.0 KB is saved with the session audit manifest."
+    )
+    #expect(artifactFact?.systemImageName == "archivebox")
+  }
+
+  @Test
   func auditCoverageMarksCompleteLatestRunAndFeedsNarrationPrompt() {
     let display = PlanSessionHistoryDisplay(
       items: [
@@ -184,7 +211,8 @@ struct PlanSessionHistoryGuideTests {
     status: SessionStatus = .succeeded,
     commits: [SessionCommit] = [],
     failedVerify: PlanSessionHistoryItem.FailedVerify? = nil,
-    runtimeRouteSummary: String? = nil
+    runtimeRouteSummary: String? = nil,
+    auditArtifacts: [PlanSessionHistoryItem.AuditArtifact] = []
   ) -> PlanSessionHistoryItem {
     PlanSessionHistoryItem(
       sessionNumber: number,
@@ -206,7 +234,8 @@ struct PlanSessionHistoryGuideTests {
       notes: [],
       commits: commits,
       failedVerify: failedVerify,
-      runtimeRouteSummary: runtimeRouteSummary
+      runtimeRouteSummary: runtimeRouteSummary,
+      auditArtifacts: auditArtifacts
     )
   }
 

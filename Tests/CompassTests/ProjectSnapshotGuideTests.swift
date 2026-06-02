@@ -7,8 +7,28 @@ struct ProjectSnapshotGuideTests {
   @Test
   @MainActor
   func snapshotBuilderPackagesProjectStateFromOnePlace() throws {
+    let parentURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: parentURL) }
+    let repoURL = parentURL.appending(path: "CompassBuilder", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: repoURL, withIntermediateDirectories: true)
+    try initGitRepo(at: repoURL)
+    let workspace = CompassWorkspace(repoURL: repoURL)
+    try workspace.writeSessionAuditManifest(
+      SessionAuditManifest(
+        session: 2,
+        artifacts: [
+          SessionAuditArtifact(
+            path: "sessions/000002/verify-attempt-1-full.log",
+            kind: "verify_output",
+            byteCount: 1_024,
+            note: "Full Verify output."
+          )
+        ]
+      )
+    )
+
     let project = CompassProject(
-      repoURL: URL(fileURLWithPath: "/tmp/CompassBuilder", isDirectory: true)
+      repoURL: repoURL
     )
     project.drafts =
       "- Improve snapshots because users get lost; success shows the latest run audit."
@@ -60,6 +80,11 @@ struct ProjectSnapshotGuideTests {
     #expect(payload.text.contains("Run history:"))
     #expect(payload.text.contains("Status: Latest Run Succeeded"))
     #expect(payload.text.contains("Latest #2: Succeeded: Add a shared snapshot builder."))
+    #expect(
+      payload.text.contains(
+        "1 audit artifact: Verify output - 1.0 KB is saved with the session audit manifest."
+      )
+    )
     #expect(payload.text.contains("1 commit: Explore can open file changes"))
     #expect(payload.text.contains("Runtime readiness:"))
     #expect(!payload.text.contains("sk-builder-secret"))

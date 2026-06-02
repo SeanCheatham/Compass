@@ -45,7 +45,10 @@ enum ProjectSnapshotBuilder {
 
   @MainActor
   private static func historyGuide(for project: CompassProject) -> PlanSessionHistoryGuide {
-    let historyItems = PlanSessionHistory.displayItems(for: project.sessions)
+    let historyItems = PlanSessionHistory.displayItems(
+      for: project.sessions,
+      auditManifests: auditManifests(for: project.sessions, workspace: project.workspace)
+    )
     let feedback = PlanReliabilityFeedback(
       state: project.state,
       sessions: project.sessions,
@@ -56,5 +59,15 @@ enum ProjectSnapshotBuilder {
       runCues: feedback.recentRunCues
     )
     return PlanSessionHistoryGuide(display: display, runCues: feedback.recentRunCues)
+  }
+
+  private static func auditManifests(
+    for sessions: [SessionRecord],
+    workspace: CompassWorkspace?
+  ) -> [Int: SessionAuditManifest] {
+    guard let workspace else { return [:] }
+    return sessions.reduce(into: [Int: SessionAuditManifest]()) { result, session in
+      result[session.session] = workspace.readSessionAuditManifest(session: session.session)
+    }
   }
 }
