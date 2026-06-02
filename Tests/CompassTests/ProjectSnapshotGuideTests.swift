@@ -30,6 +30,11 @@ struct ProjectSnapshotGuideTests {
     let project = CompassProject(
       repoURL: repoURL
     )
+    project.vision = """
+      Compass helps non-engineer operators understand generated software because opaque agent work is hard to trust.
+      Success shows project snapshots with vision, proof, and plain-language next steps.
+      It must preserve privacy and stay macOS native.
+      """
     project.drafts =
       "- Improve snapshots because users get lost; success shows the latest run audit."
     project.lessons = """
@@ -78,6 +83,10 @@ struct ProjectSnapshotGuideTests {
     )
 
     #expect(payload.text.contains("Project: CompassBuilder"))
+    #expect(payload.text.contains("Project vision:"))
+    #expect(payload.text.contains("Status: Vision ready"))
+    #expect(payload.text.contains("Vision preview:"))
+    #expect(payload.text.contains("opaque agent work is hard to trust"))
     #expect(payload.text.contains("Draft queue:"))
     #expect(payload.text.contains("1 draft is ready for Plan"))
     #expect(payload.text.contains("Prompt lane: 1 active prompt signal"))
@@ -152,6 +161,13 @@ struct ProjectSnapshotGuideTests {
       )
     )
     let settingsGuide = AgentSettingsGuide(settings: settings, foundationModelsAvailable: false)
+    let visionGuide = ProjectVisionGuide(
+      vision: """
+        Compass helps non-engineer operators build high-quality macOS software because setup, planning, and verification are hard.
+        Success shows a visible run audit, passing tests, and plain-language next steps.
+        It must preserve privacy, use native Apple capabilities where possible, and avoid hiding risky assumptions.
+        """
+    )
     let lessonsGuide = ProjectLessonsGuide(
       lessons: """
         - Learned snapshots need durable memory because handoffs lose context; tests passed with ProjectSnapshotGuideTests.
@@ -182,6 +198,7 @@ struct ProjectSnapshotGuideTests {
       draftGuide: draftGuide,
       assumptionGuide: assumptionGuide,
       settingsGuide: settingsGuide,
+      visionGuide: visionGuide,
       lessonsGuide: lessonsGuide,
       historyGuide: historyGuide
     )
@@ -194,6 +211,10 @@ struct ProjectSnapshotGuideTests {
     #expect(payload.text.contains("Primary action: Run Loop (loop, enabled)"))
     #expect(payload.text.contains("Next run preview:"))
     #expect(payload.text.contains("Plan one slice"))
+    #expect(payload.text.contains("Project vision:"))
+    #expect(payload.text.contains("Status: Vision ready"))
+    #expect(payload.text.contains("Signals present: Audience, Problem, Success signal, Guardrails"))
+    #expect(payload.text.contains("Vision preview:"))
     #expect(payload.text.contains("Draft queue:"))
     #expect(payload.text.contains("Plan scope: 1 draft is ready for Plan; 1 draft needs detail."))
     #expect(payload.text.contains("Draft #1: Ready for Plan"))
@@ -237,6 +258,7 @@ struct ProjectSnapshotGuideTests {
       settings: AgentRuntimeSettings(textProvider: .appleFoundationModels),
       foundationModelsAvailable: true
     )
+    let visionGuide = ProjectVisionGuide(vision: "")
     let lessonsGuide = ProjectLessonsGuide(lessons: "")
     let historyGuide = PlanSessionHistoryGuide(display: PlanSessionHistoryDisplay(items: []))
 
@@ -246,12 +268,16 @@ struct ProjectSnapshotGuideTests {
       draftGuide: draftGuide,
       assumptionGuide: assumptionGuide,
       settingsGuide: settingsGuide,
+      visionGuide: visionGuide,
       lessonsGuide: lessonsGuide,
       historyGuide: historyGuide
     )
 
     #expect(payload.text.contains("Project: Untitled project"))
     #expect(payload.text.contains("Status: Ready for Develop"))
+    #expect(payload.text.contains("Project vision:"))
+    #expect(payload.text.contains("Status: Vision empty"))
+    #expect(payload.text.contains("Missing signals: Audience, Problem, Success signal, Guardrails"))
     #expect(payload.text.contains("Draft queue:"))
     #expect(payload.text.contains("Status: No queued drafts"))
     #expect(payload.text.contains("Plan scope: No queued drafts."))

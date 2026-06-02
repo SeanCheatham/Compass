@@ -1,7 +1,7 @@
 import Foundation
 
 struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
-  static let textLimit = 5_000
+  static let textLimit = 6_500
   private static let rowLimit = 7
   private static let draftHighlightLimit = 3
 
@@ -13,6 +13,7 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
     draftGuide: DraftIntakeGuide,
     assumptionGuide: AssumptionReviewGuide,
     settingsGuide: AgentSettingsGuide,
+    visionGuide: ProjectVisionGuide? = nil,
     lessonsGuide: ProjectLessonsGuide? = nil,
     historyGuide: PlanSessionHistoryGuide? = nil
   ) {
@@ -24,8 +25,8 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
         + "credentials, hidden drafts, completed work, verification results, or model output.",
       "- Use Run readiness and Primary action before starting work; disabled run modes stay "
         + "disabled until the named blocker changes.",
-      "- Use Draft queue and Assumption memory as guidance, not new scope. Ready drafts can "
-        + "feed Plan; tentative assumptions still need review.",
+      "- Use Project vision, Draft queue, Assumption memory, and Project lessons as guidance, "
+        + "not new scope. Keep missing signals visible instead of silently filling them in.",
       "- Runtime credential values are intentionally omitted. Never ask the user to paste API "
         + "keys into chat.",
       "",
@@ -55,6 +56,9 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
       }
     }
 
+    if let visionGuide {
+      Self.appendProjectVision(guide: visionGuide, to: &sections)
+    }
     Self.appendDraftQueue(guide: draftGuide, to: &sections)
     Self.appendAssumptionMemory(guide: assumptionGuide, to: &sections)
     if let lessonsGuide {
@@ -73,6 +77,23 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
 
   var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private static func appendProjectVision(
+    guide: ProjectVisionGuide,
+    to sections: inout [String]
+  ) {
+    sections.append("")
+    sections.append("Project vision:")
+    sections.append("- Status: \(guide.title) - \(guide.detail)")
+    sections.append("- Score: \(guide.scoreLabel)")
+    sections.append("- Next action: \(guide.nextAction.title) - \(guide.nextAction.detail)")
+    sections.append("- Signals present: \(guide.satisfiedSignalText)")
+    sections.append("- Missing signals: \(guide.missingSignalText)")
+
+    guard !guide.visionPreview.isEmpty else { return }
+
+    sections.append("- Vision preview: \(singleLine(guide.visionPreview, limit: 520))")
   }
 
   private static func appendDraftQueue(

@@ -13,6 +13,7 @@ enum ProjectSnapshotBuilder {
     let assumptionGuide = AssumptionReviewGuide(
       ledger: AssumptionLedger(assumptions: project.assumptions)
     )
+    let visionGuide = ProjectVisionGuide(vision: project.vision)
     let lessonsGuide = ProjectLessonsGuide(lessons: project.lessons)
     let settingsGuide = AgentSettingsGuide(
       settings: agentSettings,
@@ -25,6 +26,7 @@ enum ProjectSnapshotBuilder {
       draftGuide: draftGuide,
       assumptionGuide: assumptionGuide,
       settingsGuide: settingsGuide,
+      visionGuide: visionGuide,
       lessonsGuide: lessonsGuide,
       historyGuide: historyGuide(for: project)
     )
