@@ -63,7 +63,7 @@ struct OnboardingReadinessGuideTests {
   }
 
   @Test
-  func readyTextExplainsVMPreparationProgress() {
+  func readyTextExplainsWorkspacePreparationProgress() {
     let guide = OnboardingReadinessGuide(
       settings: AgentRuntimeSettings(
         textProvider: .openAI,
@@ -75,11 +75,35 @@ struct OnboardingReadinessGuideTests {
     )
 
     #expect(guide.title == "Preparing Private Workspace")
-    #expect(guide.actionLabel == "VM in progress")
+    #expect(guide.actionLabel == "Workspace in progress")
+    #expect(guide.detail.contains("private workspace"))
+    #expect(!guide.detail.contains("Shared VM"))
     #expect(guide.tone == .inProgress)
     #expect(guide.steps[0].isComplete)
     #expect(!guide.steps[1].isComplete)
     #expect(guide.steps[1].detail == "Downloading restore image (42%)")
+  }
+
+  @Test
+  func readyTextExplainsWorkspaceRequirementBeforeRunControlsUnlock() {
+    let guide = OnboardingReadinessGuide(
+      settings: AgentRuntimeSettings(
+        textProvider: .openAI,
+        apiKey: "sk-test",
+        model: "gpt-4o"
+      ),
+      vmReadiness: .notProvisioned,
+      foundationModelsAvailable: false
+    )
+
+    #expect(guide.title == "Prepare Private Workspace")
+    #expect(guide.actionLabel == "Workspace needed")
+    #expect(guide.detail.contains("private workspace"))
+    #expect(guide.steps[1].label == "Private workspace")
+    #expect(guide.steps[1].detail.contains("Prepare the private workspace once"))
+    #expect(guide.steps[2].detail.contains("private workspace"))
+    #expect(!guide.detail.contains("Shared VM"))
+    #expect(!guide.steps[1].detail.contains("Shared VM"))
   }
 
   @Test
@@ -127,6 +151,7 @@ struct OnboardingReadinessGuideTests {
     #expect(payload.text.contains("Compass Setup Handoff"))
     #expect(payload.text.contains("Do not invent credentials"))
     #expect(payload.text.contains("Never ask the user to paste an API key into chat"))
+    #expect(payload.text.contains("If Text or the private workspace is blocked"))
     #expect(payload.text.contains("Status: Prepare Private Workspace (needsWorkspace)"))
     #expect(payload.text.contains("Run controls: locked"))
     #expect(payload.text.contains("Provider: OpenAI API"))
@@ -141,6 +166,7 @@ struct OnboardingReadinessGuideTests {
     #expect(payload.text.contains("After setup:"))
     #expect(payload.text.contains("[locked] Plan"))
     #expect(payload.text.contains("[locked] Verify + review"))
+    #expect(!payload.text.contains("If Text or the Shared VM is blocked"))
     #expect(!payload.text.contains("sk-secret-should-not-copy"))
     #expect(payload.text.count <= OnboardingSetupClipboardPayload.textLimit)
     #expect(!payload.isEmpty)

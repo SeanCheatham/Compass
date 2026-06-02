@@ -52,9 +52,9 @@ struct OnboardingView: View {
         }
         OnboardingStep(
           number: 2,
-          title: "Provision the Shared VM",
+          title: "Prepare the private workspace",
           description:
-            "Compass routes agent work through a private macOS VM. First install downloads ~14 GB and runs for roughly 30–50 minutes; you only do this once.",
+            "Compass routes agent work through an isolated macOS workspace. First install downloads about 14 GB and runs for roughly 30-50 minutes; you only do this once.",
           isComplete: vmHost.readiness.isReady
         ) {
           SharedVMOnboardingPanel(vmHost: vmHost)
@@ -598,7 +598,7 @@ private struct SharedVMOnboardingPanel: View {
   private var provisionActions: some View {
     VStack(alignment: .leading, spacing: 10) {
       Text(
-        "Downloads ~14 GB from Apple's CDN and installs a private macOS VM. You can keep using your Mac while it runs."
+        "Downloads about 14 GB from Apple's CDN and installs the private macOS workspace. You can keep using your Mac while it runs."
       )
       .font(.callout)
       .foregroundStyle(.secondary)
@@ -614,7 +614,7 @@ private struct SharedVMOnboardingPanel: View {
             }
           }
         } label: {
-          Label("Provision Shared VM", systemImage: "play.fill")
+          Label("Prepare Workspace", systemImage: "play.fill")
         }
         .buttonStyle(.borderedProminent)
         .disabled(vmHost.readiness.isUnavailable)
@@ -687,14 +687,14 @@ private struct SharedVMOnboardingPanel: View {
   }
 
   private var readySection: some View {
-    Label("Shared VM is ready.", systemImage: "checkmark.seal.fill")
+    Label("Private workspace is ready.", systemImage: "checkmark.seal.fill")
       .font(.callout.weight(.semibold))
       .foregroundStyle(Color.green)
   }
 
   private func unavailableSection(reason: String) -> some View {
     VStack(alignment: .leading, spacing: 6) {
-      Label("Shared VM unavailable on this Mac", systemImage: "exclamationmark.triangle.fill")
+      Label("Private workspace unavailable on this Mac", systemImage: "exclamationmark.triangle.fill")
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(Color.orange)
       Text(reason)
@@ -702,7 +702,7 @@ private struct SharedVMOnboardingPanel: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
       Text(
-        "Compass routes every agent run through the Shared VM, so it can't continue until this resolves. Apple-Silicon hardware on a supported macOS version is required."
+        "Compass routes every agent run through the private workspace, so it can't continue until this resolves. Apple-Silicon hardware on a supported macOS version is required."
       )
       .font(.caption)
       .foregroundStyle(.secondary)
@@ -712,7 +712,7 @@ private struct SharedVMOnboardingPanel: View {
 
   private func errorSection(detail: String) -> some View {
     VStack(alignment: .leading, spacing: 10) {
-      Label("Shared VM error", systemImage: "xmark.octagon.fill")
+      Label("Private workspace error", systemImage: "xmark.octagon.fill")
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(Color.red)
       Text(detail)
@@ -731,11 +731,11 @@ private struct SharedVMOnboardingPanel: View {
             try? await vmHost.resetProvisioningArtifacts()
           }
         } label: {
-          Label("Reset VM artifacts", systemImage: "trash")
+          Label("Reset workspace artifacts", systemImage: "trash")
         }
         .buttonStyle(.bordered)
         .help(
-          "Remove installed VM artifacts while preserving cached restore images and Compass SSH keys."
+          "Remove installed workspace artifacts while preserving cached restore images and Compass SSH keys."
         )
       }
     }
@@ -743,9 +743,9 @@ private struct SharedVMOnboardingPanel: View {
 
   private static func confirmReset() -> Bool {
     let alert = NSAlert()
-    alert.messageText = "Reset Shared VM artifacts?"
+    alert.messageText = "Reset private workspace artifacts?"
     alert.informativeText =
-      "This removes the VM disk, auxiliary storage, platform identity, and stale SSH trust. Cached restore images and Compass SSH keys are preserved."
+      "This removes the workspace disk, auxiliary storage, platform identity, and stale SSH trust. Cached restore images and Compass SSH keys are preserved."
     alert.alertStyle = .warning
     alert.addButton(withTitle: "Reset")
     alert.addButton(withTitle: "Cancel")
@@ -792,9 +792,9 @@ private struct OnboardingLocalIPSWButton: View {
 
   private static func confirmRebuild() -> Bool {
     let alert = NSAlert()
-    alert.messageText = "Rebuild Shared VM?"
+    alert.messageText = "Rebuild private workspace?"
     alert.informativeText =
-      "This removes the partially installed VM disk and starts installation again. Cached restore images and Compass SSH keys are preserved."
+      "This removes the partially installed workspace disk and starts installation again. Cached restore images and Compass SSH keys are preserved."
     alert.alertStyle = .warning
     alert.addButton(withTitle: "Rebuild")
     alert.addButton(withTitle: "Cancel")

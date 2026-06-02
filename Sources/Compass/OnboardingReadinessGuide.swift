@@ -73,15 +73,15 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     } else if vmInProgress {
       title = "Preparing Private Workspace"
       detail =
-        "Text is ready. Compass is still preparing the Shared VM so Develop can edit inside an isolated macOS environment."
-      actionLabel = "VM in progress"
+        "Text is ready. Compass is still preparing the private workspace so Develop can edit inside an isolated macOS environment."
+      actionLabel = "Workspace in progress"
       tone = .inProgress
       systemImageName = vmReadiness.systemImage
     } else {
       title = "Prepare Private Workspace"
       detail =
-        "Text is ready. Provision the Shared VM before Compass starts agent work, so edits and commands run outside your host checkout."
-      actionLabel = "VM needed"
+        "Text is ready. Prepare the private workspace before Compass starts agent work, so edits and commands run outside your host checkout."
+      actionLabel = "Workspace needed"
       tone = .needsWorkspace
       systemImageName = vmReadiness.systemImage
     }
@@ -153,7 +153,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
         label: "First run",
         detail: textReady && vmReady
           ? "Run controls are unlocked for a scoped Plan or full loop."
-          : "Run controls stay locked until Text and the Shared VM are both ready.",
+          : "Run controls stay locked until Text and the private workspace are both ready.",
         systemImageName: "play.circle",
         isComplete: textReady && vmReady
       ),
@@ -205,15 +205,15 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
   private static func vmStepDetail(_ readiness: SharedCompassVMReadiness) -> String {
     switch readiness {
     case .ready:
-      return "Shared VM is ready for sandboxed Develop work."
+      return "Private workspace is ready for sandboxed Develop work."
     case .notProvisioned:
-      return "Provision the Shared VM once; first install downloads about 14 GB."
+      return "Prepare the private workspace once; first install downloads about 14 GB."
     case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
       return readiness.statusSummary
     case .unavailable(let reason):
-      return "Shared VM is unavailable: \(reason)"
+      return "Private workspace is unavailable: \(reason)"
     case .error(let detail):
-      return "Shared VM needs attention: \(detail)"
+      return "Private workspace needs attention: \(detail)"
     }
   }
 
@@ -281,7 +281,7 @@ struct OnboardingSetupClipboardPayload: Equatable, Sendable {
       "- Never ask the user to paste an API key into chat. This packet only reports "
         + "whether a credential is saved.",
       "- Use the checklist and raw readiness fields to identify the next safe setup action.",
-      "- If Text or the Shared VM is blocked, ask for the missing user-verifiable fact "
+      "- If Text or the private workspace is blocked, ask for the missing user-verifiable fact "
         + "instead of assuming the environment can run.",
       "",
       "Status: \(guide.title) (\(guide.tone.rawValue))",
