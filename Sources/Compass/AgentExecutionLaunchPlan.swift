@@ -240,6 +240,9 @@ struct AgentExecutionLaunchPlan: Equatable {
     if let rewritten = exactRewrites[normalized] {
       return punctuatedSentence(rewritten)
     }
+    if normalized.hasPrefix("Shared VM unavailable: 2-guest cap") {
+      return "private workspace capacity is currently full."
+    }
 
     var rewritten = normalized
       .replacingOccurrences(of: "Shared VM", with: "private workspace")

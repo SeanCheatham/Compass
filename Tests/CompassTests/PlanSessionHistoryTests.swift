@@ -124,8 +124,11 @@ struct PlanSessionHistoryTests: ~Copyable {
     try #require(items[1].runtimeRouteSummary == verifySnapshot.routeSummary)
     try #require(items[1].runtimeRouteSummary?.contains("Verify attempt 2") == true)
     try #require(
-      items[1].runtimeRouteSummary?.contains("fallback Shared VM unavailable: 2-guest cap.") == true
+      items[1].runtimeRouteSummary?.contains(
+        "fallback private workspace capacity is currently full."
+      ) == true
     )
+    try #require(items[1].runtimeRouteSummary?.contains("Shared VM") == false)
     try #require(
       items[1].runtimeRouteSummary?.count ?? 0 <= SessionExecutionEnvironmentSnapshot.summaryLimit
     )
@@ -161,9 +164,14 @@ struct PlanSessionHistoryTests: ~Copyable {
     try #require(descriptor.selectedPreferenceIdentifier == "shared_vm")
     try #require(descriptor.effectiveRouteTitle == "Private workspace")
     try #require(descriptor.selectedPreferenceTitle == "Private workspace")
-    try #require(descriptor.badgeText.contains("Private workspace"))
+    try #require(descriptor.badgeText == "Private workspace · Ready")
     try #require(!descriptor.badgeText.contains("Private workspace · Private workspace"))
+    try #require(!descriptor.badgeText.contains("omitted 0"))
+    try #require(!descriptor.badgeText.contains("direct"))
     try #require(!descriptor.helpText.contains("Shared VM"))
+    try #require(!descriptor.helpText.contains("Support:"))
+    try #require(!descriptor.helpText.contains("Omitted token count"))
+    try #require(!descriptor.helpText.contains("Fallback: direct"))
     try #require(PlanSessionHistoryFilter.sharedVM.title == "Private workspace")
     try #require(PlanSessionHistoryFilter.sharedVM.emptyStateName == "private workspace runs")
   }
@@ -193,7 +201,13 @@ struct PlanSessionHistoryTests: ~Copyable {
     try #require(descriptor.effectiveRouteTitle == "This Mac")
     try #require(descriptor.selectedPreferenceTitle == "Private workspace")
     try #require(descriptor.badgeText.contains("This Mac · selected Private workspace"))
+    try #require(descriptor.badgeText.contains("Fallback active"))
+    try #require(!descriptor.badgeText.contains("omitted 0"))
+    try #require(!descriptor.badgeText.contains("direct"))
     try #require(descriptor.helpText.contains("Runtime: This Mac"))
+    try #require(descriptor.helpText.contains("private workspace capacity is currently full"))
+    try #require(!descriptor.helpText.contains("Shared VM"))
+    try #require(!descriptor.helpText.contains("Support:"))
     try #require(PlanSessionHistoryFilter.nativeRuntime.title == "This Mac/Fallback")
     try #require(
       PlanSessionHistoryFilter.nativeRuntime.emptyStateName == "runs using this Mac or fallback")

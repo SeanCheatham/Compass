@@ -177,6 +177,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         identifier: effectiveRouteIdentifier,
         fallback: snapshot.effectiveRouteTitle
       )
+      let fallbackDetail = Self.fallbackDetail(for: snapshot)
 
       self = Self(
         snapshotAvailabilityIdentifier: "available",
@@ -199,7 +200,8 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
           effectiveRouteTitle: effectiveRouteTitle,
           supportClassificationIdentifier: supportClassificationIdentifier,
           omittedSupportTokenCount: omittedSupportTokenCount,
-          fallbackStateIdentifier: fallbackStateIdentifier
+          fallbackStateIdentifier: fallbackStateIdentifier,
+          fallbackDetail: fallbackDetail
         )
       )
     }
@@ -231,15 +233,17 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         selectedPreferenceTitle == effectiveRouteTitle
         ? effectiveRouteTitle
         : "\(effectiveRouteTitle) · selected \(selectedPreferenceTitle)"
-      return boundedText(
-        [
-          routeSummary,
-          supportClassificationIdentifier,
-          "omitted \(omittedSupportTokenCount)",
-          fallbackStateIdentifier,
-        ].joined(separator: " · "),
-        limit: badgeTextLimit
-      )
+      var pieces = [
+        routeSummary,
+        readinessBadgeText(supportClassificationIdentifier),
+      ]
+      if fallbackStateIdentifier == "fallback" {
+        pieces.append("Fallback active")
+      }
+      if omittedSupportTokenCount > 0 {
+        pieces.append("\(omittedSupportTokenCount) detail\(omittedSupportTokenCount == 1 ? "" : "s") hidden")
+      }
+      return boundedText(pieces.joined(separator: " · "), limit: badgeTextLimit)
     }
 
     private static func helpText(
@@ -247,21 +251,26 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
       effectiveRouteTitle: String,
       supportClassificationIdentifier: String,
       omittedSupportTokenCount: Int,
-      fallbackStateIdentifier: String
+      fallbackStateIdentifier: String,
+      fallbackDetail: String?
     ) -> String {
       let routeSummary =
         selectedPreferenceTitle == effectiveRouteTitle
         ? "Runtime: \(effectiveRouteTitle)"
         : "Runtime: \(effectiveRouteTitle); Selected preference: \(selectedPreferenceTitle)"
-      return boundedText(
-        [
-          routeSummary,
-          "Support: \(supportClassificationIdentifier)",
-          "Omitted token count: \(omittedSupportTokenCount)",
-          "Fallback: \(fallbackStateIdentifier)",
-        ].joined(separator: "; "),
-        limit: helpTextLimit
-      )
+      var pieces = [
+        routeSummary,
+        "Private workspace: \(readinessHelpText(supportClassificationIdentifier))",
+      ]
+      if fallbackStateIdentifier == "fallback" {
+        pieces.append(fallbackDetail ?? "Fallback active")
+      }
+      if omittedSupportTokenCount > 0 {
+        pieces.append(
+          "\(omittedSupportTokenCount) support detail\(omittedSupportTokenCount == 1 ? "" : "s") hidden"
+        )
+      }
+      return boundedText(pieces.joined(separator: "; "), limit: helpTextLimit)
     }
 
     private static func fallbackStateIdentifier(
@@ -271,6 +280,65 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         snapshot.fallbackReason?
         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
       return fallbackReason.isEmpty ? "direct" : "fallback"
+    }
+
+    private static func fallbackDetail(
+      for snapshot: SessionExecutionEnvironmentSnapshot
+    ) -> String? {
+      guard
+        let fallbackReason = snapshot.fallbackReason?
+          .trimmingCharacters(in: .whitespacesAndNewlines),
+        !fallbackReason.isEmpty
+      else {
+        return nil
+      }
+      return "Fallback: \(AgentExecutionLaunchPlan.userFacingFallbackReason(fallbackReason))"
+    }
+
+    private static func readinessBadgeText(_ identifier: String) -> String {
+      switch identifier {
+      case "ready":
+        return "Ready"
+      case "not-provisioned":
+        return "Workspace not prepared"
+      case "downloading-ipsw":
+        return "Downloading macOS"
+      case "installing":
+        return "Installing macOS"
+      case "first-boot-pending", "guest-prepping":
+        return "Finishing setup"
+      case "provisioning-dev-tools":
+        return "Installing developer tools"
+      case "unavailable":
+        return "Workspace unavailable"
+      case "error":
+        return "Needs attention"
+      default:
+        return "Readiness not checked"
+      }
+    }
+
+    private static func readinessHelpText(_ identifier: String) -> String {
+      switch identifier {
+      case "ready":
+        return "ready"
+      case "not-provisioned":
+        return "not prepared yet"
+      case "downloading-ipsw":
+        return "downloading macOS"
+      case "installing":
+        return "installing macOS"
+      case "first-boot-pending", "guest-prepping":
+        return "finishing setup"
+      case "provisioning-dev-tools":
+        return "installing developer tools"
+      case "unavailable":
+        return "unavailable"
+      case "error":
+        return "needs attention"
+      default:
+        return "not checked yet"
+      }
     }
 
     private static func preferenceTitle(identifier: String, fallback: String) -> String {

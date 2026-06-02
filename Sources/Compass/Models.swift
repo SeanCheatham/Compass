@@ -1517,7 +1517,7 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
     }
 
     if let fallbackReason, !fallbackReason.isEmpty {
-      pieces.append("fallback \(fallbackReason)")
+      pieces.append("fallback \(AgentExecutionLaunchPlan.userFacingFallbackReason(fallbackReason))")
     }
 
     if let provisioningAvailabilityIdentifier, let provisioningStatusIdentifier {
