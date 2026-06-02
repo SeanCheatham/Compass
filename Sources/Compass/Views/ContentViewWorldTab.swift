@@ -50,7 +50,7 @@ struct WorldTab: View {
       .foregroundStyle(.white)
     } else if let graph = model.graph {
       HStack(spacing: 14) {
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .topLeading) {
           WorldRealitySceneView(
             graph: graph,
             selectedNodeID: model.selectedNodeID,
@@ -76,7 +76,7 @@ struct WorldTab: View {
               route: model.route,
               onSelect: model.selectNode
             )
-            .frame(width: 190, height: 150)
+            .frame(width: 150, height: 112)
           }
           .padding(14)
         }
@@ -385,7 +385,7 @@ private struct WorldSidebarPanel: View {
   @State private var mode: WorldPanelMode = .guide
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: 12) {
       Picker("World panel", selection: $mode) {
         ForEach(WorldPanelMode.allCases) { mode in
           Label(mode.rawValue, systemImage: mode.systemImage)
@@ -411,6 +411,13 @@ private struct WorldSidebarPanel: View {
         )
       }
     }
+    .padding(14)
+    .foregroundStyle(.white)
+    .background(.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(.white.opacity(0.14), lineWidth: 1)
+    )
     .frame(maxHeight: .infinity, alignment: .top)
   }
 }
@@ -438,13 +445,6 @@ struct WorldInspectorPanel: View {
       selectedNode
       Spacer()
     }
-    .padding(14)
-    .foregroundStyle(.white)
-    .background(.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 8))
-    .overlay(
-      RoundedRectangle(cornerRadius: 8)
-        .stroke(.white.opacity(0.14), lineWidth: 1)
-    )
   }
 
   private var header: some View {
@@ -773,17 +773,10 @@ private struct WorldCodeBrowserPanel: View {
         onLoadArchivedSessions: onLoadArchivedSessions
       )
       .equatable()
+      .environment(\.colorScheme, .dark)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 7))
       .clipShape(RoundedRectangle(cornerRadius: 7))
     }
-    .padding(14)
-    .foregroundStyle(.white)
-    .background(.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 8))
-    .overlay(
-      RoundedRectangle(cornerRadius: 8)
-        .stroke(.white.opacity(0.14), lineWidth: 1)
-    )
   }
 }
 
@@ -990,18 +983,18 @@ struct WorldMiniMap: View {
           let highlighted = routeSet.contains(edge.sourceID) && routeSet.contains(edge.targetID)
           context.stroke(
             path,
-            with: .color(highlighted ? .yellow.opacity(0.7) : .white.opacity(0.2)),
-            lineWidth: highlighted ? 2 : 1
+            with: .color(highlighted ? .yellow.opacity(0.62) : .white.opacity(0.08)),
+            lineWidth: highlighted ? 1.25 : 0.65
           )
         }
 
         for node in graph.nodes {
           guard let point = points[node.id] else { continue }
-          let radius: CGFloat = node.id == selectedNodeID ? 4.5 : 2.8
+          let radius: CGFloat = node.id == selectedNodeID ? 3.8 : 2.2
           let rect = CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
           context.fill(
             Path(ellipseIn: rect),
-            with: .color(routeSet.contains(node.id) ? .yellow : .white.opacity(0.72))
+            with: .color(routeSet.contains(node.id) ? .yellow.opacity(0.9) : .white.opacity(0.46))
           )
         }
       }
@@ -1016,10 +1009,10 @@ struct WorldMiniMap: View {
           }
       )
     }
-    .background(.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 8))
+    .background(.black.opacity(0.24), in: RoundedRectangle(cornerRadius: 8))
     .overlay(
       RoundedRectangle(cornerRadius: 8)
-        .stroke(.white.opacity(0.14), lineWidth: 1)
+        .stroke(.white.opacity(0.09), lineWidth: 1)
     )
   }
 
@@ -1093,7 +1086,7 @@ struct WorldRealitySceneView: View {
 @MainActor
 enum WorldRealitySceneFactory {
   private static let maxSceneNodes = 450
-  private static let maxSceneEdges = 650
+  private static let maxSceneEdges = 90
 
   static func makeScene(
     graph: WorldGraph,
@@ -1121,6 +1114,8 @@ enum WorldRealitySceneFactory {
 
     let routePrefix = Array(route.prefix(min(routeIndex + 1, route.count)))
     let routeSet = Set(routePrefix)
+    let fullRouteSet = Set(route)
+    let currentNodeID = routePrefix.last ?? selectedNodeID
     let entrypointSet = Set(graph.entrypointIDs)
     let sceneNodes = prioritizedSceneNodes(
       in: graph,
@@ -1135,7 +1130,10 @@ enum WorldRealitySceneFactory {
           && visibleNodeIDs.contains(edge.sourceID)
           && visibleNodeIDs.contains(edge.targetID)
       },
-      routeSet: routeSet
+      selectedNodeID: selectedNodeID,
+      currentNodeID: currentNodeID,
+      routeSet: routeSet,
+      fullRouteSet: fullRouteSet
     )
 
     for edge in sceneEdges {
@@ -1216,12 +1214,29 @@ enum WorldRealitySceneFactory {
     )
   }
 
-  private static func prioritizedSceneEdges(_ edges: [WorldEdge], routeSet: Set<String>) -> [WorldEdge] {
-    guard edges.count > maxSceneEdges else { return edges }
+  private static func prioritizedSceneEdges(
+    _ edges: [WorldEdge],
+    selectedNodeID: String?,
+    currentNodeID: String?,
+    routeSet: Set<String>,
+    fullRouteSet: Set<String>
+  ) -> [WorldEdge] {
     return Array(
       edges.sorted { lhs, rhs in
-        let lhsScore = sceneEdgeScore(lhs, routeSet: routeSet)
-        let rhsScore = sceneEdgeScore(rhs, routeSet: routeSet)
+        let lhsScore = sceneEdgeScore(
+          lhs,
+          selectedNodeID: selectedNodeID,
+          currentNodeID: currentNodeID,
+          routeSet: routeSet,
+          fullRouteSet: fullRouteSet
+        )
+        let rhsScore = sceneEdgeScore(
+          rhs,
+          selectedNodeID: selectedNodeID,
+          currentNodeID: currentNodeID,
+          routeSet: routeSet,
+          fullRouteSet: fullRouteSet
+        )
         if lhsScore != rhsScore { return lhsScore > rhsScore }
         if lhs.sourceID != rhs.sourceID { return lhs.sourceID < rhs.sourceID }
         return lhs.targetID < rhs.targetID
@@ -1250,9 +1265,23 @@ enum WorldRealitySceneFactory {
     return score
   }
 
-  private static func sceneEdgeScore(_ edge: WorldEdge, routeSet: Set<String>) -> Int {
+  private static func sceneEdgeScore(
+    _ edge: WorldEdge,
+    selectedNodeID: String?,
+    currentNodeID: String?,
+    routeSet: Set<String>,
+    fullRouteSet: Set<String>
+  ) -> Int {
     var score = 0
     if routeSet.contains(edge.sourceID), routeSet.contains(edge.targetID) { score += 10_000 }
+    if fullRouteSet.contains(edge.sourceID), fullRouteSet.contains(edge.targetID) { score += 7_000 }
+    if edge.sourceID == currentNodeID || edge.targetID == currentNodeID { score += 3_200 }
+    if edge.sourceID == selectedNodeID || edge.targetID == selectedNodeID { score += 2_600 }
+    switch edge.confidence {
+    case .high: score += 180
+    case .medium: score += 90
+    case .low: score -= 80
+    }
     switch edge.kind {
     case .branches, .loops, .calls, .`throws`: score += 600
     case .contains: score += 260
@@ -1333,10 +1362,10 @@ enum WorldRealitySceneFactory {
     let end = target + SIMD3<Float>(0, -0.18, 0)
     let delta = end - start
     let length = max(simd_length(delta), 0.08)
-    let width: Float = highlighted ? 0.09 : 0.045
+    let width: Float = highlighted ? 0.085 : 0.018
     let color = highlighted
       ? NSColor(calibratedRed: 1.0, green: 0.72, blue: 0.23, alpha: 1)
-      : color(for: kind, alpha: 0.56)
+      : color(for: kind, alpha: 0.24)
 
     let entity = ModelEntity(
       mesh: .generateBox(width: width, height: width, depth: length),

@@ -257,17 +257,25 @@ struct ExploreTab: View, Equatable {
 
   private var sessionScopePicker: some View {
     HStack(spacing: 8) {
-      Button {
-        qaQuestion = ""
-        qaAnswer = nil
-        qaReason = nil
-        showQAPopover = true
-      } label: {
-        Label("Ask a Question", systemImage: "questionmark.circle")
-          .font(.callout)
+      if FoundationModelsAvailability.isAvailable {
+        Button {
+          qaQuestion = ""
+          qaAnswer = nil
+          qaReason = nil
+          showQAPopover = true
+        } label: {
+          Label("Ask a Question", systemImage: "questionmark.circle")
+            .font(.callout)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      } else {
+        Label("Q&A needs Apple Intelligence", systemImage: "sparkles")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .help(FoundationModelsAvailability.generatedExploreUnavailableMessage)
       }
-      .buttonStyle(.bordered)
-      .controlSize(.small)
 
       Spacer()
 

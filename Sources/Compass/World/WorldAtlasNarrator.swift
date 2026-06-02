@@ -6,7 +6,7 @@ struct WorldAtlasNarration: Equatable, Sendable {
 }
 
 enum WorldAtlasNarrator {
-  static let maxCharacters = 360
+  static let maxCharacters = 240
 
   static func narrate(atlas: WorldAtlas) async -> WorldAtlasNarration? {
     guard !atlas.terrain.isEmpty else { return nil }
@@ -35,7 +35,8 @@ enum WorldAtlasNarrator {
     """
     You are Compass's World guide for a non-engineer.
     Use only the facts below. Do not invent files, functions, risks, or outcomes.
-    Return one friendly paragraph under 60 words. No Markdown.
+    Return one calm paragraph under 42 words. No Markdown.
+    Do not use fantasy, adventure, game, maze, or welcome language.
 
     Summary: \(atlas.detail)
     Progress: \(atlas.progressLabel)
@@ -47,7 +48,7 @@ enum WorldAtlasNarrator {
   }
 
   private static func sanitized(_ text: String) -> String {
-    let normalized = StringUtils.boundedText(
+    let normalized = fittedPlainText(
       text
         .components(separatedBy: .newlines)
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -67,5 +68,20 @@ enum WorldAtlasNarrator {
       return ""
     }
     return normalized
+  }
+
+  private static func fittedPlainText(_ text: String, limit: Int) -> String {
+    let normalized = StringUtils.boundedText(text, limit: Int.max)
+    guard normalized.count > limit else { return normalized }
+    let prefix = normalized.prefix(limit)
+    if let lastSentence = prefix.lastIndex(where: { ".!?".contains($0) }),
+      lastSentence > prefix.startIndex
+    {
+      return String(prefix[...lastSentence]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    if let lastSpace = prefix.lastIndex(where: { $0 == " " }), lastSpace > prefix.startIndex {
+      return String(prefix[..<lastSpace]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+    return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }
