@@ -17,9 +17,21 @@ struct DraftsTab: View {
   var body: some View {
     let draftReadinessGuide = DraftReadinessGuide(draft: project.draftEntry)
     let draftQueueGuide = DraftIntakeGuide(drafts: pendingDraftsText)
+    let draftStarter = DraftStarterTemplate(draft: project.draftEntry)
 
     VStack(alignment: .leading, spacing: 14) {
-      SectionHeader("New Draft", systemImage: "square.and.pencil")
+      HStack {
+        SectionHeader("New Draft", systemImage: "square.and.pencil")
+        Spacer()
+        Button {
+          project.draftEntry = draftStarter.text
+        } label: {
+          Label(draftStarter.title, systemImage: draftStarter.systemImage)
+        }
+        .controlSize(.small)
+        .disabled(!project.hasRepository || !draftStarter.isEnabled)
+        .help(draftStarter.helpText)
+      }
       HStack(alignment: .top, spacing: 10) {
         TextField("Describe the next direction", text: $project.draftEntry, axis: .vertical)
           .lineLimit(2...5)

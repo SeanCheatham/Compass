@@ -66,6 +66,42 @@ struct DraftRefinementTests {
       guide.cues[2].detail == "Replace vague words like works or done with visible proof.")
   }
 
+  @Test func testDraftStarterTemplateCreatesBlankScaffold() throws {
+    let starter = DraftStarterTemplate(draft: "   ")
+
+    try #require(starter.title == "Starter")
+    try #require(starter.isEnabled)
+    try #require(starter.text == "Change: \nBecause: \nDone when: ")
+    try #require(starter.systemImage == "wand.and.stars")
+  }
+
+  @Test func testDraftStarterTemplateAppendsOnlyMissingSignals() throws {
+    let vague = DraftStarterTemplate(draft: "make setup faster")
+
+    try #require(vague.title == "Add Signals")
+    try #require(vague.isEnabled)
+    try #require(vague.text == "make setup faster\nBecause: \nDone when: ")
+
+    let whyOnlyMissingDone = DraftStarterTemplate(
+      draft: "Make setup faster because users get stuck."
+    )
+
+    try #require(
+      whyOnlyMissingDone.text == "Make setup faster because users get stuck.\nDone when: ")
+  }
+
+  @Test func testDraftStarterTemplateDisablesWhenDraftIsPlanReady() throws {
+    let starter = DraftStarterTemplate(
+      draft: "Make setup faster because users get stuck; success looks like tests pass."
+    )
+
+    try #require(starter.title == "Ready")
+    try #require(!starter.isEnabled)
+    try #require(
+      starter.text == "Make setup faster because users get stuck; success looks like tests pass.")
+    try #require(starter.systemImage == "checkmark.seal")
+  }
+
   @Test func testDraftReadinessGuideAcceptsSpecificDoneWhenSignals() throws {
     let guide = DraftReadinessGuide(
       draft:
