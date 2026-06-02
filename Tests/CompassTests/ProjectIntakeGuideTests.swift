@@ -13,12 +13,17 @@ struct ProjectIntakeGuideTests {
     try #require(guide.actionLabel == "Add Project")
     try #require(guide.systemImageName == "folder.badge.plus")
     try #require(guide.steps.map(\.id) == [
-      "choose-git-folder", "write-human-goals", "let-compass-verify",
+      "choose-git-folder", "capture-project-vision", "write-first-draft",
+      "let-compass-verify",
     ])
     try #require(guide.steps[0].isPrimary)
+    try #require(guide.steps[1].detail.contains("who it helps"))
+    try #require(guide.steps[1].detail.contains("guardrails"))
+    try #require(guide.steps[1].detail.contains("Project Vision"))
     try #require(guide.signals.map(\.id) == [
-      "git", "verification", "plain-language-goal",
+      "git", "verification", "project-vision", "plain-language-goal",
     ])
+    try #require(guide.signals.contains { $0.id == "project-vision" && $0.label == "Project vision" })
     try #require(guide.allowsNarration)
     try #require(guide.narrationIdentifier.contains("count:0"))
     try #require(guide.narrationIdentifier.contains("Add Your First Project"))
@@ -53,8 +58,11 @@ struct ProjectIntakeGuideTests {
 
     try #require(payload.text.contains("Compass Project Intake Handoff"))
     try #require(payload.text.contains("Recipient instructions:"))
+    try #require(payload.text.contains("capture Project Vision notes"))
     try #require(payload.text.contains("Status: No projects yet"))
     try #require(payload.text.contains("- Choose a Git folder:"))
+    try #require(payload.text.contains("- Capture the vision:"))
+    try #require(payload.text.contains("Project vision:"))
     try #require(payload.text.contains("Good project signals:"))
     try #require(payload.text.count <= ProjectIntakeGuide.handoffLimit)
   }
@@ -70,6 +78,7 @@ struct ProjectIntakeGuideTests {
       #expect(prompt.contains("Status: No projects yet"))
       #expect(prompt.contains("Recommended action: Add Project"))
       #expect(prompt.contains("Do not invent repository paths"))
+      #expect(prompt.contains("Project Vision"))
 
       let generatedNarration = await ProjectIntakeGuideNarrator.narrate(guide: guide)
       let narration = try #require(generatedNarration)

@@ -55,8 +55,16 @@ struct ProjectIntakeGuide: Equatable, Sendable {
           isPrimary: true
         ),
         Step(
-          id: "write-human-goals",
-          title: "Write human goals",
+          id: "capture-project-vision",
+          title: "Capture the vision",
+          detail:
+            "After adding the repo, sketch who it helps, what pain it removes, how success should look, and any must-have guardrails in Project Vision.",
+          systemImage: "scope",
+          isPrimary: false
+        ),
+        Step(
+          id: "write-first-draft",
+          title: "Write a first draft",
           detail:
             "Use Drafts for plain-language requests like \"make onboarding clearer\" or \"add a weekly export\".",
           systemImage: "text.bubble",
@@ -144,6 +152,13 @@ struct ProjectIntakeGuide: Equatable, Sendable {
         systemImage: "checklist.checked"
       ),
       Signal(
+        id: "project-vision",
+        label: "Project vision",
+        detail:
+          "Short audience, problem, success, and guardrail notes give Plan and Reflect a stable north star.",
+        systemImage: "scope"
+      ),
+      Signal(
         id: "plain-language-goal",
         label: "Plain-language goal",
         detail:
@@ -185,7 +200,7 @@ struct ProjectIntakeClipboardPayload: Equatable, Sendable {
       "Recipient instructions:",
       "- Help the user add or select a real Git repository. Do not invent a repo path.",
       "- Keep guidance plain-language and product-focused; the user may not know build tooling.",
-      "- After a project is selected, use Drafts for goals and let Compass plan, develop, and verify.",
+      "- After a project is selected, capture Project Vision notes, use Drafts for goals, and let Compass plan, develop, and verify.",
       "",
       "Status: \(guide.statusLabel)",
       "Recommended action: \(guide.actionLabel)",
