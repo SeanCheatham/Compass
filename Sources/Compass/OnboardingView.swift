@@ -525,6 +525,24 @@ private struct FoundationModelsStepBody: View {
 
 // MARK: - Shared VM step
 
+enum OnboardingWorkspaceRecoveryCopy {
+  static let resetButtonTitle = "Reset workspace"
+  static let resetHelp =
+    "Remove installed private workspace files while keeping the cached macOS download and Compass's secure connection keys."
+  static let resetAlertTitle = "Reset private workspace?"
+  static let resetAlertDetail =
+    "Compass removes the workspace disk, saved workspace identity, and old connection records. The cached macOS download and Compass's secure connection keys are preserved."
+
+  static let localRestoreButtonTitle = "Use downloaded restore file"
+  static let localRestoreHelp =
+    "Select a macOS restore image (.ipsw) you have already downloaded. Use this if Compass cannot fetch Apple's restore image automatically."
+
+  static let rebuildButtonTitle = "Rebuild with downloaded file"
+  static let rebuildAlertTitle = "Rebuild private workspace?"
+  static let rebuildAlertDetail =
+    "Compass removes the partially installed workspace disk and starts installation again. The cached macOS download and Compass's secure connection keys are preserved."
+}
+
 private struct SharedVMOnboardingPanel: View {
   @ObservedObject var vmHost: SharedCompassVM
 
@@ -722,7 +740,7 @@ private struct SharedVMOnboardingPanel: View {
       HStack(spacing: 10) {
         OnboardingLocalIPSWButton(
           vmHost: vmHost,
-          title: "Rebuild with local IPSW",
+          title: OnboardingWorkspaceRecoveryCopy.rebuildButtonTitle,
           rebuildBeforeProvisioning: true
         )
         Button(role: .destructive) {
@@ -731,21 +749,18 @@ private struct SharedVMOnboardingPanel: View {
             try? await vmHost.resetProvisioningArtifacts()
           }
         } label: {
-          Label("Reset workspace artifacts", systemImage: "trash")
+          Label(OnboardingWorkspaceRecoveryCopy.resetButtonTitle, systemImage: "trash")
         }
         .buttonStyle(.bordered)
-        .help(
-          "Remove installed workspace artifacts while preserving cached restore images and Compass SSH keys."
-        )
+        .help(OnboardingWorkspaceRecoveryCopy.resetHelp)
       }
     }
   }
 
   private static func confirmReset() -> Bool {
     let alert = NSAlert()
-    alert.messageText = "Reset private workspace artifacts?"
-    alert.informativeText =
-      "This removes the workspace disk, auxiliary storage, platform identity, and stale SSH trust. Cached restore images and Compass SSH keys are preserved."
+    alert.messageText = OnboardingWorkspaceRecoveryCopy.resetAlertTitle
+    alert.informativeText = OnboardingWorkspaceRecoveryCopy.resetAlertDetail
     alert.alertStyle = .warning
     alert.addButton(withTitle: "Reset")
     alert.addButton(withTitle: "Cancel")
@@ -755,13 +770,13 @@ private struct SharedVMOnboardingPanel: View {
 
 private struct OnboardingLocalIPSWButton: View {
   @ObservedObject var vmHost: SharedCompassVM
-  var title: String = "Use local IPSW file"
+  var title: String = OnboardingWorkspaceRecoveryCopy.localRestoreButtonTitle
   var rebuildBeforeProvisioning: Bool = false
 
   var body: some View {
     Button {
       let panel = NSOpenPanel()
-      panel.title = "Select a macOS IPSW restore image"
+      panel.title = "Select a macOS restore image"
       panel.allowedContentTypes = [UTType(filenameExtension: "ipsw") ?? .data]
       panel.allowsMultipleSelection = false
       panel.canChooseDirectories = false
@@ -785,16 +800,13 @@ private struct OnboardingLocalIPSWButton: View {
       Label(title, systemImage: "doc.badge.arrow.up")
     }
     .buttonStyle(.bordered)
-    .help(
-      "Select a macOS restore image (.ipsw) you've already downloaded. Bypasses Apple's catalog service."
-    )
+    .help(OnboardingWorkspaceRecoveryCopy.localRestoreHelp)
   }
 
   private static func confirmRebuild() -> Bool {
     let alert = NSAlert()
-    alert.messageText = "Rebuild private workspace?"
-    alert.informativeText =
-      "This removes the partially installed workspace disk and starts installation again. Cached restore images and Compass SSH keys are preserved."
+    alert.messageText = OnboardingWorkspaceRecoveryCopy.rebuildAlertTitle
+    alert.informativeText = OnboardingWorkspaceRecoveryCopy.rebuildAlertDetail
     alert.alertStyle = .warning
     alert.addButton(withTitle: "Rebuild")
     alert.addButton(withTitle: "Cancel")

@@ -133,6 +133,30 @@ struct OnboardingReadinessGuideTests {
   }
 
   @Test
+  func workspaceRecoveryCopyAvoidsConnectionJargon() {
+    let resetCopy = [
+      OnboardingWorkspaceRecoveryCopy.resetButtonTitle,
+      OnboardingWorkspaceRecoveryCopy.resetHelp,
+      OnboardingWorkspaceRecoveryCopy.resetAlertTitle,
+      OnboardingWorkspaceRecoveryCopy.resetAlertDetail,
+      OnboardingWorkspaceRecoveryCopy.rebuildButtonTitle,
+      OnboardingWorkspaceRecoveryCopy.rebuildAlertTitle,
+      OnboardingWorkspaceRecoveryCopy.rebuildAlertDetail,
+    ].joined(separator: "\n")
+
+    #expect(resetCopy.contains("private workspace"))
+    #expect(resetCopy.contains("cached macOS download"))
+    #expect(resetCopy.contains("secure connection keys"))
+    #expect(!resetCopy.contains("SSH"))
+    #expect(!resetCopy.contains("stale"))
+    #expect(!resetCopy.contains("auxiliary"))
+    #expect(!resetCopy.contains("platform identity"))
+    #expect(!resetCopy.contains("artifacts"))
+    #expect(OnboardingWorkspaceRecoveryCopy.localRestoreButtonTitle == "Use downloaded restore file")
+    #expect(!OnboardingWorkspaceRecoveryCopy.localRestoreButtonTitle.contains("IPSW"))
+  }
+
+  @Test
   func runtimeSettingsTreatFoundationModelsAvailabilityAsReadinessInput() {
     let foundationModels = AgentRuntimeSettings(textProvider: .appleFoundationModels)
     #expect(foundationModels.isTextCapabilityRunnable(foundationModelsAvailable: true))
