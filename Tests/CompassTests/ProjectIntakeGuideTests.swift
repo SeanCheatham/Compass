@@ -17,6 +17,9 @@ struct ProjectIntakeGuideTests {
       "let-compass-verify",
     ])
     try #require(guide.steps[0].isPrimary)
+    try #require(guide.steps[0].detail.contains("project folder"))
+    try #require(guide.steps[0].detail.contains("repository root"))
+    try #require(!guide.steps[0].detail.contains("Git root"))
     try #require(guide.steps[1].detail.contains("who it helps"))
     try #require(guide.steps[1].detail.contains("guardrails"))
     try #require(guide.steps[1].detail.contains("Project Vision"))

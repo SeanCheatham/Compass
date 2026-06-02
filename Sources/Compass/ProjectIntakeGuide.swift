@@ -50,7 +50,7 @@ struct ProjectIntakeGuide: Equatable, Sendable {
           id: "choose-git-folder",
           title: "Choose a Git folder",
           detail:
-            "Pick the repository root or any folder inside it; Compass resolves the Git root before saving the project.",
+            "Pick the project folder or any folder inside it; Compass finds the repository root before saving the project.",
           systemImage: "folder.badge.plus",
           isPrimary: true
         ),
