@@ -573,6 +573,21 @@ struct ProjectRunControls: View {
     let runNarration = matchingNarration(for: runGuide)
     let primaryExplanation = runNarration?.text ?? runGuide.primaryHelp
     let runControlPayload = ProjectRunControlClipboardPayload(guide: runGuide)
+    let draftGuide = DraftIntakeGuide(drafts: project.drafts)
+    let assumptionGuide = AssumptionReviewGuide(
+      ledger: AssumptionLedger(assumptions: project.assumptions)
+    )
+    let settingsGuide = AgentSettingsGuide(
+      settings: model.agentSettings,
+      foundationModelsAvailable: FoundationModelsAvailability.isAvailable
+    )
+    let snapshotPayload = ProjectSnapshotClipboardPayload(
+      projectName: project.displayName,
+      runGuide: runGuide,
+      draftGuide: draftGuide,
+      assumptionGuide: assumptionGuide,
+      settingsGuide: settingsGuide
+    )
     let factoryGuide = FactoryCompassGuide(runGuide: runGuide)
 
     HStack(spacing: 5) {
@@ -651,6 +666,7 @@ struct ProjectRunControls: View {
       .help(feedbackMenu.helpText)
 
       CopyRunControlButton(payload: runControlPayload)
+      CopyProjectSnapshotButton(payload: snapshotPayload)
       FactoryCompassButton(guide: factoryGuide)
       ProjectRunDecisionBadge(badge: runGuide.decisionBadge)
 
@@ -762,6 +778,29 @@ struct ProjectRunControls: View {
       return nil
     }
     return runGuideNarration
+  }
+}
+
+private struct CopyProjectSnapshotButton: View {
+  var payload: ProjectSnapshotClipboardPayload
+  @State private var copied = false
+
+  var body: some View {
+    Button {
+      copyTextToPasteboard(payload.text)
+      copied = true
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        copied = false
+      }
+    } label: {
+      Image(systemName: copied ? "checkmark" : "doc.text")
+        .frame(width: 18, height: 18)
+    }
+    .buttonStyle(.borderless)
+    .disabled(payload.isEmpty)
+    .help("Copy a project snapshot with run readiness, drafts, assumptions, and runtime setup.")
+    .accessibilityLabel(copied ? "Copied project snapshot" : "Copy project snapshot")
   }
 }
 
