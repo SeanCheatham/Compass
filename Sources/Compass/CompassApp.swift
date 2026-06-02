@@ -108,6 +108,28 @@ struct CompassApp: App {
         .disabled(
           !isOnboardingComplete || (model.selectedProject?.isRunning ?? true)
             || (model.selectedProject?.isAutoPlaying ?? true))
+
+        Divider()
+
+        Button("Copy Factory Brief") {
+          if let guide = selectedFactoryGuide {
+            copyTextToPasteboard(guide.handoffText)
+          }
+        }
+        .keyboardShortcut("c", modifiers: [.command, .option])
+        .disabled(selectedFactoryGuide == nil)
+
+        Button(PauseMode.afterIteration.label) {
+          model.selectedProject?.requestPause(.afterIteration)
+        }
+        .keyboardShortcut("p", modifiers: [.command, .shift])
+        .disabled(!canPauseSelectedProject)
+
+        Button("Stop Run") {
+          model.selectedProject?.stopRun()
+        }
+        .keyboardShortcut(".", modifiers: [.command])
+        .disabled(!canStopSelectedProject)
       }
       CommandMenu("Runtime") {
         if let runtimeMenu = model.selectedProject?.runtimeDiagnosticsMenu {
@@ -128,5 +150,31 @@ struct CompassApp: App {
       CompassSettingsView()
         .environmentObject(model)
     }
+  }
+
+  private var selectedFactoryGuide: FactoryCompassGuide? {
+    guard isOnboardingComplete, let project = model.selectedProject else { return nil }
+    let runGuide = ProjectRunControlGuide(
+      state: project.state,
+      reliabilityStatus: project.reliabilityStatus,
+      hasRepository: project.hasRepository,
+      isRunning: project.isRunning,
+      isAutoPlaying: project.isAutoPlaying,
+      isPaused: project.isPaused,
+      languageProfile: project.languageProfile,
+      forgeProfile: project.forgeProfile,
+      drafts: project.drafts
+    )
+    return FactoryCompassGuide(runGuide: runGuide)
+  }
+
+  private var canPauseSelectedProject: Bool {
+    guard isOnboardingComplete, let project = model.selectedProject else { return false }
+    return (project.isRunning || project.isAutoPlaying) && !project.isPaused
+  }
+
+  private var canStopSelectedProject: Bool {
+    guard isOnboardingComplete, let project = model.selectedProject else { return false }
+    return project.canStop
   }
 }
