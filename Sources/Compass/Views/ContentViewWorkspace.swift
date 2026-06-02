@@ -780,7 +780,9 @@ private struct CopyProjectSnapshotButton: View {
     }
     .buttonStyle(.borderless)
     .disabled(payload.isEmpty)
-    .help("Copy a project snapshot with run readiness, drafts, assumptions, and runtime setup.")
+    .help(
+      "Copy a project snapshot with run readiness, recovery, vision, drafts, assumptions, lessons, history, and runtime setup."
+    )
     .accessibilityLabel(copied ? "Copied project snapshot" : "Copy project snapshot")
   }
 }

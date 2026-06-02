@@ -19,6 +19,7 @@ enum ProjectSnapshotBuilder {
       settings: agentSettings,
       foundationModelsAvailable: foundationModelsAvailable
     )
+    let recoveryGuide = ProjectRecoveryGuide(status: project.reliabilityStatus)
 
     return ProjectSnapshotClipboardPayload(
       projectName: project.displayName,
@@ -27,6 +28,7 @@ enum ProjectSnapshotBuilder {
       assumptionGuide: assumptionGuide,
       settingsGuide: settingsGuide,
       visionGuide: visionGuide,
+      recoveryGuide: recoveryGuide,
       lessonsGuide: lessonsGuide,
       historyGuide: historyGuide(for: project)
     )

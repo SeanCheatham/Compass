@@ -108,6 +108,62 @@ struct ProjectSnapshotGuideTests {
   }
 
   @Test
+  @MainActor
+  func snapshotBuilderIncludesRecoveryPlanForFailedVerify() throws {
+    let parentURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: parentURL) }
+    let repoURL = parentURL.appending(path: "CompassRecovery", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: repoURL, withIntermediateDirectories: true)
+    try initGitRepo(at: repoURL)
+    let project = CompassProject(
+      repoURL: repoURL
+    )
+    project.sessions = [
+      sessionRecord(
+        8,
+        plan: """
+          ## Outcome
+          Keep project snapshots recoverable after failed verify.
+
+          ## Acceptance checks
+          - The snapshot names the recovery plan.
+          """,
+        verify: "swift test --filter ProjectSnapshotGuideTests",
+        status: .failed,
+        verifyOutput: VerifyOutput(
+          command: "swift test --filter ProjectSnapshotGuideTests",
+          exitCode: 1,
+          tail: "Expected project recovery guidance to appear in the copied snapshot."
+        )
+      )
+    ]
+
+    let payload = ProjectSnapshotBuilder.payload(
+      for: project,
+      agentSettings: AgentRuntimeSettings(textProvider: .appleFoundationModels),
+      foundationModelsAvailable: false
+    )
+
+    #expect(payload.text.contains("Project recovery:"))
+    #expect(payload.text.contains("Plan: Fix the failing check"))
+    #expect(payload.text.contains("Inspect the failing assertion:"))
+    #expect(
+      payload.text.contains(
+        "Expected project recovery guidance to appear in the copied snapshot."
+      )
+    )
+    #expect(payload.text.contains("Fix the behavior under test:"))
+    #expect(
+      payload.text.contains(
+        "Plan Next Step: Ask Plan to create one repair slice from the captured verify output before Develop runs again."
+      )
+    )
+    #expect(payload.text.contains("Run history:"))
+    #expect(payload.text.contains("Status: Start With Attention"))
+    #expect(payload.text.count <= ProjectSnapshotClipboardPayload.textLimit)
+  }
+
+  @Test
   func snapshotPayloadPackagesProjectStateWithoutSecrets() throws {
     let drafts = """
       - Make setup faster because users get stuck; success looks like tests pass.
@@ -373,7 +429,11 @@ struct ProjectSnapshotGuideTests {
     _ number: Int,
     plan: String?,
     verify: String?,
-    commits: [SessionCommit] = []
+    commits: [SessionCommit] = [],
+    status: SessionStatus = .succeeded,
+    notes: [String] = [],
+    verifyOutput: VerifyOutput? = nil,
+    feedback: String? = nil
   ) -> SessionRecord {
     SessionRecord(
       session: number,
@@ -384,10 +444,10 @@ struct ProjectSnapshotGuideTests {
       beforeSha: nil,
       afterSha: nil,
       commits: commits,
-      status: .succeeded,
-      notes: [],
-      verifyOutput: nil,
-      feedback: nil
+      status: status,
+      notes: notes,
+      verifyOutput: verifyOutput,
+      feedback: feedback
     )
   }
 }

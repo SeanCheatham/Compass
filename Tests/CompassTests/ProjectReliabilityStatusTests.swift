@@ -235,6 +235,30 @@ struct ProjectReliabilityStatusTests {
   }
 
   @Test
+  func testRecoveryGuideForVerifyFailureWithoutImmediateNamesPlanRepair() throws {
+    let session = makeSession(
+      19,
+      status: .failed,
+      verifyOutput: VerifyOutput(
+        command: "swift test",
+        exitCode: 1,
+        tail: "Expected passing check, got failing check"
+      )
+    )
+    let feedback = PlanReliabilityFeedback(state: makeState(immediate: nil), sessions: [session])
+    let status = ProjectReliabilityStatus(feedback: feedback)
+
+    let guide = ProjectRecoveryGuide(status: status)
+
+    try #require(status.actionLabel == "Plan Next Step")
+    try #require(guide.steps[2].title == "Plan Next Step")
+    try #require(
+      guide.steps[2].detail
+        == "Ask Plan to create one repair slice from the captured verify output before Develop runs again."
+    )
+  }
+
+  @Test
   func testRecoveryGuideForBuildVerifyFailureNamesCompilerRepair() throws {
     let session = makeSession(
       17,

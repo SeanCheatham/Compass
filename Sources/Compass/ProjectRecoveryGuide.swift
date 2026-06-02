@@ -68,6 +68,10 @@ struct ProjectRecoveryGuide: Equatable {
       ]
     case .failedVerify:
       let insight = VerifyFailureInsight(detail: status.detail, metadata: status.metadata)
+      let retryDetail = Self.failedVerifyRetryDetail(
+        actionLabel: status.actionLabel,
+        insight: insight
+      )
       title = "Fix the failing check"
       steps = [
         Step(title: insight.inspectTitle, detail: insight.inspectDetail),
@@ -77,7 +81,7 @@ struct ProjectRecoveryGuide: Equatable {
         ),
         Step(
           title: status.actionLabel,
-          detail: insight.retryDetail
+          detail: retryDetail
         ),
       ]
     case .dirtyWorktree:
@@ -226,6 +230,18 @@ struct ProjectRecoveryGuide: Equatable {
         "Include Outcome, Acceptance checks, and a real verify command; add Why it matters when useful.",
       retryDetail: retryDetail
     )
+  }
+
+  private static func failedVerifyRetryDetail(
+    actionLabel: String,
+    insight: VerifyFailureInsight
+  ) -> String {
+    let normalizedAction = actionLabel.lowercased()
+    if normalizedAction.contains("plan") {
+      return "Ask Plan to create one repair slice from the captured verify output before Develop runs again."
+    }
+
+    return insight.retryDetail
   }
 
   private static func narrationIdentifier(title: String, steps: [Step]) -> String {

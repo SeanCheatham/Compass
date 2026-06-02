@@ -14,6 +14,7 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
     assumptionGuide: AssumptionReviewGuide,
     settingsGuide: AgentSettingsGuide,
     visionGuide: ProjectVisionGuide? = nil,
+    recoveryGuide: ProjectRecoveryGuide? = nil,
     lessonsGuide: ProjectLessonsGuide? = nil,
     historyGuide: PlanSessionHistoryGuide? = nil
   ) {
@@ -25,6 +26,7 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
         + "credentials, hidden drafts, completed work, verification results, or model output.",
       "- Use Run readiness and Primary action before starting work; disabled run modes stay "
         + "disabled until the named blocker changes.",
+      "- If Project recovery appears, follow it before retrying failed work.",
       "- Use Project vision, Draft queue, Assumption memory, and Project lessons as guidance, "
         + "not new scope. Keep missing signals visible instead of silently filling them in.",
       "- Runtime credential values are intentionally omitted. Never ask the user to paste API "
@@ -56,6 +58,9 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
       }
     }
 
+    if let recoveryGuide, !recoveryGuide.isEmpty {
+      Self.appendProjectRecovery(guide: recoveryGuide, to: &sections)
+    }
     if let visionGuide {
       Self.appendProjectVision(guide: visionGuide, to: &sections)
     }
@@ -77,6 +82,19 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
 
   var isEmpty: Bool {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private static func appendProjectRecovery(
+    guide: ProjectRecoveryGuide,
+    to sections: inout [String]
+  ) {
+    sections.append("")
+    sections.append("Project recovery:")
+    sections.append("- Plan: \(guide.title)")
+
+    for step in guide.steps {
+      sections.append("- \(step.title): \(singleLine(step.detail, limit: 220))")
+    }
   }
 
   private static func appendProjectVision(
