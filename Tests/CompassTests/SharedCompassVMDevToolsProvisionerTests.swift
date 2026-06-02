@@ -301,7 +301,7 @@ struct SharedCompassVMDevToolsProvisionerTests {
   @Test
   func testProvisionDrivesFullInstallFlow() async throws {
     let runner = FakeBashRunner()
-    var pollCount = 0
+    let pollCount = LockedCounter()
     runner.responder = { command, _ in
       // Probe — first call.
       if command.contains("PRESENT") || command.contains("MISSING") {
@@ -319,8 +319,7 @@ struct SharedCompassVMDevToolsProvisionerTests {
         return ProcessResult(exitCode: 0, stdout: "", stderr: "")
       }
       if command.contains("DONE") && command.contains("---LOG_TAIL---") {
-        pollCount += 1
-        switch pollCount {
+        switch pollCount.increment() {
         case 1:
           return ProcessResult(
             exitCode: 0,
@@ -371,7 +370,7 @@ struct SharedCompassVMDevToolsProvisionerTests {
     )
 
     try #require(!report.alreadyInstalled)
-    try #require(pollCount >= 3)
+    try #require(pollCount.value >= 3)
     try #require(progressUpdates.first == 0)
     try #require(progressUpdates.last == 1)
     // Monotone — once we've seen a higher fraction we must never go
@@ -561,6 +560,24 @@ private final class FakeBashRunner: AgentBashRunner, @unchecked Sendable {
       return ProcessResult(exitCode: 0, stdout: "", stderr: "")
     }
     return responder(command, workingDirectory)
+  }
+}
+
+private final class LockedCounter: @unchecked Sendable {
+  private let lock = NSLock()
+  private var storedValue = 0
+
+  var value: Int {
+    lock.lock()
+    defer { lock.unlock() }
+    return storedValue
+  }
+
+  func increment() -> Int {
+    lock.lock()
+    defer { lock.unlock() }
+    storedValue += 1
+    return storedValue
   }
 }
 
