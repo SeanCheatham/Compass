@@ -14,6 +14,7 @@ struct ProjectVisionGuideTests {
     #expect(guide.scoreLabel == "0 of 4 signals")
     #expect(guide.missingSignalTitles == ["Audience", "Problem", "Success signal", "Guardrails"])
     #expect(guide.nextAction.title == "Add a first vision")
+    #expect(!guide.allowsNarration)
     #expect(payload.isEmpty)
     #expect(payload.text.isEmpty)
   }
@@ -30,6 +31,7 @@ struct ProjectVisionGuideTests {
     #expect(guide.scoreLabel == "3 of 4 signals")
     #expect(guide.satisfiedSignalTitles == ["Audience", "Problem", "Success signal"])
     #expect(guide.missingSignalTitles == ["Guardrails"])
+    #expect(guide.allowsNarration)
     #expect(guide.nextAction.title == "Add guardrails")
   }
 
@@ -71,5 +73,71 @@ struct ProjectVisionGuideTests {
     #expect(initial.narrationIdentifier.contains("missing:Problem,Success signal,Guardrails"))
     #expect(refined.narrationIdentifier.contains("present:Audience,Problem,Success signal,Guardrails"))
     #expect(initial.narrationIdentifier != refined.narrationIdentifier)
+  }
+
+  @Test
+  func narratorUsesFoundationModelsAsOptionalVisionCoaching() async throws {
+    let guide = ProjectVisionGuide(
+      vision:
+        "Compass helps non-developer users because shipping software is confusing. Success shows a visible run audit when the work is done."
+    )
+
+    try await withMockFoundationModels(
+      response: "The audience, problem, and success are clear; add one guardrail before planning."
+    ) {
+      let prompt = ProjectVisionGuideNarrator.prompt(for: guide)
+      #expect(prompt.contains("Status: Vision grounded"))
+      #expect(prompt.contains("Missing signals: Guardrails"))
+      #expect(prompt.contains("Do not invent users, requirements"))
+
+      let generatedNarration = await ProjectVisionGuideNarrator.narrate(guide: guide)
+      let narration = try #require(generatedNarration)
+      #expect(narration.guideIdentifier == guide.narrationIdentifier)
+      #expect(
+        narration.text
+          == "The audience, problem, and success are clear; add one guardrail before planning.")
+    }
+  }
+
+  @Test
+  func narratorSkipsEmptyVisionAndUnavailableFoundationModels() async {
+    let emptyGuide = ProjectVisionGuide(vision: "")
+    let groundedGuide = ProjectVisionGuide(
+      vision:
+        "Compass helps users because setup is hard. Success shows passing tests when it is done."
+    )
+
+    await withMockFoundationModels(response: "Should not be used") {
+      let narration = await ProjectVisionGuideNarrator.narrate(guide: emptyGuide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(available: false, response: "Should not be used") {
+      let narration = await ProjectVisionGuideNarrator.narrate(guide: groundedGuide)
+      #expect(narration == nil)
+    }
+  }
+
+  @Test
+  func narratorRejectsStructuredBulletedOrLinkedOutput() async {
+    let guide = ProjectVisionGuide(
+      vision:
+        "Compass helps non-engineer operators because software setup is hard. Success shows passing tests. It must stay macOS native."
+    )
+
+    await withMockFoundationModels(response: #"{"text":"Invented JSON"}"#) {
+      let narration = await ProjectVisionGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "- Add hidden requirements") {
+      let narration = await ProjectVisionGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "Read more at https://example.com") {
+      let narration = await ProjectVisionGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
   }
 }

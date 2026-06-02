@@ -18,6 +18,10 @@ struct ProjectVisionGuide: Equatable, Sendable {
     status == .empty
   }
 
+  var allowsNarration: Bool {
+    status != .empty
+  }
+
   var satisfiedSignalTitles: [String] {
     cues.filter(\.isSatisfied).map(\.title)
   }

@@ -4,6 +4,7 @@ import SwiftUI
 struct VisionTab: View {
   @ObservedObject var project: CompassProject
   @State private var mode = MarkdownDocumentMode.preview
+  @State private var guideNarration: ProjectVisionGuideNarration?
 
   var body: some View {
     let guide = ProjectVisionGuide(vision: project.vision)
@@ -27,15 +28,36 @@ struct VisionTab: View {
           Label("Save", systemImage: "square.and.arrow.down")
         }
       }
-      ProjectVisionGuidePanel(guide: guide, clipboardPayload: clipboardPayload)
+      ProjectVisionGuidePanel(
+        guide: guide,
+        clipboardPayload: clipboardPayload,
+        narration: matchingNarration(for: guide)
+      )
       MarkdownDocumentBody(text: $project.vision, mode: mode, empty: "No project vision.")
     }
+    .task(id: "\(guide.narrationIdentifier)|running-\(project.isRunning)") {
+      guideNarration = nil
+      guard !project.isRunning, guide.allowsNarration else { return }
+      try? await Task.sleep(nanoseconds: 700_000_000)
+      guard !Task.isCancelled else { return }
+      guideNarration = await ProjectVisionGuideNarrator.narrate(guide: guide)
+    }
+  }
+
+  private func matchingNarration(
+    for guide: ProjectVisionGuide
+  ) -> ProjectVisionGuideNarration? {
+    guard guideNarration?.guideIdentifier == guide.narrationIdentifier else {
+      return nil
+    }
+    return guideNarration
   }
 }
 
 private struct ProjectVisionGuidePanel: View {
   var guide: ProjectVisionGuide
   var clipboardPayload: ProjectVisionClipboardPayload
+  var narration: ProjectVisionGuideNarration?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -57,10 +79,11 @@ private struct ProjectVisionGuidePanel: View {
           .background(.quaternary.opacity(0.65), in: Capsule())
       }
 
-      Text(guide.detail)
+      Text(narration?.text ?? guide.detail)
         .font(.callout)
         .foregroundStyle(.primary)
         .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
 
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 6) {
@@ -73,6 +96,16 @@ private struct ProjectVisionGuidePanel: View {
               .padding(.vertical, 3)
               .background((cue.isSatisfied ? color : Color.secondary).opacity(0.1), in: Capsule())
               .help(cue.detail)
+          }
+
+          if narration != nil {
+            Label("On-device vision note", systemImage: "sparkles")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .padding(.horizontal, 7)
+              .padding(.vertical, 3)
+              .background(.quaternary.opacity(0.55), in: Capsule())
           }
         }
       }
@@ -89,6 +122,10 @@ private struct ProjectVisionGuidePanel: View {
       RoundedRectangle(cornerRadius: 8)
         .stroke(color.opacity(0.18))
     }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(
+      "\(guide.title). \(narration?.text ?? guide.detail). \(guide.scoreLabel). Next action: \(guide.nextAction.title). \(guide.nextAction.detail)"
+    )
   }
 
   private var color: Color {
