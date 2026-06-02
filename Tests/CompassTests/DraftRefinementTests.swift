@@ -102,6 +102,29 @@ struct DraftRefinementTests {
     try #require(starter.systemImage == "checkmark.seal")
   }
 
+  @Test func testDraftIdeaLibraryIncludesGeneralAndLanguageSpecificIdeas() throws {
+    let ideas = DraftIdeaLibrary.ideas(for: languageProfile(.swift))
+
+    try #require(ideas.map(\.id) == [
+      "first-run", "plain-feedback", "swift-native-polish",
+    ])
+    try #require(ideas[0].title == "First Run")
+    try #require(ideas[1].systemImage == "text.bubble")
+    try #require(ideas[2].text.contains("native macOS polish"))
+  }
+
+  @Test func testDraftIdeaTemplatesAreReadyForPlan() throws {
+    let profiles = RepositoryLanguage.allCases.map(languageProfile)
+
+    for profile in profiles {
+      for idea in DraftIdeaLibrary.ideas(for: profile) {
+        let guide = DraftReadinessGuide(draft: idea.text)
+        try #require(guide.status == .ready)
+        try #require(idea.text.count <= DraftStarterTemplate.textLimit)
+      }
+    }
+  }
+
   @Test func testDraftReadinessGuideAcceptsSpecificDoneWhenSignals() throws {
     let guide = DraftReadinessGuide(
       draft:
@@ -632,6 +655,17 @@ struct DraftRefinementTests {
       try #require(refinement.source == .deterministic)
       try #require(refinement.refinedText == "Add parser tests.")
     }
+  }
+
+  private func languageProfile(_ language: RepositoryLanguage) -> RepositoryLanguageProfile {
+    RepositoryLanguageProfile(
+      counts: RepositoryLanguageCounts(),
+      manifestHints: [],
+      primaryLanguage: language,
+      scannedFileCount: 0,
+      scannedDirectoryCount: 0,
+      wasTruncated: false
+    )
   }
 
   private func makeContext() -> DraftRefinementContext {

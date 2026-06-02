@@ -18,6 +18,7 @@ struct DraftsTab: View {
     let draftReadinessGuide = DraftReadinessGuide(draft: project.draftEntry)
     let draftQueueGuide = DraftIntakeGuide(drafts: pendingDraftsText)
     let draftStarter = DraftStarterTemplate(draft: project.draftEntry)
+    let draftIdeas = DraftIdeaLibrary.ideas(for: project.languageProfile)
 
     VStack(alignment: .leading, spacing: 14) {
       HStack {
@@ -31,6 +32,9 @@ struct DraftsTab: View {
         .controlSize(.small)
         .disabled(!project.hasRepository || !draftStarter.isEnabled)
         .help(draftStarter.helpText)
+      }
+      DraftIdeaChips(ideas: draftIdeas, isEnabled: project.hasRepository) { idea in
+        project.draftEntry = idea.text
       }
       HStack(alignment: .top, spacing: 10) {
         TextField("Describe the next direction", text: $project.draftEntry, axis: .vertical)
@@ -319,6 +323,33 @@ struct DraftsTab: View {
       return nil
     }
     return draftQueueNarration
+  }
+}
+
+struct DraftIdeaChips: View {
+  var ideas: [DraftIdeaTemplate]
+  var isEnabled: Bool
+  var select: (DraftIdeaTemplate) -> Void
+
+  var body: some View {
+    ScrollView(.horizontal) {
+      HStack(spacing: 7) {
+        ForEach(ideas) { idea in
+          Button {
+            select(idea)
+          } label: {
+            Label(idea.title, systemImage: idea.systemImage)
+              .lineLimit(1)
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.small)
+          .disabled(!isEnabled)
+          .help(idea.text)
+        }
+      }
+      .padding(.vertical, 1)
+    }
+    .scrollIndicators(.hidden)
   }
 }
 
