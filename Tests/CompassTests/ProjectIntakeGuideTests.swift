@@ -19,6 +19,9 @@ struct ProjectIntakeGuideTests {
     try #require(guide.signals.map(\.id) == [
       "git", "verification", "plain-language-goal",
     ])
+    try #require(guide.allowsNarration)
+    try #require(guide.narrationIdentifier.contains("count:0"))
+    try #require(guide.narrationIdentifier.contains("Add Your First Project"))
   }
 
   @Test
@@ -31,6 +34,8 @@ struct ProjectIntakeGuideTests {
     try #require(guide.steps.first?.id == "select-sidebar-row")
     try #require(guide.steps.contains { $0.id == "add-missing-repo" })
     try #require(guide.detail.contains("sidebar"))
+    try #require(guide.narrationIdentifier.contains("count:3"))
+    try #require(guide.narrationIdentifier.contains("Choose a Project"))
   }
 
   @Test
@@ -52,5 +57,56 @@ struct ProjectIntakeGuideTests {
     try #require(payload.text.contains("- Choose a Git folder:"))
     try #require(payload.text.contains("Good project signals:"))
     try #require(payload.text.count <= ProjectIntakeGuide.handoffLimit)
+  }
+
+  @Test
+  func narratorUsesFoundationModelsAsOptionalIntakeCoaching() async throws {
+    let guide = ProjectIntakeGuide(projectCount: 0)
+
+    try await withMockFoundationModels(
+      response: "Start by choosing a real Git folder; Compass will help turn rough goals into verified work."
+    ) {
+      let prompt = ProjectIntakeGuideNarrator.prompt(for: guide)
+      #expect(prompt.contains("Status: No projects yet"))
+      #expect(prompt.contains("Recommended action: Add Project"))
+      #expect(prompt.contains("Do not invent repository paths"))
+
+      let generatedNarration = await ProjectIntakeGuideNarrator.narrate(guide: guide)
+      let narration = try #require(generatedNarration)
+      #expect(narration.guideIdentifier == guide.narrationIdentifier)
+      #expect(
+        narration.text
+          == "Start by choosing a real Git folder; Compass will help turn rough goals into verified work.")
+    }
+  }
+
+  @Test
+  func narratorSkipsUnavailableFoundationModels() async {
+    let guide = ProjectIntakeGuide(projectCount: 2)
+
+    await withMockFoundationModels(available: false, response: "Should not be used") {
+      let narration = await ProjectIntakeGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+  }
+
+  @Test
+  func narratorRejectsStructuredBulletedOrLinkedOutput() async {
+    let guide = ProjectIntakeGuide(projectCount: 0)
+
+    await withMockFoundationModels(response: #"{"text":"Invented JSON"}"#) {
+      let narration = await ProjectIntakeGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "- Add a hidden repository") {
+      let narration = await ProjectIntakeGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "Read more at https://example.com") {
+      let narration = await ProjectIntakeGuideNarrator.narrate(guide: guide)
+      #expect(narration == nil)
+    }
   }
 }

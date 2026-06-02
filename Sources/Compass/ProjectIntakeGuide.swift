@@ -4,6 +4,7 @@ struct ProjectIntakeGuide: Equatable, Sendable {
   static let detailLimit = 260
   static let stepDetailLimit = 190
   static let handoffLimit = 2_800
+  static let identifierLimit = 1_200
 
   struct Step: Identifiable, Equatable, Sendable {
     var id: String
@@ -28,6 +29,11 @@ struct ProjectIntakeGuide: Equatable, Sendable {
   var systemImageName: String
   var steps: [Step]
   var signals: [Signal]
+  var narrationIdentifier: String
+
+  var allowsNarration: Bool {
+    !narrationIdentifier.isEmpty
+  }
 
   init(projectCount rawProjectCount: Int) {
     projectCount = max(0, rawProjectCount)
@@ -111,6 +117,15 @@ struct ProjectIntakeGuide: Equatable, Sendable {
       )
     }
     signals = Self.projectSignals()
+    narrationIdentifier = Self.narrationIdentifier(
+      projectCount: projectCount,
+      title: title,
+      statusLabel: statusLabel,
+      detail: detail,
+      actionLabel: actionLabel,
+      steps: steps,
+      signals: signals
+    )
   }
 
   private static func projectSignals() -> [Signal] {
@@ -136,6 +151,27 @@ struct ProjectIntakeGuide: Equatable, Sendable {
         systemImage: "quote.bubble"
       ),
     ]
+  }
+
+  private static func narrationIdentifier(
+    projectCount: Int,
+    title: String,
+    statusLabel: String,
+    detail: String,
+    actionLabel: String,
+    steps: [Step],
+    signals: [Signal]
+  ) -> String {
+    let raw = [
+      "count:\(projectCount)",
+      "title:\(title)",
+      "status:\(statusLabel)",
+      "detail:\(detail)",
+      "action:\(actionLabel)",
+      "steps:\(steps.map { "\($0.id):\($0.title):\($0.detail)" }.joined(separator: "|"))",
+      "signals:\(signals.map { "\($0.id):\($0.label):\($0.detail)" }.joined(separator: "|"))",
+    ].joined(separator: "\n")
+    return StringUtils.boundedText(raw, limit: Self.identifierLimit)
   }
 }
 
