@@ -1,6 +1,8 @@
 import Foundation
 
 struct AssumptionReviewGuide: Equatable, Sendable {
+  static let reviewCommentPlaceholder = "Correction or reason before Deny or Archive"
+
   enum Tone: String, Equatable, Sendable {
     case empty
     case review

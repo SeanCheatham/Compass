@@ -25,6 +25,16 @@ struct AssumptionReviewGuideTests {
   }
 
   @Test
+  func reviewCommentPlaceholderExplainsCorrectionUse() {
+    let placeholder = AssumptionReviewGuide.reviewCommentPlaceholder
+
+    #expect(placeholder.contains("Correction"))
+    #expect(placeholder.contains("reason"))
+    #expect(placeholder.contains("Deny"))
+    #expect(placeholder.contains("Archive"))
+  }
+
+  @Test
   func guidePrioritizesImplicitAssumptionsForReview() {
     let guide = AssumptionReviewGuide(
       ledger: AssumptionLedger(assumptions: [

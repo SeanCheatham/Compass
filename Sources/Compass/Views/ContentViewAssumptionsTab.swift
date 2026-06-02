@@ -416,7 +416,7 @@ struct AssumptionReviewRow: View {
       }
 
       HStack(alignment: .top, spacing: 8) {
-        TextField("Comment", text: $comment, axis: .vertical)
+        TextField(AssumptionReviewGuide.reviewCommentPlaceholder, text: $comment, axis: .vertical)
           .lineLimit(1...3)
           .textFieldStyle(.roundedBorder)
 
