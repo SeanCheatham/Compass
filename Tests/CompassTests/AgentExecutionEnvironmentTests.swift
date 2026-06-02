@@ -37,7 +37,9 @@ final class AgentExecutionEnvironmentTests {
       vmReadiness: .guestPrepping
     )
     let menu = AgentExecutionEnvironmentMenu(environment: environment)
-    try #require(menu.statusText.contains("preparation") || menu.statusText.contains("preparing"))
+    try #require(menu.statusText.contains("setup") || menu.statusText.contains("preparing"))
+    try #require(!menu.statusText.contains("Shared VM"))
+    try #require(!menu.statusText.contains("headless"))
   }
 
   @Test func testBuildRouteableDiscoveryAndPreflightExposeLocalImageWithoutPaths() throws {
@@ -52,9 +54,35 @@ final class AgentExecutionEnvironmentTests {
     )
     let plan = environment.launchPlan(repoURL: repoURL) { _ in route }
     let preflight = plan.preflightSummary(phase: "Develop")
-    try #require(preflight.contains("Shared VM"))
+    try #require(preflight.contains("Private workspace"))
     try #require(preflight.contains("compass@192.0.2.10"))
     try #require(!preflight.contains(repoURL.path))
+    try #require(!preflight.contains("Shared VM"))
+  }
+
+  @Test func testRuntimeMenuPresentsReadyRouteAsPrivateWorkspace() throws {
+    let repoURL = try makeTemporaryDirectory(prefix: "ReadyRuntimeMenu")
+    let route = SharedVMRoute(
+      sshDestination: "compass@192.0.2.10",
+      hostWorktreeURL: repoURL,
+      guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-AAA/worktree"
+    )
+    let environment = AgentExecutionEnvironment.discover(
+      vmReadiness: .ready(sshDestination: route.sshDestination)
+    )
+    let plan = AgentExecutionLaunchPlan(
+      selectedPreference: .sharedVM,
+      effectiveRoute: .sharedVM(route),
+      vmReadiness: .ready(sshDestination: route.sshDestination)
+    )
+    let menu = AgentExecutionEnvironmentMenu(environment: environment, launchPlan: plan)
+
+    try #require(menu.helpText.contains("Private workspace"))
+    try #require(menu.statusText.contains("private workspace"))
+    try #require(!menu.helpText.contains("Shared VM"))
+    try #require(!menu.statusText.contains("Shared VM"))
+    try #require(!menu.statusText.contains("vsock"))
+    try #require(!menu.statusText.contains(route.sshDestination))
   }
 
   @Test func testContainerEnvDiagnosticsExposeNamesWithoutValues() throws {
@@ -151,8 +179,10 @@ final class AgentExecutionEnvironmentTests {
     let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
     let plan = environment.launchPlan(repoURL: URL(fileURLWithPath: "/"))
     let presentation = environment.presentation(launchPlan: plan)
-    try #require(presentation.title == "Shared VM")
+    try #require(presentation.title == "Private workspace")
     try #require(presentation.isWarning)
+    try #require(!presentation.status.contains("Shared VM"))
+    try #require(!presentation.detail.contains("Shared VM"))
   }
 
   @Test func testErrorReadinessPresentationIsWarning() throws {
@@ -176,7 +206,9 @@ final class AgentExecutionEnvironmentTests {
     let presentation = environment.presentation(launchPlan: plan)
     try #require(!presentation.isWarning)
     try #require(presentation.status.contains("internal fallback"))
-    try #require(presentation.title == "Shared VM")
+    try #require(presentation.title == "This Mac")
+    try #require(!presentation.status.contains("Shared VM"))
+    try #require(!presentation.detail.contains("Shared VM"))
   }
 
   @Test func testDiscoveryWithNotProvisionedReadinessPreservesReadiness() throws {

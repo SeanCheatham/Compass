@@ -132,9 +132,9 @@ struct AgentExecutionLaunchPlan: Equatable {
   var effectiveRouteTitle: String {
     switch effectiveRoute {
     case .host:
-      return "Native macOS"
+      return "This Mac"
     case .sharedVM:
-      return "Shared VM"
+      return "Private workspace"
     }
   }
 
@@ -195,14 +195,84 @@ struct AgentExecutionLaunchPlan: Equatable {
     }
   }
 
+  static func userFacingReadinessSummary(_ readiness: SharedCompassVMReadiness?) -> String {
+    guard let readiness else { return "not checked yet" }
+    switch readiness {
+    case .unavailable(let reason):
+      return "unavailable: \(reason)"
+    case .notProvisioned:
+      return "not prepared yet"
+    case .downloadingIPSW(let fraction):
+      return "downloading macOS \(Int((fraction * 100).rounded()))%"
+    case .installing(let fraction):
+      return "installing macOS \(Int((fraction * 100).rounded()))%"
+    case .guestPrepping:
+      return "finishing workspace setup"
+    case .provisioningDevTools(let fraction):
+      return "installing developer tools \(Int((fraction * 100).rounded()))%"
+    case .ready:
+      return "ready"
+    case .error(let detail):
+      return "needs attention: \(detail)"
+    }
+  }
+
+  static func userFacingFallbackReason(_ reason: String) -> String {
+    let normalized = boundedText(reason, limit: fallbackReasonLimit)
+    let exactRewrites: [String: String] = [
+      "Shared VM readiness has not been evaluated yet.":
+        "private workspace readiness has not been checked yet.",
+      "Repository is not registered in the Shared VM workspace catalog; this phase runs on the host.":
+        "this project is not registered in the private workspace yet.",
+      "Shared VM unavailable: 2-guest cap":
+        "private workspace capacity is currently full.",
+      "Shared VM has not been provisioned yet.":
+        "the private workspace has not been prepared yet.",
+      "Shared VM is downloading the restore image.":
+        "the private workspace is downloading macOS.",
+      "Shared VM is installing macOS.":
+        "the private workspace is installing macOS.",
+      "Shared VM guest preparation is in progress.":
+        "private workspace setup is finishing.",
+      "Shared VM is installing developer tools inside the guest.":
+        "the private workspace is installing developer tools.",
+    ]
+    if let rewritten = exactRewrites[normalized] {
+      return punctuatedSentence(rewritten)
+    }
+
+    var rewritten = normalized
+      .replacingOccurrences(of: "Shared VM", with: "private workspace")
+      .replacingOccurrences(of: "inside the guest", with: "inside the private workspace")
+      .replacingOccurrences(of: "guest preparation", with: "private workspace setup")
+      .replacingOccurrences(of: "workspace catalog", with: "workspace registration")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if let first = rewritten.first, first.isUppercase {
+      rewritten.replaceSubrange(
+        rewritten.startIndex...rewritten.startIndex,
+        with: String(first).lowercased()
+      )
+    }
+    return punctuatedSentence(rewritten)
+  }
+
+  private static func punctuatedSentence(_ text: String) -> String {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let last = trimmed.last else { return "" }
+    if [".", "!", "?"].contains(String(last)) {
+      return trimmed
+    }
+    return "\(trimmed)."
+  }
+
   func preflightSummary(phase: String) -> String {
     [
-      "\(phase) execution environment: selected \(selectedPreference.title)",
-      "VM readiness \(vmReadinessLabel)",
+      "\(phase) runtime: selected \(selectedPreference.title)",
+      "private workspace readiness \(Self.userFacingReadinessSummary(vmReadiness))",
       "effective route \(effectiveRouteTitle)",
       "image \(imageLabel)",
       "workspace \(workspaceLabel)",
-      "fallback \(fallbackReasonLabel)",
+      "fallback \(fallbackReason.map(Self.userFacingFallbackReason) ?? "none")",
     ].joined(separator: "; ")
   }
 
@@ -211,12 +281,11 @@ struct AgentExecutionLaunchPlan: Equatable {
     case .host:
       if let fallbackReason {
         return
-          "Using native macOS execution because \(fallbackReason) VM readiness: \(vmReadinessLabel)."
+          "Using this Mac because \(Self.userFacingFallbackReason(fallbackReason)) Private workspace readiness: \(Self.userFacingReadinessSummary(vmReadiness))."
       }
-      return "Using native macOS execution."
-    case .sharedVM(let route):
-      return
-        "Using Shared VM at \(Self.boundedText(route.sshDestination, limit: Self.labelLimit)) with workspace \(Self.boundedText(route.guestWorkspacePath, limit: Self.labelLimit))."
+      return "Using this Mac for this phase."
+    case .sharedVM:
+      return "Using your private workspace for this phase."
     }
   }
 

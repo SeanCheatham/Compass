@@ -37,6 +37,47 @@ final class AgentExecutionLaunchPlanTests {
     try #require(plan.workspaceLabel == "/Users/compass/Compass/Worktrees/dev-AAA/worktree")
   }
 
+  @Test func testReadyRouteUsesPrivateWorkspacePresentationCopy() throws {
+    let repoURL = try makeTemporaryDirectory(prefix: "VMReadyPresentation")
+    let route = SharedVMRoute(
+      sshDestination: "compass@192.0.2.10",
+      hostWorktreeURL: repoURL,
+      guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-AAA/worktree"
+    )
+    let plan = AgentExecutionLaunchPlan.plan(
+      repoURL: repoURL,
+      vmReadiness: .ready(sshDestination: route.sshDestination),
+      sharedVMRouteFactory: { _ in route }
+    )
+    let preflight = plan.preflightSummary(phase: "Develop")
+
+    try #require(plan.effectiveRouteIdentifier == "shared-vm")
+    try #require(plan.effectiveRouteTitle == "Private workspace")
+    try #require(plan.routeDetail() == "Using your private workspace for this phase.")
+    try #require(preflight.contains("selected Private workspace"))
+    try #require(preflight.contains("effective route Private workspace"))
+    try #require(preflight.contains(route.sshDestination))
+    try #require(!preflight.contains("Shared VM"))
+    try #require(!plan.routeDetail().contains("vsock"))
+  }
+
+  @Test func testHostFallbackPresentationCopyRewritesWorkspaceReason() throws {
+    let plan = AgentExecutionLaunchPlan.host(
+      vmReadiness: .notProvisioned,
+      fallbackReason: "Shared VM has not been provisioned yet."
+    )
+    let preflight = plan.preflightSummary(phase: "Develop")
+
+    try #require(plan.effectiveRouteIdentifier == "native-macos")
+    try #require(plan.effectiveRouteTitle == "This Mac")
+    try #require(preflight.contains("the private workspace has not been prepared yet"))
+    try #require(plan.routeDetail().contains("Using this Mac"))
+    try #require(plan.routeDetail().contains("private workspace has not been prepared yet"))
+    try #require(!preflight.contains("Shared VM"))
+    try #require(!plan.routeDetail().contains("Shared VM"))
+    try #require(!plan.routeDetail().contains("native macOS"))
+  }
+
   @Test func testMissingConfigFallsBackToNativeWithBoundedReason() throws {
     let repoURL = try makeTemporaryDirectory(prefix: "VMNotProvisioned")
     let plan = AgentExecutionLaunchPlan.plan(

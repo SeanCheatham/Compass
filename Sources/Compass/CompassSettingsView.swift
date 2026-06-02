@@ -670,7 +670,7 @@ private struct FactoryProjectHostXcodeRow: View {
       }
     }
     .help(
-      "Route Swift and Xcode build/test through the host Mac. Required for reliable SwiftPM tests in the Shared VM."
+      "Route Swift and Xcode build/test through the host Mac. Required for reliable SwiftPM tests in the private workspace."
     )
   }
 

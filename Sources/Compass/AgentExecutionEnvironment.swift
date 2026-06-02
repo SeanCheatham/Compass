@@ -27,7 +27,7 @@ enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
   }
 
   var title: String {
-    "Shared VM"
+    "Private workspace"
   }
 
   var systemImage: String {
@@ -57,23 +57,23 @@ struct AgentExecutionEnvironmentReadiness: Equatable {
   private static func detail(for readiness: SharedCompassVMReadiness) -> String {
     switch readiness {
     case .unavailable(let reason):
-      return "Shared VM is unavailable: \(reason)."
+      return "Private workspace is unavailable: \(reason)."
     case .notProvisioned:
-      return "Shared VM has not been provisioned."
+      return "Private workspace has not been prepared yet."
     case .downloadingIPSW(let fraction):
       return
-        "Shared VM is downloading the macOS restore image (\(Int((fraction * 100).rounded()))%)."
+        "Private workspace is downloading macOS (\(Int((fraction * 100).rounded()))%)."
     case .installing(let fraction):
-      return "Shared VM is installing macOS (\(Int((fraction * 100).rounded()))%)."
+      return "Private workspace is installing macOS (\(Int((fraction * 100).rounded()))%)."
     case .guestPrepping:
-      return "Shared VM is finishing headless first-boot setup."
+      return "Private workspace setup is finishing."
     case .provisioningDevTools(let fraction):
       return
-        "Shared VM is installing developer tools inside the guest (\(Int((fraction * 100).rounded()))%)."
-    case .ready(let sshDestination):
-      return "Shared VM is ready at \(sshDestination)."
+        "Private workspace is installing developer tools (\(Int((fraction * 100).rounded()))%)."
+    case .ready:
+      return "Private workspace is ready."
     case .error(let detail):
-      return "Shared VM reported an error: \(detail)."
+      return "Private workspace needs attention: \(detail)."
     }
   }
 }
@@ -130,8 +130,8 @@ struct AgentExecutionEnvironment: Equatable {
   {
     if plan.isVMRoute {
       return AgentExecutionEnvironmentPresentation(
-        title: "Shared VM",
-        status: "Running the agent inside the Shared VM via vsock.",
+        title: plan.effectiveRouteTitle,
+        status: "Running agents inside your private workspace.",
         detail: plan.routeDetail(),
         systemImage: preference.systemImage
       )
@@ -141,17 +141,17 @@ struct AgentExecutionEnvironment: Equatable {
     // VM-availability problems.
     if case .ready = readiness.vmReadiness {
       return AgentExecutionEnvironmentPresentation(
-        title: "Shared VM",
+        title: plan.effectiveRouteTitle,
         status:
-          "Shared VM ready. This phase is running on the host repo as an internal fallback.",
-        detail: readiness.detail,
+          "Private workspace ready. This phase is using this Mac as an internal fallback.",
+        detail: plan.routeDetail(),
         systemImage: preference.systemImage
       )
     }
     return AgentExecutionEnvironmentPresentation(
-      title: "Shared VM",
+      title: preference.title,
       status:
-        "Shared VM not ready; Develop is blocked until the VM finishes preparing.",
+        "Private workspace not ready; Develop will unlock when setup finishes.",
       detail: fallbackDetail(plan: plan),
       systemImage: "desktopcomputer.trianglebadge.exclamationmark",
       isWarning: true
@@ -170,7 +170,12 @@ struct AgentExecutionEnvironment: Equatable {
   }
 
   private func fallbackDetail(plan: AgentExecutionLaunchPlan) -> String {
-    [readiness.detail, plan.fallbackReason.map { "Fallback: \($0)" }]
+    [
+      readiness.detail,
+      plan.fallbackReason.map {
+        "Using this Mac because \(AgentExecutionLaunchPlan.userFacingFallbackReason($0))"
+      },
+    ]
       .compactMap { $0 }
       .filter { !$0.isEmpty }
       .joined(separator: " ")
@@ -259,7 +264,7 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
 
   var helpText: String {
     Self.boundedField(
-      "Copy sanitized runtime diagnostics using \(copyActionIdentifier). No runtime preference, VM lifecycle, or project state is changed.",
+      "Copy sanitized runtime diagnostics using \(copyActionIdentifier). No runtime preference, workspace lifecycle, or project state is changed.",
       limit: Self.helpLimit
     )
   }
@@ -365,7 +370,7 @@ struct AgentExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
 
   var description: String {
     StringUtils.boundedText(
-      "Copy a bounded sanitized runtime report for the selected route and VM readiness.",
+      "Copy a bounded sanitized runtime report for the selected route and workspace readiness.",
       limit: Self.descriptionLimit
     )
   }
@@ -399,7 +404,7 @@ struct AgentExecutionEnvironmentMenu: Equatable {
       launchPlan ?? environment.launchPlan(repoURL: URL(fileURLWithPath: "/"))
     let presentation = environment.presentation(launchPlan: effectiveLaunchPlan)
     labelSystemImage = presentation.systemImage
-    helpText = "Execution environment: \(presentation.title). \(presentation.detail)"
+    helpText = "Runtime: \(presentation.title). \(presentation.detail)"
     statusText = [presentation.status, presentation.detail]
       .filter { !$0.isEmpty }
       .joined(separator: " ")
