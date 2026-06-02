@@ -227,10 +227,13 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
       omittedSupportTokenCount: Int,
       fallbackStateIdentifier: String
     ) -> String {
-      boundedText(
+      let routeSummary =
+        selectedPreferenceTitle == effectiveRouteTitle
+        ? effectiveRouteTitle
+        : "\(effectiveRouteTitle) · selected \(selectedPreferenceTitle)"
+      return boundedText(
         [
-          effectiveRouteTitle,
-          selectedPreferenceTitle,
+          routeSummary,
           supportClassificationIdentifier,
           "omitted \(omittedSupportTokenCount)",
           fallbackStateIdentifier,
@@ -246,10 +249,13 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
       omittedSupportTokenCount: Int,
       fallbackStateIdentifier: String
     ) -> String {
-      boundedText(
+      let routeSummary =
+        selectedPreferenceTitle == effectiveRouteTitle
+        ? "Runtime: \(effectiveRouteTitle)"
+        : "Runtime: \(effectiveRouteTitle); Selected preference: \(selectedPreferenceTitle)"
+      return boundedText(
         [
-          "Selected preference: \(selectedPreferenceTitle)",
-          "Effective route: \(effectiveRouteTitle)",
+          routeSummary,
           "Support: \(supportClassificationIdentifier)",
           "Omitted token count: \(omittedSupportTokenCount)",
           "Fallback: \(fallbackStateIdentifier)",
@@ -270,7 +276,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     private static func preferenceTitle(identifier: String, fallback: String) -> String {
       switch identifier {
       case AgentExecutionEnvironmentPreference.sharedVM.rawValue:
-        return AgentExecutionEnvironmentPreference.sharedVM.title
+        return "Private workspace"
       default:
         return sanitizedTitle(fallback, fallback: "Unknown")
       }
@@ -279,9 +285,9 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     private static func routeTitle(identifier: String, fallback: String) -> String {
       switch identifier {
       case "shared-vm":
-        return "Shared VM"
+        return "Private workspace"
       case "native-macos":
-        return "Native macOS"
+        return "This Mac"
       default:
         return sanitizedTitle(fallback, fallback: "Unknown route")
       }
@@ -633,9 +639,9 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
     case .completedFinished:
       return "Completed"
     case .sharedVM:
-      return "Shared VM"
+      return "Private workspace"
     case .nativeRuntime:
-      return "Native/Fallback"
+      return "This Mac/Fallback"
     }
   }
 
@@ -652,9 +658,9 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
     case .completedFinished:
       return "completed runs"
     case .sharedVM:
-      return "Shared VM runs"
+      return "private workspace runs"
     case .nativeRuntime:
-      return "native or fallback runs"
+      return "runs using this Mac or fallback"
     }
   }
 

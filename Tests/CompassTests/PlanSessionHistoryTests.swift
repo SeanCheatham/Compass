@@ -132,6 +132,74 @@ struct PlanSessionHistoryTests: ~Copyable {
   }
 
   @Test
+  func testRuntimeRouteDescriptorPresentsSharedVMAsPrivateWorkspace() throws {
+    let snapshot = try makeRuntimeSnapshot(
+      repoPrefix: "HistoryPrivateWorkspace",
+      vmReadiness: .ready(sshDestination: "compass@192.0.2.10"),
+      sharedVMRouteFactory: { repoURL in
+        SharedVMRoute(
+          sshDestination: "compass@192.0.2.10",
+          hostWorktreeURL: repoURL,
+          guestWorkspacePath: "/Users/compass/Compass/Repos/AAA/worktree"
+        )
+      }
+    )
+    let item = try #require(
+      PlanSessionHistory.displayItems(
+        for: [
+          makeSession(
+            1,
+            startedAt: 1_000,
+            executionEnvironmentSnapshots: [snapshot]
+          )
+        ]
+      ).first
+    )
+    let descriptor = item.runtimeRouteDescriptor
+
+    try #require(descriptor.effectiveRouteIdentifier == "shared-vm")
+    try #require(descriptor.selectedPreferenceIdentifier == "shared_vm")
+    try #require(descriptor.effectiveRouteTitle == "Private workspace")
+    try #require(descriptor.selectedPreferenceTitle == "Private workspace")
+    try #require(descriptor.badgeText.contains("Private workspace"))
+    try #require(!descriptor.badgeText.contains("Private workspace · Private workspace"))
+    try #require(!descriptor.helpText.contains("Shared VM"))
+    try #require(PlanSessionHistoryFilter.sharedVM.title == "Private workspace")
+    try #require(PlanSessionHistoryFilter.sharedVM.emptyStateName == "private workspace runs")
+  }
+
+  @Test
+  func testRuntimeRouteDescriptorPresentsNativeFallbackAsThisMac() throws {
+    let snapshot = SessionExecutionEnvironmentSnapshot(
+      phase: "Plan",
+      launchPlan: AgentExecutionLaunchPlan.host(
+        fallbackReason: "Shared VM unavailable: 2-guest cap."
+      )
+    )
+    let item = try #require(
+      PlanSessionHistory.displayItems(
+        for: [
+          makeSession(
+            1,
+            startedAt: 1_000,
+            executionEnvironmentSnapshots: [snapshot]
+          )
+        ]
+      ).first
+    )
+    let descriptor = item.runtimeRouteDescriptor
+
+    try #require(descriptor.effectiveRouteIdentifier == "native-macos")
+    try #require(descriptor.effectiveRouteTitle == "This Mac")
+    try #require(descriptor.selectedPreferenceTitle == "Private workspace")
+    try #require(descriptor.badgeText.contains("This Mac · selected Private workspace"))
+    try #require(descriptor.helpText.contains("Runtime: This Mac"))
+    try #require(PlanSessionHistoryFilter.nativeRuntime.title == "This Mac/Fallback")
+    try #require(
+      PlanSessionHistoryFilter.nativeRuntime.emptyStateName == "runs using this Mac or fallback")
+  }
+
+  @Test
   func testIncludesAuditArtifactsFromManifest() throws {
     let manifest = SessionAuditManifest(
       session: 7,
