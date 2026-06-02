@@ -30,6 +30,9 @@ struct WorldAtlasTests {
     #expect(atlas.title == "World Atlas")
     #expect(atlas.progressLabel == "Step 2 of 3")
     #expect(atlas.detail.contains("Following 3 stops from main"))
+    #expect(atlas.spotlight.title == "Now visiting hasSession")
+    #expect(atlas.spotlight.detail == "Decision - step 2 of 3")
+    #expect(atlas.spotlight.tone == .ready)
     #expect(atlas.metrics.contains { $0.id == "nodes" && $0.value == "5" })
     #expect(atlas.metrics.contains { $0.id == "decisions" && $0.value == "1" })
     #expect(atlas.terrain.contains { $0.label == "Action" && $0.count == 1 })
@@ -74,6 +77,7 @@ struct WorldAtlasTests {
     #expect(!payload.isEmpty)
     #expect(payload.text.contains("Compass World Atlas Handoff"))
     #expect(payload.text.contains("Progress: Step 2 of 3"))
+    #expect(payload.text.contains("Spotlight: Now visiting hasSession"))
     #expect(payload.text.contains("On-device guide:"))
     #expect(payload.text.contains("Start at main"))
     #expect(payload.text.contains("- danger: 1 Error path"))
@@ -109,6 +113,8 @@ struct WorldAtlasTests {
 
     #expect(atlas.progressLabel == "No route selected")
     #expect(atlas.detail.contains("Index the project"))
+    #expect(atlas.spotlight.title == "Build the map")
+    #expect(atlas.spotlight.tone == .neutral)
     #expect(atlas.terrain.isEmpty)
     #expect(atlas.routeStops.isEmpty)
     #expect(

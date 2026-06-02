@@ -817,6 +817,8 @@ private struct WorldAtlasPanel: View {
         .foregroundStyle(.white.opacity(0.72))
         .lineLimit(3)
 
+      WorldAtlasSpotlightRow(spotlight: atlas.spotlight)
+
       if let narration {
         HStack(alignment: .top, spacing: 7) {
           Image(systemName: "text.bubble")
@@ -941,6 +943,48 @@ private struct WorldAtlasPanel: View {
     case .info: return .white.opacity(0.62)
     case .warning: return Color(red: 0.95, green: 0.72, blue: 0.32)
     case .danger: return Color(red: 0.94, green: 0.39, blue: 0.32)
+    }
+  }
+}
+
+private struct WorldAtlasSpotlightRow: View {
+  let spotlight: WorldAtlas.Spotlight
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: spotlight.systemImageName)
+        .frame(width: 16)
+        .foregroundStyle(color)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(spotlight.title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(1)
+        Text(spotlight.detail)
+          .font(.caption2)
+          .foregroundStyle(.white.opacity(0.58))
+          .lineLimit(2)
+      }
+    }
+    .padding(.horizontal, 8)
+    .padding(.vertical, 7)
+    .background(color.opacity(0.13), in: RoundedRectangle(cornerRadius: 7))
+    .overlay {
+      RoundedRectangle(cornerRadius: 7)
+        .stroke(color.opacity(0.22))
+    }
+    .accessibilityElement(children: .combine)
+  }
+
+  private var color: Color {
+    switch spotlight.tone {
+    case .neutral:
+      return .white.opacity(0.68)
+    case .ready:
+      return Color(red: 0.88, green: 0.72, blue: 0.38)
+    case .warning:
+      return Color(red: 0.95, green: 0.72, blue: 0.32)
+    case .danger:
+      return Color(red: 0.94, green: 0.39, blue: 0.32)
     }
   }
 }

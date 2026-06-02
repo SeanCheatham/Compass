@@ -36,9 +36,24 @@ struct WorldAtlas: Equatable, Sendable {
     var isCurrent: Bool
   }
 
+  struct Spotlight: Equatable, Sendable {
+    enum Tone: String, Equatable, Sendable {
+      case neutral
+      case ready
+      case warning
+      case danger
+    }
+
+    var title: String
+    var detail: String
+    var systemImageName: String
+    var tone: Tone
+  }
+
   var title: String
   var detail: String
   var progressLabel: String
+  var spotlight: Spotlight
   var metrics: [Metric]
   var terrain: [Terrain]
   var notices: [Notice]
@@ -109,7 +124,14 @@ struct WorldAtlas: Equatable, Sendable {
       routeIndex: safeRouteIndex,
       lookup: lookup
     )
+    let builtSpotlight = Self.spotlight(
+      graph: graph,
+      route: route,
+      routeStops: builtRouteStops,
+      notices: builtNotices
+    )
 
+    spotlight = builtSpotlight
     metrics = builtMetrics
     terrain = builtTerrain
     notices = builtNotices
@@ -121,6 +143,7 @@ struct WorldAtlas: Equatable, Sendable {
       selectedNodeID: selectedNodeID,
       metrics: builtMetrics,
       terrain: builtTerrain,
+      spotlight: builtSpotlight,
       notices: builtNotices,
       routeStops: builtRouteStops
     )
@@ -287,6 +310,65 @@ struct WorldAtlas: Equatable, Sendable {
     }
   }
 
+  private static func spotlight(
+    graph: WorldGraph,
+    route: [String],
+    routeStops: [RouteStop],
+    notices: [Notice]
+  ) -> Spotlight {
+    if graph.nodes.isEmpty {
+      return Spotlight(
+        title: "Build the map",
+        detail: "Index the project to draw the first code-path world.",
+        systemImageName: "cube.transparent",
+        tone: .neutral
+      )
+    }
+
+    if let current = routeStops.first(where: \.isCurrent) {
+      return Spotlight(
+        title: "Now visiting \(current.label)",
+        detail: current.detail,
+        systemImageName: "location.fill",
+        tone: .ready
+      )
+    }
+
+    if route.isEmpty, !graph.entrypointIDs.isEmpty {
+      return Spotlight(
+        title: "Pick an entrance",
+        detail: "Start a guided walk from one of the discovered entrypoints.",
+        systemImageName: "door.left.hand.open",
+        tone: .neutral
+      )
+    }
+
+    if let notice = notices.first(where: { $0.severity == .danger }) {
+      return Spotlight(
+        title: notice.label,
+        detail: notice.detail,
+        systemImageName: "exclamationmark.triangle.fill",
+        tone: .danger
+      )
+    }
+
+    if let notice = notices.first(where: { $0.severity == .warning }) {
+      return Spotlight(
+        title: notice.label,
+        detail: notice.detail,
+        systemImageName: "exclamationmark.triangle",
+        tone: .warning
+      )
+    }
+
+    return Spotlight(
+      title: "Explore nearby chambers",
+      detail: "Select a symbol or search for a file to inspect its place in the world.",
+      systemImageName: "sparkle.magnifyingglass",
+      tone: .neutral
+    )
+  }
+
   private static func narrationIdentifier(
     graph: WorldGraph,
     route: [String],
@@ -294,6 +376,7 @@ struct WorldAtlas: Equatable, Sendable {
     selectedNodeID: String?,
     metrics: [Metric],
     terrain: [Terrain],
+    spotlight: Spotlight,
     notices: [Notice],
     routeStops: [RouteStop]
   ) -> String {
@@ -308,6 +391,7 @@ struct WorldAtlas: Equatable, Sendable {
       "selected:\(selectedNodeID ?? "none")",
       "metrics:\(metrics.map { "\($0.id)=\($0.value)" }.joined(separator: ","))",
       "terrain:\(terrain.map { "\($0.id)=\($0.count)" }.joined(separator: ","))",
+      "spotlight:\(spotlight.title):\(spotlight.detail):\(spotlight.tone.rawValue)",
       "notices:\(notices.map(\.id).joined(separator: ","))",
       "walk:\(routeStops.map { "\($0.label):\($0.detail):\($0.isCurrent)" }.joined(separator: ","))",
     ].joined(separator: "|")
@@ -395,6 +479,7 @@ struct WorldAtlasClipboardPayload: Equatable, Sendable {
       "Overview:",
       atlas.detail,
       "Progress: \(atlas.progressLabel)",
+      "Spotlight: \(atlas.spotlight.title) - \(atlas.spotlight.detail)",
     ]
 
     if let narrationText = narration?.text.trimmingCharacters(in: .whitespacesAndNewlines),
