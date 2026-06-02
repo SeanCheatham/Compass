@@ -268,6 +268,46 @@ enum FoundationModelsAgentRuntime {
   }
 }
 
+@available(macOS 26.0, *)
+extension FoundationModelsAgentRuntime {
+  static func jsonData(from content: GeneratedContent) throws -> Data {
+    let object = try jsonObject(from: content)
+    guard JSONSerialization.isValidJSONObject(object) else {
+      throw FoundationModelsJSONEncodingError.invalidJSONObject
+    }
+    return try JSONSerialization.data(
+      withJSONObject: object,
+      options: [.withoutEscapingSlashes]
+    )
+  }
+
+  private static func jsonObject(from content: GeneratedContent) throws -> Any {
+    switch content.kind {
+    case .null:
+      return NSNull()
+    case .bool(let value):
+      return value
+    case .number(let value):
+      guard value.isFinite else {
+        throw FoundationModelsJSONEncodingError.nonFiniteNumber(value)
+      }
+      return value
+    case .string(let value):
+      return value
+    case .array(let values):
+      return try values.map { try jsonObject(from: $0) }
+    case .structure(let properties, _):
+      var object = [String: Any]()
+      for (key, value) in properties {
+        object[key] = try jsonObject(from: value)
+      }
+      return object
+    @unknown default:
+      throw FoundationModelsJSONEncodingError.invalidJSONObject
+    }
+  }
+}
+
 // MARK: - Sentinel / capture types
 
 /// Thrown by `SubmitResultTool.call` so the FoundationModels stream
@@ -314,8 +354,7 @@ private struct SubmitResultTool: FoundationModels.Tool {
   var includesSchemaInInstructions: Bool { true }
 
   func call(arguments: GeneratedContent) async throws -> String {
-    let json = arguments.jsonString
-    let data = Data(json.utf8)
+    let data = try FoundationModelsAgentRuntime.jsonData(from: arguments)
     capture.set(data)
     throw SubmitResultSignal()
   }
@@ -339,7 +378,25 @@ private struct DynamicAgentTool: FoundationModels.Tool {
   var includesSchemaInInstructions: Bool { true }
 
   func call(arguments: GeneratedContent) async throws -> String {
-    let json = arguments.jsonString
+    let data: Data
+    let json: String
+    do {
+      data = try FoundationModelsAgentRuntime.jsonData(from: arguments)
+      json = String(decoding: data, as: UTF8.self)
+    } catch {
+      let message = "Tool \(name) arguments could not be serialized: \(error.localizedDescription)"
+      emit(
+        LiveEvent(
+          level: .error,
+          text: name,
+          detail: previewString(message),
+          kind: .agentMessage,
+          status: .failed,
+          correlationID: UUID().uuidString
+        )
+      )
+      return message
+    }
     let correlationID = UUID().uuidString
     emit(
       LiveEvent(
@@ -353,7 +410,7 @@ private struct DynamicAgentTool: FoundationModels.Tool {
     )
     do {
       let result = try await agentTool.invoke(
-        arguments: Data(json.utf8),
+        arguments: data,
         context: context
       )
       emit(
@@ -393,6 +450,22 @@ private struct DynamicAgentTool: FoundationModels.Tool {
         )
       )
       return message
+    }
+  }
+}
+
+// MARK: - GeneratedContent JSON encoding
+
+enum FoundationModelsJSONEncodingError: LocalizedError, Equatable {
+  case nonFiniteNumber(Double)
+  case invalidJSONObject
+
+  var errorDescription: String? {
+    switch self {
+    case .nonFiniteNumber(let value):
+      return "GeneratedContent contained a non-finite number: \(value)"
+    case .invalidJSONObject:
+      return "GeneratedContent could not be represented as JSON"
     }
   }
 }
