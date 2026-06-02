@@ -38,7 +38,12 @@ struct VisionTab: View {
         clipboardPayload: clipboardPayload,
         narration: matchingNarration(for: guide)
       )
-      MarkdownDocumentBody(text: $project.vision, mode: mode, empty: "No project vision.")
+      MarkdownDocumentBody(
+        text: $project.vision,
+        mode: mode,
+        empty: "No project vision.",
+        editPlaceholder: "Sketch audience, pain, success, and guardrails."
+      )
     }
     .task(id: "\(guide.narrationIdentifier)|running-\(project.isRunning)") {
       guideNarration = nil
@@ -374,6 +379,7 @@ struct MarkdownDocumentBody: View {
   @Binding var text: String
   var mode: MarkdownDocumentMode
   var empty: String
+  var editPlaceholder: String
 
   var body: some View {
     Group {
@@ -384,10 +390,22 @@ struct MarkdownDocumentBody: View {
             .padding(12)
         }
       case .edit:
-        TextEditor(text: $text)
-          .font(.system(.body, design: .monospaced))
-          .scrollContentBackground(.hidden)
-          .padding(8)
+        ZStack(alignment: .topLeading) {
+          TextEditor(text: $text)
+            .font(.system(.body, design: .monospaced))
+            .scrollContentBackground(.hidden)
+            .padding(8)
+
+          if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Text(editPlaceholder)
+              .font(.system(.body, design: .monospaced))
+              .foregroundStyle(.secondary)
+              .padding(.horizontal, 13)
+              .padding(.vertical, 16)
+              .allowsHitTesting(false)
+              .accessibilityHidden(true)
+          }
+        }
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

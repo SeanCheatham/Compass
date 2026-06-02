@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 
 @testable import Compass
@@ -26,6 +27,34 @@ struct ProjectVisionGuideTests {
     #expect(MarkdownDocumentMode.initial(for: "") == .edit)
     #expect(MarkdownDocumentMode.initial(for: " \n\t ") == .edit)
     #expect(MarkdownDocumentMode.initial(for: "Compass helps non-developers.") == .preview)
+  }
+
+  @Test
+  func emptyVisionEditorShowsAuthoringPlaceholder() {
+    let body = String(
+      reflecting: MarkdownDocumentBody(
+        text: .constant(""),
+        mode: .edit,
+        empty: "No project vision.",
+        editPlaceholder: "Sketch audience, pain, success, and guardrails."
+      ).body
+    )
+
+    #expect(body.contains("Sketch audience, pain, success, and guardrails."))
+  }
+
+  @Test
+  func populatedVisionEditorHidesAuthoringPlaceholder() {
+    let body = String(
+      reflecting: MarkdownDocumentBody(
+        text: .constant("Compass helps non-developers understand generated software."),
+        mode: .edit,
+        empty: "No project vision.",
+        editPlaceholder: "Sketch audience, pain, success, and guardrails."
+      ).body
+    )
+
+    #expect(!body.contains("Sketch audience, pain, success, and guardrails."))
   }
 
   @Test
