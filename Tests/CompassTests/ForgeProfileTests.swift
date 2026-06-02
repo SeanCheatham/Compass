@@ -11,34 +11,34 @@ struct ForgeProfileTests {
     try #require(ForgeProfileService.detect(in: repoURL) == .swiftSPM)
   }
 
-  @Test func detectGoModule() throws {
+  @Test func doesNotDetectGoModule() throws {
     let repoURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: repoURL) }
     try write("module example.com/x\n\ngo 1.22\n", to: repoURL.appending(path: "go.mod"))
-    try #require(ForgeProfileService.detect(in: repoURL) == .goModule)
+    try #require(ForgeProfileService.detect(in: repoURL) == nil)
   }
 
   @Test func detectAndPersistWritesForgeProfileJSON() throws {
     let repoURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: repoURL) }
-    try write("module example.com/x\n\ngo 1.22\n", to: repoURL.appending(path: "go.mod"))
+    try write("[package]\nname = \"x\"\nversion = \"0.1.0\"\n", to: repoURL.appending(path: "Cargo.toml"))
     let workspace = CompassWorkspace(repoURL: repoURL)
     try workspace.initialize()
 
     let profile = try ForgeProfileService.detectAndPersist(repoURL: repoURL, workspace: workspace)
-    try #require(profile == .goModule)
+    try #require(profile == .rustCargo)
     let record = try #require(ForgeProfileService.readRecord(from: workspace))
-    try #require(record.profile == .goModule)
+    try #require(record.profile == .rustCargo)
     try #require(record.version == ForgeProfileRecord.currentVersion)
   }
 
-  @Test func coverageViolationRequiresGoCoverprofile() throws {
+  @Test func coverageViolationRequiresRustLLVMCov() throws {
     let message = ForgeVerifyValidator.coverageViolation(
-      verify: "go test ./...",
-      profile: .goModule
+      verify: "cargo test",
+      profile: .rustCargo
     )
     try #require(message != nil)
-    try #require(message?.contains("coverprofile") == true)
+    try #require(message?.contains("cargo llvm-cov") == true)
   }
 
   @Test func xcodebuildTestVerifySatisfiesSwiftCoverageRule() throws {
@@ -58,20 +58,19 @@ struct ForgeProfileTests {
       ) == nil)
     try #require(
       ForgeVerifyValidator.coverageViolation(
-        verify: "go build ./...",
-        profile: .goModule
+        verify: "cargo check",
+        profile: .rustCargo
       ) == nil)
   }
 
-  @Test func parseGoCoverFuncOutput() throws {
+  @Test func parseRustLLVMCovSummaryOutput() throws {
     let output = """
-      example.com/app/main.go:10:    main    100.0%
-      example.com/app/util.go:4:     Helper  50.0%
-      total:                         (statements)    75.0%
+      src/main.rs 50.0%
+      TOTAL 75.0%
       """
-    let snapshot = CoverageSnapshotParser.parseGoCoverFunc(output, profile: .goModule)
+    let snapshot = CoverageSnapshotParser.parseRustLLVMCovSummary(output, profile: .rustCargo)
     try #require(snapshot.overallLineCoveragePercent == 75.0)
-    try #require(snapshot.files.count == 2)
+    try #require(snapshot.files.count == 1)
   }
 
   @Test func parseVitestSummaryJSON() throws {

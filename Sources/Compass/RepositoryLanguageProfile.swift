@@ -2,7 +2,6 @@ import Foundation
 
 enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   case typeScriptJavaScript
-  case go
   case rust
   case swift
   case markdown
@@ -12,7 +11,6 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   var displayName: String {
     switch self {
     case .typeScriptJavaScript: return "TypeScript/JavaScript"
-    case .go: return "Go"
     case .rust: return "Rust"
     case .swift: return "Swift"
     case .markdown: return "Markdown"
@@ -24,7 +22,6 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   var sourceNoun: String {
     switch self {
     case .typeScriptJavaScript: return "TS/JS files"
-    case .go: return "Go files"
     case .rust: return "Rust files"
     case .swift: return "Swift files"
     case .markdown: return "Markdown files"
@@ -36,21 +33,19 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
 
 struct RepositoryLanguageCounts: Codable, Equatable {
   var typeScriptJavaScript = 0
-  var go = 0
   var rust = 0
   var swift = 0
   var markdown = 0
   var other = 0
 
   var total: Int {
-    typeScriptJavaScript + go + rust + swift + markdown + other
+    typeScriptJavaScript + rust + swift + markdown + other
   }
 
   subscript(language: RepositoryLanguage) -> Int {
     get {
       switch language {
       case .typeScriptJavaScript: return typeScriptJavaScript
-      case .go: return go
       case .rust: return rust
       case .swift: return swift
       case .markdown: return markdown
@@ -62,8 +57,6 @@ struct RepositoryLanguageCounts: Codable, Equatable {
       switch language {
       case .typeScriptJavaScript:
         typeScriptJavaScript = newValue
-      case .go:
-        go = newValue
       case .rust:
         rust = newValue
       case .swift:
@@ -85,7 +78,6 @@ struct RepositoryLanguageCounts: Codable, Equatable {
 
 enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable {
   case packageJSON = "package.json"
-  case goMod = "go.mod"
   case cargoToml = "Cargo.toml"
   case packageSwift = "Package.swift"
 
@@ -93,8 +85,6 @@ enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable 
     switch fileName {
     case Self.packageJSON.rawValue:
       self = .packageJSON
-    case Self.goMod.rawValue:
-      self = .goMod
     case Self.cargoToml.rawValue:
       self = .cargoToml
     case Self.packageSwift.rawValue:
@@ -107,7 +97,6 @@ enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable 
   var language: RepositoryLanguage {
     switch self {
     case .packageJSON: return .typeScriptJavaScript
-    case .goMod: return .go
     case .cargoToml: return .rust
     case .packageSwift: return .swift
     }
@@ -116,7 +105,6 @@ enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable 
   var forgeProfile: ForgeProfile {
     switch self {
     case .packageJSON: return .typeScriptVitest
-    case .goMod: return .goModule
     case .cargoToml: return .rustCargo
     case .packageSwift: return .swiftSPM
     }
@@ -164,8 +152,6 @@ struct RepositoryLanguageProfile: Codable, Equatable {
       prefix = "Swift forge profile"
     case .typeScriptJavaScript:
       prefix = "TypeScript/JavaScript forge profile"
-    case .go:
-      prefix = "Go forge profile"
     case .rust:
       prefix = "Rust forge profile"
     case .markdown:
@@ -330,8 +316,6 @@ private struct RepositoryLanguageProfileScanner {
     switch fileURL.pathExtension.lowercased() {
     case "cjs", "cts", "js", "jsx", "mjs", "mts", "ts", "tsx":
       return .typeScriptJavaScript
-    case "go":
-      return .go
     case "rs":
       return .rust
     case "swift":
@@ -349,7 +333,6 @@ private struct RepositoryLanguageProfileScanner {
   ) -> RepositoryLanguage {
     let codeLanguages: [RepositoryLanguage] = [
       .typeScriptJavaScript,
-      .go,
       .rust,
       .swift,
       .markdown,

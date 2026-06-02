@@ -219,10 +219,6 @@ struct PlanWorkflowOverviewTests {
     try #require(swift.detail == "Compass will run Swift tests focused on DraftRefinementTests.")
     try #require(swift.command == "swift test --filter DraftRefinementTests")
 
-    let go = PlanVerifyCommandSummary(command: "go test ./...")
-    try #require(go.title == "Runs Go tests")
-    try #require(go.detail == "Compass will run Go tests across every package in the module.")
-
     let rust = PlanVerifyCommandSummary(command: "cargo test --all-features")
     try #require(rust.title == "Runs Rust tests")
     try #require(
@@ -258,13 +254,6 @@ struct PlanWorkflowOverviewTests {
       swift.detail
         == "Compass will run Swift tests focused on DraftRefinementTests. Coverage collection is enabled."
     )
-
-    let go = PlanVerifyCommandSummary(
-      command: "go test -coverprofile=.compass/coverage.out ./..."
-    )
-    try #require(go.title == "Runs Go coverage")
-    try #require(
-      go.detail == "Compass will run Go tests across every package and write a coverage profile.")
 
     let rust = PlanVerifyCommandSummary(command: "cargo llvm-cov --summary-only")
     try #require(rust.title == "Runs Rust coverage")
@@ -620,27 +609,27 @@ struct PlanWorkflowOverviewTests {
       immediate: PlanNext(
         plan: """
           ## Outcome
-          Add Go coverage for parser failures.
+          Add Rust coverage for parser failures.
 
           ## Acceptance checks
-          - Go tests exercise parser failures.
+          - Rust tests exercise parser failures.
           """,
-        verify: "go test ./..."
+        verify: "cargo test"
       )
     )
     let brief = PlanFactoryBrief(
       state: state,
       reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
       launchPlan: .host(),
-      languageProfile: profile(.go, hints: [.goMod]),
-      forgeProfile: .goModule
+      languageProfile: profile(.rust, hints: [.cargoToml]),
+      forgeProfile: .rustCargo
     )
 
     try #require(brief.status == .planning)
     try #require(brief.title == "Clarify Before Building")
     try #require(brief.detail.contains("Coverage-ready verify"))
     try #require(brief.primaryActionLabel == "Run Plan")
-    try #require(brief.proofLabel == "Runs Go tests")
+    try #require(brief.proofLabel == "Runs Rust tests")
   }
 
   @Test
@@ -849,14 +838,14 @@ struct PlanWorkflowOverviewTests {
     let guide = PlanHandoffRepairGuide(
       plan: """
         ## Outcome
-        Add Go coverage for parser failures.
+        Add Rust coverage for parser failures.
 
         ## Acceptance checks
-        - Go tests exercise parser failures.
+        - Rust tests exercise parser failures.
         """,
-      verify: "go test ./...",
-      languageProfile: profile(.go, hints: [.goMod]),
-      forgeProfile: .goModule
+      verify: "cargo test",
+      languageProfile: profile(.rust, hints: [.cargoToml]),
+      forgeProfile: .rustCargo
     )
 
     try #require(guide.status == .needsRepair)
@@ -864,9 +853,9 @@ struct PlanWorkflowOverviewTests {
       guide.detail == "Add Coverage-ready verify before Develop has a clear finish line.")
     try #require(guide.scoreLabel == "2 of 3 required")
     try #require(guide.steps[2].title == "Coverage-ready verify")
-    try #require(guide.steps[2].detail == "Add coverage to the verify command for Go (module).")
+    try #require(guide.steps[2].detail == "Add coverage to the verify command for Rust (Cargo).")
     try #require(
-      guide.suggestedVerifyCommand == "go test -coverprofile=.compass/coverage.out ./...")
+      guide.suggestedVerifyCommand == "cargo llvm-cov --summary-only")
   }
 
   @Test

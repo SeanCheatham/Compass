@@ -1,6 +1,5 @@
 import Foundation
 import SwiftTreeSitter
-import TreeSitterGo
 import TreeSitterJavaScript
 import TreeSitterRust
 import TreeSitterSwift
@@ -82,14 +81,6 @@ final class LanguageRegistry: @unchecked Sendable {
         errorTypes: ["catch_clause"],
         callTypes: ["call_expression"]
       )
-    case .go:
-      return RuntimeNodeKinds(
-        branchTypes: ["if_statement"],
-        loopTypes: ["for_statement"],
-        switchTypes: ["expression_switch_statement", "type_switch_statement", "select_statement"],
-        errorTypes: [],
-        callTypes: ["call_expression"]
-      )
     case .rust:
       return RuntimeNodeKinds(
         branchTypes: ["if_expression"],
@@ -107,7 +98,6 @@ final class LanguageRegistry: @unchecked Sendable {
     case .typescript: return Language(language: tree_sitter_typescript())
     case .tsx: return Language(language: tree_sitter_tsx())
     case .javascript: return Language(language: tree_sitter_javascript())
-    case .go: return Language(language: tree_sitter_go())
     case .rust: return Language(language: tree_sitter_rust())
     }
   }
@@ -128,7 +118,6 @@ final class LanguageRegistry: @unchecked Sendable {
     case .typescript: return typeScriptQuery
     case .tsx: return typeScriptQuery
     case .javascript: return javaScriptQuery
-    case .go: return goQuery
     case .rust: return rustQuery
     }
   }
@@ -208,31 +197,6 @@ final class LanguageRegistry: @unchecked Sendable {
       (variable_declarator
         name: (identifier) @name
         value: [(arrow_function) (function_expression)])) @def.function
-    """#
-
-  private static let goQuery = #"""
-    (import_spec
-      path: (interpreted_string_literal) @import.source) @import
-
-    (function_declaration
-      name: (identifier) @name) @def.function
-
-    (method_declaration
-      name: (field_identifier) @name) @def.method
-
-    (type_declaration
-      (type_spec
-        name: (type_identifier) @name
-        type: (struct_type))) @def.struct
-
-    (type_declaration
-      (type_spec
-        name: (type_identifier) @name
-        type: (interface_type))) @def.interface
-
-    (type_declaration
-      (type_spec
-        name: (type_identifier) @name)) @def.type
     """#
 
   private static let rustQuery = #"""

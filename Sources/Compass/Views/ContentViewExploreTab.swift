@@ -644,7 +644,6 @@ struct LanguageBadge: View {
     case .typescript: return "TS"
     case .tsx: return "TSX"
     case .javascript: return "JS"
-    case .go: return "Go"
     case .rust: return "Rs"
     }
   }
@@ -655,7 +654,6 @@ struct LanguageBadge: View {
     case .swift: return .orange
     case .typescript, .tsx: return .blue
     case .javascript: return .yellow
-    case .go: return .cyan
     case .rust: return .orange
     }
   }

@@ -395,7 +395,7 @@ extension Prompts {
         `make`, `llvm`, macOS SDK), Homebrew, and ripgrep (`rg`).
         \(sharedVMApplePlatformGuidance(hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled))
         Use the guest for file edits, search, and non-Apple toolchains. On-demand
-        toolchains (install via `install_toolchain`): rust, go, node (npm, npx, `tsc`).
+        toolchains (install via `install_toolchain`): rust, node (npm, npx, `tsc`).
         Use `list_toolchains` to see what is installed.
         Docker is unavailable in the Shared VM — use the host for container workloads.\(installedSummary)
         Network egress to Apple's CDNs (softwareupdate, swift package fetch

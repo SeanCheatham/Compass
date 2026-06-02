@@ -26,12 +26,12 @@ struct ExploreTabComponentsTests {
   @Test
   func fileTreeNode_name_deeplyNested() throws {
     let node = FileTreeNode(
-      relativePath: "a/b/c/d/e/file.go",
+      relativePath: "a/b/c/d/e/file.rs",
       isDirectory: false,
-      language: .go,
+      language: .rust,
       children: []
     )
-    #expect(node.name == "file.go")
+    #expect(node.name == "file.rs")
   }
 
   @Test
@@ -157,11 +157,6 @@ struct ExploreTabComponentsTests {
   @Test
   func languageBadge_colorFor_javascript() throws {
     #expect(colorsEqual(LanguageBadge.color(for: .javascript), .yellow))
-  }
-
-  @Test
-  func languageBadge_colorFor_go() throws {
-    #expect(colorsEqual(LanguageBadge.color(for: .go), .cyan))
   }
 
   @Test

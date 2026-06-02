@@ -29,13 +29,13 @@ struct ForgeProfileHostXcodeTests {
     #expect(ForgeProfileService.prefersHostXcodeBridge(in: root))
   }
 
-  @Test func testDoesNotPreferHostXcodeBridgeForGoModule() throws {
+  @Test func testDoesNotPreferHostXcodeBridgeForCargoRepo() throws {
     let root = FileManager.default.temporaryDirectory
       .appending(path: "ForgeProfileHostXcode-\(UUID().uuidString)", directoryHint: .isDirectory)
     defer { try? FileManager.default.removeItem(at: root) }
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    try "module example.com/app\n\ngo 1.22\n".write(
-      to: root.appending(path: "go.mod"),
+    try "[package]\nname = \"app\"\nversion = \"0.1.0\"\n".write(
+      to: root.appending(path: "Cargo.toml"),
       atomically: true,
       encoding: .utf8
     )

@@ -124,7 +124,7 @@ extension Prompts {
       - Never choose placeholder verify commands like `true`, `exit 0`,
         `echo no tests`, `not-running-tests`, `none`, or `n/a`.
       \(compassTestsMigrationRule)
-      - Compass projects use opinionated forge profiles (Swift, Go, Rust, or
+      - Compass projects use opinionated forge profiles (Swift, Rust, or
         TypeScript/Vitest). Test verify commands must collect coverage — see
         the forge profile section below. Compile-only verify may omit coverage.
       \(forgeCoveragePlanningRules(forgeProfile: forgeProfile))

@@ -50,12 +50,12 @@ struct ExploreFileExplainerTests {
     test.setUp()
     defer { test.tearDown() }
 
-    let diffStat = "old/path.go => new/path.go           |   4 ++--"
+    let diffStat = "old/path.rs => new/path.rs           |   4 ++--"
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
     try #require(changes.count == 1)
-    try #require(changes[0].relativePath == "new/path.go")
+    try #require(changes[0].relativePath == "new/path.rs")
     try #require(changes[0].additions == 2)
     try #require(changes[0].deletions == 2)
   }
@@ -105,12 +105,12 @@ struct ExploreFileExplainerTests {
     try #require(changes1[0].relativePath == "Sources/App.swift")
     try #require(changes1[0].language == .swift)
 
-    // Case 2: rename without a/ prefix → language == .go
-    let diffStat2 = "old/path.go => new/path.go           |   4 ++--"
+    // Case 2: rename without a/ prefix → language == .rust
+    let diffStat2 = "old/path.rs => new/path.rs           |   4 ++--"
     let changes2 = FileExplainer.parseGitDiffStat(diffStat2)
     try #require(changes2.count == 1)
-    try #require(changes2[0].relativePath == "new/path.go")
-    try #require(changes2[0].language == .go)
+    try #require(changes2[0].relativePath == "new/path.rs")
+    try #require(changes2[0].language == .rust)
 
     // Case 3: rename with a/→b/ prefix → language == .swift
     let diffStat3 = "a/Foo.swift => b/Bar.swift           |   6 ++++++"
@@ -934,9 +934,9 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func categorize_sourceGoFile() throws {
+  func categorize_unsupportedGoFileIsOther() throws {
     let result = FileChangeCategory.categorize("cmd/server/main.go")
-    try #require(result == .source)
+    try #require(result == .other)
   }
 
   @Test

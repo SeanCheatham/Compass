@@ -206,18 +206,6 @@ struct RuntimePathExtractor: Sendable {
         )
       }
 
-    case .go:
-      let isPackageMain = lines.contains { $0.trimmingCharacters(in: .whitespaces) == "package main" }
-      if isPackageMain, let symbol = symbols.first(where: { $0.name == "main" && $0.kind == .function }) {
-        add(
-          name: "main",
-          line: symbol.line,
-          endLine: symbol.endLine,
-          confidence: .high,
-          reason: "Go package main entrypoint"
-        )
-      }
-
     case .rust:
       if let symbol = symbols.first(where: { $0.name == "main" && $0.kind == .function }) {
         add(

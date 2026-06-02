@@ -38,10 +38,10 @@ struct SharedCompassVMToolchainProvisionerTests {
 
   @Test func renderInstallLaunchDaemonPlistContainsLabel() throws {
     let plist = SharedCompassVMToolchainProvisioner.renderInstallLaunchDaemonPlist(
-      definition: SharedVMToolchainCatalog.definition(for: .go)
+      definition: SharedVMToolchainCatalog.definition(for: .node)
     )
-    try #require(plist.contains("com.seancheatham.Compass.toolchain-go"))
-    try #require(plist.contains("compass-install-go.sh"))
+    try #require(plist.contains("com.seancheatham.Compass.toolchain-node"))
+    try #require(plist.contains("compass-install-node.sh"))
   }
 
   @Test func pollSnapshotParsesDoneExitCode() throws {
@@ -49,7 +49,7 @@ struct SharedCompassVMToolchainProvisionerTests {
       DONE
       exit=0
       ---LOG_TAIL---
-      [compass-toolchain-go] installed
+      [compass-toolchain-node] installed
       """
     let snapshot = SharedCompassVMToolchainProvisioner.PollSnapshot(parsing: raw)
     try #require(snapshot.exitCode == 0)

@@ -5,14 +5,12 @@ import Foundation
 /// enforces in prompts, plan validation, and post-check collection.
 enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   case swiftSPM = "swift-spm"
-  case goModule = "go-module"
   case rustCargo = "rust-cargo"
   case typeScriptVitest = "ts-vitest"
 
   var displayName: String {
     switch self {
     case .swiftSPM: return "Swift (SwiftPM)"
-    case .goModule: return "Go (module)"
     case .rustCargo: return "Rust (Cargo)"
     case .typeScriptVitest: return "TypeScript (Vitest + pnpm)"
     }
@@ -31,14 +29,6 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         - When host Xcode is enabled, test verify uses `xcodebuild ... test` with coverage collected host-side;
           compile-only increments may still use guest `swift build` when probing is unnecessary.
         - Compass collects line coverage from the `.profdata` artifact after verify passes.
-        """
-    case .goModule:
-      return """
-        Forge profile — Go (module):
-        - Standard module layout with `go.mod` at the repo root.
-        - Verify for test increments must include coverage collection, e.g. \
-        `go test -coverprofile=.compass/coverage.out ./...` (scope `./path/...` when needed).
-        - Build-only increments may use `go build ./...` without coverage.
         """
     case .rustCargo:
       return """
@@ -71,9 +61,6 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         test verify must declare coverage: guest `swift test --enable-code-coverage`, or host \
         `xcodebuild ... test` with `requiresHostXcode: true` (Compass collects coverage host-side after verify).
         """
-    case .goModule:
-      return
-        "test verify commands must include `-coverprofile=.compass/coverage.out` (e.g. `go test -coverprofile=.compass/coverage.out ./...`)."
     case .rustCargo:
       return "test verify commands must use `cargo llvm-cov` with summary or json output."
     case .typeScriptVitest:
@@ -107,14 +94,6 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
           xcrun llvm-cov report -instr-profile="$PROFDATA" 2>/dev/null || llvm-cov report -instr-profile="$PROFDATA"
         fi
         """
-    case .goModule:
-      return """
-        if [ -f .compass/coverage.out ]; then
-          go tool cover -func=.compass/coverage.out
-        else
-          go test -coverprofile=.compass/coverage.out ./... && go tool cover -func=.compass/coverage.out
-        fi
-        """
     case .rustCargo:
       return "cargo llvm-cov --summary-only 2>/dev/null || cargo llvm-cov test --summary-only"
     case .typeScriptVitest:
@@ -138,7 +117,6 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     if normalized.contains(" test") || normalized.hasPrefix("test ")
       || normalized.contains("pnpm test")
       || normalized.contains("vitest") || normalized.contains("cargo test")
-      || normalized.contains("go test")
       || normalized.contains("swift test")
       || normalized.contains("xcodebuild") && normalized.contains(" test")
     {
@@ -147,8 +125,6 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     switch self {
     case .swiftSPM:
       return normalized.contains("swift build") || normalized == "swift build"
-    case .goModule:
-      return normalized.contains("go build") && !normalized.contains("go test")
     case .rustCargo:
       return normalized.contains("cargo check")
         || (normalized.contains("cargo build")
@@ -166,8 +142,6 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
       return normalized.contains("--enable-code-coverage")
         || normalized.contains("llvm-cov")
         || (normalized.contains("xcodebuild") && normalized.contains(" test"))
-    case .goModule:
-      return normalized.contains("-coverprofile") || normalized.contains("covermode")
     case .rustCargo:
       return normalized.contains("llvm-cov") || normalized.contains("-Cinstrument-coverage")
     case .typeScriptVitest:
@@ -179,14 +153,6 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     switch self {
     case .swiftSPM:
       return CoverageSnapshotParser.parseLLVMCovReport(output, profile: self)
-    case .goModule:
-      if let fromFile = CoverageSnapshotParser.parseGoCoverFuncFromFile(
-        workingDirectory.appending(path: ".compass/coverage.out"),
-        profile: self
-      ) {
-        return fromFile
-      }
-      return CoverageSnapshotParser.parseGoCoverFunc(output, profile: self)
     case .rustCargo:
       return CoverageSnapshotParser.parseRustLLVMCovSummary(output, profile: self)
     case .typeScriptVitest:
@@ -335,9 +301,6 @@ enum ForgeProfileService {
     if fm.fileExists(atPath: root.appending(path: "Package.swift").path) {
       return .swiftSPM
     }
-    if fm.fileExists(atPath: root.appending(path: "go.mod").path) {
-      return .goModule
-    }
     if fm.fileExists(atPath: root.appending(path: "Cargo.toml").path) {
       return .rustCargo
     }
@@ -395,56 +358,6 @@ enum CoverageSnapshotParser {
       files: files,
       rawSummary: String(output.prefix(4000))
     )
-  }
-
-  static func parseGoCoverFunc(_ output: String, profile: ForgeProfile) -> CoverageSnapshot {
-    var files: [CoverageFileEntry] = []
-    var totalPercent: Double?
-    for line in output.split(separator: "\n") {
-      let trimmed = line.trimmingCharacters(in: .whitespaces)
-      if trimmed.hasPrefix("total:") {
-        totalPercent = trailingPercent(in: trimmed)
-        continue
-      }
-      guard trimmed.contains(".go:"), let pct = trailingPercent(in: trimmed) else { continue }
-      let path =
-        trimmed.split(separator: "\t").first.map(String.init)
-        ?? trimmed.split(separator: " ").first.map(String.init) ?? trimmed
-      let cleanPath = path.split(separator: ":").first.map(String.init) ?? path
-      if !files.contains(where: { $0.path == cleanPath }) {
-        files.append(CoverageFileEntry(path: cleanPath, lineCoveragePercent: pct))
-      }
-    }
-    return CoverageSnapshot(
-      profile: profile,
-      collectedAt: Date(),
-      sessionNumber: nil,
-      overallLineCoveragePercent: totalPercent ?? averagePercent(files),
-      files: files,
-      rawSummary: String(output.prefix(4000))
-    )
-  }
-
-  static func parseGoCoverFuncFromFile(_ coverageOut: URL, profile: ForgeProfile)
-    -> CoverageSnapshot?
-  {
-    guard FileManager.default.fileExists(atPath: coverageOut.path) else { return nil }
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["go", "tool", "cover", "-func=\(coverageOut.path)"]
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = Pipe()
-    do {
-      try process.run()
-      process.waitUntilExit()
-      guard process.terminationStatus == 0 else { return nil }
-      let data = pipe.fileHandleForReading.readDataToEndOfFile()
-      let output = String(decoding: data, as: UTF8.self)
-      return parseGoCoverFunc(output, profile: profile)
-    } catch {
-      return nil
-    }
   }
 
   static func parseRustLLVMCovSummary(_ output: String, profile: ForgeProfile) -> CoverageSnapshot {

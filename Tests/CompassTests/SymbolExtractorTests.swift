@@ -100,31 +100,6 @@ struct SymbolExtractorTests {
   }
 
   @Test
-  func testGoFixtureExtractsFunctionMethodStruct() throws {
-    let source = """
-      package main
-
-      import "fmt"
-
-      type Server struct {
-        Name string
-      }
-
-      func (s *Server) Start() error { return nil }
-
-      func New() *Server { return &Server{} }
-      """
-
-    let extraction = try extractor.extract(source: source, language: .go)
-
-    try #require(extraction.imports.map(\.raw) == ["fmt"])
-    let names = Set(extraction.symbols.map(\.name))
-    try #require(names.contains("Server"))
-    try #require(names.contains("Start"))
-    try #require(names.contains("New"))
-  }
-
-  @Test
   func testRustFixtureExtractsRustTraitFunctionImpl() throws {
     let source = #"""
       use std::io;
@@ -206,7 +181,7 @@ struct SymbolExtractorTests {
     try #require(CodemapLanguage.forFile(at: "src/Foo.tsx") == .tsx)
     try #require(CodemapLanguage.forFile(at: "src/foo.js") == .javascript)
     try #require(CodemapLanguage.forFile(at: "main.py") == nil)
-    try #require(CodemapLanguage.forFile(at: "main.go") == .go)
+    try #require(CodemapLanguage.forFile(at: "main.go") == nil)
     try #require(CodemapLanguage.forFile(at: "lib.rs") == .rust)
     try #require(CodemapLanguage.forFile(at: "Main.hs") == nil)
     try #require(CodemapLanguage.forFile(at: "README.md") == nil)
@@ -221,7 +196,7 @@ struct SymbolExtractorTests {
     try #require(CodemapLanguage.forFile(at: "Foo.Tsx") == .tsx)
     try #require(CodemapLanguage.forFile(at: "Foo.JS") == .javascript)
     try #require(CodemapLanguage.forFile(at: "Foo.PY") == nil)
-    try #require(CodemapLanguage.forFile(at: "Foo.GO") == .go)
+    try #require(CodemapLanguage.forFile(at: "Foo.GO") == nil)
     try #require(CodemapLanguage.forFile(at: "Foo.RS") == .rust)
     try #require(CodemapLanguage.forFile(at: "Foo.HS") == nil)
   }

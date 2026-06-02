@@ -593,8 +593,8 @@ struct PlanSubmitResultValidationTests {
     try initGitRepo(at: repoURL)
 
     let project = CompassProject(repoURL: repoURL)
-    project.languageProfile = goProfile()
-    project.forgeProfile = .goModule
+    project.languageProfile = rustProfile()
+    project.forgeProfile = .rustCargo
     let workspace = project.makeWorkspace(repoURL: repoURL)
     try workspace.initialize()
     try workspace.writeState(
@@ -603,12 +603,12 @@ struct PlanSubmitResultValidationTests {
         immediate: PlanNext(
           plan: """
             ## Outcome
-            Add Go coverage for parser failures.
+            Add Rust coverage for parser failures.
 
             ## Acceptance checks
-            - Go tests exercise parser failures.
+            - Rust tests exercise parser failures.
             """,
-          verify: "go test ./..."
+          verify: "cargo test"
         ),
         midTerm: "",
         longTerm: ""
@@ -645,13 +645,13 @@ struct PlanSubmitResultValidationTests {
     )
   }
 
-  private func goProfile() -> RepositoryLanguageProfile {
+  private func rustProfile() -> RepositoryLanguageProfile {
     var counts = RepositoryLanguageCounts()
-    counts[.go] = 1
+    counts[.rust] = 1
     return RepositoryLanguageProfile(
       counts: counts,
-      manifestHints: [.goMod],
-      primaryLanguage: .go,
+      manifestHints: [.cargoToml],
+      primaryLanguage: .rust,
       scannedFileCount: 1,
       scannedDirectoryCount: 1,
       wasTruncated: false
@@ -1295,7 +1295,7 @@ struct RepositoryLanguageProfileServiceTests {
     try #require(!profile.wasTruncated)
   }
 
-  @Test func testDetectsGoModuleWhileIgnoringBuildDirectories() throws {
+  @Test func testTreatsGoModuleAsUnsupportedOtherFiles() throws {
     let repoURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: repoURL) }
 
@@ -1306,12 +1306,12 @@ struct RepositoryLanguageProfileServiceTests {
 
     let profile = RepositoryLanguageProfileService.scan(repoURL: repoURL)
 
-    try #require(profile.primaryLanguage == .go)
-    try #require(profile.manifestHints == [.goMod])
-    try #require(profile.counts.go == 1)
+    try #require(profile.primaryLanguage == .other)
+    try #require(profile.manifestHints.isEmpty)
+    try #require(profile.counts.other == 2)
     try #require(profile.scannedFileCount == 2)
     try #require(!profile.wasTruncated)
-    try #require(profile.hudSummary?.contains("Go forge profile") == true)
+    try #require(profile.hudSummary?.contains("Repository profile") == true)
   }
 
   private func makeTemporaryDirectory() throws -> URL {

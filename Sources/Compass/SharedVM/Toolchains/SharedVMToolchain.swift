@@ -6,7 +6,6 @@ enum SharedVMToolchainID: String, CaseIterable, Sendable, Equatable {
   case homebrew
   case ripgrep
   case rust
-  case go
   case node
 }
 
@@ -69,8 +68,6 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
       return Self.renderRipgrepInstallScript()
     case .rust:
       return Self.renderRustInstallScript()
-    case .go:
-      return Self.renderBrewPackageInstallScript(brewPackage: "go", verifyCommand: "go version")
     case .node:
       return Self.renderNodeInstallScript()
     }
@@ -95,10 +92,6 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
     case .node:
       return """
         su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(Self.nodeVerificationCommand)' >/dev/null 2>&1
-        """
-    case .go:
-      return """
-        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'go version' >/dev/null 2>&1
         """
     }
   }
@@ -264,31 +257,6 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
         """)
   }
 
-  private static func renderBrewPackageInstallScript(
-    brewPackage: String,
-    verifyCommand: String
-  ) -> String {
-    let id = SharedVMToolchainID.go.rawValue
-    let brewBin = SharedVMToolchainPaths.brewInstallPath
-    let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
-    return renderScriptShell(
-      id: id,
-      body: """
-        BREW_BIN="\(brewBin)"
-        GUEST_USER="\(guestUser)"
-        if su - "$GUEST_USER" -c '\(verifyCommand)' >/dev/null 2>&1; then
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
-        else
-          [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install \(brewPackage)"
-          su - "$GUEST_USER" -c "'$BREW_BIN' install \(brewPackage)" \\
-            || fail 3 "brew install \(brewPackage) failed"
-          su - "$GUEST_USER" -c '\(verifyCommand)' \\
-            || fail 4 "\(brewPackage) verification failed"
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed \(brewPackage)"
-        fi
-        """)
-  }
 }
 
 /// Static registry of Shared VM toolchains.
@@ -335,18 +303,6 @@ enum SharedVMToolchainCatalog {
       dependencies: [.homebrew],
       probeCommand: """
         su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v rustc >/dev/null 2>&1 && echo PRESENT || echo MISSING'
-        """,
-      installTimeout: 15 * 60,
-      installableViaGenericProvisioner: true
-    ),
-    SharedVMToolchainDefinition(
-      id: .go,
-      displayName: "Go",
-      description: "Go compiler and toolchain via Homebrew.",
-      defaultProvisioned: false,
-      dependencies: [.homebrew],
-      probeCommand: """
-        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v go >/dev/null 2>&1 && echo PRESENT || echo MISSING'
         """,
       installTimeout: 15 * 60,
       installableViaGenericProvisioner: true

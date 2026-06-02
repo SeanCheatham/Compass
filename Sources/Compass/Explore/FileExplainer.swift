@@ -306,7 +306,7 @@ enum FileExplainer {
   /// Each line of --stat output looks like:
   ///   Sources/Compass/AppModel.swift       |  24 +++++++++++++++--
   /// or for renames:
-  ///   old/path.go => new/path.go           |   4 ++-
+  ///   old/path.rs => new/path.rs           |   4 ++-
   // MARK: - parseGitDiffStat
   static func parseGitDiffStat(_ diffStat: String) -> [FileChange] {
     var changes: [FileChange] = []

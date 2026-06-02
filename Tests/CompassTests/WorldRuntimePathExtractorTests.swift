@@ -23,19 +23,6 @@ struct WorldRuntimePathExtractorTests {
     #expect(swiftEntries.first?.name == "DemoApp")
     #expect(swiftEntries.first?.confidence == .high)
 
-    let goEntries = RuntimePathExtractor.detectEntrypoints(
-      source: """
-        package main
-        func main() {}
-        """,
-      language: .go,
-      relativePath: "cmd/demo/main.go",
-      symbols: [
-        CodemapSymbol(kind: .function, name: "main", line: 2, endLine: 2)
-      ]
-    )
-    #expect(goEntries.first?.reason.contains("Go") == true)
-
     let rustEntries = RuntimePathExtractor.detectEntrypoints(
       source: "fn main() {}",
       language: .rust,
@@ -111,20 +98,6 @@ struct WorldRuntimePathExtractorTests {
         function recover() {}
         """,
         [.branch, .loop, .switchCase, .errorPath]
-      ),
-      (
-        .go,
-        "cmd/demo/main.go",
-        """
-        package main
-        func main() {
-          if true { helper() }
-          for i := 0; i < 1; i++ { helper() }
-          switch i := 1; i { case 1: helper() }
-        }
-        func helper() {}
-        """,
-        [.branch, .loop, .switchCase]
       ),
       (
         .rust,

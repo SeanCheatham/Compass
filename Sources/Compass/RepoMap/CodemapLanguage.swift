@@ -8,7 +8,6 @@ enum CodemapLanguage: String, Sendable, CaseIterable, Codable {
   case typescript
   case tsx
   case javascript
-  case go
   case rust
 
   /// Stable display name used in tool output. Distinct from `rawValue` so
@@ -19,7 +18,6 @@ enum CodemapLanguage: String, Sendable, CaseIterable, Codable {
     case .typescript: return "TypeScript"
     case .tsx: return "TSX"
     case .javascript: return "JavaScript"
-    case .go: return "Go"
     case .rust: return "Rust"
     }
   }
@@ -50,7 +48,6 @@ extension CodemapLanguage {
     "mjs": .javascript,
     "cjs": .javascript,
     "jsx": .javascript,
-    "go": .go,
     "rs": .rust,
   ]
 }

@@ -28,10 +28,6 @@ let package = Package(
       revision: "58404d8cf191d69f2674a8fd507bd5776f46cb11"
     ),
     .package(
-      url: "https://github.com/tree-sitter/tree-sitter-go",
-      revision: "2346a3ab1bb3857b48b29d779a1ef9799a248cd7"
-    ),
-    .package(
       url: "https://github.com/tree-sitter/tree-sitter-rust",
       revision: "77a3747266f4d621d0757825e6b11edcbf991ca5"
     ),
@@ -67,7 +63,6 @@ let package = Package(
         .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
         .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
         .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
-        .product(name: "TreeSitterGo", package: "tree-sitter-go"),
         .product(name: "TreeSitterRust", package: "tree-sitter-rust"),
       ],
       exclude: [

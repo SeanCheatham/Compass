@@ -84,20 +84,6 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
       title = "Runs Rust coverage"
       detail = "Compass will run Rust tests through cargo-llvm-cov and report coverage."
       systemImage = "chart.bar.doc.horizontal"
-    } else if lowercased.contains("go test") {
-      let collectsCoverage =
-        lowercased.contains("-coverprofile") || lowercased.contains("covermode")
-      title = collectsCoverage ? "Runs Go coverage" : "Runs Go tests"
-      if collectsCoverage {
-        detail = lowercased.contains("./...")
-          ? "Compass will run Go tests across every package and write a coverage profile."
-          : "Compass will run the selected Go tests and write a coverage profile."
-      } else {
-        detail = lowercased.contains("./...")
-          ? "Compass will run Go tests across every package in the module."
-          : "Compass will run the selected Go tests."
-      }
-      systemImage = "checkmark.seal"
     } else if Self.containsAny(
       lowercased,
       [
@@ -529,7 +515,6 @@ struct PlanHandoffDigest: Equatable, Sendable {
     "bun test",
     "cargo llvm-cov",
     "cargo test",
-    "go test",
     "npm run build",
     "npm run test",
     "npm test",

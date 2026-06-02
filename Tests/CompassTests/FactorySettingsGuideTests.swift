@@ -71,7 +71,7 @@ struct FactorySettingsGuideTests {
   @Test
   func nonSwiftProjectCanKeepHostXcodeOff() {
     let guide = FactorySettingsGuide(projects: [
-      makeProject(name: "Go Service", hostXcodeBuildTestEnabled: false, recommendsHostXcode: false)
+      makeProject(name: "Rust Service", hostXcodeBuildTestEnabled: false, recommendsHostXcode: false)
     ])
 
     #expect(guide.title == "Factory Defaults Ready")
@@ -97,7 +97,7 @@ struct FactorySettingsGuideTests {
         recommendsHostXcode: true
       ),
       makeProject(
-        name: "Go Service",
+        name: "Rust Service",
         hostXcodeBuildTestEnabled: false,
         recommendsHostXcode: false
       ),
@@ -113,7 +113,7 @@ struct FactorySettingsGuideTests {
     #expect(payload.text.contains("Rows: 1 ready, 1 recommended, 1 off"))
     #expect(payload.text.contains("[recommended] Swift App (selected)"))
     #expect(payload.text.contains("[ready] CLI Tools"))
-    #expect(payload.text.contains("[off] Go Service"))
+    #expect(payload.text.contains("[off] Rust Service"))
     #expect(payload.text.contains("Host Xcode Build/Test changes the verification route only"))
     #expect(payload.text.count <= FactorySettingsClipboardPayload.textLimit)
     #expect(!payload.isEmpty)

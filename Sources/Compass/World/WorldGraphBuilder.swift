@@ -480,7 +480,6 @@ struct WorldGraphBuilder: Sendable {
       clean + ".ts",
       clean + ".tsx",
       clean + ".js",
-      clean + ".go",
       clean + ".rs",
       withoutDotSlash,
       withoutDotSlash + ".swift",

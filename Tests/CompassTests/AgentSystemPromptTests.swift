@@ -371,9 +371,9 @@ struct AgentSystemPromptTests {
   @Test func testSharedVMEnvironmentListsInstalledToolchainsWhenProvided() throws {
     let section = Prompts.executionEnvironmentSection(
       .sharedVM,
-      installedToolchainIDs: ["rust", "go"]
+      installedToolchainIDs: ["rust", "node"]
     )
-    try #require(section.contains("rust, go"))
+    try #require(section.contains("rust, node"))
   }
 
   // MARK: - `.compass/` workspace clarification

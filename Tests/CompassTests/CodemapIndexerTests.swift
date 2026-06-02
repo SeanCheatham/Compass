@@ -88,7 +88,7 @@ struct CodemapIndexerTests: ~Copyable {
 
   @Test func testIndexerWritesEntriesForSupportedFiles() async throws {
     try writeFile("alpha.swift", contents: swiftFixture)
-    try writeFile("nested/beta.go", contents: goFixture)
+    try writeFile("nested/beta.rs", contents: rustFixture)
     try writeFile("ignored.bin", contents: "\u{0}\u{1}\u{2}\u{3}\u{4}\u{5}\u{6}\u{7}\u{8}\u{9}")
     try writeFile("README.md", contents: "# title")
 
@@ -103,9 +103,9 @@ struct CodemapIndexerTests: ~Copyable {
     let alpha = try #require(store.loadEntry(forRelativePath: "alpha.swift"))
     try #require(alpha.language == .swift)
     try #require(alpha.symbols.contains { $0.name == "Greeter" })
-    let beta = try #require(store.loadEntry(forRelativePath: "nested/beta.go"))
-    try #require(beta.language == .go)
-    try #require(beta.symbols.contains { $0.name == "Shout" })
+    let beta = try #require(store.loadEntry(forRelativePath: "nested/beta.rs"))
+    try #require(beta.language == .rust)
+    try #require(beta.symbols.contains { $0.name == "shout" })
   }
 
   @Test func testIndexerSurvivesACacheRoundTrip() async throws {
@@ -249,18 +249,12 @@ struct CodemapIndexerTests: ~Copyable {
     func topLevel() {}
     """
 
-  private let goFixture = """
-    package nested
+  private let rustFixture = """
+    pub struct Echo;
 
-    import "strings"
-
-    func Shout(name string) string {
-        return strings.ToUpper(name)
+    pub fn shout(name: &str) -> String {
+        name.to_uppercase()
     }
-
-    type Echo struct{}
-
-    func (e Echo) Call() {}
     """
 }
 

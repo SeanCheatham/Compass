@@ -13,7 +13,6 @@
 		100000000000000000000084 /* TreeSitterSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000083 /* TreeSitterSwift */; };
 		100000000000000000000086 /* TreeSitterTypeScript in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000085 /* TreeSitterTypeScript */; };
 		100000000000000000000088 /* TreeSitterJavaScript in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000087 /* TreeSitterJavaScript */; };
-		10000000000000000000008C /* TreeSitterGo in Frameworks */ = {isa = PBXBuildFile; productRef = 10000000000000000000008B /* TreeSitterGo */; };
 		10000000000000000000008E /* TreeSitterRust in Frameworks */ = {isa = PBXBuildFile; productRef = 10000000000000000000008D /* TreeSitterRust */; };
 /* End PBXBuildFile section */
 
@@ -59,7 +58,6 @@
 				100000000000000000000084 /* TreeSitterSwift in Frameworks */,
 				100000000000000000000086 /* TreeSitterTypeScript in Frameworks */,
 				100000000000000000000088 /* TreeSitterJavaScript in Frameworks */,
-				10000000000000000000008C /* TreeSitterGo in Frameworks */,
 				10000000000000000000008E /* TreeSitterRust in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -124,7 +122,6 @@
 				100000000000000000000083 /* TreeSitterSwift */,
 				100000000000000000000085 /* TreeSitterTypeScript */,
 				100000000000000000000087 /* TreeSitterJavaScript */,
-				10000000000000000000008B /* TreeSitterGo */,
 				10000000000000000000008D /* TreeSitterRust */,
 			);
 			productName = Compass;
@@ -162,7 +159,6 @@
 				100000000000000000000090 /* XCRemoteSwiftPackageReference "tree-sitter-swift" */,
 				100000000000000000000091 /* XCRemoteSwiftPackageReference "tree-sitter-typescript" */,
 				100000000000000000000092 /* XCRemoteSwiftPackageReference "tree-sitter-javascript" */,
-				100000000000000000000094 /* XCRemoteSwiftPackageReference "tree-sitter-go" */,
 				100000000000000000000095 /* XCRemoteSwiftPackageReference "tree-sitter-rust" */,
 			);
 			productRefGroup = 100000000000000000000005 /* Products */;
@@ -427,14 +423,6 @@
 				revision = 58404d8cf191d69f2674a8fd507bd5776f46cb11;
 			};
 		};
-		100000000000000000000094 /* XCRemoteSwiftPackageReference "tree-sitter-go" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/tree-sitter/tree-sitter-go";
-			requirement = {
-				kind = revision;
-				revision = 2346a3ab1bb3857b48b29d779a1ef9799a248cd7;
-			};
-		};
 		100000000000000000000095 /* XCRemoteSwiftPackageReference "tree-sitter-rust" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/tree-sitter/tree-sitter-rust";
@@ -475,11 +463,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 100000000000000000000092 /* XCRemoteSwiftPackageReference "tree-sitter-javascript" */;
 			productName = TreeSitterJavaScript;
-		};
-		10000000000000000000008B /* TreeSitterGo */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 100000000000000000000094 /* XCRemoteSwiftPackageReference "tree-sitter-go" */;
-			productName = TreeSitterGo;
 		};
 		10000000000000000000008D /* TreeSitterRust */ = {
 			isa = XCSwiftPackageProductDependency;

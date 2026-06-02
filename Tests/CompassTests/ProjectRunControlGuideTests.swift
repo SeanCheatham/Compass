@@ -297,12 +297,12 @@ struct ProjectRunControlGuideTests {
         immediate: PlanNext(
           plan: """
             ## Outcome
-            Add Go coverage for parser failures.
+            Add Rust coverage for parser failures.
 
             ## Acceptance checks
-            - Go tests exercise parser failures.
+            - Rust tests exercise parser failures.
             """,
-          verify: "go test ./..."
+          verify: "cargo test"
         )
       ),
       reliabilityStatus: emptyReliabilityStatus(),
@@ -310,24 +310,24 @@ struct ProjectRunControlGuideTests {
       isRunning: false,
       isAutoPlaying: false,
       isPaused: false,
-      languageProfile: profile(.go),
-      forgeProfile: .goModule
+      languageProfile: profile(.rust),
+      forgeProfile: .rustCargo
     )
 
     try #require(
       guide.primaryHelp
-        == "Repair Immediate Work before Develop: add Coverage-ready verify. Add coverage to the verify command for Go (module)."
+        == "Repair Immediate Work before Develop: add Coverage-ready verify. Add coverage to the verify command for Rust (Cargo)."
     )
     try #require(guide.readiness.title == "Plan repair needed")
     try #require(
       guide.readiness.detail
-        == "Immediate Work needs Coverage-ready verify before Develop. Add coverage to the verify command for Go (module)."
+        == "Immediate Work needs Coverage-ready verify before Develop. Add coverage to the verify command for Rust (Cargo)."
     )
     try #require(guide.primaryKind == .planOnly)
     try #require(!guide.options[2].isEnabled)
     try #require(
       guide.options[2].detail
-        == "Disabled until Immediate Work has Coverage-ready verify. Add coverage to the verify command for Go (module)."
+        == "Disabled until Immediate Work has Coverage-ready verify. Add coverage to the verify command for Rust (Cargo)."
     )
   }
 

@@ -234,8 +234,6 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
       switch hint {
       case .packageJSON:
         return "npm test"
-      case .goMod:
-        return "go test ./..."
       case .cargoToml:
         return "cargo test"
       case .packageSwift:
@@ -248,8 +246,6 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
       return "swift test"
     case .typeScriptJavaScript:
       return "npm test"
-    case .go:
-      return "go test ./..."
     case .rust:
       return "cargo test"
     case .markdown, .other, .unknown:
@@ -261,8 +257,6 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     switch forgeProfile {
     case .swiftSPM:
       return "swift test --enable-code-coverage"
-    case .goModule:
-      return "go test -coverprofile=.compass/coverage.out ./..."
     case .rustCargo:
       return "cargo llvm-cov --summary-only"
     case .typeScriptVitest:

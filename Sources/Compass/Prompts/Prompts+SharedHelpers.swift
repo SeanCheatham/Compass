@@ -35,7 +35,7 @@ extension Prompts {
     guard let forgeProfile else {
       return """
         ## Forge profile
-        _(not detected — Compass supports Swift/SwiftPM, Go modules, Cargo, and TypeScript/Vitest projects)_
+        _(not detected — Compass supports Swift/SwiftPM, Cargo, and TypeScript/Vitest projects)_
         """
     }
     return """
