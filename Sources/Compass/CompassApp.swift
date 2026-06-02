@@ -140,6 +140,13 @@ struct CompassApp: App {
         .keyboardShortcut("c", modifiers: [.command, .option])
         .disabled(selectedFactoryGuide == nil)
 
+        Button("Copy Project Snapshot") {
+          if let payload = selectedProjectSnapshotPayload {
+            copyTextToPasteboard(payload.text)
+          }
+        }
+        .disabled(selectedProjectSnapshotPayload == nil)
+
         Button("Copy Assumption Memory") {
           if let payload = selectedAssumptionMemoryPayload {
             copyTextToPasteboard(payload.text)
@@ -194,9 +201,18 @@ struct CompassApp: App {
     }
   }
 
-  private var selectedFactoryGuide: FactoryCompassGuide? {
+  private var selectedRunGuide: ProjectRunControlGuide? {
     guard isOnboardingComplete, let project = model.selectedProject else { return nil }
-    let runGuide = ProjectRunControlGuide(
+    return runGuide(for: project)
+  }
+
+  private var selectedFactoryGuide: FactoryCompassGuide? {
+    guard let runGuide = selectedRunGuide else { return nil }
+    return FactoryCompassGuide(runGuide: runGuide)
+  }
+
+  private func runGuide(for project: CompassProject) -> ProjectRunControlGuide {
+    ProjectRunControlGuide(
       state: project.state,
       reliabilityStatus: project.reliabilityStatus,
       hasRepository: project.hasRepository,
@@ -207,7 +223,26 @@ struct CompassApp: App {
       forgeProfile: project.forgeProfile,
       drafts: project.drafts
     )
-    return FactoryCompassGuide(runGuide: runGuide)
+  }
+
+  private var selectedProjectSnapshotPayload: ProjectSnapshotClipboardPayload? {
+    guard isOnboardingComplete, let project = model.selectedProject else { return nil }
+    let draftGuide = DraftIntakeGuide(drafts: project.drafts)
+    let ledger = AssumptionLedger(assumptions: project.assumptions)
+    let assumptionGuide = AssumptionReviewGuide(ledger: ledger)
+    let foundationModelsAvailable = FoundationModelsAvailability.isAvailable
+    let settingsGuide = AgentSettingsGuide(
+      settings: model.agentSettings,
+      foundationModelsAvailable: foundationModelsAvailable
+    )
+    let payload = ProjectSnapshotClipboardPayload(
+      projectName: project.displayName,
+      runGuide: runGuide(for: project),
+      draftGuide: draftGuide,
+      assumptionGuide: assumptionGuide,
+      settingsGuide: settingsGuide
+    )
+    return payload.isEmpty ? nil : payload
   }
 
   private var projectIntakePayload: ProjectIntakeClipboardPayload {
