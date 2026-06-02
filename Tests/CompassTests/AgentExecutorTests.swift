@@ -453,6 +453,16 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("\"estimatedDifficulty\": \"low\""))
     try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
     try #require(nudge.userMessage.contains("state.immediate.verify proves it"))
+    try #require(nudge.userMessage.contains("Important Plan shape repairs"))
+    try #require(
+      nudge.userMessage.contains(
+        "`state.immediate` must be either a JSON object")
+    )
+    try #require(nudge.userMessage.contains("Put Markdown only inside `state.immediate.plan`"))
+    try #require(
+      nudge.userMessage.contains(
+        "`principles`, `constraints`, `nonGoals`, and `risks` fields must be JSON arrays")
+    )
   }
 
   @Test func testMissingSubmitResultNudgeUsesTruncationCopyAndPhaseShape() throws {
@@ -742,6 +752,10 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("\"verifyTimeoutMs\": 600000"))
     try #require(nudge.userMessage.contains("## Outcome\\n"))
     try #require(nudge.userMessage.contains("keep shell commands only in `state.immediate.verify`"))
+    try #require(
+      nudge.userMessage.contains(
+        "`principles`, `constraints`, `nonGoals`, and `risks` fields are arrays")
+    )
     try #require(
       nudge.userMessage.contains(
         "<another observable result; state.immediate.verify proves it>"

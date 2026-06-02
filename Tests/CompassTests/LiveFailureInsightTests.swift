@@ -172,6 +172,28 @@ struct LiveFailureInsightTests {
     try #require(insight.nextStep.contains("smaller JSON"))
   }
 
+  @Test func explainsSubmitResultContractFailuresAsResultShapeRepair() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .warning,
+          text: "submit_result contract rejected",
+          detail: "Wrong type at `state.strategicContext.principles`: expected Array<Any>.",
+          kind: .agentMessage,
+          status: .failed
+        )
+      )
+    )
+
+    try #require(insight.kind == .resultContractRepair)
+    try #require(insight.title == "Result Shape Needs Repair")
+    try #require(insight.explanation.contains("`submit_result`"))
+    try #require(insight.nextStep.contains("object-vs-string"))
+    try #require(insight.nextStep.contains("array-vs-string"))
+    try #require(!insight.nextStep.contains("smaller JSON"))
+    try #require(insight.repairOwner.label == "Agent handoff")
+  }
+
   @Test func explainsRejectedPlanAsHandoffRepair() throws {
     let insight = try #require(
       LiveFailureInsight(

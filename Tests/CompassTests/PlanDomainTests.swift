@@ -1287,6 +1287,80 @@ struct PlanningEnvelopeDecoderTests {
     try #require(result.lessonEdits.isEmpty)
   }
 
+  @Test func planRunResultDecoderAcceptsScalarStrategicContextLists() throws {
+    let data = Data(
+      """
+      {
+        "state": {
+          "immediate": null,
+          "candidates": [],
+          "strategicContext": {
+            "thesis": ["Keep recovery understandable.", "Keep the loop moving."],
+            "principles": "Make model mistakes recoverable instead of mysterious.",
+            "constraints": {
+              "route": "On-device models may emit scalar fields during repair."
+            },
+            "non_goals": "Do not loosen executable immediate work.",
+            "risks": [
+              {
+                "field": "state.strategicContext.principles",
+                "issue": "Sometimes emitted as a string."
+              },
+              true
+            ]
+          },
+          "openQuestions": []
+        },
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+
+    let result = try JSONDecoder().decode(PlanRunResult.self, from: data)
+
+    try #require(
+      result.state.strategicContext.thesis
+        == "Keep recovery understandable.\nKeep the loop moving.")
+    try #require(
+      result.state.strategicContext.principles
+        == ["Make model mistakes recoverable instead of mysterious."])
+    try #require(
+      result.state.strategicContext.constraints
+        == ["route: On-device models may emit scalar fields during repair."])
+    try #require(
+      result.state.strategicContext.nonGoals
+        == ["Do not loosen executable immediate work."])
+    try #require(
+      result.state.strategicContext.risks
+        == [
+          "field: state.strategicContext.principles; issue: Sometimes emitted as a string.",
+          "true",
+        ])
+  }
+
+  @Test func planRunResultDecoderAcceptsStringStrategicContextAsThesis() throws {
+    let data = Data(
+      """
+      {
+        "state": {
+          "immediate": null,
+          "candidates": [],
+          "strategicContext": "Keep Compass forgiving at the edges and strict at the core.",
+          "openQuestions": []
+        },
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+
+    let result = try JSONDecoder().decode(PlanRunResult.self, from: data)
+
+    try #require(
+      result.state.strategicContext.thesis
+        == "Keep Compass forgiving at the edges and strict at the core.")
+    try #require(result.state.strategicContext.principles.isEmpty)
+  }
+
   @Test func planRunResultDecoderAcceptsStructuredCandidateEvidence() throws {
     let data = Data(
       """

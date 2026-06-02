@@ -822,6 +822,16 @@ struct PlanStrategicContext: Codable, Equatable {
   var nonGoals: [String]
   var risks: [String]
 
+  enum CodingKeys: String, CodingKey {
+    case thesis
+    case principles
+    case constraints
+    case nonGoals
+    case nonGoalsSnake = "non_goals"
+    case nonGoalsKebab = "non-goals"
+    case risks
+  }
+
   static let empty = PlanStrategicContext(
     thesis: "",
     principles: [],
@@ -842,6 +852,53 @@ struct PlanStrategicContext: Codable, Equatable {
     self.constraints = Self.cleaned(constraints)
     self.nonGoals = Self.cleaned(nonGoals)
     self.risks = Self.cleaned(risks)
+  }
+
+  init(from decoder: Decoder) throws {
+    if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+      let thesis =
+        try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .thesis) ?? ""
+      let principles =
+        try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: .principles)
+        ?? []
+      let constraints =
+        try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: .constraints)
+        ?? []
+      let nonGoals =
+        try Self.decodeStringArrayIfPresent(
+          from: container,
+          preferredKey: .nonGoals,
+          aliases: [.nonGoalsSnake, .nonGoalsKebab]
+        ) ?? []
+      let risks =
+        try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: .risks) ?? []
+
+      self.init(
+        thesis: thesis,
+        principles: principles,
+        constraints: constraints,
+        nonGoals: nonGoals,
+        risks: risks
+      )
+      return
+    }
+
+    let container = try decoder.singleValueContainer()
+    if container.decodeNil() {
+      self = .empty
+      return
+    }
+    let thesis = try container.decode(String.self)
+    self.init(thesis: thesis)
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(thesis, forKey: .thesis)
+    try container.encode(principles, forKey: .principles)
+    try container.encode(constraints, forKey: .constraints)
+    try container.encode(nonGoals, forKey: .nonGoals)
+    try container.encode(risks, forKey: .risks)
   }
 
   var digestLines: [String] {
@@ -879,6 +936,27 @@ struct PlanStrategicContext: Codable, Equatable {
   private static func cleaned(_ values: [String]) -> [String] {
     values.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
+  }
+
+  private static func decodeStringArrayIfPresent(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys]
+  ) throws -> [String]? {
+    var firstTypeError: Error?
+
+    for key in [preferredKey] + aliases where container.contains(key) {
+      do {
+        return try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: key)
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    return nil
   }
 }
 

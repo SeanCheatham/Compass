@@ -95,6 +95,9 @@ extension AgentExecutor {
     case .plan:
       return """
         Use this exact retry shape for Plan. Keep shell commands only in `state.immediate.verify`:
+        Important Plan shape repairs:
+        - `state.immediate` must be either a JSON object with `plan`, `verify`, and its metadata fields, or the literal `null`; never a Markdown string, array, or prose object. Put Markdown only inside `state.immediate.plan`.
+        - `state.strategicContext` must be a JSON object. Its `principles`, `constraints`, `nonGoals`, and `risks` fields must be JSON arrays of strings such as `[]`, not Markdown or comma-separated strings.
         {
           "state": {
             "immediate": {
@@ -325,7 +328,9 @@ extension AgentExecutor {
         non-engineer owner. Make the acceptance checks observable enough for Develop to know when it is \
         done, keep shell commands only in `state.immediate.verify`, and explain the selection with \
         `state.immediate.selectedBecause` plus `state.immediate.source`. Preserve existing candidates \
-        and strategic context unless you have a specific revision. Use `immediate: null` only when \
+        and strategic context unless you have a specific revision. Keep `state.strategicContext` as \
+        an object whose `principles`, `constraints`, `nonGoals`, and `risks` fields are arrays. Use \
+        `immediate: null` only when \
         there are no actionable candidates and no useful repo-originated slice.
 
         Use this exact retry shape. Replace the bracketed text, keep the top-level keys exactly as shown, \

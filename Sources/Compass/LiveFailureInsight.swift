@@ -6,6 +6,7 @@ struct LiveFailureInsight: Equatable, Sendable {
 
   enum Kind: String, Equatable, Sendable {
     case argumentRepair
+    case resultContractRepair
     case safetyGate
     case sandboxBoundary
     case editConflict
@@ -170,6 +171,25 @@ struct LiveFailureInsight: Equatable, Sendable {
         "The next attempt should name the exact blocker, failed proof, or punch-list item before handing control back.",
         "Next repair",
         "text.bubble"
+      )
+    }
+
+    if containsAny(
+      normalized,
+      [
+        "submit_result contract rejected",
+        "wrong type at `state.",
+        "missing required field `state.",
+        "planrunresult requires",
+      ]
+    ) {
+      return (
+        .resultContractRepair,
+        "Result Shape Needs Repair",
+        "Compass received a `submit_result` call, but one of the result fields did not match the phase contract.",
+        "The agent should resend the same result with the exact required field types, especially object-vs-string and array-vs-string fields.",
+        "Schema",
+        "curlybraces"
       )
     }
 
@@ -361,7 +381,8 @@ struct LiveFailureInsight: Equatable, Sendable {
         detail: "Reread or list the current workspace, then retry the smallest exact edit.",
         systemImageName: "doc.text.magnifyingglass"
       )
-    case .argumentRepair, .missingResult, .verifyBypass, .feedbackRepair, .unknownTool:
+    case .argumentRepair, .resultContractRepair, .missingResult, .verifyBypass, .feedbackRepair,
+      .unknownTool:
       return owner(
         label: "Agent handoff",
         detail: "Ask the agent to resend the required tool, result, or feedback shape.",
