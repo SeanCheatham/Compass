@@ -86,8 +86,8 @@ final class CompassWorkspaceStorageMigrationTests {
     try #require(!missingPlan.isAvailable)
     try #require(missingPlan.kind == .repoLocalMissing)
     do {
-      try CompassWorkspaceStorageMigrator().migrate(plan: missingPlan)
-      try #require(false)
+      _ = try CompassWorkspaceStorageMigrator().migrate(plan: missingPlan)
+      try #require(Bool(false))
     } catch {
       try #require(
         error as? CompassWorkspaceStorageMigrationError
@@ -107,8 +107,8 @@ final class CompassWorkspaceStorageMigrationTests {
     try #require(incompletePlan.kind == .repoLocalIncomplete)
     try #require(incompletePlan.detail.contains("state.json"))
     do {
-      try CompassWorkspaceStorageMigrator().migrate(plan: incompletePlan)
-      try #require(false)
+      _ = try CompassWorkspaceStorageMigrator().migrate(plan: incompletePlan)
+      try #require(Bool(false))
     } catch {
       try #require(
         error as? CompassWorkspaceStorageMigrationError
@@ -131,8 +131,8 @@ final class CompassWorkspaceStorageMigrationTests {
     try #require(currentPlan.kind == .applicationSupportOccupied)
     try #require(currentPlan.detail.contains("occupied"))
     do {
-      try CompassWorkspaceStorageMigrator().migrate(plan: currentPlan)
-      try #require(false)
+      _ = try CompassWorkspaceStorageMigrator().migrate(plan: currentPlan)
+      try #require(Bool(false))
     } catch {
       try #require(
         error as? CompassWorkspaceStorageMigrationError
@@ -189,8 +189,8 @@ final class CompassWorkspaceStorageMigrationTests {
     )
 
     do {
-      try migrator.migrate(plan: plan)
-      try #require(false)
+      _ = try migrator.migrate(plan: plan)
+      try #require(Bool(false))
     } catch {
       try #require(error as? InjectedMigrationError == .copy)
     }
@@ -224,8 +224,8 @@ final class CompassWorkspaceStorageMigrationTests {
     )
 
     do {
-      try migrator.migrate(plan: plan)
-      try #require(false)
+      _ = try migrator.migrate(plan: plan)
+      try #require(Bool(false))
     } catch {
       try #require(error as? InjectedMigrationError == .promote)
     }

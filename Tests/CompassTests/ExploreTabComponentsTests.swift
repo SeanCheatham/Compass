@@ -657,9 +657,6 @@ struct ExploreTabComponentsTests {
       language: .swift,
       children: []
     )
-    // Empty codemapEntries: no entry for this file.
-    var called = false
-    var capturedPath: String?
     let sut = FileTreeRowView(
       node: node,
       depth: 0,
@@ -669,10 +666,7 @@ struct ExploreTabComponentsTests {
       onFileTap: { _ in },
       onSummaryTap: { _, _ in },
       onSymbolDetailTap: { _ in },
-      onGenerateSummary: { path in
-        called = true
-        capturedPath = path
-      },
+      onGenerateSummary: { _ in },
       onWhyGeneratedTap: { _ in }
     )
 
@@ -732,7 +726,6 @@ struct ExploreTabComponentsTests {
           relativePath: "Sources/App.swift", isDirectory: false, language: .swift, children: [])
       ]
     )
-    var called = false
     let sut = FileTreeRowView(
       node: node,
       depth: 0,
@@ -742,7 +735,7 @@ struct ExploreTabComponentsTests {
       onFileTap: { _ in },
       onSummaryTap: { _, _ in },
       onSymbolDetailTap: { _ in },
-      onGenerateSummary: { _ in called = true },
+      onGenerateSummary: { _ in },
       onWhyGeneratedTap: { _ in }
     )
 
@@ -775,7 +768,6 @@ struct ExploreTabComponentsTests {
       summaryContentHash: nil,
       isGenerated: false
     )
-    var called = false
     let sut = FileTreeRowView(
       node: node,
       depth: 0,
@@ -785,7 +777,7 @@ struct ExploreTabComponentsTests {
       onFileTap: { _ in },
       onSummaryTap: { _, _ in },
       onSymbolDetailTap: { _ in },
-      onGenerateSummary: { _ in called = true },
+      onGenerateSummary: { _ in },
       onWhyGeneratedTap: { _ in }
     )
 

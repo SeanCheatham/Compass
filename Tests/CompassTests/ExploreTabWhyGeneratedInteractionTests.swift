@@ -235,7 +235,7 @@ struct ExploreTabWhyGeneratedInteractionTests {
     try initGitRepo(at: temporaryDirectory)
     let commits = try makeSingleCommit(at: temporaryDirectory)
 
-    let (explanation, reason) = await FileExplainer.whyGenerated(
+    let (_, reason) = await FileExplainer.whyGenerated(
       file: "Sources/App.swift",
       repoURL: temporaryDirectory,
       commits: commits
@@ -283,7 +283,7 @@ struct ExploreTabWhyGeneratedInteractionTests {
     // Simulate a second handleFileTap("B.swift") — the state resets synchronously
     // before the new load begins (lines 208–212).
     let newPath = "B.swift"
-    var whyGeneratedFile = newPath
+    let whyGeneratedFile = newPath
     whyGeneratedExplanation = nil  // ← reset
     whyGeneratedReason = nil  // ← reset
     loadingWhyGenerated = true  // ← set true before async loadWhyGenerated()

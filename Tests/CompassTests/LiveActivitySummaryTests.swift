@@ -124,7 +124,7 @@ struct LiveActivitySummaryTests {
       now: date(50)
     )
 
-    let expectedItems = try lines.map(LiveActivitySummaryItem.line)
+    let expectedItems = lines.map(LiveActivitySummaryItem.line)
     try #require(plan.frozenClusters.isEmpty)
     try #require(plan.items == expectedItems)
   }
