@@ -140,6 +140,13 @@ struct CompassApp: App {
         .keyboardShortcut("c", modifiers: [.command, .option])
         .disabled(selectedFactoryGuide == nil)
 
+        Button("Copy Assumption Memory") {
+          if let payload = selectedAssumptionMemoryPayload {
+            copyTextToPasteboard(payload.text)
+          }
+        }
+        .disabled(selectedAssumptionMemoryPayload == nil)
+
         Button(PauseMode.afterIteration.label) {
           model.selectedProject?.requestPause(.afterIteration)
         }
@@ -193,6 +200,14 @@ struct CompassApp: App {
     ProjectIntakeClipboardPayload(
       guide: ProjectIntakeGuide(projectCount: model.projects.count)
     )
+  }
+
+  private var selectedAssumptionMemoryPayload: AssumptionReviewClipboardPayload? {
+    guard isOnboardingComplete, let project = model.selectedProject else { return nil }
+    let ledger = AssumptionLedger(assumptions: project.assumptions)
+    let guide = AssumptionReviewGuide(ledger: ledger)
+    let payload = AssumptionReviewClipboardPayload(ledger: ledger, guide: guide)
+    return payload.isEmpty ? nil : payload
   }
 
   private var canPauseSelectedProject: Bool {
