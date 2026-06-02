@@ -35,6 +35,39 @@ struct FoundationModelsSchemaTranslatorTests {
   }
 
   @Test
+  func testNullableAnyOfBranchesAreDetectedThroughReferences() throws {
+    let planSchema = try schemaObject(Prompts.planSchema)
+    let planProperties = try properties(in: planSchema)
+    let state = try property("state", in: planProperties)
+    let stateProperties = try properties(in: state)
+    let immediate = try property("immediate", in: stateProperties)
+
+    #expect(CompassJSONSchemaTranslation.containsNullAnyOf(in: immediate, root: planSchema))
+  }
+
+  @Test
+  func testDynamicSchemaBuildsPlanSchemaWithNullableImmediate() throws {
+    let schema = try FoundationModelsSchemaTranslator.dynamicSchema(
+      name: "submit_result",
+      description: "Submit the final structured result for this phase.",
+      from: AgentToolParametersSchema(json: Data(Prompts.planSchema.utf8))
+    )
+
+    #expect(!schema.debugDescription.isEmpty)
+  }
+
+  @Test
+  func testSubmitResultSchemaBuilderKeepsNestedPayloadPermissive() throws {
+    let schema = try FoundationModelsSchemaTranslator.topLevelGeneratedContentSchema(
+      name: "submit_result",
+      description: "Submit the final structured result for this phase.",
+      from: AgentToolParametersSchema(json: Data(Prompts.planSchema.utf8))
+    )
+
+    #expect(!schema.debugDescription.isEmpty)
+  }
+
+  @Test
   func testUnsupportedAnyOfUnionsRemainUnsupported() {
     let unsupported: [String: Any] = [
       "anyOf": [

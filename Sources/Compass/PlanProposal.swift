@@ -176,13 +176,7 @@ struct PlanProposal: Codable, Equatable {
     }
 
     if !sawPresentKey {
-      throw DecodingError.keyNotFound(
-        preferredKey,
-        .init(
-          codingPath: container.codingPath,
-          debugDescription: "PlanProposal requires \(fieldName)."
-        )
-      )
+      return nil
     }
     if decodedNull {
       return nil

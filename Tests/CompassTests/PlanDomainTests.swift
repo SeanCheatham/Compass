@@ -1323,6 +1323,31 @@ struct PlanningEnvelopeDecoderTests {
     try #require(result.lessonEdits[0].replace == "new lesson")
   }
 
+  @Test func planRunResultDecoderAcceptsOmittedImmediateAsNil() throws {
+    let data = Data(
+      """
+      {
+        "state": {
+          "candidates": [],
+          "strategicContext": {
+            "thesis": "Nullable immediate may be omitted by older on-device schemas.",
+            "principles": [],
+            "constraints": [],
+            "nonGoals": [],
+            "risks": []
+          },
+          "openQuestions": []
+        },
+        "lessonEdits": []
+      }
+      """.utf8
+    )
+
+    let result = try JSONDecoder().decode(PlanRunResult.self, from: data)
+
+    try #require(result.state.immediate == nil)
+  }
+
   @Test func reflectSummaryDecoderAcceptsCanonicalTypedPlanningState() throws {
     let data = Data(
       """

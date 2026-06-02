@@ -237,7 +237,7 @@ enum FoundationModelsAgentRuntime {
     var out: [any FoundationModels.Tool] = []
     out.reserveCapacity(configuration.tools.count + 1)
 
-    let submitSchema = try FoundationModelsSchemaTranslator.dynamicSchema(
+    let submitSchema = try FoundationModelsSchemaTranslator.topLevelGeneratedContentSchema(
       name: AgentExecutor.submitResultToolName,
       description: "Submit the final structured result for this phase.",
       from: configuration.submitResultSchema
@@ -415,6 +415,18 @@ enum CompassJSONSchemaTranslation {
     return concreteBranches[0]
   }
 
+  static func containsNullAnyOf(
+    in dict: [String: Any],
+    root: [String: Any]? = nil
+  ) -> Bool {
+    let resolved = root.map { resolveReference(in: dict, root: $0) } ?? dict
+    guard let branches = resolved["anyOf"] as? [[String: Any]] else { return false }
+    return branches.contains { branch in
+      let resolvedBranch = root.map { resolveReference(in: branch, root: $0) } ?? branch
+      return (resolvedBranch["type"] as? String) == "null"
+    }
+  }
+
   static func resolveReference(in dict: [String: Any], root: [String: Any]) -> [String: Any] {
     guard let ref = dict["$ref"] as? String, ref.hasPrefix("#/") else {
       return dict
@@ -448,7 +460,7 @@ enum CompassJSONSchemaTranslation {
 /// - `type: "integer"` / `type: "number"`
 /// - `type: "boolean"`
 /// - `type: "array"` with `items`
-/// - nullable `anyOf` pairs such as `[{"type": "boolean"}, {"type": "null"}]`
+/// - `anyOf`, including nullable pairs such as `[{"type": "boolean"}, {"type": "null"}]`
 /// - `description` strings on any node
 ///
 /// Unknown shapes degrade to a permissive `String` node so the
@@ -467,6 +479,33 @@ enum FoundationModelsSchemaTranslator {
       json: parameters.json
     )
     return try GenerationSchema(root: root, dependencies: [])
+  }
+
+  static func topLevelGeneratedContentSchema(
+    name: String,
+    description: String,
+    from parameters: AgentToolParametersSchema
+  ) throws -> GenerationSchema {
+    let object = try JSONSerialization.jsonObject(with: parameters.json)
+    let root = (object as? [String: Any]) ?? [:]
+    let properties = (root["properties"] as? [String: Any]) ?? [:]
+    let required = Set((root["required"] as? [String]) ?? [])
+    let translated = properties.keys.sorted().map { propertyName in
+      let propertyNode = properties[propertyName] as? [String: Any]
+      let propertyDescription = propertyNode?["description"] as? String
+      return DynamicGenerationSchema.Property(
+        name: propertyName,
+        description: propertyDescription,
+        schema: DynamicGenerationSchema(type: GeneratedContent.self),
+        isOptional: !required.contains(propertyName)
+      )
+    }
+    let rootSchema = DynamicGenerationSchema(
+      name: name,
+      description: description,
+      properties: translated
+    )
+    return try GenerationSchema(root: rootSchema, dependencies: [])
   }
 
   private static func translate(
@@ -491,20 +530,30 @@ enum FoundationModelsSchemaTranslator {
     let resolved = CompassJSONSchemaTranslation.resolveReference(in: dict, root: root)
     let nodeDescription =
       (resolved["description"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? description
-    if let branch = CompassJSONSchemaTranslation.concreteNullableAnyOfBranch(
-      in: resolved,
-      root: root
-    ) {
-      var branchWithDescription = branch
-      if branchWithDescription["description"] == nil, let nodeDescription {
-        branchWithDescription["description"] = nodeDescription
+    if let branches = resolved["anyOf"] as? [[String: Any]], !branches.isEmpty {
+      let choices = branches.compactMap { branch -> DynamicGenerationSchema? in
+        let resolvedBranch = CompassJSONSchemaTranslation.resolveReference(in: branch, root: root)
+        if (resolvedBranch["type"] as? String) == "null" {
+          if #available(iOS 26.4, macOS 26.4, visionOS 26.4, *) {
+            return DynamicGenerationSchema.null
+          }
+          return nil
+        }
+        var branchWithDescription = resolvedBranch
+        if branchWithDescription["description"] == nil, let nodeDescription {
+          branchWithDescription["description"] = nodeDescription
+        }
+        return translateNode(
+          name: name,
+          description: nodeDescription,
+          node: branchWithDescription,
+          root: root
+        )
       }
-      return translateNode(
-        name: name,
-        description: nodeDescription,
-        node: branchWithDescription,
-        root: root
-      )
+      guard choices.count > 1 else {
+        return choices.first ?? DynamicGenerationSchema(type: String.self)
+      }
+      return DynamicGenerationSchema(name: name, description: nodeDescription, anyOf: choices)
     }
     let type = (resolved["type"] as? String) ?? "object"
     switch type {
@@ -525,7 +574,12 @@ enum FoundationModelsSchemaTranslator {
           name: propertyName,
           description: propertyDescription,
           schema: childSchema,
-          isOptional: !required.contains(propertyName)
+          isOptional: propertyIsOptional(
+            propertyName: propertyName,
+            propertyNode: propertyNode,
+            required: required,
+            root: root
+          )
         )
       }
       return DynamicGenerationSchema(
@@ -560,6 +614,26 @@ enum FoundationModelsSchemaTranslator {
     default:
       return DynamicGenerationSchema(type: String.self)
     }
+  }
+
+  static func propertyIsOptional(
+    propertyName: String,
+    propertyNode: Any,
+    required: Set<String>,
+    root: [String: Any]
+  ) -> Bool {
+    if !required.contains(propertyName) {
+      return true
+    }
+    guard let dict = propertyNode as? [String: Any],
+      CompassJSONSchemaTranslation.containsNullAnyOf(in: dict, root: root)
+    else {
+      return false
+    }
+    if #available(iOS 26.4, macOS 26.4, visionOS 26.4, *) {
+      return false
+    }
+    return true
   }
 }
 
