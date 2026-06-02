@@ -45,7 +45,8 @@ enum ProjectSnapshotBuilder {
       isPaused: project.isPaused,
       languageProfile: project.languageProfile,
       forgeProfile: project.forgeProfile,
-      drafts: project.drafts
+      drafts: project.drafts,
+      vision: project.vision
     )
   }
 

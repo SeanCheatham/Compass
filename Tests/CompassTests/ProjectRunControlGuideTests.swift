@@ -53,6 +53,36 @@ struct ProjectRunControlGuideTests {
   }
 
   @Test
+  func testEmptyVisionSurfacesBeforeBlankPlanRun() throws {
+    let guide = ProjectRunControlGuide(
+      state: makeState(immediate: nil),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false,
+      vision: ""
+    )
+
+    try #require(guide.primaryKind == .loop)
+    try #require(
+      guide.primaryHelp
+        == "Capture Project Vision first, or run Plan if you want Compass to infer a starting slice."
+    )
+    try #require(guide.readiness.title == "Vision missing")
+    try #require(
+      guide.readiness.detail
+        == "Capture Project Vision before Plan so the first slice has audience, problem, success, and guardrails."
+    )
+    try #require(guide.decisionBadge.label == "Vision first")
+    try #require(guide.decisionBadge.tone == .warning)
+    try #require(guide.options[0].detail.contains("Capture Project Vision first"))
+    try #require(guide.options[1].detail.contains("ask Plan to infer one executable"))
+    try #require(guide.previewSteps[0].detail.contains("Project Vision is empty"))
+    try #require(guide.narrationIdentifier.contains("Vision first"))
+  }
+
+  @Test
   func testQueuedDraftsSurfaceInRunReadinessBeforePlanning() throws {
     let guide = ProjectRunControlGuide(
       state: makeState(immediate: nil),

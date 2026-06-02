@@ -33,10 +33,12 @@ struct ProjectRunControlGuide: Equatable {
     isPaused: Bool,
     languageProfile: RepositoryLanguageProfile = .empty,
     forgeProfile: ForgeProfile? = nil,
-    drafts: String = ""
+    drafts: String = "",
+    vision: String? = nil
   ) {
     let canStart = hasRepository && !isRunning && !isAutoPlaying
     let draftIntakeGuide = DraftIntakeGuide(drafts: drafts)
+    let visionGuide = vision.map(ProjectVisionGuide.init(vision:))
     let handoffReadiness = HandoffReadiness(
       state: state,
       languageProfile: languageProfile,
@@ -51,7 +53,8 @@ struct ProjectRunControlGuide: Equatable {
       isRunning: isRunning,
       isAutoPlaying: isAutoPlaying,
       isPaused: isPaused,
-      draftIntakeGuide: draftIntakeGuide
+      draftIntakeGuide: draftIntakeGuide,
+      visionGuide: visionGuide
     )
     decisionBadge = Self.decisionBadge(
       handoffReadiness: handoffReadiness,
@@ -60,7 +63,8 @@ struct ProjectRunControlGuide: Equatable {
       isRunning: isRunning,
       isAutoPlaying: isAutoPlaying,
       isPaused: isPaused,
-      draftIntakeGuide: draftIntakeGuide
+      draftIntakeGuide: draftIntakeGuide,
+      visionGuide: visionGuide
     )
     primaryKind = Self.primaryKind(
       reliabilityStatus: reliabilityStatus,
@@ -85,6 +89,12 @@ struct ProjectRunControlGuide: Equatable {
       loopDetail = "Let Compass plan, develop, verify, review, and keep going."
     } else if !draftIntakeGuide.isEmpty {
       loopDetail = Self.loopDetail(draftIntakeGuide: draftIntakeGuide)
+    } else if Self.needsVisionBeforePlan(
+      handoffReadiness: handoffReadiness,
+      draftIntakeGuide: draftIntakeGuide,
+      visionGuide: visionGuide
+    ) {
+      loopDetail = "Capture Project Vision first, or let Plan infer the next slice from the repository."
     } else {
       loopDetail = "Let Plan choose the next slice, then Develop it if one is found."
     }
@@ -103,7 +113,8 @@ struct ProjectRunControlGuide: Equatable {
         detail: Self.planOnlyDetail(
           reliabilityStatus: reliabilityStatus,
           handoffReadiness: handoffReadiness,
-          draftIntakeGuide: draftIntakeGuide
+          draftIntakeGuide: draftIntakeGuide,
+          visionGuide: visionGuide
         ),
         systemImage: "map",
         isEnabled: canStart
@@ -129,7 +140,8 @@ struct ProjectRunControlGuide: Equatable {
       isRunning: isRunning,
       isAutoPlaying: isAutoPlaying,
       isPaused: isPaused,
-      draftIntakeGuide: draftIntakeGuide
+      draftIntakeGuide: draftIntakeGuide,
+      visionGuide: visionGuide
     )
 
     primaryHelp = Self.primaryHelp(
@@ -140,7 +152,8 @@ struct ProjectRunControlGuide: Equatable {
       hasImmediate: hasImmediate,
       handoffReadiness: handoffReadiness,
       reliabilityStatus: reliabilityStatus,
-      draftIntakeGuide: draftIntakeGuide
+      draftIntakeGuide: draftIntakeGuide,
+      visionGuide: visionGuide
     )
     narrationIdentifier = Self.narrationIdentifier(
       primaryHelp: primaryHelp,
@@ -248,7 +261,8 @@ struct ProjectRunControlGuide: Equatable {
   private static func planOnlyDetail(
     reliabilityStatus: ProjectReliabilityStatus,
     handoffReadiness: HandoffReadiness,
-    draftIntakeGuide: DraftIntakeGuide
+    draftIntakeGuide: DraftIntakeGuide,
+    visionGuide: ProjectVisionGuide?
   ) -> String {
     if reliabilityStatus.primaryKind == .rejectedPlan {
       return "Ask Plan to repair the rejected handoff before Develop starts."
@@ -265,6 +279,14 @@ struct ProjectRunControlGuide: Equatable {
       return Self.planOnlyDetail(draftIntakeGuide: draftIntakeGuide)
     }
 
+    if Self.needsVisionBeforePlan(
+      handoffReadiness: handoffReadiness,
+      draftIntakeGuide: draftIntakeGuide,
+      visionGuide: visionGuide
+    ) {
+      return "Capture Project Vision first, or ask Plan to infer one executable next slice for review."
+    }
+
     return handoffReadiness.hasImmediate
       ? "Ask Plan to refine or replace the next slice, then stop before Develop."
       : "Ask Plan to choose one executable next slice, then stop for review."
@@ -279,7 +301,8 @@ struct ProjectRunControlGuide: Equatable {
     isRunning: Bool,
     isAutoPlaying: Bool,
     isPaused: Bool,
-    draftIntakeGuide: DraftIntakeGuide
+    draftIntakeGuide: DraftIntakeGuide,
+    visionGuide: ProjectVisionGuide?
   ) -> [PreviewStep] {
     if !hasRepository {
       return [
@@ -337,7 +360,8 @@ struct ProjectRunControlGuide: Equatable {
     case .planOnly:
       return planPreviewSteps(
         handoffReadiness: handoffReadiness,
-        draftIntakeGuide: draftIntakeGuide
+        draftIntakeGuide: draftIntakeGuide,
+        visionGuide: visionGuide
       )
     case .developOnly:
       return developPreviewSteps(state: state)
@@ -359,7 +383,8 @@ struct ProjectRunControlGuide: Equatable {
           title: "Plan one slice",
           detail: planPreviewDetail(
             handoffReadiness: handoffReadiness,
-            draftIntakeGuide: draftIntakeGuide
+            draftIntakeGuide: draftIntakeGuide,
+            visionGuide: visionGuide
           ),
           systemImage: "map"
         ),
@@ -382,7 +407,8 @@ struct ProjectRunControlGuide: Equatable {
 
   private static func planPreviewSteps(
     handoffReadiness: HandoffReadiness,
-    draftIntakeGuide: DraftIntakeGuide
+    draftIntakeGuide: DraftIntakeGuide,
+    visionGuide: ProjectVisionGuide?
   ) -> [PreviewStep] {
     [
       PreviewStep(
@@ -390,7 +416,8 @@ struct ProjectRunControlGuide: Equatable {
         title: "Plan one slice",
         detail: planPreviewDetail(
           handoffReadiness: handoffReadiness,
-          draftIntakeGuide: draftIntakeGuide
+          draftIntakeGuide: draftIntakeGuide,
+          visionGuide: visionGuide
         ),
         systemImage: "map"
       ),
@@ -405,7 +432,8 @@ struct ProjectRunControlGuide: Equatable {
 
   private static func planPreviewDetail(
     handoffReadiness: HandoffReadiness,
-    draftIntakeGuide: DraftIntakeGuide
+    draftIntakeGuide: DraftIntakeGuide,
+    visionGuide: ProjectVisionGuide?
   ) -> String {
     if handoffReadiness.hasImmediate && !handoffReadiness.canDevelop {
       return Self.withRepairDetail(
@@ -417,6 +445,14 @@ struct ProjectRunControlGuide: Equatable {
     if !draftIntakeGuide.isEmpty {
       return
         "\(draftIntakeGuide.planScope.summary) Plan will create one executable handoff.\(draftQueueScopeSuffix(draftIntakeGuide))"
+    }
+
+    if Self.needsVisionBeforePlan(
+      handoffReadiness: handoffReadiness,
+      draftIntakeGuide: draftIntakeGuide,
+      visionGuide: visionGuide
+    ) {
+      return "Project Vision is empty; Plan will otherwise infer one executable next slice from the repository."
     }
 
     return "Plan will choose one executable next slice from the repository and strategic context."
@@ -497,7 +533,8 @@ struct ProjectRunControlGuide: Equatable {
     isRunning: Bool,
     isAutoPlaying: Bool,
     isPaused: Bool,
-    draftIntakeGuide: DraftIntakeGuide
+    draftIntakeGuide: DraftIntakeGuide,
+    visionGuide: ProjectVisionGuide?
   ) -> DecisionBadge {
     if !hasRepository {
       return badge(
@@ -577,6 +614,20 @@ struct ProjectRunControlGuide: Equatable {
       }
     }
 
+    if Self.needsVisionBeforePlan(
+      handoffReadiness: handoffReadiness,
+      draftIntakeGuide: draftIntakeGuide,
+      visionGuide: visionGuide
+    ) {
+      return badge(
+        label: "Vision first",
+        detail:
+          "Project Vision is empty. Add audience, problem, success, and guardrails before the first Plan when possible.",
+        systemImage: "scope",
+        tone: .warning
+      )
+    }
+
     return badge(
       label: "Plan first",
       detail: "Plan should choose one executable slice before Develop starts.",
@@ -619,7 +670,8 @@ struct ProjectRunControlGuide: Equatable {
     isRunning: Bool,
     isAutoPlaying: Bool,
     isPaused: Bool,
-    draftIntakeGuide: DraftIntakeGuide
+    draftIntakeGuide: DraftIntakeGuide,
+    visionGuide: ProjectVisionGuide?
   ) -> Readiness {
     if !hasRepository {
       return Readiness(
@@ -680,6 +732,19 @@ struct ProjectRunControlGuide: Equatable {
       )
     }
 
+    if Self.needsVisionBeforePlan(
+      handoffReadiness: handoffReadiness,
+      draftIntakeGuide: draftIntakeGuide,
+      visionGuide: visionGuide
+    ) {
+      return Readiness(
+        title: "Vision missing",
+        detail:
+          "Capture Project Vision before Plan so the first slice has audience, problem, success, and guardrails.",
+        systemImage: "scope"
+      )
+    }
+
     return Readiness(
       title: "Plan needed",
       detail: "Plan should choose one executable next slice before Develop.",
@@ -695,7 +760,8 @@ struct ProjectRunControlGuide: Equatable {
     hasImmediate: Bool,
     handoffReadiness: HandoffReadiness,
     reliabilityStatus: ProjectReliabilityStatus,
-    draftIntakeGuide: DraftIntakeGuide
+    draftIntakeGuide: DraftIntakeGuide,
+    visionGuide: ProjectVisionGuide?
   ) -> String {
     if !hasRepository {
       return "Add a Git repository before running the factory."
@@ -722,6 +788,13 @@ struct ProjectRunControlGuide: Equatable {
       let scopePrefix = draftQueueScope(draftIntakeGuide).map { "\($0) " } ?? ""
       return
         "\(draftIntakeGuide.planScope.summary) \(scopePrefix)Plan will turn the queue into one executable slice."
+    }
+    if Self.needsVisionBeforePlan(
+      handoffReadiness: handoffReadiness,
+      draftIntakeGuide: draftIntakeGuide,
+      visionGuide: visionGuide
+    ) {
+      return "Capture Project Vision first, or run Plan if you want Compass to infer a starting slice."
     }
     return "Run Plan first, or let the full loop choose and build the next slice."
   }
@@ -761,6 +834,16 @@ struct ProjectRunControlGuide: Equatable {
   private static func draftQueueScopeSuffix(_ draftIntakeGuide: DraftIntakeGuide) -> String {
     guard let scope = draftQueueScope(draftIntakeGuide) else { return "" }
     return " \(scope)"
+  }
+
+  private static func needsVisionBeforePlan(
+    handoffReadiness: HandoffReadiness,
+    draftIntakeGuide: DraftIntakeGuide,
+    visionGuide: ProjectVisionGuide?
+  ) -> Bool {
+    !handoffReadiness.hasImmediate
+      && draftIntakeGuide.isEmpty
+      && visionGuide?.isEmpty == true
   }
 
   private static func withRepairDetail(
