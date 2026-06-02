@@ -156,6 +156,18 @@ extension CompassProject {
           sessions[sessionIndex].status = .awaitingApproval
           sessions[sessionIndex].endedAt = nil
           try persistSessions()
+          try? workspace.updateSessionAuditManifest(
+            session: sessionNumber,
+            status: .awaitingApproval,
+            startedAt: sessions[sessionIndex].startedAt,
+            endedAt: nil
+          )
+          appendAuditEvent(
+            kind: "session_paused",
+            status: SessionStatus.awaitingApproval.rawValue,
+            text: "Session #\(sessionNumber) paused before Develop."
+          )
+          deactivateSessionAuditIfCurrent(session: sessionNumber)
           phase = .paused
           log("Paused before Develop.", level: .warning)
           feedbackPlanReadinessGate(for: nextState, gate: .pausedBeforeDevelop)
@@ -249,6 +261,7 @@ extension CompassProject {
       phase = .failed
       return
     }
+    activateSessionAudit(sessionIndex: sessionIndex)
     sessions[sessionIndex].status = .developing
     sessions[sessionIndex].endedAt = nil
     sessions[sessionIndex].plan = next.plan
@@ -797,6 +810,7 @@ extension CompassProject {
       // hadn't observed yet — and now that the guest is the source
       // of truth, it's also the only place the agent's tooling is
       // guaranteed to be the same as what we tested against.
+      let verifyStartedAt = Date()
       let verify = try await runVerifyCommand(
         command: next.verify,
         hostWorkingDirectory: workingDirectory,
@@ -804,6 +818,13 @@ extension CompassProject {
         launchPlan: launchPlan,
         requiresHostXcode: next.requiresHostXcode,
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
+      )
+      recordVerifyAuditOutput(
+        command: next.verify,
+        result: verify,
+        sessionIndex: sessionIndex,
+        attempt: attempt,
+        durationMs: Int(Date().timeIntervalSince(verifyStartedAt) * 1000)
       )
       if verify.exitCode == 0 {
         log("Verify passed.", level: .success)
@@ -921,6 +942,74 @@ extension CompassProject {
       verifyIssues: verifyIssues,
       gitStatusIssues: gitStatusIssues,
       verifyOutput: verifyOutput
+    )
+  }
+
+  func recordVerifyAuditOutput(
+    command: String,
+    result: ProcessResult,
+    sessionIndex: Int,
+    attempt: Int,
+    durationMs: Int
+  ) {
+    guard sessions.indices.contains(sessionIndex), let workspace else { return }
+    let session = sessions[sessionIndex].session
+    let contents = """
+      Command:
+      \(command)
+
+      Exit code: \(result.exitCode)
+      Duration: \(durationMs)ms
+
+      [stdout]
+      \(result.stdout)
+
+      [stderr]
+      \(result.stderr)
+      """
+    do {
+      let artifactURL = try workspace.writeSessionAuditArtifact(
+        session: session,
+        name: "verify-attempt-\(attempt)-full.log",
+        kind: "verify_output",
+        contents: contents,
+        note: "Full Verify output for attempt \(attempt)."
+      )
+      recordSessionAuditArtifactEvent(
+        session: session,
+        kind: "verify_output_saved",
+        artifactURL: artifactURL,
+        note: "Saved full Verify output.",
+        metadata: [
+          "command": command,
+          "attempt": "\(attempt)",
+          "exitCode": "\(result.exitCode)",
+          "durationMs": "\(durationMs)",
+        ]
+      )
+    } catch {
+      appendAuditEvent(
+        kind: "verify_output_save_failed",
+        status: "failed",
+        text: error.localizedDescription,
+        metadata: [
+          "command": command,
+          "attempt": "\(attempt)",
+          "exitCode": "\(result.exitCode)",
+          "durationMs": "\(durationMs)",
+        ]
+      )
+    }
+    appendAuditEvent(
+      kind: "verify_result",
+      status: result.exitCode == 0 ? "completed" : "failed",
+      text: result.exitCode == 0 ? "Verify passed." : "Verify failed.",
+      metadata: [
+        "command": command,
+        "attempt": "\(attempt)",
+        "exitCode": "\(result.exitCode)",
+        "durationMs": "\(durationMs)",
+      ]
     )
   }
 

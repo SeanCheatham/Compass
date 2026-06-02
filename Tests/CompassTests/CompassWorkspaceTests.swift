@@ -132,6 +132,51 @@ final class CompassWorkspaceTests {
     try #require(!rewritten.contains("executionEnvironmentSnapshots"))
   }
 
+  @Test func testSessionAuditWritesManifestEventsAndArtifacts() throws {
+    let workspace = try makeInitializedWorkspace()
+
+    try workspace.updateSessionAuditManifest(
+      session: 4,
+      status: .planning,
+      startedAt: 1_000,
+      endedAt: nil
+    )
+    try workspace.appendSessionAuditEvent(
+      SessionAuditEvent(
+        session: 4,
+        sequence: 1,
+        phase: "Planning",
+        kind: "live_line",
+        level: "info",
+        text: "Plan input captured."
+      )
+    )
+    let artifactURL = try workspace.writeSessionAuditArtifact(
+      session: 4,
+      name: "verify/attempt:1.log",
+      kind: "verify_output",
+      contents: "full verify output\n",
+      note: "Full Verify output."
+    )
+
+    let manifest = try #require(workspace.readSessionAuditManifest(session: 4))
+    let eventText = try read(workspace.sessionAuditEventsURL(session: 4))
+
+    try #require(
+      workspace.sessionAuditDirectoryURL(session: 4)
+        == workspace.sessionsURL.appending(path: "000004", directoryHint: .isDirectory)
+    )
+    try #require(try read(artifactURL) == "full verify output\n")
+    try #require(manifest.session == 4)
+    try #require(manifest.status == .planning)
+    try #require(manifest.startedAt == 1_000)
+    try #require(manifest.artifacts.count == 1)
+    try #require(manifest.artifacts[0].path == "sessions/000004/verify-attempt-1.log")
+    try #require(manifest.artifacts[0].kind == "verify_output")
+    try #require(eventText.contains(#""kind":"live_line""#))
+    try #require(eventText.contains("Plan input captured."))
+  }
+
   @Test func testAssumptionLedgerRecordsReviewsAndPreservesDeniedStatus() throws {
     let workspace = try makeInitializedWorkspace()
     let draft = AssumptionDraft(

@@ -10,21 +10,31 @@ extension AgentExecutor {
     detail: String? = nil,
     kind: LiveLine.Kind = .message,
     status: LiveLine.Status = .none,
-    correlationID: String? = nil
+    correlationID: String? = nil,
+    metadata: [String: String]? = nil
   ) {
     onEvent(
       LiveEvent(
         level: level, text: text, detail: detail, kind: kind, status: status,
-        correlationID: correlationID))
+        correlationID: correlationID, metadata: metadata))
   }
 
   func emitToolStart(name: String, arguments: String, correlationID: String) {
     let kind = liveKind(forTool: name)
     let level: LiveLine.Level = kind == .command ? .raw : .info
     let detail = previewString(arguments)
+    let descriptor = toolDescriptor(name: name, arguments: arguments)
     emit(
-      level: level, text: toolTitle(name: name, arguments: arguments), detail: detail, kind: kind,
-      status: .running, correlationID: correlationID)
+      level: level, text: toolTitle(name: name, arguments: arguments), detail: detail,
+      kind: kind,
+      status: .running, correlationID: correlationID,
+      metadata: toolMetadata(
+        name: name,
+        descriptor: descriptor,
+        argumentsPreview: detail,
+        isError: nil
+      )
+    )
   }
 
   func emitToolEnd(
@@ -33,10 +43,37 @@ extension AgentExecutor {
     let kind = liveKind(forTool: name)
     let status: LiveLine.Status = result.isError ? .failed : .completed
     let level: LiveLine.Level = result.isError ? .error : (kind == .command ? .success : .info)
+    let descriptor = toolDescriptor(name: name, arguments: arguments)
     emit(
       level: level, text: toolTitle(name: name, arguments: arguments),
       detail: previewString(result.content), kind: kind, status: status,
-      correlationID: correlationID)
+      correlationID: correlationID,
+      metadata: toolMetadata(
+        name: name,
+        descriptor: descriptor,
+        argumentsPreview: previewString(arguments),
+        isError: result.isError
+      )
+    )
+  }
+
+  private func toolMetadata(
+    name: String,
+    descriptor: String?,
+    argumentsPreview: String,
+    isError: Bool?
+  ) -> [String: String] {
+    var metadata = [
+      "tool": name,
+      "argumentsPreview": argumentsPreview,
+    ]
+    if let descriptor {
+      metadata["descriptor"] = descriptor
+    }
+    if let isError {
+      metadata["isError"] = isError ? "true" : "false"
+    }
+    return metadata
   }
 
   private func liveKind(forTool name: String) -> LiveLine.Kind {

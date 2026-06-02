@@ -225,6 +225,34 @@ extension CompassProject {
     }
     executor = agent
     let result = try await agent.run(configuration)
+    if let sessionNumber {
+      do {
+        let artifactURL = try makeWorkspace(repoURL: workingDirectory).writeSessionAuditArtifact(
+          session: sessionNumber,
+          name: "\(phase.rawValue)-submit-result.json",
+          kind: "submit_result",
+          contents: String(decoding: result.submitResultArguments, as: UTF8.self),
+          note: "\(phase.rawValue) submit_result payload."
+        )
+        recordSessionAuditArtifactEvent(
+          session: sessionNumber,
+          kind: "submit_result_saved",
+          artifactURL: artifactURL,
+          note: "Saved \(phase.rawValue) submit_result payload.",
+          metadata: [
+            "phase": phase.rawValue,
+            "iterations": "\(result.iterations)",
+          ]
+        )
+      } catch {
+        appendAuditEvent(
+          kind: "submit_result_save_failed",
+          status: "failed",
+          text: error.localizedDescription,
+          metadata: ["phase": phase.rawValue]
+        )
+      }
+    }
     do {
       return try JSONDecoder().decode(T.self, from: result.submitResultArguments)
     } catch {

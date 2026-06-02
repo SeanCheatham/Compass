@@ -47,6 +47,75 @@ struct CompassProjectSessionTests {
     try #require(project.errorMessage == "Unexpected failure.")
   }
 
+  @Test func testSessionLifecycleWritesAuditManifestAndEvents() throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    let sessionIndex = project.startSession()
+
+    project.log("Captured live message.", level: .info)
+    project.appendSessionNote("Captured session note.", to: sessionIndex)
+    project.endSession(sessionIndex, status: .succeeded)
+
+    let workspace = CompassWorkspace(repoURL: repoURL)
+    let session = project.sessions[sessionIndex].session
+    let manifest = try #require(workspace.readSessionAuditManifest(session: session))
+    let events = try String(
+      contentsOf: workspace.sessionAuditEventsURL(session: session),
+      encoding: .utf8
+    )
+
+    try #require(manifest.status == .succeeded)
+    try #require(manifest.startedAt == project.sessions[sessionIndex].startedAt)
+    try #require(manifest.endedAt == project.sessions[sessionIndex].endedAt)
+    try #require(events.contains(#""kind":"session_started""#))
+    try #require(events.contains(#""kind":"live_line""#))
+    try #require(events.contains("Captured live message."))
+    try #require(events.contains(#""kind":"session_note""#))
+    try #require(events.contains("Captured session note."))
+    try #require(events.contains(#""kind":"session_ended""#))
+  }
+
+  @Test func testVerifyAuditOutputWritesFullArtifactAndEvents() throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    let sessionIndex = project.startSession()
+
+    project.recordVerifyAuditOutput(
+      command: "swift test --filter ExampleTests",
+      result: ProcessResult(exitCode: 1, stdout: "stdout body\n", stderr: "stderr body\n"),
+      sessionIndex: sessionIndex,
+      attempt: 1,
+      durationMs: 42
+    )
+
+    let workspace = CompassWorkspace(repoURL: repoURL)
+    let session = project.sessions[sessionIndex].session
+    let manifest = try #require(workspace.readSessionAuditManifest(session: session))
+    let artifact = try #require(manifest.artifacts.first)
+    let artifactURL = workspace.compassURL.appending(path: artifact.path)
+    let artifactText = try String(contentsOf: artifactURL, encoding: .utf8)
+    let events = try String(
+      contentsOf: workspace.sessionAuditEventsURL(session: session),
+      encoding: .utf8
+    )
+
+    try #require(artifact.kind == "verify_output")
+    try #require(artifact.path == "sessions/000001/verify-attempt-1-full.log")
+    try #require(artifactText.contains("swift test --filter ExampleTests"))
+    try #require(artifactText.contains("stdout body"))
+    try #require(artifactText.contains("stderr body"))
+    try #require(events.contains(#""kind":"verify_output_saved""#))
+    try #require(events.contains(#""kind":"verify_result""#))
+    try #require(events.contains(#""exitCode":"1""#))
+    try #require(events.contains(#""durationMs":"42""#))
+  }
+
   @Test func testPostChecksHandVerifyBypassBackToPlan() async throws {
     let repoURL = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: repoURL) }

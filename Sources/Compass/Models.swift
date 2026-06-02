@@ -2076,6 +2076,7 @@ struct LiveEvent: Equatable {
   var kind: LiveLine.Kind
   var status: LiveLine.Status
   var correlationID: String?
+  var metadata: [String: String]?
 
   init(
     level: LiveLine.Level = .info,
@@ -2083,7 +2084,8 @@ struct LiveEvent: Equatable {
     detail: String? = nil,
     kind: LiveLine.Kind = .message,
     status: LiveLine.Status = .none,
-    correlationID: String? = nil
+    correlationID: String? = nil,
+    metadata: [String: String]? = nil
   ) {
     self.level = level
     self.text = text
@@ -2091,6 +2093,7 @@ struct LiveEvent: Equatable {
     self.kind = kind
     self.status = status
     self.correlationID = correlationID
+    self.metadata = metadata
   }
 }
 

@@ -259,11 +259,153 @@ struct CompassWorkspace {
     return url
   }
 
+  func sessionAuditDirectoryURL(session: Int) -> URL {
+    sessionsURL.appending(
+      path: Self.sessionAuditDirectoryName(session),
+      directoryHint: .isDirectory
+    )
+  }
+
+  func sessionAuditManifestURL(session: Int) -> URL {
+    sessionAuditDirectoryURL(session: session).appending(path: "manifest.json")
+  }
+
+  func sessionAuditEventsURL(session: Int) -> URL {
+    sessionAuditDirectoryURL(session: session).appending(path: "events.jsonl")
+  }
+
+  func sessionAuditEventCount(session: Int) -> Int {
+    let url = sessionAuditEventsURL(session: session)
+    guard let text = try? String(contentsOf: url, encoding: .utf8), !text.isEmpty else {
+      return 0
+    }
+    return text.split(whereSeparator: \.isNewline).count
+  }
+
+  func readSessionAuditManifest(session: Int) -> SessionAuditManifest? {
+    let url = sessionAuditManifestURL(session: session)
+    guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
+    return try? JSONDecoder().decode(SessionAuditManifest.self, from: data)
+  }
+
+  func writeSessionAuditManifest(_ manifest: SessionAuditManifest) throws {
+    try FileManager.default.createDirectory(
+      at: sessionAuditDirectoryURL(session: manifest.session),
+      withIntermediateDirectories: true
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let data = try encoder.encode(manifest)
+    try data.write(to: sessionAuditManifestURL(session: manifest.session), options: .atomic)
+  }
+
+  func updateSessionAuditManifest(
+    session: Int,
+    status: SessionStatus?,
+    startedAt: Double?,
+    endedAt: Double?
+  ) throws {
+    var manifest =
+      readSessionAuditManifest(session: session)
+      ?? SessionAuditManifest(
+        session: session,
+        status: status,
+        startedAt: startedAt,
+        endedAt: endedAt
+      )
+    manifest.update(status: status, startedAt: startedAt, endedAt: endedAt)
+    try writeSessionAuditManifest(manifest)
+  }
+
+  func appendSessionAuditEvent(_ event: SessionAuditEvent) throws {
+    try FileManager.default.createDirectory(
+      at: sessionAuditDirectoryURL(session: event.session),
+      withIntermediateDirectories: true
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(event)
+    let url = sessionAuditEventsURL(session: event.session)
+    if !FileManager.default.fileExists(atPath: url.path) {
+      _ = FileManager.default.createFile(atPath: url.path, contents: nil)
+    }
+    let handle = try FileHandle(forWritingTo: url)
+    defer { try? handle.close() }
+    try handle.seekToEnd()
+    try handle.write(contentsOf: data)
+    try handle.write(contentsOf: Data("\n".utf8))
+  }
+
+  func writeSessionAuditArtifact(
+    session: Int,
+    name: String,
+    kind: String,
+    contents: String,
+    note: String? = nil
+  ) throws -> URL {
+    let directory = sessionAuditDirectoryURL(session: session)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let safeName = Self.safeSessionAuditFileName(name)
+    let url = uniqueAuditArtifactURL(directory: directory, safeName: safeName)
+    try contents.write(to: url, atomically: true, encoding: .utf8)
+    let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+    let byteCount = (attributes?[.size] as? NSNumber)?.uint64Value ?? UInt64(contents.utf8.count)
+    let artifact = SessionAuditArtifact(
+      path: sessionAuditRelativePath(session: session, fileName: url.lastPathComponent),
+      kind: kind,
+      byteCount: byteCount,
+      note: note
+    )
+    var manifest =
+      readSessionAuditManifest(session: session)
+      ?? SessionAuditManifest(session: session)
+    manifest.recordArtifact(artifact)
+    try writeSessionAuditManifest(manifest)
+    return url
+  }
+
+  func sessionAuditRelativePath(session: Int, fileName: String) -> String {
+    "sessions/\(Self.sessionAuditDirectoryName(session))/\(fileName)"
+  }
+
   static func encodeState(_ state: PlanState) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(state)
     return String(decoding: data, as: UTF8.self) + "\n"
+  }
+
+  private func uniqueAuditArtifactURL(directory: URL, safeName: String) -> URL {
+    let first = directory.appending(path: safeName)
+    guard FileManager.default.fileExists(atPath: first.path) else { return first }
+
+    let nsName = safeName as NSString
+    let base = nsName.deletingPathExtension
+    let ext = nsName.pathExtension
+    for index in 2...10_000 {
+      let candidateName =
+        ext.isEmpty
+        ? "\(base)-\(index)"
+        : "\(base)-\(index).\(ext)"
+      let candidate = directory.appending(path: candidateName)
+      if !FileManager.default.fileExists(atPath: candidate.path) {
+        return candidate
+      }
+    }
+    return directory.appending(path: "\(UUID().uuidString)-\(safeName)")
+  }
+
+  static func sessionAuditDirectoryName(_ session: Int) -> String {
+    String(format: "%06d", max(0, session))
+  }
+
+  static func safeSessionAuditFileName(_ name: String) -> String {
+    let invalid = CharacterSet(charactersIn: "/:\\")
+      .union(.newlines)
+      .union(.controlCharacters)
+    let parts = name.components(separatedBy: invalid)
+    let safe = parts.joined(separator: "-").trimmingCharacters(in: .whitespacesAndNewlines)
+    return safe.isEmpty ? "artifact.txt" : safe
   }
 
   static func encodeProposal(_ proposal: PlanProposal) throws -> String {

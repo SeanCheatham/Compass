@@ -9,14 +9,34 @@ extension CompassProject {
     let nextNumber = max(storeMax, memoryMax) + 1
     sessions.append(.started(nextNumber))
     try? persistSessions()
-    return sessions.count - 1
+    let index = sessions.count - 1
+    activateSessionAudit(sessionIndex: index)
+    appendAuditEvent(
+      kind: "session_started",
+      status: sessions[index].status.rawValue,
+      text: "Session #\(nextNumber) started."
+    )
+    return index
   }
 
   func endSession(_ index: Int, status: SessionStatus) {
     guard sessions.indices.contains(index) else { return }
     sessions[index].status = status
     sessions[index].endedAt = Date().timeIntervalSince1970 * 1000
+    activateSessionAudit(sessionIndex: index)
+    try? workspace?.updateSessionAuditManifest(
+      session: sessions[index].session,
+      status: status,
+      startedAt: sessions[index].startedAt,
+      endedAt: sessions[index].endedAt
+    )
+    appendAuditEvent(
+      kind: "session_ended",
+      status: status.rawValue,
+      text: "Session #\(sessions[index].session) ended with status \(status.rawValue)."
+    )
     try? persistSessions()
+    deactivateSessionAuditIfCurrent(session: sessions[index].session)
   }
 
   func appendSessionNote(_ note: String, to index: Int) {
@@ -24,6 +44,18 @@ extension CompassProject {
     guard !trimmed.isEmpty, sessions.indices.contains(index) else { return }
     if sessions[index].notes.last != trimmed {
       sessions[index].notes.append(trimmed)
+      let previousAuditSession = activeAuditSessionNumber
+      let previousAuditSequence = activeAuditEventSequence
+      activateSessionAudit(sessionIndex: index)
+      appendAuditEvent(
+        kind: "session_note",
+        status: sessions[index].status.rawValue,
+        text: trimmed
+      )
+      if previousAuditSession != sessions[index].session {
+        activeAuditSessionNumber = previousAuditSession
+        activeAuditEventSequence = previousAuditSequence
+      }
     }
     try? persistSessions()
   }

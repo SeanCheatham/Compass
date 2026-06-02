@@ -169,7 +169,10 @@ the phase contract.
   context. Agents can call `remove_assumption` when an active assumption
   becomes stale; Compass keeps the record as superseded history but stops
   injecting it into future prompts.
-- History metadata is written to `.compass/sessions.json`.
+- History metadata is written to `.compass/sessions.jsonl`, with older
+  records segmented into `.compass/sessions-archive/` when needed.
+  Per-session audit events, manifests, and large artifacts live under
+  `.compass/sessions/{session-number}/`.
 
 ## Compass Workspace
 
@@ -182,8 +185,9 @@ Everything lives in `.compass/` inside each selected repository:
 ├── drafts.md         # User-owned draft queue.
 ├── lessons.md        # Durable guidance shared across iterations.
 ├── assumptions.json  # Agent-recorded assumptions and user reviews.
-├── sessions.json     # Per-iteration session index and latest feedback.
-├── sessions/         # Activity/session artifacts.
+├── sessions.jsonl    # Per-iteration session index and latest feedback.
+├── sessions-archive/ # Segmented older session records.
+├── sessions/         # Session audit manifests, events, and artifacts.
 └── COMPASS.md        # User-owned project vision.
 ```
 

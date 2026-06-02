@@ -52,6 +52,8 @@ final class CompassProject: ObservableObject, Identifiable {
 
   var executor: AgentExecutor?
   var stopRequested = false
+  var activeAuditSessionNumber: Int?
+  var activeAuditEventSequence = 0
   /// Session number the codemap was last refreshed for. When Plan and
   /// Develop fire back-to-back inside the same session the second call
   /// no-ops; a fresh Plan run (different session number) triggers a
