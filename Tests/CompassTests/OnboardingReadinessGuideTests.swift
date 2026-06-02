@@ -107,6 +107,32 @@ struct OnboardingReadinessGuideTests {
   }
 
   @Test
+  func workspaceSetupStatusAvoidsHeadlessFirstBootJargon() {
+    let settings = AgentRuntimeSettings(
+      textProvider: .openAI,
+      apiKey: "sk-test",
+      model: "gpt-4o"
+    )
+    let guide = OnboardingReadinessGuide(
+      settings: settings,
+      vmReadiness: .guestPrepping,
+      foundationModelsAvailable: false
+    )
+    let payload = OnboardingSetupClipboardPayload(
+      guide: guide,
+      settings: settings,
+      vmReadiness: .guestPrepping,
+      foundationModelsAvailable: false
+    )
+
+    #expect(guide.steps[1].detail == "Finishing workspace setup")
+    #expect(guide.narrationIdentifier.contains("Finishing workspace setup"))
+    #expect(payload.text.contains("Status: Finishing workspace setup"))
+    #expect(!guide.steps[1].detail.contains("headless"))
+    #expect(!payload.text.contains("headless first-boot"))
+  }
+
+  @Test
   func runtimeSettingsTreatFoundationModelsAvailabilityAsReadinessInput() {
     let foundationModels = AgentRuntimeSettings(textProvider: .appleFoundationModels)
     #expect(foundationModels.isTextCapabilityRunnable(foundationModelsAvailable: true))

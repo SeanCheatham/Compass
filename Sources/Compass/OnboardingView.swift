@@ -139,7 +139,7 @@ struct OnboardingView: View {
               .foregroundStyle(.secondary)
           }
           if blockedByVM {
-            Text("• \(vmHost.readiness.statusSummary).")
+            Text("• \(vmHost.readiness.onboardingWorkspaceStatusSummary).")
               .font(.caption)
               .foregroundStyle(.secondary)
           }
@@ -588,7 +588,7 @@ private struct SharedVMOnboardingPanel: View {
   private var statusRow: some View {
     HStack(spacing: 8) {
       SandboxReadinessDot(readiness: vmHost.readiness, size: 10)
-      Text(vmHost.readiness.statusSummary)
+      Text(vmHost.readiness.onboardingWorkspaceStatusSummary)
         .font(.callout.weight(.medium))
         .fixedSize(horizontal: false, vertical: true)
       Spacer()
@@ -664,7 +664,7 @@ private struct SharedVMOnboardingPanel: View {
       Label("Finishing macOS setup", systemImage: "gearshape.2")
         .font(.subheadline.weight(.semibold))
       Text(
-        "Compass planted a one-shot LaunchDaemon onto the guest disk. The guest is creating the compass user, authorising the Compass SSH key, and enabling Remote Login. This takes 30–90 seconds."
+        "Compass is finishing access to the private workspace so future agent runs can start safely. This usually takes 30-90 seconds."
       )
       .font(.callout)
       .foregroundStyle(.secondary)

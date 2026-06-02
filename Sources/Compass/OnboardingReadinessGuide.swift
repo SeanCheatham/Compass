@@ -1,5 +1,31 @@
 import Foundation
 
+extension SharedCompassVMReadiness {
+  var onboardingWorkspaceStatusSummary: String {
+    switch self {
+    case .unavailable(let reason):
+      return "Unavailable. \(reason)"
+    case .notProvisioned:
+      return "Not prepared"
+    case .downloadingIPSW(let fraction):
+      let pct = Int((Swift.min(1, Swift.max(0, fraction)) * 100).rounded())
+      return "Downloading restore image (\(pct)%)"
+    case .installing(let fraction):
+      let pct = Int((Swift.min(1, Swift.max(0, fraction)) * 100).rounded())
+      return "Installing macOS (\(pct)%)"
+    case .guestPrepping:
+      return "Finishing workspace setup"
+    case .provisioningDevTools(let fraction):
+      let pct = Int((Swift.min(1, Swift.max(0, fraction)) * 100).rounded())
+      return "Installing developer tools (\(pct)%)"
+    case .ready:
+      return "Ready"
+    case .error(let detail):
+      return "Error. \(detail)"
+    }
+  }
+}
+
 struct OnboardingReadinessGuide: Equatable, Sendable {
   static let detailLimit = 260
   static let identifierLimit = 1_200
@@ -209,7 +235,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     case .notProvisioned:
       return "Prepare the private workspace once; first install downloads about 14 GB."
     case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
-      return readiness.statusSummary
+      return readiness.onboardingWorkspaceStatusSummary
     case .unavailable(let reason):
       return "Private workspace is unavailable: \(reason)"
     case .error(let detail):
@@ -247,7 +273,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
       "provider:\(settings.textProvider.rawValue)",
       "textReady:\(settings.isTextCapabilityRunnable(foundationModelsAvailable: foundationModelsAvailable))",
       "fmAvailable:\(foundationModelsAvailable)",
-      "vm:\(vmReadiness.statusSummary)",
+      "vm:\(vmReadiness.onboardingWorkspaceStatusSummary)",
       "steps:\(steps.map { "\($0.id):\($0.isComplete)" }.joined(separator: ","))",
       "unlocks:\(unlockPreview.map { "\($0.id):\($0.isUnlocked)" }.joined(separator: ","))",
     ].joined(separator: "|")
@@ -304,7 +330,7 @@ struct OnboardingSetupClipboardPayload: Equatable, Sendable {
 
     sections.append("")
     sections.append("Private workspace:")
-    sections.append("Status: \(vmReadiness.statusSummary)")
+    sections.append("Status: \(vmReadiness.onboardingWorkspaceStatusSummary)")
     sections.append("Ready: \(Self.yesNo(vmReady))")
 
     sections.append("")
