@@ -40,6 +40,7 @@ enum AssumptionReviewGuideNarrator {
     Status: \(guide.title)
     Detail: \(guide.detail)
     Prompt effect: \(guide.promptEffect)
+    Prompt lane: \(guide.promptLane.label) - \(guide.promptLane.detail)
     Review progress: \(guide.reviewProgress.label) - \(guide.reviewProgress.detail)
     Steps: \(guide.steps.map { "\($0.label) - \($0.detail)" }.joined(separator: " | "))
     Review queue: \(guide.queue.map { "\($0.label) - \($0.detail)" }.joined(separator: " | "))

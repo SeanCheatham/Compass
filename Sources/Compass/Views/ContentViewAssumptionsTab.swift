@@ -202,6 +202,23 @@ struct AssumptionReviewGuidePanel: View {
         .foregroundStyle(.primary)
         .fixedSize(horizontal: false, vertical: true)
 
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: "arrow.triangle.branch")
+          .frame(width: 16)
+          .foregroundStyle(color(for: guide.tone))
+          .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(guide.promptLane.label)
+            .font(.caption.weight(.semibold))
+          Text(guide.promptLane.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel("\(guide.promptLane.label). \(guide.promptLane.detail)")
+
       VStack(alignment: .leading, spacing: 4) {
         Label(guide.reviewProgress.label, systemImage: "chart.bar.doc.horizontal")
           .font(.caption.weight(.semibold))

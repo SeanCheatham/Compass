@@ -33,11 +33,20 @@ struct AssumptionReviewGuide: Equatable, Sendable {
     var detail: String
   }
 
+  struct PromptLane: Equatable, Sendable {
+    static let labelLimit = 56
+    static let detailLimit = 220
+
+    var label: String
+    var detail: String
+  }
+
   var title: String
   var detail: String
   var promptEffect: String
   var tone: Tone
   var reviewProgress: ReviewProgress
+  var promptLane: PromptLane
   var steps: [Step]
   var queue: [QueueItem]
   var narrationIdentifier: String
@@ -89,6 +98,12 @@ struct AssumptionReviewGuide: Equatable, Sendable {
       deniedCount: denied.count,
       archivedCount: archivedCount
     )
+    promptLane = Self.promptLane(
+      implicitCount: implicit.count,
+      affirmedCount: affirmed.count,
+      deniedCount: denied.count,
+      archivedCount: archivedCount
+    )
     steps = Self.steps(
       implicit: implicit,
       affirmed: affirmed,
@@ -108,6 +123,7 @@ struct AssumptionReviewGuide: Equatable, Sendable {
       promptEffect: promptEffect,
       tone: tone,
       reviewProgress: reviewProgress,
+      promptLane: promptLane,
       active: active,
       steps: steps,
       queue: queue
@@ -263,12 +279,68 @@ struct AssumptionReviewGuide: Equatable, Sendable {
     )
   }
 
+  private static func promptLane(
+    implicitCount: Int,
+    affirmedCount: Int,
+    deniedCount: Int,
+    archivedCount: Int
+  ) -> PromptLane {
+    let activeCount = implicitCount + affirmedCount + deniedCount
+    guard activeCount > 0 else {
+      let detail =
+        archivedCount > 0
+        ? "Archived assumptions stay in history, but no assumptions are injected into future prompts."
+        : "No assumptions are injected into future prompts yet."
+      return PromptLane(
+        label: "No active prompt signals",
+        detail: StringUtils.boundedText(detail, limit: PromptLane.detailLimit)
+      )
+    }
+
+    var lanes: [String] = []
+    if affirmedCount > 0 {
+      lanes.append(
+        countLabel(
+          affirmedCount,
+          singular: "strong guidance item",
+          plural: "strong guidance items"
+        )
+      )
+    }
+    if implicitCount > 0 {
+      lanes.append(countLabel(implicitCount, singular: "tentative guess", plural: "tentative guesses"))
+    }
+    if deniedCount > 0 {
+      lanes.append(countLabel(deniedCount, singular: "correction", plural: "corrections"))
+    }
+
+    let reviewSuffix =
+      implicitCount > 0
+      ? " Review tentative guesses before load-bearing work."
+      : ""
+    return PromptLane(
+      label: StringUtils.boundedText(
+        countLabel(
+          activeCount,
+          singular: "active prompt signal",
+          plural: "active prompt signals"
+        ),
+        limit: PromptLane.labelLimit
+      ),
+      detail: StringUtils.boundedText(
+        "Prompts carry \(joinedList(lanes)).\(reviewSuffix)",
+        limit: PromptLane.detailLimit
+      )
+    )
+  }
+
   private static func narrationIdentifier(
     title: String,
     detail: String,
     promptEffect: String,
     tone: Tone,
     reviewProgress: ReviewProgress,
+    promptLane: PromptLane,
     active: [AssumptionRecord],
     steps: [Step],
     queue: [QueueItem]
@@ -277,6 +349,7 @@ struct AssumptionReviewGuide: Equatable, Sendable {
       "title:\(title)",
       "detail:\(detail)",
       "prompt:\(promptEffect)",
+      "lane:\(promptLane.label):\(promptLane.detail)",
       "tone:\(tone.rawValue)",
       "progress:\(reviewProgress.label):\(reviewProgress.reviewedCount)/\(reviewProgress.activeCount)",
       "active:\(active.map { "\($0.id):\($0.status.rawValue):\($0.updatedAt)" }.joined(separator: ","))",
@@ -288,6 +361,19 @@ struct AssumptionReviewGuide: Equatable, Sendable {
 
   private static func countLabel(_ count: Int, singular: String, plural: String) -> String {
     "\(count) \(count == 1 ? singular : plural)"
+  }
+
+  private static func joinedList(_ values: [String]) -> String {
+    switch values.count {
+    case 0:
+      return "no active assumptions"
+    case 1:
+      return values[0]
+    case 2:
+      return values.joined(separator: " and ")
+    default:
+      return values.dropLast().joined(separator: ", ") + ", and \(values.last ?? "")"
+    }
   }
 }
 
@@ -319,6 +405,7 @@ struct AssumptionReviewClipboardPayload: Equatable, Sendable {
       "Status: \(guide.title)",
       "Detail: \(guide.detail)",
       "Prompt effect: \(guide.promptEffect)",
+      "Prompt lane: \(guide.promptLane.label) - \(guide.promptLane.detail)",
       "Review progress: \(guide.reviewProgress.label) - \(guide.reviewProgress.detail)",
       "Counts: \(ledger.implicitCount) implicit, \(ledger.affirmedCount) affirmed, "
         + "\(ledger.deniedCount) denied, \(ledger.archivedCount) archived",

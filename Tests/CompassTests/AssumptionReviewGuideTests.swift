@@ -12,6 +12,8 @@ struct AssumptionReviewGuideTests {
     #expect(guide.promptEffect == "Future prompts are not receiving assumption guidance yet.")
     #expect(guide.reviewProgress.label == "No active memory")
     #expect(guide.reviewProgress.fraction == 1)
+    #expect(guide.promptLane.label == "No active prompt signals")
+    #expect(guide.promptLane.detail == "No assumptions are injected into future prompts yet.")
     #expect(guide.steps.map(\.id) == ["waitForSignals"])
     #expect(guide.queue.isEmpty)
     #expect(!guide.narrationIdentifier.isEmpty)
@@ -66,6 +68,11 @@ struct AssumptionReviewGuideTests {
     #expect(guide.reviewProgress.fraction == 0.5)
     #expect(guide.reviewProgress.label == "2 of 4 active reviewed")
     #expect(guide.reviewProgress.detail.contains("2 guesses"))
+    #expect(guide.promptLane.label == "4 active prompt signals")
+    #expect(
+      guide.promptLane.detail
+        == "Prompts carry 1 strong guidance item, 2 tentative guesses, and 1 correction. Review tentative guesses before load-bearing work."
+    )
     #expect(guide.queue.map(\.id) == ["newerImplicit", "olderImplicit"])
     #expect(guide.queue.first?.detail.contains("session 2") == true)
     #expect(
@@ -88,6 +95,8 @@ struct AssumptionReviewGuideTests {
         == "Denied assumptions are injected as corrections agents must not rely on.")
     #expect(guide.reviewProgress.label == "All 2 active reviewed")
     #expect(guide.reviewProgress.fraction == 1)
+    #expect(guide.promptLane.label == "2 active prompt signals")
+    #expect(guide.promptLane.detail == "Prompts carry 1 strong guidance item and 1 correction.")
     #expect(guide.queue.isEmpty)
   }
 
@@ -104,6 +113,11 @@ struct AssumptionReviewGuideTests {
     #expect(
       guide.detail == "1 archived assumption is kept in history but no longer steer future runs.")
     #expect(guide.promptEffect == "Future prompts are not receiving active assumption guidance.")
+    #expect(guide.promptLane.label == "No active prompt signals")
+    #expect(
+      guide.promptLane.detail
+        == "Archived assumptions stay in history, but no assumptions are injected into future prompts."
+    )
     #expect(guide.steps.map(\.id) == ["archivedOnly"])
     #expect(guide.queue.isEmpty)
   }
@@ -149,6 +163,11 @@ struct AssumptionReviewGuideTests {
     #expect(payload.text.contains("Recipient instructions:"))
     #expect(payload.text.contains("Do not invent files, credentials, product intent"))
     #expect(payload.text.contains("Status: Review Needed"))
+    #expect(
+      payload.text.contains(
+        "Prompt lane: 3 active prompt signals - Prompts carry 1 strong guidance item, 1 tentative guess, and 1 correction. Review tentative guesses before load-bearing work."
+      )
+    )
     #expect(payload.text.contains("Review progress: 2 of 3 active reviewed"))
     #expect(payload.text.contains("Counts: 1 implicit, 1 affirmed, 1 denied, 1 archived"))
     #expect(payload.text.contains("Needs review first:"))
@@ -189,6 +208,7 @@ struct AssumptionReviewGuideTests {
     try await withMockFoundationModels(response: "Compass has one guess waiting for review.") {
       let prompt = AssumptionReviewGuideNarrator.prompt(for: guide)
       #expect(prompt.contains("Review progress: 0 of 1 active reviewed"))
+      #expect(prompt.contains("Prompt lane: 1 active prompt signal"))
 
       let generatedNarration = await AssumptionReviewGuideNarrator.narrate(guide: guide)
       let narration = try #require(generatedNarration)
