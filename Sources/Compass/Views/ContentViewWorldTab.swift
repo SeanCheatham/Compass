@@ -79,6 +79,13 @@ struct WorldTab: View {
             .frame(width: 150, height: 112)
           }
           .padding(14)
+
+          if let atlas = model.atlas {
+            WorldSceneLegendOverlay(terrain: atlas.terrain)
+              .frame(maxWidth: 430, alignment: .leading)
+              .padding(14)
+              .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+          }
         }
 
         WorldSidebarPanel(
@@ -986,6 +993,87 @@ private struct WorldAtlasSpotlightRow: View {
     case .danger:
       return Color(red: 0.94, green: 0.39, blue: 0.32)
     }
+  }
+}
+
+private struct WorldSceneLegendOverlay: View {
+  let terrain: [WorldAtlas.Terrain]
+
+  private let columns = [
+    GridItem(.adaptive(minimum: 116), spacing: 7, alignment: .leading)
+  ]
+
+  var body: some View {
+    if !terrain.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Legend", systemImage: "paintpalette")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.white.opacity(0.82))
+
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 7) {
+          ForEach(terrain) { item in
+            WorldSceneLegendItem(terrain: item)
+          }
+        }
+      }
+      .padding(10)
+      .background(.black.opacity(0.46), in: RoundedRectangle(cornerRadius: 8))
+      .overlay(
+        RoundedRectangle(cornerRadius: 8)
+          .stroke(.white.opacity(0.13), lineWidth: 1)
+      )
+      .accessibilityElement(children: .contain)
+      .accessibilityLabel("World scene legend")
+    }
+  }
+}
+
+private struct WorldSceneLegendItem: View {
+  let terrain: WorldAtlas.Terrain
+
+  var body: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 6) {
+      Circle()
+        .fill(color)
+        .frame(width: 7, height: 7)
+        .accessibilityHidden(true)
+      Image(systemName: terrain.systemImageName)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(color)
+        .frame(width: 13)
+        .accessibilityHidden(true)
+      Text(terrain.label)
+        .font(.caption2.weight(.semibold))
+        .lineLimit(1)
+      Text("\(terrain.count)")
+        .font(.caption2.monospacedDigit())
+        .foregroundStyle(.white.opacity(0.58))
+        .lineLimit(1)
+    }
+    .foregroundStyle(.white.opacity(0.78))
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(terrain.label), \(terrain.count)")
+  }
+
+  private var color: Color {
+    guard let kind = WorldNodeKind(rawValue: terrain.id) else {
+      return .white.opacity(0.7)
+    }
+    return worldNodeLegendColor(for: kind)
+  }
+}
+
+private func worldNodeLegendColor(for kind: WorldNodeKind) -> Color {
+  switch kind {
+  case .module: return Color(red: 0.77, green: 0.55, blue: 0.32)
+  case .file: return Color(red: 0.42, green: 0.67, blue: 0.74)
+  case .type: return Color(red: 0.62, green: 0.72, blue: 0.45)
+  case .function: return Color(red: 0.88, green: 0.72, blue: 0.38)
+  case .branch: return Color(red: 0.84, green: 0.48, blue: 0.38)
+  case .loop: return Color(red: 0.38, green: 0.76, blue: 0.62)
+  case .switchCase: return Color(red: 0.72, green: 0.58, blue: 0.86)
+  case .errorPath: return Color(red: 0.94, green: 0.39, blue: 0.32)
+  case .unresolvedPassage: return Color(red: 0.66, green: 0.68, blue: 0.74)
   }
 }
 

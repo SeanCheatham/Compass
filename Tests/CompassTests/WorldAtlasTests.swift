@@ -129,6 +129,38 @@ struct WorldAtlasTests {
   }
 
   @Test
+  func terrainSuppliesSceneLegendCountsForVisibleKinds() {
+    var graph = WorldGraph()
+    let entry = makeNode(id: "entry", kind: .function, label: "main", confidence: .high)
+    let branch = makeNode(id: "branch", kind: .branch, label: "hasSession", confidence: .high)
+    let secondBranch = makeNode(
+      id: "branch2", kind: .branch, label: "needsAuth", confidence: .high)
+    let error = makeNode(
+      id: "error", kind: .errorPath, label: "throw MissingToken", confidence: .medium)
+
+    [entry, branch, secondBranch, error].forEach { graph.addNode($0) }
+
+    let atlas = WorldAtlas(
+      graph: graph,
+      route: [],
+      routeIndex: 0,
+      selectedNodeID: nil
+    )
+
+    #expect(atlas.terrain.map(\.id) == [
+      WorldNodeKind.function.rawValue,
+      WorldNodeKind.branch.rawValue,
+      WorldNodeKind.errorPath.rawValue,
+    ])
+    #expect(atlas.terrain.first { $0.id == WorldNodeKind.function.rawValue }?.label == "Action")
+    #expect(atlas.terrain.first { $0.id == WorldNodeKind.branch.rawValue }?.count == 2)
+    #expect(
+      atlas.terrain.first { $0.id == WorldNodeKind.errorPath.rawValue }?.systemImageName
+        == "exclamationmark.triangle"
+    )
+  }
+
+  @Test
   func narrationIdentifierChangesWithRouteProgress() {
     let graph = makeNarrationGraph()
     let first = WorldAtlas(
@@ -165,7 +197,7 @@ struct WorldAtlasTests {
       #expect(narration.text == "Start at main, then inspect the session decision.")
     }
 
-    try await withMockFoundationModels(available: false) {
+    await withMockFoundationModels(available: false) {
       let narration = await WorldAtlasNarrator.narrate(atlas: atlas)
       #expect(narration == nil)
     }
@@ -180,12 +212,12 @@ struct WorldAtlasTests {
       selectedNodeID: "branch"
     )
 
-    try await withMockFoundationModels(response: #"{"text":"Invented JSON"}"#) {
+    await withMockFoundationModels(response: #"{"text":"Invented JSON"}"#) {
       let narration = await WorldAtlasNarrator.narrate(atlas: atlas)
       #expect(narration == nil)
     }
 
-    try await withMockFoundationModels(response: "Read more at https://example.com") {
+    await withMockFoundationModels(response: "Read more at https://example.com") {
       let narration = await WorldAtlasNarrator.narrate(atlas: atlas)
       #expect(narration == nil)
     }
