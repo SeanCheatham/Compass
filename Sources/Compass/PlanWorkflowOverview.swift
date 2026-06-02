@@ -836,7 +836,7 @@ struct PlanFactoryBrief: Equatable, Sendable {
     forgeProfile: ForgeProfile? = nil
   ) {
     let routeSummary = Self.routeSummary(for: launchPlan)
-    routeLabel = launchPlan.effectiveRouteTitle
+    routeLabel = routeSummary.label
     routeDetail = routeSummary.detail
     handoffDigest = PlanHandoffDigest(plan: state.immediate?.plan)
     let repairGuide = PlanHandoffRepairGuide(
@@ -968,22 +968,59 @@ struct PlanFactoryBrief: Equatable, Sendable {
   private static func routeSummary(for launchPlan: AgentExecutionLaunchPlan) -> RouteSummary {
     if launchPlan.isVMRoute {
       return RouteSummary(
-        label: "Shared VM",
-        detail: "Develop will run inside the Shared VM workspace."
+        label: "Private workspace",
+        detail: "Develop will run inside your isolated private workspace."
       )
     }
 
     if let fallbackReason = launchPlan.fallbackReason {
       return RouteSummary(
-        label: "Native macOS fallback",
-        detail: bounded("Shared VM is not the active route: \(fallbackReason)")
+        label: "This Mac",
+        detail: bounded("Compass is using this Mac because \(userFacingFallbackReason(fallbackReason))")
       )
     }
 
     return RouteSummary(
-      label: "Native macOS",
-      detail: "This run will use the host repository directly."
+      label: "This Mac",
+      detail: "This run will use the project folder on this Mac directly."
     )
+  }
+
+  private static func userFacingFallbackReason(_ reason: String) -> String {
+    let normalized = bounded(reason)
+    let exactRewrites: [String: String] = [
+      "Shared VM readiness has not been evaluated yet.":
+        "private workspace readiness has not been checked yet.",
+      "Repository is not registered in the Shared VM workspace catalog; this phase runs on the host.":
+        "this project is not registered in the private workspace yet.",
+      "Shared VM has not been provisioned yet.":
+        "the private workspace has not been prepared yet.",
+      "Shared VM is downloading the restore image.":
+        "the private workspace is downloading macOS.",
+      "Shared VM is installing macOS.":
+        "the private workspace is installing macOS.",
+      "Shared VM guest preparation is in progress.":
+        "private workspace setup is finishing.",
+      "Shared VM is installing developer tools inside the guest.":
+        "the private workspace is installing developer tools.",
+    ]
+    if let rewritten = exactRewrites[normalized] {
+      return rewritten
+    }
+
+    var rewritten = normalized
+      .replacingOccurrences(of: "Shared VM", with: "private workspace")
+      .replacingOccurrences(of: "inside the guest", with: "inside the private workspace")
+      .replacingOccurrences(of: "guest preparation", with: "private workspace setup")
+      .replacingOccurrences(of: "workspace catalog", with: "workspace registration")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if let first = rewritten.first, first.isUppercase {
+      rewritten.replaceSubrange(
+        rewritten.startIndex...rewritten.startIndex,
+        with: String(first).lowercased()
+      )
+    }
+    return rewritten
   }
 
   private static func firstMeaningfulLine(in markdown: String) -> String {

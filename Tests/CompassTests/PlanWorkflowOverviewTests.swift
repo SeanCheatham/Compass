@@ -545,7 +545,7 @@ struct PlanWorkflowOverviewTests {
       brief.handoffDigest.outcome
         == "Make draft polish available when Apple Intelligence is off."
     )
-    try #require(brief.routeLabel == "Native macOS")
+    try #require(brief.routeLabel == "This Mac")
     try #require(brief.chips.map(\.label).contains("Swift"))
     try #require(brief.chips.map(\.label).contains("Medium difficulty"))
     try #require(brief.chips.map(\.label).contains("Timeout 90s"))
@@ -586,7 +586,7 @@ struct PlanWorkflowOverviewTests {
     try #require(payload.text.contains("Action: Run Develop"))
     try #require(payload.text.contains("Proof:\nRuns Swift tests"))
     try #require(payload.text.contains("swift test --filter DraftRefinementTests"))
-    try #require(payload.text.contains("Runtime:\nNative macOS"))
+    try #require(payload.text.contains("Runtime:\nThis Mac"))
     try #require(payload.text.contains("Status: Executable handoff"))
     try #require(
       payload.text.contains("Outcome: Make draft polish available when Apple Intelligence is off.")
@@ -601,6 +601,77 @@ struct PlanWorkflowOverviewTests {
     try #require(payload.text.contains("- Timeout 90s"))
     try #require(payload.text.count <= PlanFactoryBriefClipboardPayload.textLimit)
     try #require(!payload.isEmpty)
+  }
+
+  @Test
+  func testFactoryBriefPresentsReadySharedVMAsPrivateWorkspace() throws {
+    let state = makeState(
+      immediate: PlanNext(
+        plan: """
+          ## Outcome
+          Make generated app changes safer.
+
+          ## Acceptance checks
+          - The run stays isolated from the user's project folder.
+          """,
+        verify: "swift test --filter PlanWorkflowOverviewTests",
+        estimatedDifficulty: .low
+      )
+    )
+    let route = SharedVMRoute(
+      sshDestination: "compass@192.0.2.10",
+      hostWorktreeURL: URL(fileURLWithPath: "/tmp/CompassRouteTest"),
+      guestWorkspacePath: "/Users/compass/Compass/Repos/AAA/worktree"
+    )
+    let brief = PlanFactoryBrief(
+      state: state,
+      reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
+      launchPlan: AgentExecutionLaunchPlan(
+        selectedPreference: .sharedVM,
+        effectiveRoute: .sharedVM(route),
+        vmReadiness: .ready(sshDestination: route.sshDestination)
+      ),
+      languageProfile: profile(.swift)
+    )
+    let payload = PlanFactoryBriefClipboardPayload(brief: brief)
+
+    try #require(brief.routeLabel == "Private workspace")
+    try #require(brief.routeDetail == "Develop will run inside your isolated private workspace.")
+    try #require(brief.chips.map(\.label).contains("Private workspace"))
+    try #require(payload.text.contains("Runtime:\nPrivate workspace"))
+    try #require(!payload.text.contains("Shared VM"))
+  }
+
+  @Test
+  func testFactoryBriefTranslatesWorkspaceFallbackReasonForNonEngineers() throws {
+    let state = makeState(
+      immediate: PlanNext(
+        plan: """
+          ## Outcome
+          Make draft polish available when Apple Intelligence is off.
+
+          ## Acceptance checks
+          - Preview appears when Foundation Models are unavailable.
+          """,
+        verify: "swift test --filter DraftRefinementTests",
+        estimatedDifficulty: .medium
+      )
+    )
+    let brief = PlanFactoryBrief(
+      state: state,
+      reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
+      launchPlan: .host(fallbackReason: "Shared VM has not been provisioned yet."),
+      languageProfile: profile(.swift)
+    )
+    let payload = PlanFactoryBriefClipboardPayload(brief: brief)
+
+    try #require(brief.routeLabel == "This Mac")
+    try #require(
+      brief.routeDetail
+        == "Compass is using this Mac because the private workspace has not been prepared yet."
+    )
+    try #require(payload.text.contains("Runtime:\nThis Mac"))
+    try #require(!payload.text.contains("Shared VM"))
   }
 
   @Test
