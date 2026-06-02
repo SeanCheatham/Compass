@@ -104,12 +104,12 @@ struct ExploreCommitExplainerGitDiffTests {
     // Get the commit SHA
     let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
 
-    let result = await CommitExplainer.gitDiff(
+    let firstCommitDiff = await CommitExplainer.gitDiff(
       sha: sha,
       repoURL: test.temporaryDirectory
     )
-    // git diff <sha>^..<sha> on the first commit is empty (no parent)
-    // so let's create a second commit with a change
+    // The root commit still produces a useful diff against /dev/null.
+    try #require(!firstCommitDiff.isEmpty)
     _ = try test.commitFile("README.md", contents: "# Test\nExtra line.\n", message: "Modify")
 
     let sha2 = try getSingleCommitSHA(at: test.temporaryDirectory)

@@ -32,7 +32,7 @@ struct ExploreCodemapFileSystemGuardPathTests {
 
     // Create a regular file and a symlink to it.
     let regularFile = root.appendingPathComponent("Regular.swift")
-    try FileManager.default.createFile(atPath: regularFile.path, contents: nil)
+    try createEmptyFile(regularFile)
 
     let symlinkPath = root.appendingPathComponent("Link.swift")
     try FileManager.default.createSymbolicLink(
@@ -89,17 +89,13 @@ struct ExploreCodemapFileSystemGuardPathTests {
     let sourcesDir = root.appendingPathComponent("Sources")
     try FileManager.default.createDirectory(
       atPath: sourcesDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(
-      atPath: sourcesDir.appendingPathComponent("App.swift").path,
-      contents: nil)
+    try createEmptyFile(sourcesDir.appendingPathComponent("App.swift"))
 
     // A top-level Compass directory with a file — must be excluded.
     let compassDir = root.appendingPathComponent("Compass")
     try FileManager.default.createDirectory(
       atPath: compassDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(
-      atPath: compassDir.appendingPathComponent("Internal.swift").path,
-      contents: nil)
+    try createEmptyFile(compassDir.appendingPathComponent("Internal.swift"))
 
     let fs = CodemapFileSystem(rootURL: root)
     let tree = fs.buildTree()
@@ -125,17 +121,13 @@ struct ExploreCodemapFileSystemGuardPathTests {
     let sourcesDir = root.appendingPathComponent("Sources")
     try FileManager.default.createDirectory(
       atPath: sourcesDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(
-      atPath: sourcesDir.appendingPathComponent("App.swift").path,
-      contents: nil)
+    try createEmptyFile(sourcesDir.appendingPathComponent("App.swift"))
 
     // A top-level dot-prefix directory — must be excluded.
     let hiddenDir = root.appendingPathComponent(".Hidden")
     try FileManager.default.createDirectory(
       atPath: hiddenDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(
-      atPath: hiddenDir.appendingPathComponent("Secret.swift").path,
-      contents: nil)
+    try createEmptyFile(hiddenDir.appendingPathComponent("Secret.swift"))
 
     let fs = CodemapFileSystem(rootURL: root)
     let tree = fs.buildTree()
@@ -167,28 +159,20 @@ struct ExploreCodemapFileSystemGuardPathTests {
     let sourcesDir = root.appendingPathComponent("Sources")
     try FileManager.default.createDirectory(
       atPath: sourcesDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(
-      atPath: sourcesDir.appendingPathComponent("App.swift").path,
-      contents: nil)
+    try createEmptyFile(sourcesDir.appendingPathComponent("App.swift"))
 
     // A Docs directory with only non-source files — must be entirely absent.
     let docsDir = root.appendingPathComponent("Docs")
     try FileManager.default.createDirectory(
       atPath: docsDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(
-      atPath: docsDir.appendingPathComponent("readme.txt").path,
-      contents: nil)
-    try FileManager.default.createFile(
-      atPath: docsDir.appendingPathComponent("CHANGES").path,
-      contents: nil)
+    try createEmptyFile(docsDir.appendingPathComponent("readme.txt"))
+    try createEmptyFile(docsDir.appendingPathComponent("CHANGES"))
 
     // An Assets directory with image files only — must also be absent.
     let assetsDir = root.appendingPathComponent("Assets")
     try FileManager.default.createDirectory(
       atPath: assetsDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(
-      atPath: assetsDir.appendingPathComponent("logo.png").path,
-      contents: nil)
+    try createEmptyFile(assetsDir.appendingPathComponent("logo.png"))
 
     let fs = CodemapFileSystem(rootURL: root)
     let sourceTree = fs.buildSourceTree()
@@ -217,7 +201,7 @@ struct ExploreCodemapFileSystemGuardPathTests {
 
     // A top-level source file — survives.
     let rootFile = root.appendingPathComponent("App.swift")
-    try FileManager.default.createFile(atPath: rootFile.path, contents: nil)
+    try createEmptyFile(rootFile)
 
     // A very deep directory chain containing only non-source files — the
     // entire branch from the deepest common ancestor down must be absent.
@@ -225,9 +209,7 @@ struct ExploreCodemapFileSystemGuardPathTests {
       "Very/Deep/Dir/Structure/with/only/text/files")
     try FileManager.default.createDirectory(
       atPath: deepDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(
-      atPath: deepDir.appendingPathComponent("readme.txt").path,
-      contents: nil)
+    try createEmptyFile(deepDir.appendingPathComponent("readme.txt"))
 
     let fs = CodemapFileSystem(rootURL: root)
     let sourceTree = fs.buildSourceTree()
@@ -239,5 +221,9 @@ struct ExploreCodemapFileSystemGuardPathTests {
     // The "Very" directory and everything below it must be absent.
     let veryNodes = sourceTree.filter { $0.relativePath.hasPrefix("Very") }
     #expect(veryNodes.isEmpty)
+  }
+
+  private func createEmptyFile(_ url: URL) throws {
+    try Data().write(to: url)
   }
 }
