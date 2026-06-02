@@ -62,9 +62,10 @@ struct AssumptionReviewGuide: Equatable, Sendable {
 
     if active.isEmpty && archivedCount > 0 {
       let archivedVerb = archivedCount == 1 ? "is" : "are"
+      let archivedSteeringVerb = archivedCount == 1 ? "does not" : "do not"
       title = "All Assumptions Archived"
       detail =
-        "\(Self.countLabel(archivedCount, singular: "archived assumption", plural: "archived assumptions")) \(archivedVerb) kept in history but no longer steer future runs."
+        "\(Self.countLabel(archivedCount, singular: "archived assumption", plural: "archived assumptions")) \(archivedVerb) kept in history and \(archivedSteeringVerb) steer future runs."
       promptEffect = "Future prompts are not receiving active assumption guidance."
       tone = .empty
     } else if active.isEmpty {

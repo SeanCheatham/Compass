@@ -121,7 +121,7 @@ struct AssumptionReviewGuideTests {
     #expect(guide.title == "All Assumptions Archived")
     #expect(guide.tone == .empty)
     #expect(
-      guide.detail == "1 archived assumption is kept in history but no longer steer future runs.")
+      guide.detail == "1 archived assumption is kept in history and does not steer future runs.")
     #expect(guide.promptEffect == "Future prompts are not receiving active assumption guidance.")
     #expect(guide.promptLane.label == "No active prompt signals")
     #expect(
