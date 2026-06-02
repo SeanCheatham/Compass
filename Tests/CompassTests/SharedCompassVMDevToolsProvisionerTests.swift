@@ -19,6 +19,14 @@ struct SharedCompassVMDevToolsProvisionerTests {
   // MARK: - Rendered install script
 
   @Test
+  func testProvisionErrorLocalizedDescriptionUsesDetailedMessage() throws {
+    let error = SharedCompassVMDevToolsProvisioner.ProvisionError.probeFailed(
+      stderr: "vsock connect failed"
+    )
+    try #require(error.localizedDescription == "CLT probe failed: vsock connect failed")
+  }
+
+  @Test
   func testRenderedInstallScriptStartsWithBashShebang() throws {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
     try #require(script.hasPrefix("#!/bin/bash"))

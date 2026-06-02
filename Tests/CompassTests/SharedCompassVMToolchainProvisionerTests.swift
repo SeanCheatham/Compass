@@ -19,6 +19,15 @@ struct SharedCompassVMToolchainProvisionerTests {
     try #require(installed)
   }
 
+  @Test func provisionErrorLocalizedDescriptionUsesDetailedMessage() throws {
+    let error = SharedCompassVMToolchainProvisioner.ProvisionError.probeFailed(
+      toolchainID: "node",
+      stderr: "vsock connect failed"
+    )
+    try #require(
+      error.localizedDescription == "Toolchain node probe failed: vsock connect failed")
+  }
+
   @Test func provisionShortCircuitsWhenAlreadyInstalled() async throws {
     let runner = FakeToolchainBashRunner { command, _ in
       if command.contains("PRESENT") || command.contains("MISSING") {

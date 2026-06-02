@@ -7,6 +7,7 @@ struct ToolchainStatus: Sendable, Equatable {
   var description: String
   var installed: Bool
   var defaultProvisioned: Bool
+  var probeError: String? = nil
 }
 
 /// Host-side service for listing and installing Shared VM toolchains.
@@ -59,16 +60,28 @@ struct SharedCompassVMToolchainManager: SharedVMToolchainService {
   func listToolchains(runner: any AgentBashRunner) async throws -> [ToolchainStatus] {
     var statuses: [ToolchainStatus] = []
     statuses.reserveCapacity(SharedVMToolchainCatalog.all.count)
+    var routeLevelProbeError: String?
     for definition in SharedVMToolchainCatalog.all {
-      let installed = try await probeInstalled(definition: definition, runner: runner)
+      if let routeLevelProbeError {
+        statuses.append(
+          Self.status(for: definition, installed: false, probeError: routeLevelProbeError))
+        continue
+      }
+
+      let installed: Bool
+      do {
+        installed = try await probeInstalled(definition: definition, runner: runner)
+      } catch {
+        let detail = SharedVMToolchainDiagnostics.describe(error)
+        statuses.append(Self.status(for: definition, installed: false, probeError: detail))
+        if SharedVMToolchainDiagnostics.isRouteLevelFailure(detail) {
+          routeLevelProbeError = detail
+        }
+        continue
+      }
       statuses.append(
-        ToolchainStatus(
-          id: definition.stringID,
-          displayName: definition.displayName,
-          description: definition.description,
-          installed: installed,
-          defaultProvisioned: definition.defaultProvisioned
-        ))
+        Self.status(for: definition, installed: installed, probeError: nil)
+      )
     }
     return statuses
   }
@@ -180,5 +193,48 @@ struct SharedCompassVMToolchainManager: SharedVMToolchainService {
         state.installedToolchains.sort()
       }
     }
+  }
+
+  private static func status(
+    for definition: SharedVMToolchainDefinition,
+    installed: Bool,
+    probeError: String?
+  ) -> ToolchainStatus {
+    ToolchainStatus(
+      id: definition.stringID,
+      displayName: definition.displayName,
+      description: definition.description,
+      installed: installed,
+      defaultProvisioned: definition.defaultProvisioned,
+      probeError: probeError
+    )
+  }
+}
+
+enum SharedVMToolchainDiagnostics {
+  static func describe(_ error: any Error) -> String {
+    if let localized = error as? any LocalizedError,
+      let description = localized.errorDescription,
+      !description.isEmpty
+    {
+      return description
+    }
+    return String(describing: error)
+  }
+
+  static func compact(_ detail: String, limit: Int = 360) -> String {
+    StringUtils.boundedText(detail, limit: limit)
+  }
+
+  static func isRouteLevelFailure(_ detail: String) -> Bool {
+    let normalized = detail.lowercased()
+    return [
+      "guest rpc",
+      "transport",
+      "vsock",
+      "connect failed",
+      "request timed out",
+      "timed out after",
+    ].contains { normalized.contains($0) }
   }
 }

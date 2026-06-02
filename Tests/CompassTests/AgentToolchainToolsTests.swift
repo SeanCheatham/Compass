@@ -36,6 +36,44 @@ struct AgentToolchainToolsTests {
     try #require(result.content.contains("missing"))
   }
 
+  @Test func testListToolchainsFormatsProbeFailuresAsUnknown() async throws {
+    let service = FakeToolchainService(
+      statuses: [
+        ToolchainStatus(
+          id: "node",
+          displayName: "Node.js",
+          description: "Node toolchain",
+          installed: false,
+          defaultProvisioned: false,
+          probeError: "vsock connect failed"
+        )
+      ]
+    )
+    let tool = AgentListToolchainsTool()
+    let context = AgentToolContext(
+      workingDirectory: URL(fileURLWithPath: "/tmp/work"),
+      toolchainService: service
+    )
+    let result = try await tool.invoke(arguments: Data("{}".utf8), context: context)
+    try #require(!result.isError)
+    try #require(result.content.contains("node"))
+    try #require(result.content.contains("unknown"))
+    try #require(result.content.contains("Probe failed: vsock connect failed"))
+  }
+
+  @Test func testManagerListToolchainsReturnsUnknownRowsWhenRouteProbeFails() async throws {
+    let manager = SharedCompassVMToolchainManager(
+      bundle: SharedCompassVMBundle(rootURL: URL(fileURLWithPath: "/tmp/compass-test"))
+    )
+    let runner = ThrowingToolchainBashRunner()
+
+    let statuses = try await manager.listToolchains(runner: runner)
+
+    try #require(statuses.count == SharedVMToolchainCatalog.all.count)
+    try #require(statuses.allSatisfy { $0.probeError?.contains("vsock connect failed") == true })
+    try #require(runner.callCount == 1)
+  }
+
   @Test func testInstallToolchainRejectsUnknownID() async throws {
     let service = FakeToolchainService(statuses: [])
     let tool = AgentInstallToolchainTool()
@@ -129,5 +167,18 @@ private struct FakeToolchainService: SharedVMToolchainService {
       return try installHandler(id)
     }
     throw SharedCompassVMToolchainManager.ManagerError.unknownToolchainID(id)
+  }
+}
+
+private final class ThrowingToolchainBashRunner: AgentBashRunner, @unchecked Sendable {
+  private(set) var callCount = 0
+
+  func run(
+    command: String,
+    workingDirectory: URL,
+    timeout: TimeInterval
+  ) async throws -> ProcessResult {
+    callCount += 1
+    throw AgentFilesystemError.transportFailure("vsock connect failed")
   }
 }

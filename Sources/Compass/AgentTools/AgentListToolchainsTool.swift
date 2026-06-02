@@ -31,22 +31,28 @@ struct AgentListToolchainsTool: AgentTool {
       let statuses = try await service.listToolchains(runner: context.bashRunner)
       return .ok(Self.format(statuses))
     } catch {
-      return .failure(.rpcFailure(error.localizedDescription))
+      return .failure(.rpcFailure(SharedVMToolchainDiagnostics.describe(error)))
     }
   }
 
   static func format(_ statuses: [ToolchainStatus]) -> String {
     var lines: [String] = ["Shared VM toolchains:"]
     for status in statuses {
-      let availability = status.installed ? "installed" : "missing"
+      let availability =
+        status.probeError == nil
+        ? (status.installed ? "installed" : "missing")
+        : "unknown"
       let provisioned =
         status.defaultProvisioned ? " (default-provisioned)" : " (on-demand)"
-      lines.append("- \(status.id): \(status.displayName) — \(availability)\(provisioned)")
+      lines.append("- \(status.id): \(status.displayName) - \(availability)\(provisioned)")
       lines.append("  \(status.description)")
+      if let probeError = status.probeError {
+        lines.append("  Probe failed: \(SharedVMToolchainDiagnostics.compact(probeError))")
+      }
     }
     lines.append("")
     lines.append(
-      "Install missing on-demand toolchains with install_toolchain. Default-provisioned toolchains (command_line_tools, homebrew, ripgrep) are installed during VM setup."
+      "Install missing on-demand toolchains with install_toolchain. Unknown means Compass could not probe the guest right now. Default-provisioned toolchains (command_line_tools, homebrew, ripgrep) are installed during VM setup."
     )
     return lines.joined(separator: "\n")
   }

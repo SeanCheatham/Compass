@@ -74,7 +74,7 @@ enum SharedCompassVMDevToolsProvisioner {
 
   // MARK: - Errors
 
-  enum ProvisionError: Error, CustomStringConvertible, Equatable {
+  enum ProvisionError: Error, CustomStringConvertible, LocalizedError, Equatable {
     case probeFailed(stderr: String)
     case scriptPlantFailed(stderr: String)
     case kickoffFailed(stderr: String)
@@ -98,6 +98,8 @@ enum SharedCompassVMDevToolsProvisioner {
         return "CLT install completed but post-install verification failed: \(s)"
       }
     }
+
+    var errorDescription: String? { description }
   }
 
   /// Coarse phase the install passes through. Used both as a progress

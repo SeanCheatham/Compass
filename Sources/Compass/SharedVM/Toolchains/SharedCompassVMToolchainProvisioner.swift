@@ -9,7 +9,7 @@ enum SharedCompassVMToolchainProvisioner {
   static let shortStepTimeoutSeconds: TimeInterval = 30
   static let pollIntervalSeconds: Double = 5
 
-  enum ProvisionError: Error, CustomStringConvertible, Equatable {
+  enum ProvisionError: Error, CustomStringConvertible, LocalizedError, Equatable {
     case probeFailed(toolchainID: String, stderr: String)
     case scriptPlantFailed(toolchainID: String, stderr: String)
     case kickoffFailed(toolchainID: String, stderr: String)
@@ -33,6 +33,8 @@ enum SharedCompassVMToolchainProvisioner {
         return "Toolchain \(id) install completed but post-install verification failed: \(stderr)"
       }
     }
+
+    var errorDescription: String? { description }
   }
 
   struct ProvisionReport: Equatable {
