@@ -559,49 +559,15 @@ struct ProjectRunControls: View {
       deliverySnapshot: deliverySnapshot
     )
     let executionEnvironmentMenu = project.runtimeDiagnosticsMenu
-    let runGuide = ProjectRunControlGuide(
-      state: project.state,
-      reliabilityStatus: project.reliabilityStatus,
-      hasRepository: project.hasRepository,
-      isRunning: project.isRunning,
-      isAutoPlaying: project.isAutoPlaying,
-      isPaused: project.isPaused,
-      languageProfile: project.languageProfile,
-      forgeProfile: project.forgeProfile,
-      drafts: project.drafts
-    )
+    let runGuide = ProjectSnapshotBuilder.runGuide(for: project)
     let runNarration = matchingNarration(for: runGuide)
     let primaryExplanation = runNarration?.text ?? runGuide.primaryHelp
     let runControlPayload = ProjectRunControlClipboardPayload(guide: runGuide)
-    let draftGuide = DraftIntakeGuide(drafts: project.drafts)
-    let assumptionGuide = AssumptionReviewGuide(
-      ledger: AssumptionLedger(assumptions: project.assumptions)
-    )
-    let settingsGuide = AgentSettingsGuide(
-      settings: model.agentSettings,
-      foundationModelsAvailable: FoundationModelsAvailability.isAvailable
-    )
-    let historyItems = PlanSessionHistory.displayItems(for: project.sessions)
-    let historyFeedback = PlanReliabilityFeedback(
-      state: project.state,
-      sessions: project.sessions,
-      historyItems: historyItems
-    )
-    let historyDisplay = PlanSessionHistoryDisplay(
-      items: historyItems,
-      runCues: historyFeedback.recentRunCues
-    )
-    let historyGuide = PlanSessionHistoryGuide(
-      display: historyDisplay,
-      runCues: historyFeedback.recentRunCues
-    )
-    let snapshotPayload = ProjectSnapshotClipboardPayload(
-      projectName: project.displayName,
-      runGuide: runGuide,
-      draftGuide: draftGuide,
-      assumptionGuide: assumptionGuide,
-      settingsGuide: settingsGuide,
-      historyGuide: historyGuide
+    let snapshotPayload = ProjectSnapshotBuilder.payload(
+      for: project,
+      agentSettings: model.agentSettings,
+      foundationModelsAvailable: FoundationModelsAvailability.isAvailable,
+      runGuide: runGuide
     )
     let factoryGuide = FactoryCompassGuide(runGuide: runGuide)
 

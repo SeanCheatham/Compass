@@ -203,7 +203,7 @@ struct CompassApp: App {
 
   private var selectedRunGuide: ProjectRunControlGuide? {
     guard isOnboardingComplete, let project = model.selectedProject else { return nil }
-    return runGuide(for: project)
+    return ProjectSnapshotBuilder.runGuide(for: project)
   }
 
   private var selectedFactoryGuide: FactoryCompassGuide? {
@@ -211,54 +211,14 @@ struct CompassApp: App {
     return FactoryCompassGuide(runGuide: runGuide)
   }
 
-  private func runGuide(for project: CompassProject) -> ProjectRunControlGuide {
-    ProjectRunControlGuide(
-      state: project.state,
-      reliabilityStatus: project.reliabilityStatus,
-      hasRepository: project.hasRepository,
-      isRunning: project.isRunning,
-      isAutoPlaying: project.isAutoPlaying,
-      isPaused: project.isPaused,
-      languageProfile: project.languageProfile,
-      forgeProfile: project.forgeProfile,
-      drafts: project.drafts
-    )
-  }
-
   private var selectedProjectSnapshotPayload: ProjectSnapshotClipboardPayload? {
     guard isOnboardingComplete, let project = model.selectedProject else { return nil }
-    let draftGuide = DraftIntakeGuide(drafts: project.drafts)
-    let ledger = AssumptionLedger(assumptions: project.assumptions)
-    let assumptionGuide = AssumptionReviewGuide(ledger: ledger)
-    let historyGuide = runHistoryGuide(for: project)
-    let foundationModelsAvailable = FoundationModelsAvailability.isAvailable
-    let settingsGuide = AgentSettingsGuide(
-      settings: model.agentSettings,
-      foundationModelsAvailable: foundationModelsAvailable
-    )
-    let payload = ProjectSnapshotClipboardPayload(
-      projectName: project.displayName,
-      runGuide: runGuide(for: project),
-      draftGuide: draftGuide,
-      assumptionGuide: assumptionGuide,
-      settingsGuide: settingsGuide,
-      historyGuide: historyGuide
+    let payload = ProjectSnapshotBuilder.payload(
+      for: project,
+      agentSettings: model.agentSettings,
+      foundationModelsAvailable: FoundationModelsAvailability.isAvailable
     )
     return payload.isEmpty ? nil : payload
-  }
-
-  private func runHistoryGuide(for project: CompassProject) -> PlanSessionHistoryGuide {
-    let historyItems = PlanSessionHistory.displayItems(for: project.sessions)
-    let feedback = PlanReliabilityFeedback(
-      state: project.state,
-      sessions: project.sessions,
-      historyItems: historyItems
-    )
-    let display = PlanSessionHistoryDisplay(
-      items: historyItems,
-      runCues: feedback.recentRunCues
-    )
-    return PlanSessionHistoryGuide(display: display, runCues: feedback.recentRunCues)
   }
 
   private var projectIntakePayload: ProjectIntakeClipboardPayload {

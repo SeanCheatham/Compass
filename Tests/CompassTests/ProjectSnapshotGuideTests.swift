@@ -5,6 +5,67 @@ import Testing
 
 struct ProjectSnapshotGuideTests {
   @Test
+  @MainActor
+  func snapshotBuilderPackagesProjectStateFromOnePlace() throws {
+    let project = CompassProject(
+      repoURL: URL(fileURLWithPath: "/tmp/CompassBuilder", isDirectory: true)
+    )
+    project.drafts =
+      "- Improve snapshots because users get lost; success shows the latest run audit."
+    project.assumptions = [
+      record(
+        id: "affirmed",
+        text: "Snapshots should stay plain-language.",
+        status: .affirmed,
+        impact: "Non-developers can hand state to another helper without reading logs."
+      )
+    ]
+    project.sessions = [
+      sessionRecord(
+        2,
+        plan: """
+          ## Outcome
+          Add a shared snapshot builder.
+
+          ## Acceptance checks
+          - Snapshot callers use one assembly path.
+          """,
+        verify: "swift test --filter ProjectSnapshotGuideTests",
+        commits: [
+          SessionCommit(
+            sha: "123456789abc",
+            short: "1234567",
+            subject: "Share project snapshot builder"
+          )
+        ]
+      )
+    ]
+    let settings = AgentRuntimeSettings(
+      textProvider: .openAI,
+      baseURL: try #require(URL(string: "https://api.openai.com/v1")),
+      apiKey: "sk-builder-secret",
+      model: "gpt-4o"
+    )
+
+    let payload = ProjectSnapshotBuilder.payload(
+      for: project,
+      agentSettings: settings,
+      foundationModelsAvailable: false
+    )
+
+    #expect(payload.text.contains("Project: CompassBuilder"))
+    #expect(payload.text.contains("Draft queue:"))
+    #expect(payload.text.contains("1 draft is ready for Plan"))
+    #expect(payload.text.contains("Prompt lane: 1 active prompt signal"))
+    #expect(payload.text.contains("Run history:"))
+    #expect(payload.text.contains("Status: Latest Run Succeeded"))
+    #expect(payload.text.contains("Latest #2: Succeeded: Add a shared snapshot builder."))
+    #expect(payload.text.contains("1 commit: Explore can open file changes"))
+    #expect(payload.text.contains("Runtime readiness:"))
+    #expect(!payload.text.contains("sk-builder-secret"))
+  }
+
+  @Test
   func snapshotPayloadPackagesProjectStateWithoutSecrets() throws {
     let drafts = """
       - Make setup faster because users get stuck; success looks like tests pass.
@@ -229,6 +290,28 @@ struct ProjectSnapshotGuideTests {
       commits: commits,
       failedVerify: nil,
       runtimeRouteSummary: nil
+    )
+  }
+
+  private func sessionRecord(
+    _ number: Int,
+    plan: String?,
+    verify: String?,
+    commits: [SessionCommit] = []
+  ) -> SessionRecord {
+    SessionRecord(
+      session: number,
+      startedAt: Double(number * 1_000),
+      endedAt: Double(number * 1_000 + 500),
+      plan: plan,
+      verify: verify,
+      beforeSha: nil,
+      afterSha: nil,
+      commits: commits,
+      status: .succeeded,
+      notes: [],
+      verifyOutput: nil,
+      feedback: nil
     )
   }
 }
