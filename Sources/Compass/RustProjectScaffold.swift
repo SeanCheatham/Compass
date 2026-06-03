@@ -120,6 +120,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     app-core = { path = "crates/app-core" }
     base64 = "0.22"
     eframe = "0.29"
+    image = { version = "0.25", default-features = false, features = ["png"] }
     serde = { version = "1", features = ["derive"] }
     serde_json = "1"
     """
@@ -162,7 +163,8 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     The desktop app uses deterministic demo state and stable window labels so Compass can
     build it in the Shared VM, launch it in the guest GUI session, wait for readiness,
-    send a basic input event, capture a screenshot artifact, and terminate it cleanly.
+    optionally send a basic input event, capture a Rust-rendered viewport artifact, and
+    terminate it cleanly.
     """
   }
 
@@ -309,6 +311,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     [dependencies]
     app-core.workspace = true
     eframe.workspace = true
+    image.workspace = true
     """
   }
 
@@ -316,7 +319,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     """
     use app_core::DemoState;
     use eframe::egui;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::time::Duration;
 
     #[derive(Clone)]
@@ -324,6 +327,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         seed: String,
         ready_file: Option<PathBuf>,
         pid_file: Option<PathBuf>,
+        screenshot_file: Option<PathBuf>,
         window_title: String,
     }
 
@@ -332,6 +336,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             let mut seed = "desktop".to_owned();
             let mut ready_file = None;
             let mut pid_file = None;
+            let mut screenshot_file = None;
             let mut args = std::env::args().skip(1);
             while let Some(arg) = args.next() {
                 match arg.as_str() {
@@ -350,6 +355,11 @@ struct RustProjectScaffold: Equatable, Sendable {
                             pid_file = Some(PathBuf::from(value));
                         }
                     }
+                    "--visual-screenshot-file" => {
+                        if let Some(value) = args.next() {
+                            screenshot_file = Some(PathBuf::from(value));
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -357,6 +367,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 seed,
                 ready_file,
                 pid_file,
+                screenshot_file,
                 window_title: "\(rustStringLiteralContent(windowTitle))".to_owned(),
             }
         }
@@ -383,7 +394,10 @@ struct RustProjectScaffold: Equatable, Sendable {
     struct CompassRustApp {
         state: DemoState,
         ready_file: Option<PathBuf>,
+        screenshot_file: Option<PathBuf>,
         wrote_ready: bool,
+        requested_screenshot: bool,
+        wrote_screenshot: bool,
     }
 
     impl CompassRustApp {
@@ -391,7 +405,10 @@ struct RustProjectScaffold: Equatable, Sendable {
             Self {
                 state: DemoState::deterministic(&config.seed),
                 ready_file: config.ready_file,
+                screenshot_file: config.screenshot_file,
                 wrote_ready: false,
+                requested_screenshot: false,
+                wrote_screenshot: false,
             }
         }
     }
@@ -422,6 +439,26 @@ struct RustProjectScaffold: Equatable, Sendable {
                 self.wrote_ready = true;
             }
 
+            for event in ctx.input(|input| input.events.clone()) {
+                if let egui::Event::Screenshot { image, .. } = event {
+                    if let Some(path) = self.screenshot_file.as_ref() {
+                        match write_screenshot_file(path, &image) {
+                            Ok(()) => {
+                                self.wrote_screenshot = true;
+                            }
+                            Err(error) => {
+                                eprintln!("could not write visual screenshot: {error}");
+                            }
+                        }
+                    }
+                }
+            }
+
+            if self.screenshot_file.is_some() && !self.requested_screenshot && !self.wrote_screenshot {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot);
+                self.requested_screenshot = true;
+            }
+
             ctx.request_repaint_after(Duration::from_millis(250));
         }
     }
@@ -442,6 +479,27 @@ struct RustProjectScaffold: Equatable, Sendable {
             }
             let _ = std::fs::write(path, "ready\\n");
         }
+    }
+
+    fn write_screenshot_file(
+        path: &Path,
+        screenshot: &egui::ColorImage,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut rgba = Vec::with_capacity(screenshot.pixels.len() * 4);
+        for pixel in &screenshot.pixels {
+            rgba.extend_from_slice(&pixel.to_array());
+        }
+        image::save_buffer(
+            path,
+            &rgba,
+            screenshot.size[0] as u32,
+            screenshot.size[1] as u32,
+            image::ColorType::Rgba8,
+        )?;
+        Ok(())
     }
 
     """
@@ -521,7 +579,6 @@ struct RustProjectScaffold: Equatable, Sendable {
     }
 
     fn visual_verify(emit_base64: bool) -> Result<()> {
-        ensure_visual_tools()?;
         let artifact_dir = PathBuf::from(".compass/visual-verify");
         fs::create_dir_all(&artifact_dir)?;
         let ready_file = artifact_dir.join("ready.txt");
@@ -536,10 +593,22 @@ struct RustProjectScaffold: Equatable, Sendable {
         run("cargo", &["build", "-p", "app-desktop"])?;
         let mut child = spawn_desktop(&ready_file, &pid_file, &log_path)?;
         let result = (|| -> Result<()> {
-            wait_for_ready(&ready_file, Duration::from_secs(15), &mut child)?;
+            wait_for_file(
+                "readiness",
+                &ready_file,
+                Duration::from_secs(15),
+                &mut child,
+                &log_path,
+            )?;
             thread::sleep(Duration::from_millis(500));
             send_basic_input();
-            capture_screenshot(&screenshot)?;
+            wait_for_file(
+                "viewport screenshot",
+                &screenshot,
+                Duration::from_secs(10),
+                &mut child,
+                &log_path,
+            )?;
             if !screenshot.exists() || fs::metadata(&screenshot)?.len() == 0 {
                 return Err("visual verify screenshot was not captured".into());
             }
@@ -562,35 +631,52 @@ struct RustProjectScaffold: Equatable, Sendable {
         let stdout = File::create(log_path)?;
         let stderr = stdout.try_clone()?;
         let executable = std::env::current_dir()?.join("target/debug/app-desktop");
-        let uid = current_uid()?;
-        let child = Command::new("/bin/launchctl")
-            .arg("asuser")
-            .arg(&uid)
-            .arg(path_str(&executable)?)
+        let screenshot = PathBuf::from(".compass/visual-verify/screenshot.png");
+        let child = Command::new(path_str(&executable)?)
             .arg("--demo-seed")
             .arg("compass-visual-verify")
             .arg("--visual-ready-file")
             .arg(ready_file)
             .arg("--visual-pid-file")
             .arg(pid_file)
+            .arg("--visual-screenshot-file")
+            .arg(screenshot)
             .stdout(Stdio::from(stdout))
             .stderr(Stdio::from(stderr))
             .spawn()?;
         Ok(child)
     }
 
-    fn wait_for_ready(path: &Path, timeout: Duration, child: &mut Child) -> Result<()> {
+    fn wait_for_file(
+        label: &str,
+        path: &Path,
+        timeout: Duration,
+        child: &mut Child,
+        log_path: &Path,
+    ) -> Result<()> {
         let started = Instant::now();
         while started.elapsed() < timeout {
-            if path.exists() {
+            if path.exists()
+                && fs::metadata(path)
+                    .map(|metadata| metadata.len() > 0)
+                    .unwrap_or(false)
+            {
                 return Ok(());
             }
             if let Some(status) = child.try_wait()? {
-                return Err(format!("desktop exited before readiness: {status}").into());
+                return Err(format!(
+                    "desktop exited before {label}: {status}\\n{}",
+                    log_tail(log_path)
+                )
+                .into());
             }
             thread::sleep(Duration::from_millis(150));
         }
-        Err("desktop did not signal readiness before timeout".into())
+        Err(format!(
+            "desktop did not produce {label} before timeout\\n{}",
+            log_tail(log_path)
+        )
+        .into())
     }
 
     fn terminate(child: &mut Child, pid_file: &Path) {
@@ -640,62 +726,28 @@ struct RustProjectScaffold: Equatable, Sendable {
             .unwrap_or(false)
     }
 
-    fn ensure_visual_tools() -> Result<()> {
-        for path in [
-            "/bin/launchctl",
-            "/usr/bin/osascript",
-            "/usr/sbin/screencapture",
-        ] {
-            if !Path::new(path).exists() {
-                return Err(
-                    format!("required guest visual verification tool is missing: {path}").into(),
-                );
-            }
-        }
-        Ok(())
-    }
-
     fn send_basic_input() {
-        let _ = run_in_gui_session(
-            "/usr/bin/osascript",
-            &["-e", "tell application \\"System Events\\" to key code 49"],
-        );
-    }
-
-    fn capture_screenshot(path: &Path) -> Result<()> {
-        run_in_gui_session("/usr/sbin/screencapture", &["-x", path_str(path)?])
-    }
-
-    fn run_in_gui_session(program: &str, args: &[&str]) -> Result<()> {
-        let uid = current_uid()?;
-        let status = Command::new("/bin/launchctl")
-            .arg("asuser")
-            .arg(uid)
-            .arg(program)
-            .args(args)
-            .status()?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(format!(
-                "{program} {} failed in guest GUI session with {status}",
-                args.join(" ")
-            )
-            .into())
+        if !Path::new("/usr/bin/osascript").exists() {
+            return;
         }
-    }
-
-    fn current_uid() -> Result<String> {
-        let output = Command::new("/usr/bin/id").arg("-u").output()?;
-        if !output.status.success() {
-            return Err("could not resolve current guest uid for GUI launch".into());
+        let mut child = match Command::new("/usr/bin/osascript")
+            .args(["-e", "tell application \\"System Events\\" to key code 49"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(_) => return,
+        };
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_secs(2) {
+            if child.try_wait().ok().flatten().is_some() {
+                return;
+            }
+            thread::sleep(Duration::from_millis(100));
         }
-        let uid = String::from_utf8(output.stdout)?.trim().to_owned();
-        if uid.is_empty() {
-            Err("current guest uid was empty".into())
-        } else {
-            Ok(uid)
-        }
+        let _ = child.kill();
+        let _ = child.wait();
     }
 
     fn run(program: &str, args: &[&str]) -> Result<()> {
@@ -713,6 +765,15 @@ struct RustProjectScaffold: Equatable, Sendable {
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
             Err(error) => Err(error),
         }
+    }
+
+    fn log_tail(path: &Path) -> String {
+        let Ok(contents) = fs::read_to_string(path) else {
+            return "(desktop log unavailable)".to_owned();
+        };
+        let mut tail: Vec<&str> = contents.lines().rev().take(40).collect();
+        tail.reverse();
+        format!("desktop log tail:\\n{}", tail.join("\\n"))
     }
 
     fn path_str(path: &Path) -> Result<&str> {

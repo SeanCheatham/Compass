@@ -67,6 +67,7 @@ struct CompassApp: App {
 
   init() {
     CompassWindowStateRepair.repairNavigationSplitViewFrames()
+    RustFactorySmokeBootstrap.startIfRequested()
   }
 
   /// Mirrors `ContentView.isOnboardingComplete` so menu shortcuts
