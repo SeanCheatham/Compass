@@ -343,13 +343,29 @@ struct CompassWorkspace {
     contents: String,
     note: String? = nil
   ) throws -> URL {
+    try writeSessionAuditArtifactData(
+      session: session,
+      name: name,
+      kind: kind,
+      data: Data(contents.utf8),
+      note: note
+    )
+  }
+
+  func writeSessionAuditArtifactData(
+    session: Int,
+    name: String,
+    kind: String,
+    data: Data,
+    note: String? = nil
+  ) throws -> URL {
     let directory = sessionAuditDirectoryURL(session: session)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let safeName = Self.safeSessionAuditFileName(name)
     let url = uniqueAuditArtifactURL(directory: directory, safeName: safeName)
-    try contents.write(to: url, atomically: true, encoding: .utf8)
+    try data.write(to: url, options: .atomic)
     let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
-    let byteCount = (attributes?[.size] as? NSNumber)?.uint64Value ?? UInt64(contents.utf8.count)
+    let byteCount = (attributes?[.size] as? NSNumber)?.uint64Value ?? UInt64(data.count)
     let artifact = SessionAuditArtifact(
       path: sessionAuditRelativePath(session: session, fileName: url.lastPathComponent),
       kind: kind,

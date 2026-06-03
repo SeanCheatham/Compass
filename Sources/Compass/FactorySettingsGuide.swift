@@ -78,21 +78,21 @@ struct FactorySettingsGuide: Equatable, Sendable {
         ? "Factory Needs One Toggle"
         : "Factory Needs \(recommendedOff.count) Toggles"
       detail =
-        "Swift and Xcode projects verify most reliably through full Xcode on this Mac. Enable Host Xcode Build/Test on recommended rows so agents use the right route."
+        "Legacy Swift and Xcode repositories verify most reliably through full Xcode on this Mac. Enable Host Xcode Build/Test only on recommended imported-repo rows."
       actionLabel = "\(recommendedOff.count) recommended"
       tone = .attention
       systemImageName = "hammer.circle"
     } else if enabledCount > 0 {
       title = "Factory Verification Ready"
       detail =
-        "Host Xcode Build/Test is enabled for the projects that need full Xcode, while Develop still edits inside the private workspace."
+        "Host Xcode Build/Test is enabled for legacy imported projects that need full Xcode. Generated projects still use Rust in the private workspace."
       actionLabel = "Ready"
       tone = .ready
       systemImageName = "checkmark.seal.fill"
     } else {
       title = "Factory Defaults Ready"
       detail =
-        "No current project looks like it needs full Xcode routing. Keep Host Xcode Build/Test off until Compass marks it recommended."
+        "No current project looks like a legacy Apple build/test case. Generated projects use Rust and keep Host Xcode Build/Test off."
       actionLabel = "Ready"
       tone = .ready
       systemImageName = "checkmark.seal.fill"
@@ -146,10 +146,10 @@ struct FactorySettingsGuide: Equatable, Sendable {
     let detail: String
     if project.hostXcodeBuildTestEnabled {
       detail =
-        "Host Xcode Build/Test is on; Swift and Xcode verify steps can use full Xcode on this Mac."
+        "Host Xcode Build/Test is on for this legacy repo; Swift and Xcode verify steps can use full Xcode on this Mac."
     } else if project.recommendsHostXcode {
       detail =
-        "Recommended for this repo; enable it before agents plan Swift or Xcode build/test verification."
+        "Recommended for this legacy repo before agents plan Swift or Xcode build/test verification."
     } else {
       detail = "Off for this repo; no SwiftPM, Xcode project, or workspace signal was detected."
     }
@@ -184,7 +184,7 @@ struct FactorySettingsGuide: Equatable, Sendable {
         fraction: 1,
         label: "No recommended toggles",
         detail:
-          "Current projects can keep Host Xcode Build/Test off unless new repo evidence appears."
+          "Current projects can keep Host Xcode Build/Test off unless legacy Apple repo evidence appears."
       )
     }
 
@@ -196,7 +196,7 @@ struct FactorySettingsGuide: Equatable, Sendable {
         fraction: 1,
         label: StringUtils.boundedText(label, limit: RoutingCoverage.labelLimit),
         detail:
-          "Recommended Swift and Xcode projects are routed through full Xcode for verification."
+          "Recommended legacy Swift and Xcode repos are routed through full Xcode for verification."
       )
     }
 
@@ -207,7 +207,7 @@ struct FactorySettingsGuide: Equatable, Sendable {
       fraction: Double(enabledRecommendedCount) / Double(recommendedCount),
       label: StringUtils.boundedText(label, limit: RoutingCoverage.labelLimit),
       detail:
-        "Enable the remaining recommended rows before planning Swift or Xcode build/test verification."
+        "Enable the remaining recommended legacy rows before planning Swift or Xcode build/test verification."
     )
   }
 
@@ -248,8 +248,8 @@ struct FactorySettingsClipboardPayload: Equatable, Sendable {
         + "repo paths, build commands, Xcode availability, verification results, or hidden toggles.",
       "- Host Xcode Build/Test changes the verification route only; agents still edit inside "
         + "the private workspace.",
-      "- Recommended rows should be enabled before Swift or Xcode build/test verification is "
-        + "planned. Off rows can stay off unless new repo evidence appears.",
+      "- Recommended rows should be enabled before legacy Swift or Xcode build/test "
+        + "verification is planned. Off rows can stay off unless new legacy repo evidence appears.",
       "",
       "Status: \(guide.title) (\(guide.tone.rawValue))",
       "Action: \(guide.actionLabel)",

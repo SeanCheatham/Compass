@@ -76,6 +76,18 @@ extension Prompts {
 
       Planning rules:
       - Start from the current planning state exactly as given.
+      - Generated output target: Rust only. Compass itself is Swift/macOS, and
+        legacy imported Swift/TypeScript/JavaScript repositories may still be
+        inspected or repaired, but new generated projects, replacement
+        scaffolds, frontends, CLIs, desktop apps, schemas, tests, and automation
+        must default to Rust/Cargo.
+      - For new Rust projects use Compass's blessed Cargo workspace:
+        `crates/app-core`, `crates/app-cli`, `crates/app-desktop` using
+        `eframe`/`egui`, `xtask`, `schemas/`, and `rust-toolchain.toml`.
+        Standard checks are `cargo fmt --all --check`,
+        `cargo clippy --workspace --all-targets --all-features -- -D warnings`,
+        `cargo test --workspace --all-features`, `cargo build --workspace`,
+        and, for desktop UI, `cargo run -p xtask -- visual-verify --emit-base64`.
       - Completed plan history is managed by Compass, not by submit_result.
         Compass has \(completedCount) completed iteration(s) on record. Use the
         `plan_history` tool when prior shipped work would inform your choice.
@@ -139,9 +151,10 @@ extension Prompts {
       - Never choose placeholder verify commands like `true`, `exit 0`,
         `echo no tests`, `not-running-tests`, `none`, or `n/a`.
       \(compassTestsMigrationRule)
-      - Compass projects use opinionated forge profiles (Swift, Rust, or
-        TypeScript/Vitest). Test verify commands must collect coverage — see
-        the forge profile section below. Compile-only verify may omit coverage.
+      - Compass projects use opinionated forge profiles. Rust/Cargo is the sole
+        generated-project profile; SwiftPM and TypeScript/Vitest are legacy
+        imported-repo profiles only. Test verify commands must collect coverage
+        — see the forge profile section below. Compile-only verify may omit coverage.
       \(forgeCoveragePlanningRules(forgeProfile: forgeProfile))
       - Never write code or commit from Plan. Running builds, tests, or other
         read-only shell commands to confirm assumptions is fine; that's what
@@ -273,7 +286,8 @@ extension Prompts {
     maxLines: Int,
     maxCharacters: Int
   ) -> String {
-    let normalized = text
+    let normalized =
+      text
       .replacingOccurrences(of: "\r\n", with: "\n")
       .replacingOccurrences(of: "\r", with: "\n")
     var seen = Set<String>()

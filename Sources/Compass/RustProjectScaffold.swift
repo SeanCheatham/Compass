@@ -1,0 +1,596 @@
+import Foundation
+
+struct RustProjectScaffold: Equatable, Sendable {
+  struct Options: Equatable, Sendable {
+    var projectName: String
+    var windowTitle: String
+
+    init(projectName: String = "Compass Rust App", windowTitle: String = "Compass Rust Desktop") {
+      self.projectName = projectName
+      self.windowTitle = windowTitle
+    }
+  }
+
+  struct ScaffoldFile: Equatable, Sendable {
+    var path: String
+    var contents: String
+  }
+
+  static let desktopPackage = "app-desktop"
+  static let desktopBinary = "app-desktop"
+  static let visualVerifyCommand = "cargo run -p xtask -- visual-verify --emit-base64"
+
+  static func write(to rootURL: URL, options: Options = Options()) throws {
+    let fm = FileManager.default
+    try fm.createDirectory(at: rootURL, withIntermediateDirectories: true)
+    for file in files(options: options) {
+      let url = rootURL.appending(path: file.path)
+      try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try file.contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+  }
+
+  static func files(options: Options = Options()) -> [ScaffoldFile] {
+    let projectName = boundedLine(options.projectName, fallback: "Compass Rust App")
+    let windowTitle = boundedLine(options.windowTitle, fallback: "Compass Rust Desktop")
+    return [
+      ScaffoldFile(path: ".gitignore", contents: gitignore()),
+      ScaffoldFile(path: "Cargo.toml", contents: workspaceManifest()),
+      ScaffoldFile(path: "rust-toolchain.toml", contents: rustToolchain()),
+      ScaffoldFile(path: "README.md", contents: readme(projectName: projectName)),
+      ScaffoldFile(path: "schemas/demo-state.schema.json", contents: demoStateSchema()),
+      ScaffoldFile(path: "crates/app-core/Cargo.toml", contents: appCoreManifest()),
+      ScaffoldFile(path: "crates/app-core/src/lib.rs", contents: appCoreLib()),
+      ScaffoldFile(path: "crates/app-core/tests/state_tests.rs", contents: appCoreTests()),
+      ScaffoldFile(path: "crates/app-cli/Cargo.toml", contents: appCLIManifest()),
+      ScaffoldFile(path: "crates/app-cli/src/main.rs", contents: appCLIMain()),
+      ScaffoldFile(path: "crates/app-desktop/Cargo.toml", contents: appDesktopManifest()),
+      ScaffoldFile(
+        path: "crates/app-desktop/src/main.rs",
+        contents: appDesktopMain(windowTitle: windowTitle)
+      ),
+      ScaffoldFile(path: "xtask/Cargo.toml", contents: xtaskManifest()),
+      ScaffoldFile(path: "xtask/src/main.rs", contents: xtaskMain()),
+    ]
+  }
+
+  static func isBlessedDesktopWorkspace(at rootURL: URL) -> Bool {
+    let fm = FileManager.default
+    return fm.fileExists(atPath: rootURL.appending(path: "Cargo.toml").path)
+      && fm.fileExists(atPath: rootURL.appending(path: "crates/app-desktop/Cargo.toml").path)
+      && fm.fileExists(atPath: rootURL.appending(path: "xtask/Cargo.toml").path)
+  }
+
+  private static func boundedLine(_ value: String, fallback: String) -> String {
+    let cleaned =
+      value
+      .replacingOccurrences(of: "\r", with: " ")
+      .replacingOccurrences(of: "\n", with: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleaned.isEmpty else { return fallback }
+    return StringUtils.boundedText(cleaned, limit: 80)
+  }
+
+  private static func rustStringLiteralContent(_ value: String) -> String {
+    var escaped = ""
+    for scalar in value.unicodeScalars {
+      switch scalar {
+      case "\\":
+        escaped += "\\\\"
+      case "\"":
+        escaped += "\\\""
+      case "\t":
+        escaped += "\\t"
+      default:
+        if scalar.value < 0x20 {
+          escaped += "\\u{\(String(scalar.value, radix: 16))}"
+        } else {
+          escaped.unicodeScalars.append(scalar)
+        }
+      }
+    }
+    return escaped
+  }
+
+  private static func gitignore() -> String {
+    """
+    /target/
+    /.compass/visual-verify/
+    .DS_Store
+    """
+  }
+
+  private static func workspaceManifest() -> String {
+    """
+    [workspace]
+    resolver = "2"
+    members = [
+      "crates/app-core",
+      "crates/app-cli",
+      "crates/app-desktop",
+      "xtask",
+    ]
+
+    [workspace.package]
+    edition = "2021"
+    license = "MIT"
+    version = "0.1.0"
+
+    [workspace.dependencies]
+    app-core = { path = "crates/app-core" }
+    base64 = "0.22"
+    eframe = "0.29"
+    serde = { version = "1", features = ["derive"] }
+    serde_json = "1"
+    """
+  }
+
+  private static func rustToolchain() -> String {
+    """
+    [toolchain]
+    channel = "stable"
+    components = ["rustfmt", "clippy"]
+    """
+  }
+
+  private static func readme(projectName: String) -> String {
+    """
+    # \(projectName)
+
+    This is the blessed Compass Rust workspace shape for generated projects.
+    Compass itself remains a native Swift/macOS app; generated output lives here as Rust.
+
+    ## Architecture
+
+    - `crates/app-core`: deterministic state, pure domain logic, and schema data.
+    - `crates/app-cli`: command-line entry point for inspection and automation.
+    - `crates/app-desktop`: Rust desktop UI built with `eframe`/`egui`.
+    - `xtask`: Rust-owned automation for checks and visual verification.
+    - `schemas/`: generated-project contracts checked into the Rust workspace.
+
+    ## Standard Commands
+
+    - Format: `cargo fmt --all --check`
+    - Lint: `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+    - Test: `cargo test --workspace --all-features`
+    - Coverage: `cargo llvm-cov --summary-only`
+    - Build: `cargo build --workspace`
+    - Run CLI: `cargo run -p app-cli -- status`
+    - Run desktop: `cargo run -p app-desktop`
+    - Verify all: `cargo run -p xtask -- verify`
+    - Visual verify: `cargo run -p xtask -- visual-verify --emit-base64`
+
+    The desktop app uses deterministic demo state and stable window labels so Compass can
+    launch it in the Shared VM GUI session, wait for readiness, capture a screenshot, and
+    terminate it cleanly.
+    """
+  }
+
+  private static func demoStateSchema() -> String {
+    """
+    {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "DemoState",
+      "type": "object",
+      "required": ["headline", "completed", "total"],
+      "properties": {
+        "headline": { "type": "string" },
+        "completed": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 1 }
+      }
+    }
+    """
+  }
+
+  private static func appCoreManifest() -> String {
+    """
+    [package]
+    name = "app-core"
+    edition.workspace = true
+    license.workspace = true
+    version.workspace = true
+
+    [dependencies]
+    serde.workspace = true
+    serde_json.workspace = true
+    """
+  }
+
+  private static func appCoreLib() -> String {
+    """
+    use serde::{Deserialize, Serialize};
+    use serde_json::{json, Value};
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct DemoState {
+        pub headline: String,
+        pub completed: u8,
+        pub total: u8,
+    }
+
+    impl DemoState {
+        pub fn deterministic(seed: &str) -> Self {
+            let completed = 2 + (seed.bytes().fold(0_u8, u8::wrapping_add) % 2);
+            Self {
+                headline: "Rust workspace ready".to_owned(),
+                completed,
+                total: 4,
+            }
+        }
+
+        pub fn completion_label(&self) -> String {
+            format!("{}/{} checks ready", self.completed, self.total)
+        }
+
+        pub fn summary_line(&self) -> String {
+            format!("{} - {}", self.headline, self.completion_label())
+        }
+    }
+
+    pub fn demo_state_schema() -> Value {
+        json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "DemoState",
+            "type": "object",
+            "required": ["headline", "completed", "total"],
+            "properties": {
+                "headline": { "type": "string" },
+                "completed": { "type": "integer", "minimum": 0 },
+                "total": { "type": "integer", "minimum": 1 }
+            }
+        })
+    }
+
+    """
+  }
+
+  private static func appCoreTests() -> String {
+    """
+    use app_core::DemoState;
+
+    #[test]
+    fn deterministic_state_has_stable_labels() {
+        let state = DemoState::deterministic("compass-demo");
+
+        assert_eq!(state.headline, "Rust workspace ready");
+        assert!(state.completion_label().contains("checks ready"));
+    }
+
+    """
+  }
+
+  private static func appCLIManifest() -> String {
+    """
+    [package]
+    name = "app-cli"
+    edition.workspace = true
+    license.workspace = true
+    version.workspace = true
+
+    [dependencies]
+    app-core.workspace = true
+    serde_json.workspace = true
+    """
+  }
+
+  private static func appCLIMain() -> String {
+    """
+    use app_core::{demo_state_schema, DemoState};
+
+    fn main() -> Result<(), Box<dyn std::error::Error>> {
+        let mut args = std::env::args().skip(1);
+        match args.next().as_deref() {
+            None | Some("status") => {
+                println!("{}", DemoState::deterministic("cli").summary_line());
+            }
+            Some("schema") => {
+                println!("{}", serde_json::to_string_pretty(&demo_state_schema())?);
+            }
+            Some(other) => {
+                eprintln!("unknown command: {other}");
+                eprintln!("usage: app-cli [status|schema]");
+                std::process::exit(2);
+            }
+        }
+        Ok(())
+    }
+
+    """
+  }
+
+  private static func appDesktopManifest() -> String {
+    """
+    [package]
+    name = "app-desktop"
+    edition.workspace = true
+    license.workspace = true
+    version.workspace = true
+
+    [dependencies]
+    app-core.workspace = true
+    eframe.workspace = true
+    """
+  }
+
+  private static func appDesktopMain(windowTitle: String) -> String {
+    """
+    use app_core::DemoState;
+    use eframe::egui;
+    use std::path::PathBuf;
+    use std::time::Duration;
+
+    #[derive(Clone)]
+    struct LaunchConfig {
+        seed: String,
+        ready_file: Option<PathBuf>,
+        window_title: String,
+    }
+
+    impl LaunchConfig {
+        fn parse() -> Self {
+            let mut seed = "desktop".to_owned();
+            let mut ready_file = None;
+            let mut args = std::env::args().skip(1);
+            while let Some(arg) = args.next() {
+                match arg.as_str() {
+                    "--demo-seed" => {
+                        if let Some(value) = args.next() {
+                            seed = value;
+                        }
+                    }
+                    "--visual-ready-file" => {
+                        if let Some(value) = args.next() {
+                            ready_file = Some(PathBuf::from(value));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Self {
+                seed,
+                ready_file,
+                window_title: "\(rustStringLiteralContent(windowTitle))".to_owned(),
+            }
+        }
+    }
+
+    fn main() -> eframe::Result<()> {
+        let config = LaunchConfig::parse();
+        let title = config.window_title.clone();
+        let options = eframe::NativeOptions {
+            viewport: egui::ViewportBuilder::default()
+                .with_inner_size([860.0, 540.0])
+                .with_title(title.clone()),
+            ..Default::default()
+        };
+
+        eframe::run_native(
+            &title,
+            options,
+            Box::new(move |_cc| Ok(Box::new(CompassRustApp::new(config.clone())))),
+        )
+    }
+
+    struct CompassRustApp {
+        state: DemoState,
+        ready_file: Option<PathBuf>,
+        wrote_ready: bool,
+    }
+
+    impl CompassRustApp {
+        fn new(config: LaunchConfig) -> Self {
+            Self {
+                state: DemoState::deterministic(&config.seed),
+                ready_file: config.ready_file,
+                wrote_ready: false,
+            }
+        }
+    }
+
+    impl eframe::App for CompassRustApp {
+        fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+            if !self.wrote_ready {
+                if let Some(path) = &self.ready_file {
+                    if let Some(parent) = path.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::write(path, "ready\\n");
+                }
+                self.wrote_ready = true;
+            }
+
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.heading("Compass Rust Desktop");
+                ui.label("Visual verification target");
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.label("Project health");
+                    ui.strong(self.state.completion_label());
+                });
+                ui.add_space(12.0);
+                ui.label(self.state.summary_line());
+                ui.add_space(12.0);
+                ui.group(|ui| {
+                    ui.label("Deterministic demo state");
+                    ui.monospace("backend: app-core");
+                    ui.monospace("frontend: eframe/egui");
+                    ui.monospace("automation: xtask");
+                });
+            });
+
+            ctx.request_repaint_after(Duration::from_millis(250));
+        }
+    }
+
+    """
+  }
+
+  private static func xtaskManifest() -> String {
+    """
+    [package]
+    name = "xtask"
+    edition.workspace = true
+    license.workspace = true
+    version.workspace = true
+
+    [dependencies]
+    base64.workspace = true
+    """
+  }
+
+  private static func xtaskMain() -> String {
+    """
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use std::fs::{self, File};
+    use std::io;
+    use std::path::{Path, PathBuf};
+    use std::process::{Child, Command, Stdio};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+    fn main() -> Result<()> {
+        let mut raw_args = std::env::args().skip(1);
+        let command = raw_args.next().unwrap_or_else(|| "verify".to_owned());
+        let args: Vec<String> = raw_args.collect();
+        match command.as_str() {
+            "fmt" => run("cargo", &["fmt", "--all", "--check"]),
+            "clippy" => run(
+                "cargo",
+                &[
+                    "clippy",
+                    "--workspace",
+                    "--all-targets",
+                    "--all-features",
+                    "--",
+                    "-D",
+                    "warnings",
+                ],
+            ),
+            "test" => run("cargo", &["test", "--workspace", "--all-features"]),
+            "coverage" => run("cargo", &["llvm-cov", "--summary-only"]),
+            "build" => run("cargo", &["build", "--workspace"]),
+            "run" => run("cargo", &["run", "-p", "app-desktop"]),
+            "verify" => verify_all(),
+            "visual-verify" => visual_verify(args.iter().any(|arg| arg == "--emit-base64")),
+            other => Err(format!("unknown xtask command: {other}").into()),
+        }
+    }
+
+    fn verify_all() -> Result<()> {
+        run("cargo", &["fmt", "--all", "--check"])?;
+        run(
+            "cargo",
+            &[
+                "clippy",
+                "--workspace",
+                "--all-targets",
+                "--all-features",
+                "--",
+                "-D",
+                "warnings",
+            ],
+        )?;
+        run("cargo", &["llvm-cov", "--summary-only"])?;
+        run("cargo", &["build", "--workspace"])?;
+        Ok(())
+    }
+
+    fn visual_verify(emit_base64: bool) -> Result<()> {
+        let artifact_dir = PathBuf::from(".compass/visual-verify");
+        fs::create_dir_all(&artifact_dir)?;
+        let ready_file = artifact_dir.join("ready.txt");
+        let screenshot = artifact_dir.join("screenshot.png");
+        let log_path = artifact_dir.join("desktop.log");
+        remove_if_exists(&ready_file)?;
+        remove_if_exists(&screenshot)?;
+        remove_if_exists(&log_path)?;
+
+        run("cargo", &["build", "-p", "app-desktop"])?;
+        let mut child = spawn_desktop(&ready_file, &log_path)?;
+        let result = (|| -> Result<()> {
+            wait_for_ready(&ready_file, Duration::from_secs(15), &mut child)?;
+            thread::sleep(Duration::from_millis(500));
+            let _ = Command::new("osascript")
+                .arg("-e")
+                .arg("tell application \\"System Events\\" to key code 49")
+                .status();
+            run("screencapture", &["-x", path_str(&screenshot)?])?;
+            if !screenshot.exists() || fs::metadata(&screenshot)?.len() == 0 {
+                return Err("visual verify screenshot was not captured".into());
+            }
+            if emit_base64 {
+                let bytes = fs::read(&screenshot)?;
+                println!("COMPASS_VISUAL_SCREENSHOT_BASE64_BEGIN");
+                println!("{}", STANDARD.encode(bytes));
+                println!("COMPASS_VISUAL_SCREENSHOT_BASE64_END");
+            }
+            println!("visual verify screenshot: {}", screenshot.display());
+            println!("visual verify log: {}", log_path.display());
+            Ok(())
+        })();
+        terminate(&mut child);
+        result
+    }
+
+    fn spawn_desktop(ready_file: &Path, log_path: &Path) -> Result<Child> {
+        let stdout = File::create(log_path)?;
+        let stderr = stdout.try_clone()?;
+        let child = Command::new("target/debug/app-desktop")
+            .arg("--demo-seed")
+            .arg("compass-visual-verify")
+            .arg("--visual-ready-file")
+            .arg(ready_file)
+            .stdout(Stdio::from(stdout))
+            .stderr(Stdio::from(stderr))
+            .spawn()?;
+        Ok(child)
+    }
+
+    fn wait_for_ready(path: &Path, timeout: Duration, child: &mut Child) -> Result<()> {
+        let started = Instant::now();
+        while started.elapsed() < timeout {
+            if path.exists() {
+                return Ok(());
+            }
+            if let Some(status) = child.try_wait()? {
+                return Err(format!("desktop exited before readiness: {status}").into());
+            }
+            thread::sleep(Duration::from_millis(150));
+        }
+        Err("desktop did not signal readiness before timeout".into())
+    }
+
+    fn terminate(child: &mut Child) {
+        if child.try_wait().ok().flatten().is_none() {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+    }
+
+    fn run(program: &str, args: &[&str]) -> Result<()> {
+        let status = Command::new(program).args(args).status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("{program} {} failed with {status}", args.join(" ")).into())
+        }
+    }
+
+    fn remove_if_exists(path: &Path) -> io::Result<()> {
+        match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn path_str(path: &Path) -> Result<&str> {
+        path.to_str()
+            .ok_or_else(|| format!("non-utf8 path: {}", path.display()).into())
+    }
+
+    """
+  }
+}

@@ -481,7 +481,7 @@ private struct FactorySettingsTab: View {
 
         Section {
           Text(
-            "New SwiftPM and Xcode projects enable this automatically. When on, agents still edit in the private workspace, while build and test verification can use full Xcode on this Mac."
+            "Legacy imported SwiftPM and Xcode repositories can use this when Compass recommends it. Generated projects stay Rust-only and verify inside the private workspace without Host Xcode."
           )
           .font(.callout)
           .foregroundStyle(.secondary)

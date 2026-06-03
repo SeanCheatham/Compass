@@ -9,6 +9,39 @@ projects can run side by side from one desktop workspace.
 Compass requires macOS 26 or newer on Apple Silicon. Its private workspace
 is built directly on Apple's `Virtualization.framework`.
 
+## Generated Projects Are Rust
+
+Compass itself remains a native Swift/macOS app. The Rust pivot applies to
+projects Compass creates, verifies, repairs, and evolves as generated output.
+New generated projects are Rust-only across backend/core logic, CLI, desktop UI,
+tests, schemas, and automation wherever practical.
+
+The blessed generated-project shape is a Cargo workspace:
+
+- `crates/app-core` for deterministic domain state and schema-backed contracts.
+- `crates/app-cli` for command-line inspection and automation entry points.
+- `crates/app-desktop` for the Rust desktop/frontend UI, using `eframe`/`egui`.
+- `xtask` for Rust-owned automation.
+- `schemas/` and `rust-toolchain.toml` for checked-in contracts and toolchain
+  expectations.
+
+Standard generated-project checks are:
+
+```bash
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo llvm-cov --summary-only
+cargo build --workspace
+cargo run -p app-desktop
+cargo run -p xtask -- visual-verify --emit-base64
+```
+
+Swift, TypeScript, and JavaScript are retained as legacy imported-repository
+inspection/evolution paths only. Host Xcode exists for those legacy Apple
+repositories and for Compass's own Swift code; it is not a generated-output
+dependency.
+
 ## Run
 
 The private workspace requires the `com.apple.security.virtualization`
@@ -335,7 +368,10 @@ Compass runs every Develop iteration inside a private workspace backed by
 a Compass-managed macOS VM — the user no longer chooses between routes.
 Each project gets a persistent per-repo workspace inside that VM, and
 Compass talks to its tools (`read_file`, `write_file`, `edit_file`, `bash`,
-etc.) over vsock. Once Verify passes, Compass pulls the workspace back into
+etc.) over vsock. The VM provisions Rust as a first-class generated-project
+toolchain (`rustc`, `cargo`, `rustfmt`, `clippy`, and `cargo-llvm-cov`) so
+Cargo build, lint, test, coverage, launch, and visual verification work
+guest-local without host Xcode. Once Verify passes, Compass pulls the workspace back into
 the host repo so the iteration's commits land in the main checkout.
 
 Plan and Reflect use the same private workspace and vsock tool path when
@@ -343,6 +379,12 @@ the VM is ready. If the workspace catalog cannot map the repo or the VM is
 unavailable, Compass falls back to a direct host invocation internally.
 Only Develop iterations and their post-Verify file sync require the
 workspace to be ready.
+
+For blessed Rust desktop workspaces, post-checks can perform Level 2 visual
+verification: build in the guest, launch the desktop app in the guest GUI
+session, wait for readiness, send a basic input event when possible, capture a
+PNG screenshot, save the audit artifact, and terminate the app cleanly. Failures
+are reported as normal Verify feedback so Develop can repair and retry.
 
 The VM is built from scratch on the user's machine using
 `VZMacOSRestoreImage.fetchLatestSupported` (Apple CDN, ~14 GB macOS restore

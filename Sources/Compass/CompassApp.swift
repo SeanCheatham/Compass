@@ -87,8 +87,19 @@ struct CompassApp: App {
     .defaultSize(width: 1120, height: 760)
     .windowStyle(.titleBar)
     .commands {
-      CommandGroup(replacing: .newItem) {}
+      CommandGroup(replacing: .newItem) {
+        Button("New Rust Project") {
+          Task { await model.createRustProject() }
+        }
+        .keyboardShortcut("n", modifiers: [.command])
+        .disabled(!isOnboardingComplete)
+      }
       CommandMenu("Compass") {
+        Button("New Rust Project") {
+          Task { await model.createRustProject() }
+        }
+        .disabled(!isOnboardingComplete)
+
         Button("Add Project") {
           Task { await model.chooseRepository() }
         }

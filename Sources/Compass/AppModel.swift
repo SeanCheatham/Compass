@@ -215,6 +215,34 @@ final class AppModel: ObservableObject {
     }
   }
 
+  func createRustProject() async {
+    let panel = NSSavePanel()
+    panel.canCreateDirectories = true
+    panel.canSelectHiddenExtension = false
+    panel.isExtensionHidden = true
+    panel.nameFieldStringValue = "CompassRustApp"
+    panel.message = "Create a Rust project for Compass to evolve"
+    panel.prompt = "Create"
+
+    guard panel.runModal() == .OK, let url = panel.url else { return }
+    let projectURL = url.standardizedFileURL
+
+    do {
+      try ensureCreatableProjectDirectory(projectURL)
+      try RustProjectScaffold.write(
+        to: projectURL,
+        options: RustProjectScaffold.Options(projectName: projectURL.lastPathComponent)
+      )
+      try await initializeGeneratedRustGitRepository(at: projectURL)
+      let project = upsertProject(repoURL: projectURL)
+      selectProject(project)
+      project.logProjectSelected()
+      await project.refresh()
+    } catch {
+      fail(error)
+    }
+  }
+
   func selectProject(_ project: CompassProject) {
     selectedProjectID = project.id
     workspaceSelection = .project(project.id)
@@ -264,6 +292,75 @@ final class AppModel: ObservableObject {
     projects.insert(project, at: 0)
     saveProjects()
     return project
+  }
+
+  private func ensureCreatableProjectDirectory(_ url: URL) throws {
+    let fm = FileManager.default
+    var isDirectory: ObjCBool = false
+    if fm.fileExists(atPath: url.path, isDirectory: &isDirectory) {
+      guard isDirectory.boolValue else {
+        throw AppModelError.internalInvariant("Cannot create a Rust project over a file.")
+      }
+      let children = try fm.contentsOfDirectory(atPath: url.path)
+      guard children.isEmpty else {
+        throw AppModelError.internalInvariant(
+          "Choose an empty folder or a new folder name for the Rust project.")
+      }
+    } else {
+      try fm.createDirectory(at: url, withIntermediateDirectories: true)
+    }
+  }
+
+  private func initializeGeneratedRustGitRepository(at url: URL) async throws {
+    let fm = FileManager.default
+    if !fm.fileExists(atPath: url.appending(path: ".git").path) {
+      let initResult = try await ProcessRunner.runEnv(
+        "git",
+        ["init", "-q"],
+        workingDirectory: url
+      )
+      guard initResult.exitCode == 0 else {
+        throw AppModelError.internalInvariant(
+          "git init failed: \(processErrorDetail(initResult))")
+      }
+      _ = try await ProcessRunner.runEnv("git", ["branch", "-M", "main"], workingDirectory: url)
+    }
+
+    let addResult = try await ProcessRunner.runEnv("git", ["add", "."], workingDirectory: url)
+    guard addResult.exitCode == 0 else {
+      throw AppModelError.internalInvariant(
+        "git add failed: \(processErrorDetail(addResult))")
+    }
+
+    let status = try await ProcessRunner.runEnv(
+      "git",
+      ["status", "--porcelain"],
+      workingDirectory: url
+    )
+    guard !status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      return
+    }
+
+    let commitResult = try await ProcessRunner.runEnv(
+      "git",
+      [
+        "-c", "user.email=compass@example.invalid",
+        "-c", "user.name=Compass",
+        "commit", "-q", "-m", "Create Rust project scaffold",
+      ],
+      workingDirectory: url
+    )
+    guard commitResult.exitCode == 0 else {
+      throw AppModelError.internalInvariant(
+        "git commit failed: \(processErrorDetail(commitResult))")
+    }
+  }
+
+  private func processErrorDetail(_ result: ProcessResult) -> String {
+    let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !stderr.isEmpty { return stderr }
+    let stdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    return stdout.isEmpty ? "exit \(result.exitCode)" : stdout
   }
 
   private func resolveGitRoot(from url: URL) async throws -> URL {

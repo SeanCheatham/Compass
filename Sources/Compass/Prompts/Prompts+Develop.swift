@@ -89,6 +89,10 @@ extension Prompts {
       commands (including the verify command). Keep the change scoped to the plan.
 
       Hard rules:
+      - Generated-output work is Rust-only. Keep new generated project code,
+        frontend/desktop UI, CLI, tests, schemas, and automation in Rust/Cargo.
+        Swift changes are valid for Compass itself or legacy imported Swift
+        repos only; TypeScript/JavaScript changes are legacy imported-repo work only.
       - Do not push or use destructive git operations.
       - In Shared VM git workspaces, make local commits for your completed changes.
       - Run the verify command before finishing.

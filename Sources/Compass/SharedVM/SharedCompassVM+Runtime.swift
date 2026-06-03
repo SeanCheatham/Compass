@@ -287,7 +287,9 @@ extension SharedCompassVM {
     return true
   }
 
-  private func probeGuestAgentOnce(on machine: VZVirtualMachine, timeout: TimeInterval) async -> Bool {
+  private func probeGuestAgentOnce(on machine: VZVirtualMachine, timeout: TimeInterval) async
+    -> Bool
+  {
     let client = AgentVsockClient(
       transportFactory: {
         let connection = try await SharedCompassVMVsock.connect(on: machine)
@@ -496,7 +498,7 @@ extension SharedCompassVM {
   }
 
   /// Drives default toolchain provisioning against the live VM using a
-  /// vsock-backed bash runner: CLT, then Homebrew, then ripgrep.
+  /// vsock-backed bash runner: CLT, Homebrew, ripgrep, then Rust.
   private func runDevToolsProvisioner(destination: String) async {
     guard let machine = virtualMachine else {
       transition(to: .error(detail: "Shared VM is not running; cannot install developer tools."))
@@ -548,12 +550,28 @@ extension SharedCompassVM {
         runner: client,
         progress: { fraction in
           await MainActor.run {
-            host.transition(to: .provisioningDevTools(fractionCompleted: 0.8 + fraction * 0.2))
+            host.transition(to: .provisioningDevTools(fractionCompleted: 0.8 + fraction * 0.1))
           }
         }
       )
     } catch {
       transition(to: .error(detail: "Ripgrep install failed: \(error)"))
+      return
+    }
+
+    let rustDefinition = SharedVMToolchainCatalog.definition(for: .rust)
+    do {
+      _ = try await SharedCompassVMToolchainProvisioner.provision(
+        definition: rustDefinition,
+        runner: client,
+        progress: { fraction in
+          await MainActor.run {
+            host.transition(to: .provisioningDevTools(fractionCompleted: 0.9 + fraction * 0.1))
+          }
+        }
+      )
+    } catch {
+      transition(to: .error(detail: "Rust toolchain install failed: \(error)"))
       return
     }
 
@@ -572,8 +590,8 @@ extension SharedCompassVM {
     )
   }
 
-  /// Backfills default toolchains on guests provisioned before homebrew
-  /// was split out or ripgrep was added. This runs after readiness, so it
+  /// Backfills default toolchains on guests provisioned before Homebrew,
+  /// ripgrep, or Rust became default. This runs after readiness, so it
   /// deliberately avoids driving the readiness state machine; failures are
   /// non-fatal and the next launch can retry.
   private func ensureDefaultToolchainsIfNeeded() async {
@@ -603,7 +621,18 @@ extension SharedCompassVM {
       return
     }
 
-    guard homebrewMissing || ripgrepMissing else { return }
+    let rustMissing: Bool
+    do {
+      rustMissing =
+        try await SharedCompassVMToolchainProvisioner.probe(
+          definition: SharedVMToolchainCatalog.definition(for: .rust),
+          runner: client
+        ) == false
+    } catch {
+      return
+    }
+
+    guard homebrewMissing || ripgrepMissing || rustMissing else { return }
 
     if homebrewMissing {
       do {
@@ -620,6 +649,18 @@ extension SharedCompassVM {
     if ripgrepMissing {
       do {
         _ = try await SharedCompassVMRipgrepProvisioner.provision(
+          runner: client,
+          progress: { _ in }
+        )
+      } catch {
+        return
+      }
+    }
+
+    if rustMissing {
+      do {
+        _ = try await SharedCompassVMToolchainProvisioner.provision(
+          definition: SharedVMToolchainCatalog.definition(for: .rust),
           runner: client,
           progress: { _ in }
         )

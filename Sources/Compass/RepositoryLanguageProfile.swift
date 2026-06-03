@@ -149,11 +149,11 @@ struct RepositoryLanguageProfile: Codable, Equatable {
     let prefix: String
     switch primaryLanguage {
     case .swift:
-      prefix = "Swift forge profile"
+      prefix = "Legacy Swift profile"
     case .typeScriptJavaScript:
-      prefix = "TypeScript/JavaScript forge profile"
+      prefix = "Legacy TypeScript/JavaScript profile"
     case .rust:
-      prefix = "Rust forge profile"
+      prefix = "Rust generated-project profile"
     case .markdown:
       prefix = "Markdown-heavy profile"
     case .other:

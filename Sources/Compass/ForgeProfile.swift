@@ -1,18 +1,36 @@
 import Foundation
 
-/// Opinionated project shapes Compass supports in generated and guided repos.
-/// Each profile defines canonical verify/coverage expectations the factory
-/// enforces in prompts, plan validation, and post-check collection.
+/// Opinionated project shapes Compass understands.
+/// Rust/Cargo is the sole generated-project profile. SwiftPM and
+/// TypeScript/Vitest stay here as legacy imported-repo profiles so Compass can
+/// inspect and evolve existing user repositories without treating them as
+/// first-class generated output targets.
 enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   case swiftSPM = "swift-spm"
   case rustCargo = "rust-cargo"
   case typeScriptVitest = "ts-vitest"
 
+  static let generatedProjectDefault: ForgeProfile = .rustCargo
+  static let generatedProjectTargets: [ForgeProfile] = [.rustCargo]
+
   var displayName: String {
     switch self {
-    case .swiftSPM: return "Swift (SwiftPM)"
+    case .swiftSPM: return "Legacy Swift (SwiftPM)"
     case .rustCargo: return "Rust (Cargo)"
-    case .typeScriptVitest: return "TypeScript (Vitest + pnpm)"
+    case .typeScriptVitest: return "Legacy TypeScript (Vitest + pnpm)"
+    }
+  }
+
+  var isGeneratedProjectTarget: Bool {
+    self == Self.generatedProjectDefault
+  }
+
+  var generationStatusDescription: String {
+    switch self {
+    case .rustCargo:
+      return "default generated-project target"
+    case .swiftSPM, .typeScriptVitest:
+      return "legacy imported-repo profile; not used for new generated projects"
     }
   }
 
@@ -21,8 +39,11 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     switch self {
     case .swiftSPM:
       return """
-        Forge profile — Swift (SwiftPM):
-        - Use SwiftPM only (`Package.swift`, `Sources/`, `Tests/`). Prefer Swift Testing over XCTest for new tests.
+        Legacy forge profile — Swift (SwiftPM):
+        - This profile is for existing imported Swift repositories, including Compass itself.
+          Do not create new generated output in Swift; new generated projects must use Rust/Cargo.
+        - For legacy Swift work, use SwiftPM only (`Package.swift`, `Sources/`, `Tests/`).
+          Prefer Swift Testing over XCTest for new tests.
         - In the Shared VM, Swift/macOS build and test must run on the host (see execution environment):
           plan `requiresHostXcode: true` with `xcodebuild ... test` (package workspace when needed), use
           `host_xcode` during Develop, and do not plan guest `swift test` verify.
@@ -33,7 +54,14 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     case .rustCargo:
       return """
         Forge profile — Rust (Cargo):
-        - Standard Cargo workspace/crate layout with `Cargo.toml`.
+        - This is Compass's sole generated-project target and default.
+        - Use the blessed Cargo workspace layout: `crates/app-core`, `crates/app-cli`,
+          `crates/app-desktop` (`eframe`/`egui`), `xtask`, `schemas/`, and `rust-toolchain.toml`.
+        - Standard commands: `cargo fmt --all --check`,
+          `cargo clippy --workspace --all-targets --all-features -- -D warnings`,
+          `cargo test --workspace --all-features`, `cargo build --workspace`,
+          `cargo run -p app-desktop`, and
+          `cargo run -p xtask -- visual-verify --emit-base64` for desktop UI proof.
         - Verify for test increments should use `cargo llvm-cov --summary-only` or \
         `cargo llvm-cov test --summary-only` (requires `cargo-llvm-cov` in the project or VM).
         - When an increment touches feature-gated crates, optional providers, `cfg(...)`
@@ -43,8 +71,11 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         """
     case .typeScriptVitest:
       return """
-        Forge profile — TypeScript (Vitest + pnpm):
-        - Use pnpm as the package manager and Vitest as the sole test runner.
+        Legacy forge profile — TypeScript (Vitest + pnpm):
+        - This profile is for existing imported TypeScript repositories only.
+          Do not create new generated output in TypeScript or JavaScript; new generated
+          projects must use Rust/Cargo.
+        - For legacy TS/JS work, use pnpm as the package manager and Vitest as the sole test runner.
         - Verify for test increments must run Vitest with coverage, e.g. \
         `pnpm test -- --coverage --coverage.reporter=json-summary`.
         - Build-only increments may use `pnpm build` without coverage.
@@ -298,11 +329,11 @@ enum ForgeProfileService {
   static func detect(in repoURL: URL) -> ForgeProfile? {
     let fm = FileManager.default
     let root = repoURL.standardizedFileURL
-    if fm.fileExists(atPath: root.appending(path: "Package.swift").path) {
-      return .swiftSPM
-    }
     if fm.fileExists(atPath: root.appending(path: "Cargo.toml").path) {
       return .rustCargo
+    }
+    if fm.fileExists(atPath: root.appending(path: "Package.swift").path) {
+      return .swiftSPM
     }
     if fm.fileExists(atPath: root.appending(path: "package.json").path) {
       return .typeScriptVitest

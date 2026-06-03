@@ -35,12 +35,20 @@ struct SidebarView: View {
           .foregroundStyle(.secondary)
         Spacer()
         Button {
+          Task { await model.createRustProject() }
+        } label: {
+          Label("New Rust Project", systemImage: "plus.square.dashed")
+        }
+        .labelStyle(.iconOnly)
+        .help("New Rust project")
+
+        Button {
           Task { await model.chooseRepository() }
         } label: {
           Label("Add Project", systemImage: "folder.badge.plus")
         }
         .labelStyle(.iconOnly)
-        .help("Add project")
+        .help("Add existing project")
       }
 
       if model.projects.isEmpty {

@@ -586,7 +586,7 @@ struct ProjectRunControls: View {
           )
         }
         Text(
-          "Routes Swift and Xcode build/test through the host. Also in Settings (⌘,) → Factory."
+          "Routes legacy Swift and Xcode build/test through the host. Generated projects stay Rust. Also in Settings (⌘,) → Factory."
         )
         SettingsLink {
           Label("Open Factory Settings…", systemImage: "hammer")

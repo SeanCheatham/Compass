@@ -330,8 +330,11 @@ struct AgentSystemPromptTests {
     try #require(section.contains("list_toolchains"))
     try #require(section.contains("install_toolchain"))
     try #require(section.contains("Homebrew"))
+    try #require(section.contains("rustc"))
+    try #require(section.contains("cargo-llvm-cov"))
+    try #require(section.contains("Rust builds/tests"))
     try #require(section.contains("Docker is unavailable"))
-    try #require(section.contains("Apple platform limitation"))
+    try #require(section.contains("Apple platform legacy limitation"))
     try #require(!section.contains("For SwiftPM packages, build and test with `swift build`"))
   }
 
@@ -340,7 +343,7 @@ struct AgentSystemPromptTests {
       .sharedVM,
       hostXcodeBuildTestEnabled: true
     )
-    try #require(section.contains("Apple platform (host bridge)"))
+    try #require(section.contains("Apple platform legacy bridge"))
     try #require(section.contains("host_xcode"))
     try #require(section.contains("not guest `swift test`"))
   }

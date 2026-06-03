@@ -108,12 +108,13 @@ struct DraftRefinementTests {
   @Test func testDraftIdeaLibraryIncludesGeneralAndLanguageSpecificIdeas() throws {
     let ideas = DraftIdeaLibrary.ideas(for: languageProfile(.swift))
 
-    try #require(ideas.map(\.id) == [
-      "first-run", "plain-feedback", "swift-native-polish",
-    ])
-    try #require(ideas[0].title == "First Run")
+    try #require(
+      ideas.map(\.id) == [
+        "rust-desktop-output", "plain-feedback", "legacy-swift-polish",
+      ])
+    try #require(ideas[0].title == "Rust Desktop")
     try #require(ideas[1].systemImage == "text.bubble")
-    try #require(ideas[2].text.contains("native macOS polish"))
+    try #require(ideas[2].text.contains("legacy Swift"))
   }
 
   @Test func testDraftIdeaTemplatesAreReadyForPlan() throws {
@@ -275,7 +276,8 @@ struct DraftRefinementTests {
     let clarify = DraftIntakeGuide(drafts: "- Improve onboarding copy")
     try #require(clarify.nextAction.kind == .clarifyDrafts)
     try #require(clarify.nextAction.title == "Clarify before Plan")
-    try #require(clarify.nextAction.detail == "Clarify before Plan: Draft #1 needs Why, Success signal.")
+    try #require(
+      clarify.nextAction.detail == "Clarify before Plan: Draft #1 needs Why, Success signal.")
 
     let mixed = DraftIntakeGuide(
       drafts: """
@@ -348,7 +350,8 @@ struct DraftRefinementTests {
     try #require(payload.text.contains("Status: Draft queue needs detail"))
     try #require(payload.text.contains("Score: 1 of 2 ready"))
     try #require(payload.text.contains("Next action: Plan the ready draft"))
-    try #require(payload.text.contains("Plan scope: 1 draft is ready for Plan; 1 draft needs detail."))
+    try #require(
+      payload.text.contains("Plan scope: 1 draft is ready for Plan; 1 draft needs detail."))
     try #require(
       payload.text.contains(
         "Plan scope detail: Plan can use Draft #1 first; keep the rest queued: Draft #2 needs Why, Success signal."

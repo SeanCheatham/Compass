@@ -75,6 +75,18 @@ struct PlanPromptTests {
     try #require(prompt.contains("no matches"))
   }
 
+  @Test func testPlanPromptDeclaresRustOnlyGeneratedOutput() throws {
+    let prompt = try makePlanPrompt(forgeProfile: .rustCargo)
+    try #require(prompt.contains("Generated output target: Rust only"))
+    try #require(prompt.contains("Compass itself is Swift/macOS"))
+    try #require(prompt.contains("legacy imported Swift/TypeScript/JavaScript"))
+    try #require(prompt.contains("crates/app-core"))
+    try #require(prompt.contains("crates/app-desktop"))
+    try #require(prompt.contains("eframe"))
+    try #require(prompt.contains("egui"))
+    try #require(prompt.contains("cargo run -p xtask -- visual-verify --emit-base64"))
+  }
+
   @Test func testPlanPromptRequiresPlainLanguageExecutableHandoffs() throws {
     let prompt = try makePlanPrompt()
     try #require(prompt.contains("non-engineer owner"))

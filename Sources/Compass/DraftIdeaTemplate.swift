@@ -10,20 +10,20 @@ struct DraftIdeaTemplate: Identifiable, Equatable, Sendable {
 enum DraftIdeaLibrary {
   static func ideas(for profile: RepositoryLanguageProfile) -> [DraftIdeaTemplate] {
     [
-      firstRunIdea,
+      rustDesktopIdea,
       feedbackIdea,
       languageIdea(for: profile.primaryLanguage),
     ]
   }
 
-  private static let firstRunIdea = DraftIdeaTemplate(
-    id: "first-run",
-    title: "First Run",
-    systemImage: "figure.walk.circle",
+  private static let rustDesktopIdea = DraftIdeaTemplate(
+    id: "rust-desktop-output",
+    title: "Rust Desktop",
+    systemImage: "macwindow.badge.plus",
     text: """
-      Change: make the first-run path easier to understand
-      Because: new users need to know the next safe action without developer vocabulary
-      Done when: the main screen shows the next action clearly and existing tests pass
+      Change: create or improve the Rust desktop output path
+      Because: generated projects should build, run, and screenshot inside the Shared VM without Host Xcode
+      Done when: the Cargo workspace shows a deterministic desktop UI and Rust verification commands pass visibly
       """
   )
 
@@ -42,35 +42,35 @@ enum DraftIdeaLibrary {
     switch language {
     case .swift:
       return DraftIdeaTemplate(
-        id: "swift-native-polish",
-        title: "Native Polish",
+        id: "legacy-swift-polish",
+        title: "Legacy Swift",
         systemImage: "macwindow",
         text: """
-          Change: add a native macOS polish pass to the main workflow
-          Because: Compass should feel like a focused desktop app instead of a generic tool
+          Change: polish the imported Swift repo without creating new generated Swift output
+          Because: legacy Swift work is still inspectable, while new Compass-generated projects should be Rust
           Done when: the affected view uses clear controls, accessible labels, and existing Swift tests pass
           """
       )
     case .typeScriptJavaScript:
       return DraftIdeaTemplate(
-        id: "web-state-clarity",
-        title: "State Clarity",
+        id: "legacy-web-state-clarity",
+        title: "Legacy Web",
         systemImage: "rectangle.3.group",
         text: """
-          Change: make the primary UI state easier to scan
-          Because: users need to compare statuses and decide what to do next quickly
+          Change: repair or clarify the imported TS/JS repo without creating new generated web output
+          Because: legacy web repos are still inspectable, while new Compass-generated projects should be Rust
           Done when: the active view shows ready, blocked, and in-progress states clearly
           """
       )
     case .rust:
       return DraftIdeaTemplate(
-        id: "rust-cli-feedback",
-        title: "CLI Feedback",
-        systemImage: "terminal",
+        id: "rust-xtask-verification",
+        title: "Rust Verify",
+        systemImage: "checkmark.seal",
         text: """
-          Change: make command-line feedback easier to act on
-          Because: users need clear success and failure messages without reading implementation details
-          Done when: the relevant command shows the outcome, the blocker, and the next step
+          Change: strengthen Rust workspace verification
+          Because: generated projects should have fmt, clippy, tests, build, run, and visual verification available in Cargo
+          Done when: `cargo run -p xtask -- verify` passes and desktop visual verification shows a screenshot
           """
       )
     case .markdown:

@@ -761,6 +761,7 @@ extension CompassProject {
     var gitStatusIssues: [String] = []
     var verifyOutput: VerifyOutput?
     var requiresPlanRepair = false
+    var verifyPassed = false
 
     switch summary.status {
     case .succeeded:
@@ -827,6 +828,7 @@ extension CompassProject {
         durationMs: Int(Date().timeIntervalSince(verifyStartedAt) * 1000)
       )
       if verify.exitCode == 0 {
+        verifyPassed = true
         log("Verify passed.", level: .success)
         feedback(.verifyPassed)
         if let profile = forgeProfile {
@@ -854,6 +856,16 @@ extension CompassProject {
         verifyOutput = output
         log("Verify failed (exit \(verify.exitCode)).", level: .error)
       }
+    }
+
+    if verifyPassed, forgeProfile == .rustCargo {
+      let visualIssues = await runRustDesktopVisualVerificationIfAvailable(
+        workingDirectory: workingDirectory,
+        launchPlan: launchPlan,
+        sessionIndex: sessionIndex,
+        attempt: attempt
+      )
+      verifyIssues.append(contentsOf: visualIssues)
     }
 
     if case .sharedVM(let route) = launchPlan.effectiveRoute,

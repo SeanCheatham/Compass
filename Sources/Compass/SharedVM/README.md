@@ -30,8 +30,10 @@ warmup ──▶ notProvisioned ──▶ downloadingIPSW ──▶ installing
                                            LaunchDaemons over vsock:
                                            first softwareupdate -i for
                                            Xcode Command Line Tools,
-                                           then builds and installs ripgrep
-                                           for agent search; host polls
+                                           then Homebrew, ripgrep, and the
+                                           Rust generated-project toolchain
+                                           (`cargo`, `rustfmt`, `clippy`,
+                                           `cargo-llvm-cov`); host polls
                                            sentinel files and surfaces
                                            phase progress)
                                                        │
@@ -277,10 +279,16 @@ Per-session flow:
    persistent guest workspace.
 3. **Verify** (when the iteration's `verify` command is set) runs
    inside the guest too, via the same vsock bash RPC, unless the plan
-   explicitly uses the Host Xcode bridge.
+   explicitly uses the Host Xcode bridge for a legacy imported Apple repo.
+   Generated Rust projects should build, test, lint, launch, and visually
+   verify entirely in the guest without host Xcode.
 4. **After each attempt**, Compass requires the guest worktree to be
    clean. Verify failures prompt the agent to keep fixing, up to the
    existing 3-attempt budget.
+   Blessed Rust desktop workspaces get an additional visual verification
+   post-check: Compass builds the desktop crate, launches it in the guest
+   GUI session, waits for readiness, captures a screenshot artifact, sends a
+   basic input event when possible, and terminates the app cleanly.
 5. **On success, or after the final failed Verify attempt**, Compass
    pushes the guest `HEAD` to a staging ref, then fast-forwards the host
    branch from that ref. Failed-Verify promotions are explicitly logged

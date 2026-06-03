@@ -6,10 +6,10 @@ extension Prompts {
   ) -> String {
     guard forgeProfile == .swiftSPM else { return "" }
     return """
-      - This Swift repo runs in the Shared VM with Command Line Tools only.
+      - This legacy Swift repo runs in the Shared VM with Command Line Tools only.
         Enable **Host Xcode Build/Test** in Compass before planning `swift test`
         or `xcodebuild` verify; until then use guest `swift build` or compile-only
-        targets for verify.
+        targets for verify. Do not create new generated output in Swift.
       """
   }
 
@@ -35,12 +35,14 @@ extension Prompts {
     guard let forgeProfile else {
       return """
         ## Forge profile
-        _(not detected — Compass supports Swift/SwiftPM, Cargo, and TypeScript/Vitest projects)_
+        _(not detected — generated Compass projects default to Rust/Cargo. SwiftPM and
+        TypeScript/Vitest are legacy imported-repo profiles only.)_
         """
     }
     return """
       ## Forge profile
       Active profile: **\(forgeProfile.displayName)** (`\(forgeProfile.rawValue)`)
+      Status: \(forgeProfile.generationStatusDescription).
 
       \(forgeProfile.planningGuidance)
       """

@@ -87,7 +87,7 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
         """
     case .rust:
       return """
-        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v rustc && rustc --version' >/dev/null 2>&1
+        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(Self.rustVerificationCommand)' >/dev/null 2>&1
         """
     case .node:
       return """
@@ -95,6 +95,12 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
         """
     }
   }
+
+  /// Login-shell check that Rust's generated-project toolchain is on PATH.
+  static let rustShellPrefix = "export PATH=\"$HOME/.cargo/bin:$PATH\";"
+
+  static let rustVerificationCommand =
+    "\(rustShellPrefix) command -v rustc && command -v cargo && command -v rustfmt && command -v cargo-clippy && command -v cargo-llvm-cov && rustc --version && cargo --version && rustfmt --version && cargo clippy --version && cargo llvm-cov --version"
 
   /// Login-shell check that Node, npm, npx, and the TypeScript compiler are on PATH.
   static let nodeVerificationCommand =
@@ -212,15 +218,19 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
       id: id,
       body: """
         GUEST_USER="\(guestUser)"
-        if su - "$GUEST_USER" -c 'command -v rustc' >/dev/null 2>&1; then
+        if su - "$GUEST_USER" -c '\(rustVerificationCommand)' >/dev/null 2>&1; then
           echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
         else
           echo "\(SharedVMToolchainPaths.logTag(id: id)) installing rustup"
           su - "$GUEST_USER" -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable' \\
             || fail 2 "rustup install failed"
-          su - "$GUEST_USER" -c 'command -v rustc && rustc --version' \\
-            || fail 3 "rustc verification failed"
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed rust"
+          su - "$GUEST_USER" -c '\(rustShellPrefix) rustup component add rustfmt clippy' \\
+            || fail 3 "rustfmt/clippy install failed"
+          su - "$GUEST_USER" -c '\(rustShellPrefix) cargo install cargo-llvm-cov --locked' \\
+            || fail 4 "cargo-llvm-cov install failed"
+          su - "$GUEST_USER" -c '\(rustVerificationCommand)' \\
+            || fail 5 "rust generated-project toolchain verification failed"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed rust, cargo, rustfmt, clippy, and cargo-llvm-cov"
         fi
         """)
   }
@@ -281,7 +291,7 @@ enum SharedVMToolchainCatalog {
       dependencies: [],
       probeCommand:
         "[ -x \(SharedVMToolchainPaths.brewInstallPath) ] && echo PRESENT || echo MISSING",
-      installTimeout: 15 * 60,
+      installTimeout: 30 * 60,
       installableViaGenericProvisioner: true
     ),
     SharedVMToolchainDefinition(
@@ -298,11 +308,12 @@ enum SharedVMToolchainCatalog {
     SharedVMToolchainDefinition(
       id: .rust,
       displayName: "Rust",
-      description: "Rust toolchain via rustup (rustc, cargo).",
-      defaultProvisioned: false,
+      description:
+        "Rust generated-project toolchain via rustup (rustc, cargo, rustfmt, clippy, cargo-llvm-cov).",
+      defaultProvisioned: true,
       dependencies: [.homebrew],
       probeCommand: """
-        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v rustc >/dev/null 2>&1 && echo PRESENT || echo MISSING'
+        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(SharedVMToolchainDefinition.rustVerificationCommand) >/dev/null 2>&1 && echo PRESENT || echo MISSING'
         """,
       installTimeout: 15 * 60,
       installableViaGenericProvisioner: true

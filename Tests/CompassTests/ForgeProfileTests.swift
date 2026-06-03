@@ -4,6 +4,16 @@ import Testing
 @testable import Compass
 
 struct ForgeProfileTests {
+  @Test func rustCargoIsOnlyGeneratedProjectTarget() throws {
+    try #require(ForgeProfile.generatedProjectDefault == .rustCargo)
+    try #require(ForgeProfile.generatedProjectTargets == [.rustCargo])
+    try #require(ForgeProfile.rustCargo.isGeneratedProjectTarget)
+    try #require(!ForgeProfile.swiftSPM.isGeneratedProjectTarget)
+    try #require(!ForgeProfile.typeScriptVitest.isGeneratedProjectTarget)
+    try #require(ForgeProfile.swiftSPM.generationStatusDescription.contains("legacy"))
+    try #require(ForgeProfile.typeScriptVitest.generationStatusDescription.contains("legacy"))
+  }
+
   @Test func detectSwiftPackage() throws {
     let repoURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: repoURL) }
@@ -21,7 +31,8 @@ struct ForgeProfileTests {
   @Test func detectAndPersistWritesForgeProfileJSON() throws {
     let repoURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: repoURL) }
-    try write("[package]\nname = \"x\"\nversion = \"0.1.0\"\n", to: repoURL.appending(path: "Cargo.toml"))
+    try write(
+      "[package]\nname = \"x\"\nversion = \"0.1.0\"\n", to: repoURL.appending(path: "Cargo.toml"))
     let workspace = CompassWorkspace(repoURL: repoURL)
     try workspace.initialize()
 

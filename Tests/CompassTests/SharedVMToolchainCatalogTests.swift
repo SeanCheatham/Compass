@@ -14,7 +14,7 @@ struct SharedVMToolchainCatalogTests {
     try #require(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("command_line_tools"))
     try #require(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("homebrew"))
     try #require(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("ripgrep"))
-    try #require(!SharedVMToolchainCatalog.defaultProvisionedIDs.contains("rust"))
+    try #require(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("rust"))
   }
 
   @Test func eachInstallableToolchainRendersNonEmptyScript() throws {
@@ -53,6 +53,20 @@ struct SharedVMToolchainCatalogTests {
     let script = SharedVMToolchainCatalog.definition(for: .rust).renderInstallScript()
     try #require(script.contains("sh.rustup.rs"))
     try #require(script.contains("--default-toolchain stable"))
+    try #require(script.contains("export PATH=\"$HOME/.cargo/bin:$PATH\"; rustup component add"))
+    try #require(script.contains("export PATH=\"$HOME/.cargo/bin:$PATH\"; cargo install"))
+    try #require(script.contains("rustup component add rustfmt clippy"))
+    try #require(script.contains("cargo install cargo-llvm-cov --locked"))
+  }
+
+  @Test func rustProbeRequiresGeneratedProjectToolchain() throws {
+    let probe = SharedVMToolchainCatalog.definition(for: .rust).probeCommand
+    try #require(probe.contains("export PATH=\"$HOME/.cargo/bin:$PATH\""))
+    try #require(probe.contains("command -v rustc"))
+    try #require(probe.contains("command -v cargo"))
+    try #require(probe.contains("command -v rustfmt"))
+    try #require(probe.contains("command -v cargo-clippy"))
+    try #require(probe.contains("command -v cargo-llvm-cov"))
   }
 
   @Test func nodeScriptInstallsNodeAndGlobalTypeScript() throws {

@@ -83,7 +83,7 @@ struct AgentHostXcodeTool: AgentTool {
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Run host-side Xcode build/test against a temporary mirror of this workspace. Use for Swift, SwiftPM, xcodebuild, and Apple-platform probes instead of bash in the Shared VM guest (the guest has CLT only). Supports status, build, and test only; no Simulator management, app launch, or arbitrary host shell.",
+        "Run host-side Xcode build/test against a temporary mirror of this workspace. Use only for legacy imported Swift, SwiftPM, xcodebuild, and Apple-platform probes instead of bash in the Shared VM guest (the guest has CLT only). Generated projects stay Rust/Cargo-only. Supports status, build, and test only; no Simulator management, app launch, or arbitrary host shell.",
       parameters: schema
     )
   }

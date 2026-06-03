@@ -87,7 +87,7 @@ extension Prompts {
       "record_assumption (capture consequential assumptions for user review), remove_assumption (remove stale assumptions from active guidance)"
     let hostXcodeTool =
       hostXcodeBuildTestEnabled
-      ? "\n        - Host Xcode: host_xcode (host-side xcodebuild build/test only against a mirror; use instead of bash for Swift, SwiftPM, xcodebuild, and Apple-platform probes in the Shared VM)."
+      ? "\n        - Host Xcode: host_xcode (legacy imported Swift/Apple repo build/test only against a mirror; use instead of bash for SwiftPM, xcodebuild, and Apple-platform probes in the Shared VM; not for generated Rust output)."
       : ""
     let externalTools = externalToolList(names: externalToolNames)
     let toolList: String
@@ -270,6 +270,12 @@ extension Prompts {
     invoking phases until paused or until Plan sets `immediate` to null
     because there are no actionable candidates, no draft or feedback intent,
     and no useful repo-originated slice to plan (project complete).
+    Compass itself remains native Swift/macOS. Projects Compass creates,
+    verifies, repairs, and evolves as generated output are Rust-only: Cargo
+    workspaces with Rust backend/core, CLI, desktop UI, tests, schemas, and
+    Rust-owned automation wherever practical. Swift, TypeScript, and JavaScript
+    are legacy imported-repo inspection/evolution paths, not first-class
+    generated-output targets.
     Compass dispatches your tool calls, enforces the working-directory
     sandbox, and applies `lessonEdits` from `submit_result` on the host so
     lessons accumulate across iterations.
@@ -394,10 +400,13 @@ extension Prompts {
       return """
         Execution environment: Compass Shared VM (headless macOS guest).
         Pre-installed: Xcode Command Line Tools (`swift`, `clang`, `git`,
-        `make`, `llvm`, macOS SDK), Homebrew, and ripgrep (`rg`).
+        `make`, `llvm`, macOS SDK), Homebrew, ripgrep (`rg`), and Rust
+        generated-project tooling (`rustc`, `cargo`, `rustfmt`, `clippy`,
+        `cargo-llvm-cov`).
         \(sharedVMApplePlatformGuidance(hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled))
-        Use the guest for file edits, search, and non-Apple toolchains. On-demand
-        toolchains (install via `install_toolchain`): rust, node (npm, npx, `tsc`).
+        Use the guest for file edits, search, Rust builds/tests, Rust desktop
+        launches, and screenshot-capable visual verification. Legacy on-demand
+        toolchains (install via `install_toolchain`): node (npm, npx, `tsc`).
         Use `list_toolchains` to see what is installed.
         Docker is unavailable in the Shared VM — use the host for container workloads.\(installedSummary)
         Network egress to Apple's CDNs (softwareupdate, swift package fetch
@@ -409,21 +418,24 @@ extension Prompts {
   private static func sharedVMApplePlatformGuidance(hostXcodeBuildTestEnabled: Bool) -> String {
     if hostXcodeBuildTestEnabled {
       return """
-        Apple platform (host bridge):
+        Apple platform legacy bridge:
         Full Xcode is not in the guest. Run Swift, SwiftPM, `xcodebuild`, macOS/iOS
-        SDK work, and Apple Intelligence / `FoundationModels` checks on the host
+        SDK work, and Apple Intelligence / `FoundationModels` checks for imported
+        legacy Apple repositories on the host
         via `host_xcode` and plan verify with `requiresHostXcode: true` plus
         `xcodebuild ... build|test` (not guest `swift test`). Do not use `bash`
-        for Apple-platform build/test probes in the guest.
+        for Apple-platform build/test probes in the guest. Do not create new
+        generated output that depends on Host Xcode.
         """
     }
     return """
-      Apple platform limitation:
+      Apple platform legacy limitation:
       Full Xcode is not in the guest (`xcodebuild`, Simulator, `.xcodeproj`
-      builds, and complete SwiftPM test linking are unavailable). Until a
+      builds, and complete SwiftPM test linking are unavailable). Generated
+      Compass output should use Rust/Cargo instead of Swift or Xcode. Until a
       host build/test bridge is enabled for this project, avoid guest
       `swift test` / `xcodebuild` and prefer guest-safe `swift build` or
-      read-only inspection.
+      read-only inspection for legacy imported Swift repos.
       """
   }
 }

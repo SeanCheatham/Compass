@@ -235,7 +235,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
       case .packageJSON:
         return "npm test"
       case .cargoToml:
-        return "cargo test"
+        return coverageReadyVerifyCommand(for: .rustCargo)
       case .packageSwift:
         return "swift test"
       }
@@ -247,9 +247,9 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     case .typeScriptJavaScript:
       return "npm test"
     case .rust:
-      return "cargo test"
+      return coverageReadyVerifyCommand(for: .rustCargo)
     case .markdown, .other, .unknown:
-      return nil
+      return coverageReadyVerifyCommand(for: ForgeProfile.generatedProjectDefault)
     }
   }
 

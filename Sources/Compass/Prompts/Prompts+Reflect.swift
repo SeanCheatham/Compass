@@ -79,6 +79,9 @@ extension Prompts {
 
       Keep this tight. Do not rewrite state defensively. Do not copy shipped
       history into candidates or strategicContext.
+      Preserve Compass's pivot: generated-output projects are Rust/Cargo only.
+      Swift/TypeScript/JavaScript state is legacy imported-repo context unless
+      the repository being reflected is Compass itself.
       \(hostXcodeGuidance)
 
       ## Recent session brief
@@ -113,7 +116,8 @@ extension Prompts {
     maxLines: Int,
     maxCharacters: Int
   ) -> String {
-    let normalized = text
+    let normalized =
+      text
       .replacingOccurrences(of: "\r\n", with: "\n")
       .replacingOccurrences(of: "\r", with: "\n")
     var seen = Set<String>()

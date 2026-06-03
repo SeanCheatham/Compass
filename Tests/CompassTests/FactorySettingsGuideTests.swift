@@ -36,7 +36,7 @@ struct FactorySettingsGuideTests {
     #expect(guide.routingCoverage.fraction == 0)
     #expect(guide.rows[0].label == "Swift App (selected)")
     #expect(guide.rows[0].status == .recommended)
-    #expect(guide.rows[0].detail.contains("Recommended for this repo"))
+    #expect(guide.rows[0].detail.contains("Recommended for this legacy repo"))
   }
 
   @Test
@@ -71,7 +71,8 @@ struct FactorySettingsGuideTests {
   @Test
   func nonSwiftProjectCanKeepHostXcodeOff() {
     let guide = FactorySettingsGuide(projects: [
-      makeProject(name: "Rust Service", hostXcodeBuildTestEnabled: false, recommendsHostXcode: false)
+      makeProject(
+        name: "Rust Service", hostXcodeBuildTestEnabled: false, recommendsHostXcode: false)
     ])
 
     #expect(guide.title == "Factory Defaults Ready")

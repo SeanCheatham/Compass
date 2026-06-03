@@ -66,6 +66,10 @@ extension Prompts {
 
       What to look for:
       - Does the diff implement the plan, or does it miss / overshoot it?
+      - For generated-output work, does the diff stay Rust/Cargo-only across
+        backend/core, CLI, desktop UI, tests, schemas, and automation? Swift is
+        acceptable for Compass itself or legacy imported Swift repos only;
+        TypeScript/JavaScript is legacy imported-repo work only.
       - Are there obvious bugs the verify command wouldn't catch
         (logic errors in untested branches, leaked resources, race
         conditions, broken edge cases)?
