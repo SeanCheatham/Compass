@@ -1,8 +1,10 @@
 # SharedVM module
 
-Native macOS guest VM that Compass uses to isolate Develop iterations from
-the host. Built directly on `Virtualization.framework`; no external tooling
-(Tart, Docker, etc.) is required.
+Current native macOS guest implementation that Compass uses to isolate Develop
+iterations from the host. Built directly on `Virtualization.framework`; no
+external tooling (Tart, Docker, etc.) is required. Generated Rust projects
+should depend on the Shared VM route contract, not on macOS-specific guest
+details, so this module can adopt a smaller Linux guest later.
 
 ## Lifecycle
 

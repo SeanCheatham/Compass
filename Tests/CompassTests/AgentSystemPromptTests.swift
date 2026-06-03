@@ -329,12 +329,18 @@ struct AgentSystemPromptTests {
     let section = Prompts.executionEnvironmentSection(.sharedVM)
     try #require(section.contains("list_toolchains"))
     try #require(section.contains("install_toolchain"))
+    try #require(section.contains("Today's provisioner uses"))
+    try #require(section.contains("OS-neutral"))
+    try #require(section.contains("Linux guest can replace it later"))
     try #require(section.contains("Homebrew"))
     try #require(section.contains("rustc"))
     try #require(section.contains("cargo-llvm-cov"))
     try #require(section.contains("Rust builds/tests"))
+    try #require(section.contains("platform-neutral visual verification"))
     try #require(section.contains("Docker is unavailable"))
     try #require(section.contains("Apple platform legacy limitation"))
+    try #require(section.contains("Generated Compass output is Rust/Cargo only"))
+    try #require(!section.contains("Shared VM (macOS"))
     try #require(!section.contains("For SwiftPM packages, build and test with `swift build`"))
   }
 

@@ -15,7 +15,7 @@ struct RustDesktopVisualVerification: Equatable, Sendable {
   static let command = RustProjectScaffold.visualVerifyCommand
 
   static let requiresSharedVMRouteIssue =
-    "[verify] Rust desktop visual verification requires the Shared VM route so build, launch, input, screenshot, and termination all happen inside the guest GUI session. The blessed Rust desktop scaffold was found, but this Verify attempt is not running in the Shared VM."
+    "[verify] Rust desktop visual verification requires the Shared VM route so build, launch, platform-neutral input, screenshot capture, and termination all happen inside the guest. The blessed Rust desktop scaffold was found, but this Verify attempt is not running in the Shared VM."
 
   static func isPresent(_ result: ProcessResult) -> Bool {
     result.exitCode == 0

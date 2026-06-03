@@ -13,7 +13,11 @@ extension OSLog {
     subsystem: "com.seancheatham.Compass", category: "GuestProvision")
 }
 
-/// Singleton host for the Compass shared macOS VM.
+/// Singleton host for the Compass Shared VM.
+///
+/// The current implementation hosts the macOS guest. Callers outside this
+/// module should depend on the Shared VM route contract rather than macOS-only
+/// guest behavior so a smaller Linux guest can replace it later.
 ///
 /// Threading model: **all VZ API calls live on `@MainActor`.** Long-running
 /// work (IPSW download, install) is dispatched via `Task.detached` and
