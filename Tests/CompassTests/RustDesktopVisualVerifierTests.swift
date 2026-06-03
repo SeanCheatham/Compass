@@ -39,4 +39,52 @@ struct RustDesktopVisualVerifierTests {
     try #require(!redacted.contains("abc123"))
     try #require(redacted.contains("<base64 screenshot omitted>"))
   }
+
+  @MainActor
+  @Test func blessedDesktopScaffoldRequiresSharedVMRoute() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try RustProjectScaffold.write(to: root)
+
+    let project = CompassProject(repoURL: root)
+    let issues = await project.runRustDesktopVisualVerificationIfAvailable(
+      workingDirectory: root,
+      launchPlan: .host(),
+      sessionIndex: 0,
+      attempt: 1
+    )
+
+    try #require(issues == [RustDesktopVisualVerification.requiresSharedVMRouteIssue])
+  }
+
+  @MainActor
+  @Test func sharedVMVerifyWithoutLiveMachineDoesNotFallbackToHost() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let route = SharedVMRoute(
+      sshDestination: "compass@192.0.2.44",
+      hostWorktreeURL: root,
+      guestWorkspacePath: "/Users/compass/Compass/Repos/test/worktree"
+    )
+    let launchPlan = AgentExecutionLaunchPlan(
+      selectedPreference: .sharedVM,
+      effectiveRoute: .sharedVM(route),
+      vmReadiness: .ready(sshDestination: route.sshDestination)
+    )
+    let project = CompassProject(repoURL: root)
+
+    let result = try await project.runVerifyCommand(
+      command: "echo should-not-run-on-host",
+      hostWorkingDirectory: root,
+      timeoutSeconds: 1,
+      launchPlan: launchPlan,
+      hostRunner: { _, _, _, _, _ in
+        Issue.record("Shared VM Verify fell back to the host runner")
+        return ProcessResult(exitCode: 0, stdout: "host", stderr: "")
+      }
+    )
+
+    try #require(result.exitCode == 73)
+    try #require(result.stderr.contains("Refusing to run the guest-local command on the host"))
+  }
 }

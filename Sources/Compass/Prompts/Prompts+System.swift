@@ -398,7 +398,8 @@ extension Prompts {
           "\n        Currently installed toolchains: \(installedToolchainIDs.joined(separator: ", "))."
       }
       return """
-        Execution environment: Compass Shared VM (headless macOS guest).
+        Execution environment: Compass Shared VM (macOS guest with an
+        auto-logged-in `compass` desktop session for Rust visual checks).
         Pre-installed: Xcode Command Line Tools (`swift`, `clang`, `git`,
         `make`, `llvm`, macOS SDK), Homebrew, ripgrep (`rg`), and Rust
         generated-project tooling (`rustc`, `cargo`, `rustfmt`, `clippy`,

@@ -5,9 +5,9 @@ import Foundation
 /// semantics as `AgentHostFilesystem` on the host, expressed against the
 /// wire types so the dispatcher can hand back response payloads directly.
 ///
-/// This binary runs as a LaunchAgent inside the guest user's GUI session.
-/// The caller (host) supplies absolute paths under the synced guest
-/// workspace (~/compass/workspaces/<fingerprint>/).
+/// This binary runs as a LaunchDaemon with `UserName=compass`. The caller
+/// (host) supplies absolute paths under the synced guest workspace
+/// (`/Users/compass/Compass/Repos/<catalog-id>/worktree`).
 enum AgentFileOperations {
 
   static func readFile(at path: String) -> Result<

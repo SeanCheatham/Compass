@@ -335,9 +335,9 @@ enum SharedCompassVMHeadlessPlanter {
         "$STAGING_DIR/\(StagedFile.passwordFile)" \\
         "$MOUNT_POINT\(profile.stagingDirectoryGuestPath)/\(profile.stagedPasswordFileName)"
 
-      # CompassGuestAgent binary — root:wheel 0755. The LaunchAgent (next
-      # install) references this path; permissions match what the LaunchAgent
-      # loader expects for an executable it'll launch as the GUI user.
+      # CompassGuestAgent binary — root:wheel 0755. The LaunchDaemon (next
+      # install) references this path; permissions match what launchd expects
+      # for an executable it will run as the compass user.
       install -d -o root -g wheel -m 0755 "$MOUNT_POINT\(profile.guestAgentBinaryGuestPath.directoryComponent)"
       install -o root -g wheel -m 0755 \\
         "$STAGING_DIR/\(StagedFile.guestAgentBinary)" \\

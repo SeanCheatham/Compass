@@ -14,6 +14,9 @@ struct RustDesktopVisualVerification: Equatable, Sendable {
 
   static let command = RustProjectScaffold.visualVerifyCommand
 
+  static let requiresSharedVMRouteIssue =
+    "[verify] Rust desktop visual verification requires the Shared VM route so build, launch, input, screenshot, and termination all happen inside the guest GUI session. The blessed Rust desktop scaffold was found, but this Verify attempt is not running in the Shared VM."
+
   static func isPresent(_ result: ProcessResult) -> Bool {
     result.exitCode == 0
       && result.stdout
@@ -59,6 +62,17 @@ extension CompassProject {
     attempt: Int
   ) async -> [String] {
     do {
+      guard case .sharedVM = launchPlan.effectiveRoute else {
+        guard RustProjectScaffold.isBlessedDesktopWorkspace(at: workingDirectory) else {
+          return []
+        }
+        log(
+          "Rust desktop visual verification failed: Shared VM route is required for Level 2 verification.",
+          level: .error
+        )
+        return [RustDesktopVisualVerification.requiresSharedVMRouteIssue]
+      }
+
       let discovery = try await runVerifyCommand(
         command: RustDesktopVisualVerification.discoveryCommand,
         hostWorkingDirectory: workingDirectory,

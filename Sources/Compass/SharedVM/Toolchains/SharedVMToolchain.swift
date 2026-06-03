@@ -102,7 +102,7 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
   static let rustVerificationCommand =
     "\(rustShellPrefix) command -v rustc && command -v cargo && command -v rustfmt && command -v cargo-clippy && command -v cargo-llvm-cov && rustc --version && cargo --version && rustfmt --version && cargo clippy --version && cargo llvm-cov --version"
 
-  /// Login-shell check that Node, npm, npx, and the TypeScript compiler are on PATH.
+  /// Login-shell check that the optional legacy JS/TS imported-repo toolchain is on PATH.
   static let nodeVerificationCommand =
     "command -v node && command -v npm && command -v npx && command -v tsc && node --version && tsc --version"
 
@@ -276,7 +276,7 @@ enum SharedVMToolchainCatalog {
       id: .commandLineTools,
       displayName: "Xcode Command Line Tools",
       description:
-        "Swift, clang, git, make, and the macOS SDK. Required for SwiftPM builds in the Shared VM.",
+        "clang, git, make, Swift, and the macOS SDK. Required for Rust native linking and legacy Swift repo inspection in the Shared VM.",
       defaultProvisioned: true,
       dependencies: [],
       probeCommand: "xcode-select -p >/dev/null 2>&1 && echo PRESENT || echo MISSING",
@@ -320,9 +320,9 @@ enum SharedVMToolchainCatalog {
     ),
     SharedVMToolchainDefinition(
       id: .node,
-      displayName: "Node.js (JavaScript / TypeScript)",
+      displayName: "Legacy Node.js (JavaScript / TypeScript)",
       description:
-        "Node.js runtime with npm and npx, plus a global TypeScript install (`tsc`) for JS/TS projects.",
+        "Optional legacy imported-repo toolchain with Node.js, npm, npx, and global TypeScript (`tsc`). Not provisioned for generated Rust projects.",
       defaultProvisioned: false,
       dependencies: [.homebrew],
       probeCommand: SharedVMToolchainDefinition.nodeProbeCommand,

@@ -140,16 +140,19 @@ allowed to touch:
 The guest agent is a separate SwiftPM target (`CompassGuestAgent`)
 shipped alongside the host binary and planted at
 `/usr/local/libexec/compass-guest-agent` during first-boot. It runs as
-a `LaunchAgent`
-(`/Library/LaunchAgents/com.seancheatham.Compass.guest-agent.plist`)
-under the auto-logged-in `compass` user, which means it operates on
-guest-local files in `/Users/compass/Compass/Repos/<UUID>/worktree` — a
-non-protected path on a non-VirtioFS filesystem, so TCC is irrelevant.
+a `LaunchDaemon`
+(`/Library/LaunchDaemons/com.seancheatham.Compass.guest-agent.plist`)
+with `UserName=compass`, so it operates on guest-local files in
+`/Users/compass/Compass/Repos/<UUID>/worktree` — a non-protected path on a
+non-VirtioFS filesystem, so TCC is irrelevant.
 
-For the LaunchAgent to load, a GUI user session has to exist.
-First-boot writes `/etc/kcpassword` (Apple's XOR-obfuscated auto-login
+First-boot still writes `/etc/kcpassword` (Apple's XOR-obfuscated auto-login
 format) and sets `autoLoginUser=compass` so the guest reaches a desktop
-session unattended. The agent comes up moments later.
+session unattended. Rust desktop visual verification uses that GUI bootstrap
+explicitly: the generated `xtask visual-verify` builds in the guest, starts
+the desktop binary with `launchctl asuser`, sends a basic System Events input,
+captures a guest screenshot with `screencapture`, emits the screenshot artifact
+markers, and terminates by the app's PID file.
 
 ## Failure modes and recovery
 

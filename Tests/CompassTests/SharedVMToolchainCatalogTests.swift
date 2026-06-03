@@ -15,6 +15,20 @@ struct SharedVMToolchainCatalogTests {
     try #require(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("homebrew"))
     try #require(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("ripgrep"))
     try #require(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("rust"))
+    try #require(!SharedVMToolchainCatalog.defaultProvisionedIDs.contains("node"))
+  }
+
+  @Test func defaultToolchainsCenterGeneratedRustAndMarkNodeLegacy() throws {
+    let clt = SharedVMToolchainCatalog.definition(for: .commandLineTools)
+    let rust = SharedVMToolchainCatalog.definition(for: .rust)
+    let node = SharedVMToolchainCatalog.definition(for: .node)
+
+    try #require(clt.description.contains("Rust native linking"))
+    try #require(rust.defaultProvisioned)
+    try #require(rust.description.contains("Rust generated-project toolchain"))
+    try #require(!node.defaultProvisioned)
+    try #require(node.displayName.contains("Legacy"))
+    try #require(node.description.contains("Not provisioned for generated Rust projects"))
   }
 
   @Test func eachInstallableToolchainRendersNonEmptyScript() throws {

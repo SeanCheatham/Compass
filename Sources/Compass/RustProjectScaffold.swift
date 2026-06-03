@@ -161,8 +161,8 @@ struct RustProjectScaffold: Equatable, Sendable {
     - Visual verify: `cargo run -p xtask -- visual-verify --emit-base64`
 
     The desktop app uses deterministic demo state and stable window labels so Compass can
-    launch it in the Shared VM GUI session, wait for readiness, capture a screenshot, and
-    terminate it cleanly.
+    build it in the Shared VM, launch it in the guest GUI session, wait for readiness,
+    send a basic input event, capture a screenshot artifact, and terminate it cleanly.
     """
   }
 
@@ -323,6 +323,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     struct LaunchConfig {
         seed: String,
         ready_file: Option<PathBuf>,
+        pid_file: Option<PathBuf>,
         window_title: String,
     }
 
@@ -330,6 +331,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         fn parse() -> Self {
             let mut seed = "desktop".to_owned();
             let mut ready_file = None;
+            let mut pid_file = None;
             let mut args = std::env::args().skip(1);
             while let Some(arg) = args.next() {
                 match arg.as_str() {
@@ -343,12 +345,18 @@ struct RustProjectScaffold: Equatable, Sendable {
                             ready_file = Some(PathBuf::from(value));
                         }
                     }
+                    "--visual-pid-file" => {
+                        if let Some(value) = args.next() {
+                            pid_file = Some(PathBuf::from(value));
+                        }
+                    }
                     _ => {}
                 }
             }
             Self {
                 seed,
                 ready_file,
+                pid_file,
                 window_title: "\(rustStringLiteralContent(windowTitle))".to_owned(),
             }
         }
@@ -356,6 +364,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     fn main() -> eframe::Result<()> {
         let config = LaunchConfig::parse();
+        write_pid_file(config.pid_file.as_ref());
         let title = config.window_title.clone();
         let options = eframe::NativeOptions {
             viewport: egui::ViewportBuilder::default()
@@ -389,16 +398,6 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     impl eframe::App for CompassRustApp {
         fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-            if !self.wrote_ready {
-                if let Some(path) = &self.ready_file {
-                    if let Some(parent) = path.parent() {
-                        let _ = std::fs::create_dir_all(parent);
-                    }
-                    let _ = std::fs::write(path, "ready\\n");
-                }
-                self.wrote_ready = true;
-            }
-
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.heading("Compass Rust Desktop");
                 ui.label("Visual verification target");
@@ -418,7 +417,30 @@ struct RustProjectScaffold: Equatable, Sendable {
                 });
             });
 
+            if !self.wrote_ready {
+                write_ready_file(self.ready_file.as_ref());
+                self.wrote_ready = true;
+            }
+
             ctx.request_repaint_after(Duration::from_millis(250));
+        }
+    }
+
+    fn write_pid_file(path: Option<&PathBuf>) {
+        if let Some(path) = path {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(path, format!("{}\\n", std::process::id()));
+        }
+    }
+
+    fn write_ready_file(path: Option<&PathBuf>) {
+        if let Some(path) = path {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(path, "ready\\n");
         }
     }
 
@@ -492,31 +514,32 @@ struct RustProjectScaffold: Equatable, Sendable {
                 "warnings",
             ],
         )?;
+        run("cargo", &["test", "--workspace", "--all-features"])?;
         run("cargo", &["llvm-cov", "--summary-only"])?;
         run("cargo", &["build", "--workspace"])?;
         Ok(())
     }
 
     fn visual_verify(emit_base64: bool) -> Result<()> {
+        ensure_visual_tools()?;
         let artifact_dir = PathBuf::from(".compass/visual-verify");
         fs::create_dir_all(&artifact_dir)?;
         let ready_file = artifact_dir.join("ready.txt");
+        let pid_file = artifact_dir.join("desktop.pid");
         let screenshot = artifact_dir.join("screenshot.png");
         let log_path = artifact_dir.join("desktop.log");
         remove_if_exists(&ready_file)?;
+        remove_if_exists(&pid_file)?;
         remove_if_exists(&screenshot)?;
         remove_if_exists(&log_path)?;
 
         run("cargo", &["build", "-p", "app-desktop"])?;
-        let mut child = spawn_desktop(&ready_file, &log_path)?;
+        let mut child = spawn_desktop(&ready_file, &pid_file, &log_path)?;
         let result = (|| -> Result<()> {
             wait_for_ready(&ready_file, Duration::from_secs(15), &mut child)?;
             thread::sleep(Duration::from_millis(500));
-            let _ = Command::new("osascript")
-                .arg("-e")
-                .arg("tell application \\"System Events\\" to key code 49")
-                .status();
-            run("screencapture", &["-x", path_str(&screenshot)?])?;
+            send_basic_input();
+            capture_screenshot(&screenshot)?;
             if !screenshot.exists() || fs::metadata(&screenshot)?.len() == 0 {
                 return Err("visual verify screenshot was not captured".into());
             }
@@ -526,22 +549,30 @@ struct RustProjectScaffold: Equatable, Sendable {
                 println!("{}", STANDARD.encode(bytes));
                 println!("COMPASS_VISUAL_SCREENSHOT_BASE64_END");
             }
-            println!("visual verify screenshot: {}", screenshot.display());
-            println!("visual verify log: {}", log_path.display());
+            println!("COMPASS_VISUAL_ARTIFACT_DIR={}", artifact_dir.display());
+            println!("COMPASS_VISUAL_SCREENSHOT_PATH={}", screenshot.display());
+            println!("COMPASS_VISUAL_LOG_PATH={}", log_path.display());
             Ok(())
         })();
-        terminate(&mut child);
+        terminate(&mut child, &pid_file);
         result
     }
 
-    fn spawn_desktop(ready_file: &Path, log_path: &Path) -> Result<Child> {
+    fn spawn_desktop(ready_file: &Path, pid_file: &Path, log_path: &Path) -> Result<Child> {
         let stdout = File::create(log_path)?;
         let stderr = stdout.try_clone()?;
-        let child = Command::new("target/debug/app-desktop")
+        let executable = std::env::current_dir()?.join("target/debug/app-desktop");
+        let uid = current_uid()?;
+        let child = Command::new("/bin/launchctl")
+            .arg("asuser")
+            .arg(&uid)
+            .arg(path_str(&executable)?)
             .arg("--demo-seed")
             .arg("compass-visual-verify")
             .arg("--visual-ready-file")
             .arg(ready_file)
+            .arg("--visual-pid-file")
+            .arg(pid_file)
             .stdout(Stdio::from(stdout))
             .stderr(Stdio::from(stderr))
             .spawn()?;
@@ -562,11 +593,109 @@ struct RustProjectScaffold: Equatable, Sendable {
         Err("desktop did not signal readiness before timeout".into())
     }
 
-    fn terminate(child: &mut Child) {
+    fn terminate(child: &mut Child, pid_file: &Path) {
+        if let Ok(raw_pid) = fs::read_to_string(pid_file) {
+            if let Ok(pid) = raw_pid.trim().parse::<u32>() {
+                terminate_pid(pid);
+            }
+        }
         if child.try_wait().ok().flatten().is_none() {
-            let _ = child.kill();
+            terminate_pid(child.id());
+            if child.try_wait().ok().flatten().is_none() {
+                let _ = child.kill();
+            }
         }
         let _ = child.wait();
+    }
+
+    fn terminate_pid(pid: u32) {
+        let pid_text = pid.to_string();
+        let _ = Command::new("/bin/kill")
+            .arg("-TERM")
+            .arg(&pid_text)
+            .status();
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_secs(2) {
+            if !pid_is_running(pid) {
+                return;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        if pid_is_running(pid) {
+            let _ = Command::new("/bin/kill")
+                .arg("-KILL")
+                .arg(pid_text)
+                .status();
+        }
+    }
+
+    fn pid_is_running(pid: u32) -> bool {
+        Command::new("/bin/kill")
+            .arg("-0")
+            .arg(pid.to_string())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
+
+    fn ensure_visual_tools() -> Result<()> {
+        for path in [
+            "/bin/launchctl",
+            "/usr/bin/osascript",
+            "/usr/sbin/screencapture",
+        ] {
+            if !Path::new(path).exists() {
+                return Err(
+                    format!("required guest visual verification tool is missing: {path}").into(),
+                );
+            }
+        }
+        Ok(())
+    }
+
+    fn send_basic_input() {
+        let _ = run_in_gui_session(
+            "/usr/bin/osascript",
+            &["-e", "tell application \\"System Events\\" to key code 49"],
+        );
+    }
+
+    fn capture_screenshot(path: &Path) -> Result<()> {
+        run_in_gui_session("/usr/sbin/screencapture", &["-x", path_str(path)?])
+    }
+
+    fn run_in_gui_session(program: &str, args: &[&str]) -> Result<()> {
+        let uid = current_uid()?;
+        let status = Command::new("/bin/launchctl")
+            .arg("asuser")
+            .arg(uid)
+            .arg(program)
+            .args(args)
+            .status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "{program} {} failed in guest GUI session with {status}",
+                args.join(" ")
+            )
+            .into())
+        }
+    }
+
+    fn current_uid() -> Result<String> {
+        let output = Command::new("/usr/bin/id").arg("-u").output()?;
+        if !output.status.success() {
+            return Err("could not resolve current guest uid for GUI launch".into());
+        }
+        let uid = String::from_utf8(output.stdout)?.trim().to_owned();
+        if uid.is_empty() {
+            Err("current guest uid was empty".into())
+        } else {
+            Ok(uid)
+        }
     }
 
     fn run(program: &str, args: &[&str]) -> Result<()> {

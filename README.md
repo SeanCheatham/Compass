@@ -382,9 +382,10 @@ workspace to be ready.
 
 For blessed Rust desktop workspaces, post-checks can perform Level 2 visual
 verification: build in the guest, launch the desktop app in the guest GUI
-session, wait for readiness, send a basic input event when possible, capture a
-PNG screenshot, save the audit artifact, and terminate the app cleanly. Failures
-are reported as normal Verify feedback so Develop can repair and retry.
+session via `launchctl asuser`, wait for readiness, send a basic input event
+when possible, capture a PNG screenshot with guest-local tools, save the audit
+artifact, and terminate the app cleanly. Failures are reported as normal Verify
+feedback so Develop can repair and retry.
 
 The VM is built from scratch on the user's machine using
 `VZMacOSRestoreImage.fetchLatestSupported` (Apple CDN, ~14 GB macOS restore

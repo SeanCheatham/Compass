@@ -274,10 +274,10 @@ struct SharedCompassVMConfiguration {
   /// Virtio-vsock device. This is the transport the Compass guest agent
   /// uses to receive tool-call RPCs from the host without going through
   /// sshd. sshd-spawned processes on macOS guests are TCC-blocked from
-  /// reading the VirtioFS-mounted worktree (confirmed via live testing
-  /// against the running guest — see Phase R's commit), so the agent
-  /// has to run inside the user GUI session via a LaunchAgent and the
-  /// host has to reach it via a transport that doesn't involve sshd.
+  /// reading host-mounted worktrees (confirmed via live testing against
+  /// the running guest — see Phase R's commit), so Compass keeps worktrees
+  /// guest-local and reaches the agent through a transport that doesn't
+  /// involve sshd.
   /// vsock fits: it's a kernel-level socket that bypasses the network
   /// and TCC entirely. The host opens a connection via
   /// `VZVirtualMachine.socketDevices.first?.connect(toPort:)`.

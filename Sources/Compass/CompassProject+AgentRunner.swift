@@ -492,6 +492,12 @@ extension CompassProject {
         timeout: timeoutSeconds
       )
     }
+    if case .sharedVM(let route) = launchPlan.effectiveRoute {
+      let message =
+        "Shared VM route selected for Verify at \(route.guestWorkspacePath), but no live virtual machine was connected. Refusing to run the guest-local command on the host."
+      log(message, level: .error)
+      return ProcessResult(exitCode: 73, stdout: "", stderr: message)
+    }
     return try await ProcessRunner.runShell(
       command,
       workingDirectory: hostWorkingDirectory,

@@ -176,7 +176,7 @@ extension SharedCompassVM {
 
     // Locate the in-guest agent binary alongside the host executable
     // and load its bytes — the planter ships it onto the guest's
-    // /usr/local/libexec/ so the LaunchAgent has something to launch.
+    // /usr/local/libexec/ so the LaunchDaemon has something to launch.
     let guestAgentBinaryURL = try locateGuestAgentBinary()
     let guestAgentBinary = try Data(contentsOf: guestAgentBinaryURL)
 

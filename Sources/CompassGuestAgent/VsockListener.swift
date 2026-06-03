@@ -9,8 +9,9 @@ import Foundation
 /// to a handler. AF_VSOCK is a Darwin-supported socket family for VM-host
 /// communication that bypasses the network stack entirely. The host
 /// dispatches file/bash RPCs over vsock because sshd-spawned processes on
-/// macOS guests are TCC-blocked from reading guest workspace paths.
-/// The guest agent runs as a LaunchAgent in the `compass` GUI session.
+/// macOS guests are TCC-blocked from host-mounted paths. The guest agent
+/// runs as a LaunchDaemon with `UserName=compass` against guest-local
+/// workspaces.
 final class VsockListener {
   /// macOS AF_VSOCK socket family (defined in <sys/socket.h>).
   static let AF_VSOCK: Int32 = 40

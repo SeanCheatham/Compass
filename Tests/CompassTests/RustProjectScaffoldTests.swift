@@ -33,6 +33,8 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains("cargo llvm-cov --summary-only"))
     try #require(readme.contains("cargo build --workspace"))
     try #require(readme.contains(RustProjectScaffold.visualVerifyCommand))
+    try #require(readme.contains("guest GUI session"))
+    try #require(readme.contains("send a basic input event"))
   }
 
   @Test func desktopTemplateHasStableVisualVerificationLabels() throws {
@@ -43,6 +45,9 @@ struct RustProjectScaffoldTests {
     try #require(desktop.contains("Visual verification target"))
     try #require(desktop.contains("Project health"))
     try #require(desktop.contains("--visual-ready-file"))
+    try #require(desktop.contains("--visual-pid-file"))
+    try #require(desktop.contains("write_ready_file"))
+    try #require(desktop.contains("std::process::id()"))
   }
 
   @Test func desktopTemplateEscapesWindowTitleForRustSource() throws {
@@ -64,13 +69,20 @@ struct RustProjectScaffoldTests {
     try #require(xtask.contains("cargo"))
     try #require(xtask.contains("build"))
     try #require(
+      xtask.contains("run(\"cargo\", &[\"test\", \"--workspace\", \"--all-features\"])?"))
+    try #require(
       xtask.contains("\"coverage\" => run(\"cargo\", &[\"llvm-cov\", \"--summary-only\"])"))
     try #require(xtask.contains("run(\"cargo\", &[\"llvm-cov\", \"--summary-only\"])?"))
     try #require(xtask.contains("spawn_desktop"))
     try #require(xtask.contains("wait_for_ready"))
+    try #require(xtask.contains("launchctl"))
+    try #require(xtask.contains("asuser"))
     try #require(xtask.contains("screencapture"))
     try #require(xtask.contains("osascript"))
+    try #require(xtask.contains("send_basic_input"))
+    try #require(xtask.contains("COMPASS_VISUAL_SCREENSHOT_PATH"))
     try #require(xtask.contains("terminate"))
+    try #require(xtask.contains("-TERM"))
     try #require(xtask.contains(RustDesktopVisualVerification.screenshotBeginMarker))
     try #require(xtask.contains(RustDesktopVisualVerification.screenshotEndMarker))
   }
@@ -86,5 +98,35 @@ struct RustProjectScaffoldTests {
 
     try #require(RustProjectScaffold.isBlessedDesktopWorkspace(at: root))
     try #require(FileManager.default.fileExists(atPath: root.appending(path: ".gitignore").path))
+  }
+
+  @Test func generatedRustScaffoldCargoSmokeWhenRequested() async throws {
+    guard ProcessInfo.processInfo.environment["COMPASS_RUN_GENERATED_RUST_SMOKE"] == "1" else {
+      return
+    }
+
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try RustProjectScaffold.write(
+      to: root,
+      options: RustProjectScaffold.Options(projectName: "Compass Cargo Smoke")
+    )
+
+    try await requireCommand(["fmt", "--all", "--check"], in: root)
+    try await requireCommand(["test", "--workspace", "--all-features"], in: root)
+    try await requireCommand(["build", "-p", RustProjectScaffold.desktopPackage], in: root)
+  }
+
+  private func requireCommand(_ arguments: [String], in root: URL) async throws {
+    let result = try await ProcessRunner.runEnv(
+      "cargo",
+      arguments,
+      workingDirectory: root,
+      timeout: 20 * 60
+    )
+    try #require(
+      result.exitCode == 0,
+      "cargo \(arguments.joined(separator: " ")) failed:\n\(result.stdout)\n\(result.stderr)"
+    )
   }
 }

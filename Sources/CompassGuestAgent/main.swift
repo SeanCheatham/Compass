@@ -6,16 +6,15 @@ if GitRemoteCompassHelper.shouldRun(arguments: CommandLine.arguments) {
   GitRemoteCompassHelper.run(arguments: CommandLine.arguments)
 }
 
-// Compass guest-side helper. Runs as a LaunchAgent under the auto-logged-in
-// `compass` user inside the guest GUI session. Repo contents live in
-// /Users/compass/Compass/Repos/<catalog-id>/worktree, normally as a real
-// clone of the Compass exchange repo over vsock Git. sshd-spawned processes
-// are TCC-blocked on macOS guests, so the agent must run in the user session
-// and be reached via vsock.
+// Compass guest-side helper. Runs as a LaunchDaemon with UserName=compass.
+// Repo contents live in /Users/compass/Compass/Repos/<catalog-id>/worktree,
+// normally as a real clone of the Compass exchange repo over vsock Git.
+// Commands that need the desktop session (Rust visual verification) enter
+// the auto-logged-in user's GUI bootstrap explicitly via launchctl asuser.
 //
 // Listens on AF_VSOCK at the canonical Compass port, accepts one request
 // per connection, dispatches it, writes the response frame, closes the fd.
-// Loop runs forever; LaunchAgent restarts the binary if it ever exits.
+// Loop runs forever; the LaunchDaemon restarts the binary if it ever exits.
 
 let port: UInt32 = 0x4007_ACE5
 FileHandle.standardError.write(
