@@ -16,15 +16,19 @@ import Foundation
 ///     through the exchange repo.
 ///   * The guest never sees the host's actual repo path
 ///     (`/Users/<user>/git/<repo>`). Its working directory is always a
-///     `/Users/compass/Compass/Repos/<UUID>/worktree` path it owns.
+///     Shared VM guest-local `Compass/Repos/<UUID>/worktree` path it owns.
 ///
 /// The ID lives in `<repo>/.compass/guest-workspace.json`. `.compass/`
 /// is already gitignored (see `CompassWorkspace.ensureCompassIsIgnored`),
 /// so the ID does not leak into the user's commit history.
 enum SharedCompassVMGuestWorkspaceCatalog {
+  /// Guest layout used to allocate per-repo workspaces. Currently this is the
+  /// macOS Shared VM layout; keeping it centralized makes the future Linux guest
+  /// root a single contract swap instead of a repo-wide string rewrite.
+  static let guestLayout = SharedCompassVMGuestLayout.current
 
   /// Guest-side root that holds every per-repo workspace.
-  static let guestReposRoot = "/Users/compass/Compass/Repos"
+  static let guestReposRoot = guestLayout.reposRoot
 
   /// Subdirectory inside each per-repo workspace that actually carries
   /// the synced worktree contents. Keeping a layer of nesting (rather
@@ -164,7 +168,10 @@ enum SharedCompassVMGuestWorkspaceCatalog {
   /// the path Compass hands to the agent as its working directory under
   /// the `.sharedVM` route.
   static func guestWorktreePath(forEntry entry: CatalogEntry) -> String {
-    "\(guestReposRoot)/\(entry.id)/\(guestWorktreeSubdirectory)"
+    guestLayout.worktreePath(
+      workspaceID: entry.id,
+      subdirectory: guestWorktreeSubdirectory
+    )
   }
 
   /// Convenience: ensure-or-create the entry and return the guest path

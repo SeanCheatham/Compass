@@ -242,6 +242,19 @@ struct SharedCompassVMGuestWorkspaceCatalogTests {
   // MARK: - Guest path mapping
 
   @Test
+  func testGuestLayoutNamesCurrentMacOSAndFutureLinuxRoots() throws {
+    try #require(SharedCompassVMGuestWorkspaceCatalog.guestLayout == .currentMacOS)
+    try #require(SharedCompassVMGuestLayout.currentMacOS.reposRoot == "/Users/compass/Compass/Repos")
+    try #require(SharedCompassVMGuestLayout.futureLinux.reposRoot == "/home/compass/Compass/Repos")
+    try #require(
+      SharedCompassVMGuestLayout.futureLinux.worktreePath(
+        workspaceID: "repo-id",
+        subdirectory: "worktree"
+      ) == "/home/compass/Compass/Repos/repo-id/worktree"
+    )
+  }
+
+  @Test
   func testGuestWorktreePathHasExpectedShape() throws {
     let entry = SharedCompassVMGuestWorkspaceCatalog.CatalogEntry(
       id: "00000000-0000-0000-0000-000000000001"

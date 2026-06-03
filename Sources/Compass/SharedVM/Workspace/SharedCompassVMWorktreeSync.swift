@@ -6,9 +6,9 @@ import Foundation
 /// including LaunchAgents in the GUI session and even root via
 /// LaunchDaemon — so a shared VirtioFS directory is not a viable
 /// transport for the agent's file operations. Compass instead keeps a
-/// guest-local copy of each repo under
-/// `/Users/compass/Compass/Repos/<UUID>/worktree` (allocated by
-/// `SharedCompassVMGuestWorkspaceCatalog`) and synchronises via
+/// guest-local copy of each repo under the `SharedCompassVMGuestLayout`
+/// worktree root (allocated by `SharedCompassVMGuestWorkspaceCatalog`) and
+/// synchronises via
 /// gitignore-aware tar streamed over the existing vsock RPC
 /// (`writeFile`, `readFile`, `bash`). No CLT/git is required on the
 /// guest because the host owns gitignore filtering on the push side
@@ -299,9 +299,9 @@ enum SharedCompassVMWorktreeSync {
   /// these roots gets rejected before any guest-side mutation happens.
   ///
   /// Today this is just the persistent per-repo root used by
-  /// `SharedCompassVMGuestWorkspaceCatalog`. The legacy
-  /// `/Users/compass/Compass/Worktrees` per-iteration root was
-  /// dropped along with the host-side worktree machinery.
+  /// `SharedCompassVMGuestWorkspaceCatalog`; the root is supplied by
+  /// `SharedCompassVMGuestLayout` so a future Linux guest can move it under
+  /// `/home/compass` without weakening the allow-list boundary.
   static let allowedGuestPathPrefixes: [String] = [
     SharedCompassVMGuestWorkspaceCatalog.guestReposRoot
   ]
