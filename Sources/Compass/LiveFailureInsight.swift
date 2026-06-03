@@ -277,10 +277,10 @@ struct LiveFailureInsight: Equatable, Sendable {
     if containsAny(normalized, ["guest rpc", "vsock", "transport", "guest internal error"]) {
       return (
         .guestBridge,
-        "Sandbox Connection Had Trouble",
-        "Compass reached a problem talking to the guest workspace or its tool bridge.",
-        "Retry after the sandbox is ready; if it repeats, repair or restart the shared workspace route.",
-        "Bridge",
+        "Private Workspace Connection Had Trouble",
+        "Compass had trouble talking to the private workspace that runs agent commands.",
+        "Retry after the private workspace is ready; if it repeats, repair or restart the workspace.",
+        "Workspace",
         "network"
       )
     }
@@ -357,11 +357,17 @@ struct LiveFailureInsight: Equatable, Sendable {
         detail: "Check the selected model, endpoint, API key, and network connection.",
         systemImageName: "text.bubble.badge.exclamationmark"
       )
-    case .guestBridge, .unavailableService:
+    case .guestBridge:
       return owner(
-        label: "Sandbox route",
-        detail: "Repair the shared workspace route or enabled capability before retrying.",
+        label: "Private workspace",
+        detail: "Repair or restart the private workspace before retrying.",
         systemImageName: "network"
+      )
+    case .unavailableService:
+      return owner(
+        label: "Capability setting",
+        detail: "Check the related setting or choose a path that is available.",
+        systemImageName: "exclamationmark.icloud"
       )
     case .commandFailure:
       return owner(
@@ -550,7 +556,8 @@ enum LiveFailureInsightNarrator {
       !normalized.contains("```"),
       !normalized.hasPrefix("-"),
       !lowercased.contains("http://"),
-      !lowercased.contains("https://")
+      !lowercased.contains("https://"),
+      !PrivateWorkspaceCopy.containsImplementationTerm(normalized)
     else {
       return ""
     }

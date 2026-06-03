@@ -114,6 +114,39 @@ struct LiveFailureInsightTests {
     try #require(insight.narrationIdentifier.contains("providerFailure"))
   }
 
+  @Test func explainsGuestBridgeFailuresAsPrivateWorkspaceRepair() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .error,
+          text: "Develop failed",
+          detail: "guest rpc transport failed: vsock connect failed",
+          kind: .lifecycle,
+          status: .failed
+        )
+      )
+    )
+
+    try #require(insight.kind == .guestBridge)
+    try #require(insight.title == "Private Workspace Connection Had Trouble")
+    try #require(insight.explanation.contains("private workspace"))
+    try #require(insight.nextStep.contains("repair or restart the workspace"))
+    try #require(insight.badge == "Workspace")
+    try #require(insight.repairOwner.label == "Private workspace")
+    try #require(insight.repairOwner.detail.contains("Repair or restart"))
+    try #require(!insight.explanation.contains("guest"))
+    try #require(!insight.explanation.contains("bridge"))
+    try #require(!insight.nextStep.contains("route"))
+
+    let payload = LiveFailureInsightClipboardPayload(insight: insight)
+    try #require(payload.text.contains("Failure type: Private Workspace Connection Had Trouble"))
+    try #require(payload.text.contains("Repair owner: Private workspace"))
+    try #require(payload.text.contains("Plain explanation:"))
+    try #require(!payload.text.contains("guest workspace"))
+    try #require(!payload.text.contains("tool bridge"))
+    try #require(!payload.text.contains("shared workspace route"))
+  }
+
   @Test func explainsMissingSubmitResultAsResultHandoff() throws {
     let insight = try #require(
       LiveFailureInsight(
@@ -338,6 +371,11 @@ struct LiveFailureInsightTests {
     }
 
     await withMockFoundationModels(response: "Read more at https://example.com") {
+      let narration = await LiveFailureInsightNarrator.narrate(insight: insight)
+      #expect(narration == nil)
+    }
+
+    await withMockFoundationModels(response: "Compass should retry after SSH reaches the guest.") {
       let narration = await LiveFailureInsightNarrator.narrate(insight: insight)
       #expect(narration == nil)
     }
