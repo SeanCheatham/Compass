@@ -311,7 +311,7 @@ enum SharedVMToolchainCatalog {
       description:
         "Rust generated-project toolchain via rustup (rustc, cargo, rustfmt, clippy, cargo-llvm-cov).",
       defaultProvisioned: true,
-      dependencies: [.homebrew],
+      dependencies: [],
       probeCommand: """
         su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(SharedVMToolchainDefinition.rustVerificationCommand) >/dev/null 2>&1 && echo PRESENT || echo MISSING'
         """,

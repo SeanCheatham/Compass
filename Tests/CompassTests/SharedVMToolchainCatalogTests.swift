@@ -25,6 +25,7 @@ struct SharedVMToolchainCatalogTests {
 
     try #require(clt.description.contains("Rust native linking"))
     try #require(rust.defaultProvisioned)
+    try #require(rust.dependencies.isEmpty)
     try #require(rust.description.contains("Rust generated-project toolchain"))
     try #require(!node.defaultProvisioned)
     try #require(node.displayName.contains("Legacy"))
