@@ -5,6 +5,25 @@ import Testing
 
 struct SharedCompassVMToolchainProvisionerTests {
 
+  @Test func installedToolchainIDsFromStateBackfillsCurrentDefaults() throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let bundle = SharedCompassVMBundle(rootURL: root.appending(path: "bundle.vmbundle"))
+    try bundle.saveState(
+      SharedCompassVMBundle.State(
+        provisionStep: .ready,
+        installedToolchains: ["command_line_tools", "homebrew", "ripgrep"]
+      )
+    )
+
+    let manager = SharedCompassVMToolchainManager(bundle: bundle)
+    let ids = manager.installedToolchainIDsFromState()
+
+    try #require(ids.contains("rust"))
+    try #require(!ids.contains("node"))
+    try #require(ids == ids.sorted())
+  }
+
   @Test func probeReturnsTrueWhenPresent() async throws {
     let runner = FakeToolchainBashRunner { command, _ in
       if command.contains("PRESENT") || command.contains("MISSING") {

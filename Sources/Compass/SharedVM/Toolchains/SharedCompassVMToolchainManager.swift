@@ -159,12 +159,13 @@ struct SharedCompassVMToolchainManager: SharedVMToolchainService {
   /// stall the loop when the guest agent wedged; live probes remain
   /// available via `listToolchains` / `installToolchain`.
   func installedToolchainIDsFromState() -> [String] {
+    let defaultIDs = SharedVMToolchainCatalog.defaultProvisionedIDs
     if let stored = try? bundle.loadState(fileManager: fileManager).installedToolchains,
       !stored.isEmpty
     {
-      return stored
+      return Array(Set(stored).union(defaultIDs)).sorted()
     }
-    return SharedVMToolchainCatalog.defaultProvisionedIDs
+    return defaultIDs
   }
 
   func installedToolchainIDsFromProbe(runner: any AgentBashRunner) async -> [String] {
