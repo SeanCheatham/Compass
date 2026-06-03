@@ -66,7 +66,7 @@ enum SandboxReadinessGuideNarrator {
       !normalized.hasPrefix("* "),
       !normalized.lowercased().contains("http://"),
       !normalized.lowercased().contains("https://"),
-      !SandboxReadinessCopy.containsImplementationTerm(normalized)
+      !PrivateWorkspaceCopy.containsImplementationTerm(normalized)
     else {
       return ""
     }

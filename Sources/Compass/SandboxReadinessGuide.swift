@@ -83,14 +83,14 @@ struct SandboxReadinessGuide: Equatable, Sendable {
     case .unavailable(let reason):
       title = "Private Workspace Unavailable"
       detail =
-        "This Mac cannot use the private workspace right now: \(SandboxReadinessCopy.userFacingInfrastructureDetail(reason, limit: 220))"
+        "This Mac cannot use the private workspace right now: \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(reason, limit: 220))"
       actionLabel = "Use This Mac"
       tone = .blocked
       systemImageName = "exclamationmark.triangle"
     case .error(let operationDetail):
       title = "Private Workspace Needs Repair"
       self.detail =
-        "The last workspace operation failed: \(SandboxReadinessCopy.userFacingInfrastructureDetail(operationDetail, limit: 180)). Rebuild with a downloaded macOS restore image or reset workspace files if the install is stuck."
+        "The last workspace operation failed: \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(operationDetail, limit: 180)). Rebuild with a downloaded macOS restore image or reset workspace files if the install is stuck."
       actionLabel = "Repair Workspace"
       tone = .blocked
       systemImageName = "xmark.octagon"
@@ -115,7 +115,7 @@ struct SandboxReadinessGuide: Equatable, Sendable {
         Step(
           id: "availability",
           title: "Mac support",
-          detail: SandboxReadinessCopy.userFacingInfrastructureDetail(reason, limit: 180),
+          detail: PrivateWorkspaceCopy.userFacingInfrastructureDetail(reason, limit: 180),
           systemImageName: "exclamationmark.triangle",
           isComplete: false
         )
@@ -325,11 +325,11 @@ struct SandboxReadinessClipboardPayload: Equatable, Sendable {
   }
 
   private static func bounded(_ text: String) -> String {
-    SandboxReadinessCopy.userFacingInfrastructureDetail(text, limit: readinessDetailLimit)
+    PrivateWorkspaceCopy.userFacingInfrastructureDetail(text, limit: readinessDetailLimit)
   }
 }
 
-enum SandboxReadinessCopy {
+enum PrivateWorkspaceCopy {
   static func userFacingInfrastructureDetail(_ text: String, limit: Int) -> String {
     var rewritten = StringUtils.boundedText(text, limit: limit)
     [
@@ -349,6 +349,11 @@ enum SandboxReadinessCopy {
     ].forEach { original, replacement in
       rewritten = rewritten.replacingOccurrences(of: original, with: replacement)
     }
+    rewritten = rewritten.replacingOccurrences(
+      of: #"\b[\w.-]+@\d{1,3}(?:\.\d{1,3}){3}\b"#,
+      with: "saved workspace connection",
+      options: .regularExpression
+    )
     return StringUtils.boundedText(rewritten, limit: limit)
   }
 
@@ -358,6 +363,10 @@ enum SandboxReadinessCopy {
       || normalized.contains("ssh")
       || normalized.contains("ipsw")
       || normalized.contains("guest")
+      || normalized.range(
+        of: #"\b[\w.-]+@\d{1,3}(?:\.\d{1,3}){3}\b"#,
+        options: .regularExpression
+      ) != nil
   }
 }
 

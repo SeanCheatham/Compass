@@ -81,7 +81,7 @@ struct OnboardingReadinessGuideTests {
     #expect(guide.tone == .inProgress)
     #expect(guide.steps[0].isComplete)
     #expect(!guide.steps[1].isComplete)
-    #expect(guide.steps[1].detail == "Downloading restore image (42%)")
+    #expect(guide.steps[1].detail == "Downloading macOS (42%)")
   }
 
   @Test
@@ -130,6 +130,42 @@ struct OnboardingReadinessGuideTests {
     #expect(payload.text.contains("Status: Finishing workspace setup"))
     #expect(!guide.steps[1].detail.contains("headless"))
     #expect(!payload.text.contains("headless first-boot"))
+  }
+
+  @Test
+  func workspaceBlockedDetailsUsePrivateWorkspaceCopy() {
+    let settings = AgentRuntimeSettings(
+      textProvider: .openAI,
+      apiKey: "sk-test",
+      model: "gpt-4o"
+    )
+    let readiness = SharedCompassVMReadiness.error(
+      detail: "SSH probe to compass@10.0.0.42 failed while mounting guest disk"
+    )
+    let guide = OnboardingReadinessGuide(
+      settings: settings,
+      vmReadiness: readiness,
+      foundationModelsAvailable: false
+    )
+    let payload = OnboardingSetupClipboardPayload(
+      guide: guide,
+      settings: settings,
+      vmReadiness: readiness,
+      foundationModelsAvailable: false
+    )
+
+    #expect(readiness.privateWorkspaceStatusSummary.contains("secure connection"))
+    #expect(guide.steps[1].detail.contains("secure connection"))
+    #expect(guide.steps[1].detail.contains("workspace disk"))
+    #expect(payload.text.contains("workspace disk"))
+
+    for text in [readiness.privateWorkspaceStatusSummary, guide.steps[1].detail, payload.text] {
+      #expect(!text.contains("Shared VM"))
+      #expect(!text.contains("SSH"))
+      #expect(!text.contains("IPSW"))
+      #expect(!text.contains("guest"))
+      #expect(!text.contains("compass@10.0.0.42"))
+    }
   }
 
   @Test

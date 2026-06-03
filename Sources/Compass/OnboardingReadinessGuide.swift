@@ -4,12 +4,12 @@ extension SharedCompassVMReadiness {
   var privateWorkspaceStatusSummary: String {
     switch self {
     case .unavailable(let reason):
-      return "Unavailable. \(reason)"
+      return "Unavailable. \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(reason, limit: 180))"
     case .notProvisioned:
       return "Not prepared"
     case .downloadingIPSW(let fraction):
       let pct = Int((Swift.min(1, Swift.max(0, fraction)) * 100).rounded())
-      return "Downloading restore image (\(pct)%)"
+      return "Downloading macOS (\(pct)%)"
     case .installing(let fraction):
       let pct = Int((Swift.min(1, Swift.max(0, fraction)) * 100).rounded())
       return "Installing macOS (\(pct)%)"
@@ -21,7 +21,7 @@ extension SharedCompassVMReadiness {
     case .ready:
       return "Ready"
     case .error(let detail):
-      return "Error. \(detail)"
+      return "Error. \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(detail, limit: 180))"
     }
   }
 }
@@ -106,7 +106,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     } else {
       title = "Prepare Private Workspace"
       detail =
-        "Text is ready. Prepare the private workspace before Compass starts agent work, so edits and commands run outside your host checkout."
+        "Text is ready. Prepare the private workspace before Compass starts agent work, so edits and commands run outside your main checkout."
       actionLabel = "Workspace needed"
       tone = .needsWorkspace
       systemImageName = vmReadiness.systemImage
@@ -237,9 +237,11 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
       return readiness.privateWorkspaceStatusSummary
     case .unavailable(let reason):
-      return "Private workspace is unavailable: \(reason)"
+      return
+        "Private workspace is unavailable: \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(reason, limit: 180))"
     case .error(let detail):
-      return "Private workspace needs attention: \(detail)"
+      return
+        "Private workspace needs attention: \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(detail, limit: 180))"
     }
   }
 

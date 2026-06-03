@@ -552,7 +552,7 @@ private struct SandboxUnavailableSection: View {
       Label("Private workspace unavailable", systemImage: "exclamationmark.triangle.fill")
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(Color.orange)
-      Text(SandboxReadinessCopy.userFacingInfrastructureDetail(reason, limit: 260))
+      Text(PrivateWorkspaceCopy.userFacingInfrastructureDetail(reason, limit: 260))
         .font(.callout)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -572,7 +572,7 @@ private struct SandboxErrorSection: View {
       Label("Private workspace needs repair", systemImage: "xmark.octagon.fill")
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(Color.red)
-      Text(SandboxReadinessCopy.userFacingInfrastructureDetail(detail, limit: 300))
+      Text(PrivateWorkspaceCopy.userFacingInfrastructureDetail(detail, limit: 300))
         .font(.callout)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -712,7 +712,7 @@ extension SharedCompassVMReadiness {
   var statusSummary: String {
     switch self {
     case .unavailable(let reason):
-      return "Unavailable. \(SandboxReadinessCopy.userFacingInfrastructureDetail(reason, limit: 180))"
+      return "Unavailable. \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(reason, limit: 180))"
     case .notProvisioned:
       return "Not installed"
     case .downloadingIPSW(let fraction):
@@ -729,7 +729,7 @@ extension SharedCompassVMReadiness {
     case .ready:
       return "Ready"
     case .error(let detail):
-      return "Error. \(SandboxReadinessCopy.userFacingInfrastructureDetail(detail, limit: 180))"
+      return "Error. \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(detail, limit: 180))"
     }
   }
 
@@ -807,9 +807,9 @@ extension SharedCompassVMReadiness {
       return
         "Installing Xcode Command Line Tools inside the workspace. One-time, about 5 minutes. \(pct)% complete."
     case .unavailable(let reason):
-      return SandboxReadinessCopy.userFacingInfrastructureDetail(reason, limit: 260)
+      return PrivateWorkspaceCopy.userFacingInfrastructureDetail(reason, limit: 260)
     case .error(let detail):
-      return SandboxReadinessCopy.userFacingInfrastructureDetail(detail, limit: 260)
+      return PrivateWorkspaceCopy.userFacingInfrastructureDetail(detail, limit: 260)
     case .notProvisioned:
       return "Set up the private workspace to enable isolated Develop iterations."
     }
