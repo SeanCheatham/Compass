@@ -149,10 +149,11 @@ non-VirtioFS filesystem, so TCC is irrelevant.
 First-boot still writes `/etc/kcpassword` (Apple's XOR-obfuscated auto-login
 format) and sets `autoLoginUser=compass` so the guest reaches a desktop
 session unattended. Rust desktop visual verification uses that GUI bootstrap
-explicitly: the generated `xtask visual-verify` builds in the guest, starts
-the desktop binary with `launchctl asuser`, sends a basic System Events input,
-captures a guest screenshot with `screencapture`, emits the screenshot artifact
-markers, and terminates by the app's PID file.
+only to keep the current macOS guest able to launch desktop apps. The generated
+`xtask visual-verify` itself stays OS-neutral: it builds in the guest, starts
+the desktop binary, sends a Rust visual input request through files watched by
+the app, waits for the app to acknowledge that input, emits the app-rendered
+viewport PNG artifact markers, and terminates by the app's PID file.
 
 ## Failure modes and recovery
 
@@ -289,9 +290,11 @@ Per-session flow:
    clean. Verify failures prompt the agent to keep fixing, up to the
    existing 3-attempt budget.
    Blessed Rust desktop workspaces get an additional visual verification
-   post-check: Compass builds the desktop crate, launches it in the guest
-   GUI session, waits for readiness, captures a screenshot artifact, sends a
-   basic input event when possible, and terminates the app cleanly.
+   post-check: Compass builds the desktop crate, launches it in the guest,
+   waits for readiness, sends a platform-neutral Rust visual input request,
+   captures a Rust-rendered viewport PNG artifact, and terminates the app
+   cleanly. Linux guest adoption should satisfy this same contract rather
+   than adding an OS-specific verification path.
 5. **On success, or after the final failed Verify attempt**, Compass
    pushes the guest `HEAD` to a staging ref, then fast-forwards the host
    branch from that ref. Failed-Verify promotions are explicitly logged

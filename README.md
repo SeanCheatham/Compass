@@ -362,10 +362,11 @@ Codesigning uses `App/Signing.xcconfig` plus the git-ignored
 swap to a Developer ID Application cert via Xcode -> Signing & Capabilities,
 then notarize the resulting `.app` before packaging.
 
-## Private Workspace: Shared macOS VM
+## Private Workspace: Shared VM Runtime
 
 Compass runs every Develop iteration inside a private workspace backed by
-a Compass-managed macOS VM — the user no longer chooses between routes.
+a Compass-managed VM — currently the existing macOS guest, with the runtime
+boundary being kept OS-neutral so a smaller Linux guest can replace it later.
 Each project gets a persistent per-repo workspace inside that VM, and
 Compass talks to its tools (`read_file`, `write_file`, `edit_file`, `bash`,
 etc.) over vsock. The VM provisions Rust as a first-class generated-project
@@ -381,13 +382,13 @@ Only Develop iterations and their post-Verify file sync require the
 workspace to be ready.
 
 For blessed Rust desktop workspaces, post-checks can perform Level 2 visual
-verification: build in the guest, launch the desktop app in the guest GUI
-session via `launchctl asuser`, wait for readiness, send a basic input event
-when possible, capture a PNG screenshot with guest-local tools, save the audit
-artifact, and terminate the app cleanly. Failures are reported as normal Verify
-feedback so Develop can repair and retry.
+verification: build in the guest, launch the desktop app, wait for readiness,
+send a platform-neutral input request through the Rust app's visual handshake,
+capture a Rust-rendered viewport PNG artifact, save the audit artifact, and
+terminate the app cleanly. Failures are reported as normal Verify feedback so
+Develop can repair and retry.
 
-The VM is built from scratch on the user's machine using
+The current macOS VM is built from scratch on the user's machine using
 `VZMacOSRestoreImage.fetchLatestSupported` (Apple CDN, ~14 GB macOS restore
 image, no auth) and installed via `VZMacOSInstaller`. After install, a
 one-shot LaunchDaemon planted by Compass finishes first boot headlessly:

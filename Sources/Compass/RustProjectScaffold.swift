@@ -162,9 +162,9 @@ struct RustProjectScaffold: Equatable, Sendable {
     - Visual verify: `cargo run -p xtask -- visual-verify --emit-base64`
 
     The desktop app uses deterministic demo state and stable window labels so Compass can
-    build it in the Shared VM, launch it in the guest GUI session, wait for readiness,
-    optionally send a basic input event, capture a Rust-rendered viewport artifact, and
-    terminate it cleanly.
+    build it in the Shared VM, launch it in the guest, wait for readiness, send a
+    platform-neutral visual input request, capture a Rust-rendered viewport artifact,
+    and terminate it cleanly.
     """
   }
 
@@ -328,6 +328,8 @@ struct RustProjectScaffold: Equatable, Sendable {
         ready_file: Option<PathBuf>,
         pid_file: Option<PathBuf>,
         screenshot_file: Option<PathBuf>,
+        input_file: Option<PathBuf>,
+        input_ack_file: Option<PathBuf>,
         window_title: String,
     }
 
@@ -337,6 +339,8 @@ struct RustProjectScaffold: Equatable, Sendable {
             let mut ready_file = None;
             let mut pid_file = None;
             let mut screenshot_file = None;
+            let mut input_file = None;
+            let mut input_ack_file = None;
             let mut args = std::env::args().skip(1);
             while let Some(arg) = args.next() {
                 match arg.as_str() {
@@ -360,6 +364,16 @@ struct RustProjectScaffold: Equatable, Sendable {
                             screenshot_file = Some(PathBuf::from(value));
                         }
                     }
+                    "--visual-input-file" => {
+                        if let Some(value) = args.next() {
+                            input_file = Some(PathBuf::from(value));
+                        }
+                    }
+                    "--visual-input-ack-file" => {
+                        if let Some(value) = args.next() {
+                            input_ack_file = Some(PathBuf::from(value));
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -368,6 +382,8 @@ struct RustProjectScaffold: Equatable, Sendable {
                 ready_file,
                 pid_file,
                 screenshot_file,
+                input_file,
+                input_ack_file,
                 window_title: "\(rustStringLiteralContent(windowTitle))".to_owned(),
             }
         }
@@ -395,6 +411,9 @@ struct RustProjectScaffold: Equatable, Sendable {
         state: DemoState,
         ready_file: Option<PathBuf>,
         screenshot_file: Option<PathBuf>,
+        input_file: Option<PathBuf>,
+        input_ack_file: Option<PathBuf>,
+        input_observed: bool,
         wrote_ready: bool,
         requested_screenshot: bool,
         wrote_screenshot: bool,
@@ -406,15 +425,39 @@ struct RustProjectScaffold: Equatable, Sendable {
                 state: DemoState::deterministic(&config.seed),
                 ready_file: config.ready_file,
                 screenshot_file: config.screenshot_file,
+                input_file: config.input_file,
+                input_ack_file: config.input_ack_file,
+                input_observed: false,
                 wrote_ready: false,
                 requested_screenshot: false,
                 wrote_screenshot: false,
             }
         }
+
+        fn observe_visual_input(&mut self) {
+            if self.input_observed {
+                return;
+            }
+            let Some(input_file) = self.input_file.as_ref() else {
+                return;
+            };
+            if !input_file.exists() {
+                return;
+            }
+            let input = std::fs::read_to_string(input_file).unwrap_or_else(|_| "unknown".to_owned());
+            if let Some(ack_file) = self.input_ack_file.as_ref() {
+                if let Err(error) = write_visual_input_ack(ack_file, input.trim()) {
+                    eprintln!("could not acknowledge visual input: {error}");
+                }
+            }
+            self.input_observed = true;
+        }
     }
 
     impl eframe::App for CompassRustApp {
         fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+            self.observe_visual_input();
+
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.heading("Compass Rust Desktop");
                 ui.label("Visual verification target");
@@ -431,6 +474,16 @@ struct RustProjectScaffold: Equatable, Sendable {
                     ui.monospace("backend: app-core");
                     ui.monospace("frontend: eframe/egui");
                     ui.monospace("automation: xtask");
+                    ui.monospace(format!(
+                        "input: {}",
+                        if self.input_observed {
+                            "acknowledged"
+                        } else if self.input_file.is_some() {
+                            "waiting"
+                        } else {
+                            "not requested"
+                        }
+                    ));
                 });
             });
 
@@ -454,7 +507,12 @@ struct RustProjectScaffold: Equatable, Sendable {
                 }
             }
 
-            if self.screenshot_file.is_some() && !self.requested_screenshot && !self.wrote_screenshot {
+            let input_ready = self.input_file.is_none() || self.input_observed;
+            if self.screenshot_file.is_some()
+                && input_ready
+                && !self.requested_screenshot
+                && !self.wrote_screenshot
+            {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot);
                 self.requested_screenshot = true;
             }
@@ -479,6 +537,14 @@ struct RustProjectScaffold: Equatable, Sendable {
             }
             let _ = std::fs::write(path, "ready\\n");
         }
+    }
+
+    fn write_visual_input_ack(path: &Path, input: &str) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, format!("ack:{input}\\n"))?;
+        Ok(())
     }
 
     fn write_screenshot_file(
@@ -584,14 +650,25 @@ struct RustProjectScaffold: Equatable, Sendable {
         let ready_file = artifact_dir.join("ready.txt");
         let pid_file = artifact_dir.join("desktop.pid");
         let screenshot = artifact_dir.join("screenshot.png");
+        let input_file = artifact_dir.join("input.txt");
+        let input_ack_file = artifact_dir.join("input-ack.txt");
         let log_path = artifact_dir.join("desktop.log");
         remove_if_exists(&ready_file)?;
         remove_if_exists(&pid_file)?;
         remove_if_exists(&screenshot)?;
+        remove_if_exists(&input_file)?;
+        remove_if_exists(&input_ack_file)?;
         remove_if_exists(&log_path)?;
 
         run("cargo", &["build", "-p", "app-desktop"])?;
-        let mut child = spawn_desktop(&ready_file, &pid_file, &log_path)?;
+        let mut child = spawn_desktop(
+            &ready_file,
+            &pid_file,
+            &screenshot,
+            &input_file,
+            &input_ack_file,
+            &log_path,
+        )?;
         let result = (|| -> Result<()> {
             wait_for_file(
                 "readiness",
@@ -601,7 +678,14 @@ struct RustProjectScaffold: Equatable, Sendable {
                 &log_path,
             )?;
             thread::sleep(Duration::from_millis(500));
-            send_basic_input();
+            send_basic_input(&input_file)?;
+            wait_for_file(
+                "basic input acknowledgement",
+                &input_ack_file,
+                Duration::from_secs(5),
+                &mut child,
+                &log_path,
+            )?;
             wait_for_file(
                 "viewport screenshot",
                 &screenshot,
@@ -627,11 +711,17 @@ struct RustProjectScaffold: Equatable, Sendable {
         result
     }
 
-    fn spawn_desktop(ready_file: &Path, pid_file: &Path, log_path: &Path) -> Result<Child> {
+    fn spawn_desktop(
+        ready_file: &Path,
+        pid_file: &Path,
+        screenshot: &Path,
+        input_file: &Path,
+        input_ack_file: &Path,
+        log_path: &Path,
+    ) -> Result<Child> {
         let stdout = File::create(log_path)?;
         let stderr = stdout.try_clone()?;
         let executable = std::env::current_dir()?.join("target/debug/app-desktop");
-        let screenshot = PathBuf::from(".compass/visual-verify/screenshot.png");
         let child = Command::new(path_str(&executable)?)
             .arg("--demo-seed")
             .arg("compass-visual-verify")
@@ -641,6 +731,10 @@ struct RustProjectScaffold: Equatable, Sendable {
             .arg(pid_file)
             .arg("--visual-screenshot-file")
             .arg(screenshot)
+            .arg("--visual-input-file")
+            .arg(input_file)
+            .arg("--visual-input-ack-file")
+            .arg(input_ack_file)
             .stdout(Stdio::from(stdout))
             .stderr(Stdio::from(stderr))
             .spawn()?;
@@ -726,28 +820,12 @@ struct RustProjectScaffold: Equatable, Sendable {
             .unwrap_or(false)
     }
 
-    fn send_basic_input() {
-        if !Path::new("/usr/bin/osascript").exists() {
-            return;
+    fn send_basic_input(path: &Path) -> Result<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
         }
-        let mut child = match Command::new("/usr/bin/osascript")
-            .args(["-e", "tell application \\"System Events\\" to key code 49"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-        {
-            Ok(child) => child,
-            Err(_) => return,
-        };
-        let started = Instant::now();
-        while started.elapsed() < Duration::from_secs(2) {
-            if child.try_wait().ok().flatten().is_some() {
-                return;
-            }
-            thread::sleep(Duration::from_millis(100));
-        }
-        let _ = child.kill();
-        let _ = child.wait();
+        fs::write(path, "space\\n")?;
+        Ok(())
     }
 
     fn run(program: &str, args: &[&str]) -> Result<()> {
