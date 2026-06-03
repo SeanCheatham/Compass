@@ -174,7 +174,7 @@ struct CopyFactoryBriefButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded factory brief for another model or teammate.")
+    .help(ClipboardHelpText.factoryBrief)
   }
 }
 
@@ -583,12 +583,12 @@ struct CopyHandoffButton: View {
         copied = false
       }
     } label: {
-      Label(copied ? "Copied" : "Copy Handoff", systemImage: copied ? "checkmark" : "doc.on.doc")
+      Label(copied ? "Copied" : "Copy Work", systemImage: copied ? "checkmark" : "doc.on.doc")
         .lineLimit(1)
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded Immediate Work handoff for another model or teammate.")
+    .help(ClipboardHelpText.immediateWork)
   }
 }
 
@@ -765,7 +765,7 @@ struct CopyRepairHandoffButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a focused Plan repair packet for another model or teammate.")
+    .help(ClipboardHelpText.planRepair)
   }
 }
 

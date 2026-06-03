@@ -160,6 +160,6 @@ private struct CopyProjectIntakeButton: View {
     }
     .buttonStyle(.bordered)
     .controlSize(compact ? .small : .regular)
-    .help("Copy a bounded project intake checklist for another model or teammate.")
+    .help(ClipboardHelpText.projectIntake)
   }
 }

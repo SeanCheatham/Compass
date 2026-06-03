@@ -780,9 +780,7 @@ private struct CopyProjectSnapshotButton: View {
     }
     .buttonStyle(.borderless)
     .disabled(payload.isEmpty)
-    .help(
-      "Copy a project snapshot with run readiness, recovery, vision, drafts, assumptions, lessons, history, and runtime setup."
-    )
+    .help(ClipboardHelpText.projectSnapshot)
     .accessibilityLabel(copied ? "Copied project snapshot" : "Copy project snapshot")
   }
 }
@@ -1001,8 +999,8 @@ private struct CopyRunControlButton: View {
     }
     .buttonStyle(.borderless)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded run-control handoff for another model or teammate.")
-    .accessibilityLabel(copied ? "Copied run handoff" : "Copy run handoff")
+    .help(ClipboardHelpText.runControl)
+    .accessibilityLabel(copied ? "Copied run note" : "Copy run note")
   }
 }
 

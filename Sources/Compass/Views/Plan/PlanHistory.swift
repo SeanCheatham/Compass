@@ -425,7 +425,7 @@ struct CopyHistoryRunButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded run-history handoff for another model or teammate.")
+    .help(ClipboardHelpText.runHistory)
   }
 }
 

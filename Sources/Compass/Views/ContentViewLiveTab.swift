@@ -670,7 +670,7 @@ struct CopyProjectRecoveryButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded recovery handoff for another model or teammate.")
+    .help(ClipboardHelpText.recovery)
   }
 }
 
@@ -695,7 +695,7 @@ private struct CopyLiveTimelineButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded live timeline handoff for another model or teammate.")
+    .help(ClipboardHelpText.liveTimeline)
   }
 }
 
@@ -1093,6 +1093,6 @@ struct CopyLiveFailureButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded live-failure handoff for another model or teammate.")
+    .help(ClipboardHelpText.liveFailure)
   }
 }

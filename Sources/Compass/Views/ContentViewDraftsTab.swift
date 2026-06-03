@@ -492,7 +492,7 @@ struct CopyDraftQueueButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded draft queue handoff for another model or teammate.")
+    .help(ClipboardHelpText.draftQueue)
   }
 }
 

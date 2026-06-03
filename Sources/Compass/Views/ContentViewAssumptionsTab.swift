@@ -331,7 +331,7 @@ struct CopyAssumptionsButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded assumptions handoff for another model or teammate.")
+    .help(ClipboardHelpText.assumptions)
   }
 }
 

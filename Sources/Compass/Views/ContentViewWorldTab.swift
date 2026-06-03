@@ -1096,7 +1096,7 @@ private struct CopyWorldAtlasButton: View {
     .buttonStyle(.bordered)
     .controlSize(.mini)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded World Atlas handoff for another model or teammate.")
+    .help(ClipboardHelpText.worldAtlas)
     .accessibilityLabel(copied ? "Copied World Atlas" : "Copy World Atlas")
   }
 }

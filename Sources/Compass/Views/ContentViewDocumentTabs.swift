@@ -183,7 +183,7 @@ private struct CopyProjectVisionButton: View {
     }
     .buttonStyle(.borderless)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded project-vision handoff.")
+    .help(ClipboardHelpText.projectVision)
     .accessibilityLabel(copied ? "Copied project vision" : "Copy project vision")
   }
 }
@@ -344,7 +344,7 @@ private struct CopyProjectLessonsButton: View {
     }
     .buttonStyle(.borderless)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded project-lessons handoff.")
+    .help(ClipboardHelpText.projectLessons)
     .accessibilityLabel(copied ? "Copied project lessons" : "Copy project lessons")
   }
 }

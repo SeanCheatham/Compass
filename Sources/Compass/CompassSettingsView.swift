@@ -433,7 +433,7 @@ private struct CopyAgentSettingsButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a redacted runtime settings handoff for another model or teammate.")
+    .help(ClipboardHelpText.runtimeSettings)
   }
 }
 
@@ -629,7 +629,7 @@ private struct CopyFactorySettingsButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded factory routing handoff for another model or teammate.")
+    .help(ClipboardHelpText.factoryRouting)
   }
 }
 

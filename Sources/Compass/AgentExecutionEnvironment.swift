@@ -370,7 +370,7 @@ struct AgentExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
 
   var description: String {
     StringUtils.boundedText(
-      "Copy a bounded sanitized runtime report for the selected route and workspace readiness.",
+      ClipboardHelpText.runtimeDiagnostics,
       limit: Self.descriptionLimit
     )
   }

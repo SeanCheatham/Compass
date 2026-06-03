@@ -313,7 +313,7 @@ private struct CopySandboxReadinessButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded sandbox readiness handoff for another model or teammate.")
+    .help(ClipboardHelpText.privateWorkspaceReadiness)
   }
 }
 

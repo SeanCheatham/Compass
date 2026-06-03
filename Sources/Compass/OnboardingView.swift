@@ -314,7 +314,7 @@ private struct CopySetupButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help("Copy a bounded setup handoff for another model or teammate.")
+    .help(ClipboardHelpText.setup)
   }
 }
 
