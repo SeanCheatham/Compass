@@ -100,6 +100,37 @@ struct RustProjectScaffoldTests {
     try #require(FileManager.default.fileExists(atPath: root.appending(path: ".gitignore").path))
   }
 
+  @MainActor
+  @Test func generatedRustProjectInitializerStampsRustForgeProfile() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    try await AppModel.initializeGeneratedRustProject(at: root)
+
+    let workspace = CompassWorkspace(repoURL: root)
+    let record = try #require(ForgeProfileService.readRecord(from: workspace))
+    try #require(record.profile == .rustCargo)
+    try #require(record.version == ForgeProfileRecord.currentVersion)
+    try #require(RustProjectScaffold.isBlessedDesktopWorkspace(at: root))
+
+    let status = try await ProcessRunner.runEnv(
+      "git",
+      ["status", "--porcelain"],
+      workingDirectory: root
+    )
+    try #require(status.exitCode == 0)
+    try #require(status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+    let log = try await ProcessRunner.runEnv(
+      "git",
+      ["log", "--format=%s", "-1"],
+      workingDirectory: root
+    )
+    try #require(log.exitCode == 0)
+    try #require(
+      log.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "Create Rust project scaffold")
+  }
+
   @Test func generatedRustScaffoldCargoSmokeWhenRequested() async throws {
     guard ProcessInfo.processInfo.environment["COMPASS_RUN_GENERATED_RUST_SMOKE"] == "1" else {
       return

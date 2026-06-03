@@ -228,12 +228,7 @@ final class AppModel: ObservableObject {
     let projectURL = url.standardizedFileURL
 
     do {
-      try ensureCreatableProjectDirectory(projectURL)
-      try RustProjectScaffold.write(
-        to: projectURL,
-        options: RustProjectScaffold.Options(projectName: projectURL.lastPathComponent)
-      )
-      try await initializeGeneratedRustGitRepository(at: projectURL)
+      try await Self.initializeGeneratedRustProject(at: projectURL)
       let project = upsertProject(repoURL: projectURL)
       selectProject(project)
       project.logProjectSelected()
@@ -294,7 +289,23 @@ final class AppModel: ObservableObject {
     return project
   }
 
-  private func ensureCreatableProjectDirectory(_ url: URL) throws {
+  static func initializeGeneratedRustProject(at url: URL) async throws {
+    let projectURL = url.standardizedFileURL
+    try ensureCreatableProjectDirectory(projectURL)
+    try RustProjectScaffold.write(
+      to: projectURL,
+      options: RustProjectScaffold.Options(projectName: projectURL.lastPathComponent)
+    )
+    let workspace = CompassWorkspace(repoURL: projectURL)
+    try workspace.initialize()
+    try ForgeProfileService.writeRecord(
+      ForgeProfileRecord(profile: .rustCargo, version: ForgeProfileRecord.currentVersion),
+      workspace: workspace
+    )
+    try await initializeGeneratedRustGitRepository(at: projectURL)
+  }
+
+  private static func ensureCreatableProjectDirectory(_ url: URL) throws {
     let fm = FileManager.default
     var isDirectory: ObjCBool = false
     if fm.fileExists(atPath: url.path, isDirectory: &isDirectory) {
@@ -311,7 +322,7 @@ final class AppModel: ObservableObject {
     }
   }
 
-  private func initializeGeneratedRustGitRepository(at url: URL) async throws {
+  private static func initializeGeneratedRustGitRepository(at url: URL) async throws {
     let fm = FileManager.default
     if !fm.fileExists(atPath: url.appending(path: ".git").path) {
       let initResult = try await ProcessRunner.runEnv(
@@ -356,7 +367,7 @@ final class AppModel: ObservableObject {
     }
   }
 
-  private func processErrorDetail(_ result: ProcessResult) -> String {
+  private static func processErrorDetail(_ result: ProcessResult) -> String {
     let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
     if !stderr.isEmpty { return stderr }
     let stdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
