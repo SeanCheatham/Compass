@@ -6,14 +6,14 @@ completions endpoint (default: MiniMax), drives the loop with its own tool
 dispatcher, and keeps per-repository state in `.compass/` so multiple
 projects can run side by side from one desktop workspace.
 
-Compass requires macOS 26 or newer on Apple Silicon. The Shared VM sandbox
+Compass requires macOS 26 or newer on Apple Silicon. Its private workspace
 is built directly on Apple's `Virtualization.framework`.
 
 ## Run
 
-The Shared VM sandbox requires the `com.apple.security.virtualization`
-entitlement, which only the signed Xcode-built app bundle has. For Shared VM
-work, create a local signing override first:
+The private workspace requires the `com.apple.security.virtualization`
+entitlement, which only the signed Xcode-built app bundle has. To exercise it
+locally, create a local signing override first:
 
 ```bash
 cp App/LocalSigning.example.xcconfig App/LocalSigning.xcconfig
@@ -56,7 +56,7 @@ open "/Applications/CompassLocal.app"
 
 The SwiftPM executable still builds (`swift run Compass`) and is fine for
 non-VM work, but `VZVirtualMachine` APIs will fail without the entitlement,
-so the Shared VM sandbox is disabled in that mode.
+so the private workspace is disabled in that mode.
 
 ## Configure the agent endpoint
 
@@ -129,12 +129,13 @@ the phase contract.
   `5`) with the same read-only tool set and can return either no state
   change or a full updated `PlanState`.
 - Develop runs with the full tool set (inspection tools plus
-  `write_file`, `edit_file`, `bash`) inside the Shared VM's persistent
-  per-repo guest workspace. Plan and Reflect also run inside the same
-  guest when the VM is ready; if the VM is unavailable they fall back
-  to a direct host invocation. Develop must return `lessonEdits`
-  instead of editing `.compass/lessons.md` directly, so durable lessons
-  land in the main Compass workspace rather than only inside the guest.
+  `write_file`, `edit_file`, `bash`) inside Compass's private workspace:
+  a persistent per-repo macOS workspace managed by the app. Plan and
+  Reflect also use that workspace when it is ready; if the workspace
+  infrastructure is unavailable they fall back to a direct host invocation.
+  Develop must return `lessonEdits` instead of editing `.compass/lessons.md`
+  directly, so durable lessons land in the main Compass workspace rather
+  than only inside the private workspace.
 - Develop post-checks repeat the verify command, require
   `git status --porcelain` to be clean, and retry failed post-checks up
   to three attempts with failure context. If post-checks still fail,
@@ -289,7 +290,7 @@ Two build flows coexist:
   Best for unit tests, type-checking, and CI.
 - `xcodebuild -project Compass.xcodeproj -scheme Compass` — produces the
   signed `Compass.app` with the virtualization entitlement. Required for
-  any Shared VM work.
+  local private workspace runs.
 
 Formatting is enforced by [swift-format](https://github.com/swiftlang/swift-format),
 which ships with the Swift 6 toolchain. The config lives at `.swift-format`
@@ -315,8 +316,9 @@ App-bundle metadata lives under `App/`:
 
 - `App/Info.plist` — bundle id, version, category, min macOS.
 - `App/Compass.entitlements` — `com.apple.security.virtualization` (for the
-  Shared VM) and `keychain-access-groups` (for the Shared VM's SSH guest
-  credential, the only secret Compass still stores in the macOS Keychain).
+  private workspace) and `keychain-access-groups` (for the workspace's
+  secure connection credential, the only secret Compass still stores in
+  the macOS Keychain).
   Add more entitlements here if Compass ever needs sandboxed network, hardware
   access, etc. App Sandbox is intentionally **off** — Compass is distributed
   outside the App Store (via `.dmg`), so the sandbox's file-access restrictions
@@ -327,48 +329,49 @@ Codesigning uses `App/Signing.xcconfig` plus the git-ignored
 swap to a Developer ID Application cert via Xcode -> Signing & Capabilities,
 then notarize the resulting `.app` before packaging.
 
-## Sandbox: Shared macOS VM
+## Private Workspace: Shared macOS VM
 
-Compass runs every Develop iteration inside a shared macOS guest VM —
-the user no longer chooses between routes. Each project gets a
-persistent per-repo workspace inside the guest, and the agent talks to
-its tools (`read_file`, `write_file`, `edit_file`, `bash`, etc.) over
-vsock. Once Verify passes, Compass pulls the guest workspace back into
+Compass runs every Develop iteration inside a private workspace backed by
+a Compass-managed macOS VM — the user no longer chooses between routes.
+Each project gets a persistent per-repo workspace inside that VM, and
+Compass talks to its tools (`read_file`, `write_file`, `edit_file`, `bash`,
+etc.) over vsock. Once Verify passes, Compass pulls the workspace back into
 the host repo so the iteration's commits land in the main checkout.
 
-Plan and Reflect use the same guest workspace and vsock tool path when
-the VM is ready. If the guest workspace catalog cannot map the repo or
-the VM is unavailable, Compass falls back to a direct host invocation
-internally. Only Develop iterations and their post-Verify file sync
-require the guest to be ready.
+Plan and Reflect use the same private workspace and vsock tool path when
+the VM is ready. If the workspace catalog cannot map the repo or the VM is
+unavailable, Compass falls back to a direct host invocation internally.
+Only Develop iterations and their post-Verify file sync require the
+workspace to be ready.
 
 The VM is built from scratch on the user's machine using
-`VZMacOSRestoreImage.fetchLatestSupported` (Apple CDN, ~14 GB IPSW, no auth)
-and installed via `VZMacOSInstaller`. After install, a one-shot
-LaunchDaemon planted by Compass finishes first-boot headlessly — it
-creates the `compass` user, authorises Compass's SSH key, and enables
+`VZMacOSRestoreImage.fetchLatestSupported` (Apple CDN, ~14 GB macOS restore
+image, no auth) and installed via `VZMacOSInstaller`. After install, a
+one-shot LaunchDaemon planted by Compass finishes first boot headlessly:
+it creates the `compass` user, authorises Compass's SSH key, and enables
 Remote Login without any user interaction. Subsequent iterations reuse
-the same persistent guest.
+the same persistent workspace.
 
 Requirements:
 
 - Apple Silicon Mac, macOS 26 or newer.
 - ~30 GB free disk under `~/Library/Application Support/Compass/SharedVM/`
   (sparse image — may drift larger over time).
-- First-time setup takes ~25–45 minutes (IPSW download + install +
-  headless first-boot). One macOS admin authentication prompt fires
+- First-time setup takes ~25–45 minutes (macOS restore image download +
+  install + headless first boot). One macOS admin authentication prompt fires
   during provisioning so Compass can plant the LaunchDaemon onto the
   freshly-installed Data volume.
 - Apple's Virtualization.framework caps the host at 2 concurrent macOS
   guests. Conflicts with other VZ-based products (Parallels' VZ backend,
-  Tart, etc.) surface as `Shared VM unavailable: 2-guest cap reached`,
-  which blocks Develop until the other guest exits.
+  Tart, etc.) surface in Compass as a private workspace capacity limit,
+  backed by `Shared VM unavailable: 2-guest cap reached` in diagnostic logs.
+  Develop stays blocked until the other guest exits.
 
 When using Compass to develop Compass itself, treat the currently running
 Compass process as infrastructure, not as the test subject. If a launch smoke
 test is needed, start `swift run Compass` as a child process, record that exact
 PID, and terminate only that PID after the check. Avoid broad process-killing
 commands such as `pkill -f Compass` or `killall swift` that could stop the
-live Compass session running the iteration. The Shared VM sandbox makes
-this safer by default — runaway `pkill` inside the guest cannot reach the
-host orchestrator.
+live Compass session running the iteration. The private workspace makes this
+safer by default — runaway `pkill` inside the workspace cannot reach the host
+orchestrator.
