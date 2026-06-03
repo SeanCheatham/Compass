@@ -161,7 +161,7 @@ private struct SandboxSidePanel: View {
         switch vmHost.readiness {
         case .downloadingIPSW(let fraction):
           SandboxProgressSection(
-            title: "Downloading macOS restore image",
+            title: "Downloading macOS",
             systemImage: "arrow.down.circle",
             downloadFraction: fraction,
             installFraction: nil
@@ -384,7 +384,7 @@ private struct SandboxHeadlessFirstBootSection: View {
       Label("Finishing macOS setup", systemImage: "gearshape.2")
         .font(.subheadline.weight(.semibold))
       Text(
-        "Compass planted a one-shot LaunchDaemon onto the guest disk. The guest is creating the compass user, authorising the Compass SSH key, and enabling Remote Login. This takes 30 — 90 seconds."
+        "Compass is finishing the workspace account and secure command access. This usually takes 30 to 90 seconds."
       )
       .font(.callout)
       .foregroundStyle(.secondary)
@@ -403,8 +403,8 @@ private struct SandboxHeadlessFirstBootSection: View {
   }
 }
 
-/// Inline error banner for a recent SSH-probe failure during headless
-/// first-boot finalisation. Cleared on the next probe attempt.
+/// Inline error banner for a recent setup-probe failure during first-boot
+/// finalisation. Cleared on the next probe attempt.
 private struct SandboxSetupFailureBanner: View {
   let message: String
 
@@ -439,8 +439,8 @@ private struct SandboxConsoleLoginSection: View {
 
       Text(
         vmIsRunning
-          ? "If the embedded VM shows a login screen instead of a desktop, sign in with these credentials. Compass normally auto-logs in; use this when it does not."
-          : "When the VM is running, sign into the guest console with these credentials if auto-login did not complete."
+          ? "If the embedded workspace shows a login screen instead of a desktop, sign in with these credentials. Compass normally signs in automatically; use this when it does not."
+          : "When the workspace is running, sign in with these credentials if automatic sign-in did not complete."
       )
       .font(.callout)
       .foregroundStyle(.secondary)
@@ -495,18 +495,12 @@ private struct SandboxReadySection: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Shared VM ready", systemImage: "checkmark.seal.fill")
+      Label("Private workspace ready", systemImage: "checkmark.seal.fill")
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(Color.green)
-      Text("Agent execs route through SSH to:")
+      Text("Develop work now runs away from your main checkout using Compass's saved workspace connection.")
         .font(.callout)
         .foregroundStyle(.secondary)
-      Text(sshDestination)
-        .font(.callout.monospaced())
-        .textSelection(.enabled)
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 6))
     }
     .padding(12)
     .background(Color.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
@@ -519,10 +513,10 @@ private struct SandboxIdleSection: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Sandbox not provisioned", systemImage: "shippingbox")
+      Label("Private workspace not installed", systemImage: "shippingbox")
         .font(.subheadline.weight(.semibold))
       Text(
-        "Compass can install a private macOS VM (~14 GB download, ~30-50 min total). Develop iterations on projects that opt into the Shared VM execute inside it."
+        "Compass can set up a private macOS workspace for Develop. First setup downloads about 14 GB and can take 30 to 50 minutes."
       )
       .font(.callout)
       .foregroundStyle(.secondary)
@@ -538,7 +532,7 @@ private struct SandboxIdleSection: View {
           }
         }
       } label: {
-        Label("Provision Shared VM", systemImage: "play.fill")
+        Label("Set Up Workspace", systemImage: "play.fill")
           .frame(maxWidth: .infinity)
       }
       .buttonStyle(.borderedProminent)
@@ -555,10 +549,10 @@ private struct SandboxUnavailableSection: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Shared VM unavailable", systemImage: "exclamationmark.triangle.fill")
+      Label("Private workspace unavailable", systemImage: "exclamationmark.triangle.fill")
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(Color.orange)
-      Text(reason)
+      Text(SandboxReadinessCopy.userFacingInfrastructureDetail(reason, limit: 260))
         .font(.callout)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -575,16 +569,16 @@ private struct SandboxErrorSection: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Shared VM error", systemImage: "xmark.octagon.fill")
+      Label("Private workspace needs repair", systemImage: "xmark.octagon.fill")
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(Color.red)
-      Text(detail)
+      Text(SandboxReadinessCopy.userFacingInfrastructureDetail(detail, limit: 300))
         .font(.callout)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
       SandboxLocalIPSWButton(
         vmHost: vmHost,
-        title: "Rebuild with local IPSW file",
+        title: "Rebuild with downloaded restore image",
         rebuildBeforeProvisioning: true
       )
       SandboxResetVMButton(vmHost: vmHost)
@@ -599,13 +593,13 @@ private struct SandboxErrorSection: View {
 
 private struct SandboxLocalIPSWButton: View {
   @ObservedObject var vmHost: SharedCompassVM
-  var title: String = "Use local IPSW file"
+  var title: String = "Use downloaded restore image"
   var rebuildBeforeProvisioning: Bool = false
 
   var body: some View {
     Button {
       let panel = NSOpenPanel()
-      panel.title = "Select a macOS IPSW restore image"
+      panel.title = "Select a macOS restore image"
       panel.allowedContentTypes = [UTType(filenameExtension: "ipsw") ?? .data]
       panel.allowsMultipleSelection = false
       panel.canChooseDirectories = false
@@ -631,15 +625,15 @@ private struct SandboxLocalIPSWButton: View {
     }
     .buttonStyle(.bordered)
     .help(
-      "Select a macOS restore image (.ipsw) you've already downloaded. Bypasses Apple's catalog service."
+      "Select a macOS restore image (.ipsw) you have already downloaded. Use this if Compass cannot fetch the download automatically."
     )
   }
 
   private static func confirmRebuild() -> Bool {
     let alert = NSAlert()
-    alert.messageText = "Rebuild Shared VM?"
+    alert.messageText = "Rebuild private workspace?"
     alert.informativeText =
-      "This removes the partially installed VM disk and starts installation again. Cached restore images and Compass SSH keys are preserved."
+      "This removes the partially installed workspace disk and starts installation again. Cached macOS downloads and secure connection keys are preserved."
     alert.alertStyle = .warning
     alert.addButton(withTitle: "Rebuild")
     alert.addButton(withTitle: "Cancel")
@@ -661,19 +655,20 @@ private struct SandboxResetVMButton: View {
         }
       }
     } label: {
-      Label("Reset VM artifacts", systemImage: "trash")
+      Label("Reset workspace files", systemImage: "trash")
         .frame(maxWidth: .infinity)
     }
     .buttonStyle(.bordered)
     .help(
-      "Remove installed VM artifacts while preserving cached restore images and Compass SSH keys.")
+      "Remove installed workspace files while preserving cached macOS downloads and secure connection keys."
+    )
   }
 
   private func confirmReset() -> Bool {
     let alert = NSAlert()
-    alert.messageText = "Reset Shared VM artifacts?"
+    alert.messageText = "Reset private workspace files?"
     alert.informativeText =
-      "This removes the VM disk, auxiliary storage, platform identity, and stale SSH trust. Cached restore images and Compass SSH keys are preserved."
+      "This removes the workspace disk, auxiliary storage, platform identity, and stale connection trust. Cached macOS downloads and secure connection keys are preserved."
     alert.alertStyle = .warning
     alert.addButton(withTitle: "Reset")
     alert.addButton(withTitle: "Cancel")
@@ -717,24 +712,24 @@ extension SharedCompassVMReadiness {
   var statusSummary: String {
     switch self {
     case .unavailable(let reason):
-      return "Unavailable. \(reason)"
+      return "Unavailable. \(SandboxReadinessCopy.userFacingInfrastructureDetail(reason, limit: 180))"
     case .notProvisioned:
-      return "Not provisioned"
+      return "Not installed"
     case .downloadingIPSW(let fraction):
       let pct = Int((fraction.clamped01 * 100).rounded())
-      return "Downloading restore image (\(pct)%)"
+      return "Downloading macOS (\(pct)%)"
     case .installing(let fraction):
       let pct = Int((fraction.clamped01 * 100).rounded())
       return "Installing macOS (\(pct)%)"
     case .guestPrepping:
-      return "Finishing headless first-boot"
+      return "Finishing workspace setup"
     case .provisioningDevTools(let fraction):
       let pct = Int((fraction.clamped01 * 100).rounded())
       return "Installing developer tools (\(pct)%)"
     case .ready:
       return "Ready"
     case .error(let detail):
-      return "Error. \(detail)"
+      return "Error. \(SandboxReadinessCopy.userFacingInfrastructureDetail(detail, limit: 180))"
     }
   }
 
@@ -783,40 +778,40 @@ extension SharedCompassVMReadiness {
 
   var placeholderTitle: String {
     switch self {
-    case .ready: return "Shared VM is ready"
-    case .downloadingIPSW: return "Downloading restore image"
+    case .ready: return "Private workspace is ready"
+    case .downloadingIPSW: return "Downloading macOS"
     case .installing: return "Installing macOS"
-    case .guestPrepping: return "Finishing headless first-boot"
+    case .guestPrepping: return "Finishing workspace setup"
     case .provisioningDevTools: return "Installing developer tools"
-    case .unavailable: return "Shared VM unavailable"
-    case .error: return "Shared VM error"
-    case .notProvisioned: return "Sandbox not provisioned"
+    case .unavailable: return "Private workspace unavailable"
+    case .error: return "Private workspace needs repair"
+    case .notProvisioned: return "Private workspace not installed"
     }
   }
 
   var placeholderDetail: String {
     switch self {
     case .ready:
-      return "The guest is booted but no live view is attached yet."
+      return "The private workspace is ready, but no live view is attached yet."
     case .downloadingIPSW(let fraction):
       let pct = Int((fraction.clamped01 * 100).rounded())
       return "Fetching ~14 GB from Apple's CDN. \(pct)% complete."
     case .installing(let fraction):
       let pct = Int((fraction.clamped01 * 100).rounded())
-      return "Restoring macOS onto the VM disk. \(pct)% complete."
+      return "Installing macOS for the private workspace. \(pct)% complete."
     case .guestPrepping:
       return
-        "The planted LaunchDaemon is creating the guest user and bringing up sshd. Compass is polling for readiness."
+        "Compass is creating the workspace account and enabling secure command access. It is polling for readiness."
     case .provisioningDevTools(let fraction):
       let pct = Int((fraction.clamped01 * 100).rounded())
       return
-        "Running headless Xcode Command Line Tools install inside the guest. One-time, ~5 minutes. \(pct)% complete."
+        "Installing Xcode Command Line Tools inside the workspace. One-time, about 5 minutes. \(pct)% complete."
     case .unavailable(let reason):
-      return reason
+      return SandboxReadinessCopy.userFacingInfrastructureDetail(reason, limit: 260)
     case .error(let detail):
-      return detail
+      return SandboxReadinessCopy.userFacingInfrastructureDetail(detail, limit: 260)
     case .notProvisioned:
-      return "Provision the Shared VM to enable sandboxed Develop iterations."
+      return "Set up the private workspace to enable isolated Develop iterations."
     }
   }
 }

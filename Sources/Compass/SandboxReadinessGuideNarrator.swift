@@ -35,8 +35,9 @@ enum SandboxReadinessGuideNarrator {
 
   static func prompt(for guide: SandboxReadinessGuide) -> String {
     """
-    You are Compass explaining Shared VM sandbox readiness to a non-engineer.
+    You are Compass explaining private workspace readiness to a non-engineer.
     Use only the facts below. Do not invent commands, accounts, files, timing, credentials, or outcomes.
+    Avoid implementation terms such as Shared VM, SSH, IPSW, or guest.
     Return one calm paragraph under 50 words. No Markdown.
 
     Status: \(guide.title)
@@ -64,7 +65,8 @@ enum SandboxReadinessGuideNarrator {
       !normalized.hasPrefix("- "),
       !normalized.hasPrefix("* "),
       !normalized.lowercased().contains("http://"),
-      !normalized.lowercased().contains("https://")
+      !normalized.lowercased().contains("https://"),
+      !SandboxReadinessCopy.containsImplementationTerm(normalized)
     else {
       return ""
     }

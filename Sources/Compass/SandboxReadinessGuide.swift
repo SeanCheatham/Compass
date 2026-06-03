@@ -41,56 +41,57 @@ struct SandboxReadinessGuide: Equatable, Sendable {
     case .notProvisioned:
       title = "Private Workspace Not Installed"
       detail =
-        "Provision the Shared VM once so Develop can edit and verify inside a private macOS guest instead of your host checkout."
-      actionLabel = "Provision Shared VM"
+        "Set up the private workspace once so Develop can edit and verify away from your main checkout."
+      actionLabel = "Set Up Workspace"
       tone = .action
       systemImageName = "shippingbox"
     case .downloadingIPSW(let fraction):
-      title = "Downloading Restore Image"
+      title = "Downloading macOS"
       detail =
-        "Compass is fetching the macOS restore image. You can leave this view open while the download continues."
+        "Compass is fetching the macOS download. You can leave this view open while it continues."
       actionLabel = Self.percentLabel(fraction)
       tone = .progress
       systemImageName = "arrow.down.circle"
     case .installing(let fraction):
       title = "Installing macOS"
       detail =
-        "Compass is restoring macOS onto the VM disk. The sandbox is not ready for Develop until first boot and tool setup finish."
+        "Compass is installing macOS for the private workspace. Develop unlocks after first boot and tool setup finish."
       actionLabel = Self.percentLabel(fraction)
       tone = .progress
       systemImageName = "internaldrive"
     case .guestPrepping:
-      title = "Preparing Guest Access"
+      title = "Finishing Workspace Setup"
       detail =
-        "The guest has booted. Compass is creating the compass user, enabling Remote Login, and polling until SSH is ready."
-      actionLabel = "Waiting for guest"
+        "The workspace has booted. Compass is creating its account, enabling secure access, and waiting until commands can run."
+      actionLabel = "Finishing setup"
       tone = .action
       systemImageName = "gearshape.2"
     case .provisioningDevTools(let fraction):
       title = "Installing Developer Tools"
       detail =
-        "The guest is installing command-line developer tools so builds and tests can run inside the sandbox."
+        "The private workspace is installing command-line developer tools so builds and tests can run there."
       actionLabel = Self.percentLabel(fraction)
       tone = .progress
       systemImageName = "hammer"
-    case .ready(let destination):
-      title = "Sandbox Ready"
+    case .ready:
+      title = "Private Workspace Ready"
       detail =
-        "Develop work can now run in the private macOS guest. Compass will route sandboxed commands through \(destination)."
+        "Develop work can now run in the private workspace. Compass will use its saved workspace connection."
       actionLabel = "Ready"
       tone = .ready
       systemImageName = "checkmark.seal.fill"
     case .unavailable(let reason):
-      title = "Sandbox Unavailable"
-      detail = "This Mac cannot use the Shared VM right now: \(reason)"
-      actionLabel = "Use host route"
+      title = "Private Workspace Unavailable"
+      detail =
+        "This Mac cannot use the private workspace right now: \(SandboxReadinessCopy.userFacingInfrastructureDetail(reason, limit: 220))"
+      actionLabel = "Use This Mac"
       tone = .blocked
       systemImageName = "exclamationmark.triangle"
-    case .error(let detail):
-      title = "Sandbox Needs Repair"
+    case .error(let operationDetail):
+      title = "Private Workspace Needs Repair"
       self.detail =
-        "The last VM operation failed: \(detail). Rebuild with a local IPSW file or reset VM artifacts if the install is stuck."
-      actionLabel = "Repair sandbox"
+        "The last workspace operation failed: \(SandboxReadinessCopy.userFacingInfrastructureDetail(operationDetail, limit: 180)). Rebuild with a downloaded macOS restore image or reset workspace files if the install is stuck."
+      actionLabel = "Repair Workspace"
       tone = .blocked
       systemImageName = "xmark.octagon"
     }
@@ -113,8 +114,8 @@ struct SandboxReadinessGuide: Equatable, Sendable {
       return [
         Step(
           id: "availability",
-          title: "Host support",
-          detail: StringUtils.boundedText(reason, limit: 180),
+          title: "Mac support",
+          detail: SandboxReadinessCopy.userFacingInfrastructureDetail(reason, limit: 180),
           systemImageName: "exclamationmark.triangle",
           isComplete: false
         )
@@ -124,7 +125,8 @@ struct SandboxReadinessGuide: Equatable, Sendable {
         Step(
           id: "repair",
           title: "Recover install",
-          detail: "Use a local IPSW rebuild or reset VM artifacts, then provision again.",
+          detail:
+            "Use a downloaded macOS restore image or reset workspace files, then set up the workspace again.",
           systemImageName: "wrench.and.screwdriver",
           isComplete: false
         )
@@ -152,7 +154,7 @@ struct SandboxReadinessGuide: Equatable, Sendable {
       ),
       Step(
         id: "guest",
-        title: "Guest access",
+        title: "Workspace access",
         detail: guestDetail(for: readiness),
         systemImageName: "person.crop.circle.badge.checkmark",
         isComplete: guestComplete(readiness)
@@ -171,28 +173,28 @@ struct SandboxReadinessGuide: Equatable, Sendable {
     if case .downloadingIPSW(let fraction) = readiness {
       return "Downloading from Apple's CDN, \(percentLabel(fraction)) complete."
     }
-    return "Download or choose a local macOS IPSW restore image."
+    return "Download or choose a macOS restore image."
   }
 
   private static func installDetail(for readiness: SharedCompassVMReadiness) -> String {
     if case .installing(let fraction) = readiness {
       return "Restoring macOS, \(percentLabel(fraction)) complete."
     }
-    return "Install macOS onto the private VM disk."
+    return "Install macOS for the private workspace."
   }
 
   private static func guestDetail(for readiness: SharedCompassVMReadiness) -> String {
     if case .guestPrepping = readiness {
-      return "Creating the compass user and enabling SSH."
+      return "Creating the Compass account and enabling secure access."
     }
-    return "Prepare auto-login, credentials, and SSH access."
+    return "Prepare sign-in, credentials, and secure command access."
   }
 
   private static func toolsDetail(for readiness: SharedCompassVMReadiness) -> String {
     if case .provisioningDevTools(let fraction) = readiness {
       return "Installing command-line tools, \(percentLabel(fraction)) complete."
     }
-    return "Install build and test tools inside the guest."
+    return "Install build and test tools inside the workspace."
   }
 
   private static func downloadComplete(_ readiness: SharedCompassVMReadiness) -> Bool {
@@ -261,11 +263,11 @@ struct SandboxReadinessClipboardPayload: Equatable, Sendable {
 
   init(readiness: SharedCompassVMReadiness, guide: SandboxReadinessGuide) {
     var sections: [String] = [
-      "Compass Sandbox Handoff",
+      "Compass Private Workspace Handoff",
       "",
       "Recipient instructions:",
-      "- Treat this packet as bounded Shared VM readiness context. Do not invent logs, "
-        + "local IPSW paths, credentials, SSH destinations, host support, or hidden state.",
+      "- Treat this packet as bounded private workspace readiness context. Do not invent logs, "
+        + "downloaded restore image paths, credentials, connection destinations, Mac support, or hidden state.",
       "- Use the exact readiness state, action, and checklist to choose the next safe step.",
       "- If repair is needed, prefer the visible Compass controls named here before "
         + "suggesting manual filesystem cleanup.",
@@ -301,17 +303,17 @@ struct SandboxReadinessClipboardPayload: Equatable, Sendable {
     case .unavailable(let reason):
       return "unavailable: \(bounded(reason))"
     case .notProvisioned:
-      return "not provisioned"
+      return "private workspace not installed"
     case .downloadingIPSW(let fraction):
-      return "downloading restore image: \(percentLabel(fraction))"
+      return "downloading macOS: \(percentLabel(fraction))"
     case .installing(let fraction):
       return "installing macOS: \(percentLabel(fraction))"
     case .guestPrepping:
-      return "preparing guest access"
+      return "finishing workspace setup"
     case .provisioningDevTools(let fraction):
       return "installing developer tools: \(percentLabel(fraction))"
-    case .ready(let destination):
-      return "ready via \(bounded(destination))"
+    case .ready:
+      return "ready"
     case .error(let detail):
       return "error: \(bounded(detail))"
     }
@@ -323,7 +325,39 @@ struct SandboxReadinessClipboardPayload: Equatable, Sendable {
   }
 
   private static func bounded(_ text: String) -> String {
-    StringUtils.boundedText(text, limit: readinessDetailLimit)
+    SandboxReadinessCopy.userFacingInfrastructureDetail(text, limit: readinessDetailLimit)
+  }
+}
+
+enum SandboxReadinessCopy {
+  static func userFacingInfrastructureDetail(_ text: String, limit: Int) -> String {
+    var rewritten = StringUtils.boundedText(text, limit: limit)
+    [
+      ("Shared VM", "private workspace"),
+      ("shared VM", "private workspace"),
+      ("VM", "workspace"),
+      ("2-guest cap", "workspace capacity limit"),
+      ("guest disk", "workspace disk"),
+      ("guest access", "workspace access"),
+      ("guest", "workspace"),
+      ("Remote Login", "secure access"),
+      ("SSH destinations", "connection destinations"),
+      ("SSH destination", "connection destination"),
+      ("SSH", "secure connection"),
+      ("local IPSW", "downloaded macOS restore image"),
+      ("IPSW", "macOS restore image"),
+    ].forEach { original, replacement in
+      rewritten = rewritten.replacingOccurrences(of: original, with: replacement)
+    }
+    return StringUtils.boundedText(rewritten, limit: limit)
+  }
+
+  static func containsImplementationTerm(_ text: String) -> Bool {
+    let normalized = text.lowercased()
+    return normalized.contains("shared vm")
+      || normalized.contains("ssh")
+      || normalized.contains("ipsw")
+      || normalized.contains("guest")
   }
 }
 
