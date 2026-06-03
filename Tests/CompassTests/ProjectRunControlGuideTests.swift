@@ -48,7 +48,10 @@ struct ProjectRunControlGuideTests {
     try #require(
       guide.previewSteps[0].detail
         == "Plan will choose one executable next slice from the repository and strategic context.")
-    try #require(guide.previewSteps[1].detail.contains("outside your host checkout"))
+    try #require(
+      guide.previewSteps[1].detail
+        == "Develop edits the selected slice inside your private workspace.")
+    try #require(!guide.previewSteps[1].detail.contains("host checkout"))
     try #require(guide.previewSteps[2].detail.contains("saved check"))
   }
 

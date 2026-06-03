@@ -391,7 +391,7 @@ struct ProjectRunControlGuide: Equatable {
         PreviewStep(
           id: "develop",
           title: "Develop in the private workspace",
-          detail: "Develop edits the selected slice outside your host checkout.",
+          detail: "Develop edits the selected slice inside your private workspace.",
           systemImage: "hammer.fill"
         ),
         PreviewStep(

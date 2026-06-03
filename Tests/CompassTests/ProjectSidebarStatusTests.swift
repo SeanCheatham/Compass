@@ -5,6 +5,18 @@ import Testing
 
 struct ProjectSidebarStatusTests {
   @Test
+  func testWorkspaceSidebarRowUsesPrivateWorkspaceCopy() throws {
+    let row = SidebarSandboxRow(readiness: .notProvisioned, isSelected: false, action: {})
+
+    try #require(row.statusText == "Not prepared")
+    try #require(row.helpText == "Open the private workspace")
+    try #require(row.accessibilityText == "Private workspace, Not prepared")
+    try #require(!row.helpText.contains("shared macOS VM"))
+    try #require(!row.accessibilityText.contains("Sandbox"))
+    try #require(!row.statusText.contains("Not installed"))
+  }
+
+  @Test
   func testWorkspaceStatusButtonUsesPrivateWorkspaceAccessibilityCopy() throws {
     let button = SidebarSharedVMStatusButton(readiness: .guestPrepping, action: {})
 

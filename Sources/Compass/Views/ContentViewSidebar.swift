@@ -142,6 +142,18 @@ struct SidebarSandboxRow: View {
   let isSelected: Bool
   let action: () -> Void
 
+  var statusText: String {
+    readiness.privateWorkspaceStatusSummary
+  }
+
+  var helpText: String {
+    "Open the private workspace"
+  }
+
+  var accessibilityText: String {
+    "Private workspace, \(statusText)"
+  }
+
   var body: some View {
     Button(action: action) {
       HStack(spacing: 10) {
@@ -154,7 +166,7 @@ struct SidebarSandboxRow: View {
             Text("Sandbox")
               .font(.callout.weight(.semibold))
           }
-          Text(readiness.statusSummary)
+          Text(statusText)
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(2)
@@ -175,8 +187,8 @@ struct SidebarSandboxRow: View {
       .contentShape(RoundedRectangle(cornerRadius: 8))
     }
     .buttonStyle(.plain)
-    .help("Open the shared macOS VM sandbox")
-    .accessibilityLabel("Sandbox, \(readiness.statusSummary)")
+    .help(helpText)
+    .accessibilityLabel(accessibilityText)
   }
 }
 
