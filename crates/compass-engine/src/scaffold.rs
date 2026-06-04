@@ -33,6 +33,8 @@ pub struct ScaffoldCapabilities {
     pub visual_verify: bool,
     pub schema_contracts: bool,
     pub desktop_handshake: bool,
+    pub simulation_fixtures: bool,
+    pub gui_replay: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,6 +71,8 @@ pub fn scaffold_check(repo: &Utf8Path) -> Result<ScaffoldCheckResult> {
     check_capability_paths(repo, &capabilities, &mut checks);
     check_xtask(repo, &capabilities, &mut checks);
     check_desktop_handshake(repo, &capabilities, &mut checks);
+    check_simulation_fixtures(repo, &capabilities, &mut checks);
+    check_gui_replay(repo, &capabilities, &mut checks);
 
     let status = aggregate_status(&checks);
     Ok(ScaffoldCheckResult {
@@ -182,6 +186,8 @@ fn parse_metadata(contents: &str) -> ParsedMetadata {
             visual_verify: parse_bool(capabilities.get("visual_verify")),
             schema_contracts: parse_bool(capabilities.get("schema_contracts")),
             desktop_handshake: parse_bool(capabilities.get("desktop_handshake")),
+            simulation_fixtures: parse_bool(capabilities.get("simulation_fixtures")),
+            gui_replay: parse_bool(capabilities.get("gui_replay")),
         },
     }
 }
@@ -404,6 +410,174 @@ fn check_desktop_handshake(
             path,
         );
     }
+}
+
+fn check_simulation_fixtures(
+    repo: &Utf8Path,
+    capabilities: &ScaffoldCapabilities,
+    checks: &mut Vec<ScaffoldCheck>,
+) {
+    if !capabilities.simulation_fixtures {
+        return;
+    }
+
+    let core_path = "crates/app-core/src/lib.rs";
+    let core = match std::fs::read_to_string(repo.join(core_path)) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            checks.push(fail(
+                "simulation_core_source",
+                "simulation fixture capability is advertised but app-core source is missing.",
+                core_path,
+            ));
+            return;
+        }
+        Err(error) => {
+            checks.push(fail(
+                "simulation_core_source",
+                format!("app-core source could not be read: {error}"),
+                core_path,
+            ));
+            return;
+        }
+    };
+    for marker in ["SimulationInput", "SimulationSnapshot", "run_simulation"] {
+        check_source_contains(
+            &core,
+            checks,
+            format!("simulation_core_{}", marker.to_lowercase()),
+            marker,
+            core_path,
+        );
+    }
+
+    let cli_path = "crates/app-cli/src/main.rs";
+    let cli = match std::fs::read_to_string(repo.join(cli_path)) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            checks.push(fail(
+                "simulation_cli_source",
+                "simulation fixture capability is advertised but app-cli source is missing.",
+                cli_path,
+            ));
+            return;
+        }
+        Err(error) => {
+            checks.push(fail(
+                "simulation_cli_source",
+                format!("app-cli source could not be read: {error}"),
+                cli_path,
+            ));
+            return;
+        }
+    };
+    for marker in ["simulate", "--input"] {
+        check_source_contains(
+            &cli,
+            checks,
+            format!("simulation_cli_{}", marker.trim_start_matches("--").replace('-', "_")),
+            marker,
+            cli_path,
+        );
+    }
+}
+
+fn check_gui_replay(
+    repo: &Utf8Path,
+    capabilities: &ScaffoldCapabilities,
+    checks: &mut Vec<ScaffoldCheck>,
+) {
+    if !capabilities.gui_replay {
+        return;
+    }
+
+    let core_path = "crates/app-core/src/lib.rs";
+    let core = match std::fs::read_to_string(repo.join(core_path)) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            checks.push(fail(
+                "gui_replay_core_source",
+                "GUI replay capability is advertised but app-core source is missing.",
+                core_path,
+            ));
+            return;
+        }
+        Err(error) => {
+            checks.push(fail(
+                "gui_replay_core_source",
+                format!("app-core source could not be read: {error}"),
+                core_path,
+            ));
+            return;
+        }
+    };
+    for marker in ["GuiReplayTrace", "GuiSemanticSnapshot", "run_gui_replay"] {
+        check_source_contains(
+            &core,
+            checks,
+            format!("gui_replay_core_{}", marker.to_lowercase()),
+            marker,
+            core_path,
+        );
+    }
+
+    let cli_path = "crates/app-cli/src/main.rs";
+    let cli = match std::fs::read_to_string(repo.join(cli_path)) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            checks.push(fail(
+                "gui_replay_cli_source",
+                "GUI replay capability is advertised but app-cli source is missing.",
+                cli_path,
+            ));
+            return;
+        }
+        Err(error) => {
+            checks.push(fail(
+                "gui_replay_cli_source",
+                format!("app-cli source could not be read: {error}"),
+                cli_path,
+            ));
+            return;
+        }
+    };
+    for marker in ["gui-replay", "gui-replay-schema"] {
+        check_source_contains(
+            &cli,
+            checks,
+            format!("gui_replay_cli_{}", marker.replace('-', "_")),
+            marker,
+            cli_path,
+        );
+    }
+
+    let desktop_path = "crates/app-desktop/src/main.rs";
+    let desktop = match std::fs::read_to_string(repo.join(desktop_path)) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            checks.push(fail(
+                "gui_replay_desktop_source",
+                "GUI replay capability is advertised but app-desktop source is missing.",
+                desktop_path,
+            ));
+            return;
+        }
+        Err(error) => {
+            checks.push(fail(
+                "gui_replay_desktop_source",
+                format!("app-desktop source could not be read: {error}"),
+                desktop_path,
+            ));
+            return;
+        }
+    };
+    check_source_contains(
+        &desktop,
+        checks,
+        "gui_replay_desktop_semantic_snapshot_flag",
+        "--visual-semantic-snapshot-file",
+        desktop_path,
+    );
 }
 
 fn check_source_contains(

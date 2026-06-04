@@ -100,6 +100,14 @@ extension Prompts {
         `clippy_lint`, scoped `cargo_test`, and `coverage_gaps` when those
         tools are available; use `schema_contracts` before changing persisted
         state, and use `visual_verify` for Rust desktop UI proof.
+      - For generated Rust apps, keep app behavior usable through deterministic
+        simulation fixtures: pure `app-core` transitions, explicit JSON inputs,
+        stable snapshot/event-log JSON outputs, and CLI commands agents can
+        replay safely before any GUI automation is involved.
+      - For generated GUI changes, update semantic GUI replay fixtures
+        (`gui-replay` traces and snapshots) alongside the eframe/egui rendering.
+        Treat semantic snapshots as the deterministic assertion target and
+        screenshots as human-facing proof.
       - When structured Rust tools return "Repair hints", treat those hints as
         stronger evidence than guesses from raw logs; apply the smallest
         relevant repair and rerun the structured tool or verify command.

@@ -16,6 +16,8 @@ struct RustProjectScaffoldTests {
     try #require(paths.contains("crates/app-desktop/src/main.rs"))
     try #require(paths.contains("xtask/src/main.rs"))
     try #require(paths.contains("schemas/demo-state.schema.json"))
+    try #require(paths.contains("schemas/simulation-input.schema.json"))
+    try #require(paths.contains("schemas/gui-replay-trace.schema.json"))
     try #require(!paths.contains("Package.swift"))
     try #require(!paths.contains("package.json"))
   }
@@ -31,6 +33,8 @@ struct RustProjectScaffoldTests {
     try #require(metadata.contains("visual_verify = true"))
     try #require(metadata.contains("schema_contracts = true"))
     try #require(metadata.contains("desktop_handshake = true"))
+    try #require(metadata.contains("simulation_fixtures = true"))
+    try #require(metadata.contains("gui_replay = true"))
   }
 
   @Test func scaffoldDocumentsStandardRustCommandsAndDesktopStack() throws {
@@ -42,6 +46,13 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains("mirror Compass factory engine behavior"))
     try #require(readme.contains("eframe"))
     try #require(readme.contains("egui"))
+    try #require(readme.contains("Deterministic Simulation Contract"))
+    try #require(readme.contains("run_simulation(SimulationInput) -> SimulationSnapshot"))
+    try #require(readme.contains("app-cli simulate --input"))
+    try #require(readme.contains("Murphy scenarios"))
+    try #require(readme.contains("Deterministic GUI Replay Contract"))
+    try #require(readme.contains("run_gui_replay(GuiReplayTrace) -> GuiSemanticSnapshot"))
+    try #require(readme.contains("app-cli gui-replay --input"))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.fmt)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.clippy)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.test)))
@@ -57,6 +68,32 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains("platform-neutral visual input request"))
   }
 
+  @Test func appCoreTemplateExposesDeterministicSimulationFixture() throws {
+    let core = try #require(
+      RustProjectScaffold.files().first { $0.path == "crates/app-core/src/lib.rs" }?.contents)
+    let cli = try #require(
+      RustProjectScaffold.files().first { $0.path == "crates/app-cli/src/main.rs" }?.contents)
+    let tests = try #require(
+      RustProjectScaffold.files().first { $0.path == "crates/app-core/tests/state_tests.rs" }?
+        .contents)
+
+    try #require(core.contains("pub struct SimulationInput"))
+    try #require(core.contains("pub struct SimulationSnapshot"))
+    try #require(core.contains("pub fn run_simulation"))
+    try #require(core.contains("event_log: Vec<String>"))
+    try #require(core.contains("pub struct GuiReplayTrace"))
+    try #require(core.contains("pub struct GuiSemanticSnapshot"))
+    try #require(core.contains("pub fn run_gui_replay"))
+    try #require(core.contains("pub fn gui_semantic_snapshot"))
+    try #require(cli.contains(#"Some("simulate")"#))
+    try #require(cli.contains(#"Some("gui-replay")"#))
+    try #require(cli.contains("--input"))
+    try #require(cli.contains("serde_json::to_string_pretty(&run_simulation(input))"))
+    try #require(cli.contains("serde_json::to_string_pretty(&run_gui_replay(trace))"))
+    try #require(tests.contains("simulation_fixture_is_a_pure_transition"))
+    try #require(tests.contains("gui_replay_fixture_emits_stable_semantic_snapshot"))
+  }
+
   @Test func desktopTemplateHasStableVisualVerificationLabels() throws {
     let desktop = try #require(
       RustProjectScaffold.files().first { $0.path == "crates/app-desktop/src/main.rs" }?.contents)
@@ -69,6 +106,9 @@ struct RustProjectScaffoldTests {
     try #require(desktop.contains("--visual-screenshot-file"))
     try #require(desktop.contains("--visual-input-file"))
     try #require(desktop.contains("--visual-input-ack-file"))
+    try #require(desktop.contains("--visual-semantic-snapshot-file"))
+    try #require(desktop.contains("write_semantic_snapshot_file"))
+    try #require(desktop.contains("gui_semantic_snapshot"))
     try #require(desktop.contains("input: {}"))
     try #require(desktop.contains("acknowledged"))
     try #require(desktop.contains("write_ready_file"))
@@ -99,6 +139,9 @@ struct RustProjectScaffoldTests {
     try #require(xtask.contains("factory-smoke"))
     try #require(xtask.contains("engine-parity-check"))
     try #require(xtask.contains("fn factory_smoke(emit_base64: bool)"))
+    try #require(xtask.contains("fn run_clippy() -> Result<()>"))
+    try #require(xtask.contains(#""clippy" => run_clippy()"#))
+    try #require(xtask.contains("run_clippy()?"))
     try #require(xtask.contains("visual_verify(emit_base64)?"))
     try #require(
       xtask.contains("run(\"cargo\", &[\"test\", \"--workspace\", \"--all-features\"])?"))
@@ -110,6 +153,9 @@ struct RustProjectScaffoldTests {
     try #require(xtask.contains("--visual-screenshot-file"))
     try #require(xtask.contains("--visual-input-file"))
     try #require(xtask.contains("--visual-input-ack-file"))
+    try #require(xtask.contains("--visual-semantic-snapshot-file"))
+    try #require(xtask.contains("semantic GUI snapshot"))
+    try #require(xtask.contains("COMPASS_VISUAL_SEMANTIC_SNAPSHOT_PATH"))
     try #require(!xtask.contains("launchctl"))
     try #require(!xtask.contains("screencapture"))
     try #require(!xtask.contains("osascript"))

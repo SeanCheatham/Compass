@@ -13,6 +13,8 @@ fn scaffold_check_passes_for_blessed_shape() {
     assert_eq!(json["data"]["status"], "pass");
     assert_eq!(json["data"]["scaffold_version"], 1);
     assert_eq!(json["data"]["capabilities"]["xtask_verify"], true);
+    assert_eq!(json["data"]["capabilities"]["simulation_fixtures"], true);
+    assert_eq!(json["data"]["capabilities"]["gui_replay"], true);
 }
 
 #[test]
@@ -58,6 +60,68 @@ fn scaffold_check_returns_structured_failure_for_non_workspace() {
         .any(|check| { check["id"] == "workspace_manifest" && check["status"] == "fail" }));
 }
 
+#[test]
+fn scaffold_check_reports_missing_simulation_fixture_markers() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    write_blessed_workspace(temp.path());
+    write(
+        temp.path(),
+        "crates/app-cli/src/main.rs",
+        r#"
+fn main() {
+    println!("status only");
+}
+"#,
+    );
+
+    let json = run_scaffold_check(temp.path());
+    let checks = json["data"]["checks"].as_array().expect("checks");
+
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["data"]["status"], "fail");
+    assert!(checks
+        .iter()
+        .any(|check| { check["id"] == "simulation_cli_simulate" && check["status"] == "fail" }));
+    assert!(json["repair_hints"]
+        .as_array()
+        .expect("repair hints")
+        .iter()
+        .any(|hint| { hint["id"] == "generated-scaffold-missing-simulation-fixture" }));
+}
+
+#[test]
+fn scaffold_check_reports_missing_gui_replay_markers() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    write_blessed_workspace(temp.path());
+    write(
+        temp.path(),
+        "crates/app-desktop/src/main.rs",
+        r#"
+fn main() {
+    let _ = "--visual-ready-file";
+    let _ = "--visual-screenshot-file";
+    let _ = "--visual-input-file";
+    let _ = "--visual-input-ack-file";
+}
+"#,
+    );
+
+    let json = run_scaffold_check(temp.path());
+    let checks = json["data"]["checks"].as_array().expect("checks");
+
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["data"]["status"], "fail");
+    assert!(checks.iter().any(|check| {
+        check["id"] == "gui_replay_desktop_semantic_snapshot_flag"
+            && check["status"] == "fail"
+    }));
+    assert!(json["repair_hints"]
+        .as_array()
+        .expect("repair hints")
+        .iter()
+        .any(|hint| { hint["id"] == "generated-scaffold-missing-gui-replay" }));
+}
+
 fn run_scaffold_check(path: &Path) -> Value {
     let output = Command::cargo_bin("compass-engine")
         .expect("binary")
@@ -89,6 +153,8 @@ xtask_verify = true
 visual_verify = true
 schema_contracts = true
 desktop_handshake = true
+simulation_fixtures = true
+gui_replay = true
 "#,
     );
     write(
@@ -127,6 +193,8 @@ components = ["rustfmt", "clippy"]
         );
     }
     write(root, "schemas/demo-state.schema.json", "{}");
+    write(root, "schemas/simulation-input.schema.json", "{}");
+    write(root, "schemas/gui-replay-trace.schema.json", "{}");
     write(
         root,
         "xtask/src/main.rs",
@@ -142,6 +210,34 @@ fn main() {
     );
     write(
         root,
+        "crates/app-core/src/lib.rs",
+        r#"
+pub struct SimulationInput;
+pub struct SimulationSnapshot;
+pub struct GuiReplayTrace;
+pub struct GuiSemanticSnapshot;
+pub fn run_simulation(_: SimulationInput) -> SimulationSnapshot {
+    SimulationSnapshot
+}
+pub fn run_gui_replay(_: GuiReplayTrace) -> GuiSemanticSnapshot {
+    GuiSemanticSnapshot
+}
+"#,
+    );
+    write(
+        root,
+        "crates/app-cli/src/main.rs",
+        r#"
+fn main() {
+    let _ = "simulate";
+    let _ = "--input";
+    let _ = "gui-replay";
+    let _ = "gui-replay-schema";
+}
+"#,
+    );
+    write(
+        root,
         "crates/app-desktop/src/main.rs",
         r#"
 fn main() {
@@ -149,6 +245,7 @@ fn main() {
     let _ = "--visual-screenshot-file";
     let _ = "--visual-input-file";
     let _ = "--visual-input-ack-file";
+    let _ = "--visual-semantic-snapshot-file";
 }
 "#,
     );

@@ -28,6 +28,15 @@ The blessed generated-project shape is a Cargo workspace:
   provides structured Cargo diagnostics, workspace outlines, Rust indexes,
   schema contracts, coverage gaps, and visual verification results.
 
+Generated apps should also be friendly to deterministic simulation testing:
+load-bearing behavior belongs in pure `app-core` transitions with explicit
+serializable inputs and stable snapshot/event-log outputs exposed through
+`app-cli`. That gives agents a safe, sandboxed, replayable way to "use" the app
+before reaching for desktop automation; visual verification remains proof that
+the Rust UI renders the same deterministic state.
+Generated GUIs should expose semantic replay traces and snapshots as their
+deterministic assertion surface, with screenshots reserved for rendering proof.
+
 Standard generated-project checks are:
 
 ```bash

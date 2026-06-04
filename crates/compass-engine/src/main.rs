@@ -271,6 +271,20 @@ fn scaffold_repair_hints(data: &serde_json::Value) -> Vec<RepairHint> {
                 "Scaffold advertises visual verification but the desktop crate/source is missing.",
                 None::<String>,
             ));
+        } else if id.starts_with("simulation_") {
+            hints.push(RepairHint::new(
+                "generated-scaffold-missing-simulation-fixture",
+                "error",
+                "Scaffold advertises deterministic simulation fixtures but the core or CLI fixture surface is missing.",
+                None::<String>,
+            ));
+        } else if id.starts_with("gui_replay_") {
+            hints.push(RepairHint::new(
+                "generated-scaffold-missing-gui-replay",
+                "error",
+                "Scaffold advertises deterministic GUI replay but the semantic replay surface or desktop snapshot hook is missing.",
+                None::<String>,
+            ));
         }
     }
     dedupe_hints(hints)

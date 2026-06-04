@@ -343,12 +343,42 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
   var visualVerify: Bool
   var schemaContracts: Bool
   var desktopHandshake: Bool
+  var simulationFixtures: Bool
+  var guiReplay: Bool
+
+  init(
+    xtaskVerify: Bool,
+    visualVerify: Bool,
+    schemaContracts: Bool,
+    desktopHandshake: Bool,
+    simulationFixtures: Bool = false,
+    guiReplay: Bool = false
+  ) {
+    self.xtaskVerify = xtaskVerify
+    self.visualVerify = visualVerify
+    self.schemaContracts = schemaContracts
+    self.desktopHandshake = desktopHandshake
+    self.simulationFixtures = simulationFixtures
+    self.guiReplay = guiReplay
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    xtaskVerify = try container.decode(Bool.self, forKey: .xtaskVerify)
+    visualVerify = try container.decode(Bool.self, forKey: .visualVerify)
+    schemaContracts = try container.decode(Bool.self, forKey: .schemaContracts)
+    desktopHandshake = try container.decode(Bool.self, forKey: .desktopHandshake)
+    simulationFixtures = try container.decodeIfPresent(Bool.self, forKey: .simulationFixtures) ?? false
+    guiReplay = try container.decodeIfPresent(Bool.self, forKey: .guiReplay) ?? false
+  }
 
   enum CodingKeys: String, CodingKey {
     case xtaskVerify = "xtask_verify"
     case visualVerify = "visual_verify"
     case schemaContracts = "schema_contracts"
     case desktopHandshake = "desktop_handshake"
+    case simulationFixtures = "simulation_fixtures"
+    case guiReplay = "gui_replay"
   }
 }
 

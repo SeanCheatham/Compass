@@ -43,6 +43,8 @@ struct RustProjectScaffold: Equatable, Sendable {
       ScaffoldFile(path: "rust-toolchain.toml", contents: rustToolchain()),
       ScaffoldFile(path: "README.md", contents: readme(projectName: projectName)),
       ScaffoldFile(path: "schemas/demo-state.schema.json", contents: demoStateSchema()),
+      ScaffoldFile(path: "schemas/simulation-input.schema.json", contents: simulationInputSchema()),
+      ScaffoldFile(path: "schemas/gui-replay-trace.schema.json", contents: guiReplayTraceSchema()),
       ScaffoldFile(path: "crates/app-core/Cargo.toml", contents: appCoreManifest()),
       ScaffoldFile(path: "crates/app-core/src/lib.rs", contents: appCoreLib()),
       ScaffoldFile(path: "crates/app-core/tests/state_tests.rs", contents: appCoreTests()),
@@ -115,6 +117,8 @@ struct RustProjectScaffold: Equatable, Sendable {
     visual_verify = true
     schema_contracts = true
     desktop_handshake = true
+    simulation_fixtures = true
+    gui_replay = true
     """
   }
 
@@ -169,6 +173,25 @@ struct RustProjectScaffold: Equatable, Sendable {
     - `xtask`: Rust-owned automation for checks and visual verification.
     - `schemas/`: generated-project contracts checked into the Rust workspace.
 
+    ## Deterministic Simulation Contract
+
+    Generated apps keep product behavior behind a pure `app-core` transition:
+    `run_simulation(SimulationInput) -> SimulationSnapshot`. The default CLI
+    exposes that contract with `app-cli simulate --input '<json>'` and prints
+    stable pretty JSON. Treat this as the host-side fixture seam for future
+    Murphy scenarios: inputs are explicit, outputs are serializable, and the
+    desktop UI only renders state derived from the same deterministic core.
+
+    ## Deterministic GUI Replay Contract
+
+    Generated desktop behavior also has a semantic replay surface:
+    `run_gui_replay(GuiReplayTrace) -> GuiSemanticSnapshot`. The default CLI
+    exposes it with `app-cli gui-replay --input '<json>'` and emits stable JSON
+    containing ordered semantic nodes, deterministic state, and replay events.
+    `xtask visual-verify` captures both this semantic snapshot and a screenshot;
+    use the semantic JSON as the replay/assertion target and the screenshot as
+    human-facing rendering proof.
+
     ## Standard Commands
 
     - Format: `\(RustVerifyCommands.cargo(RustVerifyCommands.fmt))`
@@ -177,6 +200,8 @@ struct RustProjectScaffold: Equatable, Sendable {
     - Coverage: `\(RustVerifyCommands.cargo(RustVerifyCommands.coverage))`
     - Build: `\(RustVerifyCommands.cargo(RustVerifyCommands.build))`
     - Run CLI: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "status"]))`
+    - Run simulation fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "simulate", "--input", #"{"seed":"demo","ticks":3,"action":"advance"}"#]))`
+    - Run GUI replay fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "gui-replay", "--input", #"{"seed":"demo","steps":[{"action":"advance","ticks":2},{"action":"visual_input","value":"space"}]}"#]))`
     - Run desktop: `\(RustVerifyCommands.cargo(RustVerifyCommands.runDesktop))`
     - Fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
     - Visual verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerifyNoBase64))`
@@ -191,8 +216,8 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     The desktop app uses deterministic demo state and stable window labels so Compass can
     build it in the Shared VM, launch it in the guest, wait for readiness, send a
-    platform-neutral visual input request, capture a Rust-rendered viewport artifact,
-    and terminate it cleanly.
+    platform-neutral visual input request, capture a semantic GUI snapshot plus a
+    Rust-rendered viewport artifact, and terminate it cleanly.
     """
   }
 
@@ -207,6 +232,48 @@ struct RustProjectScaffold: Equatable, Sendable {
         "headline": { "type": "string" },
         "completed": { "type": "integer", "minimum": 0 },
         "total": { "type": "integer", "minimum": 1 }
+      }
+    }
+    """
+  }
+
+  private static func simulationInputSchema() -> String {
+    """
+    {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "SimulationInput",
+      "type": "object",
+      "required": ["seed", "ticks", "action"],
+      "properties": {
+        "seed": { "type": "string" },
+        "ticks": { "type": "integer", "minimum": 0 },
+        "action": { "type": "string", "enum": ["advance", "hold", "reset"] }
+      }
+    }
+    """
+  }
+
+  private static func guiReplayTraceSchema() -> String {
+    """
+    {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "GuiReplayTrace",
+      "type": "object",
+      "required": ["seed", "steps"],
+      "properties": {
+        "seed": { "type": "string" },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["action"],
+            "properties": {
+              "action": { "type": "string", "enum": ["advance", "hold", "reset", "visual_input"] },
+              "ticks": { "type": "integer", "minimum": 0 },
+              "value": { "type": "string" }
+            }
+          }
+        }
       }
     }
     """
@@ -238,6 +305,68 @@ struct RustProjectScaffold: Equatable, Sendable {
         pub total: u8,
     }
 
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct SimulationInput {
+        pub seed: String,
+        pub ticks: u32,
+        pub action: SimulationAction,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    pub enum SimulationAction {
+        Advance,
+        Hold,
+        Reset,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct SimulationSnapshot {
+        pub state: DemoState,
+        pub ticks_elapsed: u32,
+        pub event_log: Vec<String>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct GuiReplayTrace {
+        pub seed: String,
+        pub steps: Vec<GuiReplayStep>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct GuiReplayStep {
+        pub action: GuiReplayAction,
+        #[serde(default)]
+        pub ticks: u32,
+        #[serde(default)]
+        pub value: Option<String>,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    pub enum GuiReplayAction {
+        Advance,
+        Hold,
+        Reset,
+        VisualInput,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct GuiSemanticSnapshot {
+        pub schema_version: u8,
+        pub state: DemoState,
+        pub nodes: Vec<GuiNode>,
+        pub replay_events: Vec<String>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct GuiNode {
+        pub id: String,
+        pub role: String,
+        pub text: String,
+        pub state: String,
+    }
+
     impl DemoState {
         pub fn deterministic(seed: &str) -> Self {
             let completed = 2 + (seed.bytes().fold(0_u8, u8::wrapping_add) % 2);
@@ -257,6 +386,130 @@ struct RustProjectScaffold: Equatable, Sendable {
         }
     }
 
+    impl Default for SimulationInput {
+        fn default() -> Self {
+            Self {
+                seed: "cli".to_owned(),
+                ticks: 1,
+                action: SimulationAction::Advance,
+            }
+        }
+    }
+
+    pub fn run_simulation(input: SimulationInput) -> SimulationSnapshot {
+        let mut state = DemoState::deterministic(&input.seed);
+        let mut event_log = Vec::new();
+        event_log.push(format!("seed:{}", input.seed));
+        event_log.push(format!("ticks:{}", input.ticks));
+
+        match input.action {
+            SimulationAction::Advance => {
+                let budget = state.total.saturating_sub(state.completed);
+                let delta = budget.min((input.ticks % 3) as u8);
+                state.completed += delta;
+                event_log.push(format!("action:advance:{delta}"));
+            }
+            SimulationAction::Hold => {
+                event_log.push("action:hold:0".to_owned());
+            }
+            SimulationAction::Reset => {
+                state.completed = 0;
+                event_log.push("action:reset:0".to_owned());
+            }
+        }
+
+        SimulationSnapshot {
+            state,
+            ticks_elapsed: input.ticks,
+            event_log,
+        }
+    }
+
+    impl Default for GuiReplayTrace {
+        fn default() -> Self {
+            Self {
+                seed: "gui".to_owned(),
+                steps: vec![GuiReplayStep {
+                    action: GuiReplayAction::Advance,
+                    ticks: 1,
+                    value: None,
+                }],
+            }
+        }
+    }
+
+    pub fn run_gui_replay(trace: GuiReplayTrace) -> GuiSemanticSnapshot {
+        let mut state = DemoState::deterministic(&trace.seed);
+        let mut replay_events = vec![format!("seed:{}", trace.seed)];
+        let mut input_status = "not requested".to_owned();
+
+        for (index, step) in trace.steps.into_iter().enumerate() {
+            match step.action {
+                GuiReplayAction::Advance => {
+                    let snapshot = run_simulation(SimulationInput {
+                        seed: format!("{}:{index}", state.headline),
+                        ticks: step.ticks,
+                        action: SimulationAction::Advance,
+                    });
+                    state.completed = snapshot.state.completed;
+                    replay_events.push(format!("step:{index}:advance:{}", step.ticks));
+                }
+                GuiReplayAction::Hold => {
+                    replay_events.push(format!("step:{index}:hold:{}", step.ticks));
+                }
+                GuiReplayAction::Reset => {
+                    state.completed = 0;
+                    replay_events.push(format!("step:{index}:reset"));
+                }
+                GuiReplayAction::VisualInput => {
+                    let value = step.value.unwrap_or_else(|| "unknown".to_owned());
+                    input_status = format!("acknowledged:{value}");
+                    replay_events.push(format!("step:{index}:visual_input:{value}"));
+                }
+            }
+        }
+
+        gui_semantic_snapshot(state, input_status, replay_events)
+    }
+
+    pub fn gui_semantic_snapshot(
+        state: DemoState,
+        input_status: String,
+        replay_events: Vec<String>,
+    ) -> GuiSemanticSnapshot {
+        GuiSemanticSnapshot {
+            schema_version: 1,
+            nodes: vec![
+                GuiNode {
+                    id: "root.heading".to_owned(),
+                    role: "heading".to_owned(),
+                    text: "Compass Rust Desktop".to_owned(),
+                    state: "visible".to_owned(),
+                },
+                GuiNode {
+                    id: "status.project_health".to_owned(),
+                    role: "status".to_owned(),
+                    text: state.completion_label(),
+                    state: "visible".to_owned(),
+                },
+                GuiNode {
+                    id: "summary.line".to_owned(),
+                    role: "text".to_owned(),
+                    text: state.summary_line(),
+                    state: "visible".to_owned(),
+                },
+                GuiNode {
+                    id: "input.status".to_owned(),
+                    role: "status".to_owned(),
+                    text: input_status,
+                    state: "visible".to_owned(),
+                },
+            ],
+            state,
+            replay_events,
+        }
+    }
+
     pub fn demo_state_schema() -> Value {
         json!({
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -271,12 +524,56 @@ struct RustProjectScaffold: Equatable, Sendable {
         })
     }
 
+    pub fn simulation_input_schema() -> Value {
+        json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "SimulationInput",
+            "type": "object",
+            "required": ["seed", "ticks", "action"],
+            "properties": {
+                "seed": { "type": "string" },
+                "ticks": { "type": "integer", "minimum": 0 },
+                "action": { "type": "string", "enum": ["advance", "hold", "reset"] }
+            }
+        })
+    }
+
+    pub fn gui_replay_trace_schema() -> Value {
+        json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "GuiReplayTrace",
+            "type": "object",
+            "required": ["seed", "steps"],
+            "properties": {
+                "seed": { "type": "string" },
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["action"],
+                        "properties": {
+                            "action": {
+                                "type": "string",
+                                "enum": ["advance", "hold", "reset", "visual_input"]
+                            },
+                            "ticks": { "type": "integer", "minimum": 0 },
+                            "value": { "type": "string" }
+                        }
+                    }
+                }
+            }
+        })
+    }
+
     """
   }
 
   private static func appCoreTests() -> String {
     """
-    use app_core::DemoState;
+    use app_core::{
+        run_gui_replay, run_simulation, DemoState, GuiReplayAction, GuiReplayStep, GuiReplayTrace,
+        SimulationAction, SimulationInput,
+    };
 
     #[test]
     fn deterministic_state_has_stable_labels() {
@@ -284,6 +581,54 @@ struct RustProjectScaffold: Equatable, Sendable {
 
         assert_eq!(state.headline, "Rust workspace ready");
         assert!(state.completion_label().contains("checks ready"));
+    }
+
+    #[test]
+    fn simulation_fixture_is_a_pure_transition() {
+        let input = SimulationInput {
+            seed: "case-a".to_owned(),
+            ticks: 5,
+            action: SimulationAction::Advance,
+        };
+
+        let first = run_simulation(input.clone());
+        let second = run_simulation(input);
+
+        assert_eq!(first, second);
+        assert_eq!(first.ticks_elapsed, 5);
+        assert_eq!(
+            first.event_log,
+            ["seed:case-a", "ticks:5", "action:advance:2"]
+        );
+    }
+
+    #[test]
+    fn gui_replay_fixture_emits_stable_semantic_snapshot() {
+        let trace = GuiReplayTrace {
+            seed: "gui-case".to_owned(),
+            steps: vec![
+                GuiReplayStep {
+                    action: GuiReplayAction::Advance,
+                    ticks: 2,
+                    value: None,
+                },
+                GuiReplayStep {
+                    action: GuiReplayAction::VisualInput,
+                    ticks: 0,
+                    value: Some("space".to_owned()),
+                },
+            ],
+        };
+
+        let first = run_gui_replay(trace.clone());
+        let second = run_gui_replay(trace);
+
+        assert_eq!(first, second);
+        assert_eq!(first.schema_version, 1);
+        assert!(first
+            .nodes
+            .iter()
+            .any(|node| node.id == "input.status" && node.text == "acknowledged:space"));
     }
 
     """
@@ -305,7 +650,10 @@ struct RustProjectScaffold: Equatable, Sendable {
 
   private static func appCLIMain() -> String {
     """
-    use app_core::{demo_state_schema, DemoState};
+    use app_core::{
+        demo_state_schema, gui_replay_trace_schema, run_gui_replay, run_simulation,
+        simulation_input_schema, DemoState, GuiReplayTrace, SimulationInput,
+    };
 
     fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut args = std::env::args().skip(1);
@@ -316,13 +664,73 @@ struct RustProjectScaffold: Equatable, Sendable {
             Some("schema") => {
                 println!("{}", serde_json::to_string_pretty(&demo_state_schema())?);
             }
+            Some("simulation-schema") => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&simulation_input_schema())?
+                );
+            }
+            Some("gui-replay-schema") => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&gui_replay_trace_schema())?
+                );
+            }
+            Some("simulate") => {
+                let input = parse_simulation_input(args)?;
+                println!("{}", serde_json::to_string_pretty(&run_simulation(input))?);
+            }
+            Some("gui-replay") => {
+                let trace = parse_gui_replay_trace(args)?;
+                println!("{}", serde_json::to_string_pretty(&run_gui_replay(trace))?);
+            }
             Some(other) => {
                 eprintln!("unknown command: {other}");
-                eprintln!("usage: app-cli [status|schema]");
+                eprintln!("usage: app-cli [status|schema|simulation-schema|gui-replay-schema|simulate --input <json>|gui-replay --input <json>]");
                 std::process::exit(2);
             }
         }
         Ok(())
+    }
+
+    fn parse_simulation_input(
+        mut args: impl Iterator<Item = String>,
+    ) -> Result<SimulationInput, Box<dyn std::error::Error>> {
+        let mut input_json = None;
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--input" => {
+                    input_json = args.next();
+                }
+                other => {
+                    return Err(format!("unknown simulate argument: {other}").into());
+                }
+            }
+        }
+        match input_json {
+            Some(value) => Ok(serde_json::from_str(&value)?),
+            None => Ok(SimulationInput::default()),
+        }
+    }
+
+    fn parse_gui_replay_trace(
+        mut args: impl Iterator<Item = String>,
+    ) -> Result<GuiReplayTrace, Box<dyn std::error::Error>> {
+        let mut input_json = None;
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--input" => {
+                    input_json = args.next();
+                }
+                other => {
+                    return Err(format!("unknown gui-replay argument: {other}").into());
+                }
+            }
+        }
+        match input_json {
+            Some(value) => Ok(serde_json::from_str(&value)?),
+            None => Ok(GuiReplayTrace::default()),
+        }
     }
 
     """
@@ -340,12 +748,13 @@ struct RustProjectScaffold: Equatable, Sendable {
     app-core.workspace = true
     eframe.workspace = true
     image.workspace = true
+    serde_json.workspace = true
     """
   }
 
   private static func appDesktopMain(windowTitle: String) -> String {
     """
-    use app_core::DemoState;
+    use app_core::{gui_semantic_snapshot, DemoState};
     use eframe::egui;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
@@ -358,6 +767,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         screenshot_file: Option<PathBuf>,
         input_file: Option<PathBuf>,
         input_ack_file: Option<PathBuf>,
+        semantic_snapshot_file: Option<PathBuf>,
         window_title: String,
     }
 
@@ -369,6 +779,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             let mut screenshot_file = None;
             let mut input_file = None;
             let mut input_ack_file = None;
+            let mut semantic_snapshot_file = None;
             let mut args = std::env::args().skip(1);
             while let Some(arg) = args.next() {
                 match arg.as_str() {
@@ -402,6 +813,11 @@ struct RustProjectScaffold: Equatable, Sendable {
                             input_ack_file = Some(PathBuf::from(value));
                         }
                     }
+                    "--visual-semantic-snapshot-file" => {
+                        if let Some(value) = args.next() {
+                            semantic_snapshot_file = Some(PathBuf::from(value));
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -412,6 +828,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 screenshot_file,
                 input_file,
                 input_ack_file,
+                semantic_snapshot_file,
                 window_title: "\(rustStringLiteralContent(windowTitle))".to_owned(),
             }
         }
@@ -441,8 +858,10 @@ struct RustProjectScaffold: Equatable, Sendable {
         screenshot_file: Option<PathBuf>,
         input_file: Option<PathBuf>,
         input_ack_file: Option<PathBuf>,
+        semantic_snapshot_file: Option<PathBuf>,
         input_observed: bool,
         wrote_ready: bool,
+        wrote_semantic_snapshot: bool,
         requested_screenshot: bool,
         wrote_screenshot: bool,
     }
@@ -455,8 +874,10 @@ struct RustProjectScaffold: Equatable, Sendable {
                 screenshot_file: config.screenshot_file,
                 input_file: config.input_file,
                 input_ack_file: config.input_ack_file,
+                semantic_snapshot_file: config.semantic_snapshot_file,
                 input_observed: false,
                 wrote_ready: false,
+                wrote_semantic_snapshot: false,
                 requested_screenshot: false,
                 wrote_screenshot: false,
             }
@@ -520,6 +941,27 @@ struct RustProjectScaffold: Equatable, Sendable {
                 self.wrote_ready = true;
             }
 
+            let input_ready = self.input_file.is_none() || self.input_observed;
+            if input_ready && !self.wrote_semantic_snapshot {
+                if let Some(path) = self.semantic_snapshot_file.as_ref() {
+                    let snapshot = gui_semantic_snapshot(
+                        self.state.clone(),
+                        self.semantic_input_status(),
+                        vec!["desktop:rendered".to_owned()],
+                    );
+                    match write_semantic_snapshot_file(path, &snapshot) {
+                        Ok(()) => {
+                            self.wrote_semantic_snapshot = true;
+                        }
+                        Err(error) => {
+                            eprintln!("could not write semantic GUI snapshot: {error}");
+                        }
+                    }
+                } else {
+                    self.wrote_semantic_snapshot = true;
+                }
+            }
+
             for event in ctx.input(|input| input.events.clone()) {
                 if let egui::Event::Screenshot { image, .. } = event {
                     if let Some(path) = self.screenshot_file.as_ref() {
@@ -535,7 +977,6 @@ struct RustProjectScaffold: Equatable, Sendable {
                 }
             }
 
-            let input_ready = self.input_file.is_none() || self.input_observed;
             if self.screenshot_file.is_some()
                 && input_ready
                 && !self.requested_screenshot
@@ -546,6 +987,18 @@ struct RustProjectScaffold: Equatable, Sendable {
             }
 
             ctx.request_repaint_after(Duration::from_millis(250));
+        }
+    }
+
+    impl CompassRustApp {
+        fn semantic_input_status(&self) -> String {
+            if self.input_observed {
+                "acknowledged".to_owned()
+            } else if self.input_file.is_some() {
+                "waiting".to_owned()
+            } else {
+                "not requested".to_owned()
+            }
         }
     }
 
@@ -572,6 +1025,17 @@ struct RustProjectScaffold: Equatable, Sendable {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(path, format!("ack:{input}\\n"))?;
+        Ok(())
+    }
+
+    fn write_semantic_snapshot_file(
+        path: &Path,
+        snapshot: &app_core::GuiSemanticSnapshot,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, serde_json::to_string_pretty(snapshot)?)?;
         Ok(())
     }
 
@@ -652,6 +1116,21 @@ struct RustProjectScaffold: Equatable, Sendable {
         Ok(())
     }
 
+    fn run_clippy() -> Result<()> {
+        run(
+            "cargo",
+            &[
+                "clippy",
+                "--workspace",
+                "--all-targets",
+                "--all-features",
+                "--",
+                "-D",
+                "warnings",
+            ],
+        )
+    }
+
     fn factory_smoke(emit_base64: bool) -> Result<()> {
         verify_all()?;
         visual_verify(emit_base64)?;
@@ -664,12 +1143,14 @@ struct RustProjectScaffold: Equatable, Sendable {
         let ready_file = artifact_dir.join("ready.txt");
         let pid_file = artifact_dir.join("desktop.pid");
         let screenshot = artifact_dir.join("screenshot.png");
+        let semantic_snapshot = artifact_dir.join("semantic-snapshot.json");
         let input_file = artifact_dir.join("input.txt");
         let input_ack_file = artifact_dir.join("input-ack.txt");
         let log_path = artifact_dir.join("desktop.log");
         remove_if_exists(&ready_file)?;
         remove_if_exists(&pid_file)?;
         remove_if_exists(&screenshot)?;
+        remove_if_exists(&semantic_snapshot)?;
         remove_if_exists(&input_file)?;
         remove_if_exists(&input_ack_file)?;
         remove_if_exists(&log_path)?;
@@ -679,6 +1160,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             &ready_file,
             &pid_file,
             &screenshot,
+            &semantic_snapshot,
             &input_file,
             &input_ack_file,
             &log_path,
@@ -701,6 +1183,13 @@ struct RustProjectScaffold: Equatable, Sendable {
                 &log_path,
             )?;
             wait_for_file(
+                "semantic GUI snapshot",
+                &semantic_snapshot,
+                Duration::from_secs(5),
+                &mut child,
+                &log_path,
+            )?;
+            wait_for_file(
                 "viewport screenshot",
                 &screenshot,
                 Duration::from_secs(10),
@@ -717,6 +1206,10 @@ struct RustProjectScaffold: Equatable, Sendable {
                 println!("COMPASS_VISUAL_SCREENSHOT_BASE64_END");
             }
             println!("COMPASS_VISUAL_ARTIFACT_DIR={}", artifact_dir.display());
+            println!(
+                "COMPASS_VISUAL_SEMANTIC_SNAPSHOT_PATH={}",
+                semantic_snapshot.display()
+            );
             println!("COMPASS_VISUAL_SCREENSHOT_PATH={}", screenshot.display());
             println!("COMPASS_VISUAL_LOG_PATH={}", log_path.display());
             Ok(())
@@ -729,6 +1222,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         ready_file: &Path,
         pid_file: &Path,
         screenshot: &Path,
+        semantic_snapshot: &Path,
         input_file: &Path,
         input_ack_file: &Path,
         log_path: &Path,
@@ -745,6 +1239,8 @@ struct RustProjectScaffold: Equatable, Sendable {
             .arg(pid_file)
             .arg("--visual-screenshot-file")
             .arg(screenshot)
+            .arg("--visual-semantic-snapshot-file")
+            .arg(semantic_snapshot)
             .arg("--visual-input-file")
             .arg(input_file)
             .arg("--visual-input-ack-file")
@@ -877,7 +1373,10 @@ struct RustProjectScaffold: Equatable, Sendable {
   }
 
   private static func xtaskCargoRunExpression(_ arguments: [String]) -> String {
-    "run(\"cargo\", &\(rustStringArrayLiteral(arguments)))"
+    if arguments == RustVerifyCommands.clippy {
+      return "run_clippy()"
+    }
+    return "run(\"cargo\", &\(rustStringArrayLiteral(arguments)))"
   }
 
   private static func xtaskCargoTryExpression(_ arguments: [String]) -> String {

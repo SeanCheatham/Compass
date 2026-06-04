@@ -62,6 +62,8 @@ struct AgentScaffoldCheckTool: AgentTool {
       capabilities.visualVerify ? "visual_verify" : nil,
       capabilities.schemaContracts ? "schema_contracts" : nil,
       capabilities.desktopHandshake ? "desktop_handshake" : nil,
+      capabilities.simulationFixtures ? "simulation_fixtures" : nil,
+      capabilities.guiReplay ? "gui_replay" : nil,
     ]
     .compactMap { $0 }
     return names.isEmpty ? "(none)" : names.joined(separator: ", ")

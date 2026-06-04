@@ -94,7 +94,9 @@ struct RustFactoryHealth: Codable, Equatable, Sendable {
             xtaskVerify: true,
             visualVerify: true,
             schemaContracts: true,
-            desktopHandshake: true
+            desktopHandshake: true,
+            simulationFixtures: true,
+            guiReplay: true
           ),
           checks: []
         ),

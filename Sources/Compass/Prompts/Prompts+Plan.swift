@@ -84,6 +84,14 @@ extension Prompts {
       - For new Rust projects use Compass's blessed Cargo workspace:
         `crates/app-core`, `crates/app-cli`, `crates/app-desktop` using
         `eframe`/`egui`, `xtask`, `schemas/`, and `rust-toolchain.toml`.
+        Keep generated apps conducive to deterministic simulation testing:
+        user-visible behavior should flow through pure `app-core` transitions
+        with explicit serializable inputs and stable snapshot/event-log outputs
+        exposed by `app-cli`, so agents can safely "use" the app in a sandboxed,
+        replayable path without relying on GUI automation or ambient host state.
+        For GUI behavior, prefer semantic replay traces and snapshots
+        (`gui-replay`) as the deterministic assertion surface; use screenshots
+        as rendering proof, not as the only source of truth.
         Standard checks are `cargo fmt --all --check`,
         `cargo clippy --workspace --all-targets --all-features -- -D warnings`,
         `cargo test --workspace --all-features`, `cargo build --workspace`,
