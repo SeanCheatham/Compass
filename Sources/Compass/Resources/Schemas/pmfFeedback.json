@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PMFFeedbackResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "valueScore",
+    "clarityScore",
+    "trustScore",
+    "switchLikelihood",
+    "payLikelihood",
+    "taskOutcome",
+    "topObjection",
+    "missingCapability",
+    "momentOfDelight",
+    "momentOfConfusion",
+    "verdict",
+    "summary"
+  ],
+  "properties": {
+    "valueScore": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "How strongly the shown experience proves product value."
+    },
+    "clarityScore": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "How clearly the app communicates what to do and why it matters."
+    },
+    "trustScore": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "How credible the product claim feels after the trace."
+    },
+    "switchLikelihood": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Likelihood that the persona would switch from their current alternative."
+    },
+    "payLikelihood": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Likelihood that the persona or buyer would pay for this product."
+    },
+    "taskOutcome": {
+      "type": "string",
+      "enum": [
+        "succeeded",
+        "partial",
+        "failed",
+        "abandoned"
+      ],
+      "description": "Outcome of the persona's task after the deterministic app trace."
+    },
+    "topObjection": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Most important concrete objection blocking adoption."
+    },
+    "missingCapability": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Concrete missing capability or proof the persona expected."
+    },
+    "momentOfDelight": {
+      "description": "Specific positive moment, or null if none.",
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "momentOfConfusion": {
+      "description": "Specific confusing moment, or null if none.",
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "strong_pull",
+        "some_pull",
+        "not_yet",
+        "wrong_user"
+      ],
+      "description": "Overall PMF pull indicated by the experience."
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Concise skeptical summary of what the trace did and did not prove."
+    }
+  }
+}

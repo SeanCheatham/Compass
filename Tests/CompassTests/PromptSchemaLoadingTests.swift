@@ -19,6 +19,8 @@ struct PromptSchemaLoadingTests {
       ("reflectHostXcode", Prompts.reflectHostXcodeSchema),
       ("critic", Prompts.criticSchema),
       ("subAgent", Prompts.subAgentSchema),
+      ("pmfPersonaAction", Prompts.pmfPersonaActionSchema),
+      ("pmfFeedback", Prompts.pmfFeedbackSchema),
     ]
     for (name, text) in schemas {
       try #require(!text.isEmpty, "schema \(name) is empty")
@@ -74,6 +76,21 @@ struct PromptSchemaLoadingTests {
   }
 
   @Test
+  func testPMFSchemasDescribeStrictPersonaContracts() throws {
+    let actionProperties = try schemaProperties(Prompts.pmfPersonaActionSchema)
+    let feedbackProperties = try schemaProperties(Prompts.pmfFeedbackSchema)
+
+    try #require(try additionalProperties(Prompts.pmfPersonaActionSchema) == false)
+    try #require(try additionalProperties(Prompts.pmfFeedbackSchema) == false)
+    try #require(propertyDescription("actionId", in: actionProperties).contains("Exact id"))
+    try #require(propertyDescription("params", in: actionProperties).contains("empty object"))
+    try #require(propertyDescription("valueScore", in: feedbackProperties).contains("product value"))
+    try #require(
+      propertyDescription("switchLikelihood", in: feedbackProperties)
+        .contains("current alternative"))
+  }
+
+  @Test
   func testPlanSchemasKeepCommandsOutOfAcceptanceChecks() throws {
     for schema in [Prompts.planSchema, Prompts.planHostXcodeSchema] {
       let immediateProperties = try planImmediateProperties(schema)
@@ -96,6 +113,12 @@ struct PromptSchemaLoadingTests {
     let parsed = try JSONSerialization.jsonObject(with: Data(schema.utf8))
     let root = try #require(parsed as? [String: Any])
     return try #require(root["properties"] as? [String: Any])
+  }
+
+  private func additionalProperties(_ schema: String) throws -> Bool {
+    let parsed = try JSONSerialization.jsonObject(with: Data(schema.utf8))
+    let root = try #require(parsed as? [String: Any])
+    return try #require(root["additionalProperties"] as? Bool)
   }
 
   private func propertyDescription(_ name: String, in properties: [String: Any]) throws -> String {

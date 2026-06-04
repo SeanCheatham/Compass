@@ -132,6 +132,7 @@ struct PMFPersonaActionTranscriptEntry: Codable, Equatable, Sendable {
 
   var turnIndex: Int
   var phase: Phase
+  var promptVersionID: String
   var chosenActionID: String
   var wasValid: Bool
   var allowedActionIDs: [String]
@@ -141,6 +142,7 @@ struct PMFPersonaActionTranscriptEntry: Codable, Equatable, Sendable {
   init(
     turnIndex: Int,
     phase: Phase,
+    promptVersionID: String = Prompts.pmfPersonaActionPromptVersionID,
     chosenActionID: String,
     wasValid: Bool,
     allowedActionIDs: [String],
@@ -149,6 +151,7 @@ struct PMFPersonaActionTranscriptEntry: Codable, Equatable, Sendable {
   ) {
     self.turnIndex = turnIndex
     self.phase = phase
+    self.promptVersionID = promptVersionID
     self.chosenActionID = chosenActionID
     self.wasValid = wasValid
     self.allowedActionIDs = allowedActionIDs
@@ -180,15 +183,18 @@ struct PMFRunResult: Codable, Equatable, Sendable {
 }
 
 struct PMFPersonaActionChoice: Equatable, Sendable {
+  var promptVersionID: String
   var action: PMFExperienceAction
   var rationale: String
   var rawResponse: String
 
   init(
+    promptVersionID: String = Prompts.pmfPersonaActionPromptVersionID,
     action: PMFExperienceAction,
     rationale: String = "",
     rawResponse: String = ""
   ) {
+    self.promptVersionID = promptVersionID
     self.action = action
     self.rationale = rationale
     self.rawResponse = rawResponse
@@ -684,6 +690,7 @@ struct PMFSimulationRunner {
     PMFPersonaActionTranscriptEntry(
       turnIndex: turnIndex,
       phase: phase,
+      promptVersionID: choice.promptVersionID,
       chosenActionID: choice.action.id,
       wasValid: wasValid,
       allowedActionIDs: allowedActions.map(\.id),
