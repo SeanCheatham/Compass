@@ -70,6 +70,30 @@ struct FactoryCompassGuideTests {
   }
 
   @Test
+  func testBriefIncludesRustFactoryHealthWhenProvided() throws {
+    let runGuide = ProjectRunControlGuide(
+      state: makeState(),
+      reliabilityStatus: emptyReliabilityStatus(),
+      hasRepository: true,
+      isRunning: false,
+      isAutoPlaying: false,
+      isPaused: false
+    )
+    let rustHealth = RustFactoryHealth(
+      inputs: .init(
+        engineBinaryURL: nil,
+        generatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+      )
+    )
+
+    let guide = FactoryCompassGuide(runGuide: runGuide, rustHealth: rustHealth)
+
+    try #require(guide.rustHealth?.title == "Rust Factory Needs Repair")
+    try #require(guide.rustHealth?.nextAction == "./scripts/build-compass-engine.sh")
+    try #require(guide.handoffText.contains("Rust factory health: Rust Factory Needs Repair"))
+  }
+
+  @Test
   func testWarningBriefUsesSpecificSignalLabel() throws {
     let runGuide = ProjectRunControlGuide(
       state: makeState(immediate: nil),

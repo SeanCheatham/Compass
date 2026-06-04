@@ -16,6 +16,7 @@ struct FactoryCompassGuide: Equatable {
   var readinessDetail: String
   var signalLabel: String
   var signalDetail: String
+  var rustHealth: RustFactoryHealth?
   var previewSteps: [PreviewStep]
   var handoffText: String
 
@@ -34,7 +35,7 @@ struct FactoryCompassGuide: Equatable {
     }
   }
 
-  init(runGuide: ProjectRunControlGuide) {
+  init(runGuide: ProjectRunControlGuide, rustHealth: RustFactoryHealth? = nil) {
     title = Self.bounded(runGuide.readiness.title, limit: 44)
     headline = Self.bounded(runGuide.primaryHelp, limit: Self.headlineLimit)
     systemImage = runGuide.readiness.systemImage
@@ -46,6 +47,13 @@ struct FactoryCompassGuide: Equatable {
     readinessDetail = Self.bounded(runGuide.readiness.detail, limit: Self.detailLimit)
     signalLabel = Self.bounded(runGuide.decisionBadge.label, limit: 48)
     signalDetail = Self.bounded(runGuide.decisionBadge.detail, limit: Self.detailLimit)
+    self.rustHealth = rustHealth.map { health in
+      var bounded = health
+      bounded.title = Self.bounded(health.title, limit: 64)
+      bounded.detail = Self.bounded(health.detail, limit: Self.detailLimit)
+      bounded.nextAction = Self.bounded(health.nextAction, limit: Self.detailLimit)
+      return bounded
+    }
     previewSteps = runGuide.previewSteps.map { step in
       PreviewStep(
         id: step.id,
@@ -64,6 +72,7 @@ struct FactoryCompassGuide: Equatable {
       primaryActionTitle: primaryActionTitle,
       primaryActionDetail: primaryActionDetail,
       primaryActionIsEnabled: primaryActionIsEnabled,
+      rustHealth: self.rustHealth,
       previewSteps: previewSteps
     )
   }
@@ -108,6 +117,7 @@ struct FactoryCompassGuide: Equatable {
     primaryActionTitle: String,
     primaryActionDetail: String,
     primaryActionIsEnabled: Bool,
+    rustHealth: RustFactoryHealth?,
     previewSteps: [PreviewStep]
   ) -> String {
     var sections = [
@@ -119,9 +129,12 @@ struct FactoryCompassGuide: Equatable {
       "Run signal: \(signalLabel) - \(signalDetail)",
       "Recommended action: \(primaryActionTitle) (\(primaryActionIsEnabled ? "enabled" : "disabled"))",
       "Recommended action detail: \(primaryActionDetail)",
+      rustHealth.map {
+        "Rust factory health: \($0.title) - \($0.detail) Next action: \($0.nextAction)"
+      },
       "",
       "Next run preview:",
-    ]
+    ].compactMap { $0 }
 
     if previewSteps.isEmpty {
       sections.append("- No preview steps are available.")

@@ -569,7 +569,8 @@ struct ProjectRunControls: View {
       foundationModelsAvailable: FoundationModelsAvailability.isAvailable,
       runGuide: runGuide
     )
-    let factoryGuide = FactoryCompassGuide(runGuide: runGuide)
+    let rustFactoryHealth = RustFactoryHealth.local(repoURL: project.repoURL, workspace: project.workspace)
+    let factoryGuide = FactoryCompassGuide(runGuide: runGuide, rustHealth: rustFactoryHealth)
 
     HStack(spacing: 5) {
       Menu {
@@ -856,6 +857,14 @@ private struct FactoryCompassPopover: View {
           detail: guide.signalDetail,
           color: color
         )
+        if let health = guide.rustHealth {
+          FactoryCompassFactRow(
+            systemImage: health.systemImage,
+            title: health.title,
+            detail: "\(health.detail) Next: \(health.nextAction)",
+            color: rustFactoryHealthColor(for: health.status)
+          )
+        }
       }
 
       if !guide.previewSteps.isEmpty {
@@ -938,6 +947,19 @@ private func factoryCompassColor(for tone: FactoryCompassGuide.Tone) -> Color {
     return .red
   case .paused:
     return .blue
+  }
+}
+
+private func rustFactoryHealthColor(for status: RustFactoryHealth.Status) -> Color {
+  switch status {
+  case .healthy:
+    return .green
+  case .warning:
+    return .orange
+  case .failed:
+    return .red
+  case .unknown:
+    return .secondary
   }
 }
 
