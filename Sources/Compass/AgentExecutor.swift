@@ -40,6 +40,7 @@ struct AgentExecutionConfiguration {
   var sessionNumber: Int?
   var toolchainService: (any SharedVMToolchainService)?
   var hostXcodeService: (any HostXcodeServicing)?
+  var rustCargoService: (any RustCargoServicing)?
   /// Optional post-decode guard for `submit_result`. When it throws,
   /// the executor rolls back the turn and reprompts — same remediation
   /// path as malformed tool JSON. `runAgent` uses this to reject lesson
@@ -66,6 +67,7 @@ struct AgentExecutionConfiguration {
     sessionNumber: Int? = nil,
     toolchainService: (any SharedVMToolchainService)? = nil,
     hostXcodeService: (any HostXcodeServicing)? = nil,
+    rustCargoService: (any RustCargoServicing)? = nil,
     validateSubmitResult: (@Sendable (Data) throws -> Void)? = nil,
     maxIterations: Int = 512,
     wallClockTimeout: TimeInterval = 60 * 60
@@ -86,6 +88,7 @@ struct AgentExecutionConfiguration {
     self.sessionNumber = sessionNumber
     self.toolchainService = toolchainService
     self.hostXcodeService = hostXcodeService
+    self.rustCargoService = rustCargoService
     self.validateSubmitResult = validateSubmitResult
     self.maxIterations = maxIterations
     self.wallClockTimeout = wallClockTimeout

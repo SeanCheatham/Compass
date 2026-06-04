@@ -165,6 +165,9 @@ struct AgentToolContext: Sendable {
   /// enabled it for this project, the active plan requires it, and host
   /// Xcode readiness checks passed.
   var hostXcodeService: (any HostXcodeServicing)?
+  /// Rust/Cargo sidecar service. Nil unless this is a Rust Cargo project
+  /// and `compass-engine` is available.
+  var rustCargoService: (any RustCargoServicing)?
 
   init(
     workingDirectory: URL,
@@ -178,7 +181,8 @@ struct AgentToolContext: Sendable {
     phase: AgentPhase = .plan,
     sessionNumber: Int? = nil,
     toolchainService: (any SharedVMToolchainService)? = nil,
-    hostXcodeService: (any HostXcodeServicing)? = nil
+    hostXcodeService: (any HostXcodeServicing)? = nil,
+    rustCargoService: (any RustCargoServicing)? = nil
   ) {
     let normalizedWorkingDirectory = workingDirectory.standardizedFileURL
     self.workingDirectory = normalizedWorkingDirectory
@@ -195,6 +199,7 @@ struct AgentToolContext: Sendable {
     self.sessionNumber = sessionNumber.flatMap { $0 > 0 ? $0 : nil }
     self.toolchainService = toolchainService
     self.hostXcodeService = hostXcodeService
+    self.rustCargoService = rustCargoService
   }
 
   static func defaultCodemapDirectory(forWorkingDirectory workingDirectory: URL) -> URL {

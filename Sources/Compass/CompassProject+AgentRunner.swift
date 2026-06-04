@@ -167,6 +167,11 @@ extension CompassProject {
         requiresHostXcode: requiresHostXcode,
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
+    let rustCargoService =
+      makeRustCargoService(
+        forgeProfile: forgeProfile,
+        environmentKind: environment.kind
+      )
     var installedToolchainIDs: [String] = []
     if environment.kind == .sharedVM {
       installedToolchainIDs =
@@ -183,7 +188,8 @@ extension CompassProject {
       for: phase,
       settings: agentSettings,
       toolchainService: toolchainService,
-      hostXcodeService: hostXcodeService
+      hostXcodeService: hostXcodeService,
+      rustCargoService: rustCargoService
     )
     let externalToolNames = tools.compactMap { tool -> String? in
       switch tool.spec.name {
@@ -217,6 +223,7 @@ extension CompassProject {
       sessionNumber: sessionNumber,
       toolchainService: toolchainService,
       hostXcodeService: hostXcodeService,
+      rustCargoService: rustCargoService,
       validateSubmitResult: validateSubmitResult
     )
     log("\(phase.rawValue.capitalized): starting agent loop.", level: .info)
@@ -420,6 +427,24 @@ extension CompassProject {
         runner: runner
       )
     }
+  }
+
+  func makeRustCargoService(
+    forgeProfile: ForgeProfile?,
+    environmentKind: AgentEnvironment.Kind
+  ) -> RustCargoService? {
+    guard forgeProfile == .rustCargo else { return nil }
+    guard environmentKind == .host else {
+      // The Shared VM route will use the guest-installed engine once
+      // the RPC handoff lands; until then avoid handing a host process
+      // a guest-only workspace path.
+      return nil
+    }
+    guard let engineURL = RustEngineLocator.locateEngineBinary() else { return nil }
+    return RustCargoService(
+      engineURL: engineURL,
+      pathPrefix: "\(NSHomeDirectory())/.cargo/bin"
+    )
   }
 
   /// Runs the Verify shell command in the same place the agent just

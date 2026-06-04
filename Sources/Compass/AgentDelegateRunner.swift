@@ -49,6 +49,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   let parentWallClockTimeout: TimeInterval
   let toolchainService: (any SharedVMToolchainService)?
   let hostXcodeService: (any HostXcodeServicing)?
+  let rustCargoService: (any RustCargoServicing)?
   /// Live-log sink so sub-agent activity surfaces under the parent run.
   let onEvent: @Sendable (LiveEvent) -> Void
 
@@ -95,6 +96,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       sessionNumber: sessionNumber,
       toolchainService: toolchainService,
       hostXcodeService: hostXcodeService,
+      rustCargoService: rustCargoService,
       maxIterations: min(parentMaxIterations, Self.maxSubAgentIterations),
       wallClockTimeout: min(parentWallClockTimeout, Self.maxSubAgentWallClock)
     )

@@ -49,7 +49,8 @@ enum ToolRegistry {
   /// probe the project (build, test, lint, git history) but must not
   /// mutate tracked files.
   static func inspectionTools(
-    hostXcodeService: (any HostXcodeServicing)? = nil
+    hostXcodeService: (any HostXcodeServicing)? = nil,
+    rustCargoService: (any RustCargoServicing)? = nil
   ) -> [AgentTool] {
     var tools: [AgentTool] = readOnlyTools() + [AgentBashTool()]
     if hostXcodeService != nil {
@@ -64,17 +65,18 @@ enum ToolRegistry {
     for phase: AgentPhase,
     settings: AgentRuntimeSettings,
     toolchainService: (any SharedVMToolchainService)? = nil,
-    hostXcodeService: (any HostXcodeServicing)? = nil
+    hostXcodeService: (any HostXcodeServicing)? = nil,
+    rustCargoService: (any RustCargoServicing)? = nil
   ) -> [AgentTool] {
     var tools: [AgentTool]
     switch phase {
     case .plan:
       tools =
-        inspectionTools(hostXcodeService: hostXcodeService) + [
+        inspectionTools(hostXcodeService: hostXcodeService, rustCargoService: rustCargoService) + [
           AgentPlanHistoryTool()
         ]
     case .reflect, .critic:
-      tools = inspectionTools(hostXcodeService: hostXcodeService)
+      tools = inspectionTools(hostXcodeService: hostXcodeService, rustCargoService: rustCargoService)
     case .develop:
       tools = developTools()
       if let imageAssignment = settings.imageAssignment {

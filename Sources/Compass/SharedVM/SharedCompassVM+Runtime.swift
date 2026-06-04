@@ -261,6 +261,11 @@ extension SharedCompassVM {
         options: options,
         fileManager: dependencies.fileManager
       )
+      try? await SharedCompassVMEngineInstall.repairOverSSH(
+        destination: destination,
+        options: options,
+        fileManager: dependencies.fileManager
+      )
     } catch {
       transition(
         to: .error(
