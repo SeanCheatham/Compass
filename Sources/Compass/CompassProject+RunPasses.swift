@@ -73,6 +73,11 @@ extension CompassProject {
       let focus = PlanFocus.weightedRandom()
       log("Plan focus this iteration: \(focus.displayName).", level: .info)
 
+      let visionText = workspace.readVision()
+      let pmfConfigForPrompt = try workspace.readOrSeedPMFConfig(
+        projectTitle: workspace.repoURL.lastPathComponent,
+        vision: visionText
+      )
       let prompt = try Prompts.planPrompt(
         state: currentState.proposal,
         completedCount: currentState.completed.count,
@@ -80,10 +85,12 @@ extension CompassProject {
         feedback: priorFeedback,
         lessons: workspace.readLessons(),
         assumptions: try workspace.readAssumptionLedger().formattedForPrompt(),
-        vision: workspace.readVision(),
+        vision: visionText,
         focus: focus,
         forgeProfile: forgeProfile,
         coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace),
+        pmfConfig: pmfConfigForPrompt,
+        pmfEvidenceIndex: workspace.readPMFEvidenceIndex(),
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
       let promptURL = try workspace.writeSessionArtifact(
@@ -609,13 +616,20 @@ extension CompassProject {
       .sorted { $0.startedAt > $1.startedAt }
       .prefix(reflectSessionWindow)
 
+    let visionText = workspace.readVision()
+    let pmfConfigForPrompt = try workspace.readOrSeedPMFConfig(
+      projectTitle: workspace.repoURL.lastPathComponent,
+      vision: visionText
+    )
     let prompt = try Prompts.reflectPrompt(
       state: workspace.readState().proposal,
       lessons: workspace.readLessons(),
       assumptions: try workspace.readAssumptionLedger().formattedForPrompt(),
-      vision: workspace.readVision(),
+      vision: visionText,
       recentSessions: Array(recentSessions),
       iteration: iteration,
+      pmfConfig: pmfConfigForPrompt,
+      pmfEvidenceIndex: workspace.readPMFEvidenceIndex(),
       hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
     )
 

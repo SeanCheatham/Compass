@@ -8,6 +8,8 @@ extension Prompts {
     vision: String,
     recentSessions: [SessionRecord],
     iteration: Int,
+    pmfConfig: PMFConfig = .empty,
+    pmfEvidenceIndex: PMFEvidenceIndex = .empty,
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
     let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()
@@ -17,6 +19,10 @@ extension Prompts {
     let lessonsDigest = reflectCompactPromptBlock(lessons, maxLines: 8, maxCharacters: 1800)
     let assumptionsDigest = reflectCompactPromptBlock(assumptions, maxLines: 8, maxCharacters: 1800)
     let visionDigest = reflectCompactPromptBlock(vision, maxLines: 10, maxCharacters: 2400)
+    let pmfEvidenceDigest = PMFPlanningEvidenceFormatter.promptText(
+      config: pmfConfig,
+      index: pmfEvidenceIndex
+    )
     let hostXcodeGuidance =
       hostXcodeBuildTestEnabled
       ? """
@@ -82,6 +88,11 @@ extension Prompts {
       Preserve Compass's pivot: generated-output projects are Rust/Cargo only.
       Swift/TypeScript/JavaScript state is legacy imported-repo context unless
       the repository being reflected is Compass itself.
+      Treat PMF evidence as advisory product evidence. Extract durable product
+      lessons only from repeated or clearly consequential PMF findings,
+      distinguish persona-specific objections from cross-cohort risks, and
+      suggest hypothesis edits only when the evidence supports them. PMF
+      product risk should not automatically fail normal Develop post-checks.
       \(hostXcodeGuidance)
 
       ## Recent session brief
@@ -108,6 +119,9 @@ extension Prompts {
 
       ## Vision
       \(fencedOrEmpty(visionDigest, empty: "_(no vision set)_"))
+
+      ## PMF Evidence
+      \(pmfEvidenceDigest)
       """
   }
 

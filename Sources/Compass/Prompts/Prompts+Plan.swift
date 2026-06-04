@@ -12,6 +12,8 @@ extension Prompts {
     focus: PlanFocus,
     forgeProfile: ForgeProfile? = nil,
     coverageSnapshot: CoverageSnapshot? = nil,
+    pmfConfig: PMFConfig = .empty,
+    pmfEvidenceIndex: PMFEvidenceIndex = .empty,
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
     let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()
@@ -21,6 +23,10 @@ extension Prompts {
     let assumptionsDigest = compactPromptBlock(assumptions, maxLines: 8, maxCharacters: 1800)
     let feedbackDigest = compactPromptBlock(feedback, maxLines: 8, maxCharacters: 1800)
     let visionDigest = compactPromptBlock(vision, maxLines: 10, maxCharacters: 2400)
+    let pmfEvidenceDigest = PMFPlanningEvidenceFormatter.promptText(
+      config: pmfConfig,
+      index: pmfEvidenceIndex
+    )
     let includeHostXcodeGuidance =
       hostXcodeBuildTestEnabled && forgeProfile != .rustCargo && forgeProfile != .typeScriptVitest
     let hostXcodePlanningRule =
@@ -142,6 +148,18 @@ extension Prompts {
         Strategic context alone is not remaining work.
       - If feedback reports a blocker, plan the next smallest step that resolves
         it or rescope so Develop can make progress.
+      - Treat PMF evidence as advisory product pressure, not an engineering
+        failure or Verify bypass. It can motivate product changes, reprioritize
+        roadmap work, challenge the hypothesis, or expose evidence gaps, but
+        normal build/test/verify discipline still applies.
+      - Distinguish engineering failures from PMF product risks and PMF evidence
+        gaps. Repeated target-persona confusion or objections should influence
+        the next increment when they are fresher or more specific than generic
+        roadmap ideas.
+      - If PMF evidence is thin, stale, or missing for active scenarios, prefer
+        an increment that improves the deterministic experience contract,
+        creates a better PMF scenario, or makes simulation easier to run.
+        Do not blindly optimize for simulated praise.
       - If drafts are empty, choose a useful candidate that matches the focus, or
         originate a new candidate from the repo, lessons, completed history, and
         strategic context.
@@ -278,6 +296,9 @@ extension Prompts {
 
       ## Vision
       \(fencedOrEmpty(visionDigest, empty: "_(no vision set)_"))
+
+      ## PMF Evidence
+      \(pmfEvidenceDigest)
 
       \(forgeProfileSection(forgeProfile: forgeProfile))
 
