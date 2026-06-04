@@ -109,7 +109,10 @@ pub fn parse_json_messages(stdout: &str, repo: &Utf8Path) -> (Vec<Diagnostic>, D
     )
 }
 
-fn primary_span(message: &Value, repo: &Utf8Path) -> (Option<String>, Option<u64>, Option<u64>, Option<String>) {
+fn primary_span(
+    message: &Value,
+    repo: &Utf8Path,
+) -> (Option<String>, Option<u64>, Option<u64>, Option<String>) {
     let spans = message
         .get("spans")
         .and_then(Value::as_array)
@@ -145,10 +148,7 @@ fn relative_path(repo: &Utf8Path, path: &Utf8Path) -> String {
     } else {
         repo.join(path)
     };
-    absolute
-        .strip_prefix(repo)
-        .unwrap_or(&absolute)
-        .to_string()
+    absolute.strip_prefix(repo).unwrap_or(&absolute).to_string()
 }
 
 fn truncate_rendered(value: &str) -> String {
@@ -205,7 +205,11 @@ pub fn parse_test_output(exit_code: i32, stdout: &str, stderr: &str) -> CargoTes
             }
         } else if trimmed.contains("panicked at ") {
             if let Some(name) = &current_failure {
-                if let Some(last) = failures.iter_mut().rev().find(|failure| &failure.test_name == name) {
+                if let Some(last) = failures
+                    .iter_mut()
+                    .rev()
+                    .find(|failure| &failure.test_name == name)
+                {
                     last.message = trimmed.to_owned();
                 }
             }

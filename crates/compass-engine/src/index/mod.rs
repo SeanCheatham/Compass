@@ -64,8 +64,14 @@ pub fn index_rust(repo: &Utf8Path) -> Result<RustIndexOutput> {
     let mut crate_roots = BTreeMap::new();
     let mut rust_files = Vec::new();
     for member in &members {
-        crate_roots.insert(member.name.replace('-', "_"), member.src_root.join("lib.rs"));
-        for entry in WalkDir::new(&member.src_root).into_iter().filter_map(Result::ok) {
+        crate_roots.insert(
+            member.name.replace('-', "_"),
+            member.src_root.join("lib.rs"),
+        );
+        for entry in WalkDir::new(&member.src_root)
+            .into_iter()
+            .filter_map(Result::ok)
+        {
             if !entry.file_type().is_file() {
                 continue;
             }
@@ -82,8 +88,9 @@ pub fn index_rust(repo: &Utf8Path) -> Result<RustIndexOutput> {
     }
 
     let use_regex = Regex::new(r"^\s*(?:pub\s+)?use\s+([^;]+);").expect("use regex");
-    let impl_regex = Regex::new(r"\bimpl\s+([A-Za-z_][A-Za-z0-9_:]*)\s+for\s+([A-Za-z_][A-Za-z0-9_:]*)")
-        .expect("impl regex");
+    let impl_regex =
+        Regex::new(r"\bimpl\s+([A-Za-z_][A-Za-z0-9_:]*)\s+for\s+([A-Za-z_][A-Za-z0-9_:]*)")
+            .expect("impl regex");
     let mut files: BTreeMap<String, RustModuleFile> = BTreeMap::new();
     let mut incoming: BTreeMap<String, Vec<RustModuleEdge>> = BTreeMap::new();
     let mut impls = Vec::new();
@@ -121,8 +128,22 @@ pub fn index_rust(repo: &Utf8Path) -> Result<RustIndexOutput> {
                 outgoing.push(edge);
             }
             if let Some(captures) = impl_regex.captures(line) {
-                let trait_name = captures.get(1).unwrap().as_str().rsplit("::").next().unwrap().to_owned();
-                let type_name = captures.get(2).unwrap().as_str().rsplit("::").next().unwrap().to_owned();
+                let trait_name = captures
+                    .get(1)
+                    .unwrap()
+                    .as_str()
+                    .rsplit("::")
+                    .next()
+                    .unwrap()
+                    .to_owned();
+                let type_name = captures
+                    .get(2)
+                    .unwrap()
+                    .as_str()
+                    .rsplit("::")
+                    .next()
+                    .unwrap()
+                    .to_owned();
                 impls.push(RustTraitImpl {
                     trait_name,
                     type_name,
@@ -132,11 +153,14 @@ pub fn index_rust(repo: &Utf8Path) -> Result<RustIndexOutput> {
                 });
             }
         }
-        files.insert(relative.clone(), RustModuleFile {
-            module_path: file_to_module.get(&relative).cloned().unwrap_or(relative),
-            outgoing,
-            incoming: Vec::new(),
-        });
+        files.insert(
+            relative.clone(),
+            RustModuleFile {
+                module_path: file_to_module.get(&relative).cloned().unwrap_or(relative),
+                outgoing,
+                incoming: Vec::new(),
+            },
+        );
     }
 
     for (target, mut edges) in incoming {
@@ -149,16 +173,31 @@ pub fn index_rust(repo: &Utf8Path) -> Result<RustIndexOutput> {
     let mut by_trait: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut by_type: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for item in &impls {
-        by_trait.entry(item.trait_name.clone()).or_default().insert(item.type_name.clone());
-        by_type.entry(item.type_name.clone()).or_default().insert(item.trait_name.clone());
+        by_trait
+            .entry(item.trait_name.clone())
+            .or_default()
+            .insert(item.type_name.clone());
+        by_type
+            .entry(item.type_name.clone())
+            .or_default()
+            .insert(item.trait_name.clone());
     }
     Ok(RustIndexOutput {
-        module_index: RustModuleIndex { schema_version: 1, files },
+        module_index: RustModuleIndex {
+            schema_version: 1,
+            files,
+        },
         trait_index: RustTraitIndex {
             schema_version: 1,
             impls,
-            by_trait: by_trait.into_iter().map(|(k, v)| (k, v.into_iter().collect())).collect(),
-            by_type: by_type.into_iter().map(|(k, v)| (k, v.into_iter().collect())).collect(),
+            by_trait: by_trait
+                .into_iter()
+                .map(|(k, v)| (k, v.into_iter().collect()))
+                .collect(),
+            by_type: by_type
+                .into_iter()
+                .map(|(k, v)| (k, v.into_iter().collect()))
+                .collect(),
         },
         warnings,
     })
@@ -205,7 +244,10 @@ fn resolve_use(
         .split("::")
         .next()
         .unwrap_or("");
-    let target_crate = if raw_path.starts_with("crate::") || raw_path.starts_with("self::") || raw_path.starts_with("super::") {
+    let target_crate = if raw_path.starts_with("crate::")
+        || raw_path.starts_with("self::")
+        || raw_path.starts_with("super::")
+    {
         current_crate
     } else {
         cleaned

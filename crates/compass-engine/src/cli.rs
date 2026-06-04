@@ -1,7 +1,11 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Debug, Parser)]
-#[command(name = "compass-engine", version, about = "Compass Rust factory sidecar")]
+#[command(
+    name = "compass-engine",
+    version,
+    about = "Compass Rust factory sidecar"
+)]
 pub struct Cli {
     #[arg(long, global = true, default_value = ".")]
     pub repo: camino::Utf8PathBuf,
@@ -34,6 +38,8 @@ pub enum Command {
     IndexRust,
     #[command(name = "schema-contracts")]
     SchemaContracts,
+    #[command(name = "scaffold-check")]
+    ScaffoldCheck,
     #[command(name = "coverage-gaps")]
     CoverageGaps(CoverageArgs),
     #[command(name = "visual-verify")]
@@ -76,6 +82,7 @@ impl Command {
             Self::CargoTest(_) => "cargo-test",
             Self::IndexRust => "index-rust",
             Self::SchemaContracts => "schema-contracts",
+            Self::ScaffoldCheck => "scaffold-check",
             Self::CoverageGaps(_) => "coverage-gaps",
             Self::VisualVerify => "visual-verify",
         }

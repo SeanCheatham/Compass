@@ -35,6 +35,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     let windowTitle = boundedLine(options.windowTitle, fallback: "Compass Rust Desktop")
     return [
       ScaffoldFile(path: ".gitignore", contents: gitignore()),
+      ScaffoldFile(path: "compass-scaffold.toml", contents: scaffoldMetadata()),
       ScaffoldFile(path: "Cargo.toml", contents: workspaceManifest()),
       ScaffoldFile(path: "rust-toolchain.toml", contents: rustToolchain()),
       ScaffoldFile(path: "README.md", contents: readme(projectName: projectName)),
@@ -97,6 +98,20 @@ struct RustProjectScaffold: Equatable, Sendable {
     /target/
     /.compass/visual-verify/
     .DS_Store
+    """
+  }
+
+  private static func scaffoldMetadata() -> String {
+    """
+    schema_version = 1
+    scaffold_version = 1
+    profile = "rust-cargo"
+
+    [capabilities]
+    xtask_verify = true
+    visual_verify = true
+    schema_contracts = true
+    desktop_handshake = true
     """
   }
 

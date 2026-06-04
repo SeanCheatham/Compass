@@ -1,4 +1,6 @@
-use crate::cargo::diagnostics::{parse_json_messages, parse_test_output, CargoTestRun, DiagnosticRun};
+use crate::cargo::diagnostics::{
+    parse_json_messages, parse_test_output, CargoTestRun, DiagnosticRun,
+};
 use crate::cli::{CargoCheckArgs, CargoTestArgs, CoverageArgs};
 use anyhow::{Context, Result};
 use camino::Utf8Path;
@@ -85,7 +87,10 @@ pub fn coverage_gaps(repo: &Utf8Path, args: &CoverageArgs) -> Result<CoverageGap
     if !output.status.success() {
         let text = String::from_utf8_lossy(&output.stderr);
         if text.contains("no such command") || text.contains("llvm-cov") {
-            anyhow::bail!("cargo-llvm-cov is not installed or could not run: {}", tail(&text, 800));
+            anyhow::bail!(
+                "cargo-llvm-cov is not installed or could not run: {}",
+                tail(&text, 800)
+            );
         }
     }
     let combined = format!(
@@ -133,7 +138,10 @@ pub fn visual_verify(repo: &Utf8Path) -> Result<VisualVerifyResult> {
     })
 }
 
-fn run_diagnostic_command(repo: &Utf8Path, mut command: std::process::Command) -> Result<DiagnosticRun> {
+fn run_diagnostic_command(
+    repo: &Utf8Path,
+    mut command: std::process::Command,
+) -> Result<DiagnosticRun> {
     let output = command
         .current_dir(repo)
         .env("PATH", cargo_path())
@@ -184,17 +192,30 @@ fn extract_screenshot(output: &str) -> Option<Vec<u8>> {
     let start = output.find(begin)? + begin.len();
     let rest = &output[start..];
     let finish = rest.find(end)?;
-    let encoded = rest[..finish].chars().filter(|ch| !ch.is_whitespace()).collect::<String>();
+    let encoded = rest[..finish]
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect::<String>();
     base64_decode(&encoded)
 }
 
 fn redact_screenshot(output: &str) -> String {
     let begin = "COMPASS_VISUAL_SCREENSHOT_BASE64_BEGIN";
     let end = "COMPASS_VISUAL_SCREENSHOT_BASE64_END";
-    let Some(start) = output.find(begin) else { return output.to_owned() };
-    let Some(relative_end) = output[start..].find(end) else { return output.to_owned() };
+    let Some(start) = output.find(begin) else {
+        return output.to_owned();
+    };
+    let Some(relative_end) = output[start..].find(end) else {
+        return output.to_owned();
+    };
     let finish = start + relative_end + end.len();
-    format!("{}{}\n<base64 screenshot omitted>\n{}{}", &output[..start], begin, end, &output[finish..])
+    format!(
+        "{}{}\n<base64 screenshot omitted>\n{}{}",
+        &output[..start],
+        begin,
+        end,
+        &output[finish..]
+    )
 }
 
 fn tail(value: &str, max_chars: usize) -> String {

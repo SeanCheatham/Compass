@@ -43,12 +43,20 @@ struct RustType {
 pub fn schema_contracts(repo: &Utf8Path) -> Result<SchemaContractsOutput> {
     let schemas_dir = repo.join("schemas");
     if !schemas_dir.exists() {
-        return Ok(SchemaContractsOutput { schema_version: 1, contracts: Vec::new() });
+        return Ok(SchemaContractsOutput {
+            schema_version: 1,
+            contracts: Vec::new(),
+        });
     }
     let rust_types = scan_rust_types(repo)?;
     let mut contracts = Vec::new();
-    for entry in WalkDir::new(&schemas_dir).into_iter().filter_map(|entry| entry.ok()) {
-        if !entry.file_type().is_file() || entry.path().extension().and_then(|e| e.to_str()) != Some("json") {
+    for entry in WalkDir::new(&schemas_dir)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+    {
+        if !entry.file_type().is_file()
+            || entry.path().extension().and_then(|e| e.to_str()) != Some("json")
+        {
             continue;
         }
         let path = Utf8PathBuf::from_path_buf(entry.path().to_path_buf())
@@ -86,15 +94,24 @@ pub fn schema_contracts(repo: &Utf8Path) -> Result<SchemaContractsOutput> {
         });
     }
     contracts.sort_by(|a, b| a.schema_path.cmp(&b.schema_path));
-    Ok(SchemaContractsOutput { schema_version: 1, contracts })
+    Ok(SchemaContractsOutput {
+        schema_version: 1,
+        contracts,
+    })
 }
 
 fn scan_rust_types(repo: &Utf8Path) -> Result<Vec<RustType>> {
-    let type_regex = Regex::new(r"^\s*(?:pub\s+)?(struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let type_regex =
+        Regex::new(r"^\s*(?:pub\s+)?(struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
     let field_regex = Regex::new(r"^\s*(?:pub\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:").unwrap();
     let mut types = Vec::new();
-    for entry in WalkDir::new(repo).into_iter().filter_map(|entry| entry.ok()) {
-        if !entry.file_type().is_file() || entry.path().extension().and_then(|e| e.to_str()) != Some("rs") {
+    for entry in WalkDir::new(repo)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+    {
+        if !entry.file_type().is_file()
+            || entry.path().extension().and_then(|e| e.to_str()) != Some("rs")
+        {
             continue;
         }
         let path = Utf8PathBuf::from_path_buf(entry.path().to_path_buf())
@@ -142,7 +159,10 @@ fn best_match<'a>(
         }
         let mapping = fields
             .intersection(&rust.fields)
-            .map(|field| FieldMapping { schema_field: field.clone(), rust_field: field.clone() })
+            .map(|field| FieldMapping {
+                schema_field: field.clone(),
+                rust_field: field.clone(),
+            })
             .collect::<Vec<_>>();
         score += mapping.len() * 10;
         if score > best.as_ref().map(|(_, s, _)| *s).unwrap_or(0) {
@@ -171,7 +191,9 @@ fn schema_fields(json: &Value) -> BTreeSet<String> {
 
 fn schema_title_from_value(value: &str) -> String {
     let stem = value.rsplit('/').next().unwrap_or(value);
-    stem.trim_end_matches(".schema").trim_end_matches(".json").to_owned()
+    stem.trim_end_matches(".schema")
+        .trim_end_matches(".json")
+        .to_owned()
 }
 
 fn normalize_name(value: &str) -> String {

@@ -10,13 +10,14 @@ fn main() {
 
     match (cli.format, result) {
         (OutputFormat::Json, Ok(data)) => {
-            println!("{}", serde_json::to_string_pretty(&data).expect("serialize response"));
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&data).expect("serialize response")
+            );
         }
         (OutputFormat::Json, Err(error)) => {
-            let response = EngineResponse::<serde_json::Value>::error(
-                command_name,
-                vec![error.to_string()],
-            );
+            let response =
+                EngineResponse::<serde_json::Value>::error(command_name, vec![error.to_string()]);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&response).expect("serialize error response")
@@ -24,7 +25,10 @@ fn main() {
             std::process::exit(1);
         }
         (OutputFormat::Text, Ok(data)) => {
-            println!("{}", serde_json::to_string_pretty(&data).expect("serialize response"));
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&data).expect("serialize response")
+            );
         }
         (OutputFormat::Text, Err(error)) => {
             eprintln!("{error:#}");
@@ -62,6 +66,10 @@ fn run(cli: &Cli) -> Result<EngineResponse<serde_json::Value>> {
         Command::SchemaContracts => {
             let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
             serde_json::to_value(compass_engine::schema::schema_contracts(&repo)?)?
+        }
+        Command::ScaffoldCheck => {
+            let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
+            serde_json::to_value(compass_engine::scaffold::scaffold_check(&repo)?)?
         }
         Command::CoverageGaps(args) => {
             let repo = compass_engine::repo::resolve_repo(&cli.repo)?;

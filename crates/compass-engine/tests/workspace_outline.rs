@@ -29,7 +29,7 @@ fn workspace_outline_lists_members_and_edges() {
     assert!(edges.iter().any(|edge| {
         edge["from"] == "app-cli" && edge["to"] == "app-core" && edge["dev"] == false
     }));
-    assert!(edges.iter().any(|edge| {
-        edge["from"] == "app-desktop" && edge["to"] == "app-core"
-    }));
+    assert!(edges
+        .iter()
+        .any(|edge| { edge["from"] == "app-desktop" && edge["to"] == "app-core" }));
 }

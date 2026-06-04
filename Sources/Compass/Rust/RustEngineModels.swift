@@ -258,6 +258,41 @@ struct SchemaFieldMapping: Codable, Equatable, Sendable {
   }
 }
 
+struct ScaffoldCheckData: Codable, Equatable, Sendable {
+  var status: String
+  var scaffoldVersion: Int?
+  var capabilities: ScaffoldCapabilities
+  var checks: [ScaffoldCheck]
+
+  enum CodingKeys: String, CodingKey {
+    case status
+    case scaffoldVersion = "scaffold_version"
+    case capabilities
+    case checks
+  }
+}
+
+struct ScaffoldCapabilities: Codable, Equatable, Sendable {
+  var xtaskVerify: Bool
+  var visualVerify: Bool
+  var schemaContracts: Bool
+  var desktopHandshake: Bool
+
+  enum CodingKeys: String, CodingKey {
+    case xtaskVerify = "xtask_verify"
+    case visualVerify = "visual_verify"
+    case schemaContracts = "schema_contracts"
+    case desktopHandshake = "desktop_handshake"
+  }
+}
+
+struct ScaffoldCheck: Codable, Equatable, Sendable {
+  var id: String
+  var status: String
+  var message: String
+  var path: String?
+}
+
 struct CoverageGapsData: Codable, Equatable, Sendable {
   var overallLinePercent: Double
   var files: [CoverageGapFile]

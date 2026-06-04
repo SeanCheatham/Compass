@@ -64,6 +64,7 @@ enum ToolRegistry {
       tools.append(AgentFindImplsTool())
       tools.append(AgentTraitUsersTool())
       tools.append(AgentSchemaContractsTool())
+      tools.append(AgentScaffoldCheckTool())
       tools.append(AgentCoverageGapsTool())
     }
     return tools
@@ -97,6 +98,7 @@ enum ToolRegistry {
         tools.append(AgentFindImplsTool())
         tools.append(AgentTraitUsersTool())
         tools.append(AgentSchemaContractsTool())
+        tools.append(AgentScaffoldCheckTool())
         tools.append(AgentCoverageGapsTool())
         tools.append(AgentVisualVerifyTool())
       }

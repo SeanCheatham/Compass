@@ -22,14 +22,16 @@ fn index_rust_resolves_cross_crate_imports_and_impls() {
     assert_eq!(json["ok"], true);
     let core = &json["data"]["module_index"]["files"]["crates/app-core/src/lib.rs"];
     let incoming = core["incoming"].as_array().expect("incoming");
-    assert!(incoming.iter().any(|edge| {
-        edge["from_file"] == "crates/app-cli/src/main.rs"
-    }));
-    assert!(incoming.iter().any(|edge| {
-        edge["from_file"] == "crates/app-desktop/src/main.rs"
-    }));
-    let impls = json["data"]["trait_index"]["impls"].as_array().expect("impls");
-    assert!(impls.iter().any(|item| {
-        item["trait_name"] == "Display" && item["type_name"] == "DemoState"
-    }));
+    assert!(incoming
+        .iter()
+        .any(|edge| { edge["from_file"] == "crates/app-cli/src/main.rs" }));
+    assert!(incoming
+        .iter()
+        .any(|edge| { edge["from_file"] == "crates/app-desktop/src/main.rs" }));
+    let impls = json["data"]["trait_index"]["impls"]
+        .as_array()
+        .expect("impls");
+    assert!(impls
+        .iter()
+        .any(|item| { item["trait_name"] == "Display" && item["type_name"] == "DemoState" }));
 }

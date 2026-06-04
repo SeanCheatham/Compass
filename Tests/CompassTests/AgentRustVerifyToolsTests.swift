@@ -4,6 +4,50 @@ import Testing
 @testable import Compass
 
 struct AgentRustVerifyToolsTests {
+  @Test func scaffoldCheckFormatsFailedChecks() async throws {
+    let service = FakeRustVerifyService(
+      data: encodeVerifyEnvelope(
+        command: "scaffold-check",
+        data: ScaffoldCheckData(
+          status: "fail",
+          scaffoldVersion: 1,
+          capabilities: ScaffoldCapabilities(
+            xtaskVerify: true,
+            visualVerify: true,
+            schemaContracts: true,
+            desktopHandshake: true
+          ),
+          checks: [
+            ScaffoldCheck(
+              id: "member_crates_app_cli",
+              status: "fail",
+              message: "required member crates/app-cli is missing.",
+              path: "crates/app-cli/Cargo.toml"
+            ),
+            ScaffoldCheck(
+              id: "workspace_manifest",
+              status: "pass",
+              message: "root Cargo.toml declares a workspace.",
+              path: "Cargo.toml"
+            ),
+          ]
+        )
+      )
+    )
+    let result = try await AgentScaffoldCheckTool().invoke(
+      arguments: Data(#"{}"#.utf8),
+      context: AgentToolContext(
+        workingDirectory: URL(fileURLWithPath: "/tmp/repo"),
+        rustCargoService: service
+      )
+    )
+
+    #expect(!result.isError)
+    #expect(result.content.contains("scaffold-check: fail"))
+    #expect(result.content.contains("member_crates_app_cli"))
+    #expect(result.content.contains("crates/app-cli/Cargo.toml"))
+  }
+
   @Test func coverageGapsFormatsOverallPercent() async throws {
     let service = FakeRustVerifyService(
       data: encodeVerifyEnvelope(
@@ -48,6 +92,37 @@ struct AgentRustVerifyToolsTests {
 
     #expect(!result.isError)
     #expect(result.content.contains(".compass/visual-verify/latest.png"))
+  }
+
+  @Test func registryAddsScaffoldCheckOnlyWhenRustServiceExists() throws {
+    let defaultNames = Set(ToolRegistry.tools(for: .critic).map(\.spec.name))
+    let service = FakeRustVerifyService(
+      data: encodeVerifyEnvelope(
+        command: "scaffold-check",
+        data: ScaffoldCheckData(
+          status: "pass",
+          scaffoldVersion: 1,
+          capabilities: ScaffoldCapabilities(
+            xtaskVerify: true,
+            visualVerify: true,
+            schemaContracts: true,
+            desktopHandshake: true
+          ),
+          checks: []
+        )
+      )
+    )
+    let enabledNames = Set(
+      ToolRegistry.tools(
+        for: .critic,
+        settings: AgentRuntimeSettings(),
+        rustCargoService: service
+      ).map(\.spec.name)
+    )
+
+    #expect(!defaultNames.contains(AgentScaffoldCheckTool.toolName))
+    #expect(enabledNames.contains(AgentScaffoldCheckTool.toolName))
+    #expect(!enabledNames.contains(AgentVisualVerifyTool.toolName))
   }
 }
 

@@ -1,5 +1,73 @@
 import Foundation
 
+struct AgentScaffoldCheckTool: AgentTool {
+  static let toolName = "scaffold_check"
+
+  let spec = AgentToolSpec(
+    name: Self.toolName,
+    description:
+      "Run compass-engine scaffold-check and report whether a generated Rust Cargo project still matches the Compass scaffold contract.",
+    parameters: AgentToolParametersSchema(literal: [
+      "type": "object",
+      "additionalProperties": false,
+      "properties": [:],
+    ])
+  )
+
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+    guard let service = context.rustCargoService else {
+      return .failure("Rust cargo tools are not enabled for this project.", kind: .invalidArguments)
+    }
+    do {
+      let data = try await service.run(
+        command: .scaffoldCheck,
+        repoURL: context.workingDirectory,
+        arguments: [],
+        timeout: 30
+      )
+      let response = try JSONDecoder().decode(RustEngineResponse<ScaffoldCheckData>.self, from: data)
+      guard response.ok, let payload = response.data else {
+        return .failure(response.errors.joined(separator: "\n"), kind: .bashFailure)
+      }
+      return .ok(Self.format(payload))
+    } catch {
+      return .failure(error.localizedDescription, kind: .bashFailure)
+    }
+  }
+
+  static func format(_ data: ScaffoldCheckData) -> String {
+    var lines = [
+      "scaffold-check: \(data.status)",
+      "scaffold_version: \(data.scaffoldVersion.map(String.init) ?? "(unknown)")",
+      "capabilities: \(formatCapabilities(data.capabilities))",
+    ]
+    let notable = data.checks.filter { $0.status != "pass" }
+    let checks = notable.isEmpty ? data.checks.prefix(8) : notable.prefix(20)
+    for check in checks {
+      let path = check.path.map { " \($0)" } ?? ""
+      lines.append("- \(check.status) \(check.id)\(path)")
+      lines.append("  \(check.message)")
+    }
+    if notable.count > 20 {
+      lines.append("... \(notable.count - 20) more non-passing check(s) omitted")
+    } else if notable.isEmpty && data.checks.count > 8 {
+      lines.append("... \(data.checks.count - 8) passing check(s) omitted")
+    }
+    return lines.joined(separator: "\n")
+  }
+
+  private static func formatCapabilities(_ capabilities: ScaffoldCapabilities) -> String {
+    let names = [
+      capabilities.xtaskVerify ? "xtask_verify" : nil,
+      capabilities.visualVerify ? "visual_verify" : nil,
+      capabilities.schemaContracts ? "schema_contracts" : nil,
+      capabilities.desktopHandshake ? "desktop_handshake" : nil,
+    ]
+    .compactMap { $0 }
+    return names.isEmpty ? "(none)" : names.joined(separator: ", ")
+  }
+}
+
 struct AgentCoverageGapsTool: AgentTool {
   static let toolName = "coverage_gaps"
 

@@ -9,6 +9,7 @@ struct RustProjectScaffoldTests {
     let paths = Set(files.map(\.path))
 
     try #require(paths.contains("Cargo.toml"))
+    try #require(paths.contains("compass-scaffold.toml"))
     try #require(paths.contains("rust-toolchain.toml"))
     try #require(paths.contains("crates/app-core/src/lib.rs"))
     try #require(paths.contains("crates/app-cli/src/main.rs"))
@@ -17,6 +18,19 @@ struct RustProjectScaffoldTests {
     try #require(paths.contains("schemas/demo-state.schema.json"))
     try #require(!paths.contains("Package.swift"))
     try #require(!paths.contains("package.json"))
+  }
+
+  @Test func scaffoldDeclaresCompassMetadataAndCapabilities() throws {
+    let metadata = try #require(
+      RustProjectScaffold.files().first { $0.path == "compass-scaffold.toml" }?.contents)
+
+    try #require(metadata.contains("schema_version = 1"))
+    try #require(metadata.contains("scaffold_version = 1"))
+    try #require(metadata.contains(#"profile = "rust-cargo""#))
+    try #require(metadata.contains("xtask_verify = true"))
+    try #require(metadata.contains("visual_verify = true"))
+    try #require(metadata.contains("schema_contracts = true"))
+    try #require(metadata.contains("desktop_handshake = true"))
   }
 
   @Test func scaffoldDocumentsStandardRustCommandsAndDesktopStack() throws {

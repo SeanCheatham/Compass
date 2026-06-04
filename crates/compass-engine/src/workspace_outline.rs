@@ -96,7 +96,10 @@ pub fn workspace_outline(repo: &Utf8Path) -> Result<WorkspaceOutline> {
     let mut members = Vec::new();
     let mut edges = Vec::new();
     for package in packages {
-        let id = package.get("id").and_then(Value::as_str).unwrap_or_default();
+        let id = package
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         if !member_ids.is_empty() && !member_ids.contains(id) {
             continue;
         }
@@ -130,7 +133,10 @@ pub fn workspace_outline(repo: &Utf8Path) -> Result<WorkspaceOutline> {
                 .and_then(Value::as_str)
                 .unwrap_or("unknown")
                 .to_owned();
-            let path = dep.get("path").and_then(Value::as_str).map(Utf8PathBuf::from);
+            let path = dep
+                .get("path")
+                .and_then(Value::as_str)
+                .map(Utf8PathBuf::from);
             let kind = if path.is_some() { "path" } else { "external" }.to_owned();
             let features = dep
                 .get("features")
@@ -140,7 +146,10 @@ pub fn workspace_outline(repo: &Utf8Path) -> Result<WorkspaceOutline> {
                 .filter_map(Value::as_str)
                 .map(ToOwned::to_owned)
                 .collect::<Vec<_>>();
-            let optional = dep.get("optional").and_then(Value::as_bool).unwrap_or(false);
+            let optional = dep
+                .get("optional")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
             let dev = dep
                 .get("kind")
                 .and_then(Value::as_str)
