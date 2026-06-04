@@ -18,6 +18,7 @@ enum RustVerifyCommands {
   static let fastVerify = ["run", "-p", "xtask", "--", "verify"]
   static let visualVerifyNoBase64 = ["run", "-p", "xtask", "--", "visual-verify"]
   static let visualVerify = ["run", "-p", "xtask", "--", "visual-verify", "--emit-base64"]
+  static let pmfSmoke = ["run", "-p", "xtask", "--", "pmf-smoke"]
   static let factorySmoke = ["run", "-p", "xtask", "--", "factory-smoke"]
   static let factorySmokeWithScreenshot = [
     "run", "-p", "xtask", "--", "factory-smoke", "--emit-base64",

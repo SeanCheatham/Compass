@@ -35,6 +35,7 @@ pub struct ScaffoldCapabilities {
     pub desktop_handshake: bool,
     pub simulation_fixtures: bool,
     pub gui_replay: bool,
+    pub pmf_experience: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -73,6 +74,7 @@ pub fn scaffold_check(repo: &Utf8Path) -> Result<ScaffoldCheckResult> {
     check_desktop_handshake(repo, &capabilities, &mut checks);
     check_simulation_fixtures(repo, &capabilities, &mut checks);
     check_gui_replay(repo, &capabilities, &mut checks);
+    check_pmf_experience(repo, &capabilities, &mut checks);
 
     let status = aggregate_status(&checks);
     Ok(ScaffoldCheckResult {
@@ -188,6 +190,7 @@ fn parse_metadata(contents: &str) -> ParsedMetadata {
             desktop_handshake: parse_bool(capabilities.get("desktop_handshake")),
             simulation_fixtures: parse_bool(capabilities.get("simulation_fixtures")),
             gui_replay: parse_bool(capabilities.get("gui_replay")),
+            pmf_experience: parse_bool(capabilities.get("pmf_experience")),
         },
     }
 }
@@ -475,7 +478,10 @@ fn check_simulation_fixtures(
         check_source_contains(
             &cli,
             checks,
-            format!("simulation_cli_{}", marker.trim_start_matches("--").replace('-', "_")),
+            format!(
+                "simulation_cli_{}",
+                marker.trim_start_matches("--").replace('-', "_")
+            ),
             marker,
             cli_path,
         );
@@ -578,6 +584,137 @@ fn check_gui_replay(
         "--visual-semantic-snapshot-file",
         desktop_path,
     );
+}
+
+fn check_pmf_experience(
+    repo: &Utf8Path,
+    capabilities: &ScaffoldCapabilities,
+    checks: &mut Vec<ScaffoldCheck>,
+) {
+    if !capabilities.pmf_experience {
+        return;
+    }
+
+    let core_path = "crates/app-core/src/lib.rs";
+    let core = match std::fs::read_to_string(repo.join(core_path)) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            checks.push(fail(
+                "pmf_experience_core_source",
+                "PMF experience capability is advertised but app-core source is missing.",
+                core_path,
+            ));
+            return;
+        }
+        Err(error) => {
+            checks.push(fail(
+                "pmf_experience_core_source",
+                format!("app-core source could not be read: {error}"),
+                core_path,
+            ));
+            return;
+        }
+    };
+    for marker in [
+        "ExperienceScenario",
+        "ExperienceState",
+        "ExperienceAction",
+        "ExperienceAllowedAction",
+        "ExperienceTurn",
+        "ExperienceTrace",
+        "run_experience",
+    ] {
+        check_source_contains(
+            &core,
+            checks,
+            format!("pmf_experience_core_{}", marker.to_lowercase()),
+            marker,
+            core_path,
+        );
+    }
+
+    let cli_path = "crates/app-cli/src/main.rs";
+    let cli = match std::fs::read_to_string(repo.join(cli_path)) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            checks.push(fail(
+                "pmf_experience_cli_source",
+                "PMF experience capability is advertised but app-cli source is missing.",
+                cli_path,
+            ));
+            return;
+        }
+        Err(error) => {
+            checks.push(fail(
+                "pmf_experience_cli_source",
+                format!("app-cli source could not be read: {error}"),
+                cli_path,
+            ));
+            return;
+        }
+    };
+    for marker in ["experience", "experience-schema"] {
+        check_source_contains(
+            &cli,
+            checks,
+            format!("pmf_experience_cli_{}", marker.replace('-', "_")),
+            marker,
+            cli_path,
+        );
+    }
+
+    let xtask_path = "xtask/src/main.rs";
+    let xtask = match std::fs::read_to_string(repo.join(xtask_path)) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            checks.push(fail(
+                "pmf_experience_xtask_source",
+                "PMF experience capability is advertised but xtask source is missing.",
+                xtask_path,
+            ));
+            return;
+        }
+        Err(error) => {
+            checks.push(fail(
+                "pmf_experience_xtask_source",
+                format!("xtask source could not be read: {error}"),
+                xtask_path,
+            ));
+            return;
+        }
+    };
+    check_source_contains(
+        &xtask,
+        checks,
+        "pmf_experience_xtask_pmf_smoke",
+        "pmf-smoke",
+        xtask_path,
+    );
+
+    for schema in [
+        "schemas/experience-input.schema.json",
+        "schemas/experience-trace.schema.json",
+    ] {
+        if repo.join(schema).is_file() {
+            checks.push(pass(
+                format!(
+                    "pmf_experience_schema_{}",
+                    schema.replace(['/', '.', '-'], "_")
+                ),
+                format!("{schema} exists for PMF experience capability."),
+                schema,
+            ));
+        } else {
+            checks.push(fail(
+                format!(
+                    "pmf_experience_schema_{}",
+                    schema.replace(['/', '.', '-'], "_")
+                ),
+                format!("PMF experience capability is advertised but {schema} is missing."),
+                schema,
+            ));
+        }
+    }
 }
 
 fn check_source_contains(

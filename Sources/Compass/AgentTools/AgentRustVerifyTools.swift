@@ -64,6 +64,7 @@ struct AgentScaffoldCheckTool: AgentTool {
       capabilities.desktopHandshake ? "desktop_handshake" : nil,
       capabilities.simulationFixtures ? "simulation_fixtures" : nil,
       capabilities.guiReplay ? "gui_replay" : nil,
+      capabilities.pmfExperience ? "pmf_experience" : nil,
     ]
     .compactMap { $0 }
     return names.isEmpty ? "(none)" : names.joined(separator: ", ")

@@ -45,6 +45,8 @@ struct RustProjectScaffold: Equatable, Sendable {
       ScaffoldFile(path: "schemas/demo-state.schema.json", contents: demoStateSchema()),
       ScaffoldFile(path: "schemas/simulation-input.schema.json", contents: simulationInputSchema()),
       ScaffoldFile(path: "schemas/gui-replay-trace.schema.json", contents: guiReplayTraceSchema()),
+      ScaffoldFile(path: "schemas/experience-input.schema.json", contents: experienceInputSchema()),
+      ScaffoldFile(path: "schemas/experience-trace.schema.json", contents: experienceTraceSchema()),
       ScaffoldFile(path: "crates/app-core/Cargo.toml", contents: appCoreManifest()),
       ScaffoldFile(path: "crates/app-core/src/lib.rs", contents: appCoreLib()),
       ScaffoldFile(path: "crates/app-core/tests/state_tests.rs", contents: appCoreTests()),
@@ -119,6 +121,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     desktop_handshake = true
     simulation_fixtures = true
     gui_replay = true
+    pmf_experience = true
     """
   }
 
@@ -192,6 +195,15 @@ struct RustProjectScaffold: Equatable, Sendable {
     use the semantic JSON as the replay/assertion target and the screenshot as
     human-facing rendering proof.
 
+    ## Deterministic PMF Experience Contract
+
+    Product-market-fit simulations use `run_experience(ExperienceInput) ->
+    ExperienceTrace` as a semantic app journey. The generated app owns the
+    allowed action list for each state, and `app-cli experience --input '<json>'`
+    deterministically replays a supplied action prefix from the scenario. Persona
+    agents may choose only from the latest `allowedNextActions`; screenshots are
+    optional supporting proof, not the assertion surface.
+
     ## Standard Commands
 
     - Format: `\(RustVerifyCommands.cargo(RustVerifyCommands.fmt))`
@@ -202,6 +214,9 @@ struct RustProjectScaffold: Equatable, Sendable {
     - Run CLI: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "status"]))`
     - Run simulation fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "simulate", "--input", #"{"seed":"demo","ticks":3,"action":"advance"}"#]))`
     - Run GUI replay fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "gui-replay", "--input", #"{"seed":"demo","steps":[{"action":"advance","ticks":2},{"action":"visual_input","value":"space"}]}"#]))`
+    - Run PMF experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "experience", "--input", #"{"schemaVersion":1,"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Find whether this app can reduce weekly reporting work"},"actions":[{"id":"inspect_value_prop","params":{}},{"id":"start_core_workflow","params":{}}]}"#]))`
+    - Print PMF experience schema: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "experience-schema"]))`
+    - PMF smoke: `\(RustVerifyCommands.cargo(RustVerifyCommands.pmfSmoke))`
     - Run desktop: `\(RustVerifyCommands.cargo(RustVerifyCommands.runDesktop))`
     - Fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
     - Visual verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerifyNoBase64))`
@@ -273,6 +288,74 @@ struct RustProjectScaffold: Equatable, Sendable {
               "value": { "type": "string" }
             }
           }
+        }
+      }
+    }
+    """
+  }
+
+  private static func experienceInputSchema() -> String {
+    """
+    {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "ExperienceInput",
+      "type": "object",
+      "required": ["schemaVersion", "scenario", "actions"],
+      "properties": {
+        "schemaVersion": { "type": "integer", "const": 1 },
+        "scenario": {
+          "type": "object",
+          "required": ["seed", "personaSummary", "task"],
+          "properties": {
+            "seed": { "type": "string" },
+            "personaSummary": { "type": "string" },
+            "task": { "type": "string" }
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "params"],
+            "properties": {
+              "id": { "type": "string" },
+              "params": { "type": "object" }
+            }
+          }
+        }
+      }
+    }
+    """
+  }
+
+  private static func experienceTraceSchema() -> String {
+    """
+    {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "ExperienceTrace",
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "scenario",
+        "initialState",
+        "turns",
+        "allowedNextActions",
+        "terminalStatus",
+        "eventLog"
+      ],
+      "properties": {
+        "schemaVersion": { "type": "integer", "const": 1 },
+        "scenario": { "type": "object" },
+        "initialState": { "type": "object" },
+        "turns": { "type": "array" },
+        "allowedNextActions": { "type": "array" },
+        "terminalStatus": {
+          "type": "string",
+          "enum": ["in_progress", "completed", "abandoned", "invalid_action"]
+        },
+        "eventLog": {
+          "type": "array",
+          "items": { "type": "string" }
         }
       }
     }
@@ -365,6 +448,95 @@ struct RustProjectScaffold: Equatable, Sendable {
         pub role: String,
         pub text: String,
         pub state: String,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ExperienceInput {
+        pub schema_version: u8,
+        pub scenario: ExperienceScenario,
+        #[serde(default)]
+        pub actions: Vec<ExperienceAction>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ExperienceScenario {
+        pub seed: String,
+        pub persona_summary: String,
+        pub task: String,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct ExperienceAction {
+        pub id: String,
+        #[serde(default = "empty_params")]
+        pub params: Value,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ExperienceAllowedAction {
+        pub id: String,
+        pub label: String,
+        pub description: String,
+        pub params_schema: Value,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ExperienceState {
+        pub id: String,
+        pub headline: String,
+        pub body: String,
+        pub semantic_nodes: Vec<ExperienceNode>,
+        pub observations: Vec<String>,
+        pub terminal: bool,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct ExperienceNode {
+        pub id: String,
+        pub role: String,
+        pub text: String,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ExperienceTurn {
+        pub index: u32,
+        pub action: ExperienceAction,
+        pub state: ExperienceState,
+        pub allowed_next_actions: Vec<ExperienceAllowedAction>,
+        pub event_log: Vec<String>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ExperienceTrace {
+        pub schema_version: u8,
+        pub scenario: ExperienceScenario,
+        pub initial_state: ExperienceState,
+        pub turns: Vec<ExperienceTurn>,
+        pub allowed_next_actions: Vec<ExperienceAllowedAction>,
+        pub terminal_status: ExperienceTerminalStatus,
+        pub event_log: Vec<String>,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    pub enum ExperienceTerminalStatus {
+        InProgress,
+        Completed,
+        Abandoned,
+        InvalidAction,
+    }
+
+    #[derive(Debug, Clone)]
+    struct ExperienceRuntime {
+        state: ExperienceState,
+        terminal_status: ExperienceTerminalStatus,
+        event_log: Vec<String>,
     }
 
     impl DemoState {
@@ -472,6 +644,300 @@ struct RustProjectScaffold: Equatable, Sendable {
         gui_semantic_snapshot(state, input_status, replay_events)
     }
 
+    impl Default for ExperienceInput {
+        fn default() -> Self {
+            Self {
+                schema_version: 1,
+                scenario: ExperienceScenario {
+                    seed: "demo".to_owned(),
+                    persona_summary: "Operations lead evaluating a workflow tool".to_owned(),
+                    task: "Find whether this app can reduce weekly reporting work".to_owned(),
+                },
+                actions: Vec::new(),
+            }
+        }
+    }
+
+    pub fn run_experience(input: ExperienceInput) -> ExperienceTrace {
+        let mut runtime = ExperienceRuntime {
+            state: initial_experience_state(&input.scenario),
+            terminal_status: ExperienceTerminalStatus::InProgress,
+            event_log: vec![format!("scenario_seed:{}", input.scenario.seed)],
+        };
+        let initial_state = runtime.state.clone();
+        let mut turns = Vec::new();
+
+        for (index, action) in input.actions.into_iter().enumerate() {
+            let allowed_before = allowed_experience_actions(&runtime.state, runtime.terminal_status);
+            let turn_events = if allowed_before.iter().any(|allowed| allowed.id == action.id) {
+                apply_experience_action(&mut runtime, &action, index)
+            } else {
+                runtime.terminal_status = ExperienceTerminalStatus::InvalidAction;
+                runtime.state = experience_state(
+                    "invalid_action",
+                    "Invalid action rejected",
+                    format!(
+                        "The app does not allow `{}` from state `{}`.",
+                        action.id, runtime.state.id
+                    ),
+                    vec!["invalid action".to_owned()],
+                    true,
+                );
+                vec![format!("turn:{index}:invalid_action:{}", action.id)]
+            };
+            runtime.event_log.extend(turn_events.clone());
+            let allowed_next_actions =
+                allowed_experience_actions(&runtime.state, runtime.terminal_status);
+            turns.push(ExperienceTurn {
+                index: index as u32,
+                action,
+                state: runtime.state.clone(),
+                allowed_next_actions,
+                event_log: turn_events,
+            });
+            if runtime.terminal_status != ExperienceTerminalStatus::InProgress {
+                break;
+            }
+        }
+
+        ExperienceTrace {
+            schema_version: 1,
+            scenario: input.scenario,
+            initial_state,
+            turns,
+            allowed_next_actions: allowed_experience_actions(&runtime.state, runtime.terminal_status),
+            terminal_status: runtime.terminal_status,
+            event_log: runtime.event_log,
+        }
+    }
+
+    fn initial_experience_state(scenario: &ExperienceScenario) -> ExperienceState {
+        experience_state(
+            "initial",
+            "Ready to evaluate the product promise",
+            format!(
+                "{} is trying to: {}",
+                scenario.persona_summary, scenario.task
+            ),
+            vec![
+                "value proposition visible".to_owned(),
+                "core workflow entry point visible".to_owned(),
+            ],
+            false,
+        )
+    }
+
+    fn apply_experience_action(
+        runtime: &mut ExperienceRuntime,
+        action: &ExperienceAction,
+        index: usize,
+    ) -> Vec<String> {
+        match action.id.as_str() {
+            "inspect_value_prop" => {
+                runtime.state = experience_state(
+                    "value_prop_inspected",
+                    "Value proposition inspected",
+                    "The app claims it can make the target workflow clearer and easier to judge.",
+                    vec![
+                        "promise inspected".to_owned(),
+                        "specific proof still requested".to_owned(),
+                    ],
+                    false,
+                );
+                vec![format!("turn:{index}:inspect_value_prop")]
+            }
+            "start_core_workflow" => {
+                runtime.state = experience_state(
+                    "workflow_started",
+                    "Core workflow started",
+                    "The app asks for one concrete input before it can show workflow value.",
+                    vec![
+                        "workflow entry accepted".to_owned(),
+                        "requested input visible".to_owned(),
+                    ],
+                    false,
+                );
+                vec![format!("turn:{index}:start_core_workflow")]
+            }
+            "provide_requested_input" => {
+                runtime.terminal_status = ExperienceTerminalStatus::Completed;
+                runtime.state = experience_state(
+                    "workflow_completed",
+                    "Workflow outcome shown",
+                    "The app returns a deterministic outcome that can be compared with the current alternative.",
+                    vec![
+                        "workflow completed".to_owned(),
+                        "outcome ready for feedback".to_owned(),
+                    ],
+                    true,
+                );
+                vec![format!("turn:{index}:provide_requested_input")]
+            }
+            "ask_for_help" => {
+                runtime.state = experience_state(
+                    "help_requested",
+                    "Help requested",
+                    "The app explains the next step but still expects the persona to judge whether the promise is concrete.",
+                    vec![
+                        "help surfaced".to_owned(),
+                        "next action clarified".to_owned(),
+                    ],
+                    false,
+                );
+                vec![format!("turn:{index}:ask_for_help")]
+            }
+            "compare_with_current_alternative" => {
+                runtime.state = experience_state(
+                    "alternative_compared",
+                    "Current alternative compared",
+                    "The app frames the workflow against a manual process, spreadsheet, or existing workaround.",
+                    vec![
+                        "alternative named".to_owned(),
+                        "switching objection invited".to_owned(),
+                    ],
+                    false,
+                );
+                vec![format!("turn:{index}:compare_with_current_alternative")]
+            }
+            "abandon_task" => {
+                runtime.terminal_status = ExperienceTerminalStatus::Abandoned;
+                runtime.state = experience_state(
+                    "abandoned",
+                    "Task abandoned",
+                    "The persona left the flow before the app proved enough value.",
+                    vec!["task abandoned".to_owned()],
+                    true,
+                );
+                vec![format!("turn:{index}:abandon_task")]
+            }
+            _ => unreachable!("caller validates allowed experience actions"),
+        }
+    }
+
+    fn allowed_experience_actions(
+        state: &ExperienceState,
+        terminal_status: ExperienceTerminalStatus,
+    ) -> Vec<ExperienceAllowedAction> {
+        if terminal_status != ExperienceTerminalStatus::InProgress || state.terminal {
+            return Vec::new();
+        }
+        match state.id.as_str() {
+            "initial" => vec![
+                allowed_action(
+                    "inspect_value_prop",
+                    "Inspect value proposition",
+                    "Read what product value the app claims to provide.",
+                ),
+                allowed_action(
+                    "start_core_workflow",
+                    "Start core workflow",
+                    "Try the main workflow exposed by the app.",
+                ),
+                allowed_action(
+                    "compare_with_current_alternative",
+                    "Compare with current alternative",
+                    "Judge the promise against the persona's existing workaround.",
+                ),
+                allowed_action(
+                    "ask_for_help",
+                    "Ask for help",
+                    "Request clarification about what to do next.",
+                ),
+                allowed_action(
+                    "abandon_task",
+                    "Abandon task",
+                    "Stop because value is not clear.",
+                ),
+            ],
+            "workflow_started" => vec![
+                allowed_action(
+                    "provide_requested_input",
+                    "Provide requested input",
+                    "Supply the concrete input the workflow requests.",
+                ),
+                allowed_action(
+                    "ask_for_help",
+                    "Ask for help",
+                    "Request clarification before providing input.",
+                ),
+                allowed_action(
+                    "abandon_task",
+                    "Abandon task",
+                    "Stop because value is not clear.",
+                ),
+            ],
+            "value_prop_inspected" | "help_requested" | "alternative_compared" => vec![
+                allowed_action(
+                    "start_core_workflow",
+                    "Start core workflow",
+                    "Try the main workflow exposed by the app.",
+                ),
+                allowed_action(
+                    "compare_with_current_alternative",
+                    "Compare with current alternative",
+                    "Judge the promise against the persona's existing workaround.",
+                ),
+                allowed_action(
+                    "ask_for_help",
+                    "Ask for help",
+                    "Request clarification about what to do next.",
+                ),
+                allowed_action(
+                    "abandon_task",
+                    "Abandon task",
+                    "Stop because value is not clear.",
+                ),
+            ],
+            _ => Vec::new(),
+        }
+    }
+
+    fn allowed_action(id: &str, label: &str, description: &str) -> ExperienceAllowedAction {
+        ExperienceAllowedAction {
+            id: id.to_owned(),
+            label: label.to_owned(),
+            description: description.to_owned(),
+            params_schema: json!({
+                "type": "object",
+                "additionalProperties": true
+            }),
+        }
+    }
+
+    fn experience_state(
+        id: &str,
+        headline: impl Into<String>,
+        body: impl Into<String>,
+        observations: Vec<String>,
+        terminal: bool,
+    ) -> ExperienceState {
+        let headline = headline.into();
+        let body = body.into();
+        ExperienceState {
+            id: id.to_owned(),
+            semantic_nodes: vec![
+                ExperienceNode {
+                    id: "screen.headline".to_owned(),
+                    role: "heading".to_owned(),
+                    text: headline.clone(),
+                },
+                ExperienceNode {
+                    id: "screen.body".to_owned(),
+                    role: "text".to_owned(),
+                    text: body.clone(),
+                },
+            ],
+            headline,
+            body,
+            observations,
+            terminal,
+        }
+    }
+
+    fn empty_params() -> Value {
+        json!({})
+    }
+
     pub fn gui_semantic_snapshot(
         state: DemoState,
         input_status: String,
@@ -565,15 +1031,89 @@ struct RustProjectScaffold: Equatable, Sendable {
         })
     }
 
+    pub fn experience_input_schema() -> Value {
+        json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "ExperienceInput",
+            "type": "object",
+            "required": ["schemaVersion", "scenario", "actions"],
+            "properties": {
+                "schemaVersion": { "type": "integer", "const": 1 },
+                "scenario": {
+                    "type": "object",
+                    "required": ["seed", "personaSummary", "task"],
+                    "properties": {
+                        "seed": { "type": "string" },
+                        "personaSummary": { "type": "string" },
+                        "task": { "type": "string" }
+                    }
+                },
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["id", "params"],
+                        "properties": {
+                            "id": { "type": "string" },
+                            "params": { "type": "object" }
+                        }
+                    }
+                }
+            }
+        })
+    }
+
+    pub fn experience_trace_schema() -> Value {
+        json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "ExperienceTrace",
+            "type": "object",
+            "required": [
+                "schemaVersion",
+                "scenario",
+                "initialState",
+                "turns",
+                "allowedNextActions",
+                "terminalStatus",
+                "eventLog"
+            ],
+            "properties": {
+                "schemaVersion": { "type": "integer", "const": 1 },
+                "scenario": { "type": "object" },
+                "initialState": { "type": "object" },
+                "turns": { "type": "array" },
+                "allowedNextActions": { "type": "array" },
+                "terminalStatus": {
+                    "type": "string",
+                    "enum": ["in_progress", "completed", "abandoned", "invalid_action"]
+                },
+                "eventLog": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                }
+            }
+        })
+    }
+
+    pub fn experience_contract_schema() -> Value {
+        json!({
+            "schemaVersion": 1,
+            "input": experience_input_schema(),
+            "trace": experience_trace_schema()
+        })
+    }
+
     """
   }
 
   private static func appCoreTests() -> String {
     """
     use app_core::{
-        run_gui_replay, run_simulation, DemoState, GuiReplayAction, GuiReplayStep, GuiReplayTrace,
+        run_experience, run_gui_replay, run_simulation, DemoState, ExperienceAction, ExperienceInput,
+        ExperienceScenario, ExperienceTerminalStatus, GuiReplayAction, GuiReplayStep, GuiReplayTrace,
         SimulationAction, SimulationInput,
     };
+    use serde_json::json;
 
     #[test]
     fn deterministic_state_has_stable_labels() {
@@ -631,6 +1171,40 @@ struct RustProjectScaffold: Equatable, Sendable {
             .any(|node| node.id == "input.status" && node.text == "acknowledged:space"));
     }
 
+    #[test]
+    fn experience_fixture_replays_allowed_actions_deterministically() {
+        let input = ExperienceInput {
+            schema_version: 1,
+            scenario: ExperienceScenario {
+                seed: "pmf-case".to_owned(),
+                persona_summary: "Operations lead evaluating reporting workflow".to_owned(),
+                task: "Try the core workflow".to_owned(),
+            },
+            actions: vec![
+                ExperienceAction {
+                    id: "inspect_value_prop".to_owned(),
+                    params: json!({}),
+                },
+                ExperienceAction {
+                    id: "start_core_workflow".to_owned(),
+                    params: json!({}),
+                },
+            ],
+        };
+
+        let first = run_experience(input.clone());
+        let second = run_experience(input);
+
+        assert_eq!(first, second);
+        assert_eq!(first.schema_version, 1);
+        assert_eq!(first.turns.len(), 2);
+        assert_eq!(first.terminal_status, ExperienceTerminalStatus::InProgress);
+        assert!(first
+            .allowed_next_actions
+            .iter()
+            .any(|action| action.id == "provide_requested_input"));
+    }
+
     """
   }
 
@@ -651,8 +1225,9 @@ struct RustProjectScaffold: Equatable, Sendable {
   private static func appCLIMain() -> String {
     """
     use app_core::{
-        demo_state_schema, gui_replay_trace_schema, run_gui_replay, run_simulation,
-        simulation_input_schema, DemoState, GuiReplayTrace, SimulationInput,
+        demo_state_schema, experience_contract_schema, gui_replay_trace_schema, run_experience,
+        run_gui_replay, run_simulation, simulation_input_schema, DemoState, ExperienceInput,
+        GuiReplayTrace, SimulationInput,
     };
 
     fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -676,6 +1251,12 @@ struct RustProjectScaffold: Equatable, Sendable {
                     serde_json::to_string_pretty(&gui_replay_trace_schema())?
                 );
             }
+            Some("experience-schema") => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&experience_contract_schema())?
+                );
+            }
             Some("simulate") => {
                 let input = parse_simulation_input(args)?;
                 println!("{}", serde_json::to_string_pretty(&run_simulation(input))?);
@@ -684,9 +1265,13 @@ struct RustProjectScaffold: Equatable, Sendable {
                 let trace = parse_gui_replay_trace(args)?;
                 println!("{}", serde_json::to_string_pretty(&run_gui_replay(trace))?);
             }
+            Some("experience") => {
+                let input = parse_experience_input(args)?;
+                println!("{}", serde_json::to_string_pretty(&run_experience(input))?);
+            }
             Some(other) => {
                 eprintln!("unknown command: {other}");
-                eprintln!("usage: app-cli [status|schema|simulation-schema|gui-replay-schema|simulate --input <json>|gui-replay --input <json>]");
+                eprintln!("usage: app-cli [status|schema|simulation-schema|gui-replay-schema|experience-schema|simulate --input <json>|gui-replay --input <json>|experience --input <json>]");
                 std::process::exit(2);
             }
         }
@@ -730,6 +1315,26 @@ struct RustProjectScaffold: Equatable, Sendable {
         match input_json {
             Some(value) => Ok(serde_json::from_str(&value)?),
             None => Ok(GuiReplayTrace::default()),
+        }
+    }
+
+    fn parse_experience_input(
+        mut args: impl Iterator<Item = String>,
+    ) -> Result<ExperienceInput, Box<dyn std::error::Error>> {
+        let mut input_json = None;
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--input" => {
+                    input_json = args.next();
+                }
+                other => {
+                    return Err(format!("unknown experience argument: {other}").into());
+                }
+            }
+        }
+        match input_json {
+            Some(value) => Ok(serde_json::from_str(&value)?),
+            None => Ok(ExperienceInput::default()),
         }
     }
 
@@ -1073,6 +1678,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     [dependencies]
     base64.workspace = true
+    serde_json.workspace = true
     """
   }
 
@@ -1100,6 +1706,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "build" => \(xtaskCargoRunExpression(RustVerifyCommands.build)),
             "run" => \(xtaskCargoRunExpression(RustVerifyCommands.runDesktop)),
             "verify" => verify_all(),
+            "pmf-smoke" => pmf_smoke(),
             "factory-smoke" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
             "engine-parity-check" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
             "visual-verify" => visual_verify(args.iter().any(|arg| arg == "--emit-base64")),
@@ -1133,7 +1740,44 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     fn factory_smoke(emit_base64: bool) -> Result<()> {
         verify_all()?;
+        pmf_smoke()?;
         visual_verify(emit_base64)?;
+        Ok(())
+    }
+
+    fn pmf_smoke() -> Result<()> {
+        let demo = run_capture("cargo", &["run", "-p", "app-cli", "--", "experience"])?;
+        let demo_json: serde_json::Value = serde_json::from_slice(&demo)?;
+        let initial_allowed = demo_json
+            .get("allowedNextActions")
+            .and_then(|value| value.as_array())
+            .ok_or("experience trace is missing allowedNextActions")?;
+        if initial_allowed.is_empty() {
+            return Err("experience trace did not expose any initial allowed actions".into());
+        }
+
+        let input = r#"{"schemaVersion":1,"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Find whether this app can reduce weekly reporting work"},"actions":[{"id":"inspect_value_prop","params":{}},{"id":"start_core_workflow","params":{}}]}"#;
+        let first = run_capture(
+            "cargo",
+            &["run", "-p", "app-cli", "--", "experience", "--input", input],
+        )?;
+        let second = run_capture(
+            "cargo",
+            &["run", "-p", "app-cli", "--", "experience", "--input", input],
+        )?;
+        if first != second {
+            return Err("experience trace changed across identical invocations".into());
+        }
+
+        let trace: serde_json::Value = serde_json::from_slice(&first)?;
+        let turns = trace
+            .get("turns")
+            .and_then(|value| value.as_array())
+            .ok_or("experience trace is missing turns")?;
+        if turns.len() < 2 {
+            return Err("experience trace did not replay at least two actions".into());
+        }
+        println!("COMPASS_PMF_SMOKE_TRACE_BYTES={}", first.len());
         Ok(())
     }
 
@@ -1344,6 +1988,22 @@ struct RustProjectScaffold: Equatable, Sendable {
             Ok(())
         } else {
             Err(format!("{program} {} failed with {status}", args.join(" ")).into())
+        }
+    }
+
+    fn run_capture(program: &str, args: &[&str]) -> Result<Vec<u8>> {
+        let output = Command::new(program).args(args).output()?;
+        if output.status.success() {
+            Ok(output.stdout)
+        } else {
+            Err(format!(
+                "{program} {} failed with {}\\nstdout:\\n{}\\nstderr:\\n{}",
+                args.join(" "),
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into())
         }
     }
 

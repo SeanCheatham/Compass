@@ -285,6 +285,13 @@ fn scaffold_repair_hints(data: &serde_json::Value) -> Vec<RepairHint> {
                 "Scaffold advertises deterministic GUI replay but the semantic replay surface or desktop snapshot hook is missing.",
                 None::<String>,
             ));
+        } else if id.starts_with("pmf_experience_") {
+            hints.push(RepairHint::new(
+                "generated-scaffold-missing-pmf-experience",
+                "error",
+                "Scaffold advertises PMF experience simulation but the app-core contract, CLI command, xtask smoke, or schema files are missing.",
+                None::<String>,
+            ));
         }
     }
     dedupe_hints(hints)

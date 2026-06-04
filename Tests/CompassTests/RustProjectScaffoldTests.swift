@@ -18,6 +18,8 @@ struct RustProjectScaffoldTests {
     try #require(paths.contains("schemas/demo-state.schema.json"))
     try #require(paths.contains("schemas/simulation-input.schema.json"))
     try #require(paths.contains("schemas/gui-replay-trace.schema.json"))
+    try #require(paths.contains("schemas/experience-input.schema.json"))
+    try #require(paths.contains("schemas/experience-trace.schema.json"))
     try #require(!paths.contains("Package.swift"))
     try #require(!paths.contains("package.json"))
   }
@@ -35,6 +37,7 @@ struct RustProjectScaffoldTests {
     try #require(metadata.contains("desktop_handshake = true"))
     try #require(metadata.contains("simulation_fixtures = true"))
     try #require(metadata.contains("gui_replay = true"))
+    try #require(metadata.contains("pmf_experience = true"))
   }
 
   @Test func scaffoldDocumentsStandardRustCommandsAndDesktopStack() throws {
@@ -53,6 +56,10 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains("Deterministic GUI Replay Contract"))
     try #require(readme.contains("run_gui_replay(GuiReplayTrace) -> GuiSemanticSnapshot"))
     try #require(readme.contains("app-cli gui-replay --input"))
+    try #require(readme.contains("Deterministic PMF Experience Contract"))
+    try #require(readme.contains("run_experience(ExperienceInput) ->"))
+    try #require(readme.contains("app-cli experience --input"))
+    try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.pmfSmoke)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.fmt)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.clippy)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.test)))
@@ -85,13 +92,23 @@ struct RustProjectScaffoldTests {
     try #require(core.contains("pub struct GuiSemanticSnapshot"))
     try #require(core.contains("pub fn run_gui_replay"))
     try #require(core.contains("pub fn gui_semantic_snapshot"))
+    try #require(core.contains("pub struct ExperienceInput"))
+    try #require(core.contains("pub struct ExperienceState"))
+    try #require(core.contains("pub struct ExperienceAction"))
+    try #require(core.contains("pub struct ExperienceAllowedAction"))
+    try #require(core.contains("pub struct ExperienceTrace"))
+    try #require(core.contains("pub fn run_experience"))
     try #require(cli.contains(#"Some("simulate")"#))
     try #require(cli.contains(#"Some("gui-replay")"#))
+    try #require(cli.contains(#"Some("experience")"#))
+    try #require(cli.contains(#"Some("experience-schema")"#))
     try #require(cli.contains("--input"))
     try #require(cli.contains("serde_json::to_string_pretty(&run_simulation(input))"))
     try #require(cli.contains("serde_json::to_string_pretty(&run_gui_replay(trace))"))
+    try #require(cli.contains("serde_json::to_string_pretty(&run_experience(input))"))
     try #require(tests.contains("simulation_fixture_is_a_pure_transition"))
     try #require(tests.contains("gui_replay_fixture_emits_stable_semantic_snapshot"))
+    try #require(tests.contains("experience_fixture_replays_allowed_actions_deterministically"))
   }
 
   @Test func desktopTemplateHasStableVisualVerificationLabels() throws {
@@ -137,11 +154,16 @@ struct RustProjectScaffoldTests {
     try #require(xtask.contains("cargo"))
     try #require(xtask.contains("build"))
     try #require(xtask.contains("factory-smoke"))
+    try #require(xtask.contains(#""pmf-smoke" => pmf_smoke()"#))
+    try #require(xtask.contains("fn pmf_smoke() -> Result<()>"))
+    try #require(xtask.contains("allowedNextActions"))
+    try #require(xtask.contains("experience trace changed across identical invocations"))
     try #require(xtask.contains("engine-parity-check"))
     try #require(xtask.contains("fn factory_smoke(emit_base64: bool)"))
     try #require(xtask.contains("fn run_clippy() -> Result<()>"))
     try #require(xtask.contains(#""clippy" => run_clippy()"#))
     try #require(xtask.contains("run_clippy()?"))
+    try #require(xtask.contains("pmf_smoke()?"))
     try #require(xtask.contains("visual_verify(emit_base64)?"))
     try #require(
       xtask.contains("run(\"cargo\", &[\"test\", \"--workspace\", \"--all-features\"])?"))
@@ -238,6 +260,7 @@ struct RustProjectScaffoldTests {
 
     try await requireCommand(["fmt", "--all", "--check"], in: root)
     try await requireCommand(["test", "--workspace", "--all-features"], in: root)
+    try await requireCommand(["run", "-p", "xtask", "--", "pmf-smoke"], in: root)
     try await requireCommand(["build", "-p", RustProjectScaffold.desktopPackage], in: root)
   }
 

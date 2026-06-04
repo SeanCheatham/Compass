@@ -96,7 +96,8 @@ struct RustFactoryHealth: Codable, Equatable, Sendable {
             schemaContracts: true,
             desktopHandshake: true,
             simulationFixtures: true,
-            guiReplay: true
+            guiReplay: true,
+            pmfExperience: true
           ),
           checks: []
         ),

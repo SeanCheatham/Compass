@@ -345,6 +345,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
   var desktopHandshake: Bool
   var simulationFixtures: Bool
   var guiReplay: Bool
+  var pmfExperience: Bool
 
   init(
     xtaskVerify: Bool,
@@ -352,7 +353,8 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     schemaContracts: Bool,
     desktopHandshake: Bool,
     simulationFixtures: Bool = false,
-    guiReplay: Bool = false
+    guiReplay: Bool = false,
+    pmfExperience: Bool = false
   ) {
     self.xtaskVerify = xtaskVerify
     self.visualVerify = visualVerify
@@ -360,6 +362,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     self.desktopHandshake = desktopHandshake
     self.simulationFixtures = simulationFixtures
     self.guiReplay = guiReplay
+    self.pmfExperience = pmfExperience
   }
 
   init(from decoder: Decoder) throws {
@@ -368,8 +371,10 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     visualVerify = try container.decode(Bool.self, forKey: .visualVerify)
     schemaContracts = try container.decode(Bool.self, forKey: .schemaContracts)
     desktopHandshake = try container.decode(Bool.self, forKey: .desktopHandshake)
-    simulationFixtures = try container.decodeIfPresent(Bool.self, forKey: .simulationFixtures) ?? false
+    simulationFixtures =
+      try container.decodeIfPresent(Bool.self, forKey: .simulationFixtures) ?? false
     guiReplay = try container.decodeIfPresent(Bool.self, forKey: .guiReplay) ?? false
+    pmfExperience = try container.decodeIfPresent(Bool.self, forKey: .pmfExperience) ?? false
   }
 
   enum CodingKeys: String, CodingKey {
@@ -379,6 +384,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     case desktopHandshake = "desktop_handshake"
     case simulationFixtures = "simulation_fixtures"
     case guiReplay = "gui_replay"
+    case pmfExperience = "pmf_experience"
   }
 }
 

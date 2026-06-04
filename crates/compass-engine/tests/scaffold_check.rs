@@ -15,6 +15,7 @@ fn scaffold_check_passes_for_blessed_shape() {
     assert_eq!(json["data"]["capabilities"]["xtask_verify"], true);
     assert_eq!(json["data"]["capabilities"]["simulation_fixtures"], true);
     assert_eq!(json["data"]["capabilities"]["gui_replay"], true);
+    assert_eq!(json["data"]["capabilities"]["pmf_experience"], true);
 }
 
 #[test]
@@ -112,14 +113,49 @@ fn main() {
     assert_eq!(json["ok"], true);
     assert_eq!(json["data"]["status"], "fail");
     assert!(checks.iter().any(|check| {
-        check["id"] == "gui_replay_desktop_semantic_snapshot_flag"
-            && check["status"] == "fail"
+        check["id"] == "gui_replay_desktop_semantic_snapshot_flag" && check["status"] == "fail"
     }));
     assert!(json["repair_hints"]
         .as_array()
         .expect("repair hints")
         .iter()
         .any(|hint| { hint["id"] == "generated-scaffold-missing-gui-replay" }));
+}
+
+#[test]
+fn scaffold_check_reports_missing_pmf_experience_markers() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    write_blessed_workspace(temp.path());
+    write(
+        temp.path(),
+        "crates/app-core/src/lib.rs",
+        r#"
+pub struct SimulationInput;
+pub struct SimulationSnapshot;
+pub struct GuiReplayTrace;
+pub struct GuiSemanticSnapshot;
+pub fn run_simulation(_: SimulationInput) -> SimulationSnapshot {
+    SimulationSnapshot
+}
+pub fn run_gui_replay(_: GuiReplayTrace) -> GuiSemanticSnapshot {
+    GuiSemanticSnapshot
+}
+"#,
+    );
+
+    let json = run_scaffold_check(temp.path());
+    let checks = json["data"]["checks"].as_array().expect("checks");
+
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["data"]["status"], "fail");
+    assert!(checks.iter().any(|check| {
+        check["id"] == "pmf_experience_core_experiencestate" && check["status"] == "fail"
+    }));
+    assert!(json["repair_hints"]
+        .as_array()
+        .expect("repair hints")
+        .iter()
+        .any(|hint| { hint["id"] == "generated-scaffold-missing-pmf-experience" }));
 }
 
 fn run_scaffold_check(path: &Path) -> Value {
@@ -155,6 +191,7 @@ schema_contracts = true
 desktop_handshake = true
 simulation_fixtures = true
 gui_replay = true
+pmf_experience = true
 "#,
     );
     write(
@@ -195,6 +232,8 @@ components = ["rustfmt", "clippy"]
     write(root, "schemas/demo-state.schema.json", "{}");
     write(root, "schemas/simulation-input.schema.json", "{}");
     write(root, "schemas/gui-replay-trace.schema.json", "{}");
+    write(root, "schemas/experience-input.schema.json", "{}");
+    write(root, "schemas/experience-trace.schema.json", "{}");
     write(
         root,
         "xtask/src/main.rs",
@@ -202,6 +241,7 @@ components = ["rustfmt", "clippy"]
 fn main() {
     match "verify" {
         "verify" => {}
+        "pmf-smoke" => {}
         "visual-verify" => {}
         _ => {}
     }
@@ -216,11 +256,20 @@ pub struct SimulationInput;
 pub struct SimulationSnapshot;
 pub struct GuiReplayTrace;
 pub struct GuiSemanticSnapshot;
+pub struct ExperienceScenario;
+pub struct ExperienceState;
+pub struct ExperienceAction;
+pub struct ExperienceAllowedAction;
+pub struct ExperienceTurn;
+pub struct ExperienceTrace;
 pub fn run_simulation(_: SimulationInput) -> SimulationSnapshot {
     SimulationSnapshot
 }
 pub fn run_gui_replay(_: GuiReplayTrace) -> GuiSemanticSnapshot {
     GuiSemanticSnapshot
+}
+pub fn run_experience(_: ExperienceScenario) -> ExperienceTrace {
+    ExperienceTrace
 }
 "#,
     );
@@ -233,6 +282,8 @@ fn main() {
     let _ = "--input";
     let _ = "gui-replay";
     let _ = "gui-replay-schema";
+    let _ = "experience";
+    let _ = "experience-schema";
 }
 "#,
     );
