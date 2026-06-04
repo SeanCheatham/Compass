@@ -59,6 +59,10 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains("Deterministic PMF Experience Contract"))
     try #require(readme.contains("run_experience(ExperienceInput) ->"))
     try #require(readme.contains("app-cli experience --input"))
+    try #require(readme.contains("PMF evidence is product pressure"))
+    try #require(readme.contains("Manual PMF simulation checklist"))
+    try #require(readme.contains("allowedNextActions"))
+    try #require(readme.contains("avoid optimizing for praise"))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.pmfSmoke)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.fmt)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.clippy)))
@@ -258,10 +262,35 @@ struct RustProjectScaffoldTests {
       options: RustProjectScaffold.Options(projectName: "Compass Cargo Smoke")
     )
 
-    try await requireCommand(["fmt", "--all", "--check"], in: root)
-    try await requireCommand(["test", "--workspace", "--all-features"], in: root)
+    if await cargoSubcommandAvailable("llvm-cov") {
+      try await requireCommand(["run", "-p", "xtask", "--", "verify"], in: root)
+    } else {
+      print("Skipping generated `xtask verify`: cargo llvm-cov is not installed.")
+      try await requireCommand(["fmt", "--all", "--check"], in: root)
+      try await requireCommand(["test", "--workspace", "--all-features"], in: root)
+      try await requireCommand(["build", "--workspace"], in: root)
+    }
     try await requireCommand(["run", "-p", "xtask", "--", "pmf-smoke"], in: root)
     try await requireCommand(["build", "-p", RustProjectScaffold.desktopPackage], in: root)
+  }
+
+  private func cargoSubcommandAvailable(_ name: String) async -> Bool {
+    guard
+      let result = try? await ProcessRunner.runEnv(
+        "cargo",
+        ["--list"],
+        timeout: 30
+      ),
+      result.exitCode == 0
+    else {
+      return false
+    }
+    return result.stdout
+      .split(whereSeparator: \.isNewline)
+      .contains { line in
+        line.trimmingCharacters(in: .whitespaces).hasPrefix("\(name) ")
+          || line.trimmingCharacters(in: .whitespaces) == name
+      }
   }
 
   private func requireCommand(_ arguments: [String], in root: URL) async throws {

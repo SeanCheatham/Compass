@@ -204,6 +204,19 @@ struct RustProjectScaffold: Equatable, Sendable {
     agents may choose only from the latest `allowedNextActions`; screenshots are
     optional supporting proof, not the assertion surface.
 
+    PMF evidence is product pressure, not a release gate. Use `pmf-smoke` to
+    prove this generated app can replay a deterministic model-free PMF journey,
+    then use a live persona model only for manual product review. Treat repeated
+    objections and low scores as signals to investigate, not as automatic proof
+    that the product is good or bad.
+
+    Manual PMF simulation checklist:
+    - Confirm `app-cli experience-schema` prints the expected contract.
+    - Run `xtask pmf-smoke` before involving a live model.
+    - For live review, verify persona actions come only from `allowedNextActions`.
+    - Keep feedback skeptical and structured; avoid optimizing for praise.
+    - Inspect evidence summaries in Compass before changing the roadmap.
+
     ## Standard Commands
 
     - Format: `\(RustVerifyCommands.cargo(RustVerifyCommands.fmt))`

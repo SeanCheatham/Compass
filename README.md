@@ -45,6 +45,7 @@ cargo run -p xtask -- visual-verify
 cargo run -p xtask -- visual-verify --emit-base64
 cargo run -p xtask -- factory-smoke
 cargo run -p xtask -- factory-smoke --emit-base64
+cargo run -p xtask -- pmf-smoke
 ```
 
 `xtask verify` is the normal fast path: format, lint, test, coverage, and
@@ -57,6 +58,50 @@ inspection/evolution paths only. Host Xcode exists for those legacy Apple
 repositories and for Compass's own Swift code; it is not a generated-output
 dependency. The Compass host app remains Swift/macOS; the Rust engine is a
 factory sidecar and is not used for the host UI or VM lifecycle.
+
+## Product-Market-Fit Simulation
+
+Compass can collect PMF evidence for generated Rust apps that expose the
+deterministic PMF experience contract. PMF simulation is not user research, a
+sales forecast, or a Verify gate. It is a skeptical, repeatable product-pressure
+loop: a configured persona works through the app's semantic `ExperienceTrace`,
+records structured feedback, and gives Plan/Reflect bounded evidence about
+confusion, objections, missing capabilities, scores, verdicts, and scenario
+gaps.
+
+Generated apps expose the contract through:
+
+```bash
+cargo run -p app-cli -- experience-schema
+cargo run -p app-cli -- experience --input '{"schemaVersion":1,"scenario":{"seed":"demo","personaSummary":"Operations lead","task":"Find the workflow value"},"actions":[]}'
+cargo run -p xtask -- pmf-smoke
+```
+
+`pmf-smoke` is the model-free generated-project check. It proves the app owns a
+stable experience contract and can replay a deterministic PMF journey. Live
+persona and feedback calls are manual/interactive checks, not part of normal
+automated tests.
+
+PMF evidence is stored under `.compass/pmf/` with a quick-loading
+`evidence-index.json` and separate run artifacts for traces and raw transcripts.
+The PMF tab lists runs, feedback scores, objections, missing capabilities,
+failure kinds, and copyable Markdown summaries. Plan and Reflect receive only a
+compact advisory summary: latest evidence per active scenario, repeated
+objections, low-score clusters, verdict distribution, failures, and evidence
+gaps. Raw transcripts stay out of prompt context unless a human inspects them in
+the app.
+
+Interpret subjective feedback carefully. Repeated objections across personas or
+tasks can justify product work; a single persona-specific complaint should be
+treated as a signal to investigate. PMF evidence can motivate the next Plan
+increment, suggest better scenarios, or challenge the hypothesis, but it never
+bypasses normal build/test/Verify discipline.
+
+PMF prompts use the same model/provider settings already configured for the
+project and do not add a new network destination. Automatic PMF execution is
+kept disabled unless rollout controls can bound runtime and flake risk; run the
+generated `pmf-smoke` and inspect PMF evidence manually when evaluating the
+feature.
 
 ## Developing compass-engine
 
@@ -245,6 +290,8 @@ Everything lives in `.compass/` inside each selected repository:
 ├── drafts.md         # User-owned draft queue.
 ├── lessons.md        # Durable guidance shared across iterations.
 ├── assumptions.json  # Agent-recorded assumptions and user reviews.
+├── pmf.json          # Product hypothesis, personas, tasks, scenarios.
+├── pmf/              # PMF evidence index and run artifacts.
 ├── sessions.jsonl    # Per-iteration session index and latest feedback.
 ├── sessions-archive/ # Segmented older session records.
 ├── sessions/         # Session audit manifests, events, and artifacts.
