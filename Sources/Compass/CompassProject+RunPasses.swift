@@ -866,6 +866,26 @@ extension CompassProject {
         attempt: attempt
       )
       verifyIssues.append(contentsOf: visualIssues)
+      if !next.verify.contains("clippy") {
+        let clippy = try await runVerifyCommand(
+          command:
+            "if command -v compass-engine >/dev/null 2>&1; then compass-engine clippy-lint --repo . --format json; else cargo clippy --workspace --all-targets --all-features -- -D warnings; fi",
+          hostWorkingDirectory: workingDirectory,
+          timeoutSeconds: 120,
+          launchPlan: launchPlan
+        )
+        if clippy.exitCode != 0 {
+          verifyIssues.append(
+            """
+            [verify] Rust post-verify clippy soft gate reported issues. Output (tail):
+            ```
+            \(tail(clippy.stdout + clippy.stderr, max: 4000))
+            ```
+            """
+          )
+          log("Rust post-verify clippy soft gate reported issues.", level: .warning)
+        }
+      }
     }
 
     if case .sharedVM(let route) = launchPlan.effectiveRoute,

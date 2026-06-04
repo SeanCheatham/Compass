@@ -8,6 +8,8 @@ enum RustEngineCommand: String, Sendable, CaseIterable {
   case cargoTest = "cargo-test"
   case indexRust = "index-rust"
   case schemaContracts = "schema-contracts"
+  case coverageGaps = "coverage-gaps"
+  case visualVerify = "visual-verify"
 }
 
 enum RustCargoServiceError: LocalizedError, Equatable {

@@ -64,6 +64,7 @@ enum ToolRegistry {
       tools.append(AgentFindImplsTool())
       tools.append(AgentTraitUsersTool())
       tools.append(AgentSchemaContractsTool())
+      tools.append(AgentCoverageGapsTool())
     }
     return tools
   }
@@ -96,6 +97,8 @@ enum ToolRegistry {
         tools.append(AgentFindImplsTool())
         tools.append(AgentTraitUsersTool())
         tools.append(AgentSchemaContractsTool())
+        tools.append(AgentCoverageGapsTool())
+        tools.append(AgentVisualVerifyTool())
       }
       if let imageAssignment = settings.imageAssignment {
         tools.append(AgentGenerateImageTool(assignment: imageAssignment))

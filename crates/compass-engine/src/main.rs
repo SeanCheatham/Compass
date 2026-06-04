@@ -63,6 +63,14 @@ fn run(cli: &Cli) -> Result<EngineResponse<serde_json::Value>> {
             let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
             serde_json::to_value(compass_engine::schema::schema_contracts(&repo)?)?
         }
+        Command::CoverageGaps(args) => {
+            let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
+            serde_json::to_value(compass_engine::cargo::commands::coverage_gaps(&repo, args)?)?
+        }
+        Command::VisualVerify => {
+            let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
+            serde_json::to_value(compass_engine::cargo::commands::visual_verify(&repo)?)?
+        }
     };
     Ok(EngineResponse::ok(cli.command.name(), value))
 }

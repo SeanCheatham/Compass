@@ -285,6 +285,50 @@ struct LiveFailureInsight: Equatable, Sendable {
       )
     }
 
+    if containsAny(normalized, ["compass-engine not found", "could not locate compass-engine"]) {
+      return (
+        .unavailableService,
+        "Rust Engine Is Not Installed",
+        "Compass could not find the Rust sidecar that provides structured Cargo tooling.",
+        "Build or install `compass-engine`, then rerun the Rust tool or repair the Shared VM provisioning.",
+        "Rust engine",
+        "shippingbox"
+      )
+    }
+
+    if normalized.contains("clippy::") {
+      return (
+        .commandFailure,
+        "Clippy Lint Failure",
+        "Rust linting found an issue that should be fixed before the proof passes.",
+        "Use the clippy diagnostic location, make the smallest code change, then rerun `clippy_lint` or verify.",
+        "Clippy",
+        "paintbrush.pointed"
+      )
+    }
+
+    if normalized.contains("error[e0") {
+      return (
+        .commandFailure,
+        "Rust Compile Error",
+        "rustc reported a compile error with a stable error code.",
+        "Start at the reported file and line, fix the first compiler error, then rerun `cargo_check`.",
+        "Rustc",
+        "curlybraces"
+      )
+    }
+
+    if normalized.contains("could not compile `") {
+      return (
+        .commandFailure,
+        "Rust Crate Did Not Compile",
+        "Cargo identified a crate that failed to compile.",
+        "Use the diagnostic immediately above the crate failure, fix that crate first, then rerun the scoped Cargo proof.",
+        "Cargo",
+        "terminal"
+      )
+    }
+
     if containsAny(normalized, ["not enabled", "not available", "unavailable"]) {
       return (
         .unavailableService,

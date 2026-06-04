@@ -257,3 +257,39 @@ struct SchemaFieldMapping: Codable, Equatable, Sendable {
     case rustField = "rust_field"
   }
 }
+
+struct CoverageGapsData: Codable, Equatable, Sendable {
+  var overallLinePercent: Double
+  var files: [CoverageGapFile]
+  var logTail: String
+
+  enum CodingKeys: String, CodingKey {
+    case overallLinePercent = "overall_line_percent"
+    case files
+    case logTail = "log_tail"
+  }
+}
+
+struct CoverageGapFile: Codable, Equatable, Sendable {
+  var path: String
+  var linePercent: Double
+  var uncoveredLines: [Int]
+
+  enum CodingKeys: String, CodingKey {
+    case path
+    case linePercent = "line_percent"
+    case uncoveredLines = "uncovered_lines"
+  }
+}
+
+struct VisualVerifyData: Codable, Equatable, Sendable {
+  var ok: Bool
+  var screenshotPath: String?
+  var logTail: String
+
+  enum CodingKeys: String, CodingKey {
+    case ok
+    case screenshotPath = "screenshot_path"
+    case logTail = "log_tail"
+  }
+}

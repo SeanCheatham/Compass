@@ -86,7 +86,7 @@ extension Prompts {
       : "outline, find_symbol, summary, list_files, importers_of"
     let rustTools =
       rustCargoToolsEnabled
-      ? "\n        - Rust Cargo tools: cargo_check, clippy_lint, cargo_test (structured diagnostics; prefer these over raw `bash cargo ...`)."
+      ? "\n        - Rust Cargo tools: cargo_check, clippy_lint, cargo_test, coverage_gaps\(phase == .develop ? ", visual_verify" : "") (structured diagnostics; prefer these over raw `bash cargo ...`)."
       : ""
     let writeTools = "write_file, edit_file, bash"
     let delegateTool =

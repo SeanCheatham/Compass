@@ -75,6 +75,40 @@ struct LiveFailureInsightTests {
     try #require(insight.repairOwner.detail.contains("first clear command error"))
   }
 
+  @Test func explainsRustCompileErrors() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .error,
+          text: "cargo_check",
+          detail: "error[E0425]: cannot find value `missing_value`",
+          kind: .command,
+          status: .failed
+        )
+      )
+    )
+
+    #expect(insight.kind == .commandFailure)
+    #expect(insight.title == "Rust Compile Error")
+    #expect(insight.nextStep.contains("cargo_check"))
+  }
+
+  @Test func explainsClippyFailures() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .error,
+          text: "clippy_lint",
+          detail: "warning: clippy::needless_bool",
+          kind: .command,
+          status: .failed
+        )
+      )
+    )
+
+    #expect(insight.title == "Clippy Lint Failure")
+  }
+
   @Test func timeoutClassificationWinsOverGenericCommandFailure() throws {
     let insight = try #require(
       LiveFailureInsight(

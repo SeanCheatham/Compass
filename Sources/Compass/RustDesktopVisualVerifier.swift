@@ -13,6 +13,13 @@ struct RustDesktopVisualVerification: Equatable, Sendable {
     """
 
   static let command = RustProjectScaffold.visualVerifyCommand
+  static let enginePreferredCommand = """
+    if command -v compass-engine >/dev/null 2>&1; then
+      compass-engine visual-verify --repo . --format json
+    else
+      \(RustProjectScaffold.visualVerifyCommand)
+    fi
+    """
 
   static let requiresSharedVMRouteIssue =
     "[verify] Rust desktop visual verification requires the Shared VM route so build, launch, platform-neutral input, screenshot capture, and termination all happen inside the guest. The blessed Rust desktop scaffold was found, but this Verify attempt is not running in the Shared VM."
@@ -51,6 +58,18 @@ struct RustDesktopVisualVerification: Equatable, Sendable {
     )
     return redacted
   }
+
+  static func engineScreenshotPath(from output: String) -> String? {
+    guard let data = output.data(using: .utf8),
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let dataObject = object["data"] as? [String: Any],
+      let path = dataObject["screenshot_path"] as? String,
+      !path.isEmpty
+    else {
+      return nil
+    }
+    return path
+  }
 }
 
 @MainActor
@@ -87,14 +106,14 @@ extension CompassProject {
       log("Post-check: running Rust desktop visual verification.", level: .info)
       let startedAt = Date()
       let result = try await runVerifyCommand(
-        command: RustDesktopVisualVerification.command,
+        command: RustDesktopVisualVerification.enginePreferredCommand,
         hostWorkingDirectory: workingDirectory,
         timeoutSeconds: 120,
         launchPlan: launchPlan
       )
       let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
       recordRustDesktopVisualVerificationOutput(
-        command: RustDesktopVisualVerification.command,
+        command: RustDesktopVisualVerification.enginePreferredCommand,
         result: result,
         sessionIndex: sessionIndex,
         attempt: attempt,
@@ -112,7 +131,9 @@ extension CompassProject {
         log("Rust desktop visual verification failed (exit \(result.exitCode)).", level: .error)
         return [issue]
       }
-      guard RustDesktopVisualVerification.screenshotData(from: combinedOutput) != nil else {
+      guard RustDesktopVisualVerification.screenshotData(from: combinedOutput) != nil
+        || RustDesktopVisualVerification.engineScreenshotPath(from: combinedOutput) != nil
+      else {
         log("Rust desktop visual verification did not emit a screenshot artifact.", level: .error)
         return [
           "[verify] Rust desktop visual verification passed its process check but did not emit a screenshot artifact for audit."

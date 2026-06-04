@@ -40,6 +40,17 @@ struct RustDesktopVisualVerifierTests {
     try #require(redacted.contains("<base64 screenshot omitted>"))
   }
 
+  @Test func parsesEngineScreenshotPath() throws {
+    let output = """
+      {"schema_version":1,"command":"visual-verify","ok":true,"data":{"ok":true,"screenshot_path":".compass/visual-verify/latest.png","log_tail":"ok"},"errors":[]}
+      """
+
+    #expect(
+      RustDesktopVisualVerification.engineScreenshotPath(from: output)
+        == ".compass/visual-verify/latest.png"
+    )
+  }
+
   @MainActor
   @Test func blessedDesktopScaffoldRequiresSharedVMRoute() async throws {
     let root = try makeTempDir()

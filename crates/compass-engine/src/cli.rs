@@ -34,6 +34,16 @@ pub enum Command {
     IndexRust,
     #[command(name = "schema-contracts")]
     SchemaContracts,
+    #[command(name = "coverage-gaps")]
+    CoverageGaps(CoverageArgs),
+    #[command(name = "visual-verify")]
+    VisualVerify,
+}
+
+#[derive(Debug, clap::Args)]
+pub struct CoverageArgs {
+    #[arg(long = "package", short = 'p')]
+    pub package: Option<String>,
 }
 
 #[derive(Debug, clap::Args)]
@@ -66,6 +76,8 @@ impl Command {
             Self::CargoTest(_) => "cargo-test",
             Self::IndexRust => "index-rust",
             Self::SchemaContracts => "schema-contracts",
+            Self::CoverageGaps(_) => "coverage-gaps",
+            Self::VisualVerify => "visual-verify",
         }
     }
 }
