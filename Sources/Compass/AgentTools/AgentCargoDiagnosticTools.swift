@@ -98,7 +98,7 @@ struct AgentCargoTestTool: AgentTool {
       guard response.ok, let payload = response.data else {
         return .failure(response.errors.joined(separator: "\n"), kind: .bashFailure)
       }
-      return .ok(RustCargoToolInvoker.formatTest(payload))
+      return .ok(RustCargoToolInvoker.formatTest(payload, audit: response.audit))
     } catch {
       return .failure(error.localizedDescription, kind: .bashFailure)
     }
@@ -198,7 +198,7 @@ private enum RustCargoToolInvoker {
       guard response.ok, let payload = response.data else {
         return .failure(response.errors.joined(separator: "\n"), kind: .bashFailure)
       }
-      return .ok(formatDiagnostics(command: command, payload))
+      return .ok(formatDiagnostics(command: command, payload, audit: response.audit))
     } catch {
       return .failure(error.localizedDescription, kind: .bashFailure)
     }
@@ -232,9 +232,14 @@ private enum RustCargoToolInvoker {
     return values
   }
 
-  static func formatDiagnostics(command: RustEngineCommand, _ data: CargoCheckData) -> String {
+  static func formatDiagnostics(
+    command: RustEngineCommand,
+    _ data: CargoCheckData,
+    audit: RustEngineAudit? = nil
+  ) -> String {
     var lines: [String] = []
     lines.append("\(command.rawValue): exit \(data.exitCode)")
+    appendAudit(audit, to: &lines)
     lines.append("errors: \(data.summary.errors), warnings: \(data.summary.warnings)")
     if !data.summary.cratesAffected.isEmpty {
       lines.append("crates: \(data.summary.cratesAffected.joined(separator: ", "))")
@@ -260,9 +265,10 @@ private enum RustCargoToolInvoker {
     return lines.joined(separator: "\n")
   }
 
-  static func formatTest(_ data: CargoTestData) -> String {
+  static func formatTest(_ data: CargoTestData, audit: RustEngineAudit? = nil) -> String {
     var lines: [String] = []
     lines.append("cargo-test: exit \(data.exitCode)")
+    appendAudit(audit, to: &lines)
     lines.append("passed: \(data.passed), failed: \(data.failed)")
     for failure in data.failures.prefix(maxDiagnostics) {
       let location = [failure.file, failure.line.map(String.init)]
@@ -272,5 +278,13 @@ private enum RustCargoToolInvoker {
       lines.append("  \(failure.message)")
     }
     return lines.joined(separator: "\n")
+  }
+
+  static func appendAudit(_ audit: RustEngineAudit?, to lines: inout [String]) {
+    guard let audit else { return }
+    if let argv = audit.argv, !argv.isEmpty {
+      lines.append("audit argv: \(RustVerifyCommands.shellCommand(executable: argv[0], arguments: Array(argv.dropFirst())))")
+    }
+    lines.append("audit duration: \(audit.durationMs)ms")
   }
 }

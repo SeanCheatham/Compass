@@ -4,16 +4,53 @@ struct RustEngineResponse<T: Codable>: Codable, Equatable where T: Equatable {
   var schemaVersion: Int
   var command: String
   var ok: Bool
+  var audit: RustEngineAudit?
   var data: T?
   var errors: [String]
+
+  init(
+    schemaVersion: Int,
+    command: String,
+    ok: Bool,
+    audit: RustEngineAudit? = nil,
+    data: T?,
+    errors: [String]
+  ) {
+    self.schemaVersion = schemaVersion
+    self.command = command
+    self.ok = ok
+    self.audit = audit
+    self.data = data
+    self.errors = errors
+  }
 
   enum CodingKeys: String, CodingKey {
     case schemaVersion = "schema_version"
     case command
     case ok
+    case audit
     case data
     case errors
   }
+}
+
+struct RustEngineAudit: Codable, Equatable, Sendable {
+  var repo: String
+  var argv: [String]?
+  var durationMs: Int
+  var toolchain: RustEngineToolchain
+
+  enum CodingKeys: String, CodingKey {
+    case repo
+    case argv
+    case durationMs = "duration_ms"
+    case toolchain
+  }
+}
+
+struct RustEngineToolchain: Codable, Equatable, Sendable {
+  var rustc: String?
+  var cargo: String?
 }
 
 struct RustEnginePingData: Codable, Equatable {

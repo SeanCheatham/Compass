@@ -56,6 +56,7 @@ struct RustFactorySmokeTests {
       category: .factorySmoke,
       exitCode: 0,
       durationSeconds: 0.25,
+      audit: nil,
       stdoutTail: "{}",
       stderrTail: ""
     )
@@ -63,5 +64,28 @@ struct RustFactorySmokeTests {
     let data = try JSONEncoder().encode(report)
     let decoded = try JSONDecoder().decode(RustFactorySmokeCommandReport.self, from: data)
     try #require(decoded == report)
+  }
+
+  @Test func smokeCommandReportPreservesEngineAudit() throws {
+    let report = RustFactorySmokeCommandReport(
+      command: RustVerifyCommands.compassEngine(.cargoCheck, arguments: ["--all-features"]),
+      category: .compassEngine,
+      exitCode: 0,
+      durationSeconds: 0.25,
+      audit: RustEngineAudit(
+        repo: "/tmp/repo",
+        argv: ["cargo", "check", "--workspace", "--message-format=json", "--all-features"],
+        durationMs: 42,
+        toolchain: RustEngineToolchain(rustc: "rustc 1.91.0", cargo: "cargo 1.91.0")
+      ),
+      stdoutTail: "{}",
+      stderrTail: ""
+    )
+
+    let data = try JSONEncoder().encode(report)
+    let decoded = try JSONDecoder().decode(RustFactorySmokeCommandReport.self, from: data)
+
+    try #require(decoded.audit?.argv?.first == "cargo")
+    try #require(decoded.audit?.durationMs == 42)
   }
 }

@@ -22,6 +22,34 @@ struct AgentCargoDiagnosticToolTests {
     #expect(calls.first?.arguments == ["--package", "app-core"])
   }
 
+  @Test func cargoCheckFormatsAuditMetadataWhenPresent() async throws {
+    let service = FakeRustDiagnosticsService(
+      data: diagnosticEnvelope(
+        command: "cargo-check",
+        audit: RustEngineAudit(
+          repo: "/tmp/repo",
+          argv: ["cargo", "check", "--workspace", "--message-format=json", "--all-features"],
+          durationMs: 77,
+          toolchain: RustEngineToolchain(rustc: nil, cargo: "cargo 1.91.0")
+        )
+      )
+    )
+    let result = try await AgentCargoCheckTool().invoke(
+      arguments: Data(#"{}"#.utf8),
+      context: AgentToolContext(
+        workingDirectory: URL(fileURLWithPath: "/tmp/repo"),
+        rustCargoService: service
+      )
+    )
+
+    #expect(!result.isError)
+    #expect(
+      result.content.contains(
+        "audit argv: cargo check --workspace --message-format=json --all-features"))
+    #expect(result.content.contains("audit duration: 77ms"))
+  }
+
+
   @Test func cargoTestFormatsFailures() async throws {
     let payload = CargoTestData(
       exitCode: 101,
@@ -71,9 +99,10 @@ struct AgentCargoDiagnosticToolTests {
   }
 }
 
-private func diagnosticEnvelope(command: String) -> Data {
+private func diagnosticEnvelope(command: String, audit: RustEngineAudit? = nil) -> Data {
   encodeEnvelope(
     command: command,
+    audit: audit,
     data: CargoCheckData(
       exitCode: 101,
       diagnostics: [
@@ -94,11 +123,16 @@ private func diagnosticEnvelope(command: String) -> Data {
   )
 }
 
-private func encodeEnvelope<T: Codable & Equatable>(command: String, data: T) -> Data {
+private func encodeEnvelope<T: Codable & Equatable>(
+  command: String,
+  audit: RustEngineAudit? = nil,
+  data: T
+) -> Data {
   let response = RustEngineResponse(
     schemaVersion: 1,
     command: command,
     ok: true,
+    audit: audit,
     data: data,
     errors: []
   )

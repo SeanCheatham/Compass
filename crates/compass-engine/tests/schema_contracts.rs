@@ -14,6 +14,8 @@ fn schema_contracts_links_schema_to_rust_type() {
         .expect("run engine");
     assert!(output.status.success());
     let json: Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(json["audit"]["argv"], Value::Null);
+    assert!(json["audit"]["duration_ms"].as_u64().is_some());
     let contracts = json["data"]["contracts"].as_array().expect("contracts");
     assert!(contracts.iter().any(|contract| {
         contract["schema_path"] == "schemas/demo-state.schema.json"

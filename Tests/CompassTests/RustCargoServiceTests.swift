@@ -26,9 +26,48 @@ struct RustCargoServiceTests {
 
     #expect(response.ok)
     #expect(response.data?.version == "0.1.0")
+    #expect(response.audit == nil)
     #expect(invocation.command == .ping)
     #expect(invocation.repoURL == repo.standardizedFileURL)
     #expect(invocation.processArguments == ["ping", "--repo", repo.path, "--format", "json"])
+  }
+
+  @Test func decodeAcceptsEngineAuditMetadata() throws {
+    let data = Data(
+      #"""
+      {
+        "schema_version": 1,
+        "command": "cargo-check",
+        "ok": true,
+        "audit": {
+          "repo": "/tmp/repo",
+          "argv": ["cargo", "check", "--workspace", "--message-format=json"],
+          "duration_ms": 123,
+          "toolchain": {
+            "rustc": "rustc 1.91.0",
+            "cargo": "cargo 1.91.0"
+          }
+        },
+        "data": {
+          "exit_code": 0,
+          "diagnostics": [],
+          "summary": {
+            "errors": 0,
+            "warnings": 0,
+            "crates_affected": []
+          }
+        },
+        "errors": []
+      }
+      """#.utf8
+    )
+    let service = RustCargoService(engineURL: URL(fileURLWithPath: "/tmp/compass-engine"))
+
+    let response = try service.decode(CargoCheckData.self, from: data)
+
+    #expect(response.audit?.repo == "/tmp/repo")
+    #expect(response.audit?.argv == ["cargo", "check", "--workspace", "--message-format=json"])
+    #expect(response.audit?.durationMs == 123)
   }
 
   @Test func runThrowsReadableErrorOnNonZeroExit() async throws {

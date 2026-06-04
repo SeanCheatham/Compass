@@ -19,6 +19,11 @@ fn workspace_outline_lists_members_and_edges() {
     );
     let json: Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(json["ok"], true);
+    assert_eq!(
+        json["audit"]["argv"],
+        serde_json::json!(["cargo", "metadata", "--format-version", "1"])
+    );
+    assert!(json["audit"]["duration_ms"].as_u64().is_some());
     let members = json["data"]["members"].as_array().expect("members");
     let names = members
         .iter()

@@ -249,6 +249,7 @@ enum RustFactorySmoke {
       category: spec.category,
       exitCode: result.exitCode,
       durationSeconds: Date().timeIntervalSince(startedAt),
+      audit: decodeEngineAudit(from: result.stdout),
       stdoutTail: tail(stdoutForReport, limit: 6000),
       stderrTail: tail(stderrForReport, limit: 6000)
     )
@@ -284,6 +285,11 @@ enum RustFactorySmoke {
         "compass-engine payload reported Cargo exit_code \(exitCode)"
       )
     }
+  }
+
+  private static func decodeEngineAudit(from stdout: String) -> RustEngineAudit? {
+    guard let data = stdout.data(using: .utf8) else { return nil }
+    return try? JSONDecoder().decode(RustEngineResponse<EmptyEngineData>.self, from: data).audit
   }
 
   private static func waitForReady(
@@ -364,9 +370,12 @@ struct RustFactorySmokeCommandReport: Codable, Equatable {
   var category: RustFactorySmokeCommandCategory
   var exitCode: Int32
   var durationSeconds: TimeInterval
+  var audit: RustEngineAudit?
   var stdoutTail: String
   var stderrTail: String
 }
+
+private struct EmptyEngineData: Codable, Equatable {}
 
 enum RustFactorySmokeCommandCategory: String, Codable, Equatable {
   case cargo
