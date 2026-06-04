@@ -29,7 +29,7 @@ struct AgentScaffoldCheckTool: AgentTool {
       guard response.ok, let payload = response.data else {
         return .failure(response.errors.joined(separator: "\n"), kind: .bashFailure)
       }
-      return .ok(Self.format(payload))
+      return .ok(withRustRepairHints(Self.format(payload), response.repairHints))
     } catch {
       return .failure(error.localizedDescription, kind: .bashFailure)
     }
@@ -122,7 +122,7 @@ struct AgentCoverageGapsTool: AgentTool {
       if !payload.logTail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         lines.append("[log tail]\n\(payload.logTail)")
       }
-      return .ok(lines.joined(separator: "\n"))
+      return .ok(withRustRepairHints(lines.joined(separator: "\n"), response.repairHints))
     } catch {
       return .failure(error.localizedDescription, kind: .bashFailure)
     }
@@ -159,16 +159,32 @@ struct AgentVisualVerifyTool: AgentTool {
         return .failure(response.errors.joined(separator: "\n"), kind: .bashFailure)
       }
       let status = payload.ok ? "passed" : "failed"
-      return .ok(
+      return .ok(withRustRepairHints(
         """
         visual_verify: \(status)
         screenshot_path: \(payload.screenshotPath ?? "(none)")
         log_tail:
         \(payload.logTail)
-        """
-      )
+        """,
+        response.repairHints
+      ))
     } catch {
       return .failure(error.localizedDescription, kind: .bashFailure)
     }
   }
+}
+
+private func withRustRepairHints(_ text: String, _ hints: [RustRepairHint]) -> String {
+  guard !hints.isEmpty else { return text }
+  var lines = [text, "Repair hints:"]
+  for hint in hints.prefix(8) {
+    lines.append("- \(hint.id): \(hint.message)")
+    if let command = hint.suggestedCommand, !command.isEmpty {
+      lines.append("  suggested: \(command)")
+    }
+  }
+  if hints.count > 8 {
+    lines.append("... \(hints.count - 8) more repair hint(s) omitted")
+  }
+  return lines.joined(separator: "\n")
 }

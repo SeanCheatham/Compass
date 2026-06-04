@@ -98,7 +98,11 @@ struct AgentCargoTestTool: AgentTool {
       guard response.ok, let payload = response.data else {
         return .failure(response.errors.joined(separator: "\n"), kind: .bashFailure)
       }
-      return .ok(RustCargoToolInvoker.formatTest(payload, audit: response.audit))
+      return .ok(
+        RustCargoToolInvoker.withRepairHints(
+          RustCargoToolInvoker.formatTest(payload, audit: response.audit),
+          response.repairHints
+        ))
     } catch {
       return .failure(error.localizedDescription, kind: .bashFailure)
     }
@@ -198,7 +202,11 @@ private enum RustCargoToolInvoker {
       guard response.ok, let payload = response.data else {
         return .failure(response.errors.joined(separator: "\n"), kind: .bashFailure)
       }
-      return .ok(formatDiagnostics(command: command, payload, audit: response.audit))
+      return .ok(
+        withRepairHints(
+          formatDiagnostics(command: command, payload, audit: response.audit),
+          response.repairHints
+        ))
     } catch {
       return .failure(error.localizedDescription, kind: .bashFailure)
     }
@@ -286,5 +294,20 @@ private enum RustCargoToolInvoker {
       lines.append("audit argv: \(RustVerifyCommands.shellCommand(executable: argv[0], arguments: Array(argv.dropFirst())))")
     }
     lines.append("audit duration: \(audit.durationMs)ms")
+  }
+
+  static func withRepairHints(_ text: String, _ hints: [RustRepairHint]) -> String {
+    guard !hints.isEmpty else { return text }
+    var lines = [text, "Repair hints:"]
+    for hint in hints.prefix(8) {
+      lines.append("- \(hint.id): \(hint.message)")
+      if let command = hint.suggestedCommand, !command.isEmpty {
+        lines.append("  suggested: \(command)")
+      }
+    }
+    if hints.count > 8 {
+      lines.append("... \(hints.count - 8) more repair hint(s) omitted")
+    }
+    return lines.joined(separator: "\n")
   }
 }

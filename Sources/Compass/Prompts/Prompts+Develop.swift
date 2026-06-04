@@ -100,6 +100,9 @@ extension Prompts {
         `clippy_lint`, scoped `cargo_test`, and `coverage_gaps` when those
         tools are available; use `schema_contracts` before changing persisted
         state, and use `visual_verify` for Rust desktop UI proof.
+      - When structured Rust tools return "Repair hints", treat those hints as
+        stronger evidence than guesses from raw logs; apply the smallest
+        relevant repair and rerun the structured tool or verify command.
       - Leave the working tree clean, or explain why you are blocked.
       - Do not commit generated build outputs or caches (`target/`, `.build/`,
         `build/`, `DerivedData/`, `node_modules/`, `coverage/`, object files,

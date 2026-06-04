@@ -38,3 +38,23 @@ fn workspace_outline_lists_members_and_edges() {
         .iter()
         .any(|edge| { edge["from"] == "app-desktop" && edge["to"] == "app-core" }));
 }
+
+#[test]
+fn workspace_outline_error_includes_missing_manifest_repair_hint() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let output = Command::cargo_bin("compass-engine")
+        .expect("binary")
+        .args(["workspace-outline", "--repo"])
+        .arg(temp.path())
+        .args(["--format", "json"])
+        .output()
+        .expect("run engine");
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(json["ok"], false);
+    assert!(json["repair_hints"]
+        .as_array()
+        .expect("repair hints")
+        .iter()
+        .any(|hint| { hint["id"] == "missing-cargo-manifest" }));
+}

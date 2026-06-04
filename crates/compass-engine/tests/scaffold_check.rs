@@ -29,6 +29,11 @@ fn scaffold_check_reports_missing_member_with_stable_id() {
     assert!(checks
         .iter()
         .any(|check| { check["id"] == "member_crates_app_cli" && check["status"] == "fail" }));
+    assert!(json["repair_hints"]
+        .as_array()
+        .expect("repair hints")
+        .iter()
+        .any(|hint| { hint["id"] == "generated-scaffold-missing-member" }));
 }
 
 #[test]

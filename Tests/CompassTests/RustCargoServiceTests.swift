@@ -48,6 +48,14 @@ struct RustCargoServiceTests {
             "cargo": "cargo 1.91.0"
           }
         },
+        "repair_hints": [
+          {
+            "id": "missing-cargo-llvm-cov",
+            "severity": "warning",
+            "message": "cargo-llvm-cov is not installed.",
+            "suggested_command": "cargo install cargo-llvm-cov"
+          }
+        ],
         "data": {
           "exit_code": 0,
           "diagnostics": [],
@@ -68,6 +76,8 @@ struct RustCargoServiceTests {
     #expect(response.audit?.repo == "/tmp/repo")
     #expect(response.audit?.argv == ["cargo", "check", "--workspace", "--message-format=json"])
     #expect(response.audit?.durationMs == 123)
+    #expect(response.repairHints.first?.id == "missing-cargo-llvm-cov")
+    #expect(response.repairHints.first?.suggestedCommand == "cargo install cargo-llvm-cov")
   }
 
   @Test func runThrowsReadableErrorOnNonZeroExit() async throws {

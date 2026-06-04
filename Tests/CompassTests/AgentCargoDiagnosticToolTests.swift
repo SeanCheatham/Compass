@@ -31,7 +31,15 @@ struct AgentCargoDiagnosticToolTests {
           argv: ["cargo", "check", "--workspace", "--message-format=json", "--all-features"],
           durationMs: 77,
           toolchain: RustEngineToolchain(rustc: nil, cargo: "cargo 1.91.0")
-        )
+        ),
+        repairHints: [
+          RustRepairHint(
+            id: "missing-cargo-manifest",
+            severity: "error",
+            message: "Cargo.toml is missing from the repository root.",
+            suggestedCommand: "cargo init --lib"
+          )
+        ]
       )
     )
     let result = try await AgentCargoCheckTool().invoke(
@@ -47,6 +55,9 @@ struct AgentCargoDiagnosticToolTests {
       result.content.contains(
         "audit argv: cargo check --workspace --message-format=json --all-features"))
     #expect(result.content.contains("audit duration: 77ms"))
+    #expect(result.content.contains("Repair hints:"))
+    #expect(result.content.contains("missing-cargo-manifest"))
+    #expect(result.content.contains("suggested: cargo init --lib"))
   }
 
 
@@ -99,10 +110,15 @@ struct AgentCargoDiagnosticToolTests {
   }
 }
 
-private func diagnosticEnvelope(command: String, audit: RustEngineAudit? = nil) -> Data {
+private func diagnosticEnvelope(
+  command: String,
+  audit: RustEngineAudit? = nil,
+  repairHints: [RustRepairHint] = []
+) -> Data {
   encodeEnvelope(
     command: command,
     audit: audit,
+    repairHints: repairHints,
     data: CargoCheckData(
       exitCode: 101,
       diagnostics: [
@@ -126,6 +142,7 @@ private func diagnosticEnvelope(command: String, audit: RustEngineAudit? = nil) 
 private func encodeEnvelope<T: Codable & Equatable>(
   command: String,
   audit: RustEngineAudit? = nil,
+  repairHints: [RustRepairHint] = [],
   data: T
 ) -> Data {
   let response = RustEngineResponse(
@@ -133,6 +150,7 @@ private func encodeEnvelope<T: Codable & Equatable>(
     command: command,
     ok: true,
     audit: audit,
+    repairHints: repairHints,
     data: data,
     errors: []
   )

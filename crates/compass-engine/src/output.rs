@@ -9,6 +9,7 @@ pub struct EngineResponse<T: Serialize> {
     pub ok: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audit: Option<EngineAudit>,
+    pub repair_hints: Vec<RepairHint>,
     pub data: Option<T>,
     pub errors: Vec<String>,
 }
@@ -30,6 +31,15 @@ pub struct EngineToolchain {
     pub cargo: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct RepairHint {
+    pub id: String,
+    pub severity: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggested_command: Option<String>,
+}
+
 impl<T: Serialize> EngineResponse<T> {
     pub fn ok(command: impl Into<String>, data: T) -> Self {
         Self {
@@ -37,6 +47,7 @@ impl<T: Serialize> EngineResponse<T> {
             command: command.into(),
             ok: true,
             audit: None,
+            repair_hints: Vec::new(),
             data: Some(data),
             errors: Vec::new(),
         }
@@ -48,6 +59,7 @@ impl<T: Serialize> EngineResponse<T> {
             command: command.into(),
             ok: false,
             audit: None,
+            repair_hints: Vec::new(),
             data: None,
             errors,
         }
@@ -55,6 +67,11 @@ impl<T: Serialize> EngineResponse<T> {
 
     pub fn with_audit(mut self, audit: EngineAudit) -> Self {
         self.audit = Some(audit);
+        self
+    }
+
+    pub fn with_repair_hints(mut self, repair_hints: Vec<RepairHint>) -> Self {
+        self.repair_hints = repair_hints;
         self
     }
 }
@@ -92,4 +109,20 @@ fn command_version(program: &str) -> Option<String> {
             }
         })
         .filter(|value| !value.is_empty())
+}
+
+impl RepairHint {
+    pub fn new(
+        id: impl Into<String>,
+        severity: impl Into<String>,
+        message: impl Into<String>,
+        suggested_command: Option<impl Into<String>>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            severity: severity.into(),
+            message: message.into(),
+            suggested_command: suggested_command.map(Into::into),
+        }
+    }
 }

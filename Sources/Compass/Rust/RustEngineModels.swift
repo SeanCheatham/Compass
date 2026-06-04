@@ -5,6 +5,7 @@ struct RustEngineResponse<T: Codable>: Codable, Equatable where T: Equatable {
   var command: String
   var ok: Bool
   var audit: RustEngineAudit?
+  var repairHints: [RustRepairHint]
   var data: T?
   var errors: [String]
 
@@ -13,6 +14,7 @@ struct RustEngineResponse<T: Codable>: Codable, Equatable where T: Equatable {
     command: String,
     ok: Bool,
     audit: RustEngineAudit? = nil,
+    repairHints: [RustRepairHint] = [],
     data: T?,
     errors: [String]
   ) {
@@ -20,8 +22,20 @@ struct RustEngineResponse<T: Codable>: Codable, Equatable where T: Equatable {
     self.command = command
     self.ok = ok
     self.audit = audit
+    self.repairHints = repairHints
     self.data = data
     self.errors = errors
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+    command = try container.decode(String.self, forKey: .command)
+    ok = try container.decode(Bool.self, forKey: .ok)
+    audit = try container.decodeIfPresent(RustEngineAudit.self, forKey: .audit)
+    repairHints = try container.decodeIfPresent([RustRepairHint].self, forKey: .repairHints) ?? []
+    data = try container.decodeIfPresent(T.self, forKey: .data)
+    errors = try container.decode([String].self, forKey: .errors)
   }
 
   enum CodingKeys: String, CodingKey {
@@ -29,6 +43,7 @@ struct RustEngineResponse<T: Codable>: Codable, Equatable where T: Equatable {
     case command
     case ok
     case audit
+    case repairHints = "repair_hints"
     case data
     case errors
   }
@@ -51,6 +66,20 @@ struct RustEngineAudit: Codable, Equatable, Sendable {
 struct RustEngineToolchain: Codable, Equatable, Sendable {
   var rustc: String?
   var cargo: String?
+}
+
+struct RustRepairHint: Codable, Equatable, Sendable {
+  var id: String
+  var severity: String
+  var message: String
+  var suggestedCommand: String?
+
+  enum CodingKeys: String, CodingKey {
+    case id
+    case severity
+    case message
+    case suggestedCommand = "suggested_command"
+  }
 }
 
 struct RustEnginePingData: Codable, Equatable {

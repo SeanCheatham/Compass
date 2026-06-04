@@ -296,6 +296,35 @@ struct LiveFailureInsight: Equatable, Sendable {
       )
     }
 
+    if containsAny(normalized, ["missing-cargo-llvm-cov", "cargo-llvm-cov is not installed"]) {
+      return (
+        .commandFailure,
+        "Rust Coverage Tool Is Missing",
+        "The Rust coverage probe needs cargo-llvm-cov, but it is not installed or could not run.",
+        "Install `cargo-llvm-cov`, then rerun `coverage_gaps` or the planned Rust verify command.",
+        "Coverage",
+        "gauge.with.dots.needle.bottom.50percent"
+      )
+    }
+
+    if containsAny(
+      normalized,
+      [
+        "generated-scaffold-missing-member",
+        "generated-scaffold-metadata-drift",
+        "scaffold-check: fail",
+      ]
+    ) {
+      return (
+        .commandFailure,
+        "Rust Scaffold Drift Detected",
+        "The generated Rust project no longer matches the Compass scaffold contract.",
+        "Use `scaffold_check`, restore the missing scaffold file or member, then rerun the structured Rust probe.",
+        "Scaffold",
+        "wrench.and.screwdriver"
+      )
+    }
+
     if normalized.contains("clippy::") {
       return (
         .commandFailure,

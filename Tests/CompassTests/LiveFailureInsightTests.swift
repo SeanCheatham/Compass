@@ -109,6 +109,40 @@ struct LiveFailureInsightTests {
     #expect(insight.title == "Clippy Lint Failure")
   }
 
+  @Test func explainsMissingCargoLlvmCov() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .error,
+          text: "coverage_gaps",
+          detail: "Repair hints:\n- missing-cargo-llvm-cov: cargo-llvm-cov is not installed.",
+          kind: .command,
+          status: .failed
+        )
+      )
+    )
+
+    #expect(insight.title == "Rust Coverage Tool Is Missing")
+    #expect(insight.nextStep.contains("cargo-llvm-cov"))
+  }
+
+  @Test func explainsRustScaffoldDrift() throws {
+    let insight = try #require(
+      LiveFailureInsight(
+        line: LiveLine(
+          level: .error,
+          text: "scaffold_check",
+          detail: "scaffold-check: fail\n- generated-scaffold-missing-member",
+          kind: .command,
+          status: .failed
+        )
+      )
+    )
+
+    #expect(insight.title == "Rust Scaffold Drift Detected")
+    #expect(insight.nextStep.contains("scaffold_check"))
+  }
+
   @Test func timeoutClassificationWinsOverGenericCommandFailure() throws {
     let insight = try #require(
       LiveFailureInsight(

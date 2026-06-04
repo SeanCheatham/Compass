@@ -86,6 +86,9 @@ extension Prompts {
         diagnostics, `clippy_lint` for lint gates, `cargo_test`/`coverage_gaps`
         for proof depth, and `schema_contracts` when schemas or persisted
         state changed.
+      - If structured Rust tool output includes "Repair hints", treat those
+        hints as stronger review evidence than guesses from raw logs and ask
+        Develop to verify the repair with structured tools.
       - If you find one instance of a bug class, search for sibling call sites
         before requesting changes so the feedback asks Develop to fix the whole
         local pattern.
