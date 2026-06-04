@@ -57,12 +57,11 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         - This is Compass's sole generated-project target and default.
         - Use the blessed Cargo workspace layout: `crates/app-core`, `crates/app-cli`,
           `crates/app-desktop` (`eframe`/`egui`), `xtask`, `schemas/`, and `rust-toolchain.toml`.
-        - Standard commands: `\(RustVerifyCommands.cargo(RustVerifyCommands.fmt))`,
-          `\(RustVerifyCommands.cargo(RustVerifyCommands.clippy))`,
-          `\(RustVerifyCommands.cargo(RustVerifyCommands.test))`,
-          `\(RustVerifyCommands.cargo(RustVerifyCommands.build))`,
-          `\(RustVerifyCommands.cargo(RustVerifyCommands.runDesktop))`, and
-          `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerify))` for desktop UI proof.
+        - Standard fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
+          runs fmt, clippy, tests, coverage, and build without launching the desktop app.
+        - Use `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerifyNoBase64))` for
+          desktop UI proof, or `\(RustVerifyCommands.cargo(RustVerifyCommands.factorySmoke))`
+          when full factory proof is needed.
         - Verify for test increments should use `\(RustVerifyCommands.cargo(RustVerifyCommands.coverage))` or \
         `cargo llvm-cov test --summary-only` (requires `cargo-llvm-cov` in the project or VM).
         - When an increment touches feature-gated crates, optional providers, `cfg(...)`

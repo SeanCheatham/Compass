@@ -171,7 +171,8 @@ enum RustFactorySmoke {
       RustVerifyCommands.cargoSmokeCommands.map {
         RustFactorySmokeCommandSpec(
           command: $0,
-          category: $0 == RustProjectScaffold.visualVerifyCommand ? .visualVerification : .cargo
+          category: $0 == RustProjectScaffold.factorySmokeWithScreenshotCommand
+            ? .factorySmoke : .cargo
         )
       }
       + RustVerifyCommands.compassEngineSmokeCommands.map {
@@ -187,7 +188,7 @@ enum RustFactorySmoke {
         timeoutSeconds: options.timeoutSeconds
       )
       reports.append(commandRun.report)
-      if spec.command == RustProjectScaffold.visualVerifyCommand {
+      if spec.category == .factorySmoke || spec.category == .visualVerification {
         visualOutput = commandRun.rawOutput
       }
       if commandRun.report.exitCode != 0 {
@@ -233,7 +234,8 @@ enum RustFactorySmoke {
       timeoutSeconds: timeoutSeconds,
       launchPlan: launchPlan
     )
-    let shouldRedactVisualOutput = command == RustProjectScaffold.visualVerifyCommand
+    let shouldRedactVisualOutput =
+      spec.category == .factorySmoke || spec.category == .visualVerification
     let stdoutForReport =
       shouldRedactVisualOutput
       ? RustDesktopVisualVerification.redactedOutput(result.stdout)
@@ -368,6 +370,7 @@ struct RustFactorySmokeCommandReport: Codable, Equatable {
 
 enum RustFactorySmokeCommandCategory: String, Codable, Equatable {
   case cargo
+  case factorySmoke = "factory-smoke"
   case visualVerification = "visual-verification"
   case compassEngine = "compass-engine"
 }

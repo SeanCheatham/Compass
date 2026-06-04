@@ -52,8 +52,8 @@ struct RustFactorySmokeTests {
 
   @Test func smokeCommandReportRecordsCommandCategory() throws {
     let report = RustFactorySmokeCommandReport(
-      command: RustVerifyCommands.compassEngine(.workspaceOutline),
-      category: .compassEngine,
+      command: RustProjectScaffold.factorySmokeWithScreenshotCommand,
+      category: .factorySmoke,
       exitCode: 0,
       durationSeconds: 0.25,
       stdoutTail: "{}",

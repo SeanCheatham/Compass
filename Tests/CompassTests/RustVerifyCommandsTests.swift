@@ -13,6 +13,21 @@ struct RustVerifyCommandsTests {
       RustVerifyCommands.cargo(RustVerifyCommands.visualVerify)
         == "cargo run -p xtask -- visual-verify --emit-base64"
     )
+    try #require(
+      RustVerifyCommands.cargo(RustVerifyCommands.fastVerify)
+        == "cargo run -p xtask -- verify"
+    )
+    try #require(
+      RustVerifyCommands.cargo(RustVerifyCommands.factorySmoke)
+        == "cargo run -p xtask -- factory-smoke"
+    )
+    try #require(
+      RustVerifyCommands.cargo(RustVerifyCommands.factorySmokeWithScreenshot)
+        == "cargo run -p xtask -- factory-smoke --emit-base64"
+    )
+    try #require(RustVerifyCommands.cargoSmokeCommands == [
+      "cargo run -p xtask -- factory-smoke --emit-base64"
+    ])
   }
 
   @Test func compassEngineSmokeCommandsUseRepoAndJsonFlags() throws {
@@ -24,6 +39,9 @@ struct RustVerifyCommandsTests {
       RustVerifyCommands.compassEngine(.clippyLint, arguments: ["--all-features"])
         == "compass-engine clippy-lint --repo . --format json --all-features"
     )
+    try #require(
+      RustVerifyCommands.compassEngineSmokeCommands.contains(
+        "compass-engine scaffold-check --repo . --format json"))
   }
 
   @Test func shellQuotingProtectsUnsafeArguments() throws {

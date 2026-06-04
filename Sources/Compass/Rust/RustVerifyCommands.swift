@@ -15,19 +15,22 @@ enum RustVerifyCommands {
   static let coverage = ["llvm-cov", "--summary-only"]
   static let build = ["build", "--workspace"]
   static let runDesktop = ["run", "-p", "app-desktop"]
+  static let fastVerify = ["run", "-p", "xtask", "--", "verify"]
+  static let visualVerifyNoBase64 = ["run", "-p", "xtask", "--", "visual-verify"]
   static let visualVerify = ["run", "-p", "xtask", "--", "visual-verify", "--emit-base64"]
+  static let factorySmoke = ["run", "-p", "xtask", "--", "factory-smoke"]
+  static let factorySmokeWithScreenshot = [
+    "run", "-p", "xtask", "--", "factory-smoke", "--emit-base64",
+  ]
   static let engineParityCheck = ["run", "-p", "xtask", "--", "engine-parity-check"]
 
   static let cargoSmokeCommands = [
-    cargo(fmt),
-    cargo(clippy),
-    cargo(test),
-    cargo(build),
-    cargo(visualVerify),
+    cargo(factorySmokeWithScreenshot),
   ]
 
   static let compassEngineSmokeCommands = [
     compassEngine(.workspaceOutline),
+    compassEngine(.scaffoldCheck),
     compassEngine(.cargoCheck, arguments: ["--all-features"]),
     compassEngine(.clippyLint, arguments: ["--all-features"]),
   ]

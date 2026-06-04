@@ -31,15 +31,17 @@ The blessed generated-project shape is a Cargo workspace:
 Standard generated-project checks are:
 
 ```bash
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
-cargo llvm-cov --summary-only
-cargo build --workspace
-cargo run -p app-desktop
-cargo run -p xtask -- engine-parity-check
+cargo run -p xtask -- verify
+cargo run -p xtask -- visual-verify
 cargo run -p xtask -- visual-verify --emit-base64
+cargo run -p xtask -- factory-smoke
+cargo run -p xtask -- factory-smoke --emit-base64
 ```
+
+`xtask verify` is the normal fast path: format, lint, test, coverage, and
+build without launching the desktop app. `factory-smoke` adds desktop visual
+verification. `engine-parity-check` remains available inside generated projects
+as a compatibility alias for `factory-smoke`.
 
 Swift, TypeScript, and JavaScript are retained as legacy imported-repository
 inspection/evolution paths only. Host Xcode exists for those legacy Apple

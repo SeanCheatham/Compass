@@ -19,6 +19,9 @@ struct RustProjectScaffold: Equatable, Sendable {
   static let desktopPackage = "app-desktop"
   static let desktopBinary = "app-desktop"
   static let visualVerifyCommand = RustVerifyCommands.cargo(RustVerifyCommands.visualVerify)
+  static let factorySmokeCommand = RustVerifyCommands.cargo(RustVerifyCommands.factorySmoke)
+  static let factorySmokeWithScreenshotCommand = RustVerifyCommands.cargo(
+    RustVerifyCommands.factorySmokeWithScreenshot)
 
   static func write(to rootURL: URL, options: Options = Options()) throws {
     let fm = FileManager.default
@@ -175,9 +178,16 @@ struct RustProjectScaffold: Equatable, Sendable {
     - Build: `\(RustVerifyCommands.cargo(RustVerifyCommands.build))`
     - Run CLI: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "status"]))`
     - Run desktop: `\(RustVerifyCommands.cargo(RustVerifyCommands.runDesktop))`
-    - Verify all: `cargo run -p xtask -- verify`
+    - Fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
+    - Visual verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerifyNoBase64))`
+    - Visual verify with screenshot bytes: `\(RustProjectScaffold.visualVerifyCommand)`
+    - Factory smoke: `\(RustProjectScaffold.factorySmokeCommand)`
+    - Factory smoke with screenshot bytes: `\(RustProjectScaffold.factorySmokeWithScreenshotCommand)`
     - Engine parity check: `\(RustVerifyCommands.cargo(RustVerifyCommands.engineParityCheck))`
-    - Visual verify: `\(RustProjectScaffold.visualVerifyCommand)`
+
+    `engine-parity-check` is retained as a compatibility alias for `factory-smoke`.
+    Normal implementation verify should use the fast `xtask verify` tier; reserve
+    `factory-smoke` for full factory proof that includes desktop visual verification.
 
     The desktop app uses deterministic demo state and stable window labels so Compass can
     build it in the Shared VM, launch it in the guest, wait for readiness, send a
@@ -626,7 +636,8 @@ struct RustProjectScaffold: Equatable, Sendable {
             "build" => \(xtaskCargoRunExpression(RustVerifyCommands.build)),
             "run" => \(xtaskCargoRunExpression(RustVerifyCommands.runDesktop)),
             "verify" => verify_all(),
-            "engine-parity-check" => engine_parity_check(),
+            "factory-smoke" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
+            "engine-parity-check" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
             "visual-verify" => visual_verify(args.iter().any(|arg| arg == "--emit-base64")),
             other => Err(format!("unknown xtask command: {other}").into()),
         }
@@ -641,9 +652,9 @@ struct RustProjectScaffold: Equatable, Sendable {
         Ok(())
     }
 
-    fn engine_parity_check() -> Result<()> {
+    fn factory_smoke(emit_base64: bool) -> Result<()> {
         verify_all()?;
-        visual_verify(false)?;
+        visual_verify(emit_base64)?;
         Ok(())
     }
 

@@ -47,8 +47,12 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.test)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.coverage)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.build)))
+    try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify)))
+    try #require(readme.contains(RustProjectScaffold.factorySmokeCommand))
+    try #require(readme.contains(RustProjectScaffold.factorySmokeWithScreenshotCommand))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.engineParityCheck)))
     try #require(readme.contains(RustProjectScaffold.visualVerifyCommand))
+    try #require(readme.contains("compatibility alias for `factory-smoke`"))
     try #require(readme.contains("launch it in the guest"))
     try #require(readme.contains("platform-neutral visual input request"))
   }
@@ -92,9 +96,10 @@ struct RustProjectScaffoldTests {
 
     try #require(xtask.contains("cargo"))
     try #require(xtask.contains("build"))
+    try #require(xtask.contains("factory-smoke"))
     try #require(xtask.contains("engine-parity-check"))
-    try #require(xtask.contains("fn engine_parity_check()"))
-    try #require(xtask.contains("visual_verify(false)?"))
+    try #require(xtask.contains("fn factory_smoke(emit_base64: bool)"))
+    try #require(xtask.contains("visual_verify(emit_base64)?"))
     try #require(
       xtask.contains("run(\"cargo\", &[\"test\", \"--workspace\", \"--all-features\"])?"))
     try #require(
@@ -116,6 +121,17 @@ struct RustProjectScaffoldTests {
     try #require(xtask.contains("-TERM"))
     try #require(xtask.contains(RustDesktopVisualVerification.screenshotBeginMarker))
     try #require(xtask.contains(RustDesktopVisualVerification.screenshotEndMarker))
+  }
+
+  @Test func generatedXtaskVerifyTierDoesNotLaunchDesktop() throws {
+    let xtask = try #require(
+      RustProjectScaffold.files().first { $0.path == "xtask/src/main.rs" }?.contents)
+    let verifyStart = try #require(xtask.range(of: "fn verify_all()"))
+    let factoryStart = try #require(xtask.range(of: "fn factory_smoke"))
+    let verifyBody = String(xtask[verifyStart.lowerBound..<factoryStart.lowerBound])
+
+    try #require(!verifyBody.contains("visual_verify"))
+    try #require(!verifyBody.contains("app-desktop"))
   }
 
   @Test func writeCreatesDetectableBlessedDesktopWorkspace() throws {
