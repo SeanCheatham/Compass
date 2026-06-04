@@ -32,6 +32,7 @@ extension CompassProject {
       lessons = ""
       assumptions = []
       vision = ""
+      pmfConfig = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -62,6 +63,7 @@ extension CompassProject {
       lessons = ""
       assumptions = []
       vision = ""
+      pmfConfig = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -80,9 +82,27 @@ extension CompassProject {
     lessons = workspace.readLessons()
     assumptions = try workspace.readAssumptionLedger().assumptions
     vision = workspace.readVision()
+    pmfConfig = try workspace.readOrSeedPMFConfig(
+      projectTitle: workspace.repoURL.lastPathComponent,
+      vision: vision
+    )
     sessions = workspace.readSessions()
     archivedSessions = []
     hasOlderArchivedSessions = workspace.hasArchivedSessions()
+  }
+
+  func savePMFConfig(_ config: PMFConfig? = nil) async {
+    do {
+      guard let workspace else {
+        fail(AppModelError.noRepositorySelected)
+        return
+      }
+      let value = config ?? pmfConfig
+      try workspace.writePMFConfig(value)
+      pmfConfig = value
+    } catch {
+      fail(error)
+    }
   }
 
   func initializeIfNeeded(_ workspace: CompassWorkspace) async throws {

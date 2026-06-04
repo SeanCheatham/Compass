@@ -12,6 +12,7 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var lessons = ""
   @Published var assumptions: [AssumptionRecord] = []
   @Published var vision = ""
+  @Published var pmfConfig = PMFConfig.empty
   @Published var sessions: [SessionRecord] = []
   @Published var archivedSessions: [SessionRecord] = []
   @Published var hasOlderArchivedSessions = false

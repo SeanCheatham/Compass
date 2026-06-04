@@ -22,6 +22,7 @@ struct CompassWorkspace {
   var lessonsURL: URL { compassURL.appending(path: "lessons.md") }
   var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
   var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
+  var pmfConfigURL: URL { compassURL.appending(path: "pmf.json") }
   var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
   var sessionsRecordURL: URL { sessionRecordStore.activeRecordURL }
   var sessionRecordStore: SessionRecordStore {
@@ -220,6 +221,32 @@ struct CompassWorkspace {
     try text.write(to: visionURL, atomically: true, encoding: .utf8)
   }
 
+  func readPMFConfig() throws -> PMFConfig {
+    guard FileManager.default.fileExists(atPath: pmfConfigURL.path) else {
+      return .empty
+    }
+    let data = try Data(contentsOf: pmfConfigURL)
+    guard !data.isEmpty else { return .empty }
+    return try JSONDecoder().decode(PMFConfig.self, from: data)
+  }
+
+  func readOrSeedPMFConfig(
+    projectTitle: String,
+    vision: String,
+    now: Date = Date()
+  ) throws -> PMFConfig {
+    guard FileManager.default.fileExists(atPath: pmfConfigURL.path) else {
+      return PMFConfig.seedDefaults(projectTitle: projectTitle, vision: vision, now: now)
+    }
+    let config = try readPMFConfig()
+    return config
+  }
+
+  func writePMFConfig(_ config: PMFConfig) throws {
+    try FileManager.default.createDirectory(at: compassURL, withIntermediateDirectories: true)
+    try Self.encodePMFConfig(config).write(to: pmfConfigURL, atomically: true, encoding: .utf8)
+  }
+
   func readSessions(includeArchived: Bool = false) -> [SessionRecord] {
     let store = sessionRecordStore
     if includeArchived {
@@ -388,6 +415,13 @@ struct CompassWorkspace {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(state)
+    return String(decoding: data, as: UTF8.self) + "\n"
+  }
+
+  static func encodePMFConfig(_ config: PMFConfig) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let data = try encoder.encode(config)
     return String(decoding: data, as: UTF8.self) + "\n"
   }
 
