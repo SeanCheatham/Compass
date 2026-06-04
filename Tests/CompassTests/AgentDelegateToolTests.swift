@@ -157,6 +157,7 @@ struct AgentDelegateToolTests {
     let reply: String
     private(set) var lastTask: String?
     private(set) var lastToolNames: [String]?
+    private(set) var lastProfile: String?
     private(set) var lastModelOverride: String?
 
     init(reply: String) { self.reply = reply }
@@ -164,10 +165,12 @@ struct AgentDelegateToolTests {
     func delegate(
       task: String,
       toolNames: [String]?,
+      profile: String?,
       modelOverride: String?
     ) async throws -> String {
       lastTask = task
       lastToolNames = toolNames
+      lastProfile = profile
       lastModelOverride = modelOverride
       return reply
     }
@@ -179,6 +182,7 @@ struct AgentDelegateToolTests {
     func delegate(
       task: String,
       toolNames: [String]?,
+      profile: String?,
       modelOverride: String?
     ) async throws -> String {
       throw error

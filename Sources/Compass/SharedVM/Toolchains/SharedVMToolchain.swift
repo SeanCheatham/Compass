@@ -309,7 +309,7 @@ enum SharedVMToolchainCatalog {
       id: .rust,
       displayName: "Rust",
       description:
-        "Rust generated-project toolchain via rustup (rustc, cargo, rustfmt, clippy, cargo-llvm-cov).",
+        "Rust generated-project stack via rustup (rustc, cargo, rustfmt, clippy, cargo-llvm-cov) plus Compass's compass-engine sidecar.",
       defaultProvisioned: true,
       dependencies: [],
       probeCommand: """

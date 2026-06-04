@@ -15,6 +15,7 @@ struct AgentDelegateTool: AgentTool {
   struct Arguments: Decodable {
     let task: String
     let tools: [String]?
+    let profile: String?
     let model: String?
 
     enum CodingKeys: String, CodingKey {
@@ -31,6 +32,7 @@ struct AgentDelegateTool: AgentTool {
       case allowedToolsSnake = "allowed_tools"
       case toolWhitelist
       case toolWhitelistSnake = "tool_whitelist"
+      case profile
       case model
       case modelOverride
       case modelOverrideSnake = "model_override"
@@ -51,6 +53,11 @@ struct AgentDelegateTool: AgentTool {
           .toolNames, .toolNamesSnake, .allowedTools, .allowedToolsSnake,
           .toolWhitelist, .toolWhitelistSnake,
         ]
+      )
+      profile = try FlexibleModelDecoder.decodeStringIfPresent(
+        from: container,
+        preferredKey: .profile,
+        aliases: []
       )
       model = try FlexibleModelDecoder.decodeStringIfPresent(
         from: container,
@@ -117,6 +124,12 @@ struct AgentDelegateTool: AgentTool {
           "description":
             "Optional model identifier override for the sub-agent. Defaults to the parent agent's model.",
         ],
+        "profile": [
+          "type": "string",
+          "enum": ["rust-clippy", "rust-test", "rust-ui"],
+          "description":
+            "Optional predefined focused tool profile. Ignored when `tools` is supplied.",
+        ],
       ],
     ])
     spec = AgentToolSpec(
@@ -155,6 +168,7 @@ struct AgentDelegateTool: AgentTool {
       let findings = try await runner.delegate(
         task: trimmedTask,
         toolNames: args.tools,
+        profile: args.profile,
         modelOverride: args.model
       )
       return .ok(findings)

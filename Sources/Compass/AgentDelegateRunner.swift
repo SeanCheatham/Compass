@@ -13,6 +13,7 @@ protocol AgentDelegateRunner: Sendable {
   func delegate(
     task: String,
     toolNames: [String]?,
+    profile: String?,
     modelOverride: String?
   ) async throws -> String
 }
@@ -63,6 +64,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   func delegate(
     task: String,
     toolNames: [String]?,
+    profile: String?,
     modelOverride: String?
   ) async throws -> String {
     let trimmedTask = task.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -70,7 +72,10 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       throw AgentDelegateRunnerError.emptyTask
     }
 
-    let effectiveTools = Self.filterTools(parentTools: parentTools, requested: toolNames)
+    let effectiveTools = Self.filterTools(
+      parentTools: parentTools,
+      requested: toolNames ?? Self.toolNames(forProfile: profile)
+    )
     let toolNameList = effectiveTools.map { $0.spec.name }
     let systemPrompt = Prompts.subAgentSystemPrompt(
       parentPhase: parentPhase,
@@ -128,6 +133,49 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
         AgentExecutor.canonicalToolName($0, availableToolNames: availableNames)
       })
     return withoutDelegate.filter { allowed.contains($0.spec.name) }
+  }
+
+  static func toolNames(forProfile rawProfile: String?) -> [String]? {
+    guard let profile = rawProfile?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+      !profile.isEmpty
+    else { return nil }
+    switch profile {
+    case "rust-clippy":
+      return [
+        AgentReadFileTool.toolName,
+        AgentListFilesTool.toolName,
+        AgentOutlineTool.toolName,
+        AgentFindSymbolTool.toolName,
+        AgentSummaryTool.toolName,
+        AgentImportersOfTool.toolName,
+        AgentWorkspaceOutlineTool.toolName,
+        AgentClippyLintTool.toolName,
+      ]
+    case "rust-test":
+      return [
+        AgentReadFileTool.toolName,
+        AgentListFilesTool.toolName,
+        AgentOutlineTool.toolName,
+        AgentFindSymbolTool.toolName,
+        AgentSummaryTool.toolName,
+        AgentWorkspaceOutlineTool.toolName,
+        AgentCargoCheckTool.toolName,
+        AgentCargoTestTool.toolName,
+      ]
+    case "rust-ui":
+      return [
+        AgentReadFileTool.toolName,
+        AgentListFilesTool.toolName,
+        AgentOutlineTool.toolName,
+        AgentFindSymbolTool.toolName,
+        AgentWorkspaceOutlineTool.toolName,
+        AgentVisualVerifyTool.toolName,
+        AgentWriteFileTool.toolName,
+        AgentEditFileTool.toolName,
+      ]
+    default:
+      return nil
+    }
   }
 }
 
