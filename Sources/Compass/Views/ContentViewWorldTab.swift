@@ -7,6 +7,7 @@ struct WorldTab: View {
   let repoURL: URL
   let workspace: CompassWorkspace?
   let isActive: Bool
+  let liveLog: [LiveLine]
   let sessionRecords: () -> [SessionRecord]
   let onLoadArchivedSessions: () async -> Void
 
@@ -49,44 +50,19 @@ struct WorldTab: View {
       )
       .foregroundStyle(.white)
     } else if let graph = model.graph {
+      let activity = WorldLiveActivityProjection(graph: graph, liveLog: liveLog)
+
       HStack(spacing: 14) {
-        ZStack(alignment: .topLeading) {
-          WorldRealitySceneView(
-            graph: graph,
-            selectedNodeID: model.selectedNodeID,
-            route: model.route,
-            routeIndex: model.routeIndex
-          )
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-          .overlay(
-            RoundedRectangle(cornerRadius: 8)
-              .stroke(.white.opacity(0.16), lineWidth: 1)
-          )
-          .realityViewCameraControls(.orbit)
-
-          VStack(alignment: .leading, spacing: 10) {
-            if let script = model.tourScript {
-              WorldSceneGuideOverlay(script: script)
-                .frame(maxWidth: 430, alignment: .leading)
-            }
-
-            WorldMiniMap(
-              graph: graph,
-              selectedNodeID: model.selectedNodeID,
-              route: model.route,
-              onSelect: model.selectNode
-            )
-            .frame(width: 150, height: 112)
-          }
-          .padding(14)
-
-          if let atlas = model.atlas {
-            WorldSceneLegendOverlay(terrain: atlas.terrain)
-              .frame(maxWidth: 430, alignment: .leading)
-              .padding(14)
-              .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-          }
-        }
+        WorldCinematicViewport(
+          graph: graph,
+          selectedNodeID: model.selectedNodeID,
+          route: model.route,
+          routeIndex: model.routeIndex,
+          script: model.tourScript,
+          atlas: model.atlas,
+          activity: activity,
+          onSelectNode: model.selectNode
+        )
 
         WorldSidebarPanel(
           model: model,
@@ -1077,6 +1053,603 @@ private func worldNodeLegendColor(for kind: WorldNodeKind) -> Color {
   }
 }
 
+struct WorldLiveActivityProjection: Equatable {
+  struct Event: Identifiable, Equatable {
+    enum Operation: String {
+      case fileRead
+      case fileEdit
+      case command
+      case rust
+      case agent
+      case lifecycle
+
+      var label: String {
+        switch self {
+        case .fileRead: return "Read"
+        case .fileEdit: return "Edit"
+        case .command: return "Shell"
+        case .rust: return "Rust"
+        case .agent: return "Agent"
+        case .lifecycle: return "Compass"
+        }
+      }
+
+      var systemImageName: String {
+        switch self {
+        case .fileRead: return "doc.text.magnifyingglass"
+        case .fileEdit: return "square.and.pencil"
+        case .command: return "terminal"
+        case .rust: return "gearshape.2"
+        case .agent: return "sparkles"
+        case .lifecycle: return "clock.arrow.circlepath"
+        }
+      }
+
+      var tint: Color {
+        switch self {
+        case .fileRead: return Color(red: 0.42, green: 0.72, blue: 0.88)
+        case .fileEdit: return Color(red: 0.96, green: 0.64, blue: 0.26)
+        case .command: return Color(red: 0.84, green: 0.78, blue: 0.58)
+        case .rust: return Color(red: 0.86, green: 0.42, blue: 0.24)
+        case .agent: return Color(red: 0.62, green: 0.78, blue: 0.98)
+        case .lifecycle: return Color(red: 0.7, green: 0.72, blue: 0.78)
+        }
+      }
+    }
+
+    var id: UUID
+    var operation: Operation
+    var status: LiveLine.Status
+    var level: LiveLine.Level
+    var title: String
+    var detail: String?
+    var targetNodeID: String?
+    var descriptor: String
+
+    var isRunning: Bool { status == .running }
+    var isFailed: Bool { status == .failed || level == .error }
+  }
+
+  static let recentEventLimit = 7
+
+  var events: [Event]
+
+  init(graph: WorldGraph, liveLog: [LiveLine]) {
+    let candidates = liveLog.suffix(36).reversed().compactMap { line in
+      Self.event(from: line, graph: graph)
+    }
+    events = Array(candidates.prefix(Self.recentEventLimit))
+  }
+
+  var sceneEvents: [Event] {
+    Array(events.prefix(6))
+  }
+
+  var activityLevel: Double {
+    let runningWeight = Double(events.filter(\.isRunning).count) * 0.34
+    let editWeight = Double(events.filter { $0.operation == .fileEdit }.count) * 0.1
+    let failureWeight = Double(events.filter(\.isFailed).count) * 0.16
+    return min(1, 0.18 + runningWeight + editWeight + failureWeight)
+  }
+
+  var runningCount: Int {
+    events.filter(\.isRunning).count
+  }
+
+  private static func event(from line: LiveLine, graph: WorldGraph) -> Event? {
+    let title = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    let detail = line.detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !title.isEmpty || detail?.isEmpty == false else { return nil }
+
+    let operation = operation(for: line, title: title, detail: detail)
+    let descriptor = descriptor(from: title, detail: detail, operation: operation)
+    let targetNodeID = targetNodeID(for: descriptor, operation: operation, in: graph)
+    return Event(
+      id: line.id,
+      operation: operation,
+      status: line.status,
+      level: line.level,
+      title: title.isEmpty ? operation.label : boundedOneLine(title, limit: 96),
+      detail: detail.map { boundedOneLine($0, limit: 140) },
+      targetNodeID: targetNodeID,
+      descriptor: descriptor
+    )
+  }
+
+  private static func operation(
+    for line: LiveLine,
+    title: String,
+    detail: String?
+  ) -> Event.Operation {
+    let haystack = "\(title)\n\(detail ?? "")".lowercased()
+    if haystack.contains("cargo_check") || haystack.contains("cargo_test")
+      || haystack.contains("clippy_lint") || haystack.contains("coverage_gaps")
+      || haystack.contains("scaffold_check") || haystack.contains("visual_verify")
+      || haystack.contains("cargo ") || haystack.contains("clippy")
+    {
+      return .rust
+    }
+    if line.kind == .fileChange || haystack.contains("edit_file") || haystack.contains("write_file") {
+      return .fileEdit
+    }
+    if haystack.contains("read_file") || haystack.contains("summary ·")
+      || haystack.contains("outline ·")
+    {
+      return .fileRead
+    }
+    if line.kind == .command || haystack.contains("bash ·") || haystack.contains("host_xcode") {
+      return .command
+    }
+    if line.kind == .agentMessage || haystack.contains("delegate ·") {
+      return .agent
+    }
+    return .lifecycle
+  }
+
+  private static func descriptor(
+    from title: String,
+    detail: String?,
+    operation: Event.Operation
+  ) -> String {
+    if let value = title.components(separatedBy: "·").dropFirst().first?
+      .trimmingCharacters(in: .whitespacesAndNewlines),
+      !value.isEmpty
+    {
+      return boundedOneLine(value, limit: operation == .command || operation == .rust ? 120 : 96)
+    }
+    if let detail, !detail.isEmpty {
+      return boundedOneLine(detail, limit: operation == .command || operation == .rust ? 120 : 96)
+    }
+    return boundedOneLine(title, limit: 96)
+  }
+
+  private static func targetNodeID(
+    for descriptor: String,
+    operation: Event.Operation,
+    in graph: WorldGraph
+  ) -> String? {
+    switch operation {
+    case .fileRead, .fileEdit:
+      break
+    case .command, .rust, .agent, .lifecycle:
+      return nil
+    }
+
+    let loweredDescriptor = descriptor.lowercased()
+    let fileNodes = graph.nodes.filter { node in
+      node.location != nil || node.kind == .file
+    }
+    let matches = fileNodes.compactMap { node -> (WorldNode, Int)? in
+      let filePath = node.location?.filePath ?? node.label
+      let loweredPath = filePath.lowercased()
+      let filename = URL(fileURLWithPath: filePath).lastPathComponent.lowercased()
+      if loweredDescriptor.contains(loweredPath) {
+        return (node, 3)
+      }
+      if !filename.isEmpty, loweredDescriptor.contains(filename) {
+        return (node, 2)
+      }
+      if loweredPath.contains(loweredDescriptor), loweredDescriptor.count > 4 {
+        return (node, 1)
+      }
+      return nil
+    }
+    return matches.sorted {
+      if $0.1 != $1.1 { return $0.1 > $1.1 }
+      return $0.0.id < $1.0.id
+    }.first?.0.id
+  }
+
+  private static func boundedOneLine(_ text: String, limit: Int) -> String {
+    let firstLine = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? text
+    guard firstLine.count > limit else { return firstLine }
+    return String(firstLine.prefix(limit)) + "..."
+  }
+}
+
+private struct WorldLiveActivityHUD: View {
+  let activity: WorldLiveActivityProjection
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 9) {
+      HStack(spacing: 8) {
+        Image(systemName: "waveform.path.ecg")
+          .foregroundStyle(Color(red: 0.96, green: 0.68, blue: 0.28))
+        Text("Live Operations")
+          .font(.caption.weight(.semibold))
+        Spacer(minLength: 8)
+        Text(statusLabel)
+          .font(.caption2.monospacedDigit().weight(.semibold))
+          .foregroundStyle(.white.opacity(0.62))
+      }
+
+      if activity.events.isEmpty {
+        Text("Waiting for agent telemetry")
+          .font(.caption)
+          .foregroundStyle(.white.opacity(0.58))
+          .lineLimit(1)
+      } else {
+        VStack(alignment: .leading, spacing: 7) {
+          ForEach(activity.events.prefix(5)) { event in
+            WorldLiveActivityRow(event: event)
+          }
+        }
+      }
+    }
+    .padding(12)
+    .frame(width: 286, alignment: .leading)
+    .foregroundStyle(.white)
+    .background(.black.opacity(0.48), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(.white.opacity(0.14), lineWidth: 1)
+    )
+    .accessibilityElement(children: .contain)
+  }
+
+  private var statusLabel: String {
+    if activity.runningCount > 0 {
+      return "\(activity.runningCount) running"
+    }
+    return "\(activity.events.count) recent"
+  }
+}
+
+private struct WorldLiveActivityRow: View {
+  let event: WorldLiveActivityProjection.Event
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      ZStack {
+        Circle()
+          .fill(statusColor.opacity(event.isRunning ? 0.22 : 0.12))
+          .frame(width: 22, height: 22)
+        Image(systemName: event.operation.systemImageName)
+          .font(.system(size: 10, weight: .bold))
+          .foregroundStyle(statusColor)
+      }
+      VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 5) {
+          Text(event.operation.label)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(statusColor)
+            .lineLimit(1)
+          Text(statusText)
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.white.opacity(0.5))
+            .lineLimit(1)
+        }
+        Text(event.descriptor.isEmpty ? event.title : event.descriptor)
+          .font(.caption)
+          .foregroundStyle(.white.opacity(event.isFailed ? 0.95 : 0.76))
+          .lineLimit(2)
+      }
+    }
+    .accessibilityElement(children: .combine)
+  }
+
+  private var statusText: String {
+    switch event.status {
+    case .none: return "noted"
+    case .running: return "live"
+    case .completed: return "done"
+    case .failed: return "failed"
+    }
+  }
+
+  private var statusColor: Color {
+    if event.isFailed { return Color(red: 1.0, green: 0.34, blue: 0.24) }
+    if event.isRunning { return Color(red: 1.0, green: 0.76, blue: 0.28) }
+    return event.operation.tint
+  }
+}
+
+private struct WorldCinematicViewport: View {
+  let graph: WorldGraph
+  let selectedNodeID: String?
+  let route: [String]
+  let routeIndex: Int
+  let script: WorldTourScript?
+  let atlas: WorldAtlas?
+  let activity: WorldLiveActivityProjection
+  let onSelectNode: (String) -> Void
+
+  var body: some View {
+    ZStack(alignment: .topLeading) {
+      WorldRealitySceneView(
+        graph: graph,
+        selectedNodeID: selectedNodeID,
+        route: route,
+        routeIndex: routeIndex,
+        activityEvents: activity.sceneEvents
+      )
+      .realityViewCameraControls(.orbit)
+
+      WorldCinematicOpticsOverlay(
+        seed: graph.fingerprint,
+        routeIndex: routeIndex,
+        activityLevel: activity.activityLevel
+      )
+        .allowsHitTesting(false)
+
+      WorldCinematicVignette()
+        .allowsHitTesting(false)
+
+      VStack(alignment: .leading, spacing: 10) {
+        if let script {
+          WorldSceneGuideOverlay(script: script)
+            .frame(maxWidth: 460, alignment: .leading)
+        }
+
+        WorldMiniMap(
+          graph: graph,
+          selectedNodeID: selectedNodeID,
+          route: route,
+          onSelect: onSelectNode
+        )
+        .frame(width: 164, height: 122)
+      }
+      .padding(16)
+
+      if let atlas {
+        WorldSceneLegendOverlay(terrain: atlas.terrain)
+          .frame(maxWidth: 450, alignment: .leading)
+          .padding(16)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+      }
+
+      WorldLiveActivityHUD(activity: activity)
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+    }
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(
+          LinearGradient(
+            colors: [
+              .white.opacity(0.32),
+              Color(red: 0.96, green: 0.68, blue: 0.3).opacity(0.18),
+              Color(red: 0.44, green: 0.78, blue: 0.92).opacity(0.16),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          ),
+          lineWidth: 1
+        )
+    )
+    .shadow(color: .black.opacity(0.48), radius: 24, x: 0, y: 18)
+    .shadow(
+      color: Color(red: 0.94, green: 0.55, blue: 0.18).opacity(0.1),
+      radius: 26,
+      x: -16,
+      y: 10
+    )
+  }
+}
+
+private struct WorldCinematicVignette: View {
+  var body: some View {
+    ZStack {
+      Rectangle()
+        .fill(
+          RadialGradient(
+            colors: [
+              .clear,
+              .clear,
+              .black.opacity(0.34),
+              .black.opacity(0.76),
+            ],
+            center: .center,
+            startRadius: 120,
+            endRadius: 760
+          )
+        )
+
+      VStack(spacing: 0) {
+        LinearGradient(
+          colors: [.black.opacity(0.58), .black.opacity(0.12), .clear],
+          startPoint: .top,
+          endPoint: .bottom
+        )
+        .frame(height: 140)
+        Spacer()
+        LinearGradient(
+          colors: [.clear, .black.opacity(0.18), .black.opacity(0.68)],
+          startPoint: .top,
+          endPoint: .bottom
+        )
+        .frame(height: 190)
+      }
+
+      HStack(spacing: 0) {
+        LinearGradient(
+          colors: [.black.opacity(0.54), .clear],
+          startPoint: .leading,
+          endPoint: .trailing
+        )
+        .frame(width: 150)
+        Spacer()
+        LinearGradient(
+          colors: [.clear, .black.opacity(0.48)],
+          startPoint: .leading,
+          endPoint: .trailing
+        )
+        .frame(width: 170)
+      }
+    }
+    .blendMode(.plusDarker)
+  }
+}
+
+private struct WorldCinematicOpticsOverlay: View {
+  let seed: String
+  let routeIndex: Int
+  let activityLevel: Double
+
+  var body: some View {
+    TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+      Canvas { context, size in
+        let time = timeline.date.timeIntervalSinceReferenceDate
+        drawAtmosphericSweep(in: &context, size: size, time: time)
+        drawScanlines(in: &context, size: size, time: time)
+        drawParticles(in: &context, size: size, time: time)
+        drawLensFlare(in: &context, size: size, time: time)
+      }
+      .drawingGroup()
+    }
+  }
+
+  private func drawAtmosphericSweep(
+    in context: inout GraphicsContext,
+    size: CGSize,
+    time: TimeInterval
+  ) {
+    let width = max(size.width, 1)
+    let height = max(size.height, 1)
+    let period = width + 420
+    let speed = max(2.8, 8.0 - activityLevel * 3.6)
+    let x = CGFloat(time.truncatingRemainder(dividingBy: speed) / speed) * period - 260
+    var beam = Path()
+    beam.move(to: CGPoint(x: x, y: 0))
+    beam.addLine(to: CGPoint(x: x + 180, y: 0))
+    beam.addLine(to: CGPoint(x: x + 500, y: height))
+    beam.addLine(to: CGPoint(x: x + 260, y: height))
+    beam.closeSubpath()
+    context.fill(
+      beam,
+      with: .linearGradient(
+        Gradient(colors: [
+          Color(red: 0.88, green: 0.96, blue: 1.0).opacity(0.0),
+          Color(red: 0.76, green: 0.92, blue: 1.0).opacity(0.06 + activityLevel * 0.08),
+          Color(red: 1.0, green: 0.72, blue: 0.35).opacity(0.045 + activityLevel * 0.07),
+          Color(red: 0.88, green: 0.96, blue: 1.0).opacity(0.0),
+        ]),
+        startPoint: CGPoint(x: x, y: 0),
+        endPoint: CGPoint(x: x + 500, y: height)
+      )
+    )
+  }
+
+  private func drawScanlines(
+    in context: inout GraphicsContext,
+    size: CGSize,
+    time: TimeInterval
+  ) {
+    let offset = CGFloat(time.truncatingRemainder(dividingBy: 1.6) / 1.6) * 26
+    var y = -offset
+    while y < size.height {
+      var line = Path()
+      line.move(to: CGPoint(x: 0, y: y))
+      line.addLine(to: CGPoint(x: size.width, y: y))
+      context.stroke(line, with: .color(.white.opacity(0.014 + activityLevel * 0.014)), lineWidth: 1)
+      y += 26
+    }
+
+    let sweepY =
+      CGFloat((time * 0.18 + Double(routeIndex) * 0.09).truncatingRemainder(dividingBy: 1.0))
+      * max(size.height, 1)
+    var sweep = Path()
+    sweep.addRect(CGRect(x: 0, y: sweepY, width: size.width, height: 1.6))
+    context.fill(
+      sweep,
+      with: .linearGradient(
+        Gradient(colors: [
+          Color(red: 0.48, green: 0.78, blue: 0.86).opacity(0),
+          Color(red: 0.48, green: 0.78, blue: 0.86).opacity(0.16 + activityLevel * 0.2),
+          Color(red: 1.0, green: 0.75, blue: 0.32).opacity(0.14 + activityLevel * 0.22),
+          Color(red: 0.48, green: 0.78, blue: 0.86).opacity(0),
+        ]),
+        startPoint: CGPoint(x: 0, y: sweepY),
+        endPoint: CGPoint(x: size.width, y: sweepY)
+      )
+    )
+  }
+
+  private func drawParticles(
+    in context: inout GraphicsContext,
+    size: CGSize,
+    time: TimeInterval
+  ) {
+    let seedValue = stableSeed
+    let count = 82 + Int(activityLevel * 52)
+    for index in 0..<count {
+      let baseX = unitNoise(seedValue + index * 37)
+      let baseY = unitNoise(seedValue + index * 53)
+      let drift = CGFloat(
+        (time * (0.012 + Double(index % 7) * 0.003)).truncatingRemainder(dividingBy: 1))
+      let x = ((baseX + drift).truncatingRemainder(dividingBy: 1)) * max(size.width, 1)
+      let y = ((baseY + drift * 0.28).truncatingRemainder(dividingBy: 1)) * max(size.height, 1)
+      let radius = CGFloat(0.55 + Double(index % 5) * 0.18)
+      let alpha = 0.035 + Double(index % 6) * 0.006
+      let rect = CGRect(x: x, y: y, width: radius, height: radius)
+      context.fill(
+        Path(ellipseIn: rect),
+        with: .color(Color(red: 0.92, green: 0.83, blue: 0.62).opacity(alpha))
+      )
+    }
+  }
+
+  private func drawLensFlare(
+    in context: inout GraphicsContext,
+    size: CGSize,
+    time: TimeInterval
+  ) {
+    let shimmer = 0.5 + sin(time * 1.7 + Double(routeIndex)) * 0.5
+    let center = CGPoint(x: size.width * 0.72, y: size.height * 0.22)
+    let radius = CGFloat(54 + shimmer * 18)
+    context.fill(
+      Path(
+        ellipseIn: CGRect(
+          x: center.x - radius,
+          y: center.y - radius,
+          width: radius * 2,
+          height: radius * 2
+        )
+      ),
+      with: .radialGradient(
+        Gradient(colors: [
+          Color(red: 1.0, green: 0.74, blue: 0.34).opacity(0.12),
+          Color(red: 0.48, green: 0.82, blue: 1.0).opacity(0.035),
+          .clear,
+        ]),
+        center: center,
+        startRadius: 0,
+        endRadius: radius
+      )
+    )
+
+    for index in 0..<3 {
+      let scale = CGFloat(index + 1)
+      let flareCenter = CGPoint(
+        x: center.x - scale * 82,
+        y: center.y + scale * 38
+      )
+      let flareRadius = CGFloat(8 + index * 7)
+      context.fill(
+        Path(ellipseIn: CGRect(
+          x: flareCenter.x - flareRadius,
+          y: flareCenter.y - flareRadius,
+          width: flareRadius * 2,
+          height: flareRadius * 2
+        )),
+        with: .color(Color(red: 1.0, green: 0.68, blue: 0.28).opacity(0.045))
+      )
+    }
+  }
+
+  private var stableSeed: Int {
+    seed.unicodeScalars.reduce(17) { partial, scalar in
+      (partial &* 31 &+ Int(scalar.value)) & 0x7fffffff
+    }
+  }
+
+  private func unitNoise(_ value: Int) -> CGFloat {
+    let mixed = Double((value &* 1_103_515_245 &+ 12_345) & 0x7fffffff)
+    return CGFloat(mixed / Double(0x7fffffff))
+  }
+}
+
 private struct CopyWorldAtlasButton: View {
   var payload: WorldAtlasClipboardPayload
   @State private var copied = false
@@ -1194,6 +1767,7 @@ struct WorldRealitySceneView: View {
   let selectedNodeID: String?
   let route: [String]
   let routeIndex: Int
+  let activityEvents: [WorldLiveActivityProjection.Event]
 
   var body: some View {
     RealityView { content in
@@ -1204,7 +1778,8 @@ struct WorldRealitySceneView: View {
           graph: graph,
           selectedNodeID: selectedNodeID,
           route: route,
-          routeIndex: routeIndex
+          routeIndex: routeIndex,
+          activityEvents: activityEvents
         )
       )
     } update: { content in
@@ -1215,7 +1790,8 @@ struct WorldRealitySceneView: View {
           graph: graph,
           selectedNodeID: selectedNodeID,
           route: route,
-          routeIndex: routeIndex
+          routeIndex: routeIndex,
+          activityEvents: activityEvents
         )
       )
     } placeholder: {
@@ -1252,7 +1828,8 @@ enum WorldRealitySceneFactory {
     graph: WorldGraph,
     selectedNodeID: String?,
     route: [String],
-    routeIndex: Int
+    routeIndex: Int,
+    activityEvents: [WorldLiveActivityProjection.Event] = []
   ) -> Entity {
     let root = Entity()
     root.name = "CompassWorldRoot"
@@ -1288,6 +1865,12 @@ enum WorldRealitySceneFactory {
 
     addCinematicStage(to: root, bounds: bounds, focus: currentPosition)
     addLights(to: root, bounds: bounds, focus: currentPosition)
+    addAtmosphericDepth(
+      to: root,
+      bounds: bounds,
+      focus: currentPosition,
+      routePositions: routePrefix.compactMap { lookup[$0]?.position.simd }
+    )
 
     for edge in sceneEdges {
       guard let source = lookup[edge.sourceID], let target = lookup[edge.targetID] else { continue }
@@ -1327,6 +1910,14 @@ enum WorldRealitySceneFactory {
         )
       }
     }
+
+    addLiveActivity(
+      to: root,
+      events: activityEvents,
+      lookup: lookup,
+      bounds: bounds,
+      focus: currentPosition
+    )
 
     let camera = PerspectiveCamera()
     camera.name = "WorldCamera"
@@ -1595,6 +2186,55 @@ enum WorldRealitySceneFactory {
       root.addChild(tower)
     }
 
+    let ridgeMaterial = SimpleMaterial(
+      color: NSColor(calibratedRed: 0.095, green: 0.088, blue: 0.072, alpha: 0.92),
+      roughness: 0.84,
+      isMetallic: true
+    )
+    for index in 0..<12 {
+      let side: Float = index.isMultiple(of: 2) ? -1 : 1
+      let lane = Float(index / 2)
+      let height = 0.22 + Float(index % 5) * 0.08
+      let ridge = ModelEntity(
+        mesh: .generateBox(
+          width: 0.18 + Float(index % 3) * 0.06,
+          height: height,
+          depth: 1.2 + Float(index % 4) * 0.55,
+          cornerRadius: 0.025
+        ),
+        materials: [ridgeMaterial]
+      )
+      ridge.name = "WorldTerrainRidge-\(index)"
+      ridge.position = SIMD3<Float>(
+        stageCenter.x + side * (stageWidth * (0.28 + 0.035 * Float(index % 4))),
+        height / 2 - 0.08,
+        minZ + 3.0 + lane * max(stageDepth - 6, 1) / 6
+      )
+      root.addChild(ridge)
+    }
+
+    let reflectionMaterial = UnlitMaterial(
+      color: NSColor(calibratedRed: 0.92, green: 0.64, blue: 0.28, alpha: 0.09)
+    )
+    for index in 0..<5 {
+      let pool = ModelEntity(
+        mesh: .generateBox(
+          width: 1.2 + Float(index % 3) * 0.7,
+          height: 0.012,
+          depth: 0.28 + Float(index % 2) * 0.22,
+          cornerRadius: 0.08
+        ),
+        materials: [reflectionMaterial]
+      )
+      pool.name = "WorldWetReflection-\(index)"
+      pool.position = SIMD3<Float>(
+        stageCenter.x + (Float(index) - 2) * stageWidth * 0.14,
+        -0.068,
+        stageCenter.z + (Float(index % 3) - 1) * stageDepth * 0.18
+      )
+      root.addChild(pool)
+    }
+
     let focusPool = ModelEntity(
       mesh: .generateCylinder(height: 0.018, radius: 1.24),
       materials: [
@@ -1683,6 +2323,283 @@ enum WorldRealitySceneFactory {
     )
     ambientBeacon.position = bounds.center + SIMD3<Float>(0, 4.4, 0)
     root.addChild(ambientBeacon)
+  }
+
+  private static func addAtmosphericDepth(
+    to root: Entity,
+    bounds: SceneBounds,
+    focus: SIMD3<Float>,
+    routePositions: [SIMD3<Float>]
+  ) {
+    let hazeMaterial = UnlitMaterial(
+      color: NSColor(calibratedRed: 0.52, green: 0.68, blue: 0.78, alpha: 0.055)
+    )
+    for index in 0..<7 {
+      let t = Float(index) / 6
+      let z = bounds.minZ + bounds.depth * t
+      let haze = ModelEntity(
+        mesh: .generateBox(width: bounds.width * (0.72 + t * 0.18), height: 0.018, depth: 0.22),
+        materials: [hazeMaterial]
+      )
+      haze.name = "WorldVolumetricHaze-\(index)"
+      haze.position = SIMD3<Float>(
+        bounds.center.x + sin(Float(index) * 1.7) * 0.9,
+        1.15 + Float(index % 3) * 0.34,
+        z
+      )
+      root.addChild(haze)
+    }
+
+    let shaftMaterials = [
+      UnlitMaterial(color: NSColor(calibratedRed: 1.0, green: 0.72, blue: 0.34, alpha: 0.08)),
+      UnlitMaterial(color: NSColor(calibratedRed: 0.44, green: 0.74, blue: 0.95, alpha: 0.06)),
+    ]
+    for index in 0..<6 {
+      let shaft = ModelEntity(
+        mesh: .generateBox(width: 0.12, height: 4.4 + Float(index % 3) * 0.7, depth: 0.12),
+        materials: [shaftMaterials[index % shaftMaterials.count]]
+      )
+      shaft.name = "WorldGodRay-\(index)"
+      shaft.position = SIMD3<Float>(
+        bounds.center.x + (Float(index) - 2.5) * bounds.width / 7,
+        1.9,
+        bounds.minZ + 1.4 + Float(index % 4) * bounds.depth / 5
+      )
+      shaft.orientation = simd_quatf(
+        angle: -0.24 + Float(index % 3) * 0.08,
+        axis: SIMD3<Float>(0, 0, 1)
+      )
+      root.addChild(shaft)
+    }
+
+    let emberCount = min(120, max(48, Int(bounds.width + bounds.depth) * 3))
+    for index in 0..<emberCount {
+      let xNoise = deterministicUnit(index * 19 + 3)
+      let zNoise = deterministicUnit(index * 31 + 11)
+      let yNoise = deterministicUnit(index * 43 + 17)
+      let radius = Float(0.018 + deterministicUnit(index * 13 + 7) * 0.028)
+      let color =
+        index.isMultiple(of: 4)
+        ? NSColor(calibratedRed: 0.45, green: 0.77, blue: 0.95, alpha: 0.34)
+        : NSColor(calibratedRed: 1.0, green: 0.72, blue: 0.32, alpha: 0.38)
+      let ember = ModelEntity(
+        mesh: .generateSphere(radius: radius),
+        materials: [UnlitMaterial(color: color)]
+      )
+      ember.name = "WorldSuspendedParticle-\(index)"
+      ember.position = SIMD3<Float>(
+        bounds.minX + xNoise * bounds.width,
+        0.45 + yNoise * 3.4,
+        bounds.minZ + zNoise * bounds.depth
+      )
+      root.addChild(ember)
+    }
+
+    for (index, position) in routePositions.enumerated() {
+      let ringRadius = Float(index == routePositions.count - 1 ? 0.86 : 0.56)
+      let ring = ModelEntity(
+        mesh: .generateCylinder(height: 0.014, radius: ringRadius),
+        materials: [
+          UnlitMaterial(
+            color: NSColor(
+              calibratedRed: 1.0,
+              green: 0.72,
+              blue: 0.25,
+              alpha: index == routePositions.count - 1 ? 0.22 : 0.1
+            )
+          )
+        ]
+      )
+      ring.name = "WorldRouteHeatWake-\(index)"
+      ring.position = SIMD3<Float>(position.x, -0.045, position.z)
+      root.addChild(ring)
+    }
+
+    let focusColumn = ModelEntity(
+      mesh: .generateBox(width: 0.16, height: 3.8, depth: 0.16),
+      materials: [
+        UnlitMaterial(
+          color: NSColor(calibratedRed: 1.0, green: 0.76, blue: 0.34, alpha: 0.14)
+        )
+      ]
+    )
+    focusColumn.name = "WorldFocusVolumetricColumn"
+    focusColumn.position = SIMD3<Float>(focus.x, 1.72, focus.z)
+    root.addChild(focusColumn)
+  }
+
+  private static func addLiveActivity(
+    to root: Entity,
+    events: [WorldLiveActivityProjection.Event],
+    lookup: [String: WorldNode],
+    bounds: SceneBounds,
+    focus: SIMD3<Float>
+  ) {
+    guard !events.isEmpty else { return }
+
+    for (index, event) in events.enumerated() {
+      if let targetNodeID = event.targetNodeID, let node = lookup[targetNodeID] {
+        root.addChild(
+          liveTargetPulseEntity(
+            event: event,
+            position: node.position.simd,
+            index: index
+          )
+        )
+      } else {
+        root.addChild(
+          liveGlobalBeaconEntity(
+            event: event,
+            focus: focus,
+            bounds: bounds,
+            index: index
+          )
+        )
+      }
+    }
+  }
+
+  private static func liveTargetPulseEntity(
+    event: WorldLiveActivityProjection.Event,
+    position: SIMD3<Float>,
+    index: Int
+  ) -> Entity {
+    let group = Entity()
+    group.name = "WorldLiveTargetPulse-\(event.operation.rawValue)-\(index)"
+    let color = liveColor(for: event)
+    let alpha = liveAlpha(for: event)
+    let baseRadius: Float =
+      event.operation == .fileEdit ? 1.18 : (event.operation == .fileRead ? 0.92 : 0.78)
+
+    for ringIndex in 0..<3 {
+      let radius = baseRadius + Float(ringIndex) * 0.24
+      let ring = ModelEntity(
+        mesh: .generateCylinder(height: 0.014, radius: radius),
+        materials: [UnlitMaterial(color: color.withAlphaComponent(alpha / CGFloat(ringIndex + 1)))]
+      )
+      ring.name = "WorldLiveTargetRing-\(ringIndex)"
+      ring.position = SIMD3<Float>(position.x, -0.022 + Float(ringIndex) * 0.01, position.z)
+      group.addChild(ring)
+    }
+
+    let beamHeight: Float = event.isRunning ? 2.7 : 1.65
+    let beam = ModelEntity(
+      mesh: .generateBox(width: 0.11, height: beamHeight, depth: 0.11, cornerRadius: 0.025),
+      materials: [UnlitMaterial(color: color.withAlphaComponent(alpha * 0.72))]
+    )
+    beam.name = "WorldLiveTargetBeam"
+    beam.position = SIMD3<Float>(position.x, beamHeight / 2 + 0.2, position.z)
+    group.addChild(beam)
+
+    let crown = ModelEntity(
+      mesh: .generateSphere(radius: event.isRunning ? 0.18 : 0.13),
+      materials: [UnlitMaterial(color: color.withAlphaComponent(min(0.95, alpha + 0.18)))]
+    )
+    crown.name = "WorldLiveTargetCrown"
+    crown.position = SIMD3<Float>(position.x, beamHeight + 0.48, position.z)
+    group.addChild(crown)
+
+    if event.operation == .fileEdit || event.isFailed {
+      for sparkIndex in 0..<6 {
+        let angle = Float(sparkIndex) * (.pi * 2 / 6)
+        let offset = SIMD3<Float>(cos(angle) * 0.58, 0.52 + Float(sparkIndex % 3) * 0.16, sin(angle) * 0.58)
+        let spark = ModelEntity(
+          mesh: .generateBox(width: 0.055, height: 0.24, depth: 0.055, cornerRadius: 0.012),
+          materials: [UnlitMaterial(color: color.withAlphaComponent(alpha * 0.86))]
+        )
+        spark.name = "WorldLiveEditSpark-\(sparkIndex)"
+        spark.position = position + offset
+        group.addChild(spark)
+      }
+    }
+
+    let label = labelEntity(
+      event.operation.label,
+      position: position + SIMD3<Float>(-0.32, beamHeight + 0.76, -0.04)
+    )
+    group.addChild(label)
+    return group
+  }
+
+  private static func liveGlobalBeaconEntity(
+    event: WorldLiveActivityProjection.Event,
+    focus: SIMD3<Float>,
+    bounds: SceneBounds,
+    index: Int
+  ) -> Entity {
+    let group = Entity()
+    group.name = "WorldLiveGlobalBeacon-\(event.operation.rawValue)-\(index)"
+    let color = liveColor(for: event)
+    let alpha = liveAlpha(for: event)
+    let angle = Float(index) * 0.92 + Float(event.operation.rawValue.count) * 0.13
+    let orbitRadius = min(max(bounds.width, bounds.depth) * 0.08 + 1.35, 4.2)
+    let position = focus + SIMD3<Float>(cos(angle) * orbitRadius, 0.0, sin(angle) * orbitRadius)
+
+    let base = ModelEntity(
+      mesh: .generateCylinder(height: 0.035, radius: event.isRunning ? 0.62 : 0.46),
+      materials: [UnlitMaterial(color: color.withAlphaComponent(alpha * 0.42))]
+    )
+    base.name = "WorldLiveGlobalBase"
+    base.position = SIMD3<Float>(position.x, 0.03, position.z)
+    group.addChild(base)
+
+    let coreMesh: MeshResource
+    switch event.operation {
+    case .command:
+      coreMesh = .generateBox(width: 0.58, height: 0.38, depth: 0.58, cornerRadius: 0.055)
+    case .rust:
+      coreMesh = .generateCylinder(height: 0.56, radius: 0.34)
+    case .agent:
+      coreMesh = .generateSphere(radius: 0.34)
+    default:
+      coreMesh = .generateBox(width: 0.46, height: 0.46, depth: 0.46, cornerRadius: 0.06)
+    }
+
+    let core = ModelEntity(
+      mesh: coreMesh,
+      materials: [
+        SimpleMaterial(
+          color: color.withAlphaComponent(min(0.96, alpha + 0.26)),
+          roughness: event.isRunning ? 0.24 : 0.54,
+          isMetallic: event.isRunning || event.operation == .rust
+        )
+      ]
+    )
+    core.name = "WorldLiveGlobalCore"
+    core.position = SIMD3<Float>(position.x, event.operation == .rust ? 0.68 : 0.58, position.z)
+    group.addChild(core)
+
+    if event.operation == .rust {
+      for toothIndex in 0..<8 {
+        let toothAngle = Float(toothIndex) * (.pi * 2 / 8)
+        let tooth = ModelEntity(
+          mesh: .generateBox(width: 0.055, height: 0.28, depth: 0.055, cornerRadius: 0.01),
+          materials: [UnlitMaterial(color: color.withAlphaComponent(alpha * 0.8))]
+        )
+        tooth.name = "WorldRustOperationTooth-\(toothIndex)"
+        tooth.position =
+          core.position
+          + SIMD3<Float>(cos(toothAngle) * 0.5, 0.0, sin(toothAngle) * 0.5)
+        group.addChild(tooth)
+      }
+    }
+
+    let mastHeight: Float = event.isRunning ? 1.8 : 1.18
+    let mast = ModelEntity(
+      mesh: .generateBox(width: 0.04, height: mastHeight, depth: 0.04),
+      materials: [UnlitMaterial(color: color.withAlphaComponent(alpha * 0.55))]
+    )
+    mast.name = "WorldLiveGlobalMast"
+    mast.position = SIMD3<Float>(position.x, 0.45 + mastHeight / 2, position.z)
+    group.addChild(mast)
+
+    let label = labelEntity(
+      event.operation.label,
+      position: SIMD3<Float>(position.x - 0.36, mastHeight + 1.08, position.z)
+    )
+    group.addChild(label)
+
+    return group
   }
 
   private static func chamberEntity(
@@ -1953,6 +2870,24 @@ enum WorldRealitySceneFactory {
       underlay.name = "WorldRouteGlow"
       underlay.look(at: end, from: midpoint + SIMD3<Float>(0, -0.012, 0), relativeTo: nil)
       group.addChild(underlay)
+
+      for side in [-1.0 as Float, 1.0 as Float] {
+        let streamer = ModelEntity(
+          mesh: .generateBox(width: 0.018, height: 0.028, depth: length),
+          materials: [
+            UnlitMaterial(
+              color: NSColor(calibratedRed: 1.0, green: 0.82, blue: 0.36, alpha: 0.42)
+            )
+          ]
+        )
+        streamer.name = side < 0 ? "WorldRouteLeftStreamer" : "WorldRouteRightStreamer"
+        streamer.look(
+          at: end + SIMD3<Float>(side * 0.18, 0, 0),
+          from: midpoint + SIMD3<Float>(side * 0.18, 0.032, 0),
+          relativeTo: nil
+        )
+        group.addChild(streamer)
+      }
     }
 
     let railWidth: Float = highlighted ? 0.075 : 0.012
@@ -1987,6 +2922,27 @@ enum WorldRealitySceneFactory {
         bead.name = "WorldRouteLightPulse"
         bead.position = start + delta * fraction + SIMD3<Float>(0, 0.08, 0)
         group.addChild(bead)
+      }
+
+      let ribCount = min(9, max(3, Int(length / 1.4)))
+      let direction = simd_normalize(delta)
+      let right = simd_normalize(SIMD3<Float>(-direction.z, 0, direction.x))
+      for index in 0..<ribCount {
+        let fraction = Float(index + 1) / Float(ribCount + 1)
+        let ribCenter = start + delta * fraction + SIMD3<Float>(0, 0.18, 0)
+        for side in [-1.0 as Float, 1.0 as Float] {
+          let rib = ModelEntity(
+            mesh: .generateBox(width: 0.04, height: 0.52, depth: 0.04, cornerRadius: 0.01),
+            materials: [
+              UnlitMaterial(
+                color: NSColor(calibratedRed: 1.0, green: 0.73, blue: 0.28, alpha: 0.24)
+              )
+            ]
+          )
+          rib.name = side < 0 ? "WorldRouteLeftLightRib" : "WorldRouteRightLightRib"
+          rib.position = ribCenter + right * side * 0.38
+          group.addChild(rib)
+        }
       }
     }
 
@@ -2071,6 +3027,30 @@ enum WorldRealitySceneFactory {
       header.name = "WorldRoutePortalHeader-\(node.id)"
       header.position = position + SIMD3<Float>(0, 1.1, -0.16)
       group.addChild(header)
+
+      let portalCore = ModelEntity(
+        mesh: .generateBox(width: 0.64, height: 1.18, depth: 0.018, cornerRadius: 0.06),
+        materials: [
+          UnlitMaterial(
+            color: NSColor(calibratedRed: 1.0, green: 0.72, blue: 0.3, alpha: 0.16)
+          )
+        ]
+      )
+      portalCore.name = "WorldRoutePortalEnergy-\(node.id)"
+      portalCore.position = position + SIMD3<Float>(0, 0.68, -0.18)
+      group.addChild(portalCore)
+
+      let crown = ModelEntity(
+        mesh: .generateCylinder(height: 0.05, radius: 0.74),
+        materials: [
+          UnlitMaterial(
+            color: NSColor(calibratedRed: 0.48, green: 0.82, blue: 1.0, alpha: 0.18)
+          )
+        ]
+      )
+      crown.name = "WorldRoutePortalCrown-\(node.id)"
+      crown.position = position + SIMD3<Float>(0, 1.26, -0.18)
+      group.addChild(crown)
     }
 
     return group
@@ -2153,6 +3133,44 @@ enum WorldRealitySceneFactory {
       roughness: active || selected ? 0.24 : 0.62,
       isMetallic: active || selected
     )
+  }
+
+  private static func liveColor(for event: WorldLiveActivityProjection.Event) -> NSColor {
+    if event.isFailed {
+      return NSColor(calibratedRed: 1.0, green: 0.22, blue: 0.13, alpha: 1)
+    }
+    switch event.operation {
+    case .fileRead:
+      return NSColor(calibratedRed: 0.38, green: 0.76, blue: 0.95, alpha: 1)
+    case .fileEdit:
+      return NSColor(calibratedRed: 1.0, green: 0.62, blue: 0.22, alpha: 1)
+    case .command:
+      return NSColor(calibratedRed: 0.92, green: 0.82, blue: 0.54, alpha: 1)
+    case .rust:
+      return NSColor(calibratedRed: 0.95, green: 0.36, blue: 0.18, alpha: 1)
+    case .agent:
+      return NSColor(calibratedRed: 0.52, green: 0.78, blue: 1.0, alpha: 1)
+    case .lifecycle:
+      return NSColor(calibratedRed: 0.64, green: 0.66, blue: 0.72, alpha: 1)
+    }
+  }
+
+  private static func liveAlpha(for event: WorldLiveActivityProjection.Event) -> CGFloat {
+    if event.isFailed { return 0.86 }
+    if event.isRunning { return 0.74 }
+    switch event.operation {
+    case .fileEdit, .rust:
+      return 0.62
+    case .fileRead, .command, .agent:
+      return 0.5
+    case .lifecycle:
+      return 0.36
+    }
+  }
+
+  private static func deterministicUnit(_ value: Int) -> Float {
+    let mixed = (value &* 1_103_515_245 &+ 12_345) & 0x7fffffff
+    return Float(mixed) / Float(0x7fffffff)
   }
 
   private static func color(for kind: WorldNodeKind, alpha: CGFloat) -> NSColor {

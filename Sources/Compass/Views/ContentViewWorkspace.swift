@@ -1074,6 +1074,7 @@ struct WorkspaceContent: View {
           repoURL: project.repoURL,
           workspace: project.workspace,
           isActive: selectedTab == .world,
+          liveLog: project.liveLog,
           sessionRecords: { project.allSessions },
           onLoadArchivedSessions: {
             await project.loadArchivedSessionsIfNeeded()

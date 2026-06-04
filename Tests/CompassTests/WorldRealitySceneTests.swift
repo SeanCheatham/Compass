@@ -74,4 +74,68 @@ struct WorldRealitySceneTests {
     #expect(scene.findEntity(named: "WorldRouteBeacon-exit") == nil)
     #expect(scene.findEntity(named: "WorldRouteBeaconStep-3") == nil)
   }
+
+  @Test
+  func realityKitSceneProjectsLiveActivityIntoWorldMarkers() throws {
+    var graph = WorldGraph()
+    let entry = WorldNode(
+      id: "entry",
+      kind: .file,
+      label: "App.swift",
+      detail: nil,
+      language: .swift,
+      location: WorldSourceLocation(filePath: "Sources/App.swift", line: 1, endLine: 12),
+      confidence: .high,
+      position: WorldPosition(x: 0, y: 0.25, z: 0)
+    )
+    let rustNode = WorldNode(
+      id: "rust-runner",
+      kind: .function,
+      label: "verify",
+      detail: nil,
+      language: .rust,
+      location: WorldSourceLocation(filePath: "src/main.rs", line: 8, endLine: 16),
+      confidence: .high,
+      position: WorldPosition(x: 1.4, y: 0.8, z: -2.2)
+    )
+    graph.addNode(entry)
+    graph.addNode(rustNode)
+    graph.markEntrypoint(entry.id)
+    graph.addEdge(from: entry.id, to: rustNode.id, kind: .calls, confidence: .high)
+
+    let liveLog = [
+      LiveLine(
+        level: .raw,
+        text: "cargo_test · cargo test --workspace",
+        detail: "running cargo test",
+        kind: .command,
+        status: .running
+      ),
+      LiveLine(
+        level: .success,
+        text: "edit_file · Sources/App.swift",
+        detail: "patched startup flow",
+        kind: .fileChange,
+        status: .completed
+      ),
+    ]
+    let activity = WorldLiveActivityProjection(graph: graph, liveLog: liveLog)
+
+    #expect(activity.events.first?.operation == .fileEdit)
+    #expect(activity.events.first?.targetNodeID == entry.id)
+    #expect(activity.events.dropFirst().first?.operation == .rust)
+
+    let scene = WorldRealitySceneFactory.makeScene(
+      graph: graph,
+      selectedNodeID: entry.id,
+      route: [entry.id, rustNode.id],
+      routeIndex: 0,
+      activityEvents: activity.sceneEvents
+    )
+
+    #expect(scene.findEntity(named: "WorldLiveTargetPulse-fileEdit-0") != nil)
+    #expect(scene.findEntity(named: "WorldLiveTargetBeam") != nil)
+    #expect(scene.findEntity(named: "WorldLiveGlobalBeacon-rust-1") != nil)
+    #expect(scene.findEntity(named: "WorldRustOperationTooth-0") != nil)
+  }
 }
