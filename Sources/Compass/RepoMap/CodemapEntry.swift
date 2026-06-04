@@ -33,6 +33,9 @@ struct CodemapEntry: Codable, Sendable, Equatable {
   /// separately means the symbol cache can be invalidated without losing a
   /// still-valid summary, and vice versa.
   var summaryContentHash: String?
+  /// Rust doc comment blurb extracted from nearby `///` comments. Optional
+  /// so older cache entries decode and non-Rust files stay unchanged.
+  var docBlurb: String? = nil
   /// Whether this file is generated (e.g., by a build tool or code generator)
   /// rather than hand-written. Populated by heuristics in the codemapper
   /// (e.g., file extension not recognized as source, or path under a known

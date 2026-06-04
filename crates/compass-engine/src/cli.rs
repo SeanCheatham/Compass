@@ -32,6 +32,8 @@ pub enum Command {
     CargoTest(CargoTestArgs),
     #[command(name = "index-rust")]
     IndexRust,
+    #[command(name = "schema-contracts")]
+    SchemaContracts,
 }
 
 #[derive(Debug, clap::Args)]
@@ -63,6 +65,7 @@ impl Command {
             Self::ClippyLint(_) => "clippy-lint",
             Self::CargoTest(_) => "cargo-test",
             Self::IndexRust => "index-rust",
+            Self::SchemaContracts => "schema-contracts",
         }
     }
 }

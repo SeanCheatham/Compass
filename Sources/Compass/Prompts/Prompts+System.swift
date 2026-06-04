@@ -82,7 +82,7 @@ extension Prompts {
     let fileTools = "read_file, ls, grep, glob"
     let codemapTools =
       rustCargoToolsEnabled
-      ? "outline, find_symbol, summary, list_files, importers_of, workspace_outline, find_impls, trait_users"
+      ? "outline, find_symbol, summary, list_files, importers_of, workspace_outline, find_impls, trait_users, schema_contracts"
       : "outline, find_symbol, summary, list_files, importers_of"
     let rustTools =
       rustCargoToolsEnabled

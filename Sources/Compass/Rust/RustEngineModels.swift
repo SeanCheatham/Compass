@@ -217,3 +217,43 @@ struct RustTraitImpl: Codable, Equatable, Sendable {
     case implStartLine = "impl_start_line"
   }
 }
+
+struct SchemaContractsData: Codable, Equatable, Sendable {
+  var schemaVersion: Int
+  var contracts: [SchemaContract]
+
+  enum CodingKeys: String, CodingKey {
+    case schemaVersion = "schema_version"
+    case contracts
+  }
+}
+
+struct SchemaContract: Codable, Equatable, Sendable {
+  var schemaPath: String
+  var schemaTitle: String
+  var rustType: String?
+  var rustFile: String?
+  var line: Int?
+  var confidence: String
+  var fieldMapping: [SchemaFieldMapping]
+
+  enum CodingKeys: String, CodingKey {
+    case schemaPath = "schema_path"
+    case schemaTitle = "schema_title"
+    case rustType = "rust_type"
+    case rustFile = "rust_file"
+    case line
+    case confidence
+    case fieldMapping = "field_mapping"
+  }
+}
+
+struct SchemaFieldMapping: Codable, Equatable, Sendable {
+  var schemaField: String
+  var rustField: String
+
+  enum CodingKeys: String, CodingKey {
+    case schemaField = "schema_field"
+    case rustField = "rust_field"
+  }
+}

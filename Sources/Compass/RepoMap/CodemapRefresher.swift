@@ -143,5 +143,20 @@ struct CodemapRefresher: Sendable {
     } catch {
       return
     }
+    let schemasURL = workingDirectory.appending(path: "schemas", directoryHint: .isDirectory)
+    guard FileManager.default.fileExists(atPath: schemasURL.path) else { return }
+    do {
+      let data = try await rustCargoService.run(
+        command: .schemaContracts,
+        repoURL: workingDirectory,
+        arguments: [],
+        timeout: 30
+      )
+      let response = try JSONDecoder().decode(RustEngineResponse<SchemaContractsData>.self, from: data)
+      guard response.ok, let contracts = response.data else { return }
+      try SchemaContractsStore().save(contracts, workspace: workspace)
+    } catch {
+      return
+    }
   }
 }

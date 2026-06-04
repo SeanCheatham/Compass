@@ -69,6 +69,9 @@ struct AgentSummaryTool: AgentTool {
       )
     }
     guard let summary = entry.summary, !summary.isEmpty else {
+      if let docBlurb = entry.docBlurb, !docBlurb.isEmpty {
+        return .ok("[\(entry.relativePath) · docs]\n\n\(docBlurb)")
+      }
       return .ok(
         "No summary yet for '\(entry.relativePath)'. Summary generation runs once per session; this file may have been added or changed after the pass."
       )

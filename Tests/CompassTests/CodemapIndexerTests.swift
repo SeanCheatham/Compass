@@ -134,6 +134,25 @@ struct CodemapIndexerTests: ~Copyable {
     #expect(entry.symbols.contains { $0.kind == .method && $0.name == "render" })
   }
 
+  @Test func testRustIndexerStoresDocBlurb() async throws {
+    try writeFile(
+      "lib.rs",
+      contents: """
+        /// State persisted between launches.
+        /// Keep this in sync with schemas/demo-state.schema.json.
+        pub struct DemoState {
+            pub count: u64,
+        }
+        """
+    )
+
+    let indexer = makeIndexer(usingGit: false)
+    _ = try await indexer.indexAll()
+    let entry = try #require(indexer.store.loadEntry(forRelativePath: "lib.rs"))
+
+    #expect(entry.docBlurb?.contains("State persisted between launches.") == true)
+  }
+
   @Test func testIndexerSurvivesACacheRoundTrip() async throws {
     try writeFile("alpha.swift", contents: swiftFixture)
 

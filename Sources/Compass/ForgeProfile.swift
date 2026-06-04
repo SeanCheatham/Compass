@@ -71,6 +71,8 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         - When available, use Compass's structured Rust tools:
           `workspace_outline` for workspace orientation, `cargo_check` for compile probes,
           `clippy_lint` for lint failures, and scoped `cargo_test` runs for targeted tests.
+        - When changing persisted state, check `schema_contracts` and keep Rust types aligned
+          with files under `schemas/`.
         """
     case .typeScriptVitest:
       return """

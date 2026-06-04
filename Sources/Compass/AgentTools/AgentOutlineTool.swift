@@ -73,6 +73,9 @@ struct AgentOutlineTool: AgentTool {
     var lines: [String] = []
     lines.append("path: \(entry.relativePath)")
     lines.append("language: \(entry.language.displayName)")
+    if let docBlurb = entry.docBlurb, !docBlurb.isEmpty {
+      lines.append("docs: \(docBlurb)")
+    }
     if !entry.imports.isEmpty {
       lines.append("")
       lines.append("imports:")

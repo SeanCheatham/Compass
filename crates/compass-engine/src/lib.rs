@@ -3,6 +3,7 @@ pub mod cargo;
 pub mod index;
 pub mod output;
 pub mod repo;
+pub mod schema;
 pub mod workspace_outline;
 
 use anyhow::Result;

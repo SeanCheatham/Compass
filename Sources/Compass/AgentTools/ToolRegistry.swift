@@ -63,6 +63,7 @@ enum ToolRegistry {
       tools.append(AgentCargoTestTool())
       tools.append(AgentFindImplsTool())
       tools.append(AgentTraitUsersTool())
+      tools.append(AgentSchemaContractsTool())
     }
     return tools
   }
@@ -94,6 +95,7 @@ enum ToolRegistry {
         tools.append(AgentCargoTestTool())
         tools.append(AgentFindImplsTool())
         tools.append(AgentTraitUsersTool())
+        tools.append(AgentSchemaContractsTool())
       }
       if let imageAssignment = settings.imageAssignment {
         tools.append(AgentGenerateImageTool(assignment: imageAssignment))
