@@ -704,6 +704,7 @@ extension CompassProject {
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: workspace.readVision(),
+      forgeProfile: forgeProfile,
       iteration: iteration,
       maxIterations: maxCriticAttempts
     )

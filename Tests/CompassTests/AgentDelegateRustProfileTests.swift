@@ -8,6 +8,8 @@ struct AgentDelegateRustProfileTests {
 
     #expect(names?.contains(AgentClippyLintTool.toolName) == true)
     #expect(names?.contains(AgentWriteFileTool.toolName) == false)
+    #expect(names?.contains(AgentEditFileTool.toolName) == false)
+    #expect(names?.contains(AgentVisualVerifyTool.toolName) == false)
   }
 
   @Test func rustTestProfileIncludesCargoCheckAndCargoTest() throws {
@@ -15,5 +17,8 @@ struct AgentDelegateRustProfileTests {
 
     #expect(names?.contains(AgentCargoCheckTool.toolName) == true)
     #expect(names?.contains(AgentCargoTestTool.toolName) == true)
+    #expect(names?.contains(AgentWriteFileTool.toolName) == false)
+    #expect(names?.contains(AgentEditFileTool.toolName) == false)
+    #expect(names?.contains(AgentVisualVerifyTool.toolName) == false)
   }
 }

@@ -12,6 +12,7 @@ extension Prompts {
     lessons: String,
     assumptions: String = "",
     vision: String,
+    forgeProfile: ForgeProfile? = nil,
     iteration: Int,
     maxIterations: Int
   ) -> String {
@@ -27,6 +28,15 @@ extension Prompts {
       verifyStatus: verifyStatus,
       gitDiff: gitDiff
     )
+    let rustProbeSection = RustReviewProbePlanner.formattedSection(
+      for: RustReviewProbePlanner.suggestions(
+        forgeProfile: forgeProfile,
+        gitDiff: gitDiff,
+        verifyCommand: verifyCommand,
+        verifyOutput: verifyOutput
+      )
+    )
+    let rustProbeBlock = rustProbeSection.isEmpty ? "" : "\n\n## Suggested Rust review probes\n\(rustProbeSection)"
     let priorBlock: String
     if priorCritiques.isEmpty {
       priorBlock = "_(this is the first critic review for this Develop pass)_"
@@ -84,8 +94,10 @@ extension Prompts {
       - For Rust/Cargo diffs, use the structured tools when they are available:
         `workspace_outline` for workspace shape, `cargo_check` for compiler
         diagnostics, `clippy_lint` for lint gates, `cargo_test`/`coverage_gaps`
-        for proof depth, and `schema_contracts` when schemas or persisted
-        state changed.
+        for proof depth, `schema_contracts` when schemas or persisted
+        state changed, and `scaffold_check` when scaffold contract paths
+        changed. Structured tool results are review evidence, not permission
+        to mutate the working tree.
       - If structured Rust tool output includes "Repair hints", treat those
         hints as stronger review evidence than guesses from raw logs and ask
         Develop to verify the repair with structured tools.
@@ -121,7 +133,7 @@ extension Prompts {
       }
 
       ## Review brief
-      \(reviewBrief)
+      \(reviewBrief)\(rustProbeBlock)
 
       ## Plan that was implemented
       \(next.plan)

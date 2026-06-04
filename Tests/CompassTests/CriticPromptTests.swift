@@ -163,6 +163,59 @@ struct CriticPromptTests {
     try #require(prompt.contains("no `git commit`"))
   }
 
+  @Test func testCriticPromptIncludesSuggestedRustReviewProbesForRustDiffs() throws {
+    let prompt = Prompts.criticPrompt(
+      next: makePlanNext(verify: "cargo llvm-cov test --summary-only"),
+      developSummary: makeDevelopSummary(),
+      verifyCommand: "cargo llvm-cov test --summary-only",
+      verifyExitCode: 0,
+      verifyOutput: "overall line coverage: 88.1%",
+      gitDiff: """
+        diff --git a/Cargo.toml b/Cargo.toml
+        +members = ["crates/app-core"]
+        diff --git a/schemas/demo-state.schema.json b/schemas/demo-state.schema.json
+        +{"type":"object"}
+        """,
+      priorCritiques: [],
+      lessons: "",
+      vision: "",
+      forgeProfile: .rustCargo,
+      iteration: 1,
+      maxIterations: 3
+    )
+
+    try #require(prompt.contains("## Suggested Rust review probes"))
+    try #require(prompt.contains("Suggested Rust review probes:"))
+    try #require(prompt.contains("workspace_outline"))
+    try #require(prompt.contains("schema_contracts"))
+    try #require(prompt.contains("cargo_check"))
+    try #require(prompt.contains("clippy_lint"))
+    try #require(prompt.contains("coverage_gaps"))
+    try #require(prompt.contains("scaffold_check"))
+  }
+
+  @Test func testCriticPromptOmitsRustReviewProbesForNonRustProfiles() throws {
+    let prompt = Prompts.criticPrompt(
+      next: makePlanNext(verify: "swift test"),
+      developSummary: makeDevelopSummary(),
+      verifyCommand: "swift test",
+      verifyExitCode: 0,
+      verifyOutput: "ok",
+      gitDiff: """
+        diff --git a/Cargo.toml b/Cargo.toml
+        +edition = "2021"
+        """,
+      priorCritiques: [],
+      lessons: "",
+      vision: "",
+      forgeProfile: .swiftSPM,
+      iteration: 1,
+      maxIterations: 3
+    )
+
+    try #require(!prompt.contains("Suggested Rust review probes"))
+  }
+
   @Test func testCriticPromptChecksFeatureMatrixBugClassAndArtifacts() throws {
     let prompt = Prompts.criticPrompt(
       next: makePlanNext(),
