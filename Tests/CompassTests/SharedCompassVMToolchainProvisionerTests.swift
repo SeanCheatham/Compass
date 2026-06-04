@@ -38,6 +38,16 @@ struct SharedCompassVMToolchainProvisionerTests {
     try #require(installed)
   }
 
+  @Test func userToolchainProbesDoNotUseSuFromGuestAgent() throws {
+    let rust = SharedVMToolchainCatalog.definition(for: .rust)
+    let node = SharedVMToolchainCatalog.definition(for: .node)
+
+    try #require(!rust.probeCommand.contains("su -"))
+    try #require(!node.probeCommand.contains("su -"))
+    try #require(!rust.finaliseVerificationCommand().contains("su -"))
+    try #require(!node.finaliseVerificationCommand().contains("su -"))
+  }
+
   @Test func provisionErrorLocalizedDescriptionUsesDetailedMessage() throws {
     let error = SharedCompassVMToolchainProvisioner.ProvisionError.probeFailed(
       toolchainID: "node",

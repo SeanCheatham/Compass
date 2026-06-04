@@ -30,3 +30,6 @@ App/LocalSigning.xcconfig
 
 # Local scratch clones
 .tmp-tree-sitter-haskell/
+
+# Agent implementation plans (local tasking; not versioned)
+docs/plans/

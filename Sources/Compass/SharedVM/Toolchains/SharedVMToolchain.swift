@@ -87,11 +87,11 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
         """
     case .rust:
       return """
-        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(Self.rustVerificationCommand)' >/dev/null 2>&1
+        \(Self.rustVerificationCommand) >/dev/null 2>&1
         """
     case .node:
       return """
-        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(Self.nodeVerificationCommand)' >/dev/null 2>&1
+        \(Self.nodeVerificationCommand) >/dev/null 2>&1
         """
     }
   }
@@ -107,7 +107,7 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
     "command -v node && command -v npm && command -v npx && command -v tsc && node --version && tsc --version"
 
   static let nodeProbeCommand = """
-    su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v npx >/dev/null 2>&1 && command -v tsc >/dev/null 2>&1 && echo PRESENT || echo MISSING'
+    command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v npx >/dev/null 2>&1 && command -v tsc >/dev/null 2>&1 && echo PRESENT || echo MISSING
     """
 
   func parseProgressFraction(fromLogTail tail: String) -> Double {
@@ -313,7 +313,7 @@ enum SharedVMToolchainCatalog {
       defaultProvisioned: true,
       dependencies: [],
       probeCommand: """
-        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(SharedVMToolchainDefinition.rustVerificationCommand) >/dev/null 2>&1 && echo PRESENT || echo MISSING'
+        \(SharedVMToolchainDefinition.rustVerificationCommand) >/dev/null 2>&1 && echo PRESENT || echo MISSING
         """,
       installTimeout: 15 * 60,
       installableViaGenericProvisioner: true
