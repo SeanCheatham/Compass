@@ -155,7 +155,10 @@ extension CompassProject {
     if codemapRefreshedForSession == sessionNumber { return }
     let refresher = CodemapRefresher.make(
       workspace: workspace,
-      settings: agentSettings
+      settings: agentSettings,
+      rustCargoService: forgeProfile == .rustCargo
+        ? RustEngineLocator.locateEngineBinary().map { RustCargoService(engineURL: $0) }
+        : nil
     )
     do {
       let result = try await refresher.refresh()

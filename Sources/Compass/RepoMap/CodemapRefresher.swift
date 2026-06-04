@@ -21,6 +21,8 @@ struct CodemapRefresher: Sendable {
   let store: CodemapStore
   let indexer: CodemapIndexer
   let summarizer: RepoSummarizer
+  let rustCargoService: (any RustCargoServicing)?
+  let workspace: CompassWorkspace?
   /// When false, the summarizer is skipped entirely (no LLM calls).
   /// Set this off in unit tests, or in setups where the user has not
   /// configured an API key and a noisy "0 generated / N failed" status
@@ -35,7 +37,8 @@ struct CodemapRefresher: Sendable {
     workspace: CompassWorkspace,
     settings: AgentRuntimeSettings,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
-    bashRunner: AgentBashRunner = AgentHostBashRunner()
+    bashRunner: AgentBashRunner = AgentHostBashRunner(),
+    rustCargoService: (any RustCargoServicing)? = nil
   ) -> CodemapRefresher {
     let store = CodemapStore(
       directory: CodemapStore.defaultDirectory(forWorkspace: workspace)
@@ -59,8 +62,28 @@ struct CodemapRefresher: Sendable {
       store: store,
       indexer: indexer,
       summarizer: summarizer,
+      rustCargoService: rustCargoService,
+      workspace: workspace,
       summariesEnabled: hasKey
     )
+  }
+
+  init(
+    workingDirectory: URL,
+    store: CodemapStore,
+    indexer: CodemapIndexer,
+    summarizer: RepoSummarizer,
+    rustCargoService: (any RustCargoServicing)? = nil,
+    workspace: CompassWorkspace? = nil,
+    summariesEnabled: Bool
+  ) {
+    self.workingDirectory = workingDirectory
+    self.store = store
+    self.indexer = indexer
+    self.summarizer = summarizer
+    self.rustCargoService = rustCargoService
+    self.workspace = workspace
+    self.summariesEnabled = summariesEnabled
   }
 
   /// Index, then summarize. Returns combined counts; the caller decides
@@ -69,6 +92,7 @@ struct CodemapRefresher: Sendable {
   /// error doesn't bubble up here — it counts toward `indexerFailed`.
   func refresh() async throws -> Result {
     let indexResult = try await indexer.indexAll()
+    try await refreshCargoGraphIfNeeded()
     let summary =
       summariesEnabled
       ? await summarizer.summarizeMissing()
@@ -84,5 +108,27 @@ struct CodemapRefresher: Sendable {
       summariesSkipped: summary.skipped,
       summariesFailed: summary.failed
     )
+  }
+
+  private func refreshCargoGraphIfNeeded() async throws {
+    guard let rustCargoService, let workspace else { return }
+    do {
+      let data = try await rustCargoService.run(
+        command: .workspaceOutline,
+        repoURL: workingDirectory,
+        arguments: [],
+        timeout: 30
+      )
+      let response = try JSONDecoder().decode(RustEngineResponse<CargoGraphData>.self, from: data)
+      guard response.ok, let graph = response.data else { return }
+      let store = CargoGraphStore()
+      let snapshot = store.makeSnapshot(graph: graph, workspace: workspace)
+      if store.load(from: workspace)?.contentFingerprint == snapshot.contentFingerprint {
+        return
+      }
+      try store.save(snapshot, workspace: workspace)
+    } catch {
+      return
+    }
   }
 }

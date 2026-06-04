@@ -22,12 +22,15 @@ pub enum OutputFormat {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     Ping,
+    #[command(name = "workspace-outline")]
+    WorkspaceOutline,
 }
 
 impl Command {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Ping => "ping",
+            Self::WorkspaceOutline => "workspace-outline",
         }
     }
 }

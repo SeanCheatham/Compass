@@ -39,6 +39,10 @@ fn run(cli: &Cli) -> Result<EngineResponse<serde_json::Value>> {
             let repo = compass_engine::repo::canonical_existing_path(&cli.repo)?;
             serde_json::to_value(compass_engine::ping(&repo)?)?
         }
+        Command::WorkspaceOutline => {
+            let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
+            serde_json::to_value(compass_engine::workspace_outline::workspace_outline(&repo)?)?
+        }
     };
     Ok(EngineResponse::ok(cli.command.name(), value))
 }

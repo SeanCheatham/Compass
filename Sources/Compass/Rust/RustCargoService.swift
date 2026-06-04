@@ -2,6 +2,7 @@ import Foundation
 
 enum RustEngineCommand: String, Sendable, CaseIterable {
   case ping
+  case workspaceOutline = "workspace-outline"
 }
 
 enum RustCargoServiceError: LocalizedError, Equatable {
@@ -73,7 +74,7 @@ struct RustCargoService: RustCargoServicing {
     return Data(output.utf8)
   }
 
-  func decode<T: Decodable & Equatable>(
+  func decode<T: Codable & Equatable>(
     _ type: T.Type,
     from data: Data
   ) throws -> RustEngineResponse<T> {

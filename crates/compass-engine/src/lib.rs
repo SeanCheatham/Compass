@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod output;
 pub mod repo;
+pub mod workspace_outline;
 
 use anyhow::Result;
 use serde::Serialize;

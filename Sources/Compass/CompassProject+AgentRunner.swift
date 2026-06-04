@@ -209,6 +209,7 @@ extension CompassProject {
         executionEnvironment: environment.kind == .sharedVM ? .sharedVM : .host,
         installedToolchainIDs: installedToolchainIDs,
         hostXcodeBuildTestEnabled: hostXcodeService != nil,
+        rustCargoToolsEnabled: rustCargoService != nil,
         externalToolNames: externalToolNames
       ),
       userPrompt: userPrompt,

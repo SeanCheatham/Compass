@@ -56,6 +56,9 @@ enum ToolRegistry {
     if hostXcodeService != nil {
       tools.append(AgentHostXcodeTool())
     }
+    if rustCargoService != nil {
+      tools.append(AgentWorkspaceOutlineTool())
+    }
     return tools
   }
 
@@ -79,6 +82,9 @@ enum ToolRegistry {
       tools = inspectionTools(hostXcodeService: hostXcodeService, rustCargoService: rustCargoService)
     case .develop:
       tools = developTools()
+      if rustCargoService != nil {
+        tools.append(AgentWorkspaceOutlineTool())
+      }
       if let imageAssignment = settings.imageAssignment {
         tools.append(AgentGenerateImageTool(assignment: imageAssignment))
       }

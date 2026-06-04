@@ -76,10 +76,14 @@ extension Prompts {
     executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM,
     installedToolchainIDs: [String] = [],
     hostXcodeBuildTestEnabled: Bool = false,
+    rustCargoToolsEnabled: Bool = false,
     externalToolNames: [String] = []
   ) -> String {
     let fileTools = "read_file, ls, grep, glob"
-    let codemapTools = "outline, find_symbol, summary, list_files, importers_of"
+    let codemapTools =
+      rustCargoToolsEnabled
+      ? "outline, find_symbol, summary, list_files, importers_of, workspace_outline"
+      : "outline, find_symbol, summary, list_files, importers_of"
     let writeTools = "write_file, edit_file, bash"
     let delegateTool =
       "delegate (spawn a focused sub-agent for a self-contained sub-task; it returns a findings string)"
@@ -145,6 +149,7 @@ extension Prompts {
       - To find who depends on a file, use `importers_of`. It's
         approximate — see its tool description — so fall back to `grep`
         for verification.
+      \(rustCargoToolsEnabled ? "- For Rust workspaces, start with `workspace_outline` before reading Cargo.toml files." : "")
       """
     return """
       You are operating inside the Compass agent runtime. Compass talks to
