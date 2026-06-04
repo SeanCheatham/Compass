@@ -33,6 +33,7 @@ extension CompassProject {
       assumptions = []
       vision = ""
       pmfConfig = .empty
+      pmfEvidenceIndex = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -64,6 +65,7 @@ extension CompassProject {
       assumptions = []
       vision = ""
       pmfConfig = .empty
+      pmfEvidenceIndex = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -86,6 +88,7 @@ extension CompassProject {
       projectTitle: workspace.repoURL.lastPathComponent,
       vision: vision
     )
+    pmfEvidenceIndex = workspace.readPMFEvidenceIndex()
     sessions = workspace.readSessions()
     archivedSessions = []
     hasOlderArchivedSessions = workspace.hasArchivedSessions()
@@ -103,6 +106,21 @@ extension CompassProject {
     } catch {
       fail(error)
     }
+  }
+
+  func reloadPMFEvidenceIndex() async {
+    guard let workspace else {
+      pmfEvidenceIndex = .empty
+      return
+    }
+    pmfEvidenceIndex = workspace.readPMFEvidenceIndex()
+  }
+
+  func readPMFEvidenceRecord(id: String) throws -> PMFEvidenceRecord {
+    guard let workspace else {
+      throw AppModelError.noRepositorySelected
+    }
+    return try workspace.readPMFEvidenceRecord(id: id)
   }
 
   func initializeIfNeeded(_ workspace: CompassWorkspace) async throws {

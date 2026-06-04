@@ -56,17 +56,22 @@ final class CompassWorkspaceStorageMigrationTests {
         plan.destinationURL.appending(path: "sessions").appending(
           path: artifactURL.lastPathComponent)) == "artifact body\n"
     )
+    try #require(
+      FileManager.default.fileExists(
+        atPath: plan.destinationURL.appending(path: "pmf/evidence-index.json").path
+      )
+    )
 
     let manifest = try decodeManifest(at: plan.manifestURL)
     try #require(manifest.repoPath == repoURL.path)
     try #require(manifest.storageIdentifier == plan.projectStorageIdentifier)
     try #require(manifest.sourcePath == workspace.compassURL.path)
     try #require(manifest.destinationPath == plan.destinationURL.path)
-    try #require(manifest.copiedFileCount == 7)
+    try #require(manifest.copiedFileCount == 8)
     try #require(manifest.migratedAt == "1970-01-01T00:00:00Z")
 
     try #require(result.manifest == manifest)
-    try #require(result.copiedFileCount == 7)
+    try #require(result.copiedFileCount == 8)
     try #require(result.repoLocalSourcePreserved)
     try #require(!result.activeStorageDidChange)
     try #require(

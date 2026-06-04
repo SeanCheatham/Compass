@@ -23,6 +23,7 @@ struct CompassWorkspace {
   var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
   var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
   var pmfConfigURL: URL { compassURL.appending(path: "pmf.json") }
+  var pmfEvidenceStore: PMFEvidenceStore { PMFEvidenceStore(workspace: self) }
   var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
   var sessionsRecordURL: URL { sessionRecordStore.activeRecordURL }
   var sessionRecordStore: SessionRecordStore {
@@ -66,6 +67,7 @@ struct CompassWorkspace {
     try createFileIfMissing(assumptionsURL, contents: AssumptionLedger.emptyJSON)
     try createFileIfMissing(visionURL, contents: "")
     try createFileIfMissing(sessionsRecordURL, contents: "")
+    _ = try pmfEvidenceStore.rebuildIndex()
     if isRepoLocalStorage {
       try ensureCompassIsIgnored()
     }
@@ -245,6 +247,27 @@ struct CompassWorkspace {
   func writePMFConfig(_ config: PMFConfig) throws {
     try FileManager.default.createDirectory(at: compassURL, withIntermediateDirectories: true)
     try Self.encodePMFConfig(config).write(to: pmfConfigURL, atomically: true, encoding: .utf8)
+  }
+
+  func readPMFEvidenceIndex() -> PMFEvidenceIndex {
+    (try? pmfEvidenceStore.readIndex()) ?? .empty
+  }
+
+  func readPMFEvidenceRecord(id: String) throws -> PMFEvidenceRecord {
+    try pmfEvidenceStore.readRecord(id: id)
+  }
+
+  @discardableResult
+  func writePMFEvidenceRecord(
+    _ record: PMFEvidenceRecord,
+    experienceTraceJSON: String? = nil,
+    rawTranscriptJSON: String? = nil
+  ) throws -> PMFEvidenceRecord {
+    try pmfEvidenceStore.writeRecord(
+      record,
+      experienceTraceJSON: experienceTraceJSON,
+      rawTranscriptJSON: rawTranscriptJSON
+    )
   }
 
   func readSessions(includeArchived: Bool = false) -> [SessionRecord] {

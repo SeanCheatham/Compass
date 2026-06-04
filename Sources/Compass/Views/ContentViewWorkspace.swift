@@ -1069,6 +1069,8 @@ struct WorkspaceContent: View {
         VisionTab(project: project)
       case .lessons:
         LessonsTab(project: project)
+      case .pmf:
+        PMFEvidenceTab(project: project)
       case .world:
         WorldTab(
           repoURL: project.repoURL,
@@ -1092,6 +1094,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
   case assumptions
   case vision
   case lessons
+  case pmf
   case world
 
   var id: Self { self }
@@ -1104,6 +1107,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .assumptions: return "Assumptions"
     case .vision: return "Vision"
     case .lessons: return "Lessons"
+    case .pmf: return "PMF"
     case .world: return "World"
     }
   }
@@ -1116,6 +1120,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .assumptions: return "checklist.checked"
     case .vision: return "scope"
     case .lessons: return "book.closed"
+    case .pmf: return "chart.bar.xaxis"
     case .world: return "cube.transparent"
     }
   }
