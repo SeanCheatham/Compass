@@ -73,3 +73,69 @@ struct CargoGraphEdge: Codable, Equatable, Sendable {
   var dev: Bool
   var optional: Bool
 }
+
+struct RustDiagnostic: Codable, Equatable, Sendable {
+  var level: String
+  var code: String?
+  var message: String
+  var package: String?
+  var file: String?
+  var line: Int?
+  var column: Int?
+  var label: String?
+  var rendered: String?
+}
+
+struct RustDiagnosticSummary: Codable, Equatable, Sendable {
+  var errors: Int
+  var warnings: Int
+  var cratesAffected: [String]
+
+  enum CodingKeys: String, CodingKey {
+    case errors
+    case warnings
+    case cratesAffected = "crates_affected"
+  }
+}
+
+struct CargoCheckData: Codable, Equatable, Sendable {
+  var exitCode: Int
+  var diagnostics: [RustDiagnostic]
+  var summary: RustDiagnosticSummary
+
+  enum CodingKeys: String, CodingKey {
+    case exitCode = "exit_code"
+    case diagnostics
+    case summary
+  }
+}
+
+typealias ClippyLintData = CargoCheckData
+
+struct CargoTestFailure: Codable, Equatable, Sendable {
+  var testName: String
+  var message: String
+  var file: String?
+  var line: Int?
+
+  enum CodingKeys: String, CodingKey {
+    case testName = "test_name"
+    case message
+    case file
+    case line
+  }
+}
+
+struct CargoTestData: Codable, Equatable, Sendable {
+  var exitCode: Int
+  var passed: Int
+  var failed: Int
+  var failures: [CargoTestFailure]
+
+  enum CodingKeys: String, CodingKey {
+    case exitCode = "exit_code"
+    case passed
+    case failed
+    case failures
+  }
+}

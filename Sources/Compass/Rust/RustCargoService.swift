@@ -3,6 +3,9 @@ import Foundation
 enum RustEngineCommand: String, Sendable, CaseIterable {
   case ping
   case workspaceOutline = "workspace-outline"
+  case cargoCheck = "cargo-check"
+  case clippyLint = "clippy-lint"
+  case cargoTest = "cargo-test"
 }
 
 enum RustCargoServiceError: LocalizedError, Equatable {

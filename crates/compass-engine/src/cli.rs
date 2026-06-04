@@ -24,6 +24,32 @@ pub enum Command {
     Ping,
     #[command(name = "workspace-outline")]
     WorkspaceOutline,
+    #[command(name = "cargo-check")]
+    CargoCheck(CargoCheckArgs),
+    #[command(name = "clippy-lint")]
+    ClippyLint(CargoCheckArgs),
+    #[command(name = "cargo-test")]
+    CargoTest(CargoTestArgs),
+}
+
+#[derive(Debug, clap::Args)]
+pub struct CargoCheckArgs {
+    #[arg(long = "package", short = 'p')]
+    pub package: Vec<String>,
+    #[arg(long)]
+    pub all_features: bool,
+}
+
+#[derive(Debug, clap::Args)]
+pub struct CargoTestArgs {
+    #[arg(long = "package", short = 'p')]
+    pub package: Vec<String>,
+    #[arg(long = "test")]
+    pub test_bin: Option<String>,
+    #[arg(long = "filter")]
+    pub filter: Option<String>,
+    #[arg(long)]
+    pub all_features: bool,
 }
 
 impl Command {
@@ -31,6 +57,9 @@ impl Command {
         match self {
             Self::Ping => "ping",
             Self::WorkspaceOutline => "workspace-outline",
+            Self::CargoCheck(_) => "cargo-check",
+            Self::ClippyLint(_) => "clippy-lint",
+            Self::CargoTest(_) => "cargo-test",
         }
     }
 }

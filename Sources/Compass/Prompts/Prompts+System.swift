@@ -84,6 +84,10 @@ extension Prompts {
       rustCargoToolsEnabled
       ? "outline, find_symbol, summary, list_files, importers_of, workspace_outline"
       : "outline, find_symbol, summary, list_files, importers_of"
+    let rustTools =
+      rustCargoToolsEnabled
+      ? "\n        - Rust Cargo tools: cargo_check, clippy_lint, cargo_test (structured diagnostics; prefer these over raw `bash cargo ...`)."
+      : ""
     let writeTools = "write_file, edit_file, bash"
     let delegateTool =
       "delegate (spawn a focused sub-agent for a self-contained sub-task; it returns a findings string)"
@@ -100,7 +104,7 @@ extension Prompts {
       toolList = """
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
-        - Shell: bash (read-only intent — git inspection and guest-safe probes; do not mutate tracked files and do not commit).\(hostXcodeTool)
+        - Shell: bash (read-only intent — git inspection and guest-safe probes; do not mutate tracked files and do not commit).\(hostXcodeTool)\(rustTools)
         - Plan history: plan_history (read paginated completed iterations managed by Compass).
         - Sub-agents: \(delegateTool).
         - Assumptions: \(assumptionTools).\(externalTools)
@@ -110,7 +114,7 @@ extension Prompts {
       toolList = """
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
-        - Shell: bash (read-only intent — git inspection and guest-safe probes; do not mutate tracked files and do not commit).\(hostXcodeTool)
+        - Shell: bash (read-only intent — git inspection and guest-safe probes; do not mutate tracked files and do not commit).\(hostXcodeTool)\(rustTools)
         - Sub-agents: \(delegateTool).
         - Assumptions: \(assumptionTools).\(externalTools)
         - This phase must not write files or commit. The Develop phase has the write tools — do not request them here.
@@ -120,14 +124,14 @@ extension Prompts {
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
         - Write tools: \(writeTools).
-        - Sub-agents: \(delegateTool).\(hostXcodeTool)
+        - Sub-agents: \(delegateTool).\(hostXcodeTool)\(rustTools)
         - Assumptions: \(assumptionTools).\(externalTools)
         """
     case .critic:
       toolList = """
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
-        - Shell: bash (read-only intent — do not mutate the working tree, do not commit).\(hostXcodeTool)
+        - Shell: bash (read-only intent — do not mutate the working tree, do not commit).\(hostXcodeTool)\(rustTools)
         - Sub-agents: \(delegateTool).
         - Assumptions: \(assumptionTools).\(externalTools)
         - This phase is the adversarial review gate. Do not edit files; report a verdict via submit_result.

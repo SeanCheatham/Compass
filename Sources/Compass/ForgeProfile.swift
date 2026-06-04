@@ -68,6 +68,9 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
           branches, or Cargo feature wiring, include an all-feature matrix check
           such as `cargo test --all-features` in the verify plan.
         - Check-only increments may use `cargo check` or `cargo build` without coverage.
+        - When available, use Compass's structured Rust tools:
+          `workspace_outline` for workspace orientation, `cargo_check` for compile probes,
+          `clippy_lint` for lint failures, and scoped `cargo_test` runs for targeted tests.
         """
     case .typeScriptVitest:
       return """

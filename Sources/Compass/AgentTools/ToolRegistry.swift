@@ -58,6 +58,9 @@ enum ToolRegistry {
     }
     if rustCargoService != nil {
       tools.append(AgentWorkspaceOutlineTool())
+      tools.append(AgentCargoCheckTool())
+      tools.append(AgentClippyLintTool())
+      tools.append(AgentCargoTestTool())
     }
     return tools
   }
@@ -84,6 +87,9 @@ enum ToolRegistry {
       tools = developTools()
       if rustCargoService != nil {
         tools.append(AgentWorkspaceOutlineTool())
+        tools.append(AgentCargoCheckTool())
+        tools.append(AgentClippyLintTool())
+        tools.append(AgentCargoTestTool())
       }
       if let imageAssignment = settings.imageAssignment {
         tools.append(AgentGenerateImageTool(assignment: imageAssignment))

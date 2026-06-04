@@ -43,6 +43,18 @@ fn run(cli: &Cli) -> Result<EngineResponse<serde_json::Value>> {
             let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
             serde_json::to_value(compass_engine::workspace_outline::workspace_outline(&repo)?)?
         }
+        Command::CargoCheck(args) => {
+            let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
+            serde_json::to_value(compass_engine::cargo::commands::cargo_check(&repo, args)?)?
+        }
+        Command::ClippyLint(args) => {
+            let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
+            serde_json::to_value(compass_engine::cargo::commands::clippy_lint(&repo, args)?)?
+        }
+        Command::CargoTest(args) => {
+            let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
+            serde_json::to_value(compass_engine::cargo::commands::cargo_test(&repo, args)?)?
+        }
     };
     Ok(EngineResponse::ok(cli.command.name(), value))
 }
