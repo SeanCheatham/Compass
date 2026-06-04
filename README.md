@@ -24,6 +24,9 @@ The blessed generated-project shape is a Cargo workspace:
 - `xtask` for Rust-owned automation.
 - `schemas/` and `rust-toolchain.toml` for checked-in contracts and toolchain
   expectations.
+- Compass's own `crates/compass-engine` is the guest-installed sidecar that
+  provides structured Cargo diagnostics, workspace outlines, Rust indexes,
+  schema contracts, coverage gaps, and visual verification results.
 
 Standard generated-project checks are:
 
@@ -34,13 +37,25 @@ cargo test --workspace --all-features
 cargo llvm-cov --summary-only
 cargo build --workspace
 cargo run -p app-desktop
+cargo run -p xtask -- engine-parity-check
 cargo run -p xtask -- visual-verify --emit-base64
 ```
 
 Swift, TypeScript, and JavaScript are retained as legacy imported-repository
 inspection/evolution paths only. Host Xcode exists for those legacy Apple
 repositories and for Compass's own Swift code; it is not a generated-output
-dependency.
+dependency. The Compass host app remains Swift/macOS; the Rust engine is a
+factory sidecar and is not used for the host UI or VM lifecycle.
+
+## Developing compass-engine
+
+The structured Rust sidecar lives at `crates/compass-engine` and is built from
+the repository root:
+
+```bash
+./scripts/build-compass-engine.sh
+./scripts/test-rust-engine.sh
+```
 
 ## Run
 
@@ -372,8 +387,10 @@ Compass talks to its tools (`read_file`, `write_file`, `edit_file`, `bash`,
 etc.) over vsock. The VM provisions Rust as a first-class generated-project
 toolchain (`rustc`, `cargo`, `rustfmt`, `clippy`, and `cargo-llvm-cov`) so
 Cargo build, lint, test, coverage, launch, and visual verification work
-guest-local without host Xcode. Once Verify passes, Compass pulls the workspace back into
-the host repo so the iteration's commits land in the main checkout.
+guest-local without host Xcode. It also installs `compass-engine` for
+structured Rust workspace and diagnostic tooling. Once Verify passes, Compass
+pulls the workspace back into the host repo so the iteration's commits land in
+the main checkout.
 
 Plan and Reflect use the same private workspace and vsock tool path when
 the VM is ready. If the workspace catalog cannot map the repo or the VM is

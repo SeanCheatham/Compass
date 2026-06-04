@@ -31,11 +31,11 @@ struct RustFactorySmokeOptions: Equatable {
     let projectURL =
       projectPath.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
       ?? FileManager.default.temporaryDirectory
-        .appending(path: "CompassRustFactorySmoke-\(UUID().uuidString)", directoryHint: .isDirectory)
+      .appending(path: "CompassRustFactorySmoke-\(UUID().uuidString)", directoryHint: .isDirectory)
     let reportURL =
       reportPath.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
       ?? FileManager.default.temporaryDirectory
-        .appending(path: "compass-rust-factory-smoke-\(UUID().uuidString).json")
+      .appending(path: "compass-rust-factory-smoke-\(UUID().uuidString).json")
     let timeoutSeconds = timeoutText.flatMap(TimeInterval.init) ?? 20 * 60
 
     return RustFactorySmokeOptions(
@@ -167,26 +167,34 @@ enum RustFactorySmoke {
     guestWorkspacePath = route.guestWorkspacePath
 
     var visualOutput = ""
-    for command in [
-      "cargo fmt --all --check",
-      "cargo clippy --workspace --all-targets --all-features -- -D warnings",
-      "cargo test --workspace --all-features",
-      "cargo build --workspace",
-      RustProjectScaffold.visualVerifyCommand,
-    ] {
+    let commands =
+      RustVerifyCommands.cargoSmokeCommands.map {
+        RustFactorySmokeCommandSpec(
+          command: $0,
+          category: $0 == RustProjectScaffold.visualVerifyCommand ? .visualVerification : .cargo
+        )
+      }
+      + RustVerifyCommands.compassEngineSmokeCommands.map {
+        RustFactorySmokeCommandSpec(command: $0, category: .compassEngine)
+      }
+
+    for spec in commands {
       let commandRun = try await runCommand(
-        command,
+        spec,
         project: project,
         hostWorkingDirectory: options.projectURL,
         launchPlan: launchPlan,
         timeoutSeconds: options.timeoutSeconds
       )
       reports.append(commandRun.report)
-      if command == RustProjectScaffold.visualVerifyCommand {
+      if spec.command == RustProjectScaffold.visualVerifyCommand {
         visualOutput = commandRun.rawOutput
       }
       if commandRun.report.exitCode != 0 {
         throw RustFactorySmokeError.commandFailed(commandRun.report)
+      }
+      if spec.category == .compassEngine {
+        try validateEngineResponse(commandRun)
       }
     }
 
@@ -210,12 +218,13 @@ enum RustFactorySmoke {
   }
 
   private static func runCommand(
-    _ command: String,
+    _ spec: RustFactorySmokeCommandSpec,
     project: CompassProject,
     hostWorkingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,
     timeoutSeconds: TimeInterval
   ) async throws -> RustFactorySmokeCommandRun {
+    let command = spec.command
     log("Rust factory smoke: \(command)")
     let startedAt = Date()
     let result = try await project.runVerifyCommand(
@@ -235,6 +244,7 @@ enum RustFactorySmoke {
       : result.stderr
     let report = RustFactorySmokeCommandReport(
       command: command,
+      category: spec.category,
       exitCode: result.exitCode,
       durationSeconds: Date().timeIntervalSince(startedAt),
       stdoutTail: tail(stdoutForReport, limit: 6000),
@@ -242,8 +252,36 @@ enum RustFactorySmoke {
     )
     return RustFactorySmokeCommandRun(
       report: report,
-      rawOutput: "\(result.stdout)\n\(result.stderr)"
+      rawOutput: "\(result.stdout)\n\(result.stderr)",
+      stdout: result.stdout
     )
+  }
+
+  private static func validateEngineResponse(_ commandRun: RustFactorySmokeCommandRun) throws {
+    let data = Data(commandRun.stdout.utf8)
+    let object = try JSONSerialization.jsonObject(with: data)
+    guard let root = object as? [String: Any] else {
+      throw RustFactorySmokeError.invalidEngineResponse(
+        commandRun.report,
+        "compass-engine did not return a JSON object"
+      )
+    }
+    guard root["ok"] as? Bool == true else {
+      let errors = (root["errors"] as? [String])?.joined(separator: "\n") ?? "unknown engine error"
+      throw RustFactorySmokeError.invalidEngineResponse(commandRun.report, errors)
+    }
+    guard
+      let data = root["data"] as? [String: Any],
+      let exitCode = data["exit_code"] as? Int
+    else {
+      return
+    }
+    guard exitCode == 0 else {
+      throw RustFactorySmokeError.invalidEngineResponse(
+        commandRun.report,
+        "compass-engine payload reported Cargo exit_code \(exitCode)"
+      )
+    }
   }
 
   private static func waitForReady(
@@ -321,15 +359,28 @@ struct RustFactorySmokeReport: Codable, Equatable {
 
 struct RustFactorySmokeCommandReport: Codable, Equatable {
   var command: String
+  var category: RustFactorySmokeCommandCategory
   var exitCode: Int32
   var durationSeconds: TimeInterval
   var stdoutTail: String
   var stderrTail: String
 }
 
+enum RustFactorySmokeCommandCategory: String, Codable, Equatable {
+  case cargo
+  case visualVerification = "visual-verification"
+  case compassEngine = "compass-engine"
+}
+
+private struct RustFactorySmokeCommandSpec {
+  var command: String
+  var category: RustFactorySmokeCommandCategory
+}
+
 private struct RustFactorySmokeCommandRun {
   var report: RustFactorySmokeCommandReport
   var rawOutput: String
+  var stdout: String
 }
 
 enum RustFactorySmokeError: Error, CustomStringConvertible {
@@ -339,6 +390,7 @@ enum RustFactorySmokeError: Error, CustomStringConvertible {
   case sharedVMReadyTimeout(String)
   case sharedVMRouteUnavailable(String)
   case commandFailed(RustFactorySmokeCommandReport)
+  case invalidEngineResponse(RustFactorySmokeCommandReport, String)
 
   var description: String {
     switch self {
@@ -353,7 +405,11 @@ enum RustFactorySmokeError: Error, CustomStringConvertible {
     case .sharedVMRouteUnavailable(let detail):
       return "Shared VM route unavailable for generated Rust project: \(detail)"
     case .commandFailed(let report):
-      return "Command failed (\(report.exitCode)): \(report.command)\n\(report.stderrTail)\n\(report.stdoutTail)"
+      return
+        "Command failed (\(report.exitCode)): \(report.command)\n\(report.stderrTail)\n\(report.stdoutTail)"
+    case .invalidEngineResponse(let report, let detail):
+      return
+        "compass-engine smoke failed for \(report.command): \(detail)\n\(report.stderrTail)\n\(report.stdoutTail)"
     }
   }
 }

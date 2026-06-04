@@ -18,7 +18,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
   static let desktopPackage = "app-desktop"
   static let desktopBinary = "app-desktop"
-  static let visualVerifyCommand = "cargo run -p xtask -- visual-verify --emit-base64"
+  static let visualVerifyCommand = RustVerifyCommands.cargo(RustVerifyCommands.visualVerify)
 
   static func write(to rootURL: URL, options: Options = Options()) throws {
     let fm = FileManager.default
@@ -140,6 +140,8 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     This is the blessed Compass Rust workspace shape for generated projects.
     Compass itself remains a native Swift/macOS app; generated output lives here as Rust.
+    The verification commands below mirror Compass factory engine behavior while
+    staying self-contained in this generated Cargo workspace.
 
     ## Architecture
 
@@ -151,15 +153,16 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     ## Standard Commands
 
-    - Format: `cargo fmt --all --check`
-    - Lint: `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-    - Test: `cargo test --workspace --all-features`
-    - Coverage: `cargo llvm-cov --summary-only`
-    - Build: `cargo build --workspace`
-    - Run CLI: `cargo run -p app-cli -- status`
-    - Run desktop: `cargo run -p app-desktop`
+    - Format: `\(RustVerifyCommands.cargo(RustVerifyCommands.fmt))`
+    - Lint: `\(RustVerifyCommands.cargo(RustVerifyCommands.clippy))`
+    - Test: `\(RustVerifyCommands.cargo(RustVerifyCommands.test))`
+    - Coverage: `\(RustVerifyCommands.cargo(RustVerifyCommands.coverage))`
+    - Build: `\(RustVerifyCommands.cargo(RustVerifyCommands.build))`
+    - Run CLI: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "status"]))`
+    - Run desktop: `\(RustVerifyCommands.cargo(RustVerifyCommands.runDesktop))`
     - Verify all: `cargo run -p xtask -- verify`
-    - Visual verify: `cargo run -p xtask -- visual-verify --emit-base64`
+    - Engine parity check: `\(RustVerifyCommands.cargo(RustVerifyCommands.engineParityCheck))`
+    - Visual verify: `\(RustProjectScaffold.visualVerifyCommand)`
 
     The desktop app uses deterministic demo state and stable window labels so Compass can
     build it in the Shared VM, launch it in the guest, wait for readiness, send a
@@ -601,46 +604,31 @@ struct RustProjectScaffold: Equatable, Sendable {
         let command = raw_args.next().unwrap_or_else(|| "verify".to_owned());
         let args: Vec<String> = raw_args.collect();
         match command.as_str() {
-            "fmt" => run("cargo", &["fmt", "--all", "--check"]),
-            "clippy" => run(
-                "cargo",
-                &[
-                    "clippy",
-                    "--workspace",
-                    "--all-targets",
-                    "--all-features",
-                    "--",
-                    "-D",
-                    "warnings",
-                ],
-            ),
-            "test" => run("cargo", &["test", "--workspace", "--all-features"]),
-            "coverage" => run("cargo", &["llvm-cov", "--summary-only"]),
-            "build" => run("cargo", &["build", "--workspace"]),
-            "run" => run("cargo", &["run", "-p", "app-desktop"]),
+            "fmt" => \(xtaskCargoRunExpression(RustVerifyCommands.fmt)),
+            "clippy" => \(xtaskCargoRunExpression(RustVerifyCommands.clippy)),
+            "test" => \(xtaskCargoRunExpression(RustVerifyCommands.test)),
+            "coverage" => \(xtaskCargoRunExpression(RustVerifyCommands.coverage)),
+            "build" => \(xtaskCargoRunExpression(RustVerifyCommands.build)),
+            "run" => \(xtaskCargoRunExpression(RustVerifyCommands.runDesktop)),
             "verify" => verify_all(),
+            "engine-parity-check" => engine_parity_check(),
             "visual-verify" => visual_verify(args.iter().any(|arg| arg == "--emit-base64")),
             other => Err(format!("unknown xtask command: {other}").into()),
         }
     }
 
     fn verify_all() -> Result<()> {
-        run("cargo", &["fmt", "--all", "--check"])?;
-        run(
-            "cargo",
-            &[
-                "clippy",
-                "--workspace",
-                "--all-targets",
-                "--all-features",
-                "--",
-                "-D",
-                "warnings",
-            ],
-        )?;
-        run("cargo", &["test", "--workspace", "--all-features"])?;
-        run("cargo", &["llvm-cov", "--summary-only"])?;
-        run("cargo", &["build", "--workspace"])?;
+        \(xtaskCargoTryExpression(RustVerifyCommands.fmt))
+        \(xtaskCargoTryExpression(RustVerifyCommands.clippy))
+        \(xtaskCargoTryExpression(RustVerifyCommands.test))
+        \(xtaskCargoTryExpression(RustVerifyCommands.coverage))
+        \(xtaskCargoTryExpression(RustVerifyCommands.build))
+        Ok(())
+    }
+
+    fn engine_parity_check() -> Result<()> {
+        verify_all()?;
+        visual_verify(false)?;
         Ok(())
     }
 
@@ -860,5 +848,17 @@ struct RustProjectScaffold: Equatable, Sendable {
     }
 
     """
+  }
+
+  private static func xtaskCargoRunExpression(_ arguments: [String]) -> String {
+    "run(\"cargo\", &\(rustStringArrayLiteral(arguments)))"
+  }
+
+  private static func xtaskCargoTryExpression(_ arguments: [String]) -> String {
+    "\(xtaskCargoRunExpression(arguments))?;"
+  }
+
+  private static func rustStringArrayLiteral(_ values: [String]) -> String {
+    "[" + values.map { "\"\(rustStringLiteralContent($0))\"" }.joined(separator: ", ") + "]"
   }
 }

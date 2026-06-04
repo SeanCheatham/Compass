@@ -96,9 +96,10 @@ extension Prompts {
       - Do not push or use destructive git operations.
       - In Shared VM git workspaces, make local commits for your completed changes.
       - Run the verify command before finishing.
-      - For Rust/Cargo work, prefer `cargo_check`, `clippy_lint`, and scoped
-        `cargo_test` when those tools are available; use raw `bash cargo ...`
-        only when you need behavior the structured tools do not expose.
+      - For Rust/Cargo work, prefer `workspace_outline`, `cargo_check`,
+        `clippy_lint`, scoped `cargo_test`, and `coverage_gaps` when those
+        tools are available; use `schema_contracts` before changing persisted
+        state, and use `visual_verify` for Rust desktop UI proof.
       - Leave the working tree clean, or explain why you are blocked.
       - Do not commit generated build outputs or caches (`target/`, `.build/`,
         `build/`, `DerivedData/`, `node_modules/`, `coverage/`, object files,

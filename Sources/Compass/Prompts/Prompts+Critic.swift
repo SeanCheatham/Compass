@@ -81,6 +81,11 @@ extension Prompts {
       - If the change touched feature-gated, optional-provider, platform-specific,
         or conditional-compilation code, did Verify cover the relevant matrix
         (for Rust/Cargo, default tests plus all-features when appropriate)?
+      - For Rust/Cargo diffs, use the structured tools when they are available:
+        `workspace_outline` for workspace shape, `cargo_check` for compiler
+        diagnostics, `clippy_lint` for lint gates, `cargo_test`/`coverage_gaps`
+        for proof depth, and `schema_contracts` when schemas or persisted
+        state changed.
       - If you find one instance of a bug class, search for sibling call sites
         before requesting changes so the feedback asks Develop to fix the whole
         local pattern.

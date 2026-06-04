@@ -49,4 +49,19 @@ struct RustFactorySmokeTests {
     try #require(options.reportURL.path == "/tmp/env-report.json")
     try #require(options.timeoutSeconds == 30)
   }
+
+  @Test func smokeCommandReportRecordsCommandCategory() throws {
+    let report = RustFactorySmokeCommandReport(
+      command: RustVerifyCommands.compassEngine(.workspaceOutline),
+      category: .compassEngine,
+      exitCode: 0,
+      durationSeconds: 0.25,
+      stdoutTail: "{}",
+      stderrTail: ""
+    )
+
+    let data = try JSONEncoder().encode(report)
+    let decoded = try JSONDecoder().decode(RustFactorySmokeCommandReport.self, from: data)
+    try #require(decoded == report)
+  }
 }

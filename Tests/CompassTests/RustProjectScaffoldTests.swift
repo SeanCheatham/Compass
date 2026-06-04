@@ -25,13 +25,15 @@ struct RustProjectScaffoldTests {
 
     try #require(readme.contains("Compass itself remains a native Swift/macOS app"))
     try #require(readme.contains("generated output lives here as Rust"))
+    try #require(readme.contains("mirror Compass factory engine behavior"))
     try #require(readme.contains("eframe"))
     try #require(readme.contains("egui"))
-    try #require(readme.contains("cargo fmt --all --check"))
-    try #require(readme.contains("cargo clippy --workspace --all-targets --all-features"))
-    try #require(readme.contains("cargo test --workspace --all-features"))
-    try #require(readme.contains("cargo llvm-cov --summary-only"))
-    try #require(readme.contains("cargo build --workspace"))
+    try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.fmt)))
+    try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.clippy)))
+    try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.test)))
+    try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.coverage)))
+    try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.build)))
+    try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.engineParityCheck)))
     try #require(readme.contains(RustProjectScaffold.visualVerifyCommand))
     try #require(readme.contains("launch it in the guest"))
     try #require(readme.contains("platform-neutral visual input request"))
@@ -76,6 +78,9 @@ struct RustProjectScaffoldTests {
 
     try #require(xtask.contains("cargo"))
     try #require(xtask.contains("build"))
+    try #require(xtask.contains("engine-parity-check"))
+    try #require(xtask.contains("fn engine_parity_check()"))
+    try #require(xtask.contains("visual_verify(false)?"))
     try #require(
       xtask.contains("run(\"cargo\", &[\"test\", \"--workspace\", \"--all-features\"])?"))
     try #require(

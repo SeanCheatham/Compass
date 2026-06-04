@@ -126,6 +126,33 @@ struct AgentSystemPromptTests {
     }
   }
 
+  @Test func testRustCargoToolsAreAdvertisedWhenEnabled() throws {
+    let develop = Prompts.agentSystemPrompt(
+      phase: .develop,
+      workingDirectoryPath: "/x",
+      rustCargoToolsEnabled: true
+    )
+    try #require(develop.contains("workspace_outline"))
+    try #require(develop.contains("find_impls"))
+    try #require(develop.contains("trait_users"))
+    try #require(develop.contains("schema_contracts"))
+    try #require(develop.contains("cargo_check"))
+    try #require(develop.contains("clippy_lint"))
+    try #require(develop.contains("cargo_test"))
+    try #require(develop.contains("coverage_gaps"))
+    try #require(develop.contains("visual_verify"))
+
+    let critic = Prompts.agentSystemPrompt(
+      phase: .critic,
+      workingDirectoryPath: "/x",
+      rustCargoToolsEnabled: true
+    )
+    try #require(critic.contains("workspace_outline"))
+    try #require(critic.contains("schema_contracts"))
+    try #require(critic.contains("coverage_gaps"))
+    try #require(!critic.contains("visual_verify"))
+  }
+
   // MARK: - Compass product and factory loop
 
   @Test func testSystemPromptExplainsCompassAndSoftwareFactory() throws {
