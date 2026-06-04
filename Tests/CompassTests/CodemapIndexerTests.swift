@@ -108,6 +108,32 @@ struct CodemapIndexerTests: ~Copyable {
     try #require(beta.symbols.contains { $0.name == "shout" })
   }
 
+  @Test func testRustIndexerCapturesConstantsAndMethods() async throws {
+    try writeFile(
+      "lib.rs",
+      contents: """
+        pub const LIMIT: usize = 3;
+        pub static NAME: &str = "demo";
+
+        pub struct Demo;
+
+        impl Demo {
+            pub fn render(&self) -> String {
+                NAME.to_string()
+            }
+        }
+        """
+    )
+
+    let indexer = makeIndexer(usingGit: false)
+    _ = try await indexer.indexAll()
+    let entry = try #require(indexer.store.loadEntry(forRelativePath: "lib.rs"))
+
+    #expect(entry.symbols.contains { $0.kind == .constant && $0.name == "LIMIT" })
+    #expect(entry.symbols.contains { $0.kind == .constant && $0.name == "NAME" })
+    #expect(entry.symbols.contains { $0.kind == .method && $0.name == "render" })
+  }
+
   @Test func testIndexerSurvivesACacheRoundTrip() async throws {
     try writeFile("alpha.swift", contents: swiftFixture)
 

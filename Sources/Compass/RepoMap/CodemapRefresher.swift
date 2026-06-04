@@ -130,5 +130,18 @@ struct CodemapRefresher: Sendable {
     } catch {
       return
     }
+    do {
+      let data = try await rustCargoService.run(
+        command: .indexRust,
+        repoURL: workingDirectory,
+        arguments: [],
+        timeout: 30
+      )
+      let response = try JSONDecoder().decode(RustEngineResponse<RustIndexData>.self, from: data)
+      guard response.ok, let index = response.data else { return }
+      try RustCodemapEnricher.save(index, workspace: workspace)
+    } catch {
+      return
+    }
   }
 }

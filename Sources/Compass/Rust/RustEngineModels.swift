@@ -139,3 +139,81 @@ struct CargoTestData: Codable, Equatable, Sendable {
     case failures
   }
 }
+
+struct RustIndexData: Codable, Equatable, Sendable {
+  var moduleIndex: RustModuleIndex
+  var traitIndex: RustTraitIndex
+  var warnings: [String]
+
+  enum CodingKeys: String, CodingKey {
+    case moduleIndex = "module_index"
+    case traitIndex = "trait_index"
+    case warnings
+  }
+}
+
+struct RustModuleIndex: Codable, Equatable, Sendable {
+  var schemaVersion: Int
+  var files: [String: RustModuleFile]
+
+  enum CodingKeys: String, CodingKey {
+    case schemaVersion = "schema_version"
+    case files
+  }
+}
+
+struct RustModuleFile: Codable, Equatable, Sendable {
+  var modulePath: String
+  var outgoing: [RustModuleEdge]
+  var incoming: [RustModuleEdge]
+
+  enum CodingKeys: String, CodingKey {
+    case modulePath = "module_path"
+    case outgoing
+    case incoming
+  }
+}
+
+struct RustModuleEdge: Codable, Equatable, Sendable {
+  var toFile: String?
+  var fromFile: String?
+  var raw: String
+  var line: Int
+
+  enum CodingKeys: String, CodingKey {
+    case toFile = "to_file"
+    case fromFile = "from_file"
+    case raw
+    case line
+  }
+}
+
+struct RustTraitIndex: Codable, Equatable, Sendable {
+  var schemaVersion: Int
+  var impls: [RustTraitImpl]
+  var byTrait: [String: [String]]
+  var byType: [String: [String]]
+
+  enum CodingKeys: String, CodingKey {
+    case schemaVersion = "schema_version"
+    case impls
+    case byTrait = "by_trait"
+    case byType = "by_type"
+  }
+}
+
+struct RustTraitImpl: Codable, Equatable, Sendable {
+  var traitName: String
+  var typeName: String
+  var file: String
+  var line: Int
+  var implStartLine: Int
+
+  enum CodingKeys: String, CodingKey {
+    case traitName = "trait_name"
+    case typeName = "type_name"
+    case file
+    case line
+    case implStartLine = "impl_start_line"
+  }
+}

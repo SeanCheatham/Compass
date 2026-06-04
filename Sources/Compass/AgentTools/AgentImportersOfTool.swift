@@ -77,6 +77,24 @@ struct AgentImportersOfTool: AgentTool {
       )
     }
 
+    if target.language == .rust {
+      let workspace = RustCodemapEnricher.workspace(from: context)
+      if let moduleIndex = RustCodemapEnricher.loadModuleIndex(workspace: workspace),
+        let file = moduleIndex.files[target.relativePath],
+        !file.incoming.isEmpty
+      {
+        let hits = file.incoming.sorted {
+          (($0.fromFile ?? ""), $0.line) < (($1.fromFile ?? ""), $1.line)
+        }
+        var lines: [String] = []
+        lines.append("importers: \(hits.count)")
+        for hit in hits.prefix(Self.maxResults) {
+          lines.append("  \(hit.fromFile ?? "(unknown)"):\(hit.line)  \"\(hit.raw)\"")
+        }
+        return .ok(lines.joined(separator: "\n"))
+      }
+    }
+
     let candidates = Self.candidates(for: target.relativePath)
     let candidateSet = Set(candidates.map { $0.lowercased() })
 

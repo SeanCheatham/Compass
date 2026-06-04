@@ -30,6 +30,8 @@ pub enum Command {
     ClippyLint(CargoCheckArgs),
     #[command(name = "cargo-test")]
     CargoTest(CargoTestArgs),
+    #[command(name = "index-rust")]
+    IndexRust,
 }
 
 #[derive(Debug, clap::Args)]
@@ -60,6 +62,7 @@ impl Command {
             Self::CargoCheck(_) => "cargo-check",
             Self::ClippyLint(_) => "clippy-lint",
             Self::CargoTest(_) => "cargo-test",
+            Self::IndexRust => "index-rust",
         }
     }
 }

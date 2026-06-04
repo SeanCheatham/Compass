@@ -55,6 +55,10 @@ fn run(cli: &Cli) -> Result<EngineResponse<serde_json::Value>> {
             let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
             serde_json::to_value(compass_engine::cargo::commands::cargo_test(&repo, args)?)?
         }
+        Command::IndexRust => {
+            let repo = compass_engine::repo::resolve_repo(&cli.repo)?;
+            serde_json::to_value(compass_engine::index::index_rust(&repo)?)?
+        }
     };
     Ok(EngineResponse::ok(cli.command.name(), value))
 }

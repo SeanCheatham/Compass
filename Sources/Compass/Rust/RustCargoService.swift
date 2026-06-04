@@ -6,6 +6,7 @@ enum RustEngineCommand: String, Sendable, CaseIterable {
   case cargoCheck = "cargo-check"
   case clippyLint = "clippy-lint"
   case cargoTest = "cargo-test"
+  case indexRust = "index-rust"
 }
 
 enum RustCargoServiceError: LocalizedError, Equatable {

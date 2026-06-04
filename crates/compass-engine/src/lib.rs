@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod cargo;
+pub mod index;
 pub mod output;
 pub mod repo;
 pub mod workspace_outline;

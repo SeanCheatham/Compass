@@ -61,6 +61,8 @@ enum ToolRegistry {
       tools.append(AgentCargoCheckTool())
       tools.append(AgentClippyLintTool())
       tools.append(AgentCargoTestTool())
+      tools.append(AgentFindImplsTool())
+      tools.append(AgentTraitUsersTool())
     }
     return tools
   }
@@ -90,6 +92,8 @@ enum ToolRegistry {
         tools.append(AgentCargoCheckTool())
         tools.append(AgentClippyLintTool())
         tools.append(AgentCargoTestTool())
+        tools.append(AgentFindImplsTool())
+        tools.append(AgentTraitUsersTool())
       }
       if let imageAssignment = settings.imageAssignment {
         tools.append(AgentGenerateImageTool(assignment: imageAssignment))

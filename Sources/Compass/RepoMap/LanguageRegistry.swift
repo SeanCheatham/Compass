@@ -206,6 +206,17 @@ final class LanguageRegistry: @unchecked Sendable {
     (function_item
       name: (identifier) @name) @def.function
 
+    (impl_item
+      (declaration_list
+        (function_item
+          name: (identifier) @name))) @def.method
+
+    (const_item
+      name: (identifier) @name) @def.constant
+
+    (static_item
+      name: (identifier) @name) @def.constant
+
     (struct_item
       name: (type_identifier) @name) @def.struct
 
