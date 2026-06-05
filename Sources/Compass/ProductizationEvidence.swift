@@ -1,0 +1,709 @@
+import Foundation
+
+enum ProductizationSimulationMode: String, Codable, CaseIterable, Equatable, Sendable {
+  case modelFree = "model_free"
+  case personaModel = "persona_model"
+}
+
+enum ProductizationRunStatus: String, Codable, Equatable, Sendable {
+  case completed
+  case appContractMissing
+  case appCommandFailed
+  case appOutputNotJSON
+  case noAllowedActions
+  case invalidPersonaAction
+  case personaCallFailed
+  case maxTurnsReached
+  case nondeterministicExperienceTrace
+}
+
+enum ProductizationEvidenceVerdict: String, Codable, CaseIterable, Equatable, Sendable {
+  case strongPull = "strong_pull"
+  case promising
+  case unclear
+  case weak
+  case rejected
+}
+
+struct ProductizationRunFailure: Codable, Equatable, Sendable {
+  var status: ProductizationRunStatus
+  var message: String
+  var stdout: String
+  var stderr: String
+
+  init(
+    status: ProductizationRunStatus,
+    message: String,
+    stdout: String = "",
+    stderr: String = ""
+  ) {
+    self.status = status
+    self.message = StringUtils.boundedText(message, limit: 2_000)
+    self.stdout = StringUtils.boundedText(stdout, limit: 4_000)
+    self.stderr = StringUtils.boundedText(stderr, limit: 4_000)
+  }
+}
+
+struct ProductizationEvidenceScores: Codable, Equatable, Sendable {
+  var painRecognition: Int?
+  var workflowImprovement: Int?
+  var alternativeAdvantage: Int?
+  var switchingReadiness: Int?
+  var continuedUsePull: Int?
+
+  init(
+    painRecognition: Int? = nil,
+    workflowImprovement: Int? = nil,
+    alternativeAdvantage: Int? = nil,
+    switchingReadiness: Int? = nil,
+    continuedUsePull: Int? = nil
+  ) {
+    self.painRecognition = Self.clamped(painRecognition)
+    self.workflowImprovement = Self.clamped(workflowImprovement)
+    self.alternativeAdvantage = Self.clamped(alternativeAdvantage)
+    self.switchingReadiness = Self.clamped(switchingReadiness)
+    self.continuedUsePull = Self.clamped(continuedUsePull)
+  }
+
+  var hasScores: Bool {
+    painRecognition != nil
+      || workflowImprovement != nil
+      || alternativeAdvantage != nil
+      || switchingReadiness != nil
+      || continuedUsePull != nil
+  }
+
+  private static func clamped(_ value: Int?) -> Int? {
+    value.map { min(5, max(1, $0)) }
+  }
+}
+
+struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable {
+  static let supportedSchemaVersion = 1
+
+  var id: String
+  var schemaVersion: Int
+  var projectID: String?
+  var experimentID: String
+  var solutionID: String
+  var painID: String
+  var branchName: String
+  var commitSha: String
+  var scenarioID: String
+  var personaID: String
+  var mode: ProductizationSimulationMode
+  var status: ProductizationRunStatus
+  var startedAt: Double
+  var endedAt: Double
+  var traceHash: String?
+  var traceArtifactPath: String?
+  var feedbackArtifactPath: String?
+  var transcriptArtifactPath: String?
+  var summaryArtifactPath: String?
+  var promptVersions: [String]
+  var model: String
+  var scores: ProductizationEvidenceScores
+  var objections: [String]
+  var missingCapabilities: [String]
+  var currentAlternativeComparison: String
+  var verdict: ProductizationEvidenceVerdict
+  var summary: String
+  var failure: ProductizationRunFailure?
+
+  init(
+    id: String,
+    schemaVersion: Int = Self.supportedSchemaVersion,
+    projectID: String? = nil,
+    experimentID: String,
+    solutionID: String,
+    painID: String,
+    branchName: String,
+    commitSha: String,
+    scenarioID: String,
+    personaID: String,
+    mode: ProductizationSimulationMode,
+    status: ProductizationRunStatus,
+    startedAt: Double,
+    endedAt: Double,
+    traceHash: String? = nil,
+    traceArtifactPath: String? = nil,
+    feedbackArtifactPath: String? = nil,
+    transcriptArtifactPath: String? = nil,
+    summaryArtifactPath: String? = nil,
+    promptVersions: [String] = [],
+    model: String = "",
+    scores: ProductizationEvidenceScores = ProductizationEvidenceScores(),
+    objections: [String] = [],
+    missingCapabilities: [String] = [],
+    currentAlternativeComparison: String = "",
+    verdict: ProductizationEvidenceVerdict = .unclear,
+    summary: String,
+    failure: ProductizationRunFailure? = nil
+  ) {
+    self.id = Self.cleanedIdentifier(id, fallback: "productization-run")
+    self.schemaVersion = schemaVersion
+    self.projectID = Self.optionalBounded(projectID, limit: 80)
+    self.experimentID = Self.cleanedIdentifier(experimentID, fallback: "experiment")
+    self.solutionID = Self.cleanedIdentifier(solutionID, fallback: "solution")
+    self.painID = Self.cleanedIdentifier(painID, fallback: "pain")
+    self.branchName = StringUtils.boundedText(branchName, limit: 200)
+    let boundedCommit = StringUtils.boundedText(commitSha, limit: 80)
+    self.commitSha = boundedCommit.isEmpty ? "unknown" : boundedCommit
+    self.scenarioID = Self.cleanedIdentifier(scenarioID, fallback: "scenario")
+    self.personaID = Self.cleanedIdentifier(personaID, fallback: "persona")
+    self.mode = mode
+    self.status = status
+    self.startedAt = startedAt
+    self.endedAt = max(startedAt, endedAt)
+    self.traceHash = Self.optionalBounded(traceHash, limit: 128)
+    self.traceArtifactPath = Self.optionalBounded(traceArtifactPath, limit: 500)
+    self.feedbackArtifactPath = Self.optionalBounded(feedbackArtifactPath, limit: 500)
+    self.transcriptArtifactPath = Self.optionalBounded(transcriptArtifactPath, limit: 500)
+    self.summaryArtifactPath = Self.optionalBounded(summaryArtifactPath, limit: 500)
+    self.promptVersions = Self.cleanedList(promptVersions, limit: 160)
+    self.model = StringUtils.boundedText(model, limit: 160)
+    self.scores = scores
+    self.objections = Self.cleanedList(objections, limit: 500)
+    self.missingCapabilities = Self.cleanedList(missingCapabilities, limit: 160)
+    self.currentAlternativeComparison = StringUtils.boundedText(
+      currentAlternativeComparison, limit: 1_000)
+    self.verdict = verdict
+    self.summary = StringUtils.boundedText(summary, limit: 1_500)
+    self.failure = failure
+  }
+
+  init(
+    runResult: ProductizationRunResult,
+    id: String = UUID().uuidString,
+    startedAt: Double,
+    endedAt: Double
+  ) {
+    let traceSignals = runResult.productizationTrace?.painReliefSignals
+    let missing = traceSignals?.missingCapabilityIDs ?? []
+    let comparison =
+      traceSignals?.currentAlternativeAddressed == true
+      ? "The deterministic trace addressed the current alternative."
+      : "The deterministic trace did not address the current alternative."
+    let verdict: ProductizationEvidenceVerdict =
+      runResult.status == .completed && missing.isEmpty ? .promising : .unclear
+    self.init(
+      id: id,
+      projectID: runResult.projectID?.uuidString,
+      experimentID: runResult.experimentID,
+      solutionID: runResult.solutionID,
+      painID: runResult.painID,
+      branchName: runResult.branchName,
+      commitSha: runResult.commitSha,
+      scenarioID: runResult.scenarioID,
+      personaID: runResult.personaID,
+      mode: runResult.mode,
+      status: runResult.status,
+      startedAt: startedAt,
+      endedAt: endedAt,
+      traceHash: runResult.experienceTraceHash,
+      promptVersions: runResult.rawPersonaActionTranscript.map(\.promptVersionID)
+        .productizationEvidenceUniquedPreservingOrder(),
+      model: runResult.model,
+      objections: [],
+      missingCapabilities: missing,
+      currentAlternativeComparison: comparison,
+      verdict: verdict,
+      summary: traceSignals?.evidenceSummary ?? runResult.failure?.message ?? "No summary.",
+      failure: runResult.failure
+    )
+  }
+
+  var summaryRecord: ProductizationEvidenceSummary {
+    ProductizationEvidenceSummary(record: self)
+  }
+
+  static func cleanedIdentifier(_ value: String, fallback: String) -> String {
+    let cleaned =
+      value
+      .lowercased()
+      .replacingOccurrences(of: #"[^a-z0-9_.-]+"#, with: "-", options: .regularExpression)
+      .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    return String((cleaned.isEmpty ? fallback : cleaned).prefix(96))
+  }
+
+  static func cleanedList(_ values: [String], limit: Int) -> [String] {
+    values
+      .map { StringUtils.boundedText($0, limit: limit) }
+      .filter { !$0.isEmpty }
+      .productizationEvidenceUniquedPreservingOrder()
+  }
+
+  static func optionalBounded(_ value: String?, limit: Int) -> String? {
+    let bounded = StringUtils.boundedText(value ?? "", limit: limit)
+    return bounded.isEmpty ? nil : bounded
+  }
+}
+
+struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable {
+  var id: String
+  var runID: String
+  var experimentID: String
+  var solutionID: String
+  var painID: String
+  var branchName: String
+  var commitSha: String
+  var scenarioID: String
+  var personaID: String
+  var mode: ProductizationSimulationMode
+  var status: ProductizationRunStatus
+  var startedAt: Double
+  var endedAt: Double
+  var model: String
+  var verdict: ProductizationEvidenceVerdict
+  var scores: ProductizationEvidenceScores
+  var objections: [String]
+  var missingCapabilities: [String]
+  var currentAlternativeComparison: String
+  var traceHash: String?
+  var summary: String
+  var failureKind: String?
+
+  init(record: ProductizationEvidenceRecord) {
+    id = record.id
+    runID = record.id
+    experimentID = record.experimentID
+    solutionID = record.solutionID
+    painID = record.painID
+    branchName = record.branchName
+    commitSha = record.commitSha
+    scenarioID = record.scenarioID
+    personaID = record.personaID
+    mode = record.mode
+    status = record.status
+    startedAt = record.startedAt
+    endedAt = record.endedAt
+    model = record.model
+    verdict = record.verdict
+    scores = record.scores
+    objections = record.objections
+    missingCapabilities = record.missingCapabilities
+    currentAlternativeComparison = record.currentAlternativeComparison
+    traceHash = record.traceHash
+    summary = record.summary
+    failureKind = record.failure?.status.rawValue
+  }
+
+  var isCompleted: Bool {
+    status == .completed
+  }
+}
+
+struct ProductizationEvidenceIndex: Codable, Equatable, Sendable {
+  static let supportedSchemaVersion = 1
+  static let empty = ProductizationEvidenceIndex()
+
+  var schemaVersion: Int
+  var updatedAt: Double
+  var summaries: [ProductizationEvidenceSummary]
+  var aggregate: ProductizationEvidenceAggregateSummary
+  var malformedRecordCount: Int
+
+  init(
+    schemaVersion: Int = Self.supportedSchemaVersion,
+    updatedAt: Double = 0,
+    summaries: [ProductizationEvidenceSummary] = [],
+    aggregate: ProductizationEvidenceAggregateSummary = .empty,
+    malformedRecordCount: Int = 0
+  ) {
+    self.schemaVersion = schemaVersion
+    self.updatedAt = updatedAt
+    self.summaries = summaries.sorted { lhs, rhs in
+      if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
+      return lhs.endedAt > rhs.endedAt
+    }
+    self.aggregate = aggregate
+    self.malformedRecordCount = malformedRecordCount
+  }
+
+  static func build(
+    records: [ProductizationEvidenceRecord],
+    malformedRecordCount: Int = 0,
+    now: Date = Date()
+  ) -> ProductizationEvidenceIndex {
+    let summaries = records.map(\.summaryRecord)
+    return ProductizationEvidenceIndex(
+      updatedAt: now.timeIntervalSince1970,
+      summaries: summaries,
+      aggregate: ProductizationEvidenceAggregateSummary(summaries: summaries),
+      malformedRecordCount: malformedRecordCount
+    )
+  }
+}
+
+struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
+  static let empty = ProductizationEvidenceAggregateSummary(
+    latestRunByExperiment: [:],
+    repeatedObjections: [],
+    lowScoreClusters: [],
+    missingCapabilityFrequency: [],
+    verdictCounts: [:],
+    failuresByKind: [:],
+    currentAlternativeComparisons: []
+  )
+
+  var latestRunByExperiment: [String: String]
+  var repeatedObjections: [ProductizationRepeatedObjection]
+  var lowScoreClusters: [ProductizationScoreCluster]
+  var missingCapabilityFrequency: [ProductizationMissingCapabilityCount]
+  var verdictCounts: [String: Int]
+  var failuresByKind: [String: Int]
+  var currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary]
+
+  init(
+    latestRunByExperiment: [String: String],
+    repeatedObjections: [ProductizationRepeatedObjection],
+    lowScoreClusters: [ProductizationScoreCluster],
+    missingCapabilityFrequency: [ProductizationMissingCapabilityCount],
+    verdictCounts: [String: Int],
+    failuresByKind: [String: Int],
+    currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary]
+  ) {
+    self.latestRunByExperiment = latestRunByExperiment
+    self.repeatedObjections = repeatedObjections
+    self.lowScoreClusters = lowScoreClusters
+    self.missingCapabilityFrequency = missingCapabilityFrequency
+    self.verdictCounts = verdictCounts
+    self.failuresByKind = failuresByKind
+    self.currentAlternativeComparisons = currentAlternativeComparisons
+  }
+
+  init(summaries: [ProductizationEvidenceSummary]) {
+    var latest: [String: ProductizationEvidenceSummary] = [:]
+    for summary in summaries {
+      if let current = latest[summary.experimentID] {
+        if summary.endedAt > current.endedAt
+          || (summary.endedAt == current.endedAt && summary.runID < current.runID)
+        {
+          latest[summary.experimentID] = summary
+        }
+      } else {
+        latest[summary.experimentID] = summary
+      }
+    }
+    latestRunByExperiment = latest.mapValues(\.runID)
+
+    let objectionCounts = Dictionary(
+      grouping: summaries.flatMap(\.objections).map(\.normalizedProductizationEvidenceText),
+      by: { $0 }
+    ).mapValues(\.count)
+    repeatedObjections = objectionCounts
+      .filter { !$0.key.isEmpty && $0.value > 1 }
+      .map { ProductizationRepeatedObjection(objection: $0.key, count: $0.value) }
+      .sorted { lhs, rhs in
+        if lhs.count == rhs.count { return lhs.objection < rhs.objection }
+        return lhs.count > rhs.count
+      }
+
+    let missingCounts = Dictionary(
+      grouping: summaries.flatMap(\.missingCapabilities).map(\.normalizedProductizationEvidenceText),
+      by: { $0 }
+    ).mapValues(\.count)
+    missingCapabilityFrequency = missingCounts
+      .filter { !$0.key.isEmpty }
+      .map { ProductizationMissingCapabilityCount(capabilityID: $0.key, count: $0.value) }
+      .sorted { lhs, rhs in
+        if lhs.count == rhs.count { return lhs.capabilityID < rhs.capabilityID }
+        return lhs.count > rhs.count
+      }
+
+    verdictCounts = Dictionary(grouping: summaries.map { $0.verdict.rawValue }, by: { $0 })
+      .mapValues(\.count)
+
+    failuresByKind = Dictionary(
+      grouping: summaries.compactMap { summary -> String? in
+        guard !summary.isCompleted else { return nil }
+        return summary.failureKind ?? summary.status.rawValue
+      },
+      by: { $0 }
+    ).mapValues(\.count)
+
+    let scoreGroups = Dictionary(grouping: summaries.filter { $0.scores.hasScores }) {
+      "\($0.experimentID)|\($0.personaID)"
+    }
+    lowScoreClusters = scoreGroups.map { _, group in
+      ProductizationScoreCluster(summaries: group)
+    }
+    .filter { $0.minimumScore > 0 && $0.minimumScore <= 2.5 }
+    .sorted { lhs, rhs in
+      if lhs.minimumScore == rhs.minimumScore {
+        return "\(lhs.experimentID)|\(lhs.personaID)" < "\(rhs.experimentID)|\(rhs.personaID)"
+      }
+      return lhs.minimumScore < rhs.minimumScore
+    }
+
+    currentAlternativeComparisons = summaries
+      .filter { !$0.currentAlternativeComparison.isEmpty }
+      .prefix(12)
+      .map {
+        ProductizationAlternativeComparisonSummary(
+          runID: $0.runID,
+          experimentID: $0.experimentID,
+          comparison: $0.currentAlternativeComparison,
+          verdict: $0.verdict
+        )
+      }
+  }
+}
+
+struct ProductizationRepeatedObjection: Codable, Equatable, Sendable {
+  var objection: String
+  var count: Int
+}
+
+struct ProductizationMissingCapabilityCount: Codable, Equatable, Sendable {
+  var capabilityID: String
+  var count: Int
+}
+
+struct ProductizationAlternativeComparisonSummary: Codable, Equatable, Sendable {
+  var runID: String
+  var experimentID: String
+  var comparison: String
+  var verdict: ProductizationEvidenceVerdict
+}
+
+struct ProductizationScoreCluster: Codable, Equatable, Sendable {
+  var experimentID: String
+  var personaID: String
+  var runCount: Int
+  var painRecognition: Double
+  var workflowImprovement: Double
+  var alternativeAdvantage: Double
+  var switchingReadiness: Double
+  var continuedUsePull: Double
+  var minimumScore: Double
+
+  init(summaries: [ProductizationEvidenceSummary]) {
+    let first = summaries.first
+    experimentID = first?.experimentID ?? ""
+    personaID = first?.personaID ?? ""
+    runCount = summaries.count
+    painRecognition = Self.average(summaries.compactMap(\.scores.painRecognition))
+    workflowImprovement = Self.average(summaries.compactMap(\.scores.workflowImprovement))
+    alternativeAdvantage = Self.average(summaries.compactMap(\.scores.alternativeAdvantage))
+    switchingReadiness = Self.average(summaries.compactMap(\.scores.switchingReadiness))
+    continuedUsePull = Self.average(summaries.compactMap(\.scores.continuedUsePull))
+    minimumScore = [
+      painRecognition,
+      workflowImprovement,
+      alternativeAdvantage,
+      switchingReadiness,
+      continuedUsePull,
+    ]
+    .filter { $0 > 0 }
+    .min() ?? 0
+  }
+
+  private static func average(_ values: [Int]) -> Double {
+    guard !values.isEmpty else { return 0 }
+    let raw = Double(values.reduce(0, +)) / Double(values.count)
+    return (raw * 100).rounded() / 100
+  }
+}
+
+struct ProductizationEvidenceStore {
+  var productizationURL: URL
+
+  init(workspace: CompassWorkspace) {
+    self.productizationURL = workspace.productizationURL
+  }
+
+  var runsURL: URL { productizationURL.appending(path: "runs", directoryHint: .isDirectory) }
+  var indexURL: URL { productizationURL.appending(path: "evidence-index.json") }
+
+  func readIndex() throws -> ProductizationEvidenceIndex {
+    guard FileManager.default.fileExists(atPath: indexURL.path) else {
+      return .empty
+    }
+    let data = try Data(contentsOf: indexURL)
+    guard !data.isEmpty else { return .empty }
+    return try JSONDecoder().decode(ProductizationEvidenceIndex.self, from: data)
+  }
+
+  func readRecord(id: String) throws -> ProductizationEvidenceRecord {
+    let data = try Data(contentsOf: recordURL(id: id))
+    return try JSONDecoder().decode(ProductizationEvidenceRecord.self, from: data)
+  }
+
+  @discardableResult
+  func writeRecord(
+    _ record: ProductizationEvidenceRecord,
+    traceJSON: String? = nil,
+    feedbackJSON: String? = nil,
+    transcriptJSONL: String? = nil,
+    summaryMarkdown: String? = nil,
+    now: Date = Date()
+  ) throws -> ProductizationEvidenceRecord {
+    let safeID = Self.safeRunID(record.id)
+    let runURL = runsURL.appending(path: safeID, directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: runURL, withIntermediateDirectories: true)
+
+    var stored = record
+    if let traceJSON, !traceJSON.isEmpty {
+      stored.traceArtifactPath = try writeArtifact(
+        runURL: runURL,
+        relativePath: "productization/runs/\(safeID)/trace.json",
+        fileName: "trace.json",
+        contents: traceJSON
+      )
+    }
+    if let feedbackJSON, !feedbackJSON.isEmpty {
+      stored.feedbackArtifactPath = try writeArtifact(
+        runURL: runURL,
+        relativePath: "productization/runs/\(safeID)/feedback.json",
+        fileName: "feedback.json",
+        contents: feedbackJSON
+      )
+    }
+    if let transcriptJSONL, !transcriptJSONL.isEmpty {
+      stored.transcriptArtifactPath = try writeArtifact(
+        runURL: runURL,
+        relativePath: "productization/runs/\(safeID)/transcript.jsonl",
+        fileName: "transcript.jsonl",
+        contents: transcriptJSONL
+      )
+    }
+    let summary = summaryMarkdown ?? ProductizationEvidenceMarkdownExporter.markdown(record: stored)
+    if !summary.isEmpty {
+      stored.summaryArtifactPath = try writeArtifact(
+        runURL: runURL,
+        relativePath: "productization/runs/\(safeID)/summary.md",
+        fileName: "summary.md",
+        contents: summary
+      )
+    }
+
+    let data = try Self.encoder().encode(stored)
+    try data.write(to: recordURL(id: stored.id), options: .atomic)
+    _ = try rebuildIndex(now: now)
+    return stored
+  }
+
+  @discardableResult
+  func rebuildIndex(now: Date = Date()) throws -> ProductizationEvidenceIndex {
+    try FileManager.default.createDirectory(at: runsURL, withIntermediateDirectories: true)
+    let urls = try FileManager.default.contentsOfDirectory(
+      at: runsURL,
+      includingPropertiesForKeys: nil
+    )
+    var records: [ProductizationEvidenceRecord] = []
+    var malformed = 0
+    for url in urls {
+      var isDirectory: ObjCBool = false
+      guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+        isDirectory.boolValue
+      else { continue }
+      do {
+        records.append(
+          try JSONDecoder().decode(
+            ProductizationEvidenceRecord.self,
+            from: Data(contentsOf: url.appending(path: "record.json"))
+          ))
+      } catch {
+        malformed += 1
+      }
+    }
+    let index = ProductizationEvidenceIndex.build(
+      records: records,
+      malformedRecordCount: malformed,
+      now: now
+    )
+    let data = try Self.encoder().encode(index)
+    try FileManager.default.createDirectory(at: productizationURL, withIntermediateDirectories: true)
+    try data.write(to: indexURL, options: .atomic)
+    return index
+  }
+
+  func recordURL(id: String) -> URL {
+    runsURL
+      .appending(path: Self.safeRunID(id), directoryHint: .isDirectory)
+      .appending(path: "record.json")
+  }
+
+  private func writeArtifact(
+    runURL: URL,
+    relativePath: String,
+    fileName: String,
+    contents: String
+  ) throws -> String {
+    let url = runURL.appending(path: fileName)
+    try Data(contents.utf8).write(to: url, options: .atomic)
+    return relativePath
+  }
+
+  private static func encoder() -> JSONEncoder {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    return encoder
+  }
+
+  static func safeRunID(_ id: String) -> String {
+    ProductizationEvidenceRecord.cleanedIdentifier(id, fallback: "productization-run")
+  }
+}
+
+enum ProductizationEvidenceMarkdownExporter {
+  static func markdown(record: ProductizationEvidenceRecord) -> String {
+    var lines = [
+      "# Productization Evidence \(record.id)",
+      "",
+      "- Experiment: \(record.experimentID)",
+      "- Solution: \(record.solutionID)",
+      "- Pain: \(record.painID)",
+      "- Branch: \(record.branchName)",
+      "- Commit: \(record.commitSha)",
+      "- Scenario: \(record.scenarioID)",
+      "- Persona: \(record.personaID)",
+      "- Mode: \(record.mode.rawValue)",
+      "- Status: \(record.status.rawValue)",
+      "- Verdict: \(record.verdict.rawValue)",
+      "",
+      "## Summary",
+      "",
+      record.summary,
+      "",
+      "## Current Alternative",
+      "",
+      record.currentAlternativeComparison.isEmpty
+        ? "No current-alternative comparison recorded."
+        : record.currentAlternativeComparison,
+    ]
+    if !record.objections.isEmpty {
+      lines += ["", "## Objections", ""]
+      lines += record.objections.map { "- \($0)" }
+    }
+    if !record.missingCapabilities.isEmpty {
+      lines += ["", "## Missing Capabilities", ""]
+      lines += record.missingCapabilities.map { "- \($0)" }
+    }
+    if let failure = record.failure {
+      lines += ["", "## Failure", "", "\(failure.status.rawValue): \(failure.message)"]
+    }
+    return lines.joined(separator: "\n")
+  }
+}
+
+private extension String {
+  var normalizedProductizationEvidenceText: String {
+    lowercased()
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+  }
+}
+
+private extension Array where Element == String {
+  func productizationEvidenceUniquedPreservingOrder() -> [String] {
+    var seen = Set<String>()
+    var out: [String] = []
+    for value in self {
+      guard seen.insert(value).inserted else { continue }
+      out.append(value)
+    }
+    return out
+  }
+}

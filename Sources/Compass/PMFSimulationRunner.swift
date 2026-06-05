@@ -902,7 +902,7 @@ private struct PMFJSONCodingKey: CodingKey {
   }
 }
 
-private enum PMFJSONCanonicalizer {
+enum PMFJSONCanonicalizer {
   static func canonicalJSON(_ json: String) throws -> String {
     guard let data = json.data(using: .utf8) else {
       throw PMFJSONCanonicalizerError.notUTF8

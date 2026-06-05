@@ -13,6 +13,7 @@ extension Prompts {
     forgeProfile: ForgeProfile? = nil,
     coverageSnapshot: CoverageSnapshot? = nil,
     productizationConfig: ProductizationConfig = .empty,
+    productizationEvidenceIndex: ProductizationEvidenceIndex = .empty,
     pmfConfig: PMFConfig = .empty,
     pmfEvidenceIndex: PMFEvidenceIndex = .empty,
     hostXcodeBuildTestEnabled: Bool = false
@@ -26,7 +27,7 @@ extension Prompts {
     let visionDigest = compactPromptBlock(vision, maxLines: 10, maxCharacters: 2400)
     let productizationDigest = ProductizationPlanningDigestFormatter.promptText(
       config: productizationConfig,
-      evidenceIndex: pmfEvidenceIndex
+      evidenceIndex: productizationEvidenceIndex
     )
     let includeHostXcodeGuidance =
       hostXcodeBuildTestEnabled && forgeProfile != .rustCargo && forgeProfile != .typeScriptVitest

@@ -94,6 +94,7 @@ extension CompassProject {
         forgeProfile: forgeProfile,
         coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace),
         productizationConfig: productizationConfigForPrompt,
+        productizationEvidenceIndex: workspace.readProductizationEvidenceIndex(),
         pmfEvidenceIndex: workspace.readPMFEvidenceIndex(),
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
@@ -633,6 +634,7 @@ extension CompassProject {
       recentSessions: Array(recentSessions),
       iteration: iteration,
       productizationConfig: productizationConfigForPrompt,
+      productizationEvidenceIndex: workspace.readProductizationEvidenceIndex(),
       pmfEvidenceIndex: workspace.readPMFEvidenceIndex(),
       hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
     )

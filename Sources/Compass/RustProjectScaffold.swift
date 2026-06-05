@@ -670,6 +670,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         pub workflow_advanced: bool,
         pub current_alternative_addressed: bool,
         pub switching_objection_reduced: bool,
+        #[serde(rename = "missingCapabilityIDs")]
         pub missing_capability_ids: Vec<String>,
         pub evidence_summary: String,
     }

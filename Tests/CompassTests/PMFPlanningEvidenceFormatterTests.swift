@@ -112,11 +112,28 @@ struct PMFPlanningEvidenceFormatterTests {
       rawPain: "Budget owners cannot tell whether a workflow tool saves enough time to switch.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
     )
-    let index = PMFEvidenceIndex.build(records: [
-      makePlanningEvidenceRecord(
+    let index = ProductizationEvidenceIndex.build(records: [
+      ProductizationEvidenceRecord(
         id: "run-prompt",
-        config: config,
-        feedback: makePlanningFeedback(topObjection: "Missing proof of ROI")
+        experimentID: productizationConfig.experiments[0].id,
+        solutionID: productizationConfig.solutionHypotheses[0].id,
+        painID: productizationConfig.painHypotheses[0].id,
+        branchName: productizationConfig.experiments[0].branchName,
+        commitSha: "abc123",
+        scenarioID: "scenario-roi",
+        personaID: productizationConfig.userSegments[0].id,
+        mode: .personaModel,
+        status: .completed,
+        startedAt: 100,
+        endedAt: 200,
+        traceHash: "trace-roi",
+        promptVersions: ["productization.persona_action.v1"],
+        model: "gpt-test",
+        objections: ["Missing proof of ROI"],
+        missingCapabilities: ["roi_proof"],
+        currentAlternativeComparison: "The spreadsheet still wins until ROI proof is visible.",
+        verdict: .unclear,
+        summary: "Missing proof of ROI blocks switching."
       )
     ])
 
@@ -129,8 +146,9 @@ struct PMFPlanningEvidenceFormatterTests {
       vision: "",
       focus: .feature,
       productizationConfig: productizationConfig,
+      productizationEvidenceIndex: index,
       pmfConfig: config,
-      pmfEvidenceIndex: index
+      pmfEvidenceIndex: .empty
     )
     let reflect = try Prompts.reflectPrompt(
       state: .empty,
@@ -139,8 +157,9 @@ struct PMFPlanningEvidenceFormatterTests {
       recentSessions: [],
       iteration: 1,
       productizationConfig: productizationConfig,
+      productizationEvidenceIndex: index,
       pmfConfig: config,
-      pmfEvidenceIndex: index
+      pmfEvidenceIndex: .empty
     )
 
     try #require(plan.contains("## Productization Context"))

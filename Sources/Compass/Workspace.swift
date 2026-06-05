@@ -24,6 +24,9 @@ struct CompassWorkspace {
   var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
   var productizationConfigURL: URL { compassURL.appending(path: "productization.json") }
   var productizationURL: URL { compassURL.appending(path: "productization", directoryHint: .isDirectory) }
+  var productizationEvidenceStore: ProductizationEvidenceStore {
+    ProductizationEvidenceStore(workspace: self)
+  }
   var pmfConfigURL: URL { compassURL.appending(path: "pmf.json") }
   var pmfEvidenceStore: PMFEvidenceStore { PMFEvidenceStore(workspace: self) }
   var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
@@ -70,6 +73,7 @@ struct CompassWorkspace {
     try createFileIfMissing(visionURL, contents: "")
     try createFileIfMissing(sessionsRecordURL, contents: "")
     try fm.createDirectory(at: productizationURL, withIntermediateDirectories: true)
+    _ = try productizationEvidenceStore.rebuildIndex()
     _ = try pmfEvidenceStore.rebuildIndex()
     if isRepoLocalStorage {
       try ensureCompassIsIgnored()
@@ -323,6 +327,31 @@ struct CompassWorkspace {
       record,
       experienceTraceJSON: experienceTraceJSON,
       rawTranscriptJSON: rawTranscriptJSON
+    )
+  }
+
+  func readProductizationEvidenceIndex() -> ProductizationEvidenceIndex {
+    (try? productizationEvidenceStore.readIndex()) ?? .empty
+  }
+
+  func readProductizationEvidenceRecord(id: String) throws -> ProductizationEvidenceRecord {
+    try productizationEvidenceStore.readRecord(id: id)
+  }
+
+  @discardableResult
+  func writeProductizationEvidenceRecord(
+    _ record: ProductizationEvidenceRecord,
+    traceJSON: String? = nil,
+    feedbackJSON: String? = nil,
+    transcriptJSONL: String? = nil,
+    summaryMarkdown: String? = nil
+  ) throws -> ProductizationEvidenceRecord {
+    try productizationEvidenceStore.writeRecord(
+      record,
+      traceJSON: traceJSON,
+      feedbackJSON: feedbackJSON,
+      transcriptJSONL: transcriptJSONL,
+      summaryMarkdown: summaryMarkdown
     )
   }
 

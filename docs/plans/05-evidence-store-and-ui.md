@@ -1,180 +1,209 @@
-# 05 - Evidence Store And UI
+# 05 - Productization Simulation And Evidence
 
 ## Objective
 
-Persist PMF simulation results as first-class product evidence and show enough
-of that evidence in Compass for users and future agent phases to inspect it.
+Run deterministic and model-backed simulations against experiment commits, then
+store evidence that explains whether a prototype relieved the original pain.
+
+This plan upgrades PMF evidence into productization evidence.
 
 ## Scope
 
-Add storage, summaries, and a modest UI. Do not yet wire evidence into Plan;
-that is the next plan.
+Implement the runner, action validation, trace validation, evidence model,
+storage layout, summarization, and bounded prompt summaries.
 
-## Evidence Model
+The UI can remain minimal in this plan. Full UI treatment comes later.
 
-Add Codable evidence records for:
+## Runner Modes
 
-- `PMFEvidenceRecord`
-- `PMFRunTranscript`
-- `PMFActionTurnRecord`
-- `PMFFeedbackRecord`
-- `PMFRunArtifact`
-- `PMFEvidenceSummary`
+Support two runner modes:
 
-Suggested top-level fields:
+```text
+model_free
+  uses fixture actions and deterministic app traces
+  required for smoke tests
 
-- `id`
-- `schemaVersion`
-- `projectID`
-- `commitSHA`
-- `hypothesisID`
-- `personaID`
-- `taskID`
-- `scenarioID`
-- `startedAt`
-- `endedAt`
-- `status`
-- `route`
-- `model`
-- `promptVersions`
-- `experienceTraceHash`
-- `actionTranscript`
-- `feedback`
-- `artifacts`
-- `failure`
+persona_model
+  asks a persona model to choose allowed actions
+  stores transcripts and structured subjective feedback
+  manual or explicitly triggered at first
+```
+
+Both modes must target a specific immutable app version:
+
+```text
+experimentID
+branchName
+commitSha
+scenarioID
+```
+
+## Persona Action Rules
+
+Persona agents receive:
+
+- pain summary
+- persona and segment context
+- current workflow
+- alternatives
+- solution promise
+- current semantic app state
+- allowed actions
+- previous turns
+
+The model must choose exactly one allowed action or stop with a structured
+reason. The host rejects invented action ids.
+
+## Feedback Rules
+
+After a trace, the feedback prompt should ask whether the prototype:
+
+- recognized the pain
+- improved the current workflow
+- beat or failed to beat alternatives
+- reduced switching objections
+- exposed missing capabilities
+- created pull for continued use
+
+Feedback remains subjective evidence. It must include model id, prompt version,
+scenario id, persona id, experiment id, branch, commit, timestamp, trace hash,
+and transcript artifact path.
+
+## Evidence Record
+
+Store records with:
+
+```text
+id
+experimentID
+solutionID
+painID
+branchName
+commitSha
+scenarioID
+personaID
+mode
+status
+startedAt
+endedAt
+traceHash
+traceArtifactPath
+feedbackArtifactPath
+promptVersions
+model
+scores
+objections
+missingCapabilities
+currentAlternativeComparison
+verdict
+summary
+```
+
+`verdict` values:
+
+- `strong_pull`
+- `promising`
+- `unclear`
+- `weak`
+- `rejected`
 
 ## Storage Layout
 
-Use project-local `.compass/` storage.
-
-Suggested layout:
-
 ```text
-.compass/pmf/
+.compass/productization/
   evidence-index.json
   runs/
-    <run-id>.json
-    <run-id>-trace.json
-    <run-id>-raw-transcript.json
+    <run-id>/
+      trace.json
+      feedback.json
+      transcript.jsonl
+      summary.md
 ```
 
-Keep large raw payloads out of the primary state file. The index should be quick
-to load in the sidebar or project view.
+The index should be quick to load and suitable for Plan/Reflect prompt
+summaries.
 
-## Evidence Summary
+## Aggregation
 
-Compute a compact summary per run:
+Provide summary helpers for:
 
-- persona
-- task
-- verdict
-- value score
-- clarity score
-- trust score
-- switch likelihood
-- pay likelihood
-- top objection
-- task outcome
-- status
-
-Also compute aggregate summaries:
-
+- latest evidence by experiment
 - repeated objections
-- average scores by persona/task
-- verdict counts
-- latest run per scenario
-- failures by kind
+- low-score clusters
+- missing capability frequency
+- verdict distribution
+- comparison against current alternatives
+- evidence gaps by active solution
 
-Keep aggregation deterministic and local. Do not ask an LLM to summarize until
-the raw evidence store is reliable.
+## Parallel Execution
 
-## UI
+CLI-only model-free simulations may run in parallel across experiment commits.
 
-Add a PMF evidence view that can show:
-
-- hypothesis/persona/task context
-- list of runs
-- selected run trace summary
-- feedback scores
-- top objection and missing capability
-- raw transcript disclosure
-- artifact paths
-
-This can be a new tab or a section in an existing project view. Favor clear
-inspection over elaborate visuals.
-
-## Export
-
-Add a way to copy or save a compact Markdown summary for a selected run or
-cohort. This is useful for handoff and product review.
+Persona-model runs should use bounded concurrency and preserve transcript order.
+Visual verification should use a separate tighter semaphore.
 
 ## Likely Files
 
-- `Sources/Compass/Models.swift`
-- `Sources/Compass/CompassProject+Storage.swift`
-- `Sources/Compass/Views/`
-- `Sources/Compass/PlanSessionHistory.swift`
-- `Sources/Compass/SessionRecordStore.swift`
-- `Tests/CompassTests/`
+- `Sources/Compass/PMFSimulationRunner.swift`
+- `Sources/Compass/PMFEvidence.swift`
+- `Sources/Compass/PMFPlanningEvidence.swift`
+- `Sources/Compass/Prompts/Prompts+PMF.swift`
+- `Sources/Compass/Workspace.swift`
+- `Sources/Compass/Rust/RustVerifyCommands.swift`
+- `Sources/Compass/Resources/Schemas/`
+- tests for runner, evidence, summaries, and prompt schemas
 
 ## Acceptance Criteria
 
-- PMF run evidence writes to disk.
-- Evidence index loads without reading every raw transcript.
-- Missing or malformed individual evidence records do not break the whole
-  project view.
-- UI can inspect at least one completed run.
-- Unit tests cover write/read, index rebuild, malformed record handling, and
-  aggregate summary behavior.
+- Model-free simulation runs against a productization experience contract.
+- Persona-model simulation rejects invented actions.
+- Evidence records include experiment branch and commit identity.
+- Evidence summaries compare prototypes to current alternatives.
+- Plan/Reflect can consume bounded summaries without raw transcripts.
 
 ## Verification
 
-Run:
-
-```bash
-./scripts/test-local.sh
-```
-
-If UI changes are substantial, build the local app:
-
-```bash
-./scripts/build-local.sh
-```
-
-## Implementation Progress
-
-- Added first-class PMF evidence models:
-  - `PMFEvidenceRecord`
-  - `PMFRunTranscript`
-  - `PMFActionTurnRecord`
-  - `PMFFeedbackRecord`
-  - `PMFRunArtifact`
-  - `PMFEvidenceSummary`
-- Added `PMFEvidenceIndex` and deterministic aggregate summaries for repeated
-  objections, average scores by persona/task, verdict counts, latest run per
-  scenario, and failures by kind.
-- Added repo-local `.compass/pmf/` storage through `PMFEvidenceStore`, including
-  `evidence-index.json`, primary run records, separate trace artifacts, and
-  separate raw transcript artifacts.
-- Added index rebuild behavior that skips malformed individual run records and
-  records the malformed count without breaking the project view.
-- Added `PMFEvidenceMarkdownExporter` for compact copyable run summaries.
-- Wired PMF evidence index loading into `CompassWorkspace` and
-  `CompassProject.refreshFromWorkspace`.
-- Added a PMF workspace tab that lists runs, inspects selected run context,
-  feedback scores, top objections, missing capability, trace summary, raw
-  transcript, artifact paths, and copyable Markdown summary.
-- Added focused storage tests for write/read, artifact writing, index rebuild,
-  malformed record handling, aggregate summaries, and Markdown export.
+- Run focused tests for simulation runner and evidence storage.
+- Run `productization-smoke` against a generated workspace.
+- Run one manual persona-model simulation and inspect stored provenance.
+- Confirm repeated runs against the same input produce stable deterministic
+  traces before persona feedback is considered.
 
 ## Completion
 
-Status: complete on 2026-06-04.
+Status: complete.
 
-Verification:
+Completed on 2026-06-04 after adding productization-specific simulation and
+evidence infrastructure. Compass now has a model-free/persona-model
+productization runner that targets `productization-experience`, validates action
+ids against `allowedNextActions`, rejects invented persona actions, verifies
+deterministic trace hashes, and records experiment branch/commit provenance.
 
-- `./scripts/test-local.sh --filter PMFEvidenceStoreTests` passed with 4 tests.
-- `./scripts/test-local.sh --filter CompassWorkspaceStorageMigrationTests`
-  passed with 8 tests.
-- `./scripts/test-local.sh` passed with 1826 tests in 184 suites.
-- `./scripts/build-local.sh` succeeded and installed `/Applications/CompassLocal.app`.
+Evidence now stores under `.compass/productization/` with a quick
+`evidence-index.json` and run directories containing `record.json`,
+`trace.json`, `feedback.json`, `transcript.jsonl`, and `summary.md` artifacts
+when provided. Aggregates cover latest evidence by experiment, repeated
+objections, missing capability frequency, low-score clusters, verdict
+distribution, failures, and current-alternative comparisons. Plan/Reflect
+productization context now consumes bounded productization evidence summaries
+without raw transcripts.
+
+Verification passed:
+
+- `./scripts/test-local.sh --filter ProductizationSimulationRunnerTests`
+- `COMPASS_RUN_GENERATED_RUST_PRODUCTIZATION_RUNNER=1 ./scripts/test-local.sh --filter ProductizationSimulationRunnerTests`
+- `./scripts/test-local.sh --filter ProductizationEvidenceStoreTests`
+- `./scripts/test-local.sh --filter DiscoverPromptContractTests`
+- `./scripts/test-local.sh --filter PlanPromptTests`
+- `./scripts/test-local.sh --filter PMFPlanningEvidenceFormatterTests`
+- `COMPASS_RUN_GENERATED_RUST_SMOKE=1 ./scripts/test-local.sh --filter RustProjectScaffoldTests`
+
+Notes:
+
+- The generated scaffold smoke skipped `xtask verify` coverage because
+  `cargo llvm-cov` is not installed locally, then ran generated
+  `productization-smoke` and built `app-desktop` successfully.
+- A contract mismatch found during generated-runner verification was fixed:
+  generated Rust now serializes `missingCapabilityIDs` to match the schema, and
+  the Swift trace decoder tolerates the previous `missingCapabilityIds` spelling
+  while encoding the canonical `missingCapabilityIDs` key.

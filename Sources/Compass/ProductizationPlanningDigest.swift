@@ -3,7 +3,7 @@ import Foundation
 enum ProductizationPlanningDigestFormatter {
   static func promptText(
     config: ProductizationConfig,
-    evidenceIndex: PMFEvidenceIndex,
+    evidenceIndex: ProductizationEvidenceIndex,
     maxPainHypotheses: Int = 3,
     maxSolutionHypotheses: Int = 5,
     maxExperiments: Int = 6,
@@ -163,7 +163,7 @@ enum ProductizationPlanningDigestFormatter {
   }
 
   private static func evidenceSignalLines(
-    index: PMFEvidenceIndex,
+    index: ProductizationEvidenceIndex,
     maxEvidenceSignals: Int
   ) -> [String] {
     var lines: [String] = []
@@ -174,22 +174,30 @@ enum ProductizationPlanningDigestFormatter {
         var parts = [
           "run \(summary.runID)",
           "scenario \(summary.scenarioID)",
+          "experiment \(summary.experimentID)",
           "status \(summary.status.rawValue)",
           "model \(bounded(summary.model, 80))",
+          "mode \(summary.mode.rawValue)",
+          "verdict \(summary.verdict.rawValue)",
         ]
-        if let verdict = summary.verdict {
-          parts.append("verdict \(verdict.rawValue)")
+        if summary.scores.hasScores {
+          let scores = [
+            summary.scores.painRecognition.map { "pain \($0)" },
+            summary.scores.workflowImprovement.map { "workflow \($0)" },
+            summary.scores.alternativeAdvantage.map { "alternative \($0)" },
+            summary.scores.switchingReadiness.map { "switch \($0)" },
+            summary.scores.continuedUsePull.map { "pull \($0)" },
+          ].compactMap { $0 }.joined(separator: ", ")
+          parts.append("scores \(scores)")
         }
-        if let value = summary.valueScore,
-          let clarity = summary.clarityScore,
-          let trust = summary.trustScore
-        {
-          parts.append("scores value \(value), clarity \(clarity), trust \(trust)")
-        }
-        if let objection = summary.topObjection, !objection.isEmpty {
+        if let objection = summary.objections.first, !objection.isEmpty {
           parts.append("objection \(bounded(objection, 180))")
         }
-        if let hash = summary.experienceTraceHash {
+        if !summary.missingCapabilities.isEmpty {
+          parts.append(
+            "missing \(bounded(summary.missingCapabilities.joined(separator: ", "), 180))")
+        }
+        if let hash = summary.traceHash {
           parts.append("trace \(bounded(hash, 80))")
         }
         lines.append("- \(parts.joined(separator: "; ")).")
@@ -201,6 +209,22 @@ enum ProductizationPlanningDigestFormatter {
         .map { "\(bounded($0.objection, 120)) (\($0.count)x)" }
         .joined(separator: "; ")
       lines.append("Repeated objections: \(objections).")
+    }
+
+    if !index.aggregate.missingCapabilityFrequency.isEmpty {
+      let missing = index.aggregate.missingCapabilityFrequency.prefix(4)
+        .map { "\(bounded($0.capabilityID, 120)) (\($0.count)x)" }
+        .joined(separator: "; ")
+      lines.append("Missing capabilities: \(missing).")
+    }
+
+    if !index.aggregate.currentAlternativeComparisons.isEmpty {
+      lines.append("Current alternative comparisons:")
+      for comparison in index.aggregate.currentAlternativeComparisons.prefix(3) {
+        lines.append(
+          "- \(comparison.experimentID) / \(comparison.runID): \(bounded(comparison.comparison, 220)) [\(comparison.verdict.rawValue)]."
+        )
+      }
     }
 
     if index.malformedRecordCount > 0 {
