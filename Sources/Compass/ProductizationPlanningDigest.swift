@@ -226,6 +226,7 @@ enum ProductizationPlanningDigestFormatter {
       "Factory autopilot step:",
       "- \(metadata.joined(separator: "; ")); \(bounded(step.title, 120)); \(bounded(step.detail, 220)).",
       "- cycle executable \(cyclePlan.executableSteps.count); max \(cyclePlan.maxSteps); capped \(cyclePlan.capped); \(bounded(cyclePlan.summary, 180)).",
+      "- cycle queue \(bounded(cyclePlan.queueSummary, 240)).",
     ]
   }
 

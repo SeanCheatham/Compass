@@ -503,6 +503,20 @@ struct ProductFactoryAutopilotCyclePlan: Equatable, Sendable {
     return "\(executableSteps.count) executable factory step(s)\(cappedText)."
   }
 
+  var queueSummary: String {
+    if executableSteps.isEmpty {
+      if let nextBlockedStep {
+        return
+          "Blocked: \(nextBlockedStep.experimentTitle): \(nextBlockedStep.title) - \(nextBlockedStep.detail)"
+      }
+      return "No product-factory action queued."
+    }
+    let queued = executableSteps
+      .map { "\($0.experimentTitle): \($0.title)" }
+      .joined(separator: " -> ")
+    return capped ? "\(queued) -> plus more queued" : queued
+  }
+
   init(
     executableSteps: [ProductFactoryAutopilotStep],
     blockedSteps: [ProductFactoryAutopilotStep],

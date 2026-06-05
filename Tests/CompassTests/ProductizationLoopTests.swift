@@ -340,6 +340,9 @@ struct ProductizationLoopTests {
     try #require(plan.capped)
     try #require(plan.summary.contains("capped at 1"))
     try #require(plan.executableSteps[0].kind == .runCohort)
+    try #require(plan.queueSummary.contains(plan.executableSteps[0].experimentTitle))
+    try #require(plan.queueSummary.contains("Run evidence cohort"))
+    try #require(plan.queueSummary.contains("plus more queued"))
   }
 
   @Test func productFactoryAutopilotCyclePlanReportsBlockedStep() throws {
@@ -361,6 +364,8 @@ struct ProductizationLoopTests {
     try #require(blocked.kind == .runCohort)
     try #require(blocked.blockedReason?.contains("target commit") == true)
     try #require(plan.summary.contains("No executable factory steps"))
+    try #require(plan.queueSummary.contains("Blocked:"))
+    try #require(plan.queueSummary.contains("target commit"))
   }
 
   @Test func productFactoryAutopilotCycleOutcomeReportsRepeatStop() throws {

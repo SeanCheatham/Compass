@@ -419,6 +419,7 @@ struct ProductizationWorkbenchTab: View {
             value: "\(step.title), \(step.action.kind.rawValue)"
           )
           WorkbenchFact(label: "Cycle", value: factoryAutopilotCyclePlan.summary)
+          WorkbenchFact(label: "Queue", value: factoryAutopilotCyclePlan.queueSummary)
           Text(step.detail)
             .font(.caption)
             .foregroundStyle(.secondary)
