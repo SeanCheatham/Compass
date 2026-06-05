@@ -644,6 +644,7 @@ struct ProductizationLoopTests {
     try #require(action.title == "Run AI-user rejection check")
     try #require(action.detail.contains("before stopping the experiment"))
     try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetDecision == .kill)
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforeKill() throws {
@@ -712,6 +713,7 @@ struct ProductizationLoopTests {
     try #require(action.detail.contains("requires at least 2"))
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetDecision == .kill)
   }
 
   @Test func pmfDecisionAdvisorRequiresCurrentAlternativeProofBeforeKill() throws {
@@ -784,6 +786,7 @@ struct ProductizationLoopTests {
     try #require(action.detail.contains("current-alternative proof"))
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetDecision == .kill)
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {
@@ -822,6 +825,7 @@ struct ProductizationLoopTests {
     try #require(action.title == "Run AI-user validation cohort")
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetDecision == .promote)
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforePromotion() throws {
@@ -862,6 +866,7 @@ struct ProductizationLoopTests {
     try #require(action.detail.contains("requires at least 2"))
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetDecision == .promote)
   }
 
   @Test func pmfDecisionAdvisorRequiresCurrentAlternativeProofBeforePromotion() throws {
@@ -904,6 +909,7 @@ struct ProductizationLoopTests {
     try #require(action.detail.contains("current-alternative proof"))
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetDecision == .promote)
   }
 
   @Test func pmfNextActionRunsTargetedAIUserRationaleSignalProof() throws {
@@ -1661,6 +1667,7 @@ struct ProductizationLoopTests {
     try #require(action.targetPersonaID == buyer.id)
     try #require(action.targetPersonaName == buyer.name)
     try #require(action.targetScenarioID == buyerScenarioID)
+    try #require(action.targetDecision == .promote)
     try #require(action.detail.contains("Target AI-user segment: \(buyer.name)"))
     try #require(action.detail.contains("via scenario `\(buyerScenarioID)`"))
     try #require(step.targetScenarioID == buyerScenarioID)

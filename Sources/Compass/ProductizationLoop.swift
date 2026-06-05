@@ -2953,6 +2953,7 @@ enum ProductMarketFitNextActionAdvisor {
           title: "Run AI-user validation cohort",
           decisionGate: "promotion",
           gateReason: "promotion requires at least 2",
+          targetDecision: .promote,
           priority: 78,
           observedCount: readiness.aiUserDistinctPersonaCount,
           observedEvidenceLabel: "AI-user persona(s)"
@@ -2971,6 +2972,7 @@ enum ProductMarketFitNextActionAdvisor {
           title: "Run AI-user rejection check",
           decisionGate: "stopping the experiment",
           gateReason: "stopping a bet requires at least 2",
+          targetDecision: .kill,
           priority: 82,
           observedCount: readiness.aiUserDistinctPersonaCount,
           observedEvidenceLabel: "AI-user persona(s)"
@@ -3001,6 +3003,7 @@ enum ProductMarketFitNextActionAdvisor {
           decisionGate: "promotion",
           gateReason:
             "decisive PMF decisions require current-alternative proof from at least 2 AI-user personas",
+          targetDecision: .promote,
           priority: 77,
           observedCount: readiness.aiUserCurrentAlternativePersonaCount,
           observedEvidenceLabel: "AI-user current-alternative persona(s)"
@@ -3022,6 +3025,7 @@ enum ProductMarketFitNextActionAdvisor {
           decisionGate: "stopping the experiment",
           gateReason:
             "decisive PMF decisions require current-alternative proof from at least 2 AI-user personas",
+          targetDecision: .kill,
           priority: 81,
           observedCount: readiness.aiUserCurrentAlternativePersonaCount,
           observedEvidenceLabel: "AI-user current-alternative persona(s)"
@@ -3191,6 +3195,7 @@ enum ProductMarketFitNextActionAdvisor {
     title: String,
     decisionGate: String,
     gateReason: String,
+    targetDecision: ProductExperimentDecision,
     priority: Int,
     observedCount: Int,
     observedEvidenceLabel: String
@@ -3222,7 +3227,8 @@ enum ProductMarketFitNextActionAdvisor {
       requiredSimulationMode: .personaModel,
       targetPersonaID: target?.id,
       targetPersonaName: target?.name,
-      targetScenarioID: executableScenarioID
+      targetScenarioID: executableScenarioID,
+      targetDecision: targetDecision
     )
   }
 
