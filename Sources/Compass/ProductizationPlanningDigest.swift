@@ -378,8 +378,14 @@ enum ProductizationPlanningDigestFormatter {
           audit.experimentIDs.isEmpty
           ? "no experiments"
           : "experiments \(audit.experimentIDs.joined(separator: ", "))"
+        let proofTargetList = audit.proofTargetSummaries.prefix(3).joined(separator: " | ")
+        let proofTargets =
+          audit.proofTargetSummaries.isEmpty
+          ? ""
+          : "; proof targets \(bounded(proofTargetList, 260))"
         return
-          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments); \(bounded(audit.userMessage, 260))."
+          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(proofTargets)"
+            + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
   }
 

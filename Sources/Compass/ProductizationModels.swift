@@ -922,6 +922,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
   var endingProofDebtCount: Int?
   var startingProofDebtSummary: String?
   var endingProofDebtSummary: String?
+  var proofTargetSummaries: [String]
   var stopReason: ProductFactoryCycleAuditStopReason
   var stopStepID: String?
   var stopStepTitle: String?
@@ -945,8 +946,12 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       : "; runs \(evidenceRunIDs.prefix(5).joined(separator: ", "))"
     let proofDebt =
       proofDebtSummary.map { "; \($0)" } ?? ""
+    let proofTargets =
+      proofTargetSummaries.isEmpty
+      ? ""
+      : "; targets \(proofTargetSummaries.prefix(3).joined(separator: " | "))"
     return
-      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
+      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(proofTargets); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
   }
 
   private var proofDebtSummary: String? {
@@ -977,6 +982,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     endingProofDebtCount: Int? = nil,
     startingProofDebtSummary: String? = nil,
     endingProofDebtSummary: String? = nil,
+    proofTargetSummaries: [String] = [],
     stopReason: ProductFactoryCycleAuditStopReason,
     stopStepID: String? = nil,
     stopStepTitle: String? = nil,
@@ -1009,6 +1015,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     self.endingProofDebtSummary = ProductizationModelText.optionalCleanedText(
       endingProofDebtSummary,
       limit: 500
+    )
+    self.proofTargetSummaries = ProductizationModelText.cleanedList(
+      proofTargetSummaries,
+      limit: 240
     )
     self.stopReason = stopReason
     self.stopStepID = ProductizationModelText.optionalCleanedText(stopStepID, limit: 200)
@@ -1046,6 +1056,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     case endingProofDebtCount
     case startingProofDebtSummary
     case endingProofDebtSummary
+    case proofTargetSummaries
     case stopReason
     case stopStepID
     case stopStepTitle
@@ -1109,6 +1120,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
         String.self,
         forKey: .endingProofDebtSummary
       ),
+      proofTargetSummaries: try container.decodeIfPresent(
+        [String].self,
+        forKey: .proofTargetSummaries
+      ) ?? [],
       stopReason: try container.decode(
         ProductFactoryCycleAuditStopReason.self, forKey: .stopReason),
       stopStepID: try container.decodeIfPresent(String.self, forKey: .stopStepID),

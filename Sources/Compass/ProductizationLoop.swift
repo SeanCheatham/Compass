@@ -478,6 +478,20 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
     return parts.joined(separator: " ")
   }
 
+  var auditSummary: String {
+    var parts = ["\(experimentID): \(label)"]
+    if let targetPersonaName {
+      parts.append("target \(targetPersonaName)")
+    }
+    if let targetScenarioID {
+      parts.append("scenario \(targetScenarioID)")
+    } else if let cohortID {
+      parts.append("cohort \(cohortID)")
+    }
+    parts.append("debt \(debtSummary)")
+    return StringUtils.boundedText(parts.joined(separator: "; "), limit: 240)
+  }
+
   init(
     experimentID: String,
     label: String,
@@ -869,6 +883,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   var endingProofDebtCount: Int?
   var startingProofDebtSummary: String?
   var endingProofDebtSummary: String?
+  var proofTargetSummaries: [String]
 
   init(
     executedSteps: [ProductFactoryAutopilotStep],
@@ -882,7 +897,8 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     startingProofDebtCount: Int? = nil,
     endingProofDebtCount: Int? = nil,
     startingProofDebtSummary: String? = nil,
-    endingProofDebtSummary: String? = nil
+    endingProofDebtSummary: String? = nil,
+    proofTargetSummaries: [String] = []
   ) {
     self.executedSteps = executedSteps
     self.messages = ProductizationModelText.cleanedList(messages, limit: 500)
@@ -901,6 +917,10 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     self.endingProofDebtSummary = ProductizationModelText.optionalCleanedText(
       endingProofDebtSummary,
       limit: 500
+    )
+    self.proofTargetSummaries = ProductizationModelText.cleanedList(
+      proofTargetSummaries,
+      limit: 240
     )
   }
 
@@ -936,6 +956,9 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     }
     if !messages.isEmpty {
       parts.append(messages.joined(separator: " "))
+    }
+    if let proofTargetMessage {
+      parts.append(proofTargetMessage)
     }
     if let proofDebtMessage {
       parts.append(proofDebtMessage)
@@ -1009,6 +1032,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       endingProofDebtCount: endingProofDebtCount,
       startingProofDebtSummary: startingProofDebtSummary,
       endingProofDebtSummary: endingProofDebtSummary,
+      proofTargetSummaries: proofTargetSummaries,
       stopReason: auditStopReason,
       stopStepID: stopStepID,
       stopStepTitle: stopStepTitle,
@@ -1032,6 +1056,12 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   private var hasEvidenceRunOutcomes: Bool {
     !evidenceRunIDs.isEmpty || completedEvidenceRunCount > 0 || failedEvidenceRunCount > 0
       || skippedScenarioCount > 0
+  }
+
+  private var proofTargetMessage: String? {
+    guard !proofTargetSummaries.isEmpty else { return nil }
+    let targets = proofTargetSummaries.prefix(3).joined(separator: " | ")
+    return "Proof targets: \(StringUtils.boundedText(targets, limit: 360))."
   }
 
   private var proofDebtMessage: String? {

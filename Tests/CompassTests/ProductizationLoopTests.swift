@@ -1651,7 +1651,10 @@ struct ProductizationLoopTests {
       startingProofDebtCount: 8,
       endingProofDebtCount: 6,
       startingProofDebtSummary: "\(step.experimentID): 2 completed run(s), 2 persona(s)",
-      endingProofDebtSummary: "\(step.experimentID): 1 completed run(s), 1 persona(s)"
+      endingProofDebtSummary: "\(step.experimentID): 1 completed run(s), 1 persona(s)",
+      proofTargetSummaries: [
+        "\(step.experimentID): broaden completed persona coverage; debt 2 completed run(s), 2 persona(s)"
+      ]
     )
 
     let audit = outcome.audit(
@@ -1674,12 +1677,17 @@ struct ProductizationLoopTests {
     try #require(audit.proofDebtDelta == -2)
     try #require(audit.startingProofDebtSummary?.contains("2 completed run") == true)
     try #require(audit.endingProofDebtSummary?.contains("1 completed run") == true)
+    try #require(audit.proofTargetSummaries.count == 1)
+    try #require(audit.proofTargetSummaries[0].contains("broaden completed persona coverage"))
     try #require(audit.stopReason == .noExecutableStep)
     try #require(audit.userMessage.contains("Factory cycle ran 1 step(s)."))
     try #require(audit.userMessage.contains("evidence runs 1 completed, 0 needing review"))
+    try #require(audit.userMessage.contains("Proof targets:"))
     try #require(audit.userMessage.contains("Proof debt improved by 2"))
     try #require(audit.summary.contains("runs run-one"))
     try #require(audit.summary.contains("proof debt 8 -> 6 (-2)"))
+    try #require(audit.summary.contains("targets"))
+    try #require(audit.summary.contains("broaden completed persona coverage"))
     try #require(audit.userMessage.contains("Stopped because no executable product-factory step remains."))
   }
 

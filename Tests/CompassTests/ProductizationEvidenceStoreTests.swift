@@ -286,6 +286,9 @@ struct ProductizationEvidenceStoreTests {
           "\(config.experiments[0].id): 2 completed run(s), 2 persona(s), 2 AI-user persona(s), 2 AI-user current-alternative proof(s)",
         endingProofDebtSummary:
           "\(config.experiments[0].id): 1 completed run(s), 2 persona(s), 2 AI-user persona(s), 2 AI-user current-alternative proof(s)",
+        proofTargetSummaries: [
+          "\(config.experiments[0].id): run targeted AI-user persona proof; target Budget owner; debt 2 AI-user persona(s)"
+        ],
         stopReason: .executionFailed,
         stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
         userMessage:
@@ -328,6 +331,10 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("evidence 1"))
     try #require(text.contains("runs digest-run"))
     try #require(text.contains("proof debt 8 -> 7 (-1)"))
+    try #require(text.contains("targets"))
+    try #require(text.contains("proof targets"))
+    try #require(text.contains("run targeted AI-user persona proof"))
+    try #require(text.contains("Budget owner"))
     try #require(text.contains("1 needing review"))
     try #require(text.contains("execution_failed"))
     try #require(text.contains("contract missing"))
