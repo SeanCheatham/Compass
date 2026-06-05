@@ -507,6 +507,9 @@ enum ProductizationPlanningDigestFormatter {
         if !summary.currentAlternativeComparison.isEmpty {
           parts.append("alternative \(bounded(summary.currentAlternativeComparison, 180))")
         }
+        if let rationale = summary.personaActionRationales.first, !rationale.isEmpty {
+          parts.append("persona_rationale \(bounded(rationale, 200))")
+        }
         if let hash = summary.traceHash {
           parts.append("trace \(bounded(hash, 80))")
         }

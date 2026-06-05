@@ -10,7 +10,12 @@ struct ProductizationEvidenceStoreTests {
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
 
-    let record = makeEvidenceRecord(id: "run-one")
+    let record = makeEvidenceRecord(
+      id: "run-one",
+      personaActionRationales: [
+        "turn 0 choose valid action inspect_pain: Wanted to confirm the weekly reporting pain."
+      ]
+    )
     let stored = try workspace.writeProductizationEvidenceRecord(
       record,
       traceJSON: #"{"trace":true}"#,
@@ -28,7 +33,10 @@ struct ProductizationEvidenceStoreTests {
         atPath: workspace.productizationURL.appending(path: "evidence-index.json").path))
     let read = try workspace.readProductizationEvidenceRecord(id: "run-one")
     try #require(read == stored)
-    try #require(workspace.readProductizationEvidenceIndex().summaries.map(\.runID) == ["run-one"])
+    let summaries = workspace.readProductizationEvidenceIndex().summaries
+    try #require(summaries.map(\.runID) == ["run-one"])
+    try #require(
+      summaries.first?.personaActionRationales.first?.contains("inspect_pain") == true)
   }
 
   @Test func indexAggregatesExperimentEvidenceSignals() throws {
@@ -307,7 +315,10 @@ struct ProductizationEvidenceStoreTests {
       verdict: .promising,
       objections: ["Still needs CSV import"],
       missingCapabilities: ["csv_import"],
-      comparison: "Beat the spreadsheet on review speed."
+      comparison: "Beat the spreadsheet on review speed.",
+      personaActionRationales: [
+        "turn 1 choose valid action compare_current_alternative: Wanted proof against the spreadsheet before switching."
+      ]
     )
     let index = ProductizationEvidenceIndex.build(records: [record])
 
@@ -348,6 +359,8 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("cohort \(config.scenarioCohorts[0].id)"))
     try #require(text.contains("mode model_free"))
     try #require(text.contains("digest-run"))
+    try #require(text.contains("persona_rationale"))
+    try #require(text.contains("Wanted proof against the spreadsheet"))
     try #require(text.contains("csv_import"))
     try #require(text.contains("Beat the spreadsheet"))
     try #require(!text.contains("transcript.jsonl"))
@@ -430,7 +443,10 @@ struct ProductizationEvidenceStoreTests {
       endedAt: 30,
       objections: ["The spreadsheet is already trusted"],
       missingCapabilities: ["csv_import"],
-      comparison: "Still needs import proof before switching."
+      comparison: "Still needs import proof before switching.",
+      personaActionRationales: [
+        "turn 2 choose valid action reduce_switching_objection: Needed import proof before trusting a switch."
+      ]
     )
     let index = ProductizationEvidenceIndex.build(records: [first, second])
 
@@ -466,6 +482,8 @@ struct ProductizationEvidenceStoreTests {
       try #require(prompt.contains("cohort \(config.scenarioCohorts[0].id)"))
       try #require(prompt.contains("mode model_free"))
       try #require(prompt.contains("prompt-run-two"))
+      try #require(prompt.contains("persona_rationale"))
+      try #require(prompt.contains("Needed import proof before trusting a switch"))
       try #require(prompt.contains("Repeated objections"))
       try #require(prompt.contains("the spreadsheet is already trusted (2x)"))
       try #require(prompt.contains("csv_import (2x)"))
@@ -569,6 +587,7 @@ private func makeEvidenceRecord(
   objections: [String] = [],
   missingCapabilities: [String] = [],
   comparison: String = "Compared with the current alternative.",
+  personaActionRationales: [String] = [],
   scores: ProductizationEvidenceScores = ProductizationEvidenceScores(
     painRecognition: 4,
     workflowImprovement: 3,
@@ -598,6 +617,7 @@ private func makeEvidenceRecord(
     objections: objections,
     missingCapabilities: missingCapabilities,
     currentAlternativeComparison: comparison,
+    personaActionRationales: personaActionRationales,
     verdict: verdict,
     summary: "Evidence summary for \(id).",
     failure: failure

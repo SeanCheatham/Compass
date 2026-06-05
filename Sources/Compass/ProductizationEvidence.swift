@@ -720,6 +720,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   var transcriptArtifactPath: String?
   var summaryArtifactPath: String?
   var promptVersions: [String]
+  var personaActionRationales: [String]
   var model: String
   var scores: ProductizationEvidenceScores
   var objections: [String]
@@ -728,6 +729,95 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   var verdict: ProductizationEvidenceVerdict
   var summary: String
   var failure: ProductizationRunFailure?
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case schemaVersion
+    case projectID
+    case experimentID
+    case solutionID
+    case painID
+    case branchName
+    case commitSha
+    case scenarioID
+    case personaID
+    case mode
+    case status
+    case startedAt
+    case endedAt
+    case traceHash
+    case traceArtifactPath
+    case feedbackArtifactPath
+    case transcriptArtifactPath
+    case summaryArtifactPath
+    case promptVersions
+    case personaActionRationales
+    case model
+    case scores
+    case objections
+    case missingCapabilities
+    case currentAlternativeComparison
+    case verdict
+    case summary
+    case failure
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      id: try container.decode(String.self, forKey: .id),
+      schemaVersion: try container.decodeIfPresent(Int.self, forKey: .schemaVersion)
+        ?? Self.supportedSchemaVersion,
+      projectID: try container.decodeIfPresent(String.self, forKey: .projectID),
+      experimentID: try container.decode(String.self, forKey: .experimentID),
+      solutionID: try container.decode(String.self, forKey: .solutionID),
+      painID: try container.decode(String.self, forKey: .painID),
+      branchName: try container.decode(String.self, forKey: .branchName),
+      commitSha: try container.decode(String.self, forKey: .commitSha),
+      scenarioID: try container.decode(String.self, forKey: .scenarioID),
+      personaID: try container.decode(String.self, forKey: .personaID),
+      mode: try container.decode(ProductizationSimulationMode.self, forKey: .mode),
+      status: try container.decode(ProductizationRunStatus.self, forKey: .status),
+      startedAt: try container.decode(Double.self, forKey: .startedAt),
+      endedAt: try container.decode(Double.self, forKey: .endedAt),
+      traceHash: try container.decodeIfPresent(String.self, forKey: .traceHash),
+      traceArtifactPath: try container.decodeIfPresent(String.self, forKey: .traceArtifactPath),
+      feedbackArtifactPath: try container.decodeIfPresent(
+        String.self,
+        forKey: .feedbackArtifactPath
+      ),
+      transcriptArtifactPath: try container.decodeIfPresent(
+        String.self,
+        forKey: .transcriptArtifactPath
+      ),
+      summaryArtifactPath: try container.decodeIfPresent(String.self, forKey: .summaryArtifactPath),
+      promptVersions: try container.decodeIfPresent([String].self, forKey: .promptVersions) ?? [],
+      model: try container.decodeIfPresent(String.self, forKey: .model) ?? "",
+      scores: try container.decodeIfPresent(
+        ProductizationEvidenceScores.self,
+        forKey: .scores
+      ) ?? ProductizationEvidenceScores(),
+      objections: try container.decodeIfPresent([String].self, forKey: .objections) ?? [],
+      missingCapabilities: try container.decodeIfPresent(
+        [String].self,
+        forKey: .missingCapabilities
+      ) ?? [],
+      currentAlternativeComparison: try container.decodeIfPresent(
+        String.self,
+        forKey: .currentAlternativeComparison
+      ) ?? "",
+      personaActionRationales: try container.decodeIfPresent(
+        [String].self,
+        forKey: .personaActionRationales
+      ) ?? [],
+      verdict: try container.decodeIfPresent(
+        ProductizationEvidenceVerdict.self,
+        forKey: .verdict
+      ) ?? .unclear,
+      summary: try container.decodeIfPresent(String.self, forKey: .summary) ?? "No summary.",
+      failure: try container.decodeIfPresent(ProductizationRunFailure.self, forKey: .failure)
+    )
+  }
 
   init(
     id: String,
@@ -755,6 +845,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     objections: [String] = [],
     missingCapabilities: [String] = [],
     currentAlternativeComparison: String = "",
+    personaActionRationales: [String] = [],
     verdict: ProductizationEvidenceVerdict = .unclear,
     summary: String,
     failure: ProductizationRunFailure? = nil
@@ -780,6 +871,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     self.transcriptArtifactPath = Self.optionalBounded(transcriptArtifactPath, limit: 500)
     self.summaryArtifactPath = Self.optionalBounded(summaryArtifactPath, limit: 500)
     self.promptVersions = Self.cleanedList(promptVersions, limit: 160)
+    self.personaActionRationales = Self.cleanedList(personaActionRationales, limit: 360)
     self.model = StringUtils.boundedText(model, limit: 160)
     self.scores = scores
     self.objections = Self.cleanedList(objections, limit: 500)
@@ -822,6 +914,9 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       objections: [],
       missingCapabilities: missing,
       currentAlternativeComparison: comparison,
+      personaActionRationales: Self.personaActionRationales(
+        from: runResult.rawPersonaActionTranscript
+      ),
       verdict: Self.derivedVerdict(status: runResult.status, signals: traceSignals),
       summary: traceSignals?.evidenceSummary ?? runResult.failure?.message ?? "No summary.",
       failure: runResult.failure
@@ -842,6 +937,20 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     return signals.currentAlternativeAddressed
       ? "The deterministic trace addressed the current alternative."
       : "The deterministic trace did not address the current alternative."
+  }
+
+  private static func personaActionRationales(
+    from transcript: [ProductizationPersonaActionTranscriptEntry]
+  ) -> [String] {
+    let lines = transcript.compactMap { entry -> String? in
+      let rationale = StringUtils.boundedText(entry.rationale, limit: 260)
+      guard !rationale.isEmpty else { return nil }
+      let validity = entry.wasValid ? "valid" : "invalid"
+      let actionID = StringUtils.boundedText(entry.chosenActionID, limit: 96)
+      return
+        "turn \(max(0, entry.turnIndex)) \(entry.phase.rawValue) \(validity) action \(actionID): \(rationale)"
+    }
+    return Array(cleanedList(lines, limit: 360).prefix(8))
   }
 
   var summaryRecord: ProductizationEvidenceSummary {
@@ -930,9 +1039,68 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
   var objections: [String]
   var missingCapabilities: [String]
   var currentAlternativeComparison: String
+  var personaActionRationales: [String]
   var traceHash: String?
   var summary: String
   var failureKind: String?
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case runID
+    case experimentID
+    case solutionID
+    case painID
+    case branchName
+    case commitSha
+    case scenarioID
+    case personaID
+    case mode
+    case status
+    case startedAt
+    case endedAt
+    case model
+    case verdict
+    case scores
+    case objections
+    case missingCapabilities
+    case currentAlternativeComparison
+    case personaActionRationales
+    case traceHash
+    case summary
+    case failureKind
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    runID = try container.decodeIfPresent(String.self, forKey: .runID) ?? id
+    experimentID = try container.decode(String.self, forKey: .experimentID)
+    solutionID = try container.decode(String.self, forKey: .solutionID)
+    painID = try container.decode(String.self, forKey: .painID)
+    branchName = try container.decode(String.self, forKey: .branchName)
+    commitSha = try container.decode(String.self, forKey: .commitSha)
+    scenarioID = try container.decode(String.self, forKey: .scenarioID)
+    personaID = try container.decode(String.self, forKey: .personaID)
+    mode = try container.decode(ProductizationSimulationMode.self, forKey: .mode)
+    status = try container.decode(ProductizationRunStatus.self, forKey: .status)
+    startedAt = try container.decode(Double.self, forKey: .startedAt)
+    endedAt = try container.decode(Double.self, forKey: .endedAt)
+    model = try container.decodeIfPresent(String.self, forKey: .model) ?? ""
+    verdict = try container.decodeIfPresent(ProductizationEvidenceVerdict.self, forKey: .verdict)
+      ?? .unclear
+    scores = try container.decodeIfPresent(ProductizationEvidenceScores.self, forKey: .scores)
+      ?? ProductizationEvidenceScores()
+    objections = try container.decodeIfPresent([String].self, forKey: .objections) ?? []
+    missingCapabilities =
+      try container.decodeIfPresent([String].self, forKey: .missingCapabilities) ?? []
+    currentAlternativeComparison =
+      try container.decodeIfPresent(String.self, forKey: .currentAlternativeComparison) ?? ""
+    personaActionRationales =
+      try container.decodeIfPresent([String].self, forKey: .personaActionRationales) ?? []
+    traceHash = try container.decodeIfPresent(String.self, forKey: .traceHash)
+    summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? "No summary."
+    failureKind = try container.decodeIfPresent(String.self, forKey: .failureKind)
+  }
 
   init(record: ProductizationEvidenceRecord) {
     id = record.id
@@ -954,6 +1122,7 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     objections = record.objections
     missingCapabilities = record.missingCapabilities
     currentAlternativeComparison = record.currentAlternativeComparison
+    personaActionRationales = record.personaActionRationales
     traceHash = record.traceHash
     summary = record.summary
     failureKind = record.failure?.status.rawValue
@@ -1448,6 +1617,10 @@ enum ProductizationEvidenceMarkdownExporter {
     if !record.missingCapabilities.isEmpty {
       lines += ["", "## Missing Capabilities", ""]
       lines += record.missingCapabilities.map { "- \($0)" }
+    }
+    if !record.personaActionRationales.isEmpty {
+      lines += ["", "## AI-User Action Rationales", ""]
+      lines += record.personaActionRationales.map { "- \($0)" }
     }
     if let failure = record.failure {
       lines += ["", "## Failure", "", "\(failure.status.rawValue): \(failure.message)"]

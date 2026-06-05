@@ -38,6 +38,10 @@ struct ProductizationSimulationRunnerTests {
     try #require(record.scores.switchingReadiness == 4)
     try #require(record.scores.continuedUsePull == 4)
     try #require(record.currentAlternativeComparison.contains("Shared spreadsheet"))
+    try #require(
+      record.personaActionRationales.contains {
+        $0.contains("model_free") && $0.contains("inspect_pain")
+      })
   }
 
   @Test func painReliefSignalsDecodeLegacyTraceWithoutComparison() throws {

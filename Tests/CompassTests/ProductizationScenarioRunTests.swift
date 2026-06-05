@@ -185,10 +185,16 @@ struct ProductizationScenarioRunTests {
     try #require(outcome.userMessage.contains("AI-user"))
     try #require(stored.mode == .personaModel)
     try #require(stored.promptVersions == ["test.persona_action"])
+    try #require(
+      stored.personaActionRationales.contains {
+        $0.contains("inspect_pain") && $0.contains("Scripted target user action")
+      })
     try #require(stored.verdict == .promising)
     try #require(transcript.contains(#""phase":"choose""#))
     try #require(transcript.contains(#""chosenActionID":"inspect_pain""#))
-    try #require(workspace.readProductizationEvidenceIndex().summaries.first?.mode == .personaModel)
+    let summary = workspace.readProductizationEvidenceIndex().summaries.first
+    try #require(summary?.mode == .personaModel)
+    try #require(summary?.personaActionRationales.first?.contains("inspect_pain") == true)
   }
 
   @Test func cohortModelFreeRunRunsEnabledScenariosAndSkipsDisabled() async throws {
