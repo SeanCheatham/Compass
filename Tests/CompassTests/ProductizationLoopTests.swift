@@ -1233,24 +1233,23 @@ struct ProductizationLoopTests {
     try #require(validationStep.kind == .runCohort)
     try #require(validationStep.canExecute)
     try #require(validationStep.targetScenarioID == buyerScenario.id)
-    let validationIndex = ProductizationEvidenceIndex.build(
-      records: rationaleRecords + [
-        makeDecisionAdvisorRecord(
-          id: "revision-validation-rerun",
-          experiment: experiment,
-          config: config,
-          personaID: buyer.id,
-          mode: .personaModel,
-          endedAt: 390,
-          verdict: .promising,
-          scores: scores,
-          currentAlternativeComparison: "Compared against the current workflow.",
-          scenarioID: buyerScenario.id,
-          personaActionRationales: [
-            "turn 3 choose valid action reduce_switching_objection: Needed proof against the manual workflow before switching."
-          ]
-        ),
+    let validationRecord = makeDecisionAdvisorRecord(
+      id: "revision-validation-rerun",
+      experiment: experiment,
+      config: config,
+      personaID: buyer.id,
+      mode: .personaModel,
+      endedAt: 390,
+      verdict: .promising,
+      scores: scores,
+      currentAlternativeComparison: "Compared against the current workflow.",
+      scenarioID: buyerScenario.id,
+      personaActionRationales: [
+        "Needed proof against the manual workflow before switching."
       ]
+    )
+    let validationIndex = ProductizationEvidenceIndex.build(
+      records: rationaleRecords + [validationRecord]
     )
     let validationSignal = try #require(
       ProductFactoryRationaleSignalAdvisor.signal(
@@ -1296,6 +1295,122 @@ struct ProductizationLoopTests {
     try #require(postValidationAction.targetScenarioID == buyerScenario.id)
     try #require(postValidationStep.kind == .applyRevision)
     try #require(postValidationStep.targetScenarioID == buyerScenario.id)
+    let secondRevisionBrief = try #require(
+      ProductFactoryRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: validationConfig,
+        evidenceIndex: validationIndex
+      ))
+    let secondRevisionAudit = ProductFactoryCycleAudit(
+      id: "factory-cycle-second-applied-revision",
+      startedAt: 420,
+      endedAt: 430,
+      executedStepIDs: [postValidationStep.id],
+      experimentIDs: [experiment.id],
+      messages: ["Applied second product revision for \(experiment.title)."],
+      maxSteps: 3,
+      revisionBriefSummaries: [secondRevisionBrief.auditSummary],
+      stopReason: .repeatedStep,
+      stopStepID: postValidationStep.id,
+      stopStepTitle: postValidationStep.title,
+      stopDetail: "Stopped before repeating Apply product revision.",
+      userMessage: "Factory cycle ran 1 step(s). Second product revision applied."
+    )
+    let secondRevisedConfig = validationConfig.recordingFactoryCycleAudit(secondRevisionAudit)
+    let secondValidationAction = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: secondRevisedConfig,
+        evidenceIndex: validationIndex
+      ))
+    let secondValidationStep = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: secondRevisedConfig,
+        evidenceIndex: validationIndex,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(secondValidationAction.kind == .rerunCohort)
+    try #require(secondValidationAction.title == "Validate product revision")
+    try #require(secondValidationAction.detail.contains(secondRevisionAudit.id))
+    try #require(secondValidationStep.kind == .runCohort)
+    try #require(secondValidationStep.canExecute)
+    try #require(secondValidationStep.targetScenarioID == buyerScenario.id)
+    let secondValidationRecord = makeDecisionAdvisorRecord(
+      id: "revision-validation-rerun-2",
+      experiment: experiment,
+      config: config,
+      personaID: buyer.id,
+      mode: .personaModel,
+      endedAt: 440,
+      verdict: .promising,
+      scores: scores,
+      currentAlternativeComparison: "Compared against the current workflow.",
+      scenarioID: buyerScenario.id,
+      personaActionRationales: [
+        "Needed proof against the manual workflow before switching."
+      ]
+    )
+    let secondValidationIndex = ProductizationEvidenceIndex.build(
+      records: rationaleRecords + [validationRecord, secondValidationRecord]
+    )
+    let secondValidationSignal = try #require(
+      ProductFactoryRationaleSignalAdvisor.signal(
+        for: experiment,
+        config: secondRevisedConfig,
+        evidenceIndex: secondValidationIndex
+      ))
+    let secondValidationAudit = ProductFactoryCycleAudit(
+      id: "factory-cycle-second-validation-rationale",
+      startedAt: 450,
+      endedAt: 460,
+      executedStepIDs: [secondValidationStep.id],
+      experimentIDs: [experiment.id],
+      messages: ["Second revision validation ran 1 scenario(s): 1 completed, 0 needing review."],
+      maxSteps: 3,
+      evidenceRunStepCount: 1,
+      evidenceRunIDs: ["revision-validation-rerun-2"],
+      completedEvidenceRunCount: 1,
+      failedEvidenceRunCount: 0,
+      skippedScenarioCount: 0,
+      personaRationaleSignalSummaries: [secondValidationSignal.auditSummary],
+      stopReason: .noExecutableStep,
+      stopDetail: "Stopped because no executable product-factory step remains.",
+      userMessage:
+        "Factory cycle ran 1 step(s). Second product revision validation still showed the rationale."
+    )
+    let fatiguedConfig = secondRevisedConfig.recordingFactoryCycleAudit(secondValidationAudit)
+    let fatigueAudit = try #require(
+      ProductFactoryCycleLearningAdvisor.revisionFatigueAudit(
+        for: action,
+        experiment: experiment,
+        config: fatiguedConfig,
+        evidenceIndex: secondValidationIndex
+      ))
+    let fatigueAction = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: fatiguedConfig,
+        evidenceIndex: secondValidationIndex
+      ))
+    let fatigueStep = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: fatiguedConfig,
+        evidenceIndex: secondValidationIndex,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(fatigueAudit.id == secondValidationAudit.id)
+    try #require(fatigueAction.kind == .reviewDecision)
+    try #require(fatigueAction.title == "Review revision fatigue")
+    try #require(fatigueAction.detail.contains(secondValidationAudit.id))
+    try #require(fatigueAction.detail.contains("same AI-user rationale still survived"))
+    try #require(fatigueAction.targetScenarioID == buyerScenario.id)
+    try #require(fatigueAction.targetDecision == .narrow)
+    try #require(fatigueStep.kind == .blocked)
+    try #require(!fatigueStep.canExecute)
+    try #require(fatigueStep.action.targetDecision == .narrow)
+    try #require(fatigueStep.blockedReason == "Review the decision path before autopilot changes state.")
     try #require(digest.contains("Retarget AI-user rationale signal"))
     try #require(digest.contains("Retarget product revision for AI-user rationale"))
     try #require(digest.contains("factory-cycle-stalled-rationale"))

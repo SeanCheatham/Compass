@@ -2292,6 +2292,55 @@ enum ProductFactoryCycleLearningAdvisor {
       }
   }
 
+  static func revisionFatigueAudit(
+    for action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryCycleAudit? {
+    guard isTargetedRationaleSignalAction(action) else { return nil }
+    let stepIDs = targetedScenarioStepIDs(for: action)
+    let currentSignal = ProductFactoryRationaleSignalAdvisor.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    let recentAudits = Array(
+      config.factoryCycleAudits
+        .sorted { lhs, rhs in
+          if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+          return lhs.endedAt > rhs.endedAt
+        }
+        .prefix(8)
+    )
+    let matchingValidationAudits = recentAudits.filter { audit in
+      guard audit.stopReason != .executionFailed,
+        audit.experimentIDs.contains(experiment.id),
+        audit.evidenceRunStepCount > 0,
+        audit.completedEvidenceRunCount > 0,
+        matchesAnyExecutedStepID(stepIDs, audit: audit),
+        !audit.personaRationaleSignalSummaries.isEmpty,
+        matchesCurrentRationaleSignal(
+          audit: audit,
+          action: action,
+          signal: currentSignal
+        ),
+        isRevisionValidationAudit(
+          audit,
+          recentAudits: recentAudits,
+          action: action,
+          experiment: experiment
+        )
+      else { return false }
+      return true
+    }
+    guard matchingValidationAudits.count >= 2,
+      let latestAudit = matchingValidationAudits.first,
+      !hasCompletedEvidence(after: latestAudit, for: experiment, evidenceIndex: evidenceIndex)
+    else { return nil }
+    return latestAudit
+  }
+
   static func appliedRevisionBriefAudit(
     for brief: ProductFactoryRevisionBrief,
     experiment: ProductExperiment,
@@ -2339,6 +2388,29 @@ enum ProductFactoryCycleLearningAdvisor {
         else { return false }
         return true
       }
+  }
+
+  private static func isRevisionValidationAudit(
+    _ audit: ProductFactoryCycleAudit,
+    recentAudits: [ProductFactoryCycleAudit],
+    action: ProductMarketFitNextAction,
+    experiment: ProductExperiment
+  ) -> Bool {
+    if !audit.revisionBriefSummaries.isEmpty,
+      matchesCurrentRevisionBrief(audit: audit, action: action)
+    {
+      return true
+    }
+    return recentAudits.contains { revisionAudit in
+      guard revisionAudit.id != audit.id,
+        revisionAudit.stopReason != .executionFailed,
+        revisionAudit.experimentIDs.contains(experiment.id),
+        revisionAudit.endedAt <= audit.endedAt,
+        !revisionAudit.revisionBriefSummaries.isEmpty,
+        matchesCurrentRevisionBrief(audit: revisionAudit, action: action)
+      else { return false }
+      return true
+    }
   }
 
   private static func isBroadCohortAction(_ action: ProductMarketFitNextAction) -> Bool {
@@ -3372,6 +3444,19 @@ enum ProductMarketFitNextActionAdvisor {
       config: config,
       evidenceIndex: evidenceIndex
     ) {
+      if let fatigueAudit = ProductFactoryCycleLearningAdvisor.revisionFatigueAudit(
+        for: action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ) {
+        return revisionFatigueAction(
+          after: fatigueAudit,
+          replacing: action,
+          experiment: experiment,
+          evidenceIndex: evidenceIndex
+        )
+      }
       if let revisionAudit = ProductFactoryCycleLearningAdvisor.appliedRevisionBriefAudit(
         for: action,
         experiment: experiment,
@@ -3430,6 +3515,68 @@ enum ProductMarketFitNextActionAdvisor {
         "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt (\(audit.summary)); retarget the scenario cohort, persona, or current-alternative proof before rerunning broad evidence.",
       priority: min(98, max(action.priority + 1, 84))
     )
+  }
+
+  private static func revisionFatigueAction(
+    after audit: ProductFactoryCycleAudit,
+    replacing action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductMarketFitNextAction {
+    let readiness = evidenceIndex.currentPMFReadiness(for: experiment)
+    let targetDecision = revisionFatigueTargetDecision(
+      readiness: readiness,
+      currentDecision: experiment.decision
+    )
+    let targetDetail =
+      targetDecision.map {
+        "Review whether to mark the bet \($0.rawValue) before more product revisions."
+      } ?? "Review whether to narrow, pivot, or kill before more product revisions."
+    let detail = [
+      "Recent factory cycle \(audit.id) repeated a product revision validation.",
+      "The same AI-user rationale still survived (\(audit.summary)).",
+      targetDetail,
+    ].joined(separator: " ")
+    return ProductMarketFitNextAction(
+      experimentID: experiment.id,
+      kind: .reviewDecision,
+      title: "Review revision fatigue",
+      detail: detail,
+      priority: min(99, max(action.priority + 5, 94)),
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: action.targetPersonaID,
+      targetPersonaName: action.targetPersonaName,
+      targetScenarioID: action.targetScenarioID,
+      targetDecision: targetDecision
+    )
+  }
+
+  private static func revisionFatigueTargetDecision(
+    readiness: ProductMarketFitReadiness?,
+    currentDecision: ProductExperimentDecision
+  ) -> ProductExperimentDecision? {
+    let shouldKill =
+      readiness?.recommendation == .kill
+      || readiness.map { $0.readinessScore <= 40 } == true
+      || readiness?.weakestVerdict == .rejected
+    if shouldKill {
+      switch currentDecision {
+      case .keepGoing, .narrow, .pivot:
+        return .kill
+      case .notRun, .kill, .promote, .archived, .promoted:
+        return nil
+      }
+    }
+    switch currentDecision {
+    case .keepGoing:
+      return .narrow
+    case .narrow:
+      return .pivot
+    case .pivot:
+      return .kill
+    case .notRun, .kill, .promote, .archived, .promoted:
+      return nil
+    }
   }
 
   private static func revisionValidationAction(
