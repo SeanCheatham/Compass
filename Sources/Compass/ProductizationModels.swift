@@ -14,6 +14,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
   var scenarios: [ProductScenario]
   var scenarioCohorts: [ProductScenarioCohort]
   var decisions: [ProductDecision]
+  var factoryCycleAudits: [ProductFactoryCycleAudit]
 
   static let empty = ProductizationConfig(
     rawPain: "",
@@ -25,7 +26,8 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     experiments: [],
     scenarios: [],
     scenarioCohorts: [],
-    decisions: []
+    decisions: [],
+    factoryCycleAudits: []
   )
 
   enum CodingKeys: String, CodingKey {
@@ -40,6 +42,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     case scenarios
     case scenarioCohorts
     case decisions
+    case factoryCycleAudits
   }
 
   init(
@@ -53,7 +56,8 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     experiments: [ProductExperiment],
     scenarios: [ProductScenario] = [],
     scenarioCohorts: [ProductScenarioCohort] = [],
-    decisions: [ProductDecision] = []
+    decisions: [ProductDecision] = [],
+    factoryCycleAudits: [ProductFactoryCycleAudit] = []
   ) {
     self.schemaVersion = schemaVersion
     self.rawPain = ProductizationModelText.cleanedText(rawPain, limit: 4_000)
@@ -66,6 +70,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     self.scenarios = scenarios
     self.scenarioCohorts = scenarioCohorts
     self.decisions = decisions
+    self.factoryCycleAudits = factoryCycleAudits
   }
 
   init(from decoder: Decoder) throws {
@@ -93,7 +98,11 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
       scenarios: try container.decodeIfPresent([ProductScenario].self, forKey: .scenarios) ?? [],
       scenarioCohorts: try container.decodeIfPresent(
         [ProductScenarioCohort].self, forKey: .scenarioCohorts) ?? [],
-      decisions: try container.decodeIfPresent([ProductDecision].self, forKey: .decisions) ?? []
+      decisions: try container.decodeIfPresent([ProductDecision].self, forKey: .decisions) ?? [],
+      factoryCycleAudits: try container.decodeIfPresent(
+        [ProductFactoryCycleAudit].self,
+        forKey: .factoryCycleAudits
+      ) ?? []
     )
   }
 
@@ -108,6 +117,26 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
       && scenarios.isEmpty
       && scenarioCohorts.isEmpty
       && decisions.isEmpty
+      && factoryCycleAudits.isEmpty
+  }
+
+  func recordingFactoryCycleAudit(
+    _ audit: ProductFactoryCycleAudit,
+    limit: Int = 20
+  ) -> ProductizationConfig {
+    var next = self
+    let cappedLimit = max(1, limit)
+    next.factoryCycleAudits = (next.factoryCycleAudits + [audit])
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(cappedLimit)
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt < rhs.endedAt
+      }
+    return next
   }
 
   static func seedDefaults(
@@ -831,6 +860,69 @@ struct ProductDecision: Codable, Equatable, Identifiable, Sendable {
     self.decidedAt = decidedAt
     self.decidedBy = ProductizationModelText.cleanedText(
       decidedBy, fallback: "Compass", limit: 120)
+  }
+}
+
+enum ProductFactoryCycleAuditStopReason: String, Codable, CaseIterable, Equatable, Sendable {
+  case reachedStepLimit = "reached_step_limit"
+  case noExecutableStep = "no_executable_step"
+  case repeatedStep = "repeated_step"
+  case executionFailed = "execution_failed"
+}
+
+struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
+  var id: String
+  var startedAt: Double
+  var endedAt: Double
+  var executedStepIDs: [String]
+  var experimentIDs: [String]
+  var messages: [String]
+  var maxSteps: Int
+  var stopReason: ProductFactoryCycleAuditStopReason
+  var stopDetail: String
+  var userMessage: String
+
+  var executedStepCount: Int {
+    executedStepIDs.count
+  }
+
+  var summary: String {
+    "\(executedStepCount) step(s); \(stopReason.rawValue); \(stopDetail)"
+  }
+
+  init(
+    id: String,
+    startedAt: Double,
+    endedAt: Double,
+    executedStepIDs: [String],
+    experimentIDs: [String],
+    messages: [String],
+    maxSteps: Int,
+    stopReason: ProductFactoryCycleAuditStopReason,
+    stopDetail: String,
+    userMessage: String
+  ) {
+    self.id = ProductizationModelText.identifier(id, fallback: "factory-cycle-audit")
+    self.startedAt = startedAt
+    self.endedAt = max(startedAt, endedAt)
+    self.executedStepIDs = ProductizationModelText.cleanedList(executedStepIDs, limit: 160)
+    self.experimentIDs =
+      ProductizationModelText.cleanedList(experimentIDs, limit: 120)
+      .map { ProductizationModelText.identifier($0, fallback: "experiment") }
+    self.messages = ProductizationModelText.cleanedList(messages, limit: 500)
+    self.maxSteps = max(1, maxSteps)
+    self.stopReason = stopReason
+    let cleanedStopDetail = ProductizationModelText.cleanedText(
+      stopDetail,
+      fallback: "Factory cycle stopped.",
+      limit: 500
+    )
+    self.stopDetail = cleanedStopDetail
+    self.userMessage = ProductizationModelText.cleanedText(
+      userMessage,
+      fallback: cleanedStopDetail,
+      limit: 1_200
+    )
   }
 }
 

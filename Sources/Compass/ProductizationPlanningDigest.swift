@@ -26,6 +26,7 @@ enum ProductizationPlanningDigestFormatter {
     lines += unknownLines(config: config)
     lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
     lines += autopilotLines(config: config, evidenceIndex: evidenceIndex)
+    lines += factoryCycleAuditLines(config: config)
     lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
     lines += evidenceSignalLines(
       config: config,
@@ -33,7 +34,7 @@ enum ProductizationPlanningDigestFormatter {
       maxEvidenceSignals: maxEvidenceSignals
     )
 
-    return boundedLines(lines, maxLines: 46, maxCharacters: 5_100)
+    return boundedLines(lines, maxLines: 50, maxCharacters: 5_400)
   }
 
   private static func painLines(
@@ -253,6 +254,25 @@ enum ProductizationPlanningDigestFormatter {
       )
     }
     return lines
+  }
+
+  private static func factoryCycleAuditLines(config: ProductizationConfig) -> [String] {
+    let audits = config.factoryCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(3)
+    guard !audits.isEmpty else { return [] }
+    return ["Recent product-factory cycle audits:"]
+      + audits.map { audit in
+        let experiments =
+          audit.experimentIDs.isEmpty
+          ? "no experiments"
+          : "experiments \(audit.experimentIDs.joined(separator: ", "))"
+        return
+          "- \(bounded(audit.id, 100)): \(audit.executedStepCount) step(s); \(experiments); stopped \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
+      }
   }
 
   private static func evidenceSignalLines(

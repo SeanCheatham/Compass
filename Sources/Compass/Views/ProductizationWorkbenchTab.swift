@@ -140,6 +140,14 @@ struct ProductizationWorkbenchTab: View {
       && !isRunningScenario
   }
 
+  private var latestFactoryCycleAudit: ProductFactoryCycleAudit? {
+    config.factoryCycleAudits.sorted { lhs, rhs in
+      if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+      return lhs.endedAt > rhs.endedAt
+    }
+    .first
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       header
@@ -420,6 +428,9 @@ struct ProductizationWorkbenchTab: View {
           )
           WorkbenchFact(label: "Cycle", value: factoryAutopilotCyclePlan.summary)
           WorkbenchFact(label: "Queue", value: factoryAutopilotCyclePlan.queueSummary)
+          if let latestFactoryCycleAudit {
+            WorkbenchFact(label: "Last Cycle", value: latestFactoryCycleAudit.summary)
+          }
           Text(step.detail)
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -1147,6 +1158,7 @@ struct ProductizationWorkbenchTab: View {
     guard factoryAutopilotCyclePlan.canRun else { return }
     isRunningFactoryCycle = true
     defer { isRunningFactoryCycle = false }
+    let cycleStartedAt = Date()
     let maxSteps = factoryAutopilotCyclePlan.maxSteps
     var executedSteps: [ProductFactoryAutopilotStep] = []
     var messages: [String] = []
@@ -1176,12 +1188,17 @@ struct ProductizationWorkbenchTab: View {
       executedSteps.append(step)
       messages.append(message)
     }
-    scenarioRunMessage = ProductFactoryAutopilotCycleOutcome(
+    let outcome = ProductFactoryAutopilotCycleOutcome(
       executedSteps: executedSteps,
       messages: messages,
       maxSteps: maxSteps,
       stopReason: stopReason
-    ).userMessage
+    )
+    let audit = outcome.audit(startedAt: cycleStartedAt)
+    scenarioRunMessage = audit.userMessage
+    await project.saveProductizationConfig(
+      project.productizationConfig.recordingFactoryCycleAudit(audit)
+    )
     await loadContractStatus()
   }
 

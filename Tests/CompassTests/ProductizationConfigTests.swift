@@ -73,6 +73,53 @@ struct ProductizationConfigTests {
     }
   }
 
+  @Test func recordingFactoryCycleAuditKeepsLatestBoundedHistory() throws {
+    let base = ProductizationConfig.empty
+    let first = ProductFactoryCycleAudit(
+      id: "factory-cycle-first",
+      startedAt: 10,
+      endedAt: 11,
+      executedStepIDs: ["step-one"],
+      experimentIDs: ["experiment-one"],
+      messages: ["First cycle."],
+      maxSteps: 3,
+      stopReason: .noExecutableStep,
+      stopDetail: "Stopped first.",
+      userMessage: "First."
+    )
+    let second = ProductFactoryCycleAudit(
+      id: "factory-cycle-second",
+      startedAt: 20,
+      endedAt: 21,
+      executedStepIDs: ["step-two"],
+      experimentIDs: ["experiment-two"],
+      messages: ["Second cycle."],
+      maxSteps: 3,
+      stopReason: .reachedStepLimit,
+      stopDetail: "Stopped second.",
+      userMessage: "Second."
+    )
+    let third = ProductFactoryCycleAudit(
+      id: "factory-cycle-third",
+      startedAt: 30,
+      endedAt: 31,
+      executedStepIDs: ["step-three"],
+      experimentIDs: ["experiment-three"],
+      messages: ["Third cycle."],
+      maxSteps: 3,
+      stopReason: .executionFailed,
+      stopDetail: "Stopped third.",
+      userMessage: "Third."
+    )
+
+    let next = base
+      .recordingFactoryCycleAudit(first, limit: 2)
+      .recordingFactoryCycleAudit(second, limit: 2)
+      .recordingFactoryCycleAudit(third, limit: 2)
+
+    try #require(next.factoryCycleAudits.map(\.id) == ["factory-cycle-second", "factory-cycle-third"])
+  }
+
   @Test func seedDefaultsCreatePainSolutionsExperimentsAndCohorts() throws {
     let config = ProductizationConfig.seedDefaults(
       projectTitle: "LedgerLift",
@@ -100,6 +147,7 @@ struct ProductizationConfigTests {
     try #require(config.experiments.allSatisfy { !$0.branchName.isEmpty })
     try #require(config.experiments.allSatisfy { !$0.worktreeID.isEmpty })
     try #require(config.scenarioCohorts.allSatisfy { !$0.scenarioIDs.isEmpty })
+    try #require(config.factoryCycleAudits.isEmpty)
     try #require(
       Set(config.scenarioCohorts.flatMap(\.scenarioIDs)).isSubset(of: Set(config.scenarios.map(\.id)))
     )
@@ -249,6 +297,19 @@ private func makeProductizationConfig() -> ProductizationConfig {
     decidedAt: 300,
     decidedBy: "Reflect"
   )
+  let audit = ProductFactoryCycleAudit(
+    id: "factory-cycle-handoff",
+    startedAt: 400,
+    endedAt: 405,
+    executedStepIDs: ["experiment-handoff-desk:run_cohort:cohort-handoff"],
+    experimentIDs: [experiment.id],
+    messages: ["Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+    maxSteps: 3,
+    stopReason: .noExecutableStep,
+    stopDetail: "Stopped because no executable product-factory step remains.",
+    userMessage:
+      "Factory cycle ran 1 step(s). Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped. Stopped because no executable product-factory step remains."
+  )
   return ProductizationConfig(
     rawPain: pain.rawPain,
     painHypotheses: [pain],
@@ -259,6 +320,7 @@ private func makeProductizationConfig() -> ProductizationConfig {
     experiments: [experiment],
     scenarios: [scenario],
     scenarioCohorts: [cohort],
-    decisions: [decision]
+    decisions: [decision],
+    factoryCycleAudits: [audit]
   )
 }

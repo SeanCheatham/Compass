@@ -428,6 +428,41 @@ struct ProductizationLoopTests {
       ))
   }
 
+  @Test func productFactoryAutopilotCycleOutcomeBuildsDurableAudit() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+    let outcome = ProductFactoryAutopilotCycleOutcome(
+      executedSteps: [step],
+      messages: ["Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+      maxSteps: 3,
+      stopReason: .noExecutableStep
+    )
+
+    let audit = outcome.audit(
+      startedAt: Date(timeIntervalSince1970: 100),
+      endedAt: Date(timeIntervalSince1970: 105)
+    )
+
+    try #require(audit.startedAt == 100)
+    try #require(audit.endedAt == 105)
+    try #require(audit.executedStepIDs == [step.id])
+    try #require(audit.experimentIDs == [step.experimentID])
+    try #require(audit.stopReason == .noExecutableStep)
+    try #require(audit.userMessage.contains("Factory cycle ran 1 step(s)."))
+    try #require(audit.userMessage.contains("Stopped because no executable product-factory step remains."))
+  }
+
   @Test func pmfDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",

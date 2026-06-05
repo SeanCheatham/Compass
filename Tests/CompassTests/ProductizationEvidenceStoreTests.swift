@@ -241,10 +241,25 @@ struct ProductizationEvidenceStoreTests {
   }
 
   @Test func planningDigestIncludesBoundedProductizationEvidence() throws {
-    let config = ProductizationConfig.seedDefaults(
+    var config = ProductizationConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    config = config.recordingFactoryCycleAudit(
+      ProductFactoryCycleAudit(
+        id: "factory-cycle-digest",
+        startedAt: 40,
+        endedAt: 45,
+        executedStepIDs: ["step-run-cohort"],
+        experimentIDs: [config.experiments[0].id],
+        messages: ["Model-free cohort ran 1 scenario(s): 0 completed, 1 needing review, 0 skipped."],
+        maxSteps: 3,
+        stopReason: .executionFailed,
+        stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
+        userMessage:
+          "Factory cycle ran 1 step(s). Model-free cohort ran 1 scenario(s): 0 completed, 1 needing review, 0 skipped. Stopped because Run evidence cohort failed: contract missing."
+      )
     )
     let record = makeEvidenceRecord(
       id: "digest-run",
@@ -270,6 +285,10 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("executable false"))
     try #require(text.contains("cycle executable 0"))
     try #require(text.contains("cycle queue Blocked"))
+    try #require(text.contains("Recent product-factory cycle audits"))
+    try #require(text.contains("factory-cycle-digest"))
+    try #require(text.contains("execution_failed"))
+    try #require(text.contains("contract missing"))
     try #require(text.contains("Next product-factory actions"))
     try #require(text.contains("kind run_cohort"))
     try #require(text.contains("cohort \(config.scenarioCohorts[0].id)"))

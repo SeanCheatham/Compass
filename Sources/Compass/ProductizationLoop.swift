@@ -556,6 +556,47 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     return parts.joined(separator: " ")
   }
 
+  var auditStopReason: ProductFactoryCycleAuditStopReason {
+    switch stopReason {
+    case .reachedStepLimit:
+      return .reachedStepLimit
+    case .noExecutableStep:
+      return .noExecutableStep
+    case .repeatedStep:
+      return .repeatedStep
+    case .executionFailed:
+      return .executionFailed
+    }
+  }
+
+  var stopDetail: String {
+    stopReasonMessage
+  }
+
+  func audit(
+    startedAt: Date,
+    endedAt: Date = Date()
+  ) -> ProductFactoryCycleAudit {
+    let started = startedAt.timeIntervalSince1970
+    let ended = endedAt.timeIntervalSince1970
+    var experimentIDs: [String] = []
+    for step in executedSteps where !experimentIDs.contains(step.experimentID) {
+      experimentIDs.append(step.experimentID)
+    }
+    return ProductFactoryCycleAudit(
+      id: "factory-cycle-\(Int(started))-\(Int(ended))-\(executedSteps.count)",
+      startedAt: started,
+      endedAt: ended,
+      executedStepIDs: executedSteps.map(\.id),
+      experimentIDs: experimentIDs,
+      messages: messages,
+      maxSteps: maxSteps,
+      stopReason: auditStopReason,
+      stopDetail: stopDetail,
+      userMessage: userMessage
+    )
+  }
+
   private var stopReasonMessage: String {
     switch stopReason {
     case .reachedStepLimit:
