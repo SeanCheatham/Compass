@@ -524,6 +524,19 @@ enum ProductizationPlanningDigestFormatter {
       lines.append("Repeated objections: \(objections).")
     }
 
+    if !currentAggregate.personaRationaleSignals.isEmpty {
+      let signals = currentAggregate.personaRationaleSignals.prefix(4)
+        .map { signal in
+          let runs =
+            signal.runIDs.isEmpty
+            ? ""
+            : "; runs \(signal.runIDs.prefix(3).joined(separator: ", "))"
+          return "\(bounded(signal.rationale, 140)) (\(signal.count)x\(runs))"
+        }
+        .joined(separator: "; ")
+      lines.append("AI-user rationale signals: \(signals).")
+    }
+
     let currentReadiness = config.experiments
       .compactMap { index.currentPMFReadiness(for: $0) }
       .sorted { lhs, rhs in

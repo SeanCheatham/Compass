@@ -46,7 +46,10 @@ struct ProductizationEvidenceStoreTests {
       verdict: .weak,
       objections: ["Spreadsheet is already familiar", "Spreadsheet is already familiar"],
       missingCapabilities: ["import_csv"],
-      comparison: "Lost to the current spreadsheet."
+      comparison: "Lost to the current spreadsheet.",
+      personaActionRationales: [
+        "turn 0 choose valid action compare_current_alternative: Needed CSV proof before switching."
+      ]
     )
     let second = makeEvidenceRecord(
       id: "second",
@@ -54,7 +57,10 @@ struct ProductizationEvidenceStoreTests {
       verdict: .promising,
       objections: ["Spreadsheet is already familiar"],
       missingCapabilities: ["import_csv", "permissions"],
-      comparison: "Beat the spreadsheet for review speed."
+      comparison: "Beat the spreadsheet for review speed.",
+      personaActionRationales: [
+        "turn 2 choose valid action reduce_switching_objection: Needed CSV proof before switching."
+      ]
     )
     let failure = makeEvidenceRecord(
       id: "failure",
@@ -77,6 +83,10 @@ struct ProductizationEvidenceStoreTests {
     try #require(index.aggregate.missingCapabilityFrequency.first?.capabilityID == "import_csv")
     try #require(index.aggregate.verdictCounts["promising"] == 1)
     try #require(index.aggregate.failuresByKind["appCommandFailed"] == 1)
+    try #require(index.aggregate.personaRationaleSignals.first?.rationale == "needed csv proof before switching.")
+    try #require(index.aggregate.personaRationaleSignals.first?.count == 2)
+    try #require(index.aggregate.personaRationaleSignals.first?.runIDs.contains("first") == true)
+    try #require(index.aggregate.personaRationaleSignals.first?.runIDs.contains("second") == true)
     try #require(
       index.aggregate.currentAlternativeComparisons.contains {
         $0.comparison.contains("Beat the spreadsheet")
@@ -364,6 +374,50 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("csv_import"))
     try #require(text.contains("Beat the spreadsheet"))
     try #require(!text.contains("transcript.jsonl"))
+  }
+
+  @Test func planningDigestIncludesRepeatedAIUserRationaleSignals() throws {
+    let config = ProductizationConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Weekly reporting takes too long.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let records = [
+      makeEvidenceRecord(
+        id: "rationale-one",
+        experimentID: config.experiments[0].id,
+        solutionID: config.solutionHypotheses[0].id,
+        painID: config.painHypotheses[0].id,
+        branchName: config.experiments[0].branchName,
+        personaID: "operator",
+        mode: .personaModel,
+        personaActionRationales: [
+          "turn 1 choose valid action compare_current_alternative: Needed CSV proof before switching."
+        ]
+      ),
+      makeEvidenceRecord(
+        id: "rationale-two",
+        experimentID: config.experiments[0].id,
+        solutionID: config.solutionHypotheses[0].id,
+        painID: config.painHypotheses[0].id,
+        branchName: config.experiments[0].branchName,
+        personaID: "buyer",
+        mode: .personaModel,
+        endedAt: 30,
+        personaActionRationales: [
+          "turn 3 choose valid action reduce_switching_objection: Needed CSV proof before switching."
+        ]
+      ),
+    ]
+    let text = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: ProductizationEvidenceIndex.build(records: records)
+    )
+
+    try #require(text.contains("AI-user rationale signals"))
+    try #require(text.contains("needed csv proof before switching"))
+    try #require(text.contains("rationale-one"))
+    try #require(text.contains("rationale-two"))
   }
 
   @Test func planningDigestBlocksAutopilotAfterRecentCycleFailure() throws {

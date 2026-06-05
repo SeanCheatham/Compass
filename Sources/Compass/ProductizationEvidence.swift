@@ -1214,6 +1214,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
     missingCapabilityFrequency: [],
     verdictCounts: [:],
     failuresByKind: [:],
+    personaRationaleSignals: [],
     currentAlternativeComparisons: []
   )
 
@@ -1224,6 +1225,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
   var missingCapabilityFrequency: [ProductizationMissingCapabilityCount]
   var verdictCounts: [String: Int]
   var failuresByKind: [String: Int]
+  var personaRationaleSignals: [ProductizationPersonaRationaleSignal]
   var currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary]
 
   enum CodingKeys: String, CodingKey {
@@ -1234,6 +1236,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
     case missingCapabilityFrequency
     case verdictCounts
     case failuresByKind
+    case personaRationaleSignals
     case currentAlternativeComparisons
   }
 
@@ -1245,6 +1248,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
     missingCapabilityFrequency: [ProductizationMissingCapabilityCount],
     verdictCounts: [String: Int],
     failuresByKind: [String: Int],
+    personaRationaleSignals: [ProductizationPersonaRationaleSignal] = [],
     currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary]
   ) {
     self.latestRunByExperiment = latestRunByExperiment
@@ -1254,6 +1258,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
     self.missingCapabilityFrequency = missingCapabilityFrequency
     self.verdictCounts = verdictCounts
     self.failuresByKind = failuresByKind
+    self.personaRationaleSignals = personaRationaleSignals
     self.currentAlternativeComparisons = currentAlternativeComparisons
   }
 
@@ -1288,6 +1293,10 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
         [String: Int].self,
         forKey: .failuresByKind
       ) ?? [:],
+      personaRationaleSignals: try container.decodeIfPresent(
+        [ProductizationPersonaRationaleSignal].self,
+        forKey: .personaRationaleSignals
+      ) ?? [],
       currentAlternativeComparisons: try container.decodeIfPresent(
         [ProductizationAlternativeComparisonSummary].self,
         forKey: .currentAlternativeComparisons
@@ -1356,6 +1365,30 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
       by: { $0 }
     ).mapValues(\.count)
 
+    let rationaleGroups = Dictionary(
+      grouping: summaries.flatMap { summary in
+        summary.personaActionRationales.map { rationale in
+          ProductizationPersonaRationaleSignalSource(summary: summary, rationale: rationale)
+        }
+      },
+      by: { Self.personaRationaleSignalText($0.rationale) }
+    )
+    personaRationaleSignals =
+      rationaleGroups
+      .filter { !$0.key.isEmpty && $0.value.count > 1 }
+      .map { rationale, sources in
+        ProductizationPersonaRationaleSignal(
+          rationale: rationale,
+          count: sources.count,
+          runIDs: sources.map(\.summary.runID),
+          experimentIDs: sources.map(\.summary.experimentID)
+        )
+      }
+      .sorted { lhs, rhs in
+        if lhs.count == rhs.count { return lhs.rationale < rhs.rationale }
+        return lhs.count > rhs.count
+      }
+
     let scoreGroups = Dictionary(grouping: summaries.filter { $0.scores.hasScores }) {
       "\($0.experimentID)|\($0.personaID)"
     }
@@ -1383,6 +1416,14 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
         )
       }
   }
+
+  private static func personaRationaleSignalText(_ value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let separator = trimmed.range(of: ": ") {
+      return String(trimmed[separator.upperBound...]).normalizedProductizationEvidenceText
+    }
+    return trimmed.normalizedProductizationEvidenceText
+  }
 }
 
 struct ProductizationRepeatedObjection: Codable, Equatable, Sendable {
@@ -1393,6 +1434,30 @@ struct ProductizationRepeatedObjection: Codable, Equatable, Sendable {
 struct ProductizationMissingCapabilityCount: Codable, Equatable, Sendable {
   var capabilityID: String
   var count: Int
+}
+
+struct ProductizationPersonaRationaleSignal: Codable, Equatable, Sendable {
+  var rationale: String
+  var count: Int
+  var runIDs: [String]
+  var experimentIDs: [String]
+
+  init(
+    rationale: String,
+    count: Int,
+    runIDs: [String],
+    experimentIDs: [String]
+  ) {
+    self.rationale = StringUtils.boundedText(rationale, limit: 260)
+    self.count = max(0, count)
+    self.runIDs = ProductizationEvidenceRecord.cleanedList(runIDs, limit: 96)
+    self.experimentIDs = ProductizationEvidenceRecord.cleanedList(experimentIDs, limit: 96)
+  }
+}
+
+private struct ProductizationPersonaRationaleSignalSource {
+  var summary: ProductizationEvidenceSummary
+  var rationale: String
 }
 
 struct ProductizationAlternativeComparisonSummary: Codable, Equatable, Sendable {

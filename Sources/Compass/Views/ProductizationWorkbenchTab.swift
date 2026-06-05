@@ -935,6 +935,12 @@ struct ProductizationWorkbenchTab: View {
           WorkbenchFact(
             label: "Repeated objection", value: "\(objection.objection) (\(objection.count)x)")
         }
+        if let rationale = evidenceIndex.aggregate.personaRationaleSignals.first {
+          WorkbenchFact(
+            label: "AI-user rationale",
+            value: "\(rationale.rationale) (\(rationale.count)x)"
+          )
+        }
         if let missing = evidenceIndex.aggregate.missingCapabilityFrequency.first {
           WorkbenchFact(
             label: "Missing capability", value: "\(missing.capabilityID) (\(missing.count)x)")
