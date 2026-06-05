@@ -421,7 +421,7 @@ enum ProductizationPlanningDigestFormatter {
           : "evidence \(readiness.evidenceRunIDs.prefix(4).joined(separator: ", "))"
         let rationale = readiness.rationale.first.map { "; \(bounded($0, 180))" } ?? ""
         lines.append(
-          "- \(readiness.experimentID): score \(readiness.scoreLabel)/100; recommend \(readiness.recommendation.rawValue); ai-user \(readiness.aiUserCompletedRunCount) across \(readiness.aiUserDistinctPersonaCount) persona(s); model-free \(readiness.modelFreeCompletedRunCount); \(evidence)\(rationale)."
+          "- \(readiness.experimentID): score \(readiness.scoreLabel)/100; recommend \(readiness.recommendation.rawValue); ai-user \(readiness.aiUserCompletedRunCount) across \(readiness.aiUserDistinctPersonaCount) persona(s); alt-proof \(readiness.aiUserCurrentAlternativePersonaCount) AI-user persona(s); model-free \(readiness.modelFreeCompletedRunCount); \(evidence)\(rationale)."
         )
       }
     }

@@ -1050,7 +1050,6 @@ enum ProductMarketFitNextActionAdvisor {
     }
     let missingAIUserTarget = missingAIUserPersonaTarget(
       for: experiment,
-      readiness: readiness,
       config: config,
       evidenceIndex: evidenceIndex,
       cohort: cohort
@@ -1059,13 +1058,14 @@ enum ProductMarketFitNextActionAdvisor {
       return applyingRecentCycleFailureGuard(
         to: aiUserBreadthAction(
           experiment: experiment,
-          readiness: readiness,
           selectedCohort: cohort,
           target: missingAIUserTarget,
           title: "Run AI-user validation cohort",
           decisionGate: "promotion",
           gateReason: "promotion requires at least 2",
-          priority: 78
+          priority: 78,
+          observedCount: readiness.aiUserDistinctPersonaCount,
+          observedEvidenceLabel: "AI-user persona(s)"
         ),
         experiment: experiment,
         config: config,
@@ -1076,13 +1076,65 @@ enum ProductMarketFitNextActionAdvisor {
       return applyingRecentCycleFailureGuard(
         to: aiUserBreadthAction(
           experiment: experiment,
-          readiness: readiness,
           selectedCohort: cohort,
           target: missingAIUserTarget,
           title: "Run AI-user rejection check",
           decisionGate: "stopping the experiment",
           gateReason: "stopping a bet requires at least 2",
-          priority: 82
+          priority: 82,
+          observedCount: readiness.aiUserDistinctPersonaCount,
+          observedEvidenceLabel: "AI-user persona(s)"
+        ),
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
+    let currentAlternativePersonaIDs = aiUserCurrentAlternativePersonaIDs(
+      for: experiment,
+      evidenceIndex: evidenceIndex
+    )
+    let missingCurrentAlternativeTarget = missingAIUserPersonaTarget(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex,
+      cohort: cohort,
+      testedPersonaIDs: currentAlternativePersonaIDs
+    )
+    if readiness.aiUserCurrentAlternativePersonaCount < 2 && readiness.readinessScore >= 70 {
+      return applyingRecentCycleFailureGuard(
+        to: aiUserBreadthAction(
+          experiment: experiment,
+          selectedCohort: cohort,
+          target: missingCurrentAlternativeTarget,
+          title: "Run AI-user alternative challenge",
+          decisionGate: "promotion",
+          gateReason:
+            "decisive PMF decisions require current-alternative proof from at least 2 AI-user personas",
+          priority: 77,
+          observedCount: readiness.aiUserCurrentAlternativePersonaCount,
+          observedEvidenceLabel: "AI-user current-alternative persona(s)"
+        ),
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
+    if readiness.aiUserCurrentAlternativePersonaCount < 2
+      && shouldRunAIUserRejectionCheck(readiness)
+    {
+      return applyingRecentCycleFailureGuard(
+        to: aiUserBreadthAction(
+          experiment: experiment,
+          selectedCohort: cohort,
+          target: missingCurrentAlternativeTarget,
+          title: "Run AI-user alternative rejection check",
+          decisionGate: "stopping the experiment",
+          gateReason:
+            "decisive PMF decisions require current-alternative proof from at least 2 AI-user personas",
+          priority: 81,
+          observedCount: readiness.aiUserCurrentAlternativePersonaCount,
+          observedEvidenceLabel: "AI-user current-alternative persona(s)"
         ),
         experiment: experiment,
         config: config,
@@ -1158,13 +1210,14 @@ enum ProductMarketFitNextActionAdvisor {
 
   private static func aiUserBreadthAction(
     experiment: ProductExperiment,
-    readiness: ProductMarketFitReadiness,
     selectedCohort: ProductScenarioCohort?,
     target: AIUserPersonaTarget?,
     title: String,
     decisionGate: String,
     gateReason: String,
-    priority: Int
+    priority: Int,
+    observedCount: Int,
+    observedEvidenceLabel: String
   ) -> ProductMarketFitNextAction {
     let executableCohortID = target?.executableCohortID
     let executableScenarioID = target?.executableScenarioID
@@ -1175,13 +1228,13 @@ enum ProductMarketFitNextActionAdvisor {
     let detail: String
     if let executableCohortID, canRunTarget {
       detail =
-        "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but \(gateReason); run the targeted persona-model scenario in cohort `\(executableCohortID)` before \(decisionGate).\(guidance)"
+        "Current evidence has \(observedCount) \(observedEvidenceLabel), but \(gateReason); run the targeted persona-model scenario in cohort `\(executableCohortID)` before \(decisionGate).\(guidance)"
     } else if let selectedCohort {
       detail =
-        "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but \(gateReason); cohort `\(selectedCohort.id)` does not cover a runnable AI-user target before \(decisionGate).\(guidance)"
+        "Current evidence has \(observedCount) \(observedEvidenceLabel), but \(gateReason); cohort `\(selectedCohort.id)` does not cover a runnable AI-user target before \(decisionGate).\(guidance)"
     } else {
       detail =
-        "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but \(gateReason); define an enabled AI-user scenario cohort before \(decisionGate).\(guidance)"
+        "Current evidence has \(observedCount) \(observedEvidenceLabel), but \(gateReason); define an enabled AI-user scenario cohort before \(decisionGate).\(guidance)"
     }
     return ProductMarketFitNextAction(
       experimentID: experiment.id,
@@ -1228,18 +1281,18 @@ enum ProductMarketFitNextActionAdvisor {
 
   private static func missingAIUserPersonaTarget(
     for experiment: ProductExperiment,
-    readiness: ProductMarketFitReadiness,
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex,
-    cohort: ProductScenarioCohort?
+    cohort: ProductScenarioCohort?,
+    testedPersonaIDs explicitTestedPersonaIDs: Set<String>? = nil
   ) -> AIUserPersonaTarget? {
-    guard readiness.aiUserDistinctPersonaCount < 2 else { return nil }
-    let testedPersonaIDs = Set(
+    let testedPersonaIDs = explicitTestedPersonaIDs ?? Set(
       evidenceIndex.summaries(for: experiment)
         .filter { $0.isCompleted && $0.mode == .personaModel }
         .map(\.personaID)
         .filter { !$0.isEmpty }
     )
+    guard testedPersonaIDs.count < 2 else { return nil }
     let enabledScenarios = config.scenarios
       .filter { $0.experimentID == experiment.id && $0.enabled }
     let cohortScenarioIDs = Set(cohort?.scenarioIDs ?? [])
@@ -1274,6 +1327,34 @@ enum ProductMarketFitNextActionAdvisor {
         config: config
       )
     )
+  }
+
+  private static func aiUserCurrentAlternativePersonaIDs(
+    for experiment: ProductExperiment,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> Set<String> {
+    Set(
+      evidenceIndex.summaries(for: experiment)
+        .filter {
+          $0.isCompleted
+            && $0.mode == .personaModel
+            && hasCurrentAlternativeProof($0)
+        }
+        .map(\.personaID)
+        .filter { !$0.isEmpty }
+    )
+  }
+
+  private static func hasCurrentAlternativeProof(
+    _ summary: ProductizationEvidenceSummary
+  ) -> Bool {
+    let comparison = summary.currentAlternativeComparison
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+    guard !comparison.isEmpty else { return false }
+    return !comparison.contains("did not address")
+      && !comparison.contains("no current-alternative comparison")
+      && !comparison.contains("no current alternative")
   }
 
   private static func executableCohortID(

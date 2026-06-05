@@ -61,6 +61,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
   var failedRunCount: Int
   var aiUserCompletedRunCount: Int
   var aiUserDistinctPersonaCount: Int
+  var currentAlternativeComparisonCount: Int
+  var aiUserCurrentAlternativePersonaCount: Int
   var modelFreeCompletedRunCount: Int
   var distinctPersonaCount: Int
   var latestRunID: String?
@@ -83,6 +85,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     case failedRunCount
     case aiUserCompletedRunCount
     case aiUserDistinctPersonaCount
+    case currentAlternativeComparisonCount
+    case aiUserCurrentAlternativePersonaCount
     case modelFreeCompletedRunCount
     case distinctPersonaCount
     case latestRunID
@@ -109,6 +113,14 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       Int.self,
       forKey: .aiUserDistinctPersonaCount
     ) ?? min(aiUserCompletedRunCount, distinctPersonaCount)
+    let currentAlternativeComparisonCount = try container.decodeIfPresent(
+      Int.self,
+      forKey: .currentAlternativeComparisonCount
+    ) ?? 0
+    let aiUserCurrentAlternativePersonaCount = try container.decodeIfPresent(
+      Int.self,
+      forKey: .aiUserCurrentAlternativePersonaCount
+    ) ?? 0
 
     self.init(
       experimentID: try container.decode(String.self, forKey: .experimentID),
@@ -117,6 +129,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       failedRunCount: try container.decode(Int.self, forKey: .failedRunCount),
       aiUserCompletedRunCount: aiUserCompletedRunCount,
       aiUserDistinctPersonaCount: aiUserDistinctPersonaCount,
+      currentAlternativeComparisonCount: currentAlternativeComparisonCount,
+      aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
       modelFreeCompletedRunCount: try container.decodeIfPresent(
         Int.self,
         forKey: .modelFreeCompletedRunCount
@@ -150,6 +164,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     failedRunCount: Int,
     aiUserCompletedRunCount: Int,
     aiUserDistinctPersonaCount: Int,
+    currentAlternativeComparisonCount: Int,
+    aiUserCurrentAlternativePersonaCount: Int,
     modelFreeCompletedRunCount: Int,
     distinctPersonaCount: Int,
     latestRunID: String?,
@@ -170,6 +186,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     self.failedRunCount = max(0, failedRunCount)
     self.aiUserCompletedRunCount = max(0, aiUserCompletedRunCount)
     self.aiUserDistinctPersonaCount = max(0, aiUserDistinctPersonaCount)
+    self.currentAlternativeComparisonCount = max(0, currentAlternativeComparisonCount)
+    self.aiUserCurrentAlternativePersonaCount = max(0, aiUserCurrentAlternativePersonaCount)
     self.modelFreeCompletedRunCount = max(0, modelFreeCompletedRunCount)
     self.distinctPersonaCount = max(0, distinctPersonaCount)
     self.latestRunID = ProductizationEvidenceRecord.optionalBounded(latestRunID, limit: 96)
@@ -192,6 +210,12 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     let aiUserCompleted = completed.filter { $0.mode == .personaModel }
     let aiUserCompletedCount = aiUserCompleted.count
     let aiUserPersonaCount = Set(aiUserCompleted.map(\.personaID).filter { !$0.isEmpty }).count
+    let currentAlternativeProof = completed.filter(Self.hasCurrentAlternativeProof)
+    let aiUserCurrentAlternativePersonaCount = Set(
+      aiUserCompleted.filter(Self.hasCurrentAlternativeProof)
+        .map(\.personaID)
+        .filter { !$0.isEmpty }
+    ).count
     let modelFreeCompletedCount = completed.filter { $0.mode == .modelFree }.count
     let personaCount = Set(completed.map(\.personaID).filter { !$0.isEmpty }).count
     let scoreValues = completed.flatMap { summary in
@@ -224,6 +248,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       averageScore: averageScore,
       distinctPersonaCount: personaCount,
       aiUserDistinctPersonaCount: aiUserPersonaCount,
+      aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
       failedRunCount: failedCount
     )
 
@@ -234,6 +259,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       failedRunCount: failedCount,
       aiUserCompletedRunCount: aiUserCompletedCount,
       aiUserDistinctPersonaCount: aiUserPersonaCount,
+      currentAlternativeComparisonCount: currentAlternativeProof.count,
+      aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
       modelFreeCompletedRunCount: modelFreeCompletedCount,
       distinctPersonaCount: personaCount,
       latestRunID: summaries.first?.runID,
@@ -250,6 +277,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
         distinctPersonaCount: personaCount,
         aiUserCompletedRunCount: aiUserCompletedCount,
         aiUserDistinctPersonaCount: aiUserPersonaCount,
+        currentAlternativeComparisonCount: currentAlternativeProof.count,
+        aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
         modelFreeCompletedRunCount: modelFreeCompletedCount,
         failedRunCount: failedCount,
         recommendation: recommendation
@@ -300,6 +329,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     averageScore: Double,
     distinctPersonaCount: Int,
     aiUserDistinctPersonaCount: Int,
+    aiUserCurrentAlternativePersonaCount: Int,
     failedRunCount: Int
   ) -> ProductMarketFitRecommendation {
     guard !completed.isEmpty else { return .gatherEvidence }
@@ -326,7 +356,9 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       && (readinessScore <= 30 || averageScore > 0 && averageScore <= 2.1
         || rejectedOrWeakCount >= 2)
     {
-      return aiUserDistinctPersonaCount >= 2 ? .kill : .gatherEvidence
+      return aiUserDistinctPersonaCount >= 2 && aiUserCurrentAlternativePersonaCount >= 2
+        ? .kill
+        : .gatherEvidence
     }
     if completed.count >= 2 && painRecognition >= 4 && productPull > 0 && productPull <= 2.8 {
       return .pivot
@@ -334,6 +366,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     if completed.count >= 3
       && distinctPersonaCount >= 2
       && aiUserDistinctPersonaCount >= 2
+      && aiUserCurrentAlternativePersonaCount >= 2
       && readinessScore >= 76
       && missingCount == 0
       && repeatedObjections == 0
@@ -358,6 +391,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     distinctPersonaCount: Int,
     aiUserCompletedRunCount: Int,
     aiUserDistinctPersonaCount: Int,
+    currentAlternativeComparisonCount: Int,
+    aiUserCurrentAlternativePersonaCount: Int,
     modelFreeCompletedRunCount: Int,
     failedRunCount: Int,
     recommendation: ProductMarketFitRecommendation
@@ -388,10 +423,17 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     lines.append(
       "\(aiUserCompletedRunCount) AI-user run(s) across \(aiUserDistinctPersonaCount) persona(s), \(modelFreeCompletedRunCount) model-free run(s)."
     )
+    lines.append(
+      "\(currentAlternativeComparisonCount) current-alternative comparison(s), including \(aiUserCurrentAlternativePersonaCount) AI-user persona(s)."
+    )
     if aiUserCompletedRunCount == 0 && !completed.isEmpty {
       lines.append("No AI-user evidence has tested this bet yet; promotion requires simulated-user pull.")
     } else if aiUserDistinctPersonaCount < 2 && !completed.isEmpty {
       lines.append("Decisive PMF decisions require AI-user evidence across at least 2 personas.")
+    }
+    if aiUserCurrentAlternativePersonaCount < 2 && !completed.isEmpty {
+      lines.append(
+        "Decisive PMF decisions require current-alternative proof from at least 2 AI-user personas.")
     }
     switch recommendation {
     case .promote:
@@ -408,6 +450,17 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       lines.append("Run more scenarios before changing the product decision.")
     }
     return lines
+  }
+
+  private static func hasCurrentAlternativeProof(
+    _ summary: ProductizationEvidenceSummary
+  ) -> Bool {
+    let comparison = summary.currentAlternativeComparison.normalizedProductizationEvidenceText
+    guard !comparison.isEmpty else { return false }
+    let lowercased = comparison.lowercased()
+    return !lowercased.contains("did not address")
+      && !lowercased.contains("no current-alternative comparison")
+      && !lowercased.contains("no current alternative")
   }
 
   private static func roundedScore(_ value: Double, upperBound: Double) -> Double {

@@ -176,6 +176,8 @@ struct ProductizationEvidenceStoreTests {
     try #require(good.readinessScore >= 76)
     try #require(good.aiUserCompletedRunCount == 2)
     try #require(good.aiUserDistinctPersonaCount == 2)
+    try #require(good.currentAlternativeComparisonCount == 3)
+    try #require(good.aiUserCurrentAlternativePersonaCount == 2)
     try #require(good.modelFreeCompletedRunCount == 1)
     try #require(good.distinctPersonaCount == 2)
     try #require(good.evidenceRunIDs.first == "strong-a")
@@ -185,6 +187,7 @@ struct ProductizationEvidenceStoreTests {
     try #require(bad.recommendation == .kill)
     try #require(bad.aiUserCompletedRunCount == 2)
     try #require(bad.aiUserDistinctPersonaCount == 2)
+    try #require(bad.aiUserCurrentAlternativePersonaCount == 2)
     try #require(bad.readinessScore <= 30)
     try #require(bad.rationale.contains { $0.contains("Repeated objections") })
 

@@ -367,6 +367,78 @@ struct ProductizationLoopTests {
     try #require(action.requiredSimulationMode == .personaModel)
   }
 
+  @Test func pmfDecisionAdvisorRequiresCurrentAlternativeProofBeforeKill() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let operatorID = try #require(config.userSegments.first?.id)
+    let buyerID = try #require(config.userSegments.dropFirst().first?.id)
+    let weakScores = ProductizationEvidenceScores(
+      painRecognition: 2,
+      workflowImprovement: 1,
+      alternativeAdvantage: 2,
+      switchingReadiness: 1,
+      continuedUsePull: 2
+    )
+    let index = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "weak-a",
+          experiment: experiment,
+          config: config,
+          personaID: operatorID,
+          mode: .personaModel,
+          endedAt: 300,
+          verdict: .weak,
+          scores: weakScores,
+          objections: ["No reason to switch"],
+          currentAlternativeComparison: ""
+        ),
+        makeDecisionAdvisorRecord(
+          id: "weak-b",
+          experiment: experiment,
+          config: config,
+          personaID: buyerID,
+          mode: .personaModel,
+          endedAt: 200,
+          verdict: .rejected,
+          scores: weakScores,
+          objections: ["No reason to switch"],
+          currentAlternativeComparison: ""
+        ),
+      ]
+    )
+
+    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(readiness.aiUserCompletedRunCount == 2)
+    try #require(readiness.aiUserDistinctPersonaCount == 2)
+    try #require(readiness.aiUserCurrentAlternativePersonaCount == 0)
+    try #require(readiness.recommendation == .gatherEvidence)
+    try #require(readiness.rationale.contains { $0.contains("current-alternative proof") })
+    try #require(ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: index
+    ).isEmpty)
+    try #require(action.kind == .runCohort)
+    try #require(action.title == "Run AI-user alternative rejection check")
+    try #require(action.detail.contains("current-alternative proof"))
+    try #require(action.detail.contains("persona-model scenario"))
+    try #require(action.requiredSimulationMode == .personaModel)
+  }
+
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",
@@ -441,6 +513,48 @@ struct ProductizationLoopTests {
     try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user validation cohort")
     try #require(action.detail.contains("requires at least 2"))
+    try #require(action.detail.contains("persona-model scenario"))
+    try #require(action.requiredSimulationMode == .personaModel)
+  }
+
+  @Test func pmfDecisionAdvisorRequiresCurrentAlternativeProofBeforePromotion() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let index = makePMFPromotionEvidenceIndex(
+      experiment: experiment,
+      config: config,
+      includeAIUserEvidence: true,
+      includeAIUserPersonaBreadth: true,
+      includeCurrentAlternativeProof: false
+    )
+
+    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(readiness.aiUserCompletedRunCount == 2)
+    try #require(readiness.aiUserDistinctPersonaCount == 2)
+    try #require(readiness.aiUserCurrentAlternativePersonaCount == 0)
+    try #require(readiness.recommendation == .keepGoing)
+    try #require(readiness.rationale.contains { $0.contains("current-alternative proof") })
+    try #require(ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: index
+    ).isEmpty)
+    try #require(action.kind == .runCohort)
+    try #require(action.title == "Run AI-user alternative challenge")
+    try #require(action.detail.contains("current-alternative proof"))
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
   }
@@ -1486,7 +1600,8 @@ private func makePMFPromotionEvidenceIndex(
   experiment: ProductExperiment? = nil,
   config: ProductizationConfig,
   includeAIUserEvidence: Bool = true,
-  includeAIUserPersonaBreadth: Bool = true
+  includeAIUserPersonaBreadth: Bool = true,
+  includeCurrentAlternativeProof: Bool = true
 ) -> ProductizationEvidenceIndex {
   let scores = ProductizationEvidenceScores(
     painRecognition: 5,
@@ -1498,6 +1613,7 @@ private func makePMFPromotionEvidenceIndex(
   let experiment = experiment ?? config.experiments[0]
   let operatorID = config.userSegments.first?.id ?? "operator"
   let buyerID = config.userSegments.dropFirst().first?.id ?? "buyer"
+  let comparison = includeCurrentAlternativeProof ? "Compared against the current workflow." : ""
   return ProductizationEvidenceIndex.build(
     records: [
       makeDecisionAdvisorRecord(
@@ -1508,7 +1624,8 @@ private func makePMFPromotionEvidenceIndex(
         mode: includeAIUserEvidence ? .personaModel : .modelFree,
         endedAt: 300,
         verdict: .strongPull,
-        scores: scores
+        scores: scores,
+        currentAlternativeComparison: comparison
       ),
       makeDecisionAdvisorRecord(
         id: "promote-b",
@@ -1518,7 +1635,8 @@ private func makePMFPromotionEvidenceIndex(
         mode: includeAIUserEvidence && includeAIUserPersonaBreadth ? .personaModel : .modelFree,
         endedAt: 200,
         verdict: .strongPull,
-        scores: scores
+        scores: scores,
+        currentAlternativeComparison: comparison
       ),
       makeDecisionAdvisorRecord(
         id: "promote-c",
@@ -1527,7 +1645,8 @@ private func makePMFPromotionEvidenceIndex(
         personaID: operatorID,
         endedAt: 100,
         verdict: .promising,
-        scores: scores
+        scores: scores,
+        currentAlternativeComparison: comparison
       ),
     ]
   )
@@ -1543,7 +1662,8 @@ private func makeDecisionAdvisorRecord(
   verdict: ProductizationEvidenceVerdict,
   scores: ProductizationEvidenceScores,
   objections: [String] = [],
-  missingCapabilities: [String] = []
+  missingCapabilities: [String] = [],
+  currentAlternativeComparison: String = "Compared against the current workflow."
 ) -> ProductizationEvidenceRecord {
   let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
   return ProductizationEvidenceRecord(
@@ -1564,7 +1684,7 @@ private func makeDecisionAdvisorRecord(
     scores: scores,
     objections: objections,
     missingCapabilities: missingCapabilities,
-    currentAlternativeComparison: "Compared against the current workflow.",
+    currentAlternativeComparison: currentAlternativeComparison,
     verdict: verdict,
     summary: "Evidence summary for \(id)."
   )
