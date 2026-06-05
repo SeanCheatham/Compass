@@ -25,6 +25,347 @@ enum ProductizationEvidenceVerdict: String, Codable, CaseIterable, Equatable, Se
   case rejected
 }
 
+enum ProductMarketFitRecommendation: String, Codable, CaseIterable, Equatable, Sendable {
+  case gatherEvidence = "gather_evidence"
+  case keepGoing = "continue"
+  case narrow
+  case pivot
+  case kill
+  case promote
+
+  var title: String {
+    switch self {
+    case .gatherEvidence: return "Gather Evidence"
+    case .keepGoing: return "Continue"
+    case .narrow: return "Narrow"
+    case .pivot: return "Pivot"
+    case .kill: return "Kill"
+    case .promote: return "Promote"
+    }
+  }
+}
+
+struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
+  var id: String { experimentID }
+
+  var experimentID: String
+  var runCount: Int
+  var completedRunCount: Int
+  var failedRunCount: Int
+  var distinctPersonaCount: Int
+  var latestRunID: String?
+  var readinessScore: Double
+  var averageScore: Double
+  var strongestVerdict: ProductizationEvidenceVerdict
+  var weakestVerdict: ProductizationEvidenceVerdict
+  var recommendation: ProductMarketFitRecommendation
+  var rationale: [String]
+  var evidenceRunIDs: [String]
+
+  var scoreLabel: String {
+    "\(Int(readinessScore.rounded()))"
+  }
+
+  init(
+    experimentID: String,
+    runCount: Int,
+    completedRunCount: Int,
+    failedRunCount: Int,
+    distinctPersonaCount: Int,
+    latestRunID: String?,
+    readinessScore: Double,
+    averageScore: Double,
+    strongestVerdict: ProductizationEvidenceVerdict,
+    weakestVerdict: ProductizationEvidenceVerdict,
+    recommendation: ProductMarketFitRecommendation,
+    rationale: [String],
+    evidenceRunIDs: [String]
+  ) {
+    self.experimentID = ProductizationEvidenceRecord.cleanedIdentifier(
+      experimentID,
+      fallback: "experiment"
+    )
+    self.runCount = max(0, runCount)
+    self.completedRunCount = max(0, completedRunCount)
+    self.failedRunCount = max(0, failedRunCount)
+    self.distinctPersonaCount = max(0, distinctPersonaCount)
+    self.latestRunID = ProductizationEvidenceRecord.optionalBounded(latestRunID, limit: 96)
+    self.readinessScore = Self.roundedScore(readinessScore, upperBound: 100)
+    self.averageScore = Self.roundedScore(averageScore, upperBound: 5)
+    self.strongestVerdict = strongestVerdict
+    self.weakestVerdict = weakestVerdict
+    self.recommendation = recommendation
+    self.rationale = ProductizationEvidenceRecord.cleanedList(rationale, limit: 260)
+    self.evidenceRunIDs = ProductizationEvidenceRecord.cleanedList(evidenceRunIDs, limit: 96)
+  }
+
+  init(summaries rawSummaries: [ProductizationEvidenceSummary]) {
+    let summaries = rawSummaries.sorted { lhs, rhs in
+      if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
+      return lhs.endedAt > rhs.endedAt
+    }
+    let completed = summaries.filter(\.isCompleted)
+    let failedCount = summaries.count - completed.count
+    let personaCount = Set(completed.map(\.personaID).filter { !$0.isEmpty }).count
+    let scoreValues = completed.flatMap { summary in
+      [
+        summary.scores.painRecognition,
+        summary.scores.workflowImprovement,
+        summary.scores.alternativeAdvantage,
+        summary.scores.switchingReadiness,
+        summary.scores.continuedUsePull,
+      ].compactMap { $0 }.map(Double.init)
+    }
+    let averageScore = Self.average(scoreValues)
+    let readinessScore = Self.readinessScore(
+      summaries: summaries,
+      completed: completed,
+      averageScore: averageScore,
+      distinctPersonaCount: personaCount,
+      failedRunCount: failedCount
+    )
+    let strongest =
+      summaries.map(\.verdict).max(by: { Self.verdictRank($0) < Self.verdictRank($1) })
+      ?? .unclear
+    let weakest =
+      summaries.map(\.verdict).min(by: { Self.verdictRank($0) < Self.verdictRank($1) })
+      ?? .unclear
+    let recommendation = Self.recommendation(
+      summaries: summaries,
+      completed: completed,
+      readinessScore: readinessScore,
+      averageScore: averageScore,
+      distinctPersonaCount: personaCount,
+      failedRunCount: failedCount
+    )
+
+    self.init(
+      experimentID: summaries.first?.experimentID ?? "experiment",
+      runCount: summaries.count,
+      completedRunCount: completed.count,
+      failedRunCount: failedCount,
+      distinctPersonaCount: personaCount,
+      latestRunID: summaries.first?.runID,
+      readinessScore: readinessScore,
+      averageScore: averageScore,
+      strongestVerdict: strongest,
+      weakestVerdict: weakest,
+      recommendation: recommendation,
+      rationale: Self.rationale(
+        summaries: summaries,
+        completed: completed,
+        readinessScore: readinessScore,
+        averageScore: averageScore,
+        distinctPersonaCount: personaCount,
+        failedRunCount: failedCount,
+        recommendation: recommendation
+      ),
+      evidenceRunIDs: summaries.prefix(8).map(\.runID)
+    )
+  }
+
+  private static func readinessScore(
+    summaries: [ProductizationEvidenceSummary],
+    completed: [ProductizationEvidenceSummary],
+    averageScore: Double,
+    distinctPersonaCount: Int,
+    failedRunCount: Int
+  ) -> Double {
+    var score = 0.0
+    switch completed.count {
+    case 3...: score += 20
+    case 2: score += 14
+    case 1: score += 8
+    default: break
+    }
+    switch distinctPersonaCount {
+    case 3...: score += 15
+    case 2: score += 10
+    case 1: score += 4
+    default: break
+    }
+    if averageScore > 0 {
+      score += max(0, min(40, ((averageScore - 1) / 4) * 40))
+    } else if !completed.isEmpty {
+      score += 12
+    }
+    score += Self.average(summaries.map { verdictContribution($0.verdict) })
+    score -= Double(min(18, completed.flatMap(\.missingCapabilities).count * 4))
+    score -= Double(min(15, repeatedObjectionCount(in: completed) * 5))
+    score -= Double(min(18, failedRunCount * 6))
+    if completed.isEmpty && failedRunCount > 0 {
+      score = min(score, 20)
+    }
+    return roundedScore(score, upperBound: 100)
+  }
+
+  private static func recommendation(
+    summaries: [ProductizationEvidenceSummary],
+    completed: [ProductizationEvidenceSummary],
+    readinessScore: Double,
+    averageScore: Double,
+    distinctPersonaCount: Int,
+    failedRunCount: Int
+  ) -> ProductMarketFitRecommendation {
+    guard !completed.isEmpty else { return .gatherEvidence }
+
+    let rejectedOrWeakCount = summaries.filter {
+      $0.verdict == .rejected || $0.verdict == .weak
+    }.count
+    let strongOrPromisingCount = summaries.filter {
+      $0.verdict == .strongPull || $0.verdict == .promising
+    }.count
+    let missingCount = completed.flatMap(\.missingCapabilities).count
+    let repeatedObjections = repeatedObjectionCount(in: completed)
+    let painRecognition = dimensionAverage(completed.compactMap(\.scores.painRecognition))
+    let workflowImprovement = dimensionAverage(completed.compactMap(\.scores.workflowImprovement))
+    let alternativeAdvantage = dimensionAverage(completed.compactMap(\.scores.alternativeAdvantage))
+    let switchingReadiness = dimensionAverage(completed.compactMap(\.scores.switchingReadiness))
+    let continuedUsePull = dimensionAverage(completed.compactMap(\.scores.continuedUsePull))
+    let productPull =
+      [workflowImprovement, alternativeAdvantage, switchingReadiness, continuedUsePull]
+      .filter { $0 > 0 }
+      .max() ?? 0
+
+    if completed.count >= 2
+      && (readinessScore <= 30 || averageScore > 0 && averageScore <= 2.1
+        || rejectedOrWeakCount >= 2)
+    {
+      return .kill
+    }
+    if completed.count >= 2 && painRecognition >= 4 && productPull > 0 && productPull <= 2.8 {
+      return .pivot
+    }
+    if completed.count >= 3
+      && distinctPersonaCount >= 2
+      && readinessScore >= 76
+      && missingCount == 0
+      && repeatedObjections == 0
+      && strongOrPromisingCount >= 2
+    {
+      return .promote
+    }
+    if completed.count < 2 || distinctPersonaCount < 2 {
+      return failedRunCount > completed.count ? .narrow : .gatherEvidence
+    }
+    if missingCount > 0 || repeatedObjections > 0 || readinessScore < 60 {
+      return .narrow
+    }
+    return .keepGoing
+  }
+
+  private static func rationale(
+    summaries: [ProductizationEvidenceSummary],
+    completed: [ProductizationEvidenceSummary],
+    readinessScore: Double,
+    averageScore: Double,
+    distinctPersonaCount: Int,
+    failedRunCount: Int,
+    recommendation: ProductMarketFitRecommendation
+  ) -> [String] {
+    var lines = [
+      "\(completed.count) completed of \(summaries.count) run(s) across \(distinctPersonaCount) persona(s)."
+    ]
+    if averageScore > 0 {
+      lines.append(
+        "Average PMF score \(format(averageScore))/5; readiness \(format(readinessScore))/100.")
+    } else {
+      lines.append(
+        "No persona scorecard is available yet; readiness depends on run status and verdicts.")
+    }
+    let missing = completed.flatMap(\.missingCapabilities)
+      .map(\.normalizedProductizationEvidenceText)
+      .filter { !$0.isEmpty }
+    if !missing.isEmpty {
+      lines.append("Missing capabilities: \(missing.prefix(3).joined(separator: ", ")).")
+    }
+    let repeatedObjections = repeatedObjections(in: completed)
+    if !repeatedObjections.isEmpty {
+      lines.append("Repeated objections: \(repeatedObjections.prefix(3).joined(separator: "; ")).")
+    }
+    if failedRunCount > 0 {
+      lines.append("\(failedRunCount) failed run(s) reduce confidence in the evidence.")
+    }
+    switch recommendation {
+    case .promote:
+      lines.append("Evidence breadth and pull are high enough to consider promotion.")
+    case .kill:
+      lines.append("Evidence is consistently weak enough to stop this bet.")
+    case .pivot:
+      lines.append("The pain is recognized, but this product shape is not creating enough pull.")
+    case .narrow:
+      lines.append("Evidence points to a smaller next proof before broader investment.")
+    case .keepGoing:
+      lines.append("Signals are positive but need more proof before promotion.")
+    case .gatherEvidence:
+      lines.append("Run more scenarios before changing the product decision.")
+    }
+    return lines
+  }
+
+  private static func roundedScore(_ value: Double, upperBound: Double) -> Double {
+    let clamped = min(upperBound, max(0, value))
+    return (clamped * 10).rounded() / 10
+  }
+
+  private static func average(_ values: [Double]) -> Double {
+    guard !values.isEmpty else { return 0 }
+    return values.reduce(0, +) / Double(values.count)
+  }
+
+  private static func dimensionAverage(_ values: [Int]) -> Double {
+    average(values.map(Double.init))
+  }
+
+  private static func repeatedObjectionCount(
+    in summaries: [ProductizationEvidenceSummary]
+  ) -> Int {
+    repeatedObjections(in: summaries).count
+  }
+
+  private static func repeatedObjections(
+    in summaries: [ProductizationEvidenceSummary]
+  ) -> [String] {
+    let counts = Dictionary(
+      grouping: summaries.flatMap(\.objections).map(\.normalizedProductizationEvidenceText),
+      by: { $0 }
+    )
+    .mapValues(\.count)
+    return
+      counts
+      .filter { !$0.key.isEmpty && $0.value > 1 }
+      .sorted { lhs, rhs in
+        if lhs.value == rhs.value { return lhs.key < rhs.key }
+        return lhs.value > rhs.value
+      }
+      .map { "\($0.key) (\($0.value)x)" }
+  }
+
+  private static func verdictRank(_ verdict: ProductizationEvidenceVerdict) -> Int {
+    switch verdict {
+    case .rejected: return 0
+    case .weak: return 1
+    case .unclear: return 2
+    case .promising: return 3
+    case .strongPull: return 4
+    }
+  }
+
+  private static func verdictContribution(_ verdict: ProductizationEvidenceVerdict) -> Double {
+    switch verdict {
+    case .strongPull: return 18
+    case .promising: return 12
+    case .unclear: return 0
+    case .weak: return -12
+    case .rejected: return -22
+    }
+  }
+
+  private static func format(_ value: Double) -> String {
+    String(format: "%.1f", value)
+  }
+}
+
 struct ProductizationRunFailure: Codable, Equatable, Sendable {
   var status: ProductizationRunStatus
   var message: String
@@ -338,6 +679,7 @@ struct ProductizationEvidenceIndex: Codable, Equatable, Sendable {
 struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
   static let empty = ProductizationEvidenceAggregateSummary(
     latestRunByExperiment: [:],
+    pmfReadinessByExperiment: [],
     repeatedObjections: [],
     lowScoreClusters: [],
     missingCapabilityFrequency: [],
@@ -347,6 +689,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
   )
 
   var latestRunByExperiment: [String: String]
+  var pmfReadinessByExperiment: [ProductMarketFitReadiness]
   var repeatedObjections: [ProductizationRepeatedObjection]
   var lowScoreClusters: [ProductizationScoreCluster]
   var missingCapabilityFrequency: [ProductizationMissingCapabilityCount]
@@ -354,8 +697,20 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
   var failuresByKind: [String: Int]
   var currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary]
 
+  enum CodingKeys: String, CodingKey {
+    case latestRunByExperiment
+    case pmfReadinessByExperiment
+    case repeatedObjections
+    case lowScoreClusters
+    case missingCapabilityFrequency
+    case verdictCounts
+    case failuresByKind
+    case currentAlternativeComparisons
+  }
+
   init(
     latestRunByExperiment: [String: String],
+    pmfReadinessByExperiment: [ProductMarketFitReadiness] = [],
     repeatedObjections: [ProductizationRepeatedObjection],
     lowScoreClusters: [ProductizationScoreCluster],
     missingCapabilityFrequency: [ProductizationMissingCapabilityCount],
@@ -364,12 +719,51 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
     currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary]
   ) {
     self.latestRunByExperiment = latestRunByExperiment
+    self.pmfReadinessByExperiment = pmfReadinessByExperiment
     self.repeatedObjections = repeatedObjections
     self.lowScoreClusters = lowScoreClusters
     self.missingCapabilityFrequency = missingCapabilityFrequency
     self.verdictCounts = verdictCounts
     self.failuresByKind = failuresByKind
     self.currentAlternativeComparisons = currentAlternativeComparisons
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      latestRunByExperiment: try container.decodeIfPresent(
+        [String: String].self,
+        forKey: .latestRunByExperiment
+      ) ?? [:],
+      pmfReadinessByExperiment: try container.decodeIfPresent(
+        [ProductMarketFitReadiness].self,
+        forKey: .pmfReadinessByExperiment
+      ) ?? [],
+      repeatedObjections: try container.decodeIfPresent(
+        [ProductizationRepeatedObjection].self,
+        forKey: .repeatedObjections
+      ) ?? [],
+      lowScoreClusters: try container.decodeIfPresent(
+        [ProductizationScoreCluster].self,
+        forKey: .lowScoreClusters
+      ) ?? [],
+      missingCapabilityFrequency: try container.decodeIfPresent(
+        [ProductizationMissingCapabilityCount].self,
+        forKey: .missingCapabilityFrequency
+      ) ?? [],
+      verdictCounts: try container.decodeIfPresent(
+        [String: Int].self,
+        forKey: .verdictCounts
+      ) ?? [:],
+      failuresByKind: try container.decodeIfPresent(
+        [String: Int].self,
+        forKey: .failuresByKind
+      ) ?? [:],
+      currentAlternativeComparisons: try container.decodeIfPresent(
+        [ProductizationAlternativeComparisonSummary].self,
+        forKey: .currentAlternativeComparisons
+      ) ?? []
+    )
   }
 
   init(summaries: [ProductizationEvidenceSummary]) {
@@ -386,12 +780,21 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
       }
     }
     latestRunByExperiment = latest.mapValues(\.runID)
+    pmfReadinessByExperiment = Dictionary(grouping: summaries, by: \.experimentID)
+      .map { _, group in ProductMarketFitReadiness(summaries: group) }
+      .sorted { lhs, rhs in
+        if lhs.readinessScore == rhs.readinessScore {
+          return lhs.experimentID < rhs.experimentID
+        }
+        return lhs.readinessScore > rhs.readinessScore
+      }
 
     let objectionCounts = Dictionary(
       grouping: summaries.flatMap(\.objections).map(\.normalizedProductizationEvidenceText),
       by: { $0 }
     ).mapValues(\.count)
-    repeatedObjections = objectionCounts
+    repeatedObjections =
+      objectionCounts
       .filter { !$0.key.isEmpty && $0.value > 1 }
       .map { ProductizationRepeatedObjection(objection: $0.key, count: $0.value) }
       .sorted { lhs, rhs in
@@ -400,10 +803,12 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
       }
 
     let missingCounts = Dictionary(
-      grouping: summaries.flatMap(\.missingCapabilities).map(\.normalizedProductizationEvidenceText),
+      grouping: summaries.flatMap(\.missingCapabilities).map(
+        \.normalizedProductizationEvidenceText),
       by: { $0 }
     ).mapValues(\.count)
-    missingCapabilityFrequency = missingCounts
+    missingCapabilityFrequency =
+      missingCounts
       .filter { !$0.key.isEmpty }
       .map { ProductizationMissingCapabilityCount(capabilityID: $0.key, count: $0.value) }
       .sorted { lhs, rhs in
@@ -436,7 +841,8 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
       return lhs.minimumScore < rhs.minimumScore
     }
 
-    currentAlternativeComparisons = summaries
+    currentAlternativeComparisons =
+      summaries
       .filter { !$0.currentAlternativeComparison.isEmpty }
       .prefix(12)
       .map {
@@ -488,15 +894,16 @@ struct ProductizationScoreCluster: Codable, Equatable, Sendable {
     alternativeAdvantage = Self.average(summaries.compactMap(\.scores.alternativeAdvantage))
     switchingReadiness = Self.average(summaries.compactMap(\.scores.switchingReadiness))
     continuedUsePull = Self.average(summaries.compactMap(\.scores.continuedUsePull))
-    minimumScore = [
-      painRecognition,
-      workflowImprovement,
-      alternativeAdvantage,
-      switchingReadiness,
-      continuedUsePull,
-    ]
-    .filter { $0 > 0 }
-    .min() ?? 0
+    minimumScore =
+      [
+        painRecognition,
+        workflowImprovement,
+        alternativeAdvantage,
+        switchingReadiness,
+        continuedUsePull,
+      ]
+      .filter { $0 > 0 }
+      .min() ?? 0
   }
 
   private static func average(_ values: [Int]) -> Double {
@@ -614,7 +1021,8 @@ struct ProductizationEvidenceStore {
       now: now
     )
     let data = try Self.encoder().encode(index)
-    try FileManager.default.createDirectory(at: productizationURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: productizationURL, withIntermediateDirectories: true)
     try data.write(to: indexURL, options: .atomic)
     return index
   }
@@ -688,16 +1096,16 @@ enum ProductizationEvidenceMarkdownExporter {
   }
 }
 
-private extension String {
-  var normalizedProductizationEvidenceText: String {
+extension String {
+  fileprivate var normalizedProductizationEvidenceText: String {
     lowercased()
       .trimmingCharacters(in: .whitespacesAndNewlines)
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
   }
 }
 
-private extension Array where Element == String {
-  func productizationEvidenceUniquedPreservingOrder() -> [String] {
+extension Array where Element == String {
+  fileprivate func productizationEvidenceUniquedPreservingOrder() -> [String] {
     var seen = Set<String>()
     var out: [String] = []
     for value in self {

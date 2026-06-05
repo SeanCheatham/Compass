@@ -64,7 +64,8 @@ struct ProductizationEvidenceStoreTests {
     let index = ProductizationEvidenceIndex.build(records: [first, second, failure])
 
     try #require(index.aggregate.latestRunByExperiment["experiment-one"] == "second")
-    try #require(index.aggregate.repeatedObjections.first?.objection == "spreadsheet is already familiar")
+    try #require(
+      index.aggregate.repeatedObjections.first?.objection == "spreadsheet is already familiar")
     try #require(index.aggregate.missingCapabilityFrequency.first?.capabilityID == "import_csv")
     try #require(index.aggregate.verdictCounts["promising"] == 1)
     try #require(index.aggregate.failuresByKind["appCommandFailed"] == 1)
@@ -72,6 +73,113 @@ struct ProductizationEvidenceStoreTests {
       index.aggregate.currentAlternativeComparisons.contains {
         $0.comparison.contains("Beat the spreadsheet")
       })
+  }
+
+  @Test func indexBuildsProductMarketFitReadinessRecommendations() throws {
+    let strongScores = ProductizationEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 5,
+      alternativeAdvantage: 4,
+      switchingReadiness: 5,
+      continuedUsePull: 5
+    )
+    let weakScores = ProductizationEvidenceScores(
+      painRecognition: 2,
+      workflowImprovement: 1,
+      alternativeAdvantage: 2,
+      switchingReadiness: 1,
+      continuedUsePull: 2
+    )
+    let narrowScores = ProductizationEvidenceScores(
+      painRecognition: 4,
+      workflowImprovement: 3,
+      alternativeAdvantage: 3,
+      switchingReadiness: 3,
+      continuedUsePull: 4
+    )
+    let records = [
+      makeEvidenceRecord(
+        id: "strong-a",
+        experimentID: "good-experiment",
+        personaID: "operator",
+        endedAt: 300,
+        verdict: .strongPull,
+        scores: strongScores
+      ),
+      makeEvidenceRecord(
+        id: "strong-b",
+        experimentID: "good-experiment",
+        personaID: "buyer",
+        endedAt: 200,
+        verdict: .strongPull,
+        scores: strongScores
+      ),
+      makeEvidenceRecord(
+        id: "strong-c",
+        experimentID: "good-experiment",
+        personaID: "operator",
+        endedAt: 100,
+        verdict: .promising,
+        scores: strongScores
+      ),
+      makeEvidenceRecord(
+        id: "weak-a",
+        experimentID: "bad-experiment",
+        personaID: "operator",
+        endedAt: 220,
+        verdict: .weak,
+        objections: ["No reason to switch"],
+        comparison: "Lost to the current workflow.",
+        scores: weakScores
+      ),
+      makeEvidenceRecord(
+        id: "weak-b",
+        experimentID: "bad-experiment",
+        personaID: "buyer",
+        endedAt: 210,
+        verdict: .rejected,
+        objections: ["No reason to switch"],
+        comparison: "Buyer rejected the bet.",
+        scores: weakScores
+      ),
+      makeEvidenceRecord(
+        id: "narrow-a",
+        experimentID: "narrow-experiment",
+        personaID: "operator",
+        endedAt: 180,
+        verdict: .promising,
+        missingCapabilities: ["csv_import"],
+        scores: narrowScores
+      ),
+      makeEvidenceRecord(
+        id: "narrow-b",
+        experimentID: "narrow-experiment",
+        personaID: "buyer",
+        endedAt: 170,
+        verdict: .unclear,
+        missingCapabilities: ["csv_import"],
+        scores: narrowScores
+      ),
+    ]
+
+    let readiness = ProductizationEvidenceIndex.build(records: records)
+      .aggregate.pmfReadinessByExperiment
+    let good = try #require(readiness.first { $0.experimentID == "good-experiment" })
+    let bad = try #require(readiness.first { $0.experimentID == "bad-experiment" })
+    let narrow = try #require(readiness.first { $0.experimentID == "narrow-experiment" })
+
+    try #require(good.recommendation == .promote)
+    try #require(good.readinessScore >= 76)
+    try #require(good.distinctPersonaCount == 2)
+    try #require(good.evidenceRunIDs.first == "strong-a")
+    try #require(good.rationale.contains { $0.contains("Average PMF score") })
+
+    try #require(bad.recommendation == .kill)
+    try #require(bad.readinessScore <= 30)
+    try #require(bad.rationale.contains { $0.contains("Repeated objections") })
+
+    try #require(narrow.recommendation == .narrow)
+    try #require(narrow.rationale.contains { $0.contains("Missing capabilities") })
   }
 
   @Test func planningDigestIncludesBoundedProductizationEvidence() throws {
@@ -99,6 +207,7 @@ struct ProductizationEvidenceStoreTests {
     )
 
     try #require(text.contains("Top evidence signals and objections"))
+    try #require(text.contains("Product-market-fit readiness"))
     try #require(text.contains("digest-run"))
     try #require(text.contains("csv_import"))
     try #require(text.contains("Beat the spreadsheet"))
@@ -233,7 +342,8 @@ struct ProductizationEvidenceStoreTests {
     )
 
     let saved = try workspace.readProductizationConfig()
-    let savedExperiment = try #require(saved.experiments.first { $0.id == config.experiments[0].id })
+    let savedExperiment = try #require(
+      saved.experiments.first { $0.id == config.experiments[0].id })
     let savedDecision = try #require(saved.decisions.last)
     try #require(project.errorMessage == nil)
     try #require(savedExperiment.decision == .promote)
@@ -261,6 +371,13 @@ private func makeEvidenceRecord(
   objections: [String] = [],
   missingCapabilities: [String] = [],
   comparison: String = "Compared with the current alternative.",
+  scores: ProductizationEvidenceScores = ProductizationEvidenceScores(
+    painRecognition: 4,
+    workflowImprovement: 3,
+    alternativeAdvantage: 3,
+    switchingReadiness: 2,
+    continuedUsePull: 3
+  ),
   failure: ProductizationRunFailure? = nil
 ) -> ProductizationEvidenceRecord {
   ProductizationEvidenceRecord(
@@ -279,13 +396,7 @@ private func makeEvidenceRecord(
     traceHash: "trace-\(id)",
     promptVersions: ["productization.persona_action.v1"],
     model: mode == .modelFree ? "model-free" : "gpt-test",
-    scores: ProductizationEvidenceScores(
-      painRecognition: 4,
-      workflowImprovement: 3,
-      alternativeAdvantage: 3,
-      switchingReadiness: 2,
-      continuedUsePull: 3
-    ),
+    scores: scores,
     objections: objections,
     missingCapabilities: missingCapabilities,
     currentAlternativeComparison: comparison,
@@ -297,7 +408,8 @@ private func makeEvidenceRecord(
 
 private func makeTempDir() throws -> URL {
   let url = FileManager.default.temporaryDirectory
-    .appending(path: "ProductizationEvidenceStoreTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+    .appending(
+      path: "ProductizationEvidenceStoreTests-\(UUID().uuidString)", directoryHint: .isDirectory)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url.standardizedFileURL
 }

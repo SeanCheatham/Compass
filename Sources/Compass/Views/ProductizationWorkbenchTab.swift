@@ -42,6 +42,13 @@ struct ProductizationWorkbenchTab: View {
     return evidenceIndex.summaries.filter { $0.experimentID == experimentID }
   }
 
+  private var selectedPMFReadiness: ProductMarketFitReadiness? {
+    guard let experimentID = selectedExperiment?.id else { return nil }
+    return evidenceIndex.aggregate.pmfReadinessByExperiment.first {
+      $0.experimentID == experimentID
+    }
+  }
+
   private var scenariosForSelectedExperiment: [ProductScenario] {
     guard let experimentID = selectedExperiment?.id else { return [] }
     return config.scenarios
@@ -83,10 +90,14 @@ struct ProductizationWorkbenchTab: View {
       }
     }
     .task(id: config.experiments.map(\.id).joined(separator: "|")) {
-      if selectedExperimentID == nil || !config.experiments.contains(where: { $0.id == selectedExperimentID }) {
+      if selectedExperimentID == nil
+        || !config.experiments.contains(where: { $0.id == selectedExperimentID })
+      {
         selectedExperimentID = config.experiments.first?.id
       }
-      if selectedRunID == nil || !runsForSelectedExperiment.contains(where: { $0.runID == selectedRunID }) {
+      if selectedRunID == nil
+        || !runsForSelectedExperiment.contains(where: { $0.runID == selectedRunID })
+      {
         selectedRunID = runsForSelectedExperiment.first?.runID
       }
       loadSelectedRecord()
@@ -165,7 +176,8 @@ struct ProductizationWorkbenchTab: View {
                   detail: pain.rawPain
                 )
                 if !pain.unknowns.isEmpty {
-                  WorkbenchFact(label: "Unknowns", value: pain.unknowns.prefix(3).joined(separator: "; "))
+                  WorkbenchFact(
+                    label: "Unknowns", value: pain.unknowns.prefix(3).joined(separator: "; "))
                 }
               }
             }
@@ -283,7 +295,8 @@ struct ProductizationWorkbenchTab: View {
         }
         WorkbenchFact(label: "Branch", value: experiment.branchName)
         WorkbenchFact(label: "Worktree", value: experiment.worktreeID)
-        WorkbenchFact(label: "Commit", value: experiment.currentSha ?? experiment.baseSha ?? "not created")
+        WorkbenchFact(
+          label: "Commit", value: experiment.currentSha ?? experiment.baseSha ?? "not created")
         Text(experiment.prototypeScope)
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -292,7 +305,8 @@ struct ProductizationWorkbenchTab: View {
       .padding(10)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(
-        selectedExperimentID == experiment.id ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08),
+        selectedExperimentID == experiment.id
+          ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08),
         in: RoundedRectangle(cornerRadius: 8)
       )
     }
@@ -363,8 +377,11 @@ struct ProductizationWorkbenchTab: View {
           HStack(spacing: 10) {
             Stepper("Turns \(scenarioMaxTurns)", value: $scenarioMaxTurns, in: 1...20)
               .frame(width: 130, alignment: .leading)
-            Stepper("Timeout \(Int(scenarioTimeoutSeconds))s", value: $scenarioTimeoutSeconds, in: 5...1200, step: 5)
-              .frame(width: 170, alignment: .leading)
+            Stepper(
+              "Timeout \(Int(scenarioTimeoutSeconds))s", value: $scenarioTimeoutSeconds,
+              in: 5...1200, step: 5
+            )
+            .frame(width: 170, alignment: .leading)
             Toggle("Enabled", isOn: $scenarioEnabled)
               .toggleStyle(.checkbox)
           }
@@ -376,7 +393,8 @@ struct ProductizationWorkbenchTab: View {
           )
           if let contractAvailable {
             Label(
-              contractAvailable ? "Productization contract available" : "Productization contract missing",
+              contractAvailable
+                ? "Productization contract available" : "Productization contract missing",
               systemImage: contractAvailable ? "checkmark.circle" : "exclamationmark.triangle"
             )
             .font(.caption)
@@ -394,7 +412,8 @@ struct ProductizationWorkbenchTab: View {
             Button {
               Task { await saveScenarioDraft() }
             } label: {
-              Label(isSavingScenario ? "Saving" : "Save Scenario", systemImage: "square.and.arrow.down")
+              Label(
+                isSavingScenario ? "Saving" : "Save Scenario", systemImage: "square.and.arrow.down")
             }
             .buttonStyle(.bordered)
             .disabled(isSavingScenario || !scenarioDraftCanSave)
@@ -435,14 +454,20 @@ struct ProductizationWorkbenchTab: View {
       && scenarioEnabled
       && scenarioCohortEnabled
       && contractAvailable == true
-      && !(scenarioTargetCommit.isEmpty && selectedExperiment?.currentSha == nil && selectedExperiment?.baseSha == nil)
+      && !(scenarioTargetCommit.isEmpty && selectedExperiment?.currentSha == nil
+        && selectedExperiment?.baseSha == nil)
   }
 
   private var aggregateEvidence: some View {
     WorkbenchSection("Evidence View", systemImage: "chart.bar.xaxis") {
       VStack(alignment: .leading, spacing: 8) {
         HStack(spacing: 6) {
-          WorkbenchMetric(label: "Runs", value: "\(evidenceIndex.summaries.count)", systemImage: "number")
+          WorkbenchMetric(
+            label: "Runs", value: "\(evidenceIndex.summaries.count)", systemImage: "number")
+          if let readiness = selectedPMFReadiness {
+            WorkbenchMetric(
+              label: "PMF", value: readiness.scoreLabel, systemImage: "chart.line.uptrend.xyaxis")
+          }
           WorkbenchMetric(
             label: "Failures",
             value: "\(evidenceIndex.aggregate.failuresByKind.values.reduce(0, +))",
@@ -454,19 +479,36 @@ struct ProductizationWorkbenchTab: View {
             systemImage: "checklist"
           )
         }
+        if let readiness = selectedPMFReadiness {
+          WorkbenchFact(
+            label: "Readiness",
+            value:
+              "\(readiness.recommendation.title), \(readiness.completedRunCount)/\(readiness.runCount) completed, \(readiness.distinctPersonaCount) persona(s)"
+          )
+          ForEach(Array(readiness.rationale.prefix(3).enumerated()), id: \.offset) { _, rationale in
+            WorkbenchFact(label: "Why", value: rationale)
+          }
+        }
         if let objection = evidenceIndex.aggregate.repeatedObjections.first {
-          WorkbenchFact(label: "Repeated objection", value: "\(objection.objection) (\(objection.count)x)")
+          WorkbenchFact(
+            label: "Repeated objection", value: "\(objection.objection) (\(objection.count)x)")
         }
         if let missing = evidenceIndex.aggregate.missingCapabilityFrequency.first {
-          WorkbenchFact(label: "Missing capability", value: "\(missing.capabilityID) (\(missing.count)x)")
+          WorkbenchFact(
+            label: "Missing capability", value: "\(missing.capabilityID) (\(missing.count)x)")
         }
         if let comparison = evidenceIndex.aggregate.currentAlternativeComparisons.first {
-          WorkbenchFact(label: "Alternative", value: "\(comparison.comparison) [\(comparison.verdict.rawValue)]")
+          WorkbenchFact(
+            label: "Alternative", value: "\(comparison.comparison) [\(comparison.verdict.rawValue)]"
+          )
         }
         if evidenceIndex.malformedRecordCount > 0 {
-          Label("\(evidenceIndex.malformedRecordCount) malformed record(s) skipped", systemImage: "exclamationmark.triangle")
-            .font(.caption)
-            .foregroundStyle(.orange)
+          Label(
+            "\(evidenceIndex.malformedRecordCount) malformed record(s) skipped",
+            systemImage: "exclamationmark.triangle"
+          )
+          .font(.caption)
+          .foregroundStyle(.orange)
         }
       }
     }
@@ -496,9 +538,13 @@ struct ProductizationWorkbenchTab: View {
     experiment: ProductExperiment
   ) -> some View {
     Button {
-      Task { await project.applyProductExperimentRolloutAction(action, experimentID: experiment.id) }
+      Task {
+        await project.applyProductExperimentRolloutAction(action, experimentID: experiment.id)
+      }
     } label: {
-      Label(action.title(from: experiment.decision), systemImage: action == .promoteOrConfirm ? "arrow.up.forward" : "archivebox")
+      Label(
+        action.title(from: experiment.decision),
+        systemImage: action == .promoteOrConfirm ? "arrow.up.forward" : "archivebox")
     }
     .buttonStyle(.bordered)
     .disabled(!ProductExperimentRolloutWorkflow.canApply(action, to: experiment))
@@ -511,22 +557,31 @@ struct ProductizationWorkbenchTab: View {
         if isLoadingGitPreview {
           WorkbenchEmptyLine("Loading branch delta...")
         } else if let gitPreview {
-          WorkbenchFact(label: "Accepted", value: "\(gitPreview.acceptedBranchName) @ \(short(gitPreview.acceptedBeforeSha))")
-          WorkbenchFact(label: "Experiment", value: "\(gitPreview.experimentBranchName) @ \(short(gitPreview.actualExperimentSha))")
+          WorkbenchFact(
+            label: "Accepted",
+            value: "\(gitPreview.acceptedBranchName) @ \(short(gitPreview.acceptedBeforeSha))")
+          WorkbenchFact(
+            label: "Experiment",
+            value: "\(gitPreview.experimentBranchName) @ \(short(gitPreview.actualExperimentSha))")
           WorkbenchFact(label: "Operation", value: gitPreview.kind.rawValue)
           if !gitPreview.experimentStateMatchesBranch {
-            Label("Recorded experiment sha is stale; refresh before rollout.", systemImage: "exclamationmark.triangle")
-              .font(.caption)
-              .foregroundStyle(.orange)
+            Label(
+              "Recorded experiment sha is stale; refresh before rollout.",
+              systemImage: "exclamationmark.triangle"
+            )
+            .font(.caption)
+            .foregroundStyle(.orange)
           }
           if let archiveBranchName = gitPreview.archiveBranchName, experiment.decision == .kill {
             WorkbenchFact(label: "Archive", value: archiveBranchName)
           }
           if !gitPreview.commitSubjects.isEmpty {
-            WorkbenchFact(label: "Commits", value: gitPreview.commitSubjects.prefix(3).joined(separator: "; "))
+            WorkbenchFact(
+              label: "Commits", value: gitPreview.commitSubjects.prefix(3).joined(separator: "; "))
           }
           if !gitPreview.changedFiles.isEmpty {
-            WorkbenchFact(label: "Files", value: gitPreview.changedFiles.prefix(6).joined(separator: "; "))
+            WorkbenchFact(
+              label: "Files", value: gitPreview.changedFiles.prefix(6).joined(separator: "; "))
           }
         } else if let gitPreviewError {
           Label(gitPreviewError, systemImage: "exclamationmark.triangle")
@@ -573,7 +628,8 @@ struct ProductizationWorkbenchTab: View {
               .padding(10)
               .frame(maxWidth: .infinity, alignment: .leading)
               .background(
-                selectedRunID == summary.runID ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08),
+                selectedRunID == summary.runID
+                  ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08),
                 in: RoundedRectangle(cornerRadius: 8)
               )
             }
@@ -590,19 +646,26 @@ struct ProductizationWorkbenchTab: View {
       WorkbenchSection("Selected Run", systemImage: "doc.text.magnifyingglass") {
         VStack(alignment: .leading, spacing: 8) {
           HStack(spacing: 6) {
-            WorkbenchMetric(label: "Pain", value: score(record.scores.painRecognition), systemImage: "scope")
-            WorkbenchMetric(label: "Workflow", value: score(record.scores.workflowImprovement), systemImage: "flowchart")
-            WorkbenchMetric(label: "Switch", value: score(record.scores.switchingReadiness), systemImage: "arrow.triangle.2.circlepath")
+            WorkbenchMetric(
+              label: "Pain", value: score(record.scores.painRecognition), systemImage: "scope")
+            WorkbenchMetric(
+              label: "Workflow", value: score(record.scores.workflowImprovement),
+              systemImage: "flowchart")
+            WorkbenchMetric(
+              label: "Switch", value: score(record.scores.switchingReadiness),
+              systemImage: "arrow.triangle.2.circlepath")
           }
           WorkbenchFact(label: "Scenario", value: record.scenarioID)
           WorkbenchFact(label: "Persona", value: record.personaID)
           WorkbenchFact(label: "Mode", value: record.mode.rawValue)
           WorkbenchFact(label: "Trace", value: record.traceHash ?? "none")
           if !record.objections.isEmpty {
-            WorkbenchFact(label: "Objections", value: record.objections.prefix(3).joined(separator: "; "))
+            WorkbenchFact(
+              label: "Objections", value: record.objections.prefix(3).joined(separator: "; "))
           }
           if !record.missingCapabilities.isEmpty {
-            WorkbenchFact(label: "Missing", value: record.missingCapabilities.prefix(4).joined(separator: ", "))
+            WorkbenchFact(
+              label: "Missing", value: record.missingCapabilities.prefix(4).joined(separator: ", "))
           }
           if !record.currentAlternativeComparison.isEmpty {
             WorkbenchFact(label: "Alternative", value: record.currentAlternativeComparison)
@@ -646,7 +709,8 @@ struct ProductizationWorkbenchTab: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
               if !decision.evidenceRunIDs.isEmpty {
-                WorkbenchFact(label: "Evidence", value: decision.evidenceRunIDs.joined(separator: ", "))
+                WorkbenchFact(
+                  label: "Evidence", value: decision.evidenceRunIDs.joined(separator: ", "))
               }
               if let branch = decision.branchName {
                 WorkbenchFact(label: "Branch", value: branch)
@@ -718,7 +782,8 @@ struct ProductizationWorkbenchTab: View {
       selectedScenarioID = scenariosForSelectedExperiment.first?.id
     }
     if let scenario = scenariosForSelectedExperiment.first(where: { $0.id == selectedScenarioID }) {
-      let cohort = cohortsForSelectedExperiment.first { $0.scenarioIDs.contains(scenario.id) }
+      let cohort =
+        cohortsForSelectedExperiment.first { $0.scenarioIDs.contains(scenario.id) }
         ?? cohortsForSelectedExperiment.first
       scenarioTitle = scenario.title
       scenarioCohortID = cohort?.id ?? "\(experiment.id)-starter-cohort"
@@ -729,7 +794,8 @@ struct ProductizationWorkbenchTab: View {
       scenarioSegmentID = scenario.segmentID
       scenarioWorkflowID = scenario.currentWorkflowID
       scenarioAlternativeID = scenario.alternativeID ?? ""
-      scenarioTargetCommit = scenario.targetCommitSha ?? experiment.currentSha ?? experiment.baseSha ?? ""
+      scenarioTargetCommit =
+        scenario.targetCommitSha ?? experiment.currentSha ?? experiment.baseSha ?? ""
       scenarioMaxTurns = scenario.maxTurns
       scenarioTimeoutSeconds = scenario.appCommandTimeoutSeconds
       scenarioEnabled = scenario.enabled

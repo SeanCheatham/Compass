@@ -81,18 +81,21 @@ enum ProductizationPlanningDigestFormatter {
 
     var lines = ["Solution hypotheses:"]
     for solution in solutions.prefix(maxSolutionHypotheses) {
-      let segments = solution.targetSegmentIDs.isEmpty
+      let segments =
+        solution.targetSegmentIDs.isEmpty
         ? "no target segment"
         : solution.targetSegmentIDs.joined(separator: ", ")
       lines.append(
         "- \(bounded(solution.title, 160)) [\(solution.status.rawValue), pain \(solution.painID), segments \(segments)]: \(bounded(solution.promise, 220))."
       )
       if !solution.requiredProof.isEmpty {
-        lines.append("- Required proof: \(bounded(solution.requiredProof.joined(separator: "; "), 240)).")
+        lines.append(
+          "- Required proof: \(bounded(solution.requiredProof.joined(separator: "; "), 240)).")
       }
     }
     if solutions.count > maxSolutionHypotheses {
-      lines.append("- \(solutions.count - maxSolutionHypotheses) more solution hypothesis/hypotheses omitted.")
+      lines.append(
+        "- \(solutions.count - maxSolutionHypotheses) more solution hypothesis/hypotheses omitted.")
     }
     return lines
   }
@@ -143,7 +146,8 @@ enum ProductizationPlanningDigestFormatter {
 
     return ["Latest product decisions:"]
       + decisions.map { decision in
-        let evidence = decision.evidenceRunIDs.isEmpty
+        let evidence =
+          decision.evidenceRunIDs.isEmpty
           ? "no evidence runs"
           : "evidence \(decision.evidenceRunIDs.joined(separator: ", "))"
         return
@@ -209,6 +213,20 @@ enum ProductizationPlanningDigestFormatter {
         .map { "\(bounded($0.objection, 120)) (\($0.count)x)" }
         .joined(separator: "; ")
       lines.append("Repeated objections: \(objections).")
+    }
+
+    if !index.aggregate.pmfReadinessByExperiment.isEmpty {
+      lines.append("Product-market-fit readiness:")
+      for readiness in index.aggregate.pmfReadinessByExperiment.prefix(4) {
+        let evidence =
+          readiness.evidenceRunIDs.isEmpty
+          ? "no evidence runs"
+          : "evidence \(readiness.evidenceRunIDs.prefix(4).joined(separator: ", "))"
+        let rationale = readiness.rationale.first.map { "; \(bounded($0, 180))" } ?? ""
+        lines.append(
+          "- \(readiness.experimentID): score \(readiness.scoreLabel)/100; recommend \(readiness.recommendation.rawValue); \(evidence)\(rationale)."
+        )
+      }
     }
 
     if !index.aggregate.missingCapabilityFrequency.isEmpty {
@@ -277,8 +295,8 @@ enum ProductizationPlanningDigestFormatter {
   }
 }
 
-private extension Array where Element == String {
-  func productizationUniquedPreservingOrder() -> [String] {
+extension Array where Element == String {
+  fileprivate func productizationUniquedPreservingOrder() -> [String] {
     var seen = Set<String>()
     var out: [String] = []
     for value in self {
