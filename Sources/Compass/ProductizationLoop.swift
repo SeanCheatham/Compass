@@ -970,6 +970,60 @@ enum ProductFactoryCycleFailureAdvisor {
   }
 }
 
+enum ProductFactoryCycleLearningAdvisor {
+  static func stalledProofDebtAudit(
+    for action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryCycleAudit? {
+    guard isBroadCohortAction(action) else { return nil }
+    let broadStepIDs = broadCohortStepIDs(for: action)
+    return config.factoryCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(5)
+      .first { audit in
+        guard audit.stopReason != .executionFailed,
+          audit.experimentIDs.contains(experiment.id),
+          audit.evidenceRunStepCount > 0,
+          audit.completedEvidenceRunCount > 0,
+          (audit.endingProofDebtCount ?? 0) > 0,
+          audit.proofDebtDelta.map({ $0 >= 0 }) == true,
+          !Set(audit.executedStepIDs).isDisjoint(with: broadStepIDs),
+          !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
+        else { return false }
+        return true
+      }
+  }
+
+  private static func isBroadCohortAction(_ action: ProductMarketFitNextAction) -> Bool {
+    (action.kind == .runCohort || action.kind == .rerunCohort)
+      && action.targetScenarioID == nil
+      && action.cohortID != nil
+  }
+
+  private static func broadCohortStepIDs(for action: ProductMarketFitNextAction) -> Set<String> {
+    guard let cohortID = action.cohortID else { return [] }
+    return [
+      "\(action.experimentID):\(ProductMarketFitNextActionKind.runCohort.rawValue):\(cohortID)",
+      "\(action.experimentID):\(ProductMarketFitNextActionKind.rerunCohort.rawValue):\(cohortID)",
+    ]
+  }
+
+  private static func hasCompletedEvidence(
+    after audit: ProductFactoryCycleAudit,
+    for experiment: ProductExperiment,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> Bool {
+    evidenceIndex.summaries(for: experiment).contains {
+      $0.isCompleted && $0.endedAt > audit.endedAt
+    }
+  }
+}
+
 enum ProductFactoryAutopilotPlanner {
   static func cohortSimulationMode(
     isPersonaModelAvailable: Bool
@@ -1153,7 +1207,7 @@ enum ProductMarketFitNextActionAdvisor {
           priority: staleCount > 0 ? 96 : 91
         )
       }
-      return applyingRecentCycleFailureGuard(
+      return applyingRecentCycleGuards(
         to: ProductMarketFitNextAction(
           experimentID: experiment.id,
           kind: staleCount > 0 ? .rerunCohort : .runCohort,
@@ -1184,7 +1238,7 @@ enum ProductMarketFitNextActionAdvisor {
       )
     }
     if readiness.completedRunCount < 2 || readiness.distinctPersonaCount < 2 {
-      return applyingRecentCycleFailureGuard(
+      return applyingRecentCycleGuards(
         to: ProductMarketFitNextAction(
           experimentID: experiment.id,
           kind: cohort == nil ? .refineBet : .runCohort,
@@ -1208,7 +1262,7 @@ enum ProductMarketFitNextActionAdvisor {
       cohort: cohort
     )
     if readiness.aiUserDistinctPersonaCount < 2 && readiness.readinessScore >= 70 {
-      return applyingRecentCycleFailureGuard(
+      return applyingRecentCycleGuards(
         to: aiUserBreadthAction(
           experiment: experiment,
           selectedCohort: cohort,
@@ -1226,7 +1280,7 @@ enum ProductMarketFitNextActionAdvisor {
       )
     }
     if readiness.aiUserDistinctPersonaCount < 2 && shouldRunAIUserRejectionCheck(readiness) {
-      return applyingRecentCycleFailureGuard(
+      return applyingRecentCycleGuards(
         to: aiUserBreadthAction(
           experiment: experiment,
           selectedCohort: cohort,
@@ -1255,7 +1309,7 @@ enum ProductMarketFitNextActionAdvisor {
       testedPersonaIDs: currentAlternativePersonaIDs
     )
     if readiness.aiUserCurrentAlternativePersonaCount < 2 && readiness.readinessScore >= 70 {
-      return applyingRecentCycleFailureGuard(
+      return applyingRecentCycleGuards(
         to: aiUserBreadthAction(
           experiment: experiment,
           selectedCohort: cohort,
@@ -1276,7 +1330,7 @@ enum ProductMarketFitNextActionAdvisor {
     if readiness.aiUserCurrentAlternativePersonaCount < 2
       && shouldRunAIUserRejectionCheck(readiness)
     {
-      return applyingRecentCycleFailureGuard(
+      return applyingRecentCycleGuards(
         to: aiUserBreadthAction(
           experiment: experiment,
           selectedCohort: cohort,
@@ -1333,7 +1387,7 @@ enum ProductMarketFitNextActionAdvisor {
         priority: 73
       )
     case .gatherEvidence, .keepGoing:
-      return applyingRecentCycleFailureGuard(
+      return applyingRecentCycleGuards(
         to: ProductMarketFitNextAction(
           experimentID: experiment.id,
           kind: cohort == nil ? .refineBet : .runCohort,
@@ -1572,6 +1626,51 @@ enum ProductMarketFitNextActionAdvisor {
       result.append(value)
     }
     return result
+  }
+
+  private static func applyingRecentCycleGuards(
+    to action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductMarketFitNextAction {
+    let failureGuarded = applyingRecentCycleFailureGuard(
+      to: action,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    guard failureGuarded.kind != .repairFailures else { return failureGuarded }
+    return applyingRecentCycleLearningGuard(
+      to: failureGuarded,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
+  private static func applyingRecentCycleLearningGuard(
+    to action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductMarketFitNextAction {
+    guard
+      let audit = ProductFactoryCycleLearningAdvisor.stalledProofDebtAudit(
+        for: action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    else { return action }
+    return ProductMarketFitNextAction(
+      experimentID: experiment.id,
+      kind: .refineBet,
+      title: "Retarget stalled proof debt",
+      detail:
+        "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt (\(audit.summary)); retarget the scenario cohort, persona, or current-alternative proof before rerunning broad evidence.",
+      priority: min(98, max(action.priority + 1, 84))
+    )
   }
 
   private static func applyingRecentCycleFailureGuard(
