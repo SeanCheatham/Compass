@@ -27,6 +27,7 @@ struct ProductizationWorkbenchTab: View {
   @State private var isSavingScenario = false
   @State private var isRunningScenario = false
   @State private var isRunningFactoryStep = false
+  @State private var isRunningFactoryCycle = false
   @State private var scenarioRunMessage: String?
   @State private var contractAvailable: Bool?
 
@@ -117,8 +118,26 @@ struct ProductizationWorkbenchTab: View {
     )
   }
 
+  private var factoryAutopilotCyclePlan: ProductFactoryAutopilotCyclePlan {
+    ProductFactoryAutopilotPlanner.cyclePlan(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      maxSteps: 3
+    )
+  }
+
   private var factoryAutopilotCanRun: Bool {
-    factoryAutopilotStep?.canExecute == true && !isRunningFactoryStep && !isRunningScenario
+    factoryAutopilotStep?.canExecute == true
+      && !isRunningFactoryStep
+      && !isRunningFactoryCycle
+      && !isRunningScenario
+  }
+
+  private var factoryAutopilotCycleCanRun: Bool {
+    factoryAutopilotCyclePlan.canRun
+      && !isRunningFactoryStep
+      && !isRunningFactoryCycle
+      && !isRunningScenario
   }
 
   var body: some View {
@@ -399,20 +418,34 @@ struct ProductizationWorkbenchTab: View {
             label: "Step",
             value: "\(step.title), \(step.action.kind.rawValue)"
           )
+          WorkbenchFact(label: "Cycle", value: factoryAutopilotCyclePlan.summary)
           Text(step.detail)
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
-          Button {
-            Task { await runFactoryAutopilotStep() }
-          } label: {
-            Label(
-              isRunningFactoryStep ? "Running Factory Step" : "Run Factory Step",
-              systemImage: "play.fill"
-            )
+          HStack(spacing: 8) {
+            Button {
+              Task { await runFactoryAutopilotStep() }
+            } label: {
+              Label(
+                isRunningFactoryStep ? "Running Step" : "Run Step",
+                systemImage: "play.fill"
+              )
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!factoryAutopilotCanRun)
+
+            Button {
+              Task { await runFactoryAutopilotCycle() }
+            } label: {
+              Label(
+                isRunningFactoryCycle ? "Running Cycle" : "Run Cycle",
+                systemImage: "forward.frame.fill"
+              )
+            }
+            .buttonStyle(.bordered)
+            .disabled(!factoryAutopilotCycleCanRun)
           }
-          .buttonStyle(.borderedProminent)
-          .disabled(!factoryAutopilotCanRun)
         } else {
           WorkbenchEmptyLine("No product-factory action queued.")
         }
@@ -1104,34 +1137,67 @@ struct ProductizationWorkbenchTab: View {
     selectedExperimentID = step.experimentID
     isRunningFactoryStep = true
     defer { isRunningFactoryStep = false }
+    let message = await executeFactoryAutopilotStep(step)
+    scenarioRunMessage = message ?? project.errorMessage ?? step.blockedReason
+    await loadContractStatus()
+  }
+
+  private func runFactoryAutopilotCycle() async {
+    guard factoryAutopilotCyclePlan.canRun else { return }
+    isRunningFactoryCycle = true
+    defer { isRunningFactoryCycle = false }
+    var messages: [String] = []
+    var seenStepIDs = Set<String>()
+    for _ in 0..<factoryAutopilotCyclePlan.maxSteps {
+      guard
+        let step = ProductFactoryAutopilotPlanner.nextExecutableStep(
+          config: project.productizationConfig,
+          evidenceIndex: project.productizationEvidenceIndex
+        ),
+        seenStepIDs.insert(step.id).inserted
+      else { break }
+      selectedExperimentID = step.experimentID
+      guard let message = await executeFactoryAutopilotStep(step) else {
+        if let errorMessage = project.errorMessage {
+          messages.append(errorMessage)
+        }
+        break
+      }
+      messages.append(message)
+    }
+    scenarioRunMessage =
+      messages.isEmpty
+      ? "Factory cycle found no executable step."
+      : "Factory cycle ran \(messages.count) step(s): \(messages.joined(separator: " "))"
+    await loadContractStatus()
+  }
+
+  private func executeFactoryAutopilotStep(_ step: ProductFactoryAutopilotStep) async -> String? {
     switch step.kind {
     case .applyDecision:
       let decisionCount = project.productizationConfig.decisions.count
       await project.applyProductMarketFitDecisionRecommendation(experimentID: step.experimentID)
       if project.productizationConfig.decisions.count > decisionCount {
-        scenarioRunMessage = "Factory applied PMF advice for \(step.experimentTitle)."
-      } else {
-        scenarioRunMessage = project.errorMessage
+        return "Applied PMF advice for \(step.experimentTitle)."
       }
+      return nil
     case .runCohort:
-      guard let cohortID = step.cohortID else { return }
+      guard let cohortID = step.cohortID else { return nil }
       let outcome = await project.runProductizationScenarioCohortModelFree(
         experimentID: step.experimentID,
         cohortID: cohortID
       )
       if let outcome {
-        scenarioRunMessage = outcome.userMessage
         if let latestRecordID = outcome.latestRecordID {
           selectedRunID = latestRecordID
           loadSelectedRecord()
         }
-      } else {
-        scenarioRunMessage = project.errorMessage
+        return outcome.userMessage
       }
+      return nil
     case .blocked:
-      scenarioRunMessage = step.blockedReason
+      return nil
     }
-    await loadContractStatus()
   }
 
   private func runScenario(mode: ProductizationSimulationMode) async {

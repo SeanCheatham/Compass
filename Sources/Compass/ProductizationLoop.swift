@@ -480,6 +480,42 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
   }
 }
 
+struct ProductFactoryAutopilotCyclePlan: Equatable, Sendable {
+  var executableSteps: [ProductFactoryAutopilotStep]
+  var blockedSteps: [ProductFactoryAutopilotStep]
+  var maxSteps: Int
+  var capped: Bool
+
+  var canRun: Bool { !executableSteps.isEmpty }
+
+  var nextBlockedStep: ProductFactoryAutopilotStep? {
+    blockedSteps.first
+  }
+
+  var summary: String {
+    if executableSteps.isEmpty {
+      if let nextBlockedStep {
+        return "No executable factory steps; next blocked action is \(nextBlockedStep.title)."
+      }
+      return "No product-factory action queued."
+    }
+    let cappedText = capped ? ", capped at \(maxSteps)" : ""
+    return "\(executableSteps.count) executable factory step(s)\(cappedText)."
+  }
+
+  init(
+    executableSteps: [ProductFactoryAutopilotStep],
+    blockedSteps: [ProductFactoryAutopilotStep],
+    maxSteps: Int,
+    capped: Bool
+  ) {
+    self.executableSteps = executableSteps
+    self.blockedSteps = blockedSteps
+    self.maxSteps = max(1, maxSteps)
+    self.capped = capped
+  }
+}
+
 enum ProductFactoryAutopilotPlanner {
   static func steps(
     config: ProductizationConfig,
@@ -522,6 +558,23 @@ enum ProductFactoryAutopilotPlanner {
   ) -> ProductFactoryAutopilotStep? {
     nextExecutableStep(config: config, evidenceIndex: evidenceIndex)
       ?? steps(config: config, evidenceIndex: evidenceIndex).first
+  }
+
+  static func cyclePlan(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex,
+    maxSteps: Int = 3
+  ) -> ProductFactoryAutopilotCyclePlan {
+    let limit = max(1, maxSteps)
+    let allSteps = steps(config: config, evidenceIndex: evidenceIndex)
+    let executableSteps = allSteps.filter(\.canExecute)
+    let selectedExecutableSteps = Array(executableSteps.prefix(limit))
+    return ProductFactoryAutopilotCyclePlan(
+      executableSteps: selectedExecutableSteps,
+      blockedSteps: allSteps.filter { !$0.canExecute },
+      maxSteps: limit,
+      capped: executableSteps.count > selectedExecutableSteps.count
+    )
   }
 }
 

@@ -317,6 +317,52 @@ struct ProductizationLoopTests {
     try #require(step.cohortReadiness?.canRun == true)
   }
 
+  @Test func productFactoryAutopilotCyclePlanCapsExecutableSteps() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    for index in config.experiments.indices {
+      config.experiments[index].decision = .keepGoing
+      config.experiments[index].baseSha = "base-\(index)"
+      config.experiments[index].currentSha = "head-\(index)"
+    }
+
+    let plan = ProductFactoryAutopilotPlanner.cyclePlan(
+      config: config,
+      evidenceIndex: .empty,
+      maxSteps: 1
+    )
+
+    try #require(plan.canRun)
+    try #require(plan.executableSteps.count == 1)
+    try #require(plan.capped)
+    try #require(plan.summary.contains("capped at 1"))
+    try #require(plan.executableSteps[0].kind == .runCohort)
+  }
+
+  @Test func productFactoryAutopilotCyclePlanReportsBlockedStep() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+
+    let plan = ProductFactoryAutopilotPlanner.cyclePlan(
+      config: config,
+      evidenceIndex: .empty
+    )
+
+    try #require(!plan.canRun)
+    try #require(plan.executableSteps.isEmpty)
+    let blocked = try #require(plan.nextBlockedStep)
+    try #require(blocked.kind == .runCohort)
+    try #require(blocked.blockedReason?.contains("target commit") == true)
+    try #require(plan.summary.contains("No executable factory steps"))
+  }
+
   @Test func pmfDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",
