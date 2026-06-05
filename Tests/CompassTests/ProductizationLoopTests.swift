@@ -427,6 +427,61 @@ struct ProductizationLoopTests {
     } catch let error as ProductMarketFitDecisionAdvisorError {
       try #require(error == .noProposal(experiment.id))
     }
+
+    let stalledAudit = ProductFactoryCycleAudit(
+      id: "factory-cycle-split-stalled",
+      startedAt: 700,
+      endedAt: 710,
+      executedStepIDs: [ProductFactoryCycleFailureAdvisor.stepID(for: action)],
+      experimentIDs: [experiment.id],
+      messages: ["AI-user target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+      maxSteps: 3,
+      evidenceRunStepCount: 1,
+      evidenceRunIDs: ["split-resolution-repeat"],
+      completedEvidenceRunCount: 1,
+      failedEvidenceRunCount: 0,
+      skippedScenarioCount: 0,
+      evidenceTensionSummaries: [tension.auditSummary],
+      stopReason: .noExecutableStep,
+      stopDetail: "Stopped because no executable product-factory step remains.",
+      userMessage: "Factory cycle ran 1 step(s). Evidence tensions remained split."
+    )
+    let stalledConfig = config.recordingFactoryCycleAudit(stalledAudit)
+    let learningAudit = try #require(
+      ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
+        for: action,
+        experiment: experiment,
+        config: stalledConfig,
+        evidenceIndex: index
+      ))
+    let stalledAction = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: stalledConfig,
+        evidenceIndex: index
+      ))
+    let blockedStep = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: stalledConfig,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(learningAudit.id == stalledAudit.id)
+    try #require(stalledAction.kind == .refineBet)
+    try #require(stalledAction.title == "Retarget split PMF evidence")
+    try #require(stalledAction.detail.contains(stalledAudit.id))
+    try #require(stalledAction.detail.contains("still split") || stalledAction.detail.contains("contradiction"))
+    try #require(stalledAction.targetScenarioID == buyerScenario.id)
+    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
+      config: stalledConfig,
+      evidenceIndex: index,
+      isPersonaModelAvailable: true
+    ) == nil)
+    try #require(!blockedStep.canExecute)
+    try #require(blockedStep.action.kind == .refineBet)
+    try #require(blockedStep.blockedReason?.contains(stalledAudit.id) == true)
+    try #require(blockedStep.blockedReason?.contains("split-evidence") == true)
   }
 
   @Test func pmfDecisionAdvisorDefersKillWhenEvidenceIsSplit() throws {

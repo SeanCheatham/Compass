@@ -439,10 +439,23 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
   }
 
   var auditSummary: String {
-    StringUtils.boundedText(
-      "\(experimentID): \(label); score \(readinessScore)/100; \(strongestVerdict.rawValue) vs \(weakestVerdict.rawValue); evidence \(evidenceRunIDs.prefix(6).joined(separator: ", ")); \(summary)",
-      limit: 320
-    )
+    var parts = [
+      "\(experimentID): \(label)",
+      "score \(readinessScore)/100",
+      "\(strongestVerdict.rawValue) vs \(weakestVerdict.rawValue)",
+    ]
+    if let targetPersonaName {
+      parts.append("target \(targetPersonaName)")
+    }
+    if let targetScenarioID {
+      parts.append("scenario \(targetScenarioID)")
+    }
+    if let targetCohortID {
+      parts.append("cohort \(targetCohortID)")
+    }
+    parts.append("evidence \(evidenceRunIDs.prefix(6).joined(separator: ", "))")
+    parts.append(summary)
+    return StringUtils.boundedText(parts.joined(separator: "; "), limit: 360)
   }
 
   init(
@@ -1170,7 +1183,9 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
     case .refineBet:
       self.kind = .blocked
       self.canExecute = false
-      self.blockedReason = "Refine the product bet before autopilot can run more evidence."
+      self.blockedReason = action.detail.isEmpty
+        ? "Refine the product bet before autopilot can run more evidence."
+        : action.detail
     case .reviewDecision:
       self.kind = .blocked
       self.canExecute = false
@@ -1650,6 +1665,43 @@ enum ProductFactoryCycleLearningAdvisor {
       }
   }
 
+  static func stalledEvidenceTensionAudit(
+    for action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryCycleAudit? {
+    guard isTargetedEvidenceTensionAction(action) else { return nil }
+    let stepID = ProductFactoryCycleFailureAdvisor.stepID(for: action)
+    let currentTension = ProductFactoryEvidenceTensionAdvisor.tension(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    return config.factoryCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(5)
+      .first { audit in
+        guard audit.stopReason != .executionFailed,
+          audit.experimentIDs.contains(experiment.id),
+          audit.evidenceRunStepCount > 0,
+          audit.completedEvidenceRunCount > 0,
+          matchesExecutedStepID(stepID, audit: audit),
+          !audit.evidenceTensionSummaries.isEmpty,
+          matchesCurrentEvidenceTension(
+            audit: audit,
+            action: action,
+            tension: currentTension
+          ),
+          !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
+        else { return false }
+        return true
+      }
+  }
+
   private static func isBroadCohortAction(_ action: ProductMarketFitNextAction) -> Bool {
     (action.kind == .runCohort || action.kind == .rerunCohort)
       && action.targetScenarioID == nil
@@ -1658,6 +1710,15 @@ enum ProductFactoryCycleLearningAdvisor {
 
   private static func isTargetedProofAction(_ action: ProductMarketFitNextAction) -> Bool {
     (action.kind == .runCohort || action.kind == .rerunCohort)
+      && action.targetScenarioID != nil
+      && action.requiredSimulationMode == .personaModel
+  }
+
+  private static func isTargetedEvidenceTensionAction(
+    _ action: ProductMarketFitNextAction
+  ) -> Bool {
+    (action.kind == .runCohort || action.kind == .rerunCohort)
+      && action.title == "Resolve split PMF evidence"
       && action.targetScenarioID != nil
       && action.requiredSimulationMode == .personaModel
   }
@@ -1688,6 +1749,25 @@ enum ProductFactoryCycleLearningAdvisor {
         return summary.localizedCaseInsensitiveContains(target.label)
           && scenarioMatches
           && personaMatches
+      }
+      return action.targetScenarioID.map { summary.contains($0) } ?? false
+    }
+  }
+
+  private static func matchesCurrentEvidenceTension(
+    audit: ProductFactoryCycleAudit,
+    action: ProductMarketFitNextAction,
+    tension: ProductFactoryEvidenceTension?
+  ) -> Bool {
+    audit.evidenceTensionSummaries.contains { summary in
+      if let tension {
+        let labelMatches = summary.localizedCaseInsensitiveContains(tension.label)
+        let scenarioMatches = action.targetScenarioID.map { summary.contains($0) } ?? true
+        let personaMatches =
+          action.targetPersonaName.map {
+            summary.localizedCaseInsensitiveContains($0)
+          } ?? true
+        return labelMatches && scenarioMatches && personaMatches
       }
       return action.targetScenarioID.map { summary.contains($0) } ?? false
     }
@@ -1839,6 +1919,20 @@ enum ProductFactoryAutopilotPlanner {
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductFactoryAutopilotStep {
+    if step.canExecute,
+      let audit = ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
+        for: step.action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    {
+      var blocked = step
+      blocked.canExecute = false
+      blocked.blockedReason =
+        "Recent factory cycle \(audit.id) already attempted this split-evidence target and the current PMF evidence is still split; revise the scenario, persona, prototype, or decision criteria before retrying."
+      return blocked
+    }
     guard step.canExecute,
       let audit = ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
         for: step.action,
@@ -2412,6 +2506,24 @@ enum ProductMarketFitNextActionAdvisor {
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductMarketFitNextAction {
+    if let audit = ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
+      for: action,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        kind: .refineBet,
+        title: "Retarget split PMF evidence",
+        detail:
+          "Recent factory cycle \(audit.id) reran the split-evidence target without resolving the contradiction (\(audit.summary)); revise the scenario, persona, prototype, or decision criteria before retrying.",
+        priority: min(98, max(action.priority + 1, 86)),
+        targetPersonaID: action.targetPersonaID,
+        targetPersonaName: action.targetPersonaName,
+        targetScenarioID: action.targetScenarioID
+      )
+    }
     guard
       let audit = ProductFactoryCycleLearningAdvisor.stalledProofDebtAudit(
         for: action,
