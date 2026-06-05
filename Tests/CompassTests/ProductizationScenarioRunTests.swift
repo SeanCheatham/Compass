@@ -152,14 +152,19 @@ struct ProductizationScenarioRunTests {
       scenarioID: scenario.id,
       in: config,
       projectTitle: "Scenario Helper",
-      generatedAppWorkingDirectory: root
+      generatedAppWorkingDirectory: root,
+      targetDecision: .promote
     )
     let input = request.experienceInput(actions: [])
 
     try #require(request.commitSha == head)
+    try #require(request.decisionIntent?.currentDecision == config.experiments[0].decision)
+    try #require(request.decisionIntent?.targetDecision == .promote)
     try #require(request.maxTurns == scenario.maxTurns)
     try #require(request.appCommandTimeout == scenario.appCommandTimeoutSeconds)
     try #require(request.mode == .modelFree)
+    try #require(input.decisionIntent?.targetDecision == .promote)
+    try #require(input.decisionIntent?.scorecardFocus.contains("continued-use pull") == true)
     try #require(input.scenario.task.contains(scenario.task))
     try #require(input.scenario.task.contains(scenario.successSignal))
     try #require(input.experiment.successSignal == scenario.successSignal)
@@ -236,6 +241,7 @@ struct ProductizationScenarioRunTests {
       projectTitle: "Scenario Helper",
       appRunner: appRunner,
       personaSelector: selector,
+      targetDecision: .promote,
       now: Date(timeIntervalSince1970: 160)
     )
     let stored = try workspace.readProductizationEvidenceRecord(id: outcome.record.id)
@@ -247,6 +253,8 @@ struct ProductizationScenarioRunTests {
 
     try #require(outcome.result.status == .completed)
     try #require(outcome.result.mode == .personaModel)
+    try #require(outcome.request.decisionIntent?.targetDecision == .promote)
+    try #require(appRunner.inputs.first?.decisionIntent?.targetDecision == .promote)
     try #require(outcome.userMessage.contains("AI-user"))
     try #require(stored.mode == .personaModel)
     try #require(stored.promptVersions == ["test.persona_action"])

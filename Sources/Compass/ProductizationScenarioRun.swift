@@ -259,16 +259,20 @@ enum ProductizationScenarioCoordinator {
   ) -> ProductScenarioDraft {
     let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
     let painID = solution?.painID ?? config.painHypotheses.first?.id ?? ""
-    let segment = config.userSegments.first { segment in
-      segment.painID == painID
-        && (solution?.targetSegmentIDs.isEmpty != false || solution?.targetSegmentIDs.contains(segment.id) == true)
-    } ?? config.userSegments.first
-    let workflow = config.currentWorkflows.first { workflow in
-      workflow.painID == painID && segment?.currentWorkflowIDs.contains(workflow.id) != false
-    } ?? config.currentWorkflows.first
-    let alternative = config.alternatives.first { alternative in
-      alternative.painID == painID && segment?.alternativeIDs.contains(alternative.id) != false
-    } ?? config.alternatives.first
+    let segment =
+      config.userSegments.first { segment in
+        segment.painID == painID
+          && (solution?.targetSegmentIDs.isEmpty != false
+            || solution?.targetSegmentIDs.contains(segment.id) == true)
+      } ?? config.userSegments.first
+    let workflow =
+      config.currentWorkflows.first { workflow in
+        workflow.painID == painID && segment?.currentWorkflowIDs.contains(workflow.id) != false
+      } ?? config.currentWorkflows.first
+    let alternative =
+      config.alternatives.first { alternative in
+        alternative.painID == painID && segment?.alternativeIDs.contains(alternative.id) != false
+      } ?? config.alternatives.first
     let cohort = config.scenarioCohorts.first { $0.experimentID == experiment.id }
     let scenarioID = "\(experiment.id)-scenario-\(Int(now.timeIntervalSince1970))"
     return ProductScenarioDraft(
@@ -281,7 +285,8 @@ enum ProductizationScenarioCoordinator {
       currentWorkflowID: workflow?.id ?? "workflow",
       alternativeID: alternative?.id,
       title: "\(experiment.title) scenario",
-      task: "Try \(experiment.title) against the current workflow and decide whether it relieves the pain.",
+      task:
+        "Try \(experiment.title) against the current workflow and decide whether it relieves the pain.",
       successSignal: solution?.requiredProof.first
         ?? "The target user can explain why this beats the current alternative.",
       targetCommitSha: experiment.currentSha ?? experiment.baseSha,
@@ -302,7 +307,8 @@ enum ProductizationScenarioCoordinator {
     }?.id
   }
 
-  private static func segmentName(for segmentID: String, in config: ProductizationConfig) -> String {
+  private static func segmentName(for segmentID: String, in config: ProductizationConfig) -> String
+  {
     let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
     return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
   }
@@ -390,7 +396,8 @@ enum ProductizationScenarioCoordinator {
     generatedAppWorkingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
-    mode: ProductizationSimulationMode = .modelFree
+    mode: ProductizationSimulationMode = .modelFree,
+    targetDecision: ProductExperimentDecision? = nil
   ) async throws -> ProductizationSimulationRequest {
     guard let experiment = config.experiments.first(where: { $0.id == experimentID }) else {
       throw ProductizationScenarioRunError.unknownExperiment(experimentID)
@@ -452,6 +459,7 @@ enum ProductizationScenarioCoordinator {
       launchPlan: launchPlan,
       settings: settings,
       mode: mode,
+      targetDecision: targetDecision,
       maxTurns: scenario.maxTurns,
       appCommandTimeout: scenario.appCommandTimeoutSeconds
     )
@@ -491,6 +499,7 @@ enum ProductizationScenarioCoordinator {
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
     appRunner: ProductizationExperienceAppRunning = ProductizationExperienceCLIAppRunner(),
+    targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductizationScenarioRunOutcome {
     try await run(
@@ -503,6 +512,7 @@ enum ProductizationScenarioCoordinator {
       settings: settings,
       mode: .modelFree,
       appRunner: appRunner,
+      targetDecision: targetDecision,
       now: now
     )
   }
@@ -518,6 +528,7 @@ enum ProductizationScenarioCoordinator {
     appRunner: ProductizationExperienceAppRunning = ProductizationExperienceCLIAppRunner(),
     personaSelector: ProductizationPersonaActionSelecting =
       ProductizationFoundationModelsPersonaSelector(),
+    targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductizationScenarioRunOutcome {
     try await run(
@@ -531,6 +542,7 @@ enum ProductizationScenarioCoordinator {
       mode: .personaModel,
       appRunner: appRunner,
       personaSelector: personaSelector,
+      targetDecision: targetDecision,
       now: now
     )
   }
@@ -544,6 +556,7 @@ enum ProductizationScenarioCoordinator {
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
     appRunner: ProductizationExperienceAppRunning = ProductizationExperienceCLIAppRunner(),
+    targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductizationScenarioCohortRunOutcome {
     try await runCohort(
@@ -556,6 +569,7 @@ enum ProductizationScenarioCoordinator {
       settings: settings,
       mode: .modelFree,
       appRunner: appRunner,
+      targetDecision: targetDecision,
       now: now
     )
   }
@@ -571,6 +585,7 @@ enum ProductizationScenarioCoordinator {
     appRunner: ProductizationExperienceAppRunning = ProductizationExperienceCLIAppRunner(),
     personaSelector: ProductizationPersonaActionSelecting =
       ProductizationFoundationModelsPersonaSelector(),
+    targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductizationScenarioCohortRunOutcome {
     try await runCohort(
@@ -584,6 +599,7 @@ enum ProductizationScenarioCoordinator {
       mode: .personaModel,
       appRunner: appRunner,
       personaSelector: personaSelector,
+      targetDecision: targetDecision,
       now: now
     )
   }
@@ -599,6 +615,7 @@ enum ProductizationScenarioCoordinator {
     mode: ProductizationSimulationMode,
     appRunner: ProductizationExperienceAppRunning = ProductizationExperienceCLIAppRunner(),
     personaSelector: ProductizationPersonaActionSelecting? = nil,
+    targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductizationScenarioCohortRunOutcome {
     let config = try workspace.readProductizationConfig()
@@ -634,6 +651,7 @@ enum ProductizationScenarioCoordinator {
         mode: mode,
         appRunner: appRunner,
         personaSelector: personaSelector,
+        targetDecision: targetDecision,
         now: now
       )
       outcomes.append(outcome)
@@ -658,6 +676,7 @@ enum ProductizationScenarioCoordinator {
     mode: ProductizationSimulationMode,
     appRunner: ProductizationExperienceAppRunning = ProductizationExperienceCLIAppRunner(),
     personaSelector: ProductizationPersonaActionSelecting? = nil,
+    targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductizationScenarioRunOutcome {
     var config = try workspace.readProductizationConfig()
@@ -676,7 +695,8 @@ enum ProductizationScenarioCoordinator {
       generatedAppWorkingDirectory: workingDirectory,
       launchPlan: launchPlan,
       settings: settings,
-      mode: mode
+      mode: mode,
+      targetDecision: targetDecision
     )
     let startedAt = now.timeIntervalSince1970
     let result = await ProductizationSimulationRunner(
@@ -793,18 +813,21 @@ extension CompassProject {
 
   func runProductizationScenarioModelFree(
     experimentID: String,
-    scenarioID: String
+    scenarioID: String,
+    targetDecision: ProductExperimentDecision? = nil
   ) async -> ProductizationScenarioRunOutcome? {
     await runProductizationScenario(
       experimentID: experimentID,
       scenarioID: scenarioID,
-      mode: .modelFree
+      mode: .modelFree,
+      targetDecision: targetDecision
     )
   }
 
   func runProductizationScenarioPersonaModel(
     experimentID: String,
-    scenarioID: String
+    scenarioID: String,
+    targetDecision: ProductExperimentDecision? = nil
   ) async -> ProductizationScenarioRunOutcome? {
     guard FoundationModelsAvailability.isAvailable else {
       fail(ProductizationPersonaActionModelError.unavailable)
@@ -813,24 +836,28 @@ extension CompassProject {
     return await runProductizationScenario(
       experimentID: experimentID,
       scenarioID: scenarioID,
-      mode: .personaModel
+      mode: .personaModel,
+      targetDecision: targetDecision
     )
   }
 
   func runProductizationScenarioCohortModelFree(
     experimentID: String,
-    cohortID: String
+    cohortID: String,
+    targetDecision: ProductExperimentDecision? = nil
   ) async -> ProductizationScenarioCohortRunOutcome? {
     await runProductizationScenarioCohort(
       experimentID: experimentID,
       cohortID: cohortID,
-      mode: .modelFree
+      mode: .modelFree,
+      targetDecision: targetDecision
     )
   }
 
   func runProductizationScenarioCohortPersonaModel(
     experimentID: String,
-    cohortID: String
+    cohortID: String,
+    targetDecision: ProductExperimentDecision? = nil
   ) async -> ProductizationScenarioCohortRunOutcome? {
     guard FoundationModelsAvailability.isAvailable else {
       fail(ProductizationPersonaActionModelError.unavailable)
@@ -839,14 +866,16 @@ extension CompassProject {
     return await runProductizationScenarioCohort(
       experimentID: experimentID,
       cohortID: cohortID,
-      mode: .personaModel
+      mode: .personaModel,
+      targetDecision: targetDecision
     )
   }
 
   private func runProductizationScenario(
     experimentID: String,
     scenarioID: String,
-    mode: ProductizationSimulationMode
+    mode: ProductizationSimulationMode,
+    targetDecision: ProductExperimentDecision?
   ) async -> ProductizationScenarioRunOutcome? {
     do {
       guard let workspace else {
@@ -872,7 +901,8 @@ extension CompassProject {
         projectTitle: repoURL.lastPathComponent,
         launchPlan: agentLaunchPlan(for: workingDirectory),
         mode: mode,
-        personaSelector: personaSelector
+        personaSelector: personaSelector,
+        targetDecision: targetDecision
       )
       productizationConfig = try workspace.readProductizationConfig()
       productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()
@@ -887,7 +917,8 @@ extension CompassProject {
   private func runProductizationScenarioCohort(
     experimentID: String,
     cohortID: String,
-    mode: ProductizationSimulationMode
+    mode: ProductizationSimulationMode,
+    targetDecision: ProductExperimentDecision?
   ) async -> ProductizationScenarioCohortRunOutcome? {
     do {
       guard let workspace else {
@@ -913,7 +944,8 @@ extension CompassProject {
         projectTitle: repoURL.lastPathComponent,
         launchPlan: agentLaunchPlan(for: workingDirectory),
         mode: mode,
-        personaSelector: personaSelector
+        personaSelector: personaSelector,
+        targetDecision: targetDecision
       )
       productizationConfig = try workspace.readProductizationConfig()
       productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()

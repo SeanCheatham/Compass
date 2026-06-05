@@ -67,7 +67,8 @@ research, a sales forecast, or a Verify gate. It is a skeptical, repeatable
 product-pressure loop: a scenario works through the app's semantic
 `ProductizationExperienceTrace`, records structured feedback, and gives
 Plan/Reflect bounded evidence about pain recognition, workflow improvement,
-objections, missing capabilities, scores, verdicts, and scenario gaps.
+objections, missing capabilities, scores, verdicts, scenario gaps, and the
+PMF decision intent being stress-tested.
 
 Generated apps expose the contract through:
 

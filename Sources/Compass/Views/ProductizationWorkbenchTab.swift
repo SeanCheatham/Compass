@@ -550,10 +550,12 @@ struct ProductizationWorkbenchTab: View {
     } label: {
       VStack(alignment: .leading, spacing: 7) {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-          Text(signal.targetPersonaName.map { "AI-user rationale: \($0)" }
-            ?? "AI-user rationale signal")
-            .font(.callout.weight(.semibold))
-            .lineLimit(2)
+          Text(
+            signal.targetPersonaName.map { "AI-user rationale: \($0)" }
+              ?? "AI-user rationale signal"
+          )
+          .font(.callout.weight(.semibold))
+          .lineLimit(2)
           Spacer()
           WorkbenchStatusPill(text: "\(signal.count)x")
         }
@@ -1024,9 +1026,10 @@ struct ProductizationWorkbenchTab: View {
             WorkbenchFact(label: "Target decision", value: targetDecision.rawValue)
           }
           if let targetPersonaName = nextAction.targetPersonaName {
-            let targetValue = nextAction.targetPersonaID.map {
-              "\(targetPersonaName) (\($0))"
-            } ?? targetPersonaName
+            let targetValue =
+              nextAction.targetPersonaID.map {
+                "\(targetPersonaName) (\($0))"
+              } ?? targetPersonaName
             WorkbenchFact(label: "Target AI-user", value: targetValue)
           }
           if let readiness = selectedSuggestedCohortReadiness {
@@ -1515,7 +1518,7 @@ struct ProductizationWorkbenchTab: View {
       executedStepIDs: [stepID],
       experimentIDs: [brief.experimentID],
       messages: [
-        "Applied product revision \(brief.title) to scenario \(scenarioID).",
+        "Applied product revision \(brief.title) to scenario \(scenarioID)."
       ],
       maxSteps: 1,
       revisionBriefSummaries: [brief.auditSummary],
@@ -1551,14 +1554,16 @@ struct ProductizationWorkbenchTab: View {
       await runScenario(
         mode: mode,
         scenarioID: targetScenarioID,
-        saveDraftFirst: false
+        saveDraftFirst: false,
+        targetDecision: action.targetDecision
       )
       return
     }
     await runScenarioCohort(
       mode: mode,
       cohortID: cohortID,
-      saveDraftFirst: false
+      saveDraftFirst: false,
+      targetDecision: action.targetDecision
     )
   }
 
@@ -1569,15 +1574,19 @@ struct ProductizationWorkbenchTab: View {
     defer { isRunningFactoryStep = false }
     let stepStartedAt = Date()
     let startingProofDebt = productFactoryProofDebt(forExperimentID: step.experimentID)
-    let decisionCandidateSummaries = productFactoryDecisionCandidate(forExperimentID: step.experimentID)
+    let decisionCandidateSummaries =
+      productFactoryDecisionCandidate(forExperimentID: step.experimentID)
       .map { [$0.auditSummary] } ?? []
-    let evidenceTensionSummaries = productFactoryEvidenceTension(forExperimentID: step.experimentID)
+    let evidenceTensionSummaries =
+      productFactoryEvidenceTension(forExperimentID: step.experimentID)
       .map { [$0.auditSummary] } ?? []
-    let proofTargetSummaries = productFactoryProofTarget(forExperimentID: step.experimentID)
+    let proofTargetSummaries =
+      productFactoryProofTarget(forExperimentID: step.experimentID)
       .map { [$0.auditSummary] } ?? []
     let revisionBriefSummaries =
       step.kind == .applyRevision
-      ? productFactoryRevisionBrief(forExperimentID: step.experimentID).map { [$0.auditSummary] } ?? []
+      ? productFactoryRevisionBrief(forExperimentID: step.experimentID).map { [$0.auditSummary] }
+        ?? []
       : []
     let personaRationaleSignalSummaries: [String]
     if let stepExperiment = project.productizationConfig.experiments.first(where: {
@@ -1658,16 +1667,18 @@ struct ProductizationWorkbenchTab: View {
       config: project.productizationConfig,
       evidenceIndex: project.productizationEvidenceIndex
     )
-      .prefix(3)
-      .map(\.auditSummary)
+    .prefix(3)
+    .map(\.auditSummary)
     var seenStepIDs = Set<String>()
     var stopReason: ProductFactoryAutopilotCycleStopReason = .reachedStepLimit
     for _ in 0..<maxSteps {
-      guard let step = ProductFactoryAutopilotPlanner.nextExecutableStep(
-        config: project.productizationConfig,
-        evidenceIndex: project.productizationEvidenceIndex,
-        isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
-      ) else {
+      guard
+        let step = ProductFactoryAutopilotPlanner.nextExecutableStep(
+          config: project.productizationConfig,
+          evidenceIndex: project.productizationEvidenceIndex,
+          isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+        )
+      else {
         stopReason = .noExecutableStep
         break
       }
@@ -1791,7 +1802,9 @@ struct ProductizationWorkbenchTab: View {
     forExperimentID experimentID: String
   ) -> ProductMarketFitProofDebt? {
     guard
-      let experiment = project.productizationConfig.experiments.first(where: { $0.id == experimentID })
+      let experiment = project.productizationConfig.experiments.first(where: {
+        $0.id == experimentID
+      })
     else { return nil }
     return project.productizationEvidenceIndex.currentPMFReadiness(for: experiment)?.proofDebt
       ?? ProductMarketFitProofDebt(
@@ -1869,7 +1882,9 @@ struct ProductizationWorkbenchTab: View {
     var total = 0
     var parts: [String] = []
     for experimentID in orderedExperimentIDs {
-      guard let debt = proofDebts?[experimentID] ?? productFactoryProofDebt(forExperimentID: experimentID)
+      guard
+        let debt = proofDebts?[experimentID]
+          ?? productFactoryProofDebt(forExperimentID: experimentID)
       else { continue }
       total += debt.blockingDebtCount
       parts.append("\(experimentID): \(debt.summary)")
@@ -1896,8 +1911,9 @@ struct ProductizationWorkbenchTab: View {
       return nil
     case .runCohort:
       guard let cohortID = step.cohortID else { return nil }
-      guard step.action.requiredSimulationMode != .personaModel
-        || FoundationModelsAvailability.isAvailable
+      guard
+        step.action.requiredSimulationMode != .personaModel
+          || FoundationModelsAvailability.isAvailable
       else { return nil }
       let mode =
         step.action.requiredSimulationMode
@@ -1911,12 +1927,14 @@ struct ProductizationWorkbenchTab: View {
         case .modelFree:
           scenarioOutcome = await project.runProductizationScenarioModelFree(
             experimentID: step.experimentID,
-            scenarioID: targetScenarioID
+            scenarioID: targetScenarioID,
+            targetDecision: step.action.targetDecision
           )
         case .personaModel:
           scenarioOutcome = await project.runProductizationScenarioPersonaModel(
             experimentID: step.experimentID,
-            scenarioID: targetScenarioID
+            scenarioID: targetScenarioID,
+            targetDecision: step.action.targetDecision
           )
         }
         if let scenarioOutcome {
@@ -1935,12 +1953,14 @@ struct ProductizationWorkbenchTab: View {
       case .modelFree:
         outcome = await project.runProductizationScenarioCohortModelFree(
           experimentID: step.experimentID,
-          cohortID: cohortID
+          cohortID: cohortID,
+          targetDecision: step.action.targetDecision
         )
       case .personaModel:
         outcome = await project.runProductizationScenarioCohortPersonaModel(
           experimentID: step.experimentID,
-          cohortID: cohortID
+          cohortID: cohortID,
+          targetDecision: step.action.targetDecision
         )
       }
       if let outcome {
@@ -1992,7 +2012,8 @@ struct ProductizationWorkbenchTab: View {
   private func runScenario(
     mode: ProductizationSimulationMode,
     scenarioID: String? = nil,
-    saveDraftFirst: Bool = true
+    saveDraftFirst: Bool = true,
+    targetDecision: ProductExperimentDecision? = nil
   ) async {
     guard let experiment = selectedExperiment,
       let targetScenarioID = scenarioID ?? selectedScenarioID
@@ -2007,12 +2028,14 @@ struct ProductizationWorkbenchTab: View {
     case .modelFree:
       outcome = await project.runProductizationScenarioModelFree(
         experimentID: experiment.id,
-        scenarioID: targetScenarioID
+        scenarioID: targetScenarioID,
+        targetDecision: targetDecision
       )
     case .personaModel:
       outcome = await project.runProductizationScenarioPersonaModel(
         experimentID: experiment.id,
-        scenarioID: targetScenarioID
+        scenarioID: targetScenarioID,
+        targetDecision: targetDecision
       )
     }
     if let outcome {
@@ -2028,7 +2051,8 @@ struct ProductizationWorkbenchTab: View {
   private func runScenarioCohort(
     mode: ProductizationSimulationMode,
     cohortID: String? = nil,
-    saveDraftFirst: Bool = true
+    saveDraftFirst: Bool = true,
+    targetDecision: ProductExperimentDecision? = nil
   ) async {
     guard let experiment = selectedExperiment,
       !(cohortID ?? scenarioCohortID).isEmpty
@@ -2044,12 +2068,14 @@ struct ProductizationWorkbenchTab: View {
     case .modelFree:
       outcome = await project.runProductizationScenarioCohortModelFree(
         experimentID: experiment.id,
-        cohortID: targetCohortID
+        cohortID: targetCohortID,
+        targetDecision: targetDecision
       )
     case .personaModel:
       outcome = await project.runProductizationScenarioCohortPersonaModel(
         experimentID: experiment.id,
-        cohortID: targetCohortID
+        cohortID: targetCohortID,
+        targetDecision: targetDecision
       )
     }
     if let outcome {

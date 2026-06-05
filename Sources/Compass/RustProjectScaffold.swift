@@ -205,8 +205,8 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     Product experiments use `run_productization_experience(ProductizationExperienceInput) ->
     ProductizationExperienceTrace` as a semantic app journey. The input carries
-    the pain, solution, experiment, current workflow, and alternatives being
-    evaluated. The generated app owns the allowed action list for each state,
+    the pain, solution, experiment, current workflow, alternatives, and PMF
+    decision intent being evaluated. The generated app owns the allowed action list for each state,
     and `app-cli productization-experience --input '<json>'` deterministically
     replays a supplied action prefix. Persona agents may choose only from the
     latest `allowedNextActions`; screenshots are optional supporting proof, not
@@ -393,6 +393,25 @@ struct RustProjectScaffold: Equatable, Sendable {
             }
           }
         },
+        "decisionIntent": {
+          "type": "object",
+          "required": ["currentDecision", "targetDecision", "directive", "scorecardFocus"],
+          "properties": {
+            "currentDecision": {
+              "type": "string",
+              "enum": ["not_run", "continue", "narrow", "pivot", "kill", "promote", "archived", "promoted"]
+            },
+            "targetDecision": {
+              "type": "string",
+              "enum": ["not_run", "continue", "narrow", "pivot", "kill", "promote", "archived", "promoted"]
+            },
+            "directive": { "type": "string" },
+            "scorecardFocus": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
         "actions": {
           "type": "array",
           "items": {
@@ -572,6 +591,8 @@ struct RustProjectScaffold: Equatable, Sendable {
         #[serde(default)]
         pub alternatives: Vec<ProductizationAlternative>,
         #[serde(default)]
+        pub decision_intent: Option<ProductizationDecisionIntent>,
+        #[serde(default)]
         pub actions: Vec<ProductizationExperienceAction>,
     }
 
@@ -619,6 +640,15 @@ struct RustProjectScaffold: Equatable, Sendable {
         pub name: String,
         pub description: String,
         pub switching_objection: String,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ProductizationDecisionIntent {
+        pub current_decision: String,
+        pub target_decision: String,
+        pub directive: String,
+        pub scorecard_focus: Vec<String>,
     }
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -863,6 +893,16 @@ struct RustProjectScaffold: Equatable, Sendable {
                     description: "A manual tracker with copied status updates.".to_owned(),
                     switching_objection: "The team already knows the spreadsheet.".to_owned(),
                 }],
+                decision_intent: Some(ProductizationDecisionIntent {
+                    current_decision: "continue".to_owned(),
+                    target_decision: "promote".to_owned(),
+                    directive: "Stress-test promotion against the current alternative.".to_owned(),
+                    scorecard_focus: vec![
+                        "alternative advantage".to_owned(),
+                        "switching readiness".to_owned(),
+                        "continued-use pull".to_owned(),
+                    ],
+                }),
                 actions: Vec::new(),
             }
         }
@@ -938,20 +978,32 @@ struct RustProjectScaffold: Equatable, Sendable {
     fn initial_productization_experience_state(
         input: &ProductizationExperienceInput,
     ) -> ProductizationExperienceState {
+        let decision_intent = input
+            .decision_intent
+            .as_ref()
+            .map(|intent| {
+                format!(
+                    "decision target {} from {}; {}",
+                    intent.target_decision, intent.current_decision, intent.directive
+                )
+            })
+            .unwrap_or_else(|| "discover the next PMF decision".to_owned());
         productization_experience_state(
             "initial",
             "Ready to evaluate pain relief",
             format!(
-                "{} is trying to: {}. Current workflow: {}. Proposed solution: {}.",
+                "{} is trying to: {}. Current workflow: {}. Proposed solution: {}. Decision intent: {}.",
                 input.scenario.persona_summary,
                 input.scenario.task,
                 input.current_workflow.summary,
-                input.solution.promise
+                input.solution.promise,
+                decision_intent
             ),
             vec![
                 format!("pain visible: {}", input.pain.summary),
                 "solution workflow entry point visible".to_owned(),
                 format!("alternatives available: {}", input.alternatives.len()),
+                format!("decision intent: {decision_intent}"),
             ],
             false,
         )
@@ -1496,6 +1548,48 @@ struct RustProjectScaffold: Equatable, Sendable {
                         }
                     }
                 },
+                "decisionIntent": {
+                    "type": "object",
+                    "required": [
+                        "currentDecision",
+                        "targetDecision",
+                        "directive",
+                        "scorecardFocus"
+                    ],
+                    "properties": {
+                        "currentDecision": {
+                            "type": "string",
+                            "enum": [
+                                "not_run",
+                                "continue",
+                                "narrow",
+                                "pivot",
+                                "kill",
+                                "promote",
+                                "archived",
+                                "promoted"
+                            ]
+                        },
+                        "targetDecision": {
+                            "type": "string",
+                            "enum": [
+                                "not_run",
+                                "continue",
+                                "narrow",
+                                "pivot",
+                                "kill",
+                                "promote",
+                                "archived",
+                                "promoted"
+                            ]
+                        },
+                        "directive": { "type": "string" },
+                        "scorecardFocus": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        }
+                    }
+                },
                 "actions": {
                     "type": "array",
                     "items": {
@@ -1684,6 +1778,16 @@ struct RustProjectScaffold: Equatable, Sendable {
                 description: "Existing reporting tracker".to_owned(),
                 switching_objection: "The team already knows it".to_owned(),
             }],
+            decision_intent: Some(ProductizationDecisionIntent {
+                current_decision: "continue".to_owned(),
+                target_decision: "promote".to_owned(),
+                directive: "Stress-test promotion against the current alternative.".to_owned(),
+                scorecard_focus: vec![
+                    "alternative advantage".to_owned(),
+                    "switching readiness".to_owned(),
+                    "continued-use pull".to_owned(),
+                ],
+            }),
             actions: vec![
                 ProductizationExperienceAction {
                     id: "inspect_pain".to_owned(),

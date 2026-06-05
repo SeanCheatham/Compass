@@ -88,6 +88,31 @@ struct ProductizationSimulationRunnerTests {
     try #require(selector.repairContexts.first?.allowedActionIDs.contains("inspect_pain") == true)
   }
 
+  @Test func personaModelRunnerPassesDecisionIntentToInputAndSelector() async throws {
+    let appRunner = MockProductizationExperienceAppRunner()
+    let selector = ScriptedProductizationPersonaSelector(
+      choices: [
+        .init(action: ProductizationExperienceAction(id: "inspect_pain"))
+      ]
+    )
+    let runner = ProductizationSimulationRunner(appRunner: appRunner, personaSelector: selector)
+
+    let result = await runner.run(
+      makeProductizationRequest(mode: .personaModel, targetDecision: .kill, maxTurns: 1)
+    )
+
+    let inputIntent = try #require(appRunner.inputs.first?.decisionIntent)
+    let contextIntent = try #require(selector.chooseContexts.first?.request.decisionIntent)
+    try #require(result.status == .maxTurnsReached)
+    try #require(inputIntent.currentDecision == .keepGoing)
+    try #require(inputIntent.targetDecision == .kill)
+    try #require(inputIntent.directive.contains("should be killed"))
+    try #require(inputIntent.scorecardFocus.contains("refusal to switch"))
+    try #require(contextIntent.currentDecision == .keepGoing)
+    try #require(contextIntent.targetDecision == .kill)
+    try #require(contextIntent.scorecardFocus.contains("current alternative dominance"))
+  }
+
   @Test func personaModelFailsWhenRepairStillInventsAction() async throws {
     let appRunner = MockProductizationExperienceAppRunner()
     let selector = ScriptedProductizationPersonaSelector(
@@ -201,6 +226,10 @@ struct ProductizationSimulationRunnerTests {
     try #require(stream.prompts[0].contains("Prototype scope"))
     try #require(stream.prompts[0].contains("Scenario task"))
     try #require(stream.prompts[0].contains("Scenario success signal"))
+    try #require(stream.prompts[0].contains("Product decision intent"))
+    try #require(stream.prompts[0].contains("target `promote`"))
+    try #require(stream.prompts[0].contains("Stress-test promotion"))
+    try #require(stream.prompts[0].contains("alternative advantage"))
     try #require(stream.prompts[0].contains("Reporting is reusable in the weekly review"))
     try #require(stream.prompts[0].contains("manual export"))
     try #require(stream.prompts[0].contains("Allowed actions"))
@@ -216,7 +245,8 @@ struct ProductizationSimulationRunnerTests {
       )
     )
     try #require(repair.action.id == "compare_current_alternative")
-    try #require(repair.promptVersionID == "productization.persona_action_repair.foundation_models.v3")
+    try #require(
+      repair.promptVersionID == "productization.persona_action_repair.foundation_models.v3")
     try #require(stream.prompts[1].contains("previous action `invent_new_button` was invalid"))
   }
 }
@@ -272,6 +302,7 @@ private final class PersonaTextStream: @unchecked Sendable {
 private final class ScriptedProductizationPersonaSelector: ProductizationPersonaActionSelecting {
   var choices: [ProductizationPersonaActionChoice]
   var repairs: [ProductizationPersonaActionChoice]
+  var chooseContexts: [ProductizationPersonaActionContext] = []
   var repairContexts: [ProductizationPersonaActionRepairContext] = []
 
   init(
@@ -285,7 +316,8 @@ private final class ScriptedProductizationPersonaSelector: ProductizationPersona
   func chooseAction(
     context: ProductizationPersonaActionContext
   ) async throws -> ProductizationPersonaActionChoice {
-    choices.isEmpty
+    chooseContexts.append(context)
+    return choices.isEmpty
       ? ProductizationPersonaActionChoice(
         action: ProductizationExperienceAction(id: "abandon_task"))
       : choices.removeFirst()
@@ -305,6 +337,7 @@ private final class ScriptedProductizationPersonaSelector: ProductizationPersona
 private func makeProductizationRequest(
   generatedAppWorkingDirectory: URL = URL(fileURLWithPath: "/tmp/productization-runner-fixture"),
   mode: ProductizationSimulationMode = .modelFree,
+  targetDecision: ProductExperimentDecision? = nil,
   maxTurns: Int = 6,
   appCommandTimeout: TimeInterval? = 120
 ) -> ProductizationSimulationRequest {
@@ -317,6 +350,9 @@ private func makeProductizationRequest(
   let solution = config.solutionHypotheses[0]
   var experiment = config.experiments[0]
   experiment.currentSha = "abc123"
+  if targetDecision != nil {
+    experiment.decision = .keepGoing
+  }
   let segment = config.userSegments[0]
   let workflow = config.currentWorkflows[0]
   return ProductizationSimulationRequest(
@@ -332,13 +368,14 @@ private func makeProductizationRequest(
     scenarioSuccessSignal: "Reporting is reusable in the weekly review.",
     generatedAppWorkingDirectory: generatedAppWorkingDirectory,
     mode: mode,
+    targetDecision: targetDecision,
     maxTurns: maxTurns,
     appCommandTimeout: appCommandTimeout
   )
 }
 
 private func makePersonaActionContext() -> ProductizationPersonaActionContext {
-  let request = makeProductizationRequest(mode: .personaModel)
+  let request = makeProductizationRequest(mode: .personaModel, targetDecision: .promote)
   let trace = defaultProductizationTrace(for: request.experienceInput(actions: []))
   return ProductizationPersonaActionContext(
     request: ProductizationSimulationRequestContext(
@@ -353,6 +390,7 @@ private func makePersonaActionContext() -> ProductizationPersonaActionContext {
       scenarioTask: request.scenarioTask,
       scenarioSuccessSignal: request.scenarioSuccessSignal,
       commitSha: request.commitSha,
+      decisionIntent: request.decisionIntent,
       settings: request.settings
     ),
     turnIndex: 0,

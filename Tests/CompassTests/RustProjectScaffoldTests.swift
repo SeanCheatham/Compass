@@ -102,6 +102,10 @@ struct RustProjectScaffoldTests {
     try #require(core.contains("pub struct ProductizationExperiment"))
     try #require(core.contains("pub struct ProductizationCurrentWorkflow"))
     try #require(core.contains("pub struct ProductizationAlternative"))
+    try #require(core.contains("pub struct ProductizationDecisionIntent"))
+    try #require(core.contains("pub decision_intent: Option<ProductizationDecisionIntent>"))
+    try #require(core.contains("Decision intent:"))
+    try #require(core.contains("decision intent: {decision_intent}"))
     try #require(core.contains("pub struct ProductizationExperienceState"))
     try #require(core.contains("pub struct ProductizationExperienceAction"))
     try #require(core.contains("pub struct ProductizationExperienceAllowedAction"))
@@ -117,7 +121,8 @@ struct RustProjectScaffoldTests {
     try #require(cli.contains("--input"))
     try #require(cli.contains("serde_json::to_string_pretty(&run_simulation(input))"))
     try #require(cli.contains("serde_json::to_string_pretty(&run_gui_replay(trace))"))
-    try #require(cli.contains("serde_json::to_string_pretty(&run_productization_experience(input))"))
+    try #require(
+      cli.contains("serde_json::to_string_pretty(&run_productization_experience(input))"))
     try #require(tests.contains("simulation_fixture_is_a_pure_transition"))
     try #require(tests.contains("gui_replay_fixture_emits_stable_semantic_snapshot"))
     try #require(

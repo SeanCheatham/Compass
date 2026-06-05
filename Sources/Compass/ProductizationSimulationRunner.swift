@@ -18,6 +18,7 @@ struct ProductizationSimulationRequest {
   var launchPlan: AgentExecutionLaunchPlan
   var settings: AgentRuntimeSettings
   var mode: ProductizationSimulationMode
+  var decisionIntent: ProductizationSimulationDecisionIntent?
   var maxTurns: Int
   var fixtureActions: [ProductizationExperienceAction]
   var appCommandTimeout: TimeInterval?
@@ -39,6 +40,8 @@ struct ProductizationSimulationRequest {
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
     mode: ProductizationSimulationMode = .modelFree,
+    targetDecision: ProductExperimentDecision? = nil,
+    decisionIntent: ProductizationSimulationDecisionIntent? = nil,
     maxTurns: Int = 8,
     fixtureActions: [ProductizationExperienceAction]? = nil,
     appCommandTimeout: TimeInterval? = 120
@@ -66,6 +69,14 @@ struct ProductizationSimulationRequest {
     self.launchPlan = launchPlan
     self.settings = settings
     self.mode = mode
+    self.decisionIntent =
+      decisionIntent
+      ?? targetDecision.map {
+        ProductizationSimulationDecisionIntent(
+          currentDecision: experiment.decision,
+          targetDecision: $0
+        )
+      }
     self.maxTurns = max(1, maxTurns)
     self.fixtureActions = fixtureActions ?? Self.defaultFixtureActions
     self.appCommandTimeout = appCommandTimeout
@@ -134,8 +145,79 @@ struct ProductizationSimulationRequest {
           switchingObjection: $0.switchingCost
         )
       },
+      decisionIntent: decisionIntent.map(ProductizationExperienceDecisionIntent.init),
       actions: actions
     )
+  }
+}
+
+struct ProductizationSimulationDecisionIntent: Codable, Equatable, Sendable {
+  var currentDecision: ProductExperimentDecision
+  var targetDecision: ProductExperimentDecision
+  var directive: String
+  var scorecardFocus: [String]
+
+  init(
+    currentDecision: ProductExperimentDecision,
+    targetDecision: ProductExperimentDecision,
+    directive: String? = nil,
+    scorecardFocus: [String]? = nil
+  ) {
+    self.currentDecision = currentDecision
+    self.targetDecision = targetDecision
+    self.directive = ProductizationModelText.cleanedText(
+      directive ?? Self.directive(for: targetDecision),
+      fallback: Self.directive(for: targetDecision),
+      limit: 700
+    )
+    self.scorecardFocus = ProductizationModelText.cleanedList(
+      scorecardFocus ?? Self.scorecardFocus(for: targetDecision),
+      limit: 120
+    )
+  }
+
+  private static func directive(
+    for targetDecision: ProductExperimentDecision
+  ) -> String {
+    switch targetDecision {
+    case .promote, .promoted:
+      return
+        "Stress-test promotion. Try to disprove broad rollout by forcing proof of current-alternative advantage, switching readiness, and continued-use pull before giving positive evidence."
+    case .kill, .archived:
+      return
+        "Stress-test whether this bet should be killed. Expose absent pain recognition, current-alternative dominance, missing capability, or refusal to switch while still giving real relief a fair chance."
+    case .narrow:
+      return
+        "Stress-test narrowing. Find the smallest persona, workflow moment, or capability scope where the bet might earn pull instead of averaging vague feedback across broad users."
+    case .pivot:
+      return
+        "Stress-test a pivot. Separate evidence that the pain is real from evidence that the current product shape fails to create enough pull."
+    case .keepGoing:
+      return
+        "Stress-test continuing. Look for the next proof that would make the factory continue, narrow, pivot, kill, or promote with less uncertainty."
+    case .notRun:
+      return
+        "Stress-test first evidence. Verify whether the pain, workflow, and current alternative are real before treating the prototype as a product bet."
+    }
+  }
+
+  private static func scorecardFocus(
+    for targetDecision: ProductExperimentDecision
+  ) -> [String] {
+    switch targetDecision {
+    case .promote, .promoted:
+      return ["alternative advantage", "switching readiness", "continued-use pull"]
+    case .kill, .archived:
+      return ["pain recognition", "current alternative dominance", "refusal to switch"]
+    case .narrow:
+      return ["missing capabilities", "persona specificity", "workflow scope"]
+    case .pivot:
+      return ["pain recognition", "product-shape mismatch", "unresolved objections"]
+    case .keepGoing:
+      return ["next proof", "uncertainty reduction", "decision criteria"]
+    case .notRun:
+      return ["pain reality", "workflow reality", "current alternative"]
+    }
   }
 }
 
@@ -248,6 +330,7 @@ struct ProductizationSimulationRequestContext: Equatable, Sendable {
   var scenarioTask: String
   var scenarioSuccessSignal: String
   var commitSha: String
+  var decisionIntent: ProductizationSimulationDecisionIntent?
   var settings: AgentRuntimeSettings
 }
 
@@ -410,15 +493,20 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
         weaknesses.isEmpty ? "" : "weaknesses \(weaknesses)",
       ].filter { !$0.isEmpty }.joined(separator: "; ")
     }
-      .joined(separator: "; ")
-    let workflowFailureModes = (
-      request.currentWorkflow.failureModes
-        + request.currentWorkflow.handoffs
-        + request.currentWorkflow.workarounds
-    ).prefix(6).joined(separator: "; ")
+    .joined(separator: "; ")
+    let workflowFailureModes =
+      (request.currentWorkflow.failureModes
+      + request.currentWorkflow.handoffs
+      + request.currentWorkflow.workarounds).prefix(6).joined(separator: "; ")
     let decisionCriteria = request.segment.decisionCriteria.prefix(6).joined(separator: "; ")
     let constraints = request.segment.constraints.prefix(6).joined(separator: "; ")
     let requiredProof = request.solution.requiredProof.prefix(6).joined(separator: "; ")
+    let decisionIntent =
+      request.decisionIntent.map { intent in
+        let focus = intent.scorecardFocus.joined(separator: ", ")
+        return
+          "Product decision intent: current `\(intent.currentDecision.rawValue)`, target `\(intent.targetDecision.rawValue)`. \(intent.directive) Scorecard focus: \(focus)."
+      } ?? "Product decision intent: discover the next PMF decision."
     return """
       \(title)
 
@@ -440,6 +528,7 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
       Solution promise: \(bounded(request.solution.promise, 500)).
       Required proof: \(bounded(requiredProof, 500)).
       Prototype scope: \(bounded(request.experiment.prototypeScope, 500)).
+      \(bounded(decisionIntent, 700)).
       Scenario task: \(bounded(request.scenarioTask, 500)).
       Scenario success signal: \(bounded(request.scenarioSuccessSignal, 400)).
       Scenario: \(request.scenarioID), commit \(request.commitSha), turn \(turnIndex).
@@ -1054,6 +1143,7 @@ struct ProductizationSimulationRunner {
         scenarioTask: request.scenarioTask,
         scenarioSuccessSignal: request.scenarioSuccessSignal,
         commitSha: request.commitSha,
+        decisionIntent: request.decisionIntent,
         settings: request.settings
       ),
       turnIndex: turnIndex,
@@ -1142,6 +1232,7 @@ struct ProductizationExperienceInput: Codable, Equatable, Sendable {
   var scenario: ProductizationExperienceScenario
   var currentWorkflow: ProductizationExperienceCurrentWorkflow
   var alternatives: [ProductizationExperienceAlternative]
+  var decisionIntent: ProductizationExperienceDecisionIntent?
   var actions: [ProductizationExperienceAction]
 }
 
@@ -1179,6 +1270,20 @@ struct ProductizationExperienceAlternative: Codable, Equatable, Sendable {
   var name: String
   var description: String
   var switchingObjection: String
+}
+
+struct ProductizationExperienceDecisionIntent: Codable, Equatable, Sendable {
+  var currentDecision: ProductExperimentDecision
+  var targetDecision: ProductExperimentDecision
+  var directive: String
+  var scorecardFocus: [String]
+
+  init(_ intent: ProductizationSimulationDecisionIntent) {
+    self.currentDecision = intent.currentDecision
+    self.targetDecision = intent.targetDecision
+    self.directive = intent.directive
+    self.scorecardFocus = intent.scorecardFocus
+  }
 }
 
 struct ProductizationExperienceAction: Codable, Equatable, Sendable {
@@ -1295,10 +1400,11 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
       Bool.self,
       forKey: .currentAlternativeAddressed
     )
-    currentAlternativeComparison = try container.decodeIfPresent(
-      String.self,
-      forKey: .currentAlternativeComparison
-    ) ?? ""
+    currentAlternativeComparison =
+      try container.decodeIfPresent(
+        String.self,
+        forKey: .currentAlternativeComparison
+      ) ?? ""
     switchingObjectionReduced = try container.decode(
       Bool.self,
       forKey: .switchingObjectionReduced
