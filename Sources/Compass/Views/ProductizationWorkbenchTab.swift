@@ -1468,10 +1468,14 @@ struct ProductizationWorkbenchTab: View {
         return
       }
       selectedScenarioID = scenarioID
-      let audit = manualRevisionAudit(
+      let audit = appliedRevisionAudit(
         for: brief,
         scenarioID: scenarioID,
-        startedAt: startedAt
+        startedAt: startedAt,
+        idPrefix: "factory-cycle-manual-revision",
+        stopDetail: "Manual product revision applied; run targeted validation evidence next.",
+        userMessage:
+          "Applied product revision for \(brief.experimentID). Run targeted validation evidence next."
       )
       scenarioRunMessage = audit.userMessage
       await project.saveProductizationConfig(
@@ -1483,20 +1487,23 @@ struct ProductizationWorkbenchTab: View {
     }
   }
 
-  private func manualRevisionAudit(
+  private func appliedRevisionAudit(
     for brief: ProductFactoryRevisionBrief,
     scenarioID: String,
-    startedAt: Date
+    startedAt: Date,
+    idPrefix: String,
+    stopDetail: String,
+    userMessage: String
   ) -> ProductFactoryCycleAudit {
     let started = startedAt.timeIntervalSince1970
     let ended = Date().timeIntervalSince1970
+    let stepID =
+      "\(brief.experimentID):\(ProductFactoryAutopilotStepKind.applyRevision.rawValue):\(scenarioID)"
     return ProductFactoryCycleAudit(
-      id: "factory-cycle-manual-revision-\(brief.experimentID)-\(Int(started))-\(scenarioID)",
+      id: "\(idPrefix)-\(brief.experimentID)-\(Int(started))-\(scenarioID)",
       startedAt: started,
       endedAt: ended,
-      executedStepIDs: [
-        "\(brief.experimentID):\(ProductFactoryAutopilotStepKind.applyRevision.rawValue):\(scenarioID)",
-      ],
+      executedStepIDs: [stepID],
       experimentIDs: [brief.experimentID],
       messages: [
         "Applied product revision \(brief.title) to scenario \(scenarioID).",
@@ -1504,12 +1511,10 @@ struct ProductizationWorkbenchTab: View {
       maxSteps: 1,
       revisionBriefSummaries: [brief.auditSummary],
       stopReason: .reachedStepLimit,
-      stopStepID:
-        "\(brief.experimentID):\(ProductFactoryAutopilotStepKind.applyRevision.rawValue):\(scenarioID)",
+      stopStepID: stepID,
       stopStepTitle: "Apply product revision",
-      stopDetail: "Manual product revision applied; run targeted validation evidence next.",
-      userMessage:
-        "Applied product revision for \(brief.experimentID). Run targeted validation evidence next."
+      stopDetail: stopDetail,
+      userMessage: userMessage
     )
   }
 
@@ -1686,8 +1691,11 @@ struct ProductizationWorkbenchTab: View {
       {
         proofTargetSummaries.append(proofTarget.auditSummary)
       }
-      if let revisionBrief = productFactoryRevisionBrief(forExperimentID: step.experimentID),
-        step.kind == .applyRevision,
+      let stepRevisionBrief =
+        step.kind == .applyRevision
+        ? productFactoryRevisionBrief(forExperimentID: step.experimentID)
+        : nil
+      if let revisionBrief = stepRevisionBrief,
         !revisionBriefSummaries.contains(revisionBrief.auditSummary)
       {
         revisionBriefSummaries.append(revisionBrief.auditSummary)
@@ -1718,6 +1726,23 @@ struct ProductizationWorkbenchTab: View {
       completedEvidenceRunCount += result.completedEvidenceRunCount
       failedEvidenceRunCount += result.failedEvidenceRunCount
       skippedScenarioCount += result.skippedScenarioCount
+      if let stepRevisionBrief,
+        let scenarioID = step.targetScenarioID ?? stepRevisionBrief.targetScenarioID
+      {
+        let checkpoint = appliedRevisionAudit(
+          for: stepRevisionBrief,
+          scenarioID: scenarioID,
+          startedAt: Date(),
+          idPrefix: "factory-cycle-revision-checkpoint",
+          stopDetail:
+            "Product revision checkpoint recorded; continue with targeted validation evidence.",
+          userMessage:
+            "Product revision checkpoint recorded for \(stepRevisionBrief.experimentID). Continuing with targeted validation evidence."
+        )
+        await project.saveProductizationConfig(
+          project.productizationConfig.recordingFactoryCycleAudit(checkpoint)
+        )
+      }
     }
     let startingProofDebt = productFactoryProofDebtSnapshot(
       experimentIDs: touchedExperimentIDs,
