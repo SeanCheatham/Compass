@@ -185,17 +185,41 @@ enum ProductizationPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     guard !proposals.isEmpty else { return [] }
-    var lines = ["Suggested product decisions from PMF readiness:"]
+    var lines = ["Product-factory decision candidates:"]
     for proposal in proposals.prefix(4) {
       let evidence =
         proposal.update.evidenceRunIDs.isEmpty
         ? "no evidence runs"
         : "evidence \(proposal.update.evidenceRunIDs.prefix(4).joined(separator: ", "))"
+      let metadata = [
+        "action apply_decision",
+        "current \(proposal.currentDecision.rawValue)",
+        "target_decision \(proposal.update.decision.rawValue)",
+        "pressure \(decisionPressure(for: proposal.update.decision).rawValue)",
+        "score \(proposal.readiness.scoreLabel)/100",
+      ]
       lines.append(
-        "- \(proposal.experimentID): \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue); score \(proposal.readiness.scoreLabel)/100; \(evidence); \(bounded(proposal.update.summary, 220))."
+        "- \(proposal.experimentID): \(metadata.joined(separator: "; ")); \(evidence); \(bounded(proposal.update.summary, 220))."
       )
     }
     return lines
+  }
+
+  private static func decisionPressure(
+    for decision: ProductExperimentDecision
+  ) -> ProductFactoryPortfolioPressure {
+    switch decision {
+    case .promote, .promoted:
+      return .lift
+    case .kill, .archived:
+      return .cut
+    case .pivot, .narrow:
+      return .reshape
+    case .keepGoing:
+      return .learn
+    case .notRun:
+      return .wait
+    }
   }
 
   private static func portfolioPressureLines(

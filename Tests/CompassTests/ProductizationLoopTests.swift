@@ -222,6 +222,10 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index
     )
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
     let promote = try #require(proposals.first { $0.experimentID == config.experiments[0].id })
     let narrow = try #require(proposals.first { $0.experimentID == config.experiments[1].id })
     let kill = try #require(proposals.first { $0.experimentID == badExperiment.id })
@@ -235,6 +239,14 @@ struct ProductizationLoopTests {
     try #require(kill.update.decision == .kill)
     try #require(kill.update.decidedBy == "PMF Decision Advisor")
     try #require(kill.update.summary.contains("current-alternative proof from 2"))
+    try #require(digest.contains("Product-factory decision candidates"))
+    try #require(digest.contains("action apply_decision"))
+    try #require(digest.contains("target_decision promote"))
+    try #require(digest.contains("pressure lift"))
+    try #require(digest.contains("target_decision kill"))
+    try #require(digest.contains("pressure cut"))
+    try #require(digest.contains("evidence promote-a"))
+    try #require(digest.contains("evidence kill-a"))
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {
