@@ -508,6 +508,7 @@ struct ProductizationLoopTests {
     try #require(stalledAction.detail.contains(stalledAudit.id))
     try #require(stalledAction.detail.contains("still split") || stalledAction.detail.contains("contradiction"))
     try #require(stalledAction.targetScenarioID == buyerScenario.id)
+    try #require(stalledAction.targetDecision == .promote)
     try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
       config: stalledConfig,
       evidenceIndex: index,
@@ -515,8 +516,15 @@ struct ProductizationLoopTests {
     ) == nil)
     try #require(!blockedStep.canExecute)
     try #require(blockedStep.action.kind == .refineBet)
+    try #require(blockedStep.action.targetDecision == .promote)
     try #require(blockedStep.blockedReason?.contains(stalledAudit.id) == true)
     try #require(blockedStep.blockedReason?.contains("split-evidence") == true)
+    let stalledDigest = ProductizationPlanningDigestFormatter.promptText(
+      config: stalledConfig,
+      evidenceIndex: index
+    )
+    try #require(stalledDigest.contains("Retarget split PMF evidence"))
+    try #require(stalledDigest.contains("target_decision promote"))
   }
 
   @Test func pmfDecisionAdvisorDefersKillWhenEvidenceIsSplit() throws {

@@ -3571,7 +3571,8 @@ enum ProductMarketFitNextActionAdvisor {
         priority: min(98, max(action.priority + 1, 86)),
         targetPersonaID: action.targetPersonaID,
         targetPersonaName: action.targetPersonaName,
-        targetScenarioID: action.targetScenarioID
+        targetScenarioID: action.targetScenarioID,
+        targetDecision: action.targetDecision
       )
     }
     if let audit = ProductFactoryCycleLearningAdvisor.stalledRationaleSignalAudit(
