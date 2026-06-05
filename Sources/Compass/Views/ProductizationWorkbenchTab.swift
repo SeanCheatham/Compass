@@ -114,7 +114,8 @@ struct ProductizationWorkbenchTab: View {
   private var factoryAutopilotStep: ProductFactoryAutopilotStep? {
     ProductFactoryAutopilotPlanner.nextStep(
       config: config,
-      evidenceIndex: evidenceIndex
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
     )
   }
 
@@ -122,7 +123,8 @@ struct ProductizationWorkbenchTab: View {
     ProductFactoryAutopilotPlanner.cyclePlan(
       config: config,
       evidenceIndex: evidenceIndex,
-      maxSteps: 3
+      maxSteps: 3,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
     )
   }
 
@@ -149,9 +151,10 @@ struct ProductizationWorkbenchTab: View {
   }
 
   private var factoryAutopilotCohortMode: ProductizationSimulationMode {
-    ProductFactoryAutopilotPlanner.cohortSimulationMode(
-      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
-    )
+    factoryAutopilotStep?.action.requiredSimulationMode
+      ?? ProductFactoryAutopilotPlanner.cohortSimulationMode(
+        isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+      )
   }
 
   var body: some View {
@@ -1179,7 +1182,8 @@ struct ProductizationWorkbenchTab: View {
     for _ in 0..<maxSteps {
       guard let step = ProductFactoryAutopilotPlanner.nextExecutableStep(
         config: project.productizationConfig,
-        evidenceIndex: project.productizationEvidenceIndex
+        evidenceIndex: project.productizationEvidenceIndex,
+        isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
       ) else {
         stopReason = .noExecutableStep
         break
@@ -1225,9 +1229,14 @@ struct ProductizationWorkbenchTab: View {
       return nil
     case .runCohort:
       guard let cohortID = step.cohortID else { return nil }
-      let mode = ProductFactoryAutopilotPlanner.cohortSimulationMode(
-        isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
-      )
+      guard step.action.requiredSimulationMode != .personaModel
+        || FoundationModelsAvailability.isAvailable
+      else { return nil }
+      let mode =
+        step.action.requiredSimulationMode
+        ?? ProductFactoryAutopilotPlanner.cohortSimulationMode(
+          isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+        )
       let outcome: ProductizationScenarioCohortRunOutcome?
       switch mode {
       case .modelFree:

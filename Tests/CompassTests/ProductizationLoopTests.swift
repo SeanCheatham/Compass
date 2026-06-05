@@ -267,6 +267,50 @@ struct ProductizationLoopTests {
     try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user validation cohort")
     try #require(action.detail.contains("persona-model mode"))
+    try #require(action.requiredSimulationMode == .personaModel)
+  }
+
+  @Test func productFactoryAutopilotBlocksRequiredAIUserCohortWhenUnavailable() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    for index in config.experiments.indices.dropFirst() {
+      config.experiments[index].decision = .promoted
+    }
+    let index = makePMFPromotionEvidenceIndex(
+      config: config,
+      includeAIUserEvidence: false
+    )
+
+    let blocked = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: false
+      ))
+    let executable = ProductFactoryAutopilotPlanner.nextExecutableStep(
+      config: config,
+      evidenceIndex: index,
+      isPersonaModelAvailable: false
+    )
+    let available = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(executable == nil)
+    try #require(!blocked.canExecute)
+    try #require(blocked.action.requiredSimulationMode == .personaModel)
+    try #require(blocked.blockedReason?.contains("Foundation Models") == true)
+    try #require(available.canExecute)
+    try #require(available.action.requiredSimulationMode == .personaModel)
   }
 
   @Test func productFactoryRankerPrioritizesActionablePMFPressure() throws {

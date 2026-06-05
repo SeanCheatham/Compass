@@ -266,6 +266,7 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
   var detail: String
   var priority: Int
   var cohortID: String?
+  var requiredSimulationMode: ProductizationSimulationMode?
 
   init(
     experimentID: String,
@@ -273,7 +274,8 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
     title: String,
     detail: String,
     priority: Int,
-    cohortID: String? = nil
+    cohortID: String? = nil,
+    requiredSimulationMode: ProductizationSimulationMode? = nil
   ) {
     self.experimentID = ProductizationModelText.identifier(
       experimentID,
@@ -284,6 +286,7 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
     self.detail = StringUtils.boundedText(detail, limit: 500)
     self.priority = max(0, priority)
     self.cohortID = ProductizationModelText.optionalIdentifier(cohortID, fallback: "cohort")
+    self.requiredSimulationMode = requiredSimulationMode
   }
 }
 
@@ -526,7 +529,8 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
   init(
     experiment: ProductExperiment,
     action: ProductMarketFitNextAction,
-    cohortReadiness: ProductMarketFitCohortRunReadiness?
+    cohortReadiness: ProductMarketFitCohortRunReadiness?,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) {
     self.experimentID = experiment.id
     self.experimentTitle = experiment.title
@@ -539,10 +543,14 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
       self.blockedReason = nil
     case .runCohort, .rerunCohort:
       self.kind = .runCohort
-      self.canExecute = cohortReadiness?.canRun == true
+      let modeBlockedReason = Self.simulationModeBlockedReason(
+        for: action,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      )
+      self.canExecute = cohortReadiness?.canRun == true && modeBlockedReason == nil
       self.blockedReason =
         cohortReadiness?.blockedReason
-        ?? (cohortReadiness == nil ? "Suggested cohort is missing." : nil)
+        ?? (cohortReadiness == nil ? "Suggested cohort is missing." : modeBlockedReason)
     case .repairFailures:
       self.kind = .blocked
       self.canExecute = false
@@ -558,6 +566,16 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
       self.canExecute = false
       self.blockedReason = "Review the decision path before autopilot changes state."
     }
+  }
+
+  private static func simulationModeBlockedReason(
+    for action: ProductMarketFitNextAction,
+    isPersonaModelAvailable: Bool
+  ) -> String? {
+    guard action.requiredSimulationMode == .personaModel, !isPersonaModelAvailable else {
+      return nil
+    }
+    return "AI-user validation requires Foundation Models before this cohort can run."
   }
 }
 
@@ -775,7 +793,8 @@ enum ProductFactoryAutopilotPlanner {
 
   static func steps(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductizationEvidenceIndex,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> [ProductFactoryAutopilotStep] {
     ProductFactoryExperimentRanker.rankedExperiments(
       config: config,
@@ -795,7 +814,8 @@ enum ProductFactoryAutopilotPlanner {
           for: action,
           experiment: experiment,
           config: config
-        )
+        ),
+        isPersonaModelAvailable: isPersonaModelAvailable
       )
       return applyingRecentCycleFailureBlock(
         to: step,
@@ -808,27 +828,46 @@ enum ProductFactoryAutopilotPlanner {
 
   static func nextExecutableStep(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductizationEvidenceIndex,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> ProductFactoryAutopilotStep? {
-    steps(config: config, evidenceIndex: evidenceIndex)
+    steps(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    )
       .first { $0.canExecute }
   }
 
   static func nextStep(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductizationEvidenceIndex,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> ProductFactoryAutopilotStep? {
-    nextExecutableStep(config: config, evidenceIndex: evidenceIndex)
-      ?? steps(config: config, evidenceIndex: evidenceIndex).first
+    nextExecutableStep(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    )
+      ?? steps(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      ).first
   }
 
   static func cyclePlan(
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex,
-    maxSteps: Int = 3
+    maxSteps: Int = 3,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> ProductFactoryAutopilotCyclePlan {
     let limit = max(1, maxSteps)
-    let allSteps = steps(config: config, evidenceIndex: evidenceIndex)
+    let allSteps = steps(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    )
     let executableSteps = allSteps.filter(\.canExecute)
     let selectedExecutableSteps = Array(executableSteps.prefix(limit))
     return ProductFactoryAutopilotCyclePlan(
@@ -986,7 +1025,8 @@ enum ProductMarketFitNextActionAdvisor {
           }
             ?? "Model-free evidence is strong, but no AI-user run has tested switching pull yet; define another enabled cohort before promotion.",
           priority: 78,
-          cohortID: cohort?.id
+          cohortID: cohort?.id,
+          requiredSimulationMode: .personaModel
         ),
         experiment: experiment,
         config: config,

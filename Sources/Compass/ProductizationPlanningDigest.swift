@@ -235,12 +235,14 @@ enum ProductizationPlanningDigestFormatter {
     guard
       let step = ProductFactoryAutopilotPlanner.nextStep(
         config: config,
-        evidenceIndex: evidenceIndex
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
       )
     else { return [] }
     let cyclePlan = ProductFactoryAutopilotPlanner.cyclePlan(
       config: config,
-      evidenceIndex: evidenceIndex
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
     )
     var metadata = [
       "experiment \(step.experimentID)",
@@ -252,10 +254,15 @@ enum ProductizationPlanningDigestFormatter {
     if let cohortID = step.cohortID {
       metadata.append("cohort \(cohortID)")
     }
+    if let requiredMode = step.action.requiredSimulationMode {
+      metadata.append("required_mode \(requiredMode.rawValue)")
+    }
     if step.kind == .runCohort {
-      let mode = ProductFactoryAutopilotPlanner.cohortSimulationMode(
-        isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
-      )
+      let mode =
+        step.action.requiredSimulationMode
+        ?? ProductFactoryAutopilotPlanner.cohortSimulationMode(
+          isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+        )
       metadata.append("mode \(mode.rawValue)")
     }
     if let blockedReason = step.blockedReason {
@@ -286,6 +293,9 @@ enum ProductizationPlanningDigestFormatter {
       ]
       if let cohortID = action.cohortID {
         metadata.append("cohort \(cohortID)")
+      }
+      if let requiredMode = action.requiredSimulationMode {
+        metadata.append("required_mode \(requiredMode.rawValue)")
       }
       lines.append(
         "- \(action.experimentID): \(metadata.joined(separator: "; ")); \(bounded(action.title, 120)); \(bounded(action.detail, 220))."
