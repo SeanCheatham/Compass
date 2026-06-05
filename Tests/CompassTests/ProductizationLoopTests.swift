@@ -407,6 +407,7 @@ struct ProductizationLoopTests {
     try #require(action.targetPersonaID == buyerID)
     try #require(action.targetPersonaName == "Budget owner")
     try #require(action.targetScenarioID == buyerScenario.id)
+    try #require(action.targetDecision == .promote)
     try #require(action.detail.contains("pull signal"))
     try #require(action.detail.contains("rejection signal"))
     try #require(action.detail.contains(buyerScenario.id))
@@ -580,6 +581,7 @@ struct ProductizationLoopTests {
     try #require(action.title == "Resolve split PMF evidence")
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetScenarioID == operatorScenario.id)
+    try #require(action.targetDecision == .kill)
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {

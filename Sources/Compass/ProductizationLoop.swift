@@ -3070,7 +3070,8 @@ enum ProductMarketFitNextActionAdvisor {
           requiredSimulationMode: .personaModel,
           targetPersonaID: tension.targetPersonaID,
           targetPersonaName: tension.targetPersonaName,
-          targetScenarioID: tension.targetScenarioID
+          targetScenarioID: tension.targetScenarioID,
+          targetDecision: liftCutDecisionHint(for: readiness.recommendation)
         ),
         experiment: experiment,
         config: config,
@@ -3186,6 +3187,19 @@ enum ProductMarketFitNextActionAdvisor {
       && (readiness.readinessScore <= 40
         || readiness.averageScore > 0 && readiness.averageScore <= 2.5
         || readiness.weakestVerdict == .rejected)
+  }
+
+  private static func liftCutDecisionHint(
+    for recommendation: ProductMarketFitRecommendation
+  ) -> ProductExperimentDecision? {
+    switch recommendation {
+    case .promote:
+      return .promote
+    case .kill:
+      return .kill
+    case .gatherEvidence, .keepGoing, .narrow, .pivot:
+      return nil
+    }
   }
 
   private static func aiUserBreadthAction(
