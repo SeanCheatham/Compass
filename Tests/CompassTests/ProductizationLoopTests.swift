@@ -229,10 +229,12 @@ struct ProductizationLoopTests {
     try #require(promote.update.decision == .promote)
     try #require(promote.update.evidenceRunIDs.first == "promote-a")
     try #require(promote.update.summary.contains("PMF readiness"))
+    try #require(promote.update.summary.contains("current-alternative proof from 2"))
     try #require(narrow.update.decision == .narrow)
     try #require(narrow.update.summary.contains("csv_import"))
     try #require(kill.update.decision == .kill)
     try #require(kill.update.decidedBy == "PMF Decision Advisor")
+    try #require(kill.update.summary.contains("current-alternative proof from 2"))
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {
@@ -1312,6 +1314,7 @@ struct ProductizationLoopTests {
     try #require(action.cohortID == nil)
     try #require(savedExperiment.decision == .promote)
     try #require(savedExperiment.evidenceSummary.contains("PMF readiness"))
+    try #require(savedExperiment.evidenceSummary.contains("current-alternative proof"))
     try #require(decision.decision == .promote)
     try #require(decision.evidenceRunIDs == ["promote-a", "promote-b", "promote-c"])
     try #require(decision.decidedBy == "PMF Decision Advisor")

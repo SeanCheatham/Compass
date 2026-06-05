@@ -1636,9 +1636,11 @@ enum ProductMarketFitDecisionAdvisor {
       ? "no evidence runs"
       : "evidence \(readiness.evidenceRunIDs.prefix(4).joined(separator: ", "))"
     let rationale = readiness.rationale.prefix(3).joined(separator: " ")
+    let proof =
+      "\(readiness.aiUserCompletedRunCount) AI-user run(s) across \(readiness.aiUserDistinctPersonaCount) persona(s); current-alternative proof from \(readiness.aiUserCurrentAlternativePersonaCount) AI-user persona(s)."
     return StringUtils.boundedText(
       """
-      PMF readiness \(readiness.scoreLabel)/100 recommends \(target.rawValue) for \(experiment.title): \(rationale) Supporting \(evidence).
+      PMF readiness \(readiness.scoreLabel)/100 recommends \(target.rawValue) for \(experiment.title): \(rationale) \(proof) Supporting \(evidence).
       """,
       limit: 1_000
     )
