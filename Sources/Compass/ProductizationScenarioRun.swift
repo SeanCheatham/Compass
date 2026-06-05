@@ -107,8 +107,45 @@ struct ProductizationScenarioRunOutcome {
   }
 }
 
+struct ProductizationScenarioCohortRunOutcome {
+  var experimentID: String
+  var cohortID: String
+  var mode: ProductizationSimulationMode
+  var outcomes: [ProductizationScenarioRunOutcome]
+  var skippedScenarioIDs: [String]
+
+  var completedRunCount: Int {
+    outcomes.filter { $0.result.isSuccess }.count
+  }
+
+  var failedRunCount: Int {
+    outcomes.count - completedRunCount
+  }
+
+  var latestRecordID: String? {
+    outcomes.last?.record.id
+  }
+
+  var isSuccess: Bool {
+    !outcomes.isEmpty && failedRunCount == 0
+  }
+
+  var userMessage: String {
+    let label: String
+    switch mode {
+    case .modelFree:
+      label = "Model-free"
+    case .personaModel:
+      label = "AI-user"
+    }
+    return
+      "\(label) cohort ran \(outcomes.count) scenario(s): \(completedRunCount) completed, \(failedRunCount) needing review, \(skippedScenarioIDs.count) skipped."
+  }
+}
+
 enum ProductizationScenarioRunError: LocalizedError, Equatable {
   case unknownExperiment(String)
+  case unknownCohort(String)
   case unknownScenario(String)
   case unknownSolution(String)
   case unknownPain(String)
@@ -123,6 +160,8 @@ enum ProductizationScenarioRunError: LocalizedError, Equatable {
     switch self {
     case .unknownExperiment(let id):
       return "Product experiment \(id) was not found in productization state."
+    case .unknownCohort(let id):
+      return "Product scenario cohort \(id) was not found in productization state."
     case .unknownScenario(let id):
       return "Product scenario \(id) was not found in productization state."
     case .unknownSolution(let id):
@@ -415,6 +454,118 @@ enum ProductizationScenarioCoordinator {
     )
   }
 
+  static func runCohortModelFree(
+    experimentID: String,
+    cohortID: String,
+    in workspace: CompassWorkspace,
+    projectID: UUID? = nil,
+    projectTitle: String,
+    launchPlan: AgentExecutionLaunchPlan = .host(),
+    settings: AgentRuntimeSettings = AgentRuntimeSettings(),
+    appRunner: ProductizationExperienceAppRunning = ProductizationExperienceCLIAppRunner(),
+    now: Date = Date()
+  ) async throws -> ProductizationScenarioCohortRunOutcome {
+    try await runCohort(
+      experimentID: experimentID,
+      cohortID: cohortID,
+      in: workspace,
+      projectID: projectID,
+      projectTitle: projectTitle,
+      launchPlan: launchPlan,
+      settings: settings,
+      mode: .modelFree,
+      appRunner: appRunner,
+      now: now
+    )
+  }
+
+  static func runCohortPersonaModel(
+    experimentID: String,
+    cohortID: String,
+    in workspace: CompassWorkspace,
+    projectID: UUID? = nil,
+    projectTitle: String,
+    launchPlan: AgentExecutionLaunchPlan = .host(),
+    settings: AgentRuntimeSettings = AgentRuntimeSettings(),
+    appRunner: ProductizationExperienceAppRunning = ProductizationExperienceCLIAppRunner(),
+    personaSelector: ProductizationPersonaActionSelecting =
+      ProductizationFoundationModelsPersonaSelector(),
+    now: Date = Date()
+  ) async throws -> ProductizationScenarioCohortRunOutcome {
+    try await runCohort(
+      experimentID: experimentID,
+      cohortID: cohortID,
+      in: workspace,
+      projectID: projectID,
+      projectTitle: projectTitle,
+      launchPlan: launchPlan,
+      settings: settings,
+      mode: .personaModel,
+      appRunner: appRunner,
+      personaSelector: personaSelector,
+      now: now
+    )
+  }
+
+  static func runCohort(
+    experimentID: String,
+    cohortID: String,
+    in workspace: CompassWorkspace,
+    projectID: UUID? = nil,
+    projectTitle: String,
+    launchPlan: AgentExecutionLaunchPlan = .host(),
+    settings: AgentRuntimeSettings = AgentRuntimeSettings(),
+    mode: ProductizationSimulationMode,
+    appRunner: ProductizationExperienceAppRunning = ProductizationExperienceCLIAppRunner(),
+    personaSelector: ProductizationPersonaActionSelecting? = nil,
+    now: Date = Date()
+  ) async throws -> ProductizationScenarioCohortRunOutcome {
+    let config = try workspace.readProductizationConfig()
+    guard config.experiments.contains(where: { $0.id == experimentID }) else {
+      throw ProductizationScenarioRunError.unknownExperiment(experimentID)
+    }
+    guard
+      let cohort = config.scenarioCohorts.first(where: {
+        $0.id == cohortID && $0.experimentID == experimentID
+      })
+    else {
+      throw ProductizationScenarioRunError.unknownCohort(cohortID)
+    }
+
+    var outcomes: [ProductizationScenarioRunOutcome] = []
+    var skippedScenarioIDs: [String] = []
+    for scenarioID in cohort.scenarioIDs {
+      guard let scenario = config.scenarios.first(where: { $0.id == scenarioID }) else {
+        throw ProductizationScenarioRunError.unknownScenario(scenarioID)
+      }
+      guard cohort.enabled && scenario.enabled else {
+        skippedScenarioIDs.append(scenarioID)
+        continue
+      }
+      let outcome = try await run(
+        experimentID: experimentID,
+        scenarioID: scenarioID,
+        in: workspace,
+        projectID: projectID,
+        projectTitle: projectTitle,
+        launchPlan: launchPlan,
+        settings: settings,
+        mode: mode,
+        appRunner: appRunner,
+        personaSelector: personaSelector,
+        now: now
+      )
+      outcomes.append(outcome)
+    }
+    return ProductizationScenarioCohortRunOutcome(
+      experimentID: experimentID,
+      cohortID: cohortID,
+      mode: mode,
+      outcomes: outcomes,
+      skippedScenarioIDs: skippedScenarioIDs
+    )
+  }
+
   static func run(
     experimentID: String,
     scenarioID: String,
@@ -585,6 +736,32 @@ extension CompassProject {
     )
   }
 
+  func runProductizationScenarioCohortModelFree(
+    experimentID: String,
+    cohortID: String
+  ) async -> ProductizationScenarioCohortRunOutcome? {
+    await runProductizationScenarioCohort(
+      experimentID: experimentID,
+      cohortID: cohortID,
+      mode: .modelFree
+    )
+  }
+
+  func runProductizationScenarioCohortPersonaModel(
+    experimentID: String,
+    cohortID: String
+  ) async -> ProductizationScenarioCohortRunOutcome? {
+    guard FoundationModelsAvailability.isAvailable else {
+      fail(ProductizationPersonaActionModelError.unavailable)
+      return nil
+    }
+    return await runProductizationScenarioCohort(
+      experimentID: experimentID,
+      cohortID: cohortID,
+      mode: .personaModel
+    )
+  }
+
   private func runProductizationScenario(
     experimentID: String,
     scenarioID: String,
@@ -619,6 +796,47 @@ extension CompassProject {
       productizationConfig = try workspace.readProductizationConfig()
       productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()
       log(outcome.userMessage, level: outcome.result.isSuccess ? .success : .warning)
+      return outcome
+    } catch {
+      fail(error)
+      return nil
+    }
+  }
+
+  private func runProductizationScenarioCohort(
+    experimentID: String,
+    cohortID: String,
+    mode: ProductizationSimulationMode
+  ) async -> ProductizationScenarioCohortRunOutcome? {
+    do {
+      guard let workspace else {
+        fail(AppModelError.noRepositorySelected)
+        return nil
+      }
+      guard
+        let experiment = productizationConfig.experiments.first(where: { $0.id == experimentID })
+      else {
+        throw ProductizationScenarioRunError.unknownExperiment(experimentID)
+      }
+      let workingDirectory = ProductizationScenarioCoordinator.generatedAppWorkingDirectory(
+        for: experiment,
+        in: workspace
+      )
+      let personaSelector: ProductizationPersonaActionSelecting? =
+        mode == .personaModel ? ProductizationFoundationModelsPersonaSelector() : nil
+      let outcome = try await ProductizationScenarioCoordinator.runCohort(
+        experimentID: experimentID,
+        cohortID: cohortID,
+        in: workspace,
+        projectID: id,
+        projectTitle: repoURL.lastPathComponent,
+        launchPlan: agentLaunchPlan(for: workingDirectory),
+        mode: mode,
+        personaSelector: personaSelector
+      )
+      productizationConfig = try workspace.readProductizationConfig()
+      productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()
+      log(outcome.userMessage, level: outcome.isSuccess ? .success : .warning)
       return outcome
     } catch {
       fail(error)

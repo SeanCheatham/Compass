@@ -191,6 +191,61 @@ struct ProductizationScenarioRunTests {
     try #require(workspace.readProductizationEvidenceIndex().summaries.first?.mode == .personaModel)
   }
 
+  @Test func cohortModelFreeRunRunsEnabledScenariosAndSkipsDisabled() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let head = try await setupScenarioRepo(at: root)
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    var config = try makeScenarioRunConfig(commitSha: head)
+    let enabled = config.scenarios[0]
+    let disabled = ProductScenario(
+      id: "scenario-disabled",
+      experimentID: enabled.experimentID,
+      segmentID: enabled.segmentID,
+      currentWorkflowID: enabled.currentWorkflowID,
+      alternativeID: enabled.alternativeID,
+      title: "Disabled support proof",
+      task: "Do not run this disabled scenario.",
+      successSignal: enabled.successSignal,
+      targetCommitSha: head,
+      maxTurns: enabled.maxTurns,
+      appCommandTimeoutSeconds: enabled.appCommandTimeoutSeconds,
+      enabled: false,
+      createdAt: 21
+    )
+    config.scenarios.append(disabled)
+    let cohort = config.scenarioCohorts[0]
+    config.scenarioCohorts[0] = ProductScenarioCohort(
+      id: cohort.id,
+      title: cohort.title,
+      experimentID: cohort.experimentID,
+      scenarioIDs: [enabled.id, disabled.id],
+      enabled: true,
+      tags: cohort.tags
+    )
+    try workspace.writeProductizationConfig(config)
+    let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
+
+    let outcome = try await ProductizationScenarioCoordinator.runCohortModelFree(
+      experimentID: config.experiments[0].id,
+      cohortID: cohort.id,
+      in: workspace,
+      projectTitle: "Scenario Helper",
+      appRunner: appRunner,
+      now: Date(timeIntervalSince1970: 180)
+    )
+    let index = workspace.readProductizationEvidenceIndex()
+
+    try #require(outcome.outcomes.count == 1)
+    try #require(outcome.completedRunCount == 1)
+    try #require(outcome.failedRunCount == 0)
+    try #require(outcome.skippedScenarioIDs == [disabled.id])
+    try #require(outcome.latestRecordID == outcome.outcomes[0].record.id)
+    try #require(outcome.userMessage.contains("1 completed"))
+    try #require(index.summaries.map(\.scenarioID) == [enabled.id])
+  }
+
   @Test func modelFreeRunRecordsContractMissingAsUserVisibleFailureEvidence() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }

@@ -442,6 +442,34 @@ struct ProductizationWorkbenchTab: View {
                 : ProductizationPersonaActionModelError.unavailable.localizedDescription
             )
           }
+          HStack(spacing: 8) {
+            Button {
+              Task { await runScenarioCohortModelFree() }
+            } label: {
+              Label(
+                isRunningScenario ? "Running" : "Run Cohort",
+                systemImage: "play.rectangle.on.rectangle"
+              )
+            }
+            .buttonStyle(.bordered)
+            .disabled(isRunningScenario || !scenarioCohortCanRun)
+
+            Button {
+              Task { await runScenarioCohortPersonaModel() }
+            } label: {
+              Label(
+                isRunningScenario ? "Running" : "AI Cohort",
+                systemImage: "person.2.wave.2"
+              )
+            }
+            .buttonStyle(.bordered)
+            .disabled(isRunningScenario || !personaCohortCanRun)
+            .help(
+              FoundationModelsAvailability.isAvailable
+                ? "Run the cohort with AI simulated users"
+                : ProductizationPersonaActionModelError.unavailable.localizedDescription
+            )
+          }
         }
       }
     }
@@ -476,6 +504,19 @@ struct ProductizationWorkbenchTab: View {
 
   private var personaScenarioCanRun: Bool {
     scenarioCanRun && FoundationModelsAvailability.isAvailable
+  }
+
+  private var scenarioCohortCanRun: Bool {
+    scenarioDraftCanSave
+      && !scenarioCohortID.isEmpty
+      && scenarioCohortEnabled
+      && contractAvailable == true
+      && !(scenarioTargetCommit.isEmpty && selectedExperiment?.currentSha == nil
+        && selectedExperiment?.baseSha == nil)
+  }
+
+  private var personaCohortCanRun: Bool {
+    scenarioCohortCanRun && FoundationModelsAvailability.isAvailable
   }
 
   private var aggregateEvidence: some View {
@@ -878,6 +919,14 @@ struct ProductizationWorkbenchTab: View {
     await runScenario(mode: .personaModel)
   }
 
+  private func runScenarioCohortModelFree() async {
+    await runScenarioCohort(mode: .modelFree)
+  }
+
+  private func runScenarioCohortPersonaModel() async {
+    await runScenarioCohort(mode: .personaModel)
+  }
+
   private func runScenario(mode: ProductizationSimulationMode) async {
     guard let experiment = selectedExperiment,
       let selectedScenarioID
@@ -904,6 +953,40 @@ struct ProductizationWorkbenchTab: View {
       scenarioRunMessage = "\(outcome.userMessage) Run \(outcome.record.id)."
       selectedRunID = outcome.record.id
       loadSelectedRecord()
+    } else {
+      scenarioRunMessage = project.errorMessage
+    }
+    await loadContractStatus()
+  }
+
+  private func runScenarioCohort(mode: ProductizationSimulationMode) async {
+    guard let experiment = selectedExperiment,
+      !scenarioCohortID.isEmpty
+    else { return }
+    if scenarioDraftCanSave {
+      await saveScenarioDraft()
+    }
+    isRunningScenario = true
+    defer { isRunningScenario = false }
+    let outcome: ProductizationScenarioCohortRunOutcome?
+    switch mode {
+    case .modelFree:
+      outcome = await project.runProductizationScenarioCohortModelFree(
+        experimentID: experiment.id,
+        cohortID: scenarioCohortID
+      )
+    case .personaModel:
+      outcome = await project.runProductizationScenarioCohortPersonaModel(
+        experimentID: experiment.id,
+        cohortID: scenarioCohortID
+      )
+    }
+    if let outcome {
+      scenarioRunMessage = outcome.userMessage
+      if let latestRecordID = outcome.latestRecordID {
+        selectedRunID = latestRecordID
+        loadSelectedRecord()
+      }
     } else {
       scenarioRunMessage = project.errorMessage
     }
