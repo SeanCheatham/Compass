@@ -270,6 +270,7 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
   var targetPersonaID: String?
   var targetPersonaName: String?
   var targetScenarioID: String?
+  var targetDecision: ProductExperimentDecision?
 
   init(
     experimentID: String,
@@ -281,7 +282,8 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
     requiredSimulationMode: ProductizationSimulationMode? = nil,
     targetPersonaID: String? = nil,
     targetPersonaName: String? = nil,
-    targetScenarioID: String? = nil
+    targetScenarioID: String? = nil,
+    targetDecision: ProductExperimentDecision? = nil
   ) {
     self.experimentID = ProductizationModelText.identifier(
       experimentID,
@@ -305,6 +307,7 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
       targetScenarioID,
       fallback: "scenario"
     )
+    self.targetDecision = targetDecision
   }
 }
 
@@ -676,12 +679,31 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   var maxSteps: Int
   var stopReason: ProductFactoryAutopilotCycleStopReason
 
+  var appliedDecisionCount: Int {
+    executedSteps.filter { $0.action.kind == .applyDecision }.count
+  }
+
+  var promotedDecisionCount: Int {
+    executedSteps.filter { $0.action.targetDecision == .promote }.count
+  }
+
+  var killedDecisionCount: Int {
+    executedSteps.filter { $0.action.targetDecision == .kill }.count
+  }
+
+  var evidenceRunStepCount: Int {
+    executedSteps.filter { $0.action.kind == .runCohort || $0.action.kind == .rerunCohort }.count
+  }
+
   var userMessage: String {
     var parts = [
       executedSteps.isEmpty
         ? "Factory cycle ran no steps."
         : "Factory cycle ran \(executedSteps.count) step(s).",
     ]
+    if let outcomeMessage {
+      parts.append(outcomeMessage)
+    }
     if !messages.isEmpty {
       parts.append(messages.joined(separator: " "))
     }
@@ -742,12 +764,22 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       experimentIDs: experimentIDs,
       messages: messages,
       maxSteps: maxSteps,
+      appliedDecisionCount: appliedDecisionCount,
+      promotedDecisionCount: promotedDecisionCount,
+      killedDecisionCount: killedDecisionCount,
+      evidenceRunStepCount: evidenceRunStepCount,
       stopReason: auditStopReason,
       stopStepID: stopStepID,
       stopStepTitle: stopStepTitle,
       stopDetail: stopDetail,
       userMessage: userMessage
     )
+  }
+
+  private var outcomeMessage: String? {
+    guard appliedDecisionCount > 0 || evidenceRunStepCount > 0 else { return nil }
+    return
+      "Cycle outcomes: \(appliedDecisionCount) PMF decision(s) applied (\(promotedDecisionCount) promote, \(killedDecisionCount) kill), \(evidenceRunStepCount) evidence step(s)."
   }
 
   private var stopReasonMessage: String {
@@ -982,7 +1014,8 @@ enum ProductMarketFitNextActionAdvisor {
         title: "Apply PMF decision",
         detail:
           "Current evidence supports \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue) using \(proposal.update.evidenceRunIDs.count) current run(s).",
-        priority: 100
+        priority: 100,
+        targetDecision: proposal.update.decision
       )
     }
 

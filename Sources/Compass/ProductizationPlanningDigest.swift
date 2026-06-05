@@ -260,6 +260,9 @@ enum ProductizationPlanningDigestFormatter {
     if let targetPersonaID = step.action.targetPersonaID {
       metadata.append("target_persona \(targetPersonaID)")
     }
+    if let targetDecision = step.action.targetDecision {
+      metadata.append("target_decision \(targetDecision.rawValue)")
+    }
     if let requiredMode = step.action.requiredSimulationMode {
       metadata.append("required_mode \(requiredMode.rawValue)")
     }
@@ -306,6 +309,9 @@ enum ProductizationPlanningDigestFormatter {
       if let targetPersonaID = action.targetPersonaID {
         metadata.append("target_persona \(targetPersonaID)")
       }
+      if let targetDecision = action.targetDecision {
+        metadata.append("target_decision \(targetDecision.rawValue)")
+      }
       if let requiredMode = action.requiredSimulationMode {
         metadata.append("required_mode \(requiredMode.rawValue)")
       }
@@ -331,7 +337,7 @@ enum ProductizationPlanningDigestFormatter {
           ? "no experiments"
           : "experiments \(audit.experimentIDs.joined(separator: ", "))"
         return
-          "- \(bounded(audit.id, 100)): \(audit.executedStepCount) step(s); \(experiments); stopped \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
+          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments); \(bounded(audit.userMessage, 260))."
       }
   }
 

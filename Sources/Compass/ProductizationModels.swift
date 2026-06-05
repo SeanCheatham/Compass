@@ -910,6 +910,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
   var experimentIDs: [String]
   var messages: [String]
   var maxSteps: Int
+  var appliedDecisionCount: Int
+  var promotedDecisionCount: Int
+  var killedDecisionCount: Int
+  var evidenceRunStepCount: Int
   var stopReason: ProductFactoryCycleAuditStopReason
   var stopStepID: String?
   var stopStepTitle: String?
@@ -922,7 +926,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
 
   var summary: String {
     let stopTarget = stopStepTitle.map { "; stopped at \($0)" } ?? ""
-    return "\(executedStepCount) step(s); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
+    return "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill); evidence \(evidenceRunStepCount); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
   }
 
   init(
@@ -933,6 +937,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     experimentIDs: [String],
     messages: [String],
     maxSteps: Int,
+    appliedDecisionCount: Int = 0,
+    promotedDecisionCount: Int = 0,
+    killedDecisionCount: Int = 0,
+    evidenceRunStepCount: Int = 0,
     stopReason: ProductFactoryCycleAuditStopReason,
     stopStepID: String? = nil,
     stopStepTitle: String? = nil,
@@ -948,6 +956,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       .map { ProductizationModelText.identifier($0, fallback: "experiment") }
     self.messages = ProductizationModelText.cleanedList(messages, limit: 500)
     self.maxSteps = max(1, maxSteps)
+    self.appliedDecisionCount = max(0, appliedDecisionCount)
+    self.promotedDecisionCount = max(0, promotedDecisionCount)
+    self.killedDecisionCount = max(0, killedDecisionCount)
+    self.evidenceRunStepCount = max(0, evidenceRunStepCount)
     self.stopReason = stopReason
     self.stopStepID = ProductizationModelText.optionalCleanedText(stopStepID, limit: 200)
     self.stopStepTitle = ProductizationModelText.optionalCleanedText(stopStepTitle, limit: 180)

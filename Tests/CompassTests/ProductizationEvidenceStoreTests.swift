@@ -268,6 +268,7 @@ struct ProductizationEvidenceStoreTests {
         experimentIDs: [config.experiments[0].id],
         messages: ["Model-free cohort ran 1 scenario(s): 0 completed, 1 needing review, 0 skipped."],
         maxSteps: 3,
+        evidenceRunStepCount: 1,
         stopReason: .executionFailed,
         stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
         userMessage:
@@ -304,6 +305,8 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("cycle queue Blocked"))
     try #require(text.contains("Recent product-factory cycle audits"))
     try #require(text.contains("factory-cycle-digest"))
+    try #require(text.contains("decisions 0"))
+    try #require(text.contains("evidence 1"))
     try #require(text.contains("execution_failed"))
     try #require(text.contains("contract missing"))
     try #require(text.contains("Next product-factory actions"))

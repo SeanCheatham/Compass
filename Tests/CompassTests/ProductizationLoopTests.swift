@@ -1202,8 +1202,50 @@ struct ProductizationLoopTests {
     )
 
     try #require(outcome.userMessage.contains("Factory cycle ran 1 step(s)."))
+    try #require(outcome.userMessage.contains("0 PMF decision(s) applied"))
+    try #require(outcome.userMessage.contains("1 evidence step(s)"))
     try #require(outcome.userMessage.contains("Model-free cohort ran 1 scenario(s)"))
     try #require(outcome.userMessage.contains("Stopped before repeating Run evidence cohort."))
+  }
+
+  @Test func productFactoryAutopilotCycleOutcomeCountsLiftAndCutDecisions() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let index = makePMFPromotionEvidenceIndex(config: config)
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index
+      ))
+
+    let outcome = ProductFactoryAutopilotCycleOutcome(
+      executedSteps: [step],
+      messages: ["Applied PMF advice for \(step.experimentTitle)."],
+      maxSteps: 3,
+      stopReason: .noExecutableStep
+    )
+    let audit = outcome.audit(
+      startedAt: Date(timeIntervalSince1970: 300),
+      endedAt: Date(timeIntervalSince1970: 305)
+    )
+
+    try #require(step.action.targetDecision == .promote)
+    try #require(outcome.appliedDecisionCount == 1)
+    try #require(outcome.promotedDecisionCount == 1)
+    try #require(outcome.killedDecisionCount == 0)
+    try #require(outcome.evidenceRunStepCount == 0)
+    try #require(outcome.userMessage.contains("1 PMF decision(s) applied (1 promote, 0 kill)"))
+    try #require(audit.appliedDecisionCount == 1)
+    try #require(audit.promotedDecisionCount == 1)
+    try #require(audit.killedDecisionCount == 0)
+    try #require(audit.evidenceRunStepCount == 0)
+    try #require(audit.summary.contains("decisions 1 (1 promote, 0 kill); evidence 0"))
   }
 
   @Test func productFactoryAutopilotCycleOutcomeReportsFailureStop() throws {
@@ -1276,6 +1318,8 @@ struct ProductizationLoopTests {
     try #require(audit.endedAt == 105)
     try #require(audit.executedStepIDs == [step.id])
     try #require(audit.experimentIDs == [step.experimentID])
+    try #require(audit.appliedDecisionCount == 0)
+    try #require(audit.evidenceRunStepCount == 1)
     try #require(audit.stopReason == .noExecutableStep)
     try #require(audit.userMessage.contains("Factory cycle ran 1 step(s)."))
     try #require(audit.userMessage.contains("Stopped because no executable product-factory step remains."))
@@ -1311,6 +1355,7 @@ struct ProductizationLoopTests {
     try #require(action.kind == .applyDecision)
     try #require(action.title == "Apply PMF decision")
     try #require(action.detail.contains("continue -> promote"))
+    try #require(action.targetDecision == .promote)
     try #require(action.cohortID == nil)
     try #require(savedExperiment.decision == .promote)
     try #require(savedExperiment.evidenceSummary.contains("PMF readiness"))
