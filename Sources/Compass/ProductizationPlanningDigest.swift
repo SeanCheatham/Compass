@@ -205,6 +205,10 @@ enum ProductizationPlanningDigestFormatter {
         evidenceIndex: evidenceIndex
       )
     else { return [] }
+    let cyclePlan = ProductFactoryAutopilotPlanner.cyclePlan(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
     var metadata = [
       "experiment \(step.experimentID)",
       "kind \(step.kind.rawValue)",
@@ -221,6 +225,7 @@ enum ProductizationPlanningDigestFormatter {
     return [
       "Factory autopilot step:",
       "- \(metadata.joined(separator: "; ")); \(bounded(step.title, 120)); \(bounded(step.detail, 220)).",
+      "- cycle executable \(cyclePlan.executableSteps.count); max \(cyclePlan.maxSteps); capped \(cyclePlan.capped); \(bounded(cyclePlan.summary, 180)).",
     ]
   }
 
