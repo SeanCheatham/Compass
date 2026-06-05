@@ -32,7 +32,7 @@ enum ProductizationPlanningDigestFormatter {
       maxEvidenceSignals: maxEvidenceSignals
     )
 
-    return boundedLines(lines, maxLines: 44, maxCharacters: 4_200)
+    return boundedLines(lines, maxLines: 44, maxCharacters: 4_800)
   }
 
   private static func painLines(
@@ -205,8 +205,15 @@ enum ProductizationPlanningDigestFormatter {
     guard !actions.isEmpty else { return [] }
     var lines = ["Next product-factory actions:"]
     for action in actions.prefix(4) {
+      var metadata = [
+        "kind \(action.kind.rawValue)",
+        "priority \(action.priority)",
+      ]
+      if let cohortID = action.cohortID {
+        metadata.append("cohort \(cohortID)")
+      }
       lines.append(
-        "- \(action.experimentID): \(bounded(action.title, 120)); \(bounded(action.detail, 220))."
+        "- \(action.experimentID): \(metadata.joined(separator: "; ")); \(bounded(action.title, 120)); \(bounded(action.detail, 220))."
       )
     }
     return lines

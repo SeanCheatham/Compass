@@ -267,6 +267,8 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("Top current-commit evidence signals and objections"))
     try #require(text.contains("Current-commit product-market-fit readiness"))
     try #require(text.contains("Next product-factory actions"))
+    try #require(text.contains("kind run_cohort"))
+    try #require(text.contains("cohort \(config.scenarioCohorts[0].id)"))
     try #require(text.contains("digest-run"))
     try #require(text.contains("csv_import"))
     try #require(text.contains("Beat the spreadsheet"))
@@ -326,6 +328,8 @@ struct ProductizationEvidenceStoreTests {
     for prompt in [plan, reflect] {
       try #require(prompt.contains("## Productization Context"))
       try #require(prompt.contains(config.experiments[0].branchName))
+      try #require(prompt.contains("kind run_cohort"))
+      try #require(prompt.contains("cohort \(config.scenarioCohorts[0].id)"))
       try #require(prompt.contains("prompt-run-two"))
       try #require(prompt.contains("Repeated objections"))
       try #require(prompt.contains("the spreadsheet is already trusted (2x)"))
