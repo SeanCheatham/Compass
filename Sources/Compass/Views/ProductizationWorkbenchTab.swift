@@ -118,6 +118,13 @@ struct ProductizationWorkbenchTab: View {
     )
   }
 
+  private var factoryDecisionCandidates: [ProductFactoryDecisionCandidate] {
+    ProductFactoryDecisionCandidateAdvisor.candidates(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var factoryAutopilotStep: ProductFactoryAutopilotStep? {
     ProductFactoryAutopilotPlanner.nextStep(
       config: config,
@@ -386,6 +393,18 @@ struct ProductizationWorkbenchTab: View {
             }
           }
         }
+
+        WorkbenchSection("Decision Candidates", systemImage: "checkmark.seal") {
+          VStack(alignment: .leading, spacing: 8) {
+            if factoryDecisionCandidates.isEmpty {
+              WorkbenchEmptyLine("No PMF lift/cut decisions queued.")
+            } else {
+              ForEach(factoryDecisionCandidates.prefix(4)) { candidate in
+                decisionCandidateRow(candidate)
+              }
+            }
+          }
+        }
       }
       .padding(.trailing, 4)
     }
@@ -463,6 +482,39 @@ struct ProductizationWorkbenchTab: View {
     }
     .buttonStyle(.plain)
     .help(target.displayDetail)
+  }
+
+  private func decisionCandidateRow(_ candidate: ProductFactoryDecisionCandidate) -> some View {
+    Button {
+      selectedExperimentID = candidate.experimentID
+    } label: {
+      VStack(alignment: .leading, spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text(candidate.displayTitle)
+            .font(.callout.weight(.semibold))
+            .lineLimit(1)
+          Spacer()
+          WorkbenchStatusPill(text: candidate.pressure.title)
+        }
+        WorkbenchFact(label: "Experiment", value: candidate.experimentID)
+        WorkbenchFact(label: "PMF", value: "\(candidate.readinessScore)/100")
+        WorkbenchFact(
+          label: "Evidence",
+          value: candidate.evidenceRunIDs.isEmpty
+            ? "none"
+            : candidate.evidenceRunIDs.prefix(3).joined(separator: ", ")
+        )
+        Text(candidate.summary)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .help(candidate.displayDetail)
   }
 
   private var evidenceAndDecisionPane: some View {

@@ -180,46 +180,29 @@ enum ProductizationPlanningDigestFormatter {
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> [String] {
-    let proposals = ProductMarketFitDecisionAdvisor.proposals(
+    let candidates = ProductFactoryDecisionCandidateAdvisor.candidates(
       config: config,
       evidenceIndex: evidenceIndex
     )
-    guard !proposals.isEmpty else { return [] }
+    guard !candidates.isEmpty else { return [] }
     var lines = ["Product-factory decision candidates:"]
-    for proposal in proposals.prefix(4) {
+    for candidate in candidates.prefix(4) {
       let evidence =
-        proposal.update.evidenceRunIDs.isEmpty
+        candidate.evidenceRunIDs.isEmpty
         ? "no evidence runs"
-        : "evidence \(proposal.update.evidenceRunIDs.prefix(4).joined(separator: ", "))"
+        : "evidence \(candidate.evidenceRunIDs.prefix(4).joined(separator: ", "))"
       let metadata = [
         "action apply_decision",
-        "current \(proposal.currentDecision.rawValue)",
-        "target_decision \(proposal.update.decision.rawValue)",
-        "pressure \(decisionPressure(for: proposal.update.decision).rawValue)",
-        "score \(proposal.readiness.scoreLabel)/100",
+        "current \(candidate.currentDecision.rawValue)",
+        "target_decision \(candidate.targetDecision.rawValue)",
+        "pressure \(candidate.pressure.rawValue)",
+        "score \(candidate.readinessScore)/100",
       ]
       lines.append(
-        "- \(proposal.experimentID): \(metadata.joined(separator: "; ")); \(evidence); \(bounded(proposal.update.summary, 220))."
+        "- \(candidate.experimentID): \(metadata.joined(separator: "; ")); \(evidence); \(bounded(candidate.summary, 220))."
       )
     }
     return lines
-  }
-
-  private static func decisionPressure(
-    for decision: ProductExperimentDecision
-  ) -> ProductFactoryPortfolioPressure {
-    switch decision {
-    case .promote, .promoted:
-      return .lift
-    case .kill, .archived:
-      return .cut
-    case .pivot, .narrow:
-      return .reshape
-    case .keepGoing:
-      return .learn
-    case .notRun:
-      return .wait
-    }
   }
 
   private static func portfolioPressureLines(

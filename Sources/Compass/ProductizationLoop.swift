@@ -259,6 +259,108 @@ enum ProductFactoryPortfolioPressure: String, Equatable, Sendable {
   }
 }
 
+struct ProductFactoryDecisionCandidate: Equatable, Sendable, Identifiable {
+  var id: String { experimentID }
+
+  var experimentID: String
+  var currentDecision: ProductExperimentDecision
+  var targetDecision: ProductExperimentDecision
+  var readinessScore: Int
+  var pressure: ProductFactoryPortfolioPressure
+  var evidenceRunIDs: [String]
+  var summary: String
+
+  var urgencyScore: Int {
+    pressure.priorityBoost + decisionConfidenceScore
+  }
+
+  var displayTitle: String {
+    "\(currentDecision.rawValue) -> \(targetDecision.rawValue)"
+  }
+
+  var displaySubtitle: String {
+    let evidence = evidenceRunIDs.isEmpty ? "no evidence" : "\(evidenceRunIDs.count) evidence"
+    return "\(pressure.title), \(readinessScore)/100, \(evidence)"
+  }
+
+  var displayDetail: String {
+    let evidence =
+      evidenceRunIDs.isEmpty
+      ? "Evidence: none."
+      : "Evidence: \(evidenceRunIDs.prefix(4).joined(separator: ", "))."
+    return "\(summary) \(evidence)"
+  }
+
+  init(proposal: ProductMarketFitDecisionProposal) {
+    self.experimentID = ProductizationModelText.identifier(
+      proposal.experimentID,
+      fallback: "experiment"
+    )
+    self.currentDecision = proposal.currentDecision
+    self.targetDecision = proposal.update.decision
+    self.readinessScore = Int(proposal.readiness.readinessScore.rounded())
+    self.pressure = ProductFactoryDecisionCandidateAdvisor.pressure(
+      for: proposal.update.decision
+    )
+    self.evidenceRunIDs = ProductizationModelText.cleanedList(
+      proposal.update.evidenceRunIDs,
+      limit: 160
+    )
+    self.summary = ProductizationModelText.cleanedText(
+      proposal.update.summary,
+      fallback: "PMF decision candidate is ready.",
+      limit: 1_000
+    )
+  }
+
+  private var decisionConfidenceScore: Int {
+    switch pressure {
+    case .lift:
+      return readinessScore
+    case .cut:
+      return 100 - readinessScore
+    case .reshape:
+      return abs(50 - readinessScore)
+    case .learn, .repair, .wait:
+      return 0
+    }
+  }
+}
+
+enum ProductFactoryDecisionCandidateAdvisor {
+  static func candidates(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [ProductFactoryDecisionCandidate] {
+    ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    .map(ProductFactoryDecisionCandidate.init(proposal:))
+    .sorted { lhs, rhs in
+      if lhs.urgencyScore == rhs.urgencyScore { return lhs.experimentID < rhs.experimentID }
+      return lhs.urgencyScore > rhs.urgencyScore
+    }
+  }
+
+  static func pressure(
+    for decision: ProductExperimentDecision
+  ) -> ProductFactoryPortfolioPressure {
+    switch decision {
+    case .promote, .promoted:
+      return .lift
+    case .kill, .archived:
+      return .cut
+    case .pivot, .narrow:
+      return .reshape
+    case .keepGoing:
+      return .learn
+    case .notRun:
+      return .wait
+    }
+  }
+}
+
 struct ProductMarketFitNextAction: Equatable, Sendable {
   var experimentID: String
   var kind: ProductMarketFitNextActionKind

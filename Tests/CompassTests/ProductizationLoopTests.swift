@@ -222,6 +222,10 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index
     )
+    let candidates = ProductFactoryDecisionCandidateAdvisor.candidates(
+      config: config,
+      evidenceIndex: index
+    )
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
@@ -239,6 +243,17 @@ struct ProductizationLoopTests {
     try #require(kill.update.decision == .kill)
     try #require(kill.update.decidedBy == "PMF Decision Advisor")
     try #require(kill.update.summary.contains("current-alternative proof from 2"))
+    try #require(candidates.count == 3)
+    let liftCandidate = try #require(candidates.first { $0.experimentID == promote.experimentID })
+    let cutCandidate = try #require(candidates.first { $0.experimentID == kill.experimentID })
+    try #require(liftCandidate.pressure == .lift)
+    try #require(liftCandidate.displayTitle == "continue -> promote")
+    try #require(liftCandidate.displaySubtitle.contains("Lift"))
+    try #require(Array(liftCandidate.evidenceRunIDs.prefix(2)) == ["promote-a", "promote-b"])
+    try #require(cutCandidate.pressure == .cut)
+    try #require(cutCandidate.displayTitle == "continue -> kill")
+    try #require(cutCandidate.displaySubtitle.contains("Cut"))
+    try #require(cutCandidate.displayDetail.contains("kill-a"))
     try #require(digest.contains("Product-factory decision candidates"))
     try #require(digest.contains("action apply_decision"))
     try #require(digest.contains("target_decision promote"))
