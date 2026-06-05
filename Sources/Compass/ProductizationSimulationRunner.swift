@@ -232,6 +232,7 @@ struct ProductizationRunResult: Codable, Equatable, Sendable {
   var scenarioID: String
   var personaID: String
   var mode: ProductizationSimulationMode
+  var decisionIntent: ProductizationSimulationDecisionIntent?
   var routeIdentifier: String
   var modelProvider: String
   var model: String
@@ -1200,6 +1201,7 @@ struct ProductizationSimulationRunner {
       scenarioID: request.scenarioID,
       personaID: request.segment.id,
       mode: request.mode,
+      decisionIntent: request.decisionIntent,
       routeIdentifier: request.launchPlan.effectiveRouteIdentifier,
       modelProvider: request.settings.textProvider.rawValue,
       model: request.settings.model,

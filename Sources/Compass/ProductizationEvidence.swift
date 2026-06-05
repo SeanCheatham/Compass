@@ -732,6 +732,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   var scenarioID: String
   var personaID: String
   var mode: ProductizationSimulationMode
+  var decisionIntent: ProductizationSimulationDecisionIntent?
   var status: ProductizationRunStatus
   var startedAt: Double
   var endedAt: Double
@@ -763,6 +764,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     case scenarioID
     case personaID
     case mode
+    case decisionIntent
     case status
     case startedAt
     case endedAt
@@ -798,6 +800,10 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       scenarioID: try container.decode(String.self, forKey: .scenarioID),
       personaID: try container.decode(String.self, forKey: .personaID),
       mode: try container.decode(ProductizationSimulationMode.self, forKey: .mode),
+      decisionIntent: try container.decodeIfPresent(
+        ProductizationSimulationDecisionIntent.self,
+        forKey: .decisionIntent
+      ),
       status: try container.decode(ProductizationRunStatus.self, forKey: .status),
       startedAt: try container.decode(Double.self, forKey: .startedAt),
       endedAt: try container.decode(Double.self, forKey: .endedAt),
@@ -852,6 +858,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     scenarioID: String,
     personaID: String,
     mode: ProductizationSimulationMode,
+    decisionIntent: ProductizationSimulationDecisionIntent? = nil,
     status: ProductizationRunStatus,
     startedAt: Double,
     endedAt: Double,
@@ -883,6 +890,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     self.scenarioID = Self.cleanedIdentifier(scenarioID, fallback: "scenario")
     self.personaID = Self.cleanedIdentifier(personaID, fallback: "persona")
     self.mode = mode
+    self.decisionIntent = decisionIntent
     self.status = status
     self.startedAt = startedAt
     self.endedAt = max(startedAt, endedAt)
@@ -924,6 +932,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       scenarioID: runResult.scenarioID,
       personaID: runResult.personaID,
       mode: runResult.mode,
+      decisionIntent: runResult.decisionIntent,
       status: runResult.status,
       startedAt: startedAt,
       endedAt: endedAt,
@@ -1051,6 +1060,7 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
   var scenarioID: String
   var personaID: String
   var mode: ProductizationSimulationMode
+  var decisionIntent: ProductizationSimulationDecisionIntent?
   var status: ProductizationRunStatus
   var startedAt: Double
   var endedAt: Double
@@ -1076,6 +1086,7 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     case scenarioID
     case personaID
     case mode
+    case decisionIntent
     case status
     case startedAt
     case endedAt
@@ -1103,6 +1114,10 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     scenarioID = try container.decode(String.self, forKey: .scenarioID)
     personaID = try container.decode(String.self, forKey: .personaID)
     mode = try container.decode(ProductizationSimulationMode.self, forKey: .mode)
+    decisionIntent = try container.decodeIfPresent(
+      ProductizationSimulationDecisionIntent.self,
+      forKey: .decisionIntent
+    )
     status = try container.decode(ProductizationRunStatus.self, forKey: .status)
     startedAt = try container.decode(Double.self, forKey: .startedAt)
     endedAt = try container.decode(Double.self, forKey: .endedAt)
@@ -1134,6 +1149,7 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     scenarioID = record.scenarioID
     personaID = record.personaID
     mode = record.mode
+    decisionIntent = record.decisionIntent
     status = record.status
     startedAt = record.startedAt
     endedAt = record.endedAt
@@ -1697,6 +1713,7 @@ enum ProductizationEvidenceMarkdownExporter {
       "- Mode: \(record.mode.rawValue)",
       "- Status: \(record.status.rawValue)",
       "- Verdict: \(record.verdict.rawValue)",
+      record.decisionIntent.map { "- Decision Intent: \(decisionIntentLine($0))" },
       "",
       "## Summary",
       "",
@@ -1707,7 +1724,7 @@ enum ProductizationEvidenceMarkdownExporter {
       record.currentAlternativeComparison.isEmpty
         ? "No current-alternative comparison recorded."
         : record.currentAlternativeComparison,
-    ]
+    ].compactMap { $0 }
     if !record.objections.isEmpty {
       lines += ["", "## Objections", ""]
       lines += record.objections.map { "- \($0)" }
@@ -1724,6 +1741,23 @@ enum ProductizationEvidenceMarkdownExporter {
       lines += ["", "## Failure", "", "\(failure.status.rawValue): \(failure.message)"]
     }
     return lines.joined(separator: "\n")
+  }
+
+  private static func decisionIntentLine(
+    _ intent: ProductizationSimulationDecisionIntent
+  ) -> String {
+    var parts = [
+      "target_decision \(intent.targetDecision.rawValue)",
+      "current_decision \(intent.currentDecision.rawValue)",
+    ]
+    let directive = StringUtils.boundedText(intent.directive, limit: 180)
+    if !directive.isEmpty {
+      parts.append("directive \(directive)")
+    }
+    if !intent.scorecardFocus.isEmpty {
+      parts.append("focus \(intent.scorecardFocus.prefix(5).joined(separator: ", "))")
+    }
+    return parts.joined(separator: "; ")
   }
 }
 

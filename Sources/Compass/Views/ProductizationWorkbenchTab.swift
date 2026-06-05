@@ -1227,6 +1227,14 @@ struct ProductizationWorkbenchTab: View {
                   .font(.caption)
                   .foregroundStyle(.secondary)
                   .lineLimit(1)
+                if let decisionIntent = summary.decisionIntent {
+                  Text(
+                    "target_decision \(decisionIntent.targetDecision.rawValue), current \(decisionIntent.currentDecision.rawValue)"
+                  )
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+                }
                 Text(summary.summary)
                   .font(.caption)
                   .foregroundStyle(.secondary)
@@ -1265,6 +1273,16 @@ struct ProductizationWorkbenchTab: View {
           WorkbenchFact(label: "Scenario", value: record.scenarioID)
           WorkbenchFact(label: "Persona", value: record.personaID)
           WorkbenchFact(label: "Mode", value: record.mode.rawValue)
+          if let decisionIntent = record.decisionIntent {
+            WorkbenchFact(label: "Target decision", value: decisionIntent.targetDecision.rawValue)
+            WorkbenchFact(label: "Current decision", value: decisionIntent.currentDecision.rawValue)
+            if !decisionIntent.scorecardFocus.isEmpty {
+              WorkbenchFact(
+                label: "Intent focus",
+                value: decisionIntent.scorecardFocus.prefix(5).joined(separator: ", ")
+              )
+            }
+          }
           WorkbenchFact(label: "Trace", value: record.traceHash ?? "none")
           if !record.objections.isEmpty {
             WorkbenchFact(

@@ -253,10 +253,12 @@ struct ProductizationScenarioRunTests {
 
     try #require(outcome.result.status == .completed)
     try #require(outcome.result.mode == .personaModel)
+    try #require(outcome.result.decisionIntent?.targetDecision == .promote)
     try #require(outcome.request.decisionIntent?.targetDecision == .promote)
     try #require(appRunner.inputs.first?.decisionIntent?.targetDecision == .promote)
     try #require(outcome.userMessage.contains("AI-user"))
     try #require(stored.mode == .personaModel)
+    try #require(stored.decisionIntent?.targetDecision == .promote)
     try #require(stored.promptVersions == ["test.persona_action"])
     try #require(
       stored.personaActionRationales.contains {
@@ -267,6 +269,7 @@ struct ProductizationScenarioRunTests {
     try #require(transcript.contains(#""chosenActionID":"inspect_pain""#))
     let summary = workspace.readProductizationEvidenceIndex().summaries.first
     try #require(summary?.mode == .personaModel)
+    try #require(summary?.decisionIntent?.targetDecision == .promote)
     try #require(summary?.personaActionRationales.first?.contains("inspect_pain") == true)
   }
 

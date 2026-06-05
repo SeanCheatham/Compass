@@ -104,6 +104,8 @@ struct ProductizationSimulationRunnerTests {
     let inputIntent = try #require(appRunner.inputs.first?.decisionIntent)
     let contextIntent = try #require(selector.chooseContexts.first?.request.decisionIntent)
     try #require(result.status == .maxTurnsReached)
+    try #require(result.decisionIntent?.currentDecision == .keepGoing)
+    try #require(result.decisionIntent?.targetDecision == .kill)
     try #require(inputIntent.currentDecision == .keepGoing)
     try #require(inputIntent.targetDecision == .kill)
     try #require(inputIntent.directive.contains("should be killed"))

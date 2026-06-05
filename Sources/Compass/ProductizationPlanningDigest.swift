@@ -589,6 +589,15 @@ enum ProductizationPlanningDigestFormatter {
           "mode \(summary.mode.rawValue)",
           "verdict \(summary.verdict.rawValue)",
         ]
+        if let decisionIntent = summary.decisionIntent {
+          parts.append("target_decision \(decisionIntent.targetDecision.rawValue)")
+          parts.append("current_decision \(decisionIntent.currentDecision.rawValue)")
+          if !decisionIntent.scorecardFocus.isEmpty {
+            parts.append(
+              "intent_focus \(bounded(decisionIntent.scorecardFocus.prefix(5).joined(separator: ", "), 180))"
+            )
+          }
+        }
         if summary.scores.hasScores {
           let scores = [
             summary.scores.painRecognition.map { "pain \($0)" },

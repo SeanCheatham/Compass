@@ -39,6 +39,49 @@ struct ProductizationEvidenceStoreTests {
       summaries.first?.personaActionRationales.first?.contains("inspect_pain") == true)
   }
 
+  @Test func storePreservesDecisionIntentAcrossRecordIndexMarkdownAndDigest() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need targeted PMF evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].currentSha = "abc123"
+    let experiment = config.experiments[0]
+    let intent = ProductizationSimulationDecisionIntent(
+      currentDecision: .keepGoing,
+      targetDecision: .promote
+    )
+    let record = makeEvidenceRecord(
+      id: "intent-run",
+      experimentID: experiment.id,
+      solutionID: experiment.solutionID,
+      painID: config.solutionHypotheses[0].painID,
+      branchName: experiment.branchName,
+      commitSha: "abc123",
+      scenarioID: config.scenarios[0].id,
+      personaID: config.userSegments[0].id,
+      mode: .personaModel,
+      decisionIntent: intent
+    )
+
+    let index = ProductizationEvidenceIndex.build(records: [record])
+    let summary = try #require(index.summaries.first)
+    let markdown = ProductizationEvidenceMarkdownExporter.markdown(record: record)
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
+
+    try #require(record.decisionIntent?.targetDecision == .promote)
+    try #require(summary.decisionIntent?.targetDecision == .promote)
+    try #require(markdown.contains("target_decision promote"))
+    try #require(markdown.contains("alternative advantage"))
+    try #require(digest.contains("intent-run"))
+    try #require(digest.contains("target_decision promote"))
+    try #require(digest.contains("intent_focus alternative advantage"))
+  }
+
   @Test func indexAggregatesExperimentEvidenceSignals() throws {
     let first = makeEvidenceRecord(
       id: "first",
@@ -634,6 +677,7 @@ private func makeEvidenceRecord(
   scenarioID: String = "scenario-one",
   personaID: String = "segment-one",
   mode: ProductizationSimulationMode = .modelFree,
+  decisionIntent: ProductizationSimulationDecisionIntent? = nil,
   status: ProductizationRunStatus = .completed,
   startedAt: Double = 10,
   endedAt: Double = 20,
@@ -661,6 +705,7 @@ private func makeEvidenceRecord(
     scenarioID: scenarioID,
     personaID: personaID,
     mode: mode,
+    decisionIntent: decisionIntent,
     status: status,
     startedAt: startedAt,
     endedAt: endedAt,
