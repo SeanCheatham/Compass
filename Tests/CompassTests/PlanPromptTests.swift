@@ -631,6 +631,23 @@ struct PlanPromptTests {
     try #require(critic.contains("denied assumption"))
   }
 
+  @Test func testPendingChangesCommitPromptIsCommitOnlyPreflight() throws {
+    let system = Prompts.pendingChangesCommitSystemPrompt(
+      workingDirectoryPath: "/tmp/CompassProject"
+    )
+    let user = Prompts.pendingChangesCommitPrompt(status: " M Sources/App.swift\n?? README.md")
+
+    try #require(system.contains("preflight commit agent"))
+    try #require(system.contains("commit-only preflight"))
+    try #require(system.contains("Do not push"))
+    try #require(system.contains("Do not use destructive Git commands"))
+    try #require(system.contains("git reset --hard"))
+    try #require(system.contains("\"status\": \"succeeded\""))
+    try #require(user.contains(" M Sources/App.swift"))
+    try #require(user.contains("?? README.md"))
+    try #require(user.contains("git status --porcelain --untracked-files=all"))
+  }
+
   private func makePlanPrompt(forgeProfile: ForgeProfile? = nil) throws -> String {
     try Prompts.planPrompt(
       state: .empty,

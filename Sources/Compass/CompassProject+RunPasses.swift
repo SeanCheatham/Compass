@@ -37,6 +37,12 @@ extension CompassProject {
     var consumedDrafts = ""
 
     do {
+      try await commitPendingHostChangesIfNeeded(
+        workspace: workspace,
+        agentSettings: agentSettings,
+        modelOverride: modelOverride,
+        sessionIndex: sessionIndex
+      )
       try workspace.backupStateFile()
       await refreshCodemapIfNeeded(
         workspace: workspace,
@@ -286,10 +292,25 @@ extension CompassProject {
     sessions[sessionIndex].endedAt = nil
     sessions[sessionIndex].plan = next.plan
     sessions[sessionIndex].verify = next.verify
+    try? persistSessions()
+    feedback(.developStarted)
+
+    do {
+      try await commitPendingHostChangesIfNeeded(
+        workspace: workspace,
+        agentSettings: agentSettings,
+        modelOverride: modelOverride,
+        sessionIndex: sessionIndex
+      )
+    } catch {
+      performSessionErrorCleanup(sessionIndex: sessionIndex, error: error)
+      await refresh()
+      return
+    }
+
     let beforeSha = await gitCurrentSha(at: workspace.repoURL)
     sessions[sessionIndex].beforeSha = beforeSha
     try? persistSessions()
-    feedback(.developStarted)
 
     await refreshCodemapIfNeeded(
       workspace: workspace,

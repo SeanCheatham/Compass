@@ -78,6 +78,25 @@ struct CompassProjectSessionTests {
     try #require(events.contains(#""kind":"session_ended""#))
   }
 
+  @Test func testGitPorcelainStatusIncludesUntrackedFiles() async throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+    try writeFile("README.md", contents: "# Demo\n", at: repoURL)
+    try runGit(
+      "git add README.md && git -c user.email=t@t -c user.name=t commit -q -m 'Initial'",
+      at: repoURL
+    )
+    try writeFile("README.md", contents: "# Demo\n\nChanged.\n", at: repoURL)
+    try writeFile("Notes.md", contents: "Untracked\n", at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    let status = try await project.gitPorcelainStatus(in: repoURL)
+
+    try #require(status.contains(" M README.md"))
+    try #require(status.contains("?? Notes.md"))
+  }
+
   @Test func testVerifyAuditOutputWritesFullArtifactAndEvents() throws {
     let repoURL = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: repoURL) }
