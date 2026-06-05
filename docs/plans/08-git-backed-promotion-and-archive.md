@@ -69,4 +69,32 @@ Do not delete branches or worktrees automatically.
 
 ## Status
 
-Planned.
+Complete on 2026-06-04.
+
+Implementation notes:
+
+- Added a git-backed rollout service that previews experiment branch deltas,
+  verifies recorded experiment shas against branch heads, promotes into the
+  accepted branch by fast-forward or merge, and archives killed experiments by
+  preserving a `compass/archive/<solution-slug>` ref.
+- Final `promote -> promoted` and `kill -> archived` workbench actions now run
+  the git-backed operations; earlier `continue -> promote` and `continue ->
+  kill` actions remain state-only decision recording.
+- The Productization workbench now loads branch delta context for experiments
+  ready to promote/archive, including accepted branch head, experiment branch
+  head, operation type, stale-state warnings, commits, changed files, and
+  archive branch.
+- Git rollout decisions record evidence run ids, branch names, and before/after
+  commit ids. Promotion records the accepted branch commit before and after the
+  merge/fast-forward; archive records the preserved experiment commit.
+
+Verification completed and passed:
+
+```bash
+./scripts/test-local.sh --filter ProductizationGitRolloutTests
+./scripts/test-local.sh --filter ProductizationLoopTests
+./scripts/test-local.sh --filter ProductizationEvidenceStoreTests
+./scripts/test-local.sh --filter ProductExperimentWorktreeTests
+./scripts/test-local.sh --filter RustProjectScaffoldTests
+./scripts/test-local.sh --filter PromptSchemaLoadingTests
+```

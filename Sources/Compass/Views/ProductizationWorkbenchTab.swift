@@ -7,6 +7,9 @@ struct ProductizationWorkbenchTab: View {
   @State private var selectedRunID: String?
   @State private var selectedRecord: ProductizationEvidenceRecord?
   @State private var recordError: String?
+  @State private var gitPreview: ProductExperimentGitRolloutPreview?
+  @State private var gitPreviewError: String?
+  @State private var isLoadingGitPreview = false
 
   private var config: ProductizationConfig { project.productizationConfig }
   private var evidenceIndex: ProductizationEvidenceIndex { project.productizationEvidenceIndex }
@@ -53,13 +56,27 @@ struct ProductizationWorkbenchTab: View {
       }
       loadSelectedRecord()
     }
+    .task(id: gitPreviewTaskID) {
+      await loadGitPreview()
+    }
     .onChange(of: selectedExperimentID) { _, _ in
       selectedRunID = runsForSelectedExperiment.first?.runID
       loadSelectedRecord()
+      Task { await loadGitPreview() }
     }
     .onChange(of: selectedRunID) { _, _ in
       loadSelectedRecord()
     }
+  }
+
+  private var gitPreviewTaskID: String {
+    let experiment = selectedExperiment
+    return [
+      selectedExperimentID ?? "",
+      experiment?.decision.rawValue ?? "",
+      experiment?.currentSha ?? "",
+      "\(config.decisions.count)",
+    ].joined(separator: "|")
   }
 
   private var header: some View {
@@ -282,6 +299,7 @@ struct ProductizationWorkbenchTab: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
+          gitRolloutPreviewBlock(for: experiment)
           HStack(spacing: 8) {
             rolloutButton(.promoteOrConfirm, experiment: experiment)
             rolloutButton(.killOrArchive, experiment: experiment)
@@ -302,6 +320,45 @@ struct ProductizationWorkbenchTab: View {
     }
     .buttonStyle(.bordered)
     .disabled(!ProductExperimentRolloutWorkflow.canApply(action, to: experiment))
+  }
+
+  @ViewBuilder
+  private func gitRolloutPreviewBlock(for experiment: ProductExperiment) -> some View {
+    if experiment.decision == .promote || experiment.decision == .kill {
+      VStack(alignment: .leading, spacing: 6) {
+        if isLoadingGitPreview {
+          WorkbenchEmptyLine("Loading branch delta...")
+        } else if let gitPreview {
+          WorkbenchFact(label: "Accepted", value: "\(gitPreview.acceptedBranchName) @ \(short(gitPreview.acceptedBeforeSha))")
+          WorkbenchFact(label: "Experiment", value: "\(gitPreview.experimentBranchName) @ \(short(gitPreview.actualExperimentSha))")
+          WorkbenchFact(label: "Operation", value: gitPreview.kind.rawValue)
+          if !gitPreview.experimentStateMatchesBranch {
+            Label("Recorded experiment sha is stale; refresh before rollout.", systemImage: "exclamationmark.triangle")
+              .font(.caption)
+              .foregroundStyle(.orange)
+          }
+          if let archiveBranchName = gitPreview.archiveBranchName, experiment.decision == .kill {
+            WorkbenchFact(label: "Archive", value: archiveBranchName)
+          }
+          if !gitPreview.commitSubjects.isEmpty {
+            WorkbenchFact(label: "Commits", value: gitPreview.commitSubjects.prefix(3).joined(separator: "; "))
+          }
+          if !gitPreview.changedFiles.isEmpty {
+            WorkbenchFact(label: "Files", value: gitPreview.changedFiles.prefix(6).joined(separator: "; "))
+          }
+        } else if let gitPreviewError {
+          Label(gitPreviewError, systemImage: "exclamationmark.triangle")
+            .font(.caption)
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+          WorkbenchEmptyLine("Branch delta will appear before final rollout.")
+        }
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
   }
 
   private var evidenceRuns: some View {
@@ -437,8 +494,32 @@ struct ProductizationWorkbenchTab: View {
     }
   }
 
+  private func loadGitPreview() async {
+    guard let experiment = selectedExperiment,
+      experiment.decision == .promote || experiment.decision == .kill
+    else {
+      gitPreview = nil
+      gitPreviewError = nil
+      isLoadingGitPreview = false
+      return
+    }
+    isLoadingGitPreview = true
+    defer { isLoadingGitPreview = false }
+    do {
+      gitPreview = try await project.productExperimentGitRolloutPreview(experimentID: experiment.id)
+      gitPreviewError = nil
+    } catch {
+      gitPreview = nil
+      gitPreviewError = error.localizedDescription
+    }
+  }
+
   private func score(_ value: Int?) -> String {
     value.map(String.init) ?? "n/a"
+  }
+
+  private func short(_ sha: String) -> String {
+    String(sha.prefix(12))
   }
 }
 
