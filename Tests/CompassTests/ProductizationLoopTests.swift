@@ -666,6 +666,8 @@ struct ProductizationLoopTests {
     try #require(action.targetDecision == .kill)
     try #require(signal.pressure == .cut)
     try #require(signal.targetDecision == .kill)
+    try #require(proofTarget.label == "run targeted AI-user rejection proof")
+    try #require(proofTarget.displayTitle == "run targeted AI-user rejection proof")
     try #require(proofTarget.targetDecision == .kill)
     try #require(proofTarget.displaySubtitle.contains("decision kill"))
     try #require(proofTarget.auditSummary.contains("target_decision kill"))
@@ -799,6 +801,15 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
+    let proofTarget = try #require(ProductFactoryProofTargetAdvisor.target(
+      for: experiment,
+      config: config,
+      evidenceIndex: index
+    ))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
 
     try #require(readiness.aiUserCompletedRunCount == 2)
     try #require(readiness.aiUserDistinctPersonaCount == 2)
@@ -817,6 +828,9 @@ struct ProductizationLoopTests {
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetDecision == .kill)
+    try #require(proofTarget.label == "run AI-user alternative rejection proof")
+    try #require(proofTarget.targetDecision == .kill)
+    try #require(digest.contains("target run AI-user alternative rejection proof"))
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {
@@ -872,6 +886,8 @@ struct ProductizationLoopTests {
     try #require(action.targetDecision == .promote)
     try #require(signal.pressure == .lift)
     try #require(signal.targetDecision == .promote)
+    try #require(proofTarget.label == "run targeted AI-user validation proof")
+    try #require(proofTarget.displayTitle == "run targeted AI-user validation proof")
     try #require(proofTarget.targetDecision == .promote)
     try #require(proofTarget.displaySubtitle.contains("decision promote"))
     try #require(proofTarget.auditSummary.contains("target_decision promote"))

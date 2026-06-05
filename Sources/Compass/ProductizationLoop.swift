@@ -1508,12 +1508,22 @@ enum ProductFactoryProofTargetAdvisor {
       return "repair failed evidence"
     }
     if action?.targetScenarioID != nil {
-      if readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0
+      let targetsCurrentAlternative = readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0
         && action?.title.localizedCaseInsensitiveContains("alternative") == true
-      {
-        return "run targeted AI-user alternative proof"
+      switch action?.targetDecision {
+      case .promote:
+        return targetsCurrentAlternative
+          ? "run AI-user alternative validation proof"
+          : "run targeted AI-user validation proof"
+      case .kill:
+        return targetsCurrentAlternative
+          ? "run AI-user alternative rejection proof"
+          : "run targeted AI-user rejection proof"
+      case .notRun, .keepGoing, .narrow, .pivot, .archived, .promoted, nil:
+        return targetsCurrentAlternative
+          ? "run targeted AI-user alternative proof"
+          : "run targeted AI-user persona proof"
       }
-      return "run targeted AI-user persona proof"
     }
     if action?.requiredSimulationMode == .personaModel {
       return "add or enable runnable AI-user proof"
