@@ -622,6 +622,12 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
 }
 
 enum ProductFactoryAutopilotPlanner {
+  static func cohortSimulationMode(
+    isPersonaModelAvailable: Bool
+  ) -> ProductizationSimulationMode {
+    isPersonaModelAvailable ? .personaModel : .modelFree
+  }
+
   static func steps(
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex

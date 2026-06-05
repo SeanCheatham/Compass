@@ -3,6 +3,13 @@ import Foundation
 enum ProductizationSimulationMode: String, Codable, CaseIterable, Equatable, Sendable {
   case modelFree = "model_free"
   case personaModel = "persona_model"
+
+  var productFactoryLabel: String {
+    switch self {
+    case .modelFree: return "Model-free"
+    case .personaModel: return "AI-user"
+    }
+  }
 }
 
 enum ProductizationRunStatus: String, Codable, Equatable, Sendable {

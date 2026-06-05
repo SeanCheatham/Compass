@@ -220,6 +220,12 @@ enum ProductizationPlanningDigestFormatter {
     if let cohortID = step.cohortID {
       metadata.append("cohort \(cohortID)")
     }
+    if step.kind == .runCohort {
+      let mode = ProductFactoryAutopilotPlanner.cohortSimulationMode(
+        isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+      )
+      metadata.append("mode \(mode.rawValue)")
+    }
     if let blockedReason = step.blockedReason {
       metadata.append("blocked \(bounded(blockedReason, 140))")
     }

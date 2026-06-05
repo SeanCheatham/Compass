@@ -148,6 +148,12 @@ struct ProductizationWorkbenchTab: View {
     .first
   }
 
+  private var factoryAutopilotCohortMode: ProductizationSimulationMode {
+    ProductFactoryAutopilotPlanner.cohortSimulationMode(
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+    )
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       header
@@ -428,6 +434,12 @@ struct ProductizationWorkbenchTab: View {
           )
           WorkbenchFact(label: "Cycle", value: factoryAutopilotCyclePlan.summary)
           WorkbenchFact(label: "Queue", value: factoryAutopilotCyclePlan.queueSummary)
+          if step.kind == .runCohort {
+            WorkbenchFact(
+              label: "Mode",
+              value: "\(factoryAutopilotCohortMode.productFactoryLabel) cohort"
+            )
+          }
           if let latestFactoryCycleAudit {
             WorkbenchFact(label: "Last Cycle", value: latestFactoryCycleAudit.summary)
           }
@@ -1213,10 +1225,22 @@ struct ProductizationWorkbenchTab: View {
       return nil
     case .runCohort:
       guard let cohortID = step.cohortID else { return nil }
-      let outcome = await project.runProductizationScenarioCohortModelFree(
-        experimentID: step.experimentID,
-        cohortID: cohortID
+      let mode = ProductFactoryAutopilotPlanner.cohortSimulationMode(
+        isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
       )
+      let outcome: ProductizationScenarioCohortRunOutcome?
+      switch mode {
+      case .modelFree:
+        outcome = await project.runProductizationScenarioCohortModelFree(
+          experimentID: step.experimentID,
+          cohortID: cohortID
+        )
+      case .personaModel:
+        outcome = await project.runProductizationScenarioCohortPersonaModel(
+          experimentID: step.experimentID,
+          cohortID: cohortID
+        )
+      }
       if let outcome {
         if let latestRecordID = outcome.latestRecordID {
           selectedRunID = latestRecordID

@@ -317,6 +317,19 @@ struct ProductizationLoopTests {
     try #require(step.cohortReadiness?.canRun == true)
   }
 
+  @Test func productFactoryAutopilotSelectsAIUserCohortsWhenAvailable() throws {
+    try #require(
+      ProductFactoryAutopilotPlanner.cohortSimulationMode(isPersonaModelAvailable: true)
+        == .personaModel
+    )
+    try #require(
+      ProductFactoryAutopilotPlanner.cohortSimulationMode(isPersonaModelAvailable: false)
+        == .modelFree
+    )
+    try #require(ProductizationSimulationMode.personaModel.productFactoryLabel == "AI-user")
+    try #require(ProductizationSimulationMode.modelFree.productFactoryLabel == "Model-free")
+  }
+
   @Test func productFactoryAutopilotCyclePlanCapsExecutableSteps() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",
