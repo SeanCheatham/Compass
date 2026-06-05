@@ -26,6 +26,7 @@ enum ProductizationPlanningDigestFormatter {
     lines += unknownLines(config: config)
     lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
     lines += evidenceTensionLines(config: config, evidenceIndex: evidenceIndex)
+    lines += rationaleSignalLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += autopilotLines(config: config, evidenceIndex: evidenceIndex)
@@ -279,6 +280,44 @@ enum ProductizationPlanningDigestFormatter {
         metadata.append("proof_debt \(bounded(proofDebtSummary, 160))")
       }
       lines.append("- \(signal.experimentID): \(metadata.joined(separator: "; ")).")
+    }
+    return lines
+  }
+
+  private static func rationaleSignalLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    let signals = ProductFactoryRationaleSignalAdvisor.signals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    guard !signals.isEmpty else { return [] }
+    var lines = ["Product-factory rationale signals:"]
+    for signal in signals.prefix(4) {
+      var metadata = [
+        "action resolve_rationale_signal",
+        "count \(signal.count)",
+        "priority \(signal.urgencyScore)",
+      ]
+      if let targetCohortID = signal.targetCohortID {
+        metadata.append("cohort \(targetCohortID)")
+      }
+      if let targetScenarioID = signal.targetScenarioID {
+        metadata.append("target_scenario \(targetScenarioID)")
+      }
+      if let targetPersonaID = signal.targetPersonaID {
+        metadata.append("target_persona \(targetPersonaID)")
+      }
+      if let targetPersonaName = signal.targetPersonaName {
+        metadata.append("target_name \(bounded(targetPersonaName, 80))")
+      }
+      if !signal.runIDs.isEmpty {
+        metadata.append("runs \(signal.runIDs.prefix(4).joined(separator: ", "))")
+      }
+      lines.append(
+        "- \(signal.experimentID): \(metadata.joined(separator: "; ")); \(bounded(signal.rationale, 180)); \(bounded(signal.summary, 220))."
+      )
     }
     return lines
   }

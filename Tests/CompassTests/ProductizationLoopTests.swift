@@ -906,6 +906,200 @@ struct ProductizationLoopTests {
     try #require(action.requiredSimulationMode == .personaModel)
   }
 
+  @Test func pmfNextActionRunsTargetedAIUserRationaleSignalProof() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let operatorSegment = config.userSegments[0]
+    let buyer = config.userSegments[1]
+    let operatorScenario = try #require(
+      config.scenarios.first {
+        $0.experimentID == experiment.id && $0.segmentID == operatorSegment.id
+      })
+    let buyerScenario = try #require(
+      config.scenarios.first {
+        $0.experimentID == experiment.id && $0.segmentID == buyer.id
+      })
+    let scores = ProductizationEvidenceScores(
+      painRecognition: 4,
+      workflowImprovement: 4,
+      alternativeAdvantage: 4,
+      switchingReadiness: 4,
+      continuedUsePull: 4
+    )
+    let index = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "rationale-operator",
+          experiment: experiment,
+          config: config,
+          personaID: operatorSegment.id,
+          mode: .personaModel,
+          endedAt: 200,
+          verdict: .promising,
+          scores: scores,
+          currentAlternativeComparison: "Compared against the current workflow.",
+          scenarioID: operatorScenario.id,
+          personaActionRationales: [
+            "turn 1 choose valid action compare_current_alternative: Needed proof against the manual workflow before switching."
+          ]
+        ),
+        makeDecisionAdvisorRecord(
+          id: "rationale-buyer",
+          experiment: experiment,
+          config: config,
+          personaID: buyer.id,
+          mode: .personaModel,
+          endedAt: 300,
+          verdict: .promising,
+          scores: scores,
+          currentAlternativeComparison: "Compared against the current workflow.",
+          scenarioID: buyerScenario.id,
+          personaActionRationales: [
+            "turn 2 choose valid action reduce_switching_objection: Needed proof against the manual workflow before switching."
+          ]
+        ),
+      ]
+    )
+
+    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let signal = try #require(
+      ProductFactoryRationaleSignalAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
+
+    try #require(readiness.recommendation == .keepGoing)
+    try #require(signal.rationale.contains("needed proof against the manual workflow"))
+    try #require(signal.targetPersonaID == buyer.id)
+    try #require(signal.targetScenarioID == buyerScenario.id)
+    try #require(signal.targetCohortID == config.scenarioCohorts[0].id)
+    try #require(action.kind == .runCohort)
+    try #require(action.title == "Resolve AI-user rationale signal")
+    try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetPersonaID == buyer.id)
+    try #require(action.targetScenarioID == buyerScenario.id)
+    try #require(action.detail.contains("Repeated AI-user rationale"))
+    try #require(action.detail.contains("before lift/cut"))
+    try #require(step.canExecute)
+    try #require(step.action.title == "Resolve AI-user rationale signal")
+    try #require(digest.contains("Product-factory rationale signals"))
+    try #require(digest.contains("resolve_rationale_signal"))
+    try #require(digest.contains("rationale-buyer"))
+  }
+
+  @Test func pmfNextActionRefinesRepeatedRationaleSignalBeforeGenericNarrowing() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .narrow
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let operatorSegment = config.userSegments[0]
+    let buyer = config.userSegments[1]
+    let operatorScenario = try #require(
+      config.scenarios.first {
+        $0.experimentID == experiment.id && $0.segmentID == operatorSegment.id
+      })
+    let buyerScenario = try #require(
+      config.scenarios.first {
+        $0.experimentID == experiment.id && $0.segmentID == buyer.id
+      })
+    let scores = ProductizationEvidenceScores(
+      painRecognition: 4,
+      workflowImprovement: 3,
+      alternativeAdvantage: 3,
+      switchingReadiness: 3,
+      continuedUsePull: 3
+    )
+    let index = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "csv-operator",
+          experiment: experiment,
+          config: config,
+          personaID: operatorSegment.id,
+          mode: .personaModel,
+          endedAt: 200,
+          verdict: .unclear,
+          scores: scores,
+          missingCapabilities: ["csv_import"],
+          currentAlternativeComparison: "Compared against the current workflow.",
+          scenarioID: operatorScenario.id,
+          personaActionRationales: [
+            "turn 1 choose valid action compare_current_alternative: Needed CSV import proof before trusting a switch."
+          ]
+        ),
+        makeDecisionAdvisorRecord(
+          id: "csv-buyer",
+          experiment: experiment,
+          config: config,
+          personaID: buyer.id,
+          mode: .personaModel,
+          endedAt: 300,
+          verdict: .unclear,
+          scores: scores,
+          missingCapabilities: ["csv_import"],
+          currentAlternativeComparison: "Compared against the current workflow.",
+          scenarioID: buyerScenario.id,
+          personaActionRationales: [
+            "turn 2 choose valid action reduce_switching_objection: Needed CSV import proof before trusting a switch."
+          ]
+        ),
+      ]
+    )
+
+    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let signal = ProductFactoryExperimentRanker.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: index
+    )
+
+    try #require(readiness.recommendation == .narrow)
+    try #require(action.kind == .refineBet)
+    try #require(action.title == "Resolve AI-user rationale signal")
+    try #require(action.cohortID == nil)
+    try #require(action.targetPersonaID == buyer.id)
+    try #require(action.targetScenarioID == buyerScenario.id)
+    try #require(action.detail.contains("needed csv import proof"))
+    try #require(action.detail.contains("Update the prototype or scenario"))
+    try #require(signal.nextActionTitle == "Resolve AI-user rationale signal")
+    try #require(signal.pressure == .reshape)
+  }
+
   @Test func pmfNextActionNamesMissingAIUserSegmentInSuggestedCohort() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",
@@ -2516,7 +2710,8 @@ private func makeDecisionAdvisorRecord(
   objections: [String] = [],
   missingCapabilities: [String] = [],
   currentAlternativeComparison: String = "Compared against the current workflow.",
-  scenarioID: String? = nil
+  scenarioID: String? = nil,
+  personaActionRationales: [String] = []
 ) -> ProductizationEvidenceRecord {
   let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
   return ProductizationEvidenceRecord(
@@ -2538,6 +2733,7 @@ private func makeDecisionAdvisorRecord(
     objections: objections,
     missingCapabilities: missingCapabilities,
     currentAlternativeComparison: currentAlternativeComparison,
+    personaActionRationales: personaActionRationales,
     verdict: verdict,
     summary: "Evidence summary for \(id)."
   )

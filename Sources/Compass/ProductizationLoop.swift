@@ -843,6 +843,260 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
   }
 }
 
+struct ProductFactoryRationaleSignal: Equatable, Sendable, Identifiable {
+  var id: String { "\(experimentID):\(rationale)" }
+
+  var experimentID: String
+  var rationale: String
+  var count: Int
+  var runIDs: [String]
+  var targetPersonaID: String?
+  var targetPersonaName: String?
+  var targetScenarioID: String?
+  var targetCohortID: String?
+  var summary: String
+
+  var urgencyScore: Int {
+    76 + min(12, max(0, count - 2) * 3)
+  }
+
+  var auditSummary: String {
+    var parts = [
+      "\(experimentID): resolve AI-user rationale signal",
+      "count \(count)",
+      rationale,
+    ]
+    if let targetPersonaName {
+      parts.append("target \(targetPersonaName)")
+    }
+    if let targetScenarioID {
+      parts.append("scenario \(targetScenarioID)")
+    }
+    if let targetCohortID {
+      parts.append("cohort \(targetCohortID)")
+    }
+    if !runIDs.isEmpty {
+      parts.append("runs \(runIDs.prefix(4).joined(separator: ", "))")
+    }
+    parts.append(summary)
+    return StringUtils.boundedText(parts.joined(separator: "; "), limit: 360)
+  }
+
+  init(
+    experimentID: String,
+    rationale: String,
+    count: Int,
+    runIDs: [String],
+    targetPersonaID: String? = nil,
+    targetPersonaName: String? = nil,
+    targetScenarioID: String? = nil,
+    targetCohortID: String? = nil,
+    summary: String
+  ) {
+    self.experimentID = ProductizationModelText.identifier(
+      experimentID,
+      fallback: "experiment"
+    )
+    self.rationale = ProductizationModelText.cleanedText(
+      rationale,
+      fallback: "Repeated AI-user rationale needs product proof.",
+      limit: 260
+    )
+    self.count = max(0, count)
+    self.runIDs = ProductizationModelText.cleanedList(runIDs, limit: 96)
+    self.targetPersonaID = ProductizationModelText.optionalIdentifier(
+      targetPersonaID,
+      fallback: "persona"
+    )
+    self.targetPersonaName = ProductizationModelText.optionalCleanedText(
+      targetPersonaName,
+      limit: 160
+    )
+    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+      targetScenarioID,
+      fallback: "scenario"
+    )
+    self.targetCohortID = ProductizationModelText.optionalIdentifier(
+      targetCohortID,
+      fallback: "cohort"
+    )
+    self.summary = ProductizationModelText.cleanedText(
+      summary,
+      fallback:
+        "Repeated AI-user rationale points to a PMF proof gap; resolve it before lift/cut decisions.",
+      limit: 1_000
+    )
+  }
+}
+
+enum ProductFactoryRationaleSignalAdvisor {
+  static func signals(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [ProductFactoryRationaleSignal] {
+    config.experiments.compactMap { experiment in
+      signal(for: experiment, config: config, evidenceIndex: evidenceIndex)
+    }
+    .sorted { lhs, rhs in
+      if lhs.urgencyScore == rhs.urgencyScore { return lhs.experimentID < rhs.experimentID }
+      return lhs.urgencyScore > rhs.urgencyScore
+    }
+  }
+
+  static func signal(
+    for experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryRationaleSignal? {
+    let summaries = evidenceIndex.summaries(for: experiment)
+    guard !summaries.isEmpty else { return nil }
+    let aggregate = ProductizationEvidenceAggregateSummary(summaries: summaries)
+    guard let aggregateSignal = aggregate.personaRationaleSignals.first(where: {
+      isActionable($0.rationale)
+    }) else { return nil }
+    let sourceRunIDs = Set(aggregateSignal.runIDs)
+    let sourceSummaries = summaries.filter { sourceRunIDs.contains($0.runID) }
+    let target = target(for: sourceSummaries, experiment: experiment, config: config)
+    let targetLabel =
+      target?.personaName.map { " Target \(StringUtils.boundedText($0, limit: 80))" } ?? ""
+    let rationaleText = aggregateSignal.rationale.trimmingCharacters(in: .whitespacesAndNewlines)
+    let rationalePunctuation = rationaleText.hasSuffix(".") ? "" : "."
+    let summary =
+      "Repeated AI-user rationale appeared in \(aggregateSignal.count) current run(s): \(rationaleText)\(rationalePunctuation)\(targetLabel) Resolve this reason with prototype, scenario, or current-alternative proof before lift/cut."
+    return ProductFactoryRationaleSignal(
+      experimentID: experiment.id,
+      rationale: aggregateSignal.rationale,
+      count: aggregateSignal.count,
+      runIDs: aggregateSignal.runIDs,
+      targetPersonaID: target?.personaID,
+      targetPersonaName: target?.personaName,
+      targetScenarioID: target?.scenarioID,
+      targetCohortID: target?.cohortID,
+      summary: summary
+    )
+  }
+
+  private struct SignalTarget: Equatable, Sendable {
+    var personaID: String?
+    var personaName: String?
+    var scenarioID: String?
+    var cohortID: String?
+  }
+
+  private static func target(
+    for summaries: [ProductizationEvidenceSummary],
+    experiment: ProductExperiment,
+    config: ProductizationConfig
+  ) -> SignalTarget? {
+    let preferred = summaries.sorted { lhs, rhs in
+      let lhsRank = sourceRank(lhs)
+      let rhsRank = sourceRank(rhs)
+      if lhsRank == rhsRank {
+        if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
+        return lhs.endedAt > rhs.endedAt
+      }
+      return lhsRank > rhsRank
+    }
+    for summary in preferred {
+      let scenarioID = summary.scenarioID.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !scenarioID.isEmpty,
+        let scenario = config.scenarios.first(where: {
+          $0.id == scenarioID && $0.experimentID == experiment.id
+        })
+      else { continue }
+      return SignalTarget(
+        personaID: scenario.segmentID,
+        personaName: segmentName(for: scenario.segmentID, config: config),
+        scenarioID: scenario.id,
+        cohortID: executableCohortID(
+          forScenarioID: scenario.id,
+          experiment: experiment,
+          config: config
+        )
+      )
+    }
+    guard let summary = preferred.first else { return nil }
+    return SignalTarget(
+      personaID: summary.personaID,
+      personaName: segmentName(for: summary.personaID, config: config),
+      scenarioID: nil,
+      cohortID: nil
+    )
+  }
+
+  private static func sourceRank(_ summary: ProductizationEvidenceSummary) -> Int {
+    var rank = summary.mode == .personaModel ? 10 : 0
+    switch summary.verdict {
+    case .rejected: rank += 5
+    case .weak: rank += 4
+    case .unclear: rank += 3
+    case .promising: rank += 2
+    case .strongPull: rank += 1
+    }
+    return rank
+  }
+
+  private static func isActionable(_ rationale: String) -> Bool {
+    let normalized = normalizedRationale(rationale)
+    guard !normalized.isEmpty else { return false }
+    let actionableTerms = [
+      "need",
+      "needed",
+      "needs",
+      "before",
+      "switch",
+      "trust",
+      "proof",
+      "evidence",
+      "alternative",
+      "spreadsheet",
+      "manual",
+      "missing",
+      "import",
+      "risk",
+      "roi",
+      "objection",
+      "concern",
+      "unclear",
+      "cannot",
+      "can't",
+      "reject",
+      "hesitat",
+    ]
+    return actionableTerms.contains { normalized.contains($0) }
+  }
+
+  private static func normalizedRationale(_ value: String) -> String {
+    value
+      .lowercased()
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+  }
+
+  private static func executableCohortID(
+    forScenarioID scenarioID: String,
+    experiment: ProductExperiment,
+    config: ProductizationConfig
+  ) -> String? {
+    config.scenarioCohorts
+      .filter {
+        $0.experimentID == experiment.id
+          && $0.enabled
+          && $0.scenarioIDs.contains(scenarioID)
+      }
+      .sorted {
+        if $0.scenarioIDs.count == $1.scenarioIDs.count { return $0.title < $1.title }
+        return $0.scenarioIDs.count < $1.scenarioIDs.count
+      }
+      .first?.id
+  }
+
+  private static func segmentName(for segmentID: String, config: ProductizationConfig) -> String {
+    let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
+    return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
+  }
+}
+
 struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
   var id: String { experimentID }
 
@@ -2209,6 +2463,50 @@ enum ProductMarketFitNextActionAdvisor {
           targetPersonaID: tension.targetPersonaID,
           targetPersonaName: tension.targetPersonaName,
           targetScenarioID: tension.targetScenarioID
+        ),
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
+
+    if let rationaleSignal = ProductFactoryRationaleSignalAdvisor.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      let canRunTarget = rationaleSignal.targetCohortID != nil
+        && rationaleSignal.targetScenarioID != nil
+      let shouldRunTarget =
+        canRunTarget
+        && (readiness.recommendation == .gatherEvidence || readiness.recommendation == .keepGoing)
+      let actionKind: ProductMarketFitNextActionKind = shouldRunTarget ? .runCohort : .refineBet
+      let targetDetail: String
+      if shouldRunTarget, let cohortID = rationaleSignal.targetCohortID,
+        let scenarioID = rationaleSignal.targetScenarioID,
+        let targetPersonaName = rationaleSignal.targetPersonaName
+      {
+        targetDetail =
+          "\(rationaleSignal.summary) Rerun persona-model scenario `\(scenarioID)` for \(targetPersonaName) in cohort `\(cohortID)` after this rationale has been addressed."
+      } else if let targetPersonaName = rationaleSignal.targetPersonaName {
+        targetDetail =
+          "\(rationaleSignal.summary) Update the prototype or scenario for \(targetPersonaName), then rerun AI-user proof before investing further."
+      } else {
+        targetDetail =
+          "\(rationaleSignal.summary) Update the prototype, scenario, or decision criteria, then rerun AI-user proof before investing further."
+      }
+      return applyingRecentCycleGuards(
+        to: ProductMarketFitNextAction(
+          experimentID: experiment.id,
+          kind: actionKind,
+          title: "Resolve AI-user rationale signal",
+          detail: targetDetail,
+          priority: rationaleSignal.urgencyScore,
+          cohortID: shouldRunTarget ? rationaleSignal.targetCohortID : nil,
+          requiredSimulationMode: .personaModel,
+          targetPersonaID: rationaleSignal.targetPersonaID,
+          targetPersonaName: rationaleSignal.targetPersonaName,
+          targetScenarioID: rationaleSignal.targetScenarioID
         ),
         experiment: experiment,
         config: config,
