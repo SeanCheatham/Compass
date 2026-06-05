@@ -1507,8 +1507,72 @@ struct ProductizationWorkbenchTab: View {
     selectedExperimentID = step.experimentID
     isRunningFactoryStep = true
     defer { isRunningFactoryStep = false }
+    let stepStartedAt = Date()
+    let startingProofDebt = productFactoryProofDebt(forExperimentID: step.experimentID)
+    let decisionCandidateSummaries = productFactoryDecisionCandidate(forExperimentID: step.experimentID)
+      .map { [$0.auditSummary] } ?? []
+    let evidenceTensionSummaries = productFactoryEvidenceTension(forExperimentID: step.experimentID)
+      .map { [$0.auditSummary] } ?? []
+    let proofTargetSummaries = productFactoryProofTarget(forExperimentID: step.experimentID)
+      .map { [$0.auditSummary] } ?? []
+    let revisionBriefSummaries =
+      step.kind == .applyRevision
+      ? productFactoryRevisionBrief(forExperimentID: step.experimentID).map { [$0.auditSummary] } ?? []
+      : []
+    let personaRationaleSignalSummaries: [String]
+    if let stepExperiment = project.productizationConfig.experiments.first(where: {
+      $0.id == step.experimentID
+    }),
+      let rationaleSignal = ProductFactoryRationaleSignalAdvisor.signal(
+        for: stepExperiment,
+        config: project.productizationConfig,
+        evidenceIndex: project.productizationEvidenceIndex
+      )
+    {
+      personaRationaleSignalSummaries = [rationaleSignal.auditSummary]
+    } else {
+      personaRationaleSignalSummaries = []
+    }
     let result = await executeFactoryAutopilotStep(step)
+    let startingProofDebtSnapshot = productFactoryProofDebtSnapshot(
+      experimentIDs: [step.experimentID],
+      proofDebts: startingProofDebt.map { [step.experimentID: $0] }
+    )
+    let endingProofDebtSnapshot = productFactoryProofDebtSnapshot(
+      experimentIDs: [step.experimentID]
+    )
+    let stopReason: ProductFactoryAutopilotCycleStopReason =
+      result == nil
+      ? .executionFailed(
+        stepID: step.id,
+        title: step.title,
+        message: project.errorMessage ?? step.blockedReason
+      )
+      : .reachedStepLimit
+    let outcome = ProductFactoryAutopilotCycleOutcome(
+      executedSteps: result == nil ? [] : [step],
+      messages: result.map { [$0.message] } ?? [],
+      maxSteps: 1,
+      stopReason: stopReason,
+      evidenceRunIDs: result?.evidenceRunIDs ?? [],
+      completedEvidenceRunCount: result?.completedEvidenceRunCount ?? 0,
+      failedEvidenceRunCount: result?.failedEvidenceRunCount ?? 0,
+      skippedScenarioCount: result?.skippedScenarioCount ?? 0,
+      startingProofDebtCount: startingProofDebtSnapshot?.count,
+      endingProofDebtCount: endingProofDebtSnapshot?.count,
+      startingProofDebtSummary: startingProofDebtSnapshot?.summary,
+      endingProofDebtSummary: endingProofDebtSnapshot?.summary,
+      decisionCandidateSummaries: decisionCandidateSummaries,
+      evidenceTensionSummaries: evidenceTensionSummaries,
+      proofTargetSummaries: proofTargetSummaries,
+      personaRationaleSignalSummaries: personaRationaleSignalSummaries,
+      revisionBriefSummaries: revisionBriefSummaries
+    )
+    let audit = outcome.audit(startedAt: stepStartedAt)
     scenarioRunMessage = result?.message ?? project.errorMessage ?? step.blockedReason
+    await project.saveProductizationConfig(
+      project.productizationConfig.recordingFactoryCycleAudit(audit)
+    )
     await loadContractStatus()
   }
 
