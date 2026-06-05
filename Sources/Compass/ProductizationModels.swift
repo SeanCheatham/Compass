@@ -913,6 +913,8 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
   var appliedDecisionCount: Int
   var promotedDecisionCount: Int
   var killedDecisionCount: Int
+  var targetedPromoteProofCount: Int
+  var targetedKillProofCount: Int
   var evidenceRunStepCount: Int
   var evidenceRunIDs: [String]
   var completedEvidenceRunCount: Int
@@ -950,6 +952,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       : "; runs \(evidenceRunIDs.prefix(5).joined(separator: ", "))"
     let proofDebt =
       proofDebtSummary.map { "; \($0)" } ?? ""
+    let targetedProof =
+      targetedPromoteProofCount + targetedKillProofCount > 0
+      ? "; targeted proof \(targetedPromoteProofCount) promote, \(targetedKillProofCount) kill"
+      : ""
     let decisionCandidates =
       decisionCandidateSummaries.isEmpty
       ? ""
@@ -971,7 +977,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       ? ""
       : "; revisions \(revisionBriefSummaries.prefix(3).joined(separator: " | "))"
     return
-      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
+      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill)\(targetedProof); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
   }
 
   private var proofDebtSummary: String? {
@@ -993,6 +999,8 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     appliedDecisionCount: Int = 0,
     promotedDecisionCount: Int = 0,
     killedDecisionCount: Int = 0,
+    targetedPromoteProofCount: Int = 0,
+    targetedKillProofCount: Int = 0,
     evidenceRunStepCount: Int = 0,
     evidenceRunIDs: [String] = [],
     completedEvidenceRunCount: Int = 0,
@@ -1025,6 +1033,8 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     self.appliedDecisionCount = max(0, appliedDecisionCount)
     self.promotedDecisionCount = max(0, promotedDecisionCount)
     self.killedDecisionCount = max(0, killedDecisionCount)
+    self.targetedPromoteProofCount = max(0, targetedPromoteProofCount)
+    self.targetedKillProofCount = max(0, targetedKillProofCount)
     self.evidenceRunStepCount = max(0, evidenceRunStepCount)
     self.evidenceRunIDs = ProductizationModelText.cleanedList(evidenceRunIDs, limit: 120)
     self.completedEvidenceRunCount = max(0, completedEvidenceRunCount)
@@ -1087,6 +1097,8 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     case appliedDecisionCount
     case promotedDecisionCount
     case killedDecisionCount
+    case targetedPromoteProofCount
+    case targetedKillProofCount
     case evidenceRunStepCount
     case evidenceRunIDs
     case completedEvidenceRunCount
@@ -1129,6 +1141,14 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       killedDecisionCount: try container.decodeIfPresent(
         Int.self,
         forKey: .killedDecisionCount
+      ) ?? 0,
+      targetedPromoteProofCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .targetedPromoteProofCount
+      ) ?? 0,
+      targetedKillProofCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .targetedKillProofCount
       ) ?? 0,
       evidenceRunStepCount: try container.decodeIfPresent(
         Int.self,

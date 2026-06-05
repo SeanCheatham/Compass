@@ -2730,8 +2730,16 @@ struct ProductizationLoopTests {
     try #require(audit.appliedDecisionCount == 0)
     try #require(audit.promotedDecisionCount == 0)
     try #require(audit.killedDecisionCount == 0)
+    try #require(audit.targetedPromoteProofCount == 1)
+    try #require(audit.targetedKillProofCount == 0)
     try #require(audit.evidenceRunStepCount == 1)
     try #require(audit.userMessage.contains("targeted proof 1 promote, 0 kill"))
+    try #require(audit.summary.contains("targeted proof 1 promote, 0 kill"))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config.recordingFactoryCycleAudit(audit),
+      evidenceIndex: index
+    )
+    try #require(digest.contains("targeted proof 1 promote, 0 kill"))
   }
 
   @Test func productFactoryAutopilotCycleOutcomeCountsLiftAndCutDecisions() throws {

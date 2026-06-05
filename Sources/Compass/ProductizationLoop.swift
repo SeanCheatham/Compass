@@ -2054,6 +2054,8 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       appliedDecisionCount: appliedDecisionCount,
       promotedDecisionCount: promotedDecisionCount,
       killedDecisionCount: killedDecisionCount,
+      targetedPromoteProofCount: targetedPromoteProofCount,
+      targetedKillProofCount: targetedKillProofCount,
       evidenceRunStepCount: evidenceRunStepCount,
       evidenceRunIDs: evidenceRunIDs,
       completedEvidenceRunCount: completedEvidenceRunCount,
