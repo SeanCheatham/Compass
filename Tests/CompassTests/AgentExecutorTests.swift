@@ -873,7 +873,7 @@ struct AgentExecutorTests {
     let nudge = AgentExecutor.invalidToolArgumentsNudge(
       toolName: "edit_file",
       finishReason: "length",
-      argumentsPreview: "{\"path\":\"foo.swift\",\"edits\":[{\"oldStri",
+      argumentsPreview: "{\"path\":\"foo.swift\",\"edits\":[{\"startLi",
       maxCompletionTokens: 80_000
     )
     try #require(nudge.eventText == "edit_file truncated")
@@ -884,9 +884,9 @@ struct AgentExecutorTests {
       nudge.userMessage.contains("smaller"),
       "truncation nudge should push the model toward smaller payloads")
     try #require(nudge.userMessage.contains("Use this compact `edit_file` retry shape"))
-    try #require(nudge.userMessage.contains("\"oldString\""))
-    try #require(nudge.userMessage.contains("\"newString\""))
-    try #require(nudge.userMessage.contains("\"replaceAll\": false"))
+    try #require(nudge.userMessage.contains("\"startLine\""))
+    try #require(nudge.userMessage.contains("\"endLine\""))
+    try #require(nudge.userMessage.contains("\"replacementLines\""))
     try #require(nudge.userMessage.contains("complete, valid JSON"))
   }
 
@@ -900,14 +900,14 @@ struct AgentExecutorTests {
       let nudge = AgentExecutor.invalidToolArgumentsNudge(
         toolName: "edit_file",
         finishReason: reason,
-        argumentsPreview: "{\"path\":\"foo.swift\",\"edits\":[{\"oldString\":\"let x = 1\nlet y",
+        argumentsPreview: "{\"path\":\"foo.swift\",\"edits\":[{\"startLine\":42,\"replacementLines\":[\"let x",
         maxCompletionTokens: 80_000
       )
       try #require(
         nudge.eventText == "edit_file rejected",
         "finishReason=\(reason ?? "nil") should not be treated as the length variant")
       try #require(
-        nudge.eventDetail.contains("oldString"),
+        nudge.eventDetail.contains("replacementLines"),
         "rejected detail should include the args preview so the user can see what was bad")
       try #require(
         nudge.userMessage.contains("`edit_file`"),
@@ -919,7 +919,8 @@ struct AgentExecutorTests {
         nudge.userMessage.contains("escaping"),
         "rejected nudge should mention escaping — model-side escape bugs are a common cause")
       try #require(nudge.userMessage.contains("Use this compact `edit_file` retry shape"))
-      try #require(nudge.userMessage.contains("oldString"))
+      try #require(nudge.userMessage.contains("startLine"))
+      try #require(nudge.userMessage.contains("read_file"))
       try #require(nudge.userMessage.contains("Do not answer in prose"))
       try #require(
         !nudge.userMessage.contains("submit_result"),
@@ -1205,7 +1206,7 @@ struct AgentExecutorTests {
       AgentToolInvocationResult.failure(.fileNotFound("missing.txt")).errorKind == .fileNotFound
     )
     try #require(
-      AgentToolInvocationResult.failure(.editConflict("oldString not found")).errorKind
+      AgentToolInvocationResult.failure(.editConflict("line range out of range")).errorKind
         == .editConflict
     )
     try #require(

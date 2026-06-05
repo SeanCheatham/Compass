@@ -25,9 +25,12 @@ final class AgentReadFileToolTests {
     let result = try await invoke(["path": "hello.txt"], context: context)
 
     try #require(!result.isError)
+    try #require(result.content.contains("Lines are 1-indexed"))
+    try #require(result.content.contains("edit_file startLine/endLine"))
     try #require(result.content.contains("     1\talpha"))
     try #require(result.content.contains("     2\tbeta"))
     try #require(result.content.contains("     3\tgamma"))
+    try #require(result.content.contains("(total 3 lines)"))
   }
 
   @Test func testOffsetAndLimitNarrowTheSlice() async throws {

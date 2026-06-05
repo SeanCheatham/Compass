@@ -63,7 +63,7 @@ enum AgentToolErrorKind: String, Sendable, Equatable, Codable {
   /// Mutation attempted against a file the agent has not freshly
   /// read in this run (`AgentReadTracker` rejected the edit).
   case readNotTracked
-  /// `edit_file` find/replace did not match the expected oldString.
+  /// `edit_file` line range was invalid or out of range for the current file.
   case editConflict
   /// Underlying I/O failed (permission denied, disk error, ...).
   case ioFailure
@@ -107,18 +107,27 @@ struct AgentToolInvocationResult: Sendable, Equatable {
 
 /// Tracks which file paths have been freshly read during an agent execution.
 /// `edit_file` and `write_file` (when overwriting) consult this to refuse
-/// edits against contents the model has not actually seen — so a hallucinated
-/// `oldString` or a stomped existing file gets caught early instead of
-/// silently corrupting state.
+/// edits against contents the model has not actually seen — so edits against
+/// stale or hallucinated line numbers get caught early instead of silently
+/// corrupting state.
 actor AgentReadTracker {
   private var readPaths: Set<String> = []
+  private var lineCounts: [String: Int] = [:]
 
-  func markRead(_ url: URL) {
-    readPaths.insert(url.standardizedFileURL.path)
+  func markRead(_ url: URL, lineCount: Int? = nil) {
+    let path = url.standardizedFileURL.path
+    readPaths.insert(path)
+    if let lineCount {
+      lineCounts[path] = lineCount
+    }
   }
 
   func wasRead(_ url: URL) -> Bool {
     readPaths.contains(url.standardizedFileURL.path)
+  }
+
+  func lineCount(for url: URL) -> Int? {
+    lineCounts[url.standardizedFileURL.path]
   }
 }
 
@@ -224,7 +233,7 @@ enum AgentToolError: LocalizedError, Equatable {
   case binaryFile(String)
   /// Mutation attempted against a path the agent hasn't read this run.
   case readNotTracked(String)
-  /// `edit_file` find/replace failed to match.
+  /// `edit_file` line-range edit failed to apply.
   case editConflict(String)
   /// I/O failure surfaced by the underlying filesystem.
   case ioFailure(String)

@@ -104,7 +104,7 @@ struct AgentReadFileTool: AgentTool {
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Read a UTF-8 text file from the working directory. Returns line-numbered content. Optional 1-indexed offset and limit narrow the slice. Refuses binary files.",
+        "Read a UTF-8 text file from the working directory. Returns 1-indexed line-numbered content (`NNNNNN\\tline text`). Use those line numbers with edit_file startLine/endLine. Optional offset and limit narrow the slice. Refuses binary files.",
       parameters: schema
     )
   }
@@ -176,11 +176,13 @@ struct AgentReadFileTool: AgentTool {
       return String(format: "%6d\t", lineNumber) + truncatedLine
     }.joined(separator: "\n")
 
-    var output = rendered
+    var output = "Lines are 1-indexed. Use these numbers with edit_file startLine/endLine.\n"
+    output += rendered
     if endIndex < totalLines {
       output += "\n... \(totalLines - endIndex) more lines"
     }
-    await context.readTracker.markRead(url)
+    output += "\n(total \(totalLines) lines)"
+    await context.readTracker.markRead(url, lineCount: totalLines)
     return .ok(output)
   }
 }

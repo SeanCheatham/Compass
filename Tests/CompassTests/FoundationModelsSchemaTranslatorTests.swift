@@ -69,14 +69,13 @@ struct FoundationModelsSchemaTranslatorTests {
   }
 
   @Test
-  func testGeneratedContentJSONDataEscapesMultilineToolStrings() throws {
-    let oldString = "let a = 1\nlet b = 2"
-    let newString = "let a = \"quoted\"\nlet b = 3"
+  func testGeneratedContentJSONDataEncodesLineRangeEditArguments() throws {
+    let replacementLines = ["let a = \"quoted\"", "let b = 3"]
     let edit = GeneratedContent(
       properties: [
-        "oldString": oldString,
-        "newString": newString,
-        "replaceAll": false,
+        "startLine": 10,
+        "endLine": 11,
+        "replacementLines": GeneratedContent(elements: replacementLines),
       ]
     )
     let arguments = GeneratedContent(
@@ -88,16 +87,16 @@ struct FoundationModelsSchemaTranslatorTests {
 
     let data = try FoundationModelsAgentRuntime.jsonData(from: arguments)
     let json = String(decoding: data, as: UTF8.self)
-    #expect(!json.contains(oldString))
-    #expect(!json.contains("\n"))
-    #expect(json.contains(#"\n"#))
+    #expect(json.contains("startLine"))
+    #expect(json.contains("replacementLines"))
+    #expect(json.contains(#"\"quoted\""#))
 
     let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
     let edits = try #require(object?["edits"] as? [[String: Any]])
     let firstEdit = try #require(edits.first)
-    #expect(firstEdit["oldString"] as? String == oldString)
-    #expect(firstEdit["newString"] as? String == newString)
-    #expect(firstEdit["replaceAll"] as? Bool == false)
+    #expect(firstEdit["startLine"] as? Int == 10)
+    #expect(firstEdit["endLine"] as? Int == 11)
+    #expect(firstEdit["replacementLines"] as? [String] == replacementLines)
   }
 
   @Test

@@ -215,12 +215,17 @@ struct LiveFailureInsight: Equatable, Sendable {
       )
     }
 
-    if containsAny(normalized, ["oldstring not found", "edit conflict", "old string not found"]) {
+    if containsAny(
+      normalized,
+      [
+        "line range", "out of range", "edit conflict", "oldstring not found", "old string not found",
+      ]
+    ) {
       return (
         .editConflict,
         "Edit Did Not Match",
-        "The exact text the agent wanted to replace was not found, usually because the file changed or the snippet was too broad.",
-        "The next attempt should reread the file and apply a narrower edit against the current text.",
+        "The line range the agent targeted was invalid or stale, usually because the file changed since the last read.",
+        "The next attempt should reread the file and retry with the current startLine/endLine values.",
         "Reread",
         "doc.text.magnifyingglass"
       )

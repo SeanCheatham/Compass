@@ -17,7 +17,37 @@ final class AgentEditFileToolTests {
     }
   }
 
-  @Test func testReplacesUniqueOccurrence() async throws {
+  @Test func testReplacesLineContainingEmbeddedQuotes() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("rust-test.rs")
+    try """
+    #[test]
+    fn test_shading_level_serialization() {
+        let json = serde_json::to_string(&ShadingLevel::Partial).unwrap();
+        assert_eq!(json, "old");
+    }
+    """
+    .write(to: fileURL, atomically: true, encoding: .utf8)
+
+    let result = try await invokeMarkingRead(
+      fileURL,
+      args: [
+        "path": "rust-test.rs",
+        "edits": [
+          [
+            "startLine": 4,
+            "endLine": 4,
+            "replacementLines": ["    assert_eq!(json, \"\\\"partial\\\");"],
+          ]
+        ],
+      ])
+
+    try #require(!result.isError)
+    let updated = try String(contentsOf: fileURL, encoding: .utf8)
+    try #require(updated.contains("partial"))
+    try #require(!updated.contains("\"old\""))
+  }
+
+  @Test func testReplacesSingleLineRange() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
     try "alpha\nbeta\ngamma".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -25,12 +55,18 @@ final class AgentEditFileToolTests {
       fileURL,
       args: [
         "path": "notes.txt",
-        "edits": [["oldString": "beta", "newString": "BETA"]],
+        "edits": [
+          [
+            "startLine": 2,
+            "endLine": 2,
+            "replacementLines": ["BETA"],
+          ]
+        ],
       ])
 
     try #require(!result.isError)
     try #require(result.content.contains("applied 1 edit to notes.txt"))
-    try #require(result.content.contains("replaced 1 occurrence"))
+    try #require(result.content.contains("file now has 3 lines"))
     try #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nBETA\ngamma")
   }
 
@@ -43,14 +79,21 @@ final class AgentEditFileToolTests {
       args: [
         "path": "notes.txt",
         "edits": [
-          ["oldString": "alpha", "newString": "ALPHA"],
-          ["oldString": "gamma", "newString": "GAMMA"],
+          [
+            "startLine": 1,
+            "endLine": 1,
+            "replacementLines": ["ALPHA"],
+          ],
+          [
+            "startLine": 3,
+            "endLine": 3,
+            "replacementLines": ["GAMMA"],
+          ],
         ],
       ])
 
     try #require(!result.isError)
     try #require(result.content.contains("applied 2 edits to notes.txt"))
-    try #require(result.content.contains("replaced 2 occurrences"))
     try #require(try String(contentsOf: fileURL, encoding: .utf8) == "ALPHA\nbeta\nGAMMA")
   }
 
@@ -63,8 +106,16 @@ final class AgentEditFileToolTests {
       args: [
         "path": "chain.txt",
         "edits": [
-          ["oldString": "one", "newString": "two"],
-          ["oldString": "two", "newString": "three"],
+          [
+            "startLine": 1,
+            "endLine": 1,
+            "replacementLines": ["two"],
+          ],
+          [
+            "startLine": 1,
+            "endLine": 1,
+            "replacementLines": ["three"],
+          ],
         ],
       ])
 
@@ -81,8 +132,16 @@ final class AgentEditFileToolTests {
       args: [
         "path": "atomic.txt",
         "edits": [
-          ["oldString": "alpha", "newString": "ALPHA"],
-          ["oldString": "missing", "newString": "found"],
+          [
+            "startLine": 1,
+            "endLine": 1,
+            "replacementLines": ["ALPHA"],
+          ],
+          [
+            "startLine": 99,
+            "endLine": 99,
+            "replacementLines": ["found"],
+          ],
         ],
       ])
 
@@ -91,42 +150,51 @@ final class AgentEditFileToolTests {
     try #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nbeta")
   }
 
-  @Test func testFailsWhenOldStringIsAmbiguous() async throws {
-    let fileURL = temporaryDirectory.appendingPathComponent("dup.txt")
-    try "foo\nfoo\nfoo".write(to: fileURL, atomically: true, encoding: .utf8)
+  @Test func testInsertsBeforeLineWithoutDeleting() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("insert.txt")
+    try "alpha\nbeta".write(to: fileURL, atomically: true, encoding: .utf8)
 
     let result = try await invokeMarkingRead(
       fileURL,
       args: [
-        "path": "dup.txt",
-        "edits": [["oldString": "foo", "newString": "bar"]],
-      ])
-
-    try #require(result.isError)
-    try #require(result.content.contains("matches 3 places"))
-    try #require(result.content.contains("replaceAll"))
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "foo\nfoo\nfoo")
-  }
-
-  @Test func testReplaceAllReplacesEveryOccurrence() async throws {
-    let fileURL = temporaryDirectory.appendingPathComponent("dup.txt")
-    try "foo\nfoo\nfoo".write(to: fileURL, atomically: true, encoding: .utf8)
-
-    let result = try await invokeMarkingRead(
-      fileURL,
-      args: [
-        "path": "dup.txt",
-        "edits": [["oldString": "foo", "newString": "bar", "replaceAll": true]],
+        "path": "insert.txt",
+        "edits": [
+          [
+            "startLine": 2,
+            "endLine": 1,
+            "replacementLines": ["inserted"],
+          ]
+        ],
       ])
 
     try #require(!result.isError)
-    try #require(result.content.contains("replaced 3 occurrences"))
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "bar\nbar\nbar")
+    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\ninserted\nbeta")
+  }
+
+  @Test func testDeletesLineRangeWithEmptyReplacementLines() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("delete.txt")
+    try "alpha\nbeta\ngamma".write(to: fileURL, atomically: true, encoding: .utf8)
+
+    let result = try await invokeMarkingRead(
+      fileURL,
+      args: [
+        "path": "delete.txt",
+        "edits": [
+          [
+            "startLine": 2,
+            "endLine": 2,
+            "replacementLines": [],
+          ]
+        ],
+      ])
+
+    try #require(!result.isError)
+    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\ngamma")
   }
 
   @Test func testAcceptsSnakeCaseEditArgumentsFromLessCapableModels() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("snake.txt")
-    try "foo\nfoo\nfoo".write(to: fileURL, atomically: true, encoding: .utf8)
+    try "foo\nbar\nbaz".write(to: fileURL, atomically: true, encoding: .utf8)
 
     let result = try await invokeMarkingRead(
       fileURL,
@@ -134,36 +202,36 @@ final class AgentEditFileToolTests {
         "file_path": "snake.txt",
         "edits": [
           [
-            "old_string": "foo",
-            "new_string": "bar",
-            "replace_all": "true",
+            "start_line": "2",
+            "end_line": "3",
+            "replacement_lines": ["BAR", "BAZ"],
           ]
         ],
       ])
 
     try #require(!result.isError)
-    try #require(result.content.contains("replaced 3 occurrences"))
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "bar\nbar\nbar")
+    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "foo\nBAR\nBAZ")
   }
 
-  @Test func testAcceptsFindReplaceAliasesFromLessonEditShapedPayloads() async throws {
-    let fileURL = temporaryDirectory.appendingPathComponent("lesson-shaped.txt")
-    try "old lesson".write(to: fileURL, atomically: true, encoding: .utf8)
+  @Test func testAcceptsReplacementStringSplitIntoLines() async throws {
+    let fileURL = temporaryDirectory.appendingPathComponent("multiline.txt")
+    try "alpha\nbeta".write(to: fileURL, atomically: true, encoding: .utf8)
 
     let result = try await invokeMarkingRead(
       fileURL,
       args: [
-        "path": "lesson-shaped.txt",
-        "changes": [
+        "path": "multiline.txt",
+        "edits": [
           [
-            "find": "old lesson",
-            "replace": "new lesson",
+            "startLine": 2,
+            "endLine": 2,
+            "newString": "line one\nline two",
           ]
         ],
       ])
 
     try #require(!result.isError)
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "new lesson")
+    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nline one\nline two")
   }
 
   @Test func testAcceptsSingleEditObjectFromLessCapableModels() async throws {
@@ -175,8 +243,9 @@ final class AgentEditFileToolTests {
       args: [
         "path": "single-object.txt",
         "edits": [
-          "find": "beta",
-          "replace": "BETA",
+          "startLine": 2,
+          "endLine": 2,
+          "replacementLines": ["BETA"],
         ],
       ])
 
@@ -187,20 +256,19 @@ final class AgentEditFileToolTests {
 
   @Test func testAcceptsTopLevelEditOperationFromLessCapableModels() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("top-level.txt")
-    try "foo\nfoo\nfoo".write(to: fileURL, atomically: true, encoding: .utf8)
+    try "foo\nbar".write(to: fileURL, atomically: true, encoding: .utf8)
 
     let result = try await invokeMarkingRead(
       fileURL,
       args: [
         "file": "top-level.txt",
-        "old_string": "foo",
-        "new_string": "bar",
-        "replace_all": "true",
+        "start_line": 1,
+        "end_line": 1,
+        "replacement_lines": ["FOO"],
       ])
 
     try #require(!result.isError)
-    try #require(result.content.contains("replaced 3 occurrences"))
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "bar\nbar\nbar")
+    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "FOO\nbar")
   }
 
   @Test func testMissingEditsReportsRepairableFieldName() async throws {
@@ -216,24 +284,9 @@ final class AgentEditFileToolTests {
     try #require(result.content.contains("Missing required field `edits`"))
   }
 
-  @Test func testFailsWhenOldStringMissing() async throws {
-    let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
-    try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)
-
-    let result = try await invokeMarkingRead(
-      fileURL,
-      args: [
-        "path": "notes.txt",
-        "edits": [["oldString": "missing", "newString": "found"]],
-      ])
-
-    try #require(result.isError)
-    try #require(result.content.contains("not found"))
-  }
-
-  @Test func testIncludesNearMissHintsWhenOldStringMissing() async throws {
+  @Test func testIncludesNearbyLineHintsWhenRangeOutOfRange() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("near.txt")
-    try "func helloWorld() { return 1 }\nfunc helloWorld() { return 2 }\nfunc bye() { return 3 }"
+    try "func helloWorld() { return 1 }\nfunc bye() { return 3 }"
       .write(to: fileURL, atomically: true, encoding: .utf8)
 
     let result = try await invokeMarkingRead(
@@ -242,22 +295,20 @@ final class AgentEditFileToolTests {
         "path": "near.txt",
         "edits": [
           [
-            "oldString": "func helloWorld() { return 0 }",
-            "newString": "func helloWorld() { return 999 }",
+            "startLine": 9,
+            "endLine": 9,
+            "replacementLines": ["missing"],
           ]
         ],
       ])
 
     try #require(result.isError)
-    try #require(result.content.contains("not found"))
-    try #require(
-      result.content.contains("Lines that look similar"),
-      "expected near-miss hints, got: \(result.content)")
-    try #require(result.content.contains("line 1"))
-    try #require(result.content.contains("line 2"))
+    try #require(result.content.contains("out of range"))
+    try #require(result.content.contains("line 1:"))
+    try #require(result.content.contains("helloWorld"))
   }
 
-  @Test func testFailsWhenStringsAreEqual() async throws {
+  @Test func testFailsWhenReplacementLinesAreIdentical() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
     try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -265,26 +316,17 @@ final class AgentEditFileToolTests {
       fileURL,
       args: [
         "path": "notes.txt",
-        "edits": [["oldString": "alpha", "newString": "alpha"]],
+        "edits": [
+          [
+            "startLine": 1,
+            "endLine": 1,
+            "replacementLines": ["alpha"],
+          ]
+        ],
       ])
 
     try #require(result.isError)
     try #require(result.content.contains("identical"))
-  }
-
-  @Test func testFailsWhenOldStringIsEmpty() async throws {
-    let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
-    try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)
-
-    let result = try await invokeMarkingRead(
-      fileURL,
-      args: [
-        "path": "notes.txt",
-        "edits": [["oldString": "", "newString": "anything"]],
-      ])
-
-    try #require(result.isError)
-    try #require(result.content.contains("write_file"))
   }
 
   @Test func testFailsWhenEditsArrayIsEmpty() async throws {
@@ -306,7 +348,13 @@ final class AgentEditFileToolTests {
     let result = try await invoke(
       [
         "path": "../escape.txt",
-        "edits": [["oldString": "a", "newString": "b"]],
+        "edits": [
+          [
+            "startLine": 1,
+            "endLine": 1,
+            "replacementLines": ["b"],
+          ]
+        ],
       ], context: AgentToolContext(workingDirectory: temporaryDirectory))
     try #require(result.isError)
     try #require(result.content.contains("escapes"))
@@ -319,7 +367,13 @@ final class AgentEditFileToolTests {
     let result = try await invoke(
       [
         "path": "unread.txt",
-        "edits": [["oldString": "alpha", "newString": "ALPHA"]],
+        "edits": [
+          [
+            "startLine": 1,
+            "endLine": 1,
+            "replacementLines": ["ALPHA"],
+          ]
+        ],
       ], context: AgentToolContext(workingDirectory: temporaryDirectory))
     try #require(result.isError)
     try #require(result.content.contains("requires a prior read_file"))
@@ -333,7 +387,13 @@ final class AgentEditFileToolTests {
     let result = try await invoke(
       [
         "path": "ghost.txt",
-        "edits": [["oldString": "a", "newString": "b"]],
+        "edits": [
+          [
+            "startLine": 1,
+            "endLine": 1,
+            "replacementLines": ["b"],
+          ]
+        ],
       ], context: context)
     try #require(result.isError)
     try #require(result.content.contains("not found"))
@@ -347,7 +407,13 @@ final class AgentEditFileToolTests {
       fileURL,
       args: [
         "path": "binary.bin",
-        "edits": [["oldString": "a", "newString": "b"]],
+        "edits": [
+          [
+            "startLine": 1,
+            "endLine": 1,
+            "replacementLines": ["b"],
+          ]
+        ],
       ])
     try #require(result.isError)
     try #require(result.content.contains("binary"))
@@ -362,7 +428,13 @@ final class AgentEditFileToolTests {
       fileURL,
       args: [
         "path": "invalid.txt",
-        "edits": [["oldString": "(", "newString": ")"]],
+        "edits": [
+          [
+            "startLine": 1,
+            "endLine": 1,
+            "replacementLines": [")"],
+          ]
+        ],
       ])
 
     try #require(result.isError)

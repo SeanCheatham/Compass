@@ -570,14 +570,14 @@ extension AgentExecutor {
           "path": "relative/path.ext",
           "edits": [
             {
-              "oldString": "<exact text copied from a prior read_file result>",
-              "newString": "<replacement text>",
-              "replaceAll": false
+              "startLine": 42,
+              "endLine": 42,
+              "replacementLines": ["replacement line without line-number prefix"]
             }
           ]
         }
 
-        Keep `oldString` exact and small. Use JSON escapes for embedded newlines. Do not answer in prose.
+        Call `read_file` first and copy line numbers from its output. Keep each edit to a small line range. Do not answer in prose.
         """
     case AgentWriteFileTool.toolName:
       return """
