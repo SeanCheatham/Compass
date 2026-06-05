@@ -1146,29 +1146,41 @@ struct ProductizationWorkbenchTab: View {
     guard factoryAutopilotCyclePlan.canRun else { return }
     isRunningFactoryCycle = true
     defer { isRunningFactoryCycle = false }
+    let maxSteps = factoryAutopilotCyclePlan.maxSteps
+    var executedSteps: [ProductFactoryAutopilotStep] = []
     var messages: [String] = []
     var seenStepIDs = Set<String>()
-    for _ in 0..<factoryAutopilotCyclePlan.maxSteps {
-      guard
-        let step = ProductFactoryAutopilotPlanner.nextExecutableStep(
-          config: project.productizationConfig,
-          evidenceIndex: project.productizationEvidenceIndex
-        ),
-        seenStepIDs.insert(step.id).inserted
-      else { break }
-      selectedExperimentID = step.experimentID
-      guard let message = await executeFactoryAutopilotStep(step) else {
-        if let errorMessage = project.errorMessage {
-          messages.append(errorMessage)
-        }
+    var stopReason: ProductFactoryAutopilotCycleStopReason = .reachedStepLimit
+    for _ in 0..<maxSteps {
+      guard let step = ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: project.productizationConfig,
+        evidenceIndex: project.productizationEvidenceIndex
+      ) else {
+        stopReason = .noExecutableStep
         break
       }
+      guard seenStepIDs.insert(step.id).inserted else {
+        stopReason = .repeatedStep(stepID: step.id, title: step.title)
+        break
+      }
+      selectedExperimentID = step.experimentID
+      guard let message = await executeFactoryAutopilotStep(step) else {
+        stopReason = .executionFailed(
+          stepID: step.id,
+          title: step.title,
+          message: project.errorMessage ?? step.blockedReason
+        )
+        break
+      }
+      executedSteps.append(step)
       messages.append(message)
     }
-    scenarioRunMessage =
-      messages.isEmpty
-      ? "Factory cycle found no executable step."
-      : "Factory cycle ran \(messages.count) step(s): \(messages.joined(separator: " "))"
+    scenarioRunMessage = ProductFactoryAutopilotCycleOutcome(
+      executedSteps: executedSteps,
+      messages: messages,
+      maxSteps: maxSteps,
+      stopReason: stopReason
+    ).userMessage
     await loadContractStatus()
   }
 

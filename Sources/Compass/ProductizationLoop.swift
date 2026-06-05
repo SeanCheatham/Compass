@@ -516,6 +516,56 @@ struct ProductFactoryAutopilotCyclePlan: Equatable, Sendable {
   }
 }
 
+enum ProductFactoryAutopilotCycleStopReason: Equatable, Sendable {
+  case reachedStepLimit
+  case noExecutableStep
+  case repeatedStep(stepID: String, title: String)
+  case executionFailed(stepID: String, title: String, message: String?)
+}
+
+struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
+  var executedSteps: [ProductFactoryAutopilotStep]
+  var messages: [String]
+  var maxSteps: Int
+  var stopReason: ProductFactoryAutopilotCycleStopReason
+
+  var userMessage: String {
+    var parts = [
+      executedSteps.isEmpty
+        ? "Factory cycle ran no steps."
+        : "Factory cycle ran \(executedSteps.count) step(s).",
+    ]
+    if !messages.isEmpty {
+      parts.append(messages.joined(separator: " "))
+    }
+    parts.append(stopReasonMessage)
+    return parts.joined(separator: " ")
+  }
+
+  private var stopReasonMessage: String {
+    switch stopReason {
+    case .reachedStepLimit:
+      return "Stopped after reaching the \(max(1, maxSteps))-step cycle limit."
+    case .noExecutableStep:
+      return "Stopped because no executable product-factory step remains."
+    case .repeatedStep(_, let title):
+      return "Stopped before repeating \(bounded(title, limit: 120))."
+    case .executionFailed(_, let title, let message):
+      if let message {
+        let boundedMessage = bounded(message, limit: 240)
+        if !boundedMessage.isEmpty {
+          return "Stopped because \(bounded(title, limit: 120)) failed: \(boundedMessage)"
+        }
+      }
+      return "Stopped because \(bounded(title, limit: 120)) did not report a result."
+    }
+  }
+
+  private func bounded(_ value: String, limit: Int) -> String {
+    StringUtils.boundedText(value, limit: limit)
+  }
+}
+
 enum ProductFactoryAutopilotPlanner {
   static func steps(
     config: ProductizationConfig,

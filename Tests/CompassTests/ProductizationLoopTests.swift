@@ -363,6 +363,66 @@ struct ProductizationLoopTests {
     try #require(plan.summary.contains("No executable factory steps"))
   }
 
+  @Test func productFactoryAutopilotCycleOutcomeReportsRepeatStop() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+
+    let outcome = ProductFactoryAutopilotCycleOutcome(
+      executedSteps: [step],
+      messages: ["Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+      maxSteps: 3,
+      stopReason: .repeatedStep(stepID: step.id, title: step.title)
+    )
+
+    try #require(outcome.userMessage.contains("Factory cycle ran 1 step(s)."))
+    try #require(outcome.userMessage.contains("Model-free cohort ran 1 scenario(s)"))
+    try #require(outcome.userMessage.contains("Stopped before repeating Run evidence cohort."))
+  }
+
+  @Test func productFactoryAutopilotCycleOutcomeReportsFailureStop() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+
+    let outcome = ProductFactoryAutopilotCycleOutcome(
+      executedSteps: [],
+      messages: [],
+      maxSteps: 3,
+      stopReason: .executionFailed(
+        stepID: step.id,
+        title: step.title,
+        message: "Command timed out while simulating the buyer."
+      )
+    )
+
+    try #require(outcome.userMessage.contains("Factory cycle ran no steps."))
+    try #require(
+      outcome.userMessage.contains(
+        "Stopped because Run evidence cohort failed: Command timed out while simulating the buyer."
+      ))
+  }
+
   @Test func pmfDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",
