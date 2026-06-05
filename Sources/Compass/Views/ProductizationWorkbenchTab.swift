@@ -125,6 +125,13 @@ struct ProductizationWorkbenchTab: View {
     )
   }
 
+  private var factoryRevisionBriefs: [ProductFactoryRevisionBrief] {
+    ProductFactoryRevisionBriefAdvisor.briefs(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var factoryEvidenceTensions: [ProductFactoryEvidenceTension] {
     ProductFactoryEvidenceTensionAdvisor.tensions(
       config: config,
@@ -420,6 +427,18 @@ struct ProductizationWorkbenchTab: View {
           }
         }
 
+        WorkbenchSection("Revision Briefs", systemImage: "hammer") {
+          VStack(alignment: .leading, spacing: 8) {
+            if factoryRevisionBriefs.isEmpty {
+              WorkbenchEmptyLine("No product revision briefs queued.")
+            } else {
+              ForEach(factoryRevisionBriefs.prefix(4)) { brief in
+                revisionBriefRow(brief)
+              }
+            }
+          }
+        }
+
         WorkbenchSection("Evidence Tensions", systemImage: "exclamationmark.triangle") {
           VStack(alignment: .leading, spacing: 8) {
             if factoryEvidenceTensions.isEmpty {
@@ -563,6 +582,41 @@ struct ProductizationWorkbenchTab: View {
     }
     .buttonStyle(.plain)
     .help(signal.auditSummary)
+  }
+
+  private func revisionBriefRow(_ brief: ProductFactoryRevisionBrief) -> some View {
+    Button {
+      selectedExperimentID = brief.experimentID
+      if let targetScenarioID = brief.targetScenarioID {
+        selectedScenarioID = targetScenarioID
+      }
+    } label: {
+      VStack(alignment: .leading, spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text(brief.title)
+            .font(.callout.weight(.semibold))
+            .lineLimit(2)
+          Spacer()
+          WorkbenchStatusPill(text: "\(brief.priority)")
+        }
+        WorkbenchFact(label: "Experiment", value: brief.experimentID)
+        WorkbenchFact(label: "Source", value: brief.displaySubtitle)
+        WorkbenchFact(label: "Prototype", value: brief.prototypeChange)
+        WorkbenchFact(label: "Scenario", value: brief.scenarioChange)
+        WorkbenchFact(label: "Proof", value: brief.proofPlan)
+        if let targetPersonaName = brief.targetPersonaName {
+          WorkbenchFact(label: "Target", value: targetPersonaName)
+        }
+        if let targetScenarioID = brief.targetScenarioID {
+          WorkbenchFact(label: "Target scenario", value: targetScenarioID)
+        }
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .help(brief.displayDetail)
   }
 
   private func evidenceTensionRow(_ tension: ProductFactoryEvidenceTension) -> some View {
