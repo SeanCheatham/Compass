@@ -635,6 +635,11 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
+    let signal = ProductFactoryExperimentRanker.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: index
+    )
 
     try #require(readiness.aiUserCompletedRunCount == 0)
     try #require(readiness.recommendation == .gatherEvidence)
@@ -647,6 +652,8 @@ struct ProductizationLoopTests {
     try #require(action.detail.contains("before stopping the experiment"))
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetDecision == .kill)
+    try #require(signal.pressure == .cut)
+    try #require(signal.targetDecision == .kill)
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforeKill() throws {
@@ -814,6 +821,11 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
+    let signal = ProductFactoryExperimentRanker.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: index
+    )
 
     try #require(readiness.aiUserCompletedRunCount == 0)
     try #require(readiness.modelFreeCompletedRunCount == 3)
@@ -828,6 +840,8 @@ struct ProductizationLoopTests {
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetDecision == .promote)
+    try #require(signal.pressure == .lift)
+    try #require(signal.targetDecision == .promote)
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforePromotion() throws {
@@ -2002,7 +2016,8 @@ struct ProductizationLoopTests {
     try #require(signal.proofDebtCount == readiness.proofDebt.blockingDebtCount)
     try #require(signal.proofDebtSummary?.contains("AI-user persona") == true)
     try #require(signal.nextActionKind == .runCohort)
-    try #require(signal.pressure == .learn)
+    try #require(signal.pressure == .lift)
+    try #require(signal.targetDecision == .promote)
   }
 
   @Test func productFactoryAutopilotChoosesExecutablePMFDecision() throws {

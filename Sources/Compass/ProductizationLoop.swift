@@ -1592,6 +1592,14 @@ enum ProductFactoryExperimentRanker {
       case .gatherEvidence, .keepGoing: break
       }
     }
+    switch nextAction?.targetDecision {
+    case .promote:
+      return .lift
+    case .kill:
+      return .cut
+    case .notRun, .keepGoing, .narrow, .pivot, .archived, .promoted, nil:
+      break
+    }
     switch nextAction?.kind {
     case .applyDecision:
       switch readiness?.recommendation {
