@@ -277,6 +277,9 @@ enum ProductizationPlanningDigestFormatter {
       if signal.staleEvidenceCount > 0 {
         metadata.append("stale \(signal.staleEvidenceCount)")
       }
+      if let targetDecision = signal.targetDecision {
+        metadata.append("target_decision \(targetDecision.rawValue)")
+      }
       if let proofDebtSummary = signal.proofDebtSummary {
         metadata.append("proof_debt \(bounded(proofDebtSummary, 160))")
       }

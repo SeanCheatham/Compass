@@ -790,6 +790,7 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
   var nextActionKind: ProductMarketFitNextActionKind?
   var nextActionTitle: String?
   var nextActionPriority: Int
+  var targetDecision: ProductExperimentDecision?
   var pressure: ProductFactoryPortfolioPressure
   var staleEvidenceCount: Int
   var proofDebtCount: Int
@@ -825,6 +826,7 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
     nextActionKind: ProductMarketFitNextActionKind?,
     nextActionTitle: String?,
     nextActionPriority: Int,
+    targetDecision: ProductExperimentDecision? = nil,
     pressure: ProductFactoryPortfolioPressure,
     staleEvidenceCount: Int,
     proofDebtCount: Int = 0,
@@ -836,6 +838,7 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
     self.nextActionKind = nextActionKind
     self.nextActionTitle = nextActionTitle.map { StringUtils.boundedText($0, limit: 160) }
     self.nextActionPriority = max(0, nextActionPriority)
+    self.targetDecision = targetDecision
     self.pressure = pressure
     self.staleEvidenceCount = max(0, staleEvidenceCount)
     self.proofDebtCount = max(0, proofDebtCount)
@@ -1565,6 +1568,7 @@ enum ProductFactoryExperimentRanker {
       nextActionKind: nextAction?.kind,
       nextActionTitle: nextAction?.title,
       nextActionPriority: nextAction?.priority ?? 0,
+      targetDecision: nextAction?.targetDecision,
       pressure: pressure(for: experiment, readiness: readiness, nextAction: nextAction),
       staleEvidenceCount: evidenceIndex.staleSummaryCount(for: experiment),
       proofDebtCount: readiness?.proofDebt.blockingDebtCount ?? 0,

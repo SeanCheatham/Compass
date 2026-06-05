@@ -1014,6 +1014,9 @@ struct ProductizationWorkbenchTab: View {
             label: "Action",
             value: "\(nextAction.kind.rawValue), priority \(nextAction.priority)"
           )
+          if let targetDecision = nextAction.targetDecision {
+            WorkbenchFact(label: "Target decision", value: targetDecision.rawValue)
+          }
           if let targetPersonaName = nextAction.targetPersonaName {
             let targetValue = nextAction.targetPersonaID.map {
               "\(targetPersonaName) (\($0))"

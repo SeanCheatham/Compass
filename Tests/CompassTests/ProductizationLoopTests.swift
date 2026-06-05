@@ -1399,6 +1399,15 @@ struct ProductizationLoopTests {
         evidenceIndex: secondValidationIndex,
         isPersonaModelAvailable: true
       ))
+    let fatigueSignal = ProductFactoryExperimentRanker.signal(
+      for: experiment,
+      config: fatiguedConfig,
+      evidenceIndex: secondValidationIndex
+    )
+    let fatigueDigest = ProductizationPlanningDigestFormatter.promptText(
+      config: fatiguedConfig,
+      evidenceIndex: secondValidationIndex
+    )
 
     try #require(fatigueAudit.id == secondValidationAudit.id)
     try #require(fatigueAction.kind == .reviewDecision)
@@ -1411,6 +1420,10 @@ struct ProductizationLoopTests {
     try #require(!fatigueStep.canExecute)
     try #require(fatigueStep.action.targetDecision == .narrow)
     try #require(fatigueStep.blockedReason == "Review the decision path before autopilot changes state.")
+    try #require(fatigueSignal.pressure == .reshape)
+    try #require(fatigueSignal.targetDecision == .narrow)
+    try #require(fatigueDigest.contains("Review revision fatigue"))
+    try #require(fatigueDigest.contains("target_decision narrow"))
     try #require(digest.contains("Retarget AI-user rationale signal"))
     try #require(digest.contains("Retarget product revision for AI-user rationale"))
     try #require(digest.contains("factory-cycle-stalled-rationale"))
