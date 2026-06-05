@@ -1381,8 +1381,10 @@ struct ProductizationWorkbenchTab: View {
     var decisionCandidateSummaries: [String] = []
     var evidenceTensionSummaries: [String] = []
     var proofTargetSummaries: [String] = []
-    let personaRationaleSignalSummaries = project.productizationEvidenceIndex.aggregate
-      .personaRationaleSignals
+    var personaRationaleSignalSummaries = ProductFactoryRationaleSignalAdvisor.signals(
+      config: project.productizationConfig,
+      evidenceIndex: project.productizationEvidenceIndex
+    )
       .prefix(3)
       .map(\.auditSummary)
     var seenStepIDs = Set<String>()
@@ -1424,6 +1426,18 @@ struct ProductizationWorkbenchTab: View {
         !proofTargetSummaries.contains(proofTarget.auditSummary)
       {
         proofTargetSummaries.append(proofTarget.auditSummary)
+      }
+      if let stepExperiment = project.productizationConfig.experiments.first(where: {
+        $0.id == step.experimentID
+      }),
+        let rationaleSignal = ProductFactoryRationaleSignalAdvisor.signal(
+          for: stepExperiment,
+          config: project.productizationConfig,
+          evidenceIndex: project.productizationEvidenceIndex
+        ),
+        !personaRationaleSignalSummaries.contains(rationaleSignal.auditSummary)
+      {
+        personaRationaleSignalSummaries.append(rationaleSignal.auditSummary)
       }
       guard let result = await executeFactoryAutopilotStep(step) else {
         stopReason = .executionFailed(

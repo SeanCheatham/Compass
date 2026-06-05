@@ -864,8 +864,11 @@ struct ProductFactoryRationaleSignal: Equatable, Sendable, Identifiable {
     var parts = [
       "\(experimentID): resolve AI-user rationale signal",
       "count \(count)",
-      rationale,
     ]
+    if !runIDs.isEmpty {
+      parts.append("runs \(runIDs.prefix(4).joined(separator: ", "))")
+    }
+    parts.append(rationale)
     if let targetPersonaName {
       parts.append("target \(targetPersonaName)")
     }
@@ -874,9 +877,6 @@ struct ProductFactoryRationaleSignal: Equatable, Sendable, Identifiable {
     }
     if let targetCohortID {
       parts.append("cohort \(targetCohortID)")
-    }
-    if !runIDs.isEmpty {
-      parts.append("runs \(runIDs.prefix(4).joined(separator: ", "))")
     }
     parts.append(summary)
     return StringUtils.boundedText(parts.joined(separator: "; "), limit: 360)
