@@ -1206,7 +1206,13 @@ struct ProductizationLoopTests {
         config: revisedConfig,
         evidenceIndex: index
       ))
-    let rememberedStep = try #require(
+    let validationAction = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: revisedConfig,
+        evidenceIndex: index
+      ))
+    let validationStep = try #require(
       ProductFactoryAutopilotPlanner.nextStep(
         config: revisedConfig,
         evidenceIndex: index,
@@ -1214,14 +1220,20 @@ struct ProductizationLoopTests {
       ))
 
     try #require(appliedAudit.id == revisionAudit.id)
+    try #require(validationAction.kind == .rerunCohort)
+    try #require(validationAction.title == "Validate product revision")
+    try #require(validationAction.detail.contains(revisionAudit.id))
+    try #require(validationAction.detail.contains("rerun the targeted persona-model scenario"))
+    try #require(validationAction.targetPersonaID == buyer.id)
+    try #require(validationAction.targetScenarioID == buyerScenario.id)
     try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
       config: revisedConfig,
       evidenceIndex: index,
       isPersonaModelAvailable: true
-    ) == nil)
-    try #require(rememberedStep.kind == .applyRevision)
-    try #require(!rememberedStep.canExecute)
-    try #require(rememberedStep.blockedReason?.contains("already applied this product revision") == true)
+    )?.kind == .runCohort)
+    try #require(validationStep.kind == .runCohort)
+    try #require(validationStep.canExecute)
+    try #require(validationStep.targetScenarioID == buyerScenario.id)
     try #require(digest.contains("Retarget AI-user rationale signal"))
     try #require(digest.contains("Retarget product revision for AI-user rationale"))
     try #require(digest.contains("factory-cycle-stalled-rationale"))

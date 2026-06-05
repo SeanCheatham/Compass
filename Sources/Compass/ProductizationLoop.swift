@@ -2315,6 +2315,32 @@ enum ProductFactoryCycleLearningAdvisor {
       }
   }
 
+  static func appliedRevisionBriefAudit(
+    for action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryCycleAudit? {
+    guard action.targetScenarioID != nil || action.targetPersonaName != nil else {
+      return nil
+    }
+    return config.factoryCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(5)
+      .first { audit in
+        guard audit.stopReason != .executionFailed,
+          audit.experimentIDs.contains(experiment.id),
+          !audit.revisionBriefSummaries.isEmpty,
+          matchesCurrentRevisionBrief(audit: audit, action: action),
+          !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
+        else { return false }
+        return true
+      }
+  }
+
   private static func isBroadCohortAction(_ action: ProductMarketFitNextAction) -> Bool {
     (action.kind == .runCohort || action.kind == .rerunCohort)
       && action.targetScenarioID == nil
@@ -2428,6 +2454,20 @@ enum ProductFactoryCycleLearningAdvisor {
           summary.localizedCaseInsensitiveContains($0)
         } ?? true
       return titleMatches && sourceMatches && scenarioMatches && personaMatches
+    }
+  }
+
+  private static func matchesCurrentRevisionBrief(
+    audit: ProductFactoryCycleAudit,
+    action: ProductMarketFitNextAction
+  ) -> Bool {
+    audit.revisionBriefSummaries.contains { summary in
+      let scenarioMatches = action.targetScenarioID.map { summary.contains($0) } ?? true
+      let personaMatches =
+        action.targetPersonaName.map {
+          summary.localizedCaseInsensitiveContains($0)
+        } ?? true
+      return scenarioMatches && personaMatches
     }
   }
 
@@ -3313,6 +3353,21 @@ enum ProductMarketFitNextActionAdvisor {
       config: config,
       evidenceIndex: evidenceIndex
     ) {
+      if let revisionAudit = ProductFactoryCycleLearningAdvisor.appliedRevisionBriefAudit(
+        for: action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+        let validationAction = revisionValidationAction(
+          after: revisionAudit,
+          stalledAudit: audit,
+          replacing: action,
+          experiment: experiment
+        )
+      {
+        return validationAction
+      }
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
         kind: .refineBet,
@@ -3355,6 +3410,31 @@ enum ProductMarketFitNextActionAdvisor {
       detail:
         "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt (\(audit.summary)); retarget the scenario cohort, persona, or current-alternative proof before rerunning broad evidence.",
       priority: min(98, max(action.priority + 1, 84))
+    )
+  }
+
+  private static func revisionValidationAction(
+    after revisionAudit: ProductFactoryCycleAudit,
+    stalledAudit: ProductFactoryCycleAudit,
+    replacing action: ProductMarketFitNextAction,
+    experiment: ProductExperiment
+  ) -> ProductMarketFitNextAction? {
+    guard let cohortID = action.cohortID,
+      action.targetScenarioID != nil
+    else { return nil }
+    let targetName = action.targetPersonaName ?? "the target AI user"
+    return ProductMarketFitNextAction(
+      experimentID: experiment.id,
+      kind: .rerunCohort,
+      title: "Validate product revision",
+      detail:
+        "Recent factory cycle \(revisionAudit.id) applied a product revision after stalled rationale audit \(stalledAudit.id); rerun the targeted persona-model scenario for \(targetName) before revising again.",
+      priority: min(99, max(action.priority + 3, 90)),
+      cohortID: cohortID,
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: action.targetPersonaID,
+      targetPersonaName: action.targetPersonaName,
+      targetScenarioID: action.targetScenarioID
     )
   }
 
