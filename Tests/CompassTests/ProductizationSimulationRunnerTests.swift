@@ -37,6 +37,28 @@ struct ProductizationSimulationRunnerTests {
     try #require(record.scores.alternativeAdvantage == 4)
     try #require(record.scores.switchingReadiness == 4)
     try #require(record.scores.continuedUsePull == 4)
+    try #require(record.currentAlternativeComparison.contains("Shared spreadsheet"))
+  }
+
+  @Test func painReliefSignalsDecodeLegacyTraceWithoutComparison() throws {
+    let json = """
+      {
+        "painRecognized": true,
+        "workflowAdvanced": true,
+        "currentAlternativeAddressed": true,
+        "switchingObjectionReduced": false,
+        "missingCapabilityIDs": [],
+        "evidenceSummary": "Legacy trace."
+      }
+      """
+
+    let signals = try JSONDecoder().decode(
+      ProductizationPainReliefSignals.self,
+      from: Data(json.utf8)
+    )
+
+    try #require(signals.currentAlternativeAddressed)
+    try #require(signals.currentAlternativeComparison.isEmpty)
   }
 
   @Test func personaModelRejectsInventedActionsAndAllowsOneRepair() async throws {
@@ -399,6 +421,9 @@ private func defaultProductizationTrace(
         || actionIDs.contains("provide_requested_input"),
       currentAlternativeAddressed: actionIDs.contains("compare_current_alternative")
         || actionIDs.contains("reduce_switching_objection"),
+      currentAlternativeComparison: actionIDs.contains("compare_current_alternative")
+        ? "Compared Reporting Helper against Shared spreadsheet and the team's spreadsheet habit."
+        : "",
       switchingObjectionReduced: actionIDs.contains("reduce_switching_objection"),
       missingCapabilityIDs: actionIDs.contains("provide_requested_input")
         ? [] : ["workflow_completion"],

@@ -681,10 +681,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   ) {
     let traceSignals = runResult.productizationTrace?.painReliefSignals
     let missing = traceSignals?.missingCapabilityIDs ?? []
-    let comparison =
-      traceSignals?.currentAlternativeAddressed == true
-      ? "The deterministic trace addressed the current alternative."
-      : "The deterministic trace did not address the current alternative."
+    let comparison = Self.currentAlternativeComparison(from: traceSignals)
     self.init(
       id: id,
       projectID: runResult.projectID?.uuidString,
@@ -711,6 +708,22 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       summary: traceSignals?.evidenceSummary ?? runResult.failure?.message ?? "No summary.",
       failure: runResult.failure
     )
+  }
+
+  private static func currentAlternativeComparison(
+    from signals: ProductizationPainReliefSignals?
+  ) -> String {
+    guard let signals else {
+      return "The deterministic trace did not address the current alternative."
+    }
+    let explicit = signals.currentAlternativeComparison
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if !explicit.isEmpty {
+      return explicit
+    }
+    return signals.currentAlternativeAddressed
+      ? "The deterministic trace addressed the current alternative."
+      : "The deterministic trace did not address the current alternative."
   }
 
   var summaryRecord: ProductizationEvidenceSummary {

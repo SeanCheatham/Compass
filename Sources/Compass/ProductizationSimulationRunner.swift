@@ -1223,6 +1223,7 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
   var painRecognized: Bool
   var workflowAdvanced: Bool
   var currentAlternativeAddressed: Bool
+  var currentAlternativeComparison: String
   var switchingObjectionReduced: Bool
   var missingCapabilityIDs: [String]
   var evidenceSummary: String
@@ -1231,6 +1232,7 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
     case painRecognized
     case workflowAdvanced
     case currentAlternativeAddressed
+    case currentAlternativeComparison
     case switchingObjectionReduced
     case missingCapabilityIDs
     case missingCapabilityIds
@@ -1241,6 +1243,7 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
     painRecognized: Bool,
     workflowAdvanced: Bool,
     currentAlternativeAddressed: Bool,
+    currentAlternativeComparison: String = "",
     switchingObjectionReduced: Bool,
     missingCapabilityIDs: [String],
     evidenceSummary: String
@@ -1248,6 +1251,10 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
     self.painRecognized = painRecognized
     self.workflowAdvanced = workflowAdvanced
     self.currentAlternativeAddressed = currentAlternativeAddressed
+    self.currentAlternativeComparison = StringUtils.boundedText(
+      currentAlternativeComparison,
+      limit: 1_000
+    )
     self.switchingObjectionReduced = switchingObjectionReduced
     self.missingCapabilityIDs = missingCapabilityIDs
     self.evidenceSummary = evidenceSummary
@@ -1261,6 +1268,10 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
       Bool.self,
       forKey: .currentAlternativeAddressed
     )
+    currentAlternativeComparison = try container.decodeIfPresent(
+      String.self,
+      forKey: .currentAlternativeComparison
+    ) ?? ""
     switchingObjectionReduced = try container.decode(
       Bool.self,
       forKey: .switchingObjectionReduced
@@ -1277,6 +1288,7 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
     try container.encode(painRecognized, forKey: .painRecognized)
     try container.encode(workflowAdvanced, forKey: .workflowAdvanced)
     try container.encode(currentAlternativeAddressed, forKey: .currentAlternativeAddressed)
+    try container.encode(currentAlternativeComparison, forKey: .currentAlternativeComparison)
     try container.encode(switchingObjectionReduced, forKey: .switchingObjectionReduced)
     try container.encode(missingCapabilityIDs, forKey: .missingCapabilityIDs)
     try container.encode(evidenceSummary, forKey: .evidenceSummary)

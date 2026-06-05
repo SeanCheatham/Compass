@@ -449,6 +449,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "painRecognized",
             "workflowAdvanced",
             "currentAlternativeAddressed",
+            "currentAlternativeComparison",
             "switchingObjectionReduced",
             "missingCapabilityIDs",
             "evidenceSummary"
@@ -457,6 +458,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "painRecognized": { "type": "boolean" },
             "workflowAdvanced": { "type": "boolean" },
             "currentAlternativeAddressed": { "type": "boolean" },
+            "currentAlternativeComparison": { "type": "string" },
             "switchingObjectionReduced": { "type": "boolean" },
             "missingCapabilityIDs": {
               "type": "array",
@@ -669,6 +671,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         pub pain_recognized: bool,
         pub workflow_advanced: bool,
         pub current_alternative_addressed: bool,
+        pub current_alternative_comparison: String,
         pub switching_objection_reduced: bool,
         #[serde(rename = "missingCapabilityIDs")]
         pub missing_capability_ids: Vec<String>,
@@ -1232,11 +1235,25 @@ struct RustProjectScaffold: Equatable, Sendable {
                 missing_capability_ids.join(", ")
             )
         };
+        let current_alternative_comparison = if runtime.current_alternative_addressed {
+            format!(
+                "Compared `{}` against `{}`; switching objection: {}",
+                input.solution.title,
+                current_alternative_label(input),
+                current_switching_objection(input)
+            )
+        } else {
+            format!(
+                "No current-alternative comparison recorded for `{}`.",
+                current_alternative_label(input)
+            )
+        };
 
         PainReliefSignals {
             pain_recognized: runtime.pain_recognized,
             workflow_advanced: runtime.workflow_advanced,
             current_alternative_addressed: runtime.current_alternative_addressed,
+            current_alternative_comparison,
             switching_objection_reduced: runtime.switching_objection_reduced,
             missing_capability_ids,
             evidence_summary,
@@ -1533,6 +1550,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                         "painRecognized",
                         "workflowAdvanced",
                         "currentAlternativeAddressed",
+                        "currentAlternativeComparison",
                         "switchingObjectionReduced",
                         "missingCapabilityIDs",
                         "evidenceSummary"
@@ -1541,6 +1559,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                         "painRecognized": { "type": "boolean" },
                         "workflowAdvanced": { "type": "boolean" },
                         "currentAlternativeAddressed": { "type": "boolean" },
+                        "currentAlternativeComparison": { "type": "string" },
                         "switchingObjectionReduced": { "type": "boolean" },
                         "missingCapabilityIDs": {
                             "type": "array",
@@ -1698,6 +1717,10 @@ struct RustProjectScaffold: Equatable, Sendable {
         );
         assert!(first.pain_relief_signals.pain_recognized);
         assert!(first.pain_relief_signals.current_alternative_addressed);
+        assert!(first
+            .pain_relief_signals
+            .current_alternative_comparison
+            .contains("Shared spreadsheet"));
         assert!(first.pain_relief_signals.switching_objection_reduced);
         assert!(first
             .allowed_next_actions
@@ -2309,6 +2332,16 @@ struct RustProjectScaffold: Equatable, Sendable {
             != Some(true)
         {
             return Err("productization trace did not address the current alternative".into());
+        }
+        if signals
+            .get("currentAlternativeComparison")
+            .and_then(|value| value.as_str())
+            .unwrap_or("")
+            .is_empty()
+        {
+            return Err(
+                "productization trace did not explain the current alternative comparison".into(),
+            );
         }
         println!("COMPASS_PRODUCTIZATION_SMOKE_TRACE_BYTES={}", first.len());
         Ok(())
