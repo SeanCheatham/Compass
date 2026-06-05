@@ -1526,6 +1526,14 @@ enum ProductFactoryProofTargetAdvisor {
       }
     }
     if action?.requiredSimulationMode == .personaModel {
+      switch action?.targetDecision {
+      case .promote:
+        return "add or enable AI-user validation proof"
+      case .kill:
+        return "add or enable AI-user rejection proof"
+      case .notRun, .keepGoing, .narrow, .pivot, .archived, .promoted, nil:
+        break
+      }
       return "add or enable runnable AI-user proof"
     }
     if readiness.proofDebt.completedRunDeficit > 0 || readiness.proofDebt.personaDeficit > 0 {

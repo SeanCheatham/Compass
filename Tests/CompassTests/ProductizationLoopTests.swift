@@ -1938,13 +1938,26 @@ struct ProductizationLoopTests {
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
+    let proofTarget = try #require(ProductFactoryProofTargetAdvisor.target(
+      for: experiment,
+      config: config,
+      evidenceIndex: index
+    ))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
 
     try #require(action.kind == .refineBet)
     try #require(action.cohortID == nil)
     try #require(action.targetScenarioID == nil)
     try #require(action.targetPersonaID == buyer.id)
+    try #require(action.targetDecision == .promote)
     try #require(action.detail.contains("does not cover a runnable AI-user target"))
     try #require(action.detail.contains("add an enabled scenario"))
+    try #require(proofTarget.label == "add or enable AI-user validation proof")
+    try #require(proofTarget.targetDecision == .promote)
+    try #require(digest.contains("target add or enable AI-user validation proof"))
     try #require(!step.canExecute)
     try #require(step.kind == .blocked)
     try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
