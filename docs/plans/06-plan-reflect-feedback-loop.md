@@ -1,142 +1,163 @@
-# 06 - Plan Reflect Feedback Loop
+# 06 - Plan Reflect Productization Loop
 
 ## Objective
 
-Feed PMF evidence back into Compass's planning loop as product pressure. Plan
-and Reflect should see recurring simulated-user findings and use them to choose
-better next increments.
+Teach Plan and Reflect to use productization state and evidence when choosing
+work.
+
+The planning loop should no longer optimize only for implementing the current
+app. It should decide whether to continue, narrow, pivot, kill, or promote
+experiments based on pain-relief evidence.
 
 ## Scope
 
-Add PMF evidence summaries to Plan/Reflect context and prompts. Do not make PMF
-feedback a hard gate for Verify.
+Update prompt context, state transitions, plan validation, reflect behavior, and
+session records.
 
-## Planning Semantics
+This plan does not add the full UI or merge/promotion workflow. It makes the
+agent loop productization-aware.
 
-PMF evidence is advisory:
+## Plan Semantics
 
-- It can motivate product changes.
-- It can reprioritize roadmap items.
-- It can challenge the product hypothesis.
-- It can suggest new PMF scenarios.
-- It should not automatically fail Develop post-checks.
+Plan may choose immediate work from:
 
-Plan should distinguish:
-
-- Engineering failures: build/test/verify problems.
-- Product risks: simulated personas did not understand or desire the product.
-- Evidence gaps: PMF scenarios are missing, stale, or too shallow.
-
-## Context Injection
-
-Before Plan and Reflect, gather a bounded PMF summary:
-
-- current hypothesis
-- latest evidence per active scenario
+- raw pain or unresolved pain unknowns
+- active solution hypotheses
+- an experiment branch needing implementation
+- evidence gaps
 - repeated objections
-- low-score clusters
-- recent verdict distribution
-- suggested next PMF scenario gaps
+- missing capabilities
+- promotion preparation
+- kill/archive cleanup
+- normal repository repair
 
-Keep the context compact. Prefer structured bullet summaries over raw
-transcripts. Raw evidence should be available through tools or file references
-if needed.
+Plan should pick one commit-sized slice. It should not attempt to implement
+several experiments in one immediate handoff.
 
-## Prompt Updates
+## Reflect Semantics
 
-Update Plan prompt guidance:
+Reflect should evaluate:
 
-- Consider PMF evidence when choosing immediate work.
-- Prefer changes that directly address repeated target-persona confusion or
-  objections.
-- If evidence is thin, plan an increment that improves the experience contract
-  or adds a better scenario.
-- Do not blindly optimize for simulated praise.
-- Preserve engineering verification discipline.
+- Did the latest implementation improve an active experiment?
+- Did evidence reduce or increase confidence in the solution?
+- Should the experiment continue, narrow, pivot, kill, or promote?
+- Are new solution hypotheses warranted?
+- Are scenarios too weak to test the pain?
+- Are repeated objections product issues or scenario/model artifacts?
 
-Update Reflect prompt guidance:
+Reflect may update productization state but must not mutate code.
 
-- Extract durable product lessons from repeated PMF evidence.
-- Distinguish a persona-specific objection from a cross-cohort risk.
-- Suggest hypothesis edits only when evidence supports them.
+## Prompt Guidance
 
-## Optional Develop Guidance
+Plan prompt rules should say:
 
-Develop can receive the active PMF objective when implementing a PMF-driven
-increment. It should not receive giant transcripts unless necessary.
+- Start with the pain and active experiment context.
+- Prefer implementation work that can create or clarify evidence.
+- Treat subjective evidence as product pressure, not a Verify gate.
+- Preserve branch isolation.
+- Use deterministic simulation fixtures before live persona runs when possible.
+- If evidence is weak because the prototype is too shallow, plan a better
+  product slice rather than declaring the pain invalid.
 
-## PMF Run Trigger
+Reflect prompt rules should say:
 
-Add one conservative automatic trigger:
+- Be skeptical of one-off persona feedback.
+- Pay attention to repeated objections across scenarios.
+- Separate pain validity from solution validity.
+- Recommend killing solutions that repeatedly fail to beat current alternatives.
+- Recommend promotion only when evidence and Verify both support it.
 
-- After a successful Rust generated-project Verify, run PMF scenarios only when
-  PMF simulation is enabled for the project and the app exposes the experience
-  contract.
+## State Transitions
 
-If automatic execution is risky or slow, start with a manual "Run PMF
-Simulation" command and let Plan recommend using it.
+Allowed experiment decision transitions:
+
+```text
+not_run -> continue
+continue -> continue | narrow | pivot | kill | promote
+narrow -> continue | pivot | kill | promote
+pivot -> continue | kill
+kill -> archived
+promote -> promoted
+```
+
+The host should validate transitions and require a decision summary for `kill`
+and `promote`.
+
+## Session Records
+
+Session history should include:
+
+- experiment id
+- solution id
+- pain id
+- branch name
+- before sha
+- after sha
+- evidence run ids
+- product decision, if any
+
+This lets Explore explain not only what changed, but which product bet the
+change served.
 
 ## Likely Files
 
 - `Sources/Compass/Prompts/Prompts+Plan.swift`
 - `Sources/Compass/Prompts/Prompts+Reflect.swift`
-- `Sources/Compass/Prompts/Prompts+Develop.swift`
 - `Sources/Compass/CompassProject+RunPasses.swift`
-- `Sources/Compass/PlanReliabilityFeedback.swift`
-- `Sources/Compass/ProjectLessonsGuide.swift`
-- `Tests/CompassTests/`
+- `Sources/Compass/PlanProposal.swift`
+- `Sources/Compass/PlanTransitionValidator.swift`
+- `Sources/Compass/SessionRecordStore.swift`
+- `Sources/Compass/ReflectSessionBrief.swift`
+- productization state and evidence helpers
 
 ## Acceptance Criteria
 
-- Plan context includes bounded PMF evidence when available.
-- Reflect can update product lessons from PMF evidence.
-- Prompts clearly mark PMF findings as advisory product evidence.
-- PMF evidence can motivate immediate work without bypassing normal Verify.
-- Tests cover prompt/context generation with no evidence, successful evidence,
-  failed PMF runs, and repeated objections.
+- Plan prompt includes bounded productization state and latest evidence.
+- Reflect can update experiment decisions.
+- Plan validation prevents multi-experiment immediate work unless explicitly
+  scoped to shared infrastructure.
+- Session records preserve experiment and branch identity.
+- Productization evidence can motivate work without bypassing normal Verify.
 
 ## Verification
 
-Run:
+- Run prompt tests for Plan and Reflect.
+- Add transition validator tests for experiment decisions.
+- Add session record encoding tests for experiment metadata.
+- Manually inspect a Plan prompt with active experiments and evidence.
 
-```bash
-./scripts/test-local.sh
-```
+## Status
 
-Manually inspect one generated Plan prompt fixture or debug output to confirm
-PMF evidence is concise and not raw-transcript-heavy.
+Complete on 2026-06-04.
 
-## Implementation Progress
+Implementation notes:
 
-- Added `PMFPlanningEvidenceFormatter` to build compact advisory PMF context
-  from `PMFConfig` and `PMFEvidenceIndex`.
-- The PMF context includes the current hypothesis, latest evidence per enabled
-  scenario, repeated objections, low-score persona/task clusters, verdict
-  distribution, run failures, and evidence gaps.
-- Updated Plan prompt guidance to treat PMF findings as advisory product
-  pressure that can motivate work without bypassing normal Verify.
-- Updated Reflect prompt guidance to extract durable product lessons only from
-  repeated or clearly consequential PMF evidence.
-- Wired Plan and Reflect launch paths to pass workspace PMF config and evidence
-  index into prompt generation.
-- Added focused prompt/context tests for empty evidence, successful evidence,
-  failed PMF runs, repeated objections, low-score clusters, and Plan/Reflect
-  PMF context injection.
-
-## Completion
-
-Status: complete on 2026-06-04.
+- Added productization-aware Plan validation for multi-experiment immediate
+  handoffs, with an explicit shared-infrastructure escape hatch.
+- Added Reflect product decision updates, allowed transition validation, and
+  persisted decision trail updates.
+- Extended session records with pain, solution, branch, before/after sha,
+  evidence run ids, and product decision metadata.
+- Tightened Plan and Reflect prompt guidance around evidence, branch isolation,
+  deterministic simulation, and experiment decisions.
 
 Verification:
 
+- `./scripts/test-local.sh --filter ProductizationLoopTests` passed with 4
+  tests.
+- `./scripts/test-local.sh --filter PlanTransitionValidatorTests` passed with
+  16 tests.
 - `./scripts/test-local.sh --filter PMFPlanningEvidenceFormatterTests` passed
   with 5 tests.
-- `./scripts/test-local.sh --filter PlanPromptTests` passed with 27 tests.
-- `./scripts/test-local.sh` passed with 1831 tests in 185 suites.
-- Manually inspected the generated Plan prompt debug output from the focused
-  PMF prompt test; the PMF section is structured, concise, and does not include
-  raw transcripts.
-
-Rollout boundary: this plan injects PMF evidence into Plan/Reflect as advisory
-product context. Disabled-by-default execution controls, end-to-end smoke, and
-manual run documentation are covered by Plan 07.
+- `./scripts/test-local.sh --filter PromptSchemaLoadingTests` passed with 7
+  tests.
+- `./scripts/test-local.sh --filter PlanDomainTests` passed with 63 tests.
+- `./scripts/test-local.sh --filter ProductExperimentWorktreeTests` passed with
+  6 tests.
+- `./scripts/test-local.sh --filter AgentExecutorTests` passed with 74 tests.
+- `./scripts/test-local.sh --filter ProductizationConfigTests` passed with 8
+  tests.
+- `./scripts/test-local.sh --filter DiscoverPromptContractTests` passed with 7
+  tests.
+- `./scripts/test-local.sh --filter ProductizationEvidenceStoreTests` passed
+  with 3 tests.

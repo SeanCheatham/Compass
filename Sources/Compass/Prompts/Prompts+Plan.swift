@@ -155,6 +155,17 @@ extension Prompts {
         reprioritize roadmap work, challenge the pain or solution hypothesis,
         or expose evidence gaps, but normal build/test/verify discipline still
         applies.
+      - Start productization planning from the active pain hypotheses and
+        experiment branches in Productization Context. Choose implementation
+        work that can create, clarify, or preserve evidence for one product bet
+        whenever that is the sharpest next step.
+      - Preserve experiment branch isolation. Do not plan one Immediate handoff
+        that implements several product experiments at once. If the slice truly
+        serves more than one experiment, explicitly scope it as shared experiment
+        infrastructure and explain why it is not experiment-specific work.
+      - Use deterministic productization simulation fixtures before live
+        persona-model runs when possible, so evidence can be replayed and
+        compared across revisions.
       - Distinguish engineering failures from productization risks and evidence
         gaps. Repeated target-persona confusion or objections should influence
         the next increment when they are fresher or more specific than generic
@@ -163,6 +174,8 @@ extension Prompts {
         prefer an increment that improves the deterministic experience contract,
         creates a better scenario, or makes simulation easier to run. Do not
         blindly optimize for simulated praise.
+      - If weak evidence comes from a shallow prototype, plan a better product
+        slice before declaring the pain invalid.
       - If drafts are empty, choose a useful candidate that matches the focus, or
         originate a new candidate from the repo, lessons, completed history, and
         strategic context.

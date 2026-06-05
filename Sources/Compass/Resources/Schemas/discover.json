@@ -283,7 +283,7 @@
         "evidenceSummary": { "type": "string" },
         "decision": {
           "type": "string",
-          "enum": ["not_run", "continue", "narrow", "pivot", "kill", "promote"]
+          "enum": ["not_run", "continue", "narrow", "pivot", "kill", "promote", "archived", "promoted"]
         },
         "createdAt": { "type": "number" },
         "updatedAt": { "type": "number" }
@@ -311,7 +311,7 @@
         "experimentID": { "type": "string" },
         "decision": {
           "type": "string",
-          "enum": ["not_run", "continue", "narrow", "pivot", "kill", "promote"]
+          "enum": ["not_run", "continue", "narrow", "pivot", "kill", "promote", "archived", "promoted"]
         },
         "summary": { "type": "string" },
         "evidenceRunIDs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },

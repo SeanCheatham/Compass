@@ -1325,6 +1325,7 @@ struct ReflectSummary: Codable, Equatable {
   var state: PlanProposal?
   var summary: String
   var lessonEdits: [LessonEdit]
+  var productDecisionUpdates: [ProductizationReflectDecisionUpdate]
 
   enum CodingKeys: String, CodingKey {
     case state
@@ -1341,12 +1342,20 @@ struct ReflectSummary: Codable, Equatable {
     case notes
     case lessonEdits
     case lessonEditsSnake = "lesson_edits"
+    case productDecisionUpdates
+    case productDecisionUpdatesSnake = "product_decision_updates"
   }
 
-  init(state: PlanProposal?, summary: String, lessonEdits: [LessonEdit] = []) {
+  init(
+    state: PlanProposal?,
+    summary: String,
+    lessonEdits: [LessonEdit] = [],
+    productDecisionUpdates: [ProductizationReflectDecisionUpdate] = []
+  ) {
     self.state = state
     self.summary = summary
     self.lessonEdits = lessonEdits
+    self.productDecisionUpdates = productDecisionUpdates
   }
 
   init(from decoder: Decoder) throws {
@@ -1368,6 +1377,11 @@ struct ReflectSummary: Codable, Equatable {
         preferredKey: .lessonEdits,
         aliases: [.lessonEditsSnake]
       ) ?? []
+    productDecisionUpdates = try Self.decodeProductDecisionUpdates(
+      from: container,
+      preferredKey: .productDecisionUpdates,
+      aliases: [.productDecisionUpdatesSnake]
+    ) ?? []
   }
 
   func encode(to encoder: Encoder) throws {
@@ -1378,6 +1392,7 @@ struct ReflectSummary: Codable, Equatable {
     }
     try container.encode(summary, forKey: .summary)
     try container.encode(lessonEdits, forKey: .lessonEdits)
+    try container.encode(productDecisionUpdates, forKey: .productDecisionUpdates)
   }
 
   private static func decodeOptionalPlanProposal(
@@ -1391,6 +1406,28 @@ struct ReflectSummary: Codable, Equatable {
         if let state = try container.decodeIfPresent(PlanProposal.self, forKey: key) {
           return state
         }
+      } catch {
+        firstTypeError = firstTypeError ?? error
+      }
+    }
+    if let firstTypeError {
+      throw firstTypeError
+    }
+    return nil
+  }
+
+  private static func decodeProductDecisionUpdates(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys]
+  ) throws -> [ProductizationReflectDecisionUpdate]? {
+    var firstTypeError: Error?
+    for key in [preferredKey] + aliases where container.contains(key) {
+      do {
+        return try container.decodeIfPresent(
+          [ProductizationReflectDecisionUpdate].self,
+          forKey: key
+        )
       } catch {
         firstTypeError = firstTypeError ?? error
       }
@@ -1651,8 +1688,14 @@ struct SessionRecord: Codable, Identifiable, Equatable {
   var feedback: String?
   var executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot]
   var productExperimentID: String?
+  var productSolutionID: String?
+  var productPainID: String?
   var productExperimentBranchName: String?
   var productExperimentCommitSha: String?
+  var productExperimentBeforeSha: String?
+  var productExperimentAfterSha: String?
+  var productEvidenceRunIDs: [String]
+  var productDecision: ProductExperimentDecision?
 
   static func started(_ number: Int) -> SessionRecord {
     SessionRecord(
@@ -1670,8 +1713,14 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       feedback: nil,
       executionEnvironmentSnapshots: [],
       productExperimentID: nil,
+      productSolutionID: nil,
+      productPainID: nil,
       productExperimentBranchName: nil,
-      productExperimentCommitSha: nil
+      productExperimentCommitSha: nil,
+      productExperimentBeforeSha: nil,
+      productExperimentAfterSha: nil,
+      productEvidenceRunIDs: [],
+      productDecision: nil
     )
   }
 
@@ -1692,8 +1741,14 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     case feedback
     case executionEnvironmentSnapshots
     case productExperimentID
+    case productSolutionID
+    case productPainID
     case productExperimentBranchName
     case productExperimentCommitSha
+    case productExperimentBeforeSha
+    case productExperimentAfterSha
+    case productEvidenceRunIDs
+    case productDecision
   }
 
   init(
@@ -1711,8 +1766,14 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     feedback: String?,
     executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = [],
     productExperimentID: String? = nil,
+    productSolutionID: String? = nil,
+    productPainID: String? = nil,
     productExperimentBranchName: String? = nil,
-    productExperimentCommitSha: String? = nil
+    productExperimentCommitSha: String? = nil,
+    productExperimentBeforeSha: String? = nil,
+    productExperimentAfterSha: String? = nil,
+    productEvidenceRunIDs: [String] = [],
+    productDecision: ProductExperimentDecision? = nil
   ) {
     self.session = session
     self.startedAt = startedAt
@@ -1733,6 +1794,14 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       productExperimentID,
       limit: 120
     )
+    self.productSolutionID = Self.normalizedOptionalProductizationField(
+      productSolutionID,
+      limit: 120
+    )
+    self.productPainID = Self.normalizedOptionalProductizationField(
+      productPainID,
+      limit: 120
+    )
     self.productExperimentBranchName = Self.normalizedOptionalProductizationField(
       productExperimentBranchName,
       limit: 240
@@ -1741,6 +1810,20 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       productExperimentCommitSha,
       limit: 80
     )
+    self.productExperimentBeforeSha = Self.normalizedOptionalProductizationField(
+      productExperimentBeforeSha,
+      limit: 80
+    )
+    self.productExperimentAfterSha = Self.normalizedOptionalProductizationField(
+      productExperimentAfterSha,
+      limit: 80
+    )
+    self.productEvidenceRunIDs = Self.normalizedProductizationFields(
+      productEvidenceRunIDs,
+      limit: 120,
+      maxCount: 20
+    )
+    self.productDecision = productDecision
   }
 
   init(from decoder: Decoder) throws {
@@ -1767,6 +1850,14 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       try container.decodeIfPresent(String.self, forKey: .productExperimentID),
       limit: 120
     )
+    productSolutionID = Self.normalizedOptionalProductizationField(
+      try container.decodeIfPresent(String.self, forKey: .productSolutionID),
+      limit: 120
+    )
+    productPainID = Self.normalizedOptionalProductizationField(
+      try container.decodeIfPresent(String.self, forKey: .productPainID),
+      limit: 120
+    )
     productExperimentBranchName = Self.normalizedOptionalProductizationField(
       try container.decodeIfPresent(String.self, forKey: .productExperimentBranchName),
       limit: 240
@@ -1774,6 +1865,23 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     productExperimentCommitSha = Self.normalizedOptionalProductizationField(
       try container.decodeIfPresent(String.self, forKey: .productExperimentCommitSha),
       limit: 80
+    )
+    productExperimentBeforeSha = Self.normalizedOptionalProductizationField(
+      try container.decodeIfPresent(String.self, forKey: .productExperimentBeforeSha),
+      limit: 80
+    )
+    productExperimentAfterSha = Self.normalizedOptionalProductizationField(
+      try container.decodeIfPresent(String.self, forKey: .productExperimentAfterSha),
+      limit: 80
+    )
+    productEvidenceRunIDs = Self.normalizedProductizationFields(
+      try container.decodeIfPresent([String].self, forKey: .productEvidenceRunIDs) ?? [],
+      limit: 120,
+      maxCount: 20
+    )
+    productDecision = try container.decodeIfPresent(
+      ProductExperimentDecision.self,
+      forKey: .productDecision
     )
   }
 
@@ -1795,8 +1903,16 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       try container.encode(executionEnvironmentSnapshots, forKey: .executionEnvironmentSnapshots)
     }
     try container.encodeIfPresent(productExperimentID, forKey: .productExperimentID)
+    try container.encodeIfPresent(productSolutionID, forKey: .productSolutionID)
+    try container.encodeIfPresent(productPainID, forKey: .productPainID)
     try container.encodeIfPresent(productExperimentBranchName, forKey: .productExperimentBranchName)
     try container.encodeIfPresent(productExperimentCommitSha, forKey: .productExperimentCommitSha)
+    try container.encodeIfPresent(productExperimentBeforeSha, forKey: .productExperimentBeforeSha)
+    try container.encodeIfPresent(productExperimentAfterSha, forKey: .productExperimentAfterSha)
+    if !productEvidenceRunIDs.isEmpty {
+      try container.encode(productEvidenceRunIDs, forKey: .productEvidenceRunIDs)
+    }
+    try container.encodeIfPresent(productDecision, forKey: .productDecision)
   }
 
   var latestExecutionEnvironmentSnapshot: SessionExecutionEnvironmentSnapshot? {
@@ -1837,6 +1953,22 @@ struct SessionRecord: Codable, Identifiable, Equatable {
   {
     let bounded = StringUtils.boundedText(value ?? "", limit: limit)
     return bounded.isEmpty ? nil : bounded
+  }
+
+  private static func normalizedProductizationFields(
+    _ values: [String],
+    limit: Int,
+    maxCount: Int
+  ) -> [String] {
+    var seen = Set<String>()
+    var result: [String] = []
+    for value in values {
+      let bounded = StringUtils.boundedText(value, limit: limit)
+      guard !bounded.isEmpty, seen.insert(bounded).inserted else { continue }
+      result.append(bounded)
+      if result.count >= maxCount { break }
+    }
+    return result
   }
 }
 

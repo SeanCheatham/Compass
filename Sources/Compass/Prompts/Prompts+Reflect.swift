@@ -52,12 +52,17 @@ extension Prompts {
       - `summary`: a concise explanation of the reflection result.
       - `lessonEdits`: exact find/replace edits against the lessons content
         shown below, or `[]` when nothing durable should be recorded.
+      - `productDecisionUpdates`: experiment decision updates justified by
+        productization evidence, or `[]` when no experiment decision should
+        change. Reflect may update productization state through this field but
+        must not mutate code.
 
       Copy this shape when no planning update is needed:
       {
         "state": null,
         "summary": "<why the current plan is still on course>",
-        "lessonEdits": []
+        "lessonEdits": [],
+        "productDecisionUpdates": []
       }
 
       If planning needs revision, replace `state: null` with an object
@@ -76,7 +81,8 @@ extension Prompts {
           "openQuestions": []
         },
         "summary": "<what changed and why>",
-        "lessonEdits": []
+        "lessonEdits": [],
+        "productDecisionUpdates": []
       }
       When preserving a non-null `immediate`, copy the full current immediate
       object, including `plan`, `verify`, `verifyTimeoutMs`, `estimatedDifficulty`,
@@ -96,6 +102,20 @@ extension Prompts {
       and suggest pain, solution, experiment, or scenario edits only when the
       evidence supports them. Product risk should not automatically fail normal
       Develop post-checks.
+      For productization decisions, be skeptical of one-off persona feedback.
+      Pay attention to repeated objections across scenarios, separate pain
+      validity from solution validity, recommend killing solutions that
+      repeatedly fail to beat current alternatives, and recommend promotion only
+      when both product evidence and normal Verify support it.
+      Allowed experiment decision transitions are:
+      - not_run -> continue
+      - continue -> continue | narrow | pivot | kill | promote
+      - narrow -> continue | pivot | kill | promote
+      - pivot -> continue | kill
+      - kill -> archived
+      - promote -> promoted
+      Include a non-empty decision summary for kill, promote, archived, and
+      promoted decisions, and list supporting evidence run ids when available.
       \(hostXcodeGuidance)
 
       ## Recent session brief

@@ -102,6 +102,17 @@ struct PromptSchemaLoadingTests {
   }
 
   @Test
+  func testReflectSchemasAllowProductDecisionUpdates() throws {
+    for schema in [Prompts.reflectSchema, Prompts.reflectHostXcodeSchema] {
+      let properties = try schemaProperties(schema)
+      try #require(properties.keys.contains("productDecisionUpdates"))
+      try #require(
+        propertyDescription("productDecisionUpdates", in: properties)
+          .contains("Product experiment decision updates"))
+    }
+  }
+
+  @Test
   func testPlanSchemasKeepCommandsOutOfAcceptanceChecks() throws {
     for schema in [Prompts.planSchema, Prompts.planHostXcodeSchema] {
       let immediateProperties = try planImmediateProperties(schema)

@@ -129,7 +129,11 @@ extension CompassProject {
       )
       let nextState = currentState.applying(proposal: planResult.state)
 
-      try validatePlanTransition(from: currentState, to: nextState)
+      try validatePlanTransition(
+        from: currentState,
+        to: nextState,
+        productizationConfig: productizationConfigForPrompt
+      )
       let lessonEditCount = try workspace.applyLessonEdits(planResult.lessonEdits)
       try workspace.writeState(nextState)
       logLessonEdits(lessonEditCount)
@@ -144,6 +148,11 @@ extension CompassProject {
       }
       sessions[sessionIndex].plan = nextState.immediate?.plan
       sessions[sessionIndex].verify = nextState.immediate?.verify
+      recordProductizationPlanMetadata(
+        for: nextState.immediate,
+        productizationConfig: productizationConfigForPrompt,
+        sessionIndex: sessionIndex
+      )
       try persistSessions()
 
       if nextState.immediate == nil {
@@ -661,6 +670,12 @@ extension CompassProject {
       decode: ReflectSummary.self
     )
 
+    let productDecisionUpdateCount = try applyProductizationDecisionUpdates(
+      result.productDecisionUpdates,
+      from: productizationConfigForPrompt,
+      workspace: workspace,
+      sessionIndex: sessionIndex
+    )
     let lessonEditCount = try workspace.applyLessonEdits(result.lessonEdits)
     if let reflectedProposal = result.state {
       let currentState = try workspace.readState()
@@ -672,6 +687,12 @@ extension CompassProject {
       log("Reflect: \(result.summary)", level: .info)
     }
     logLessonEdits(lessonEditCount)
+    if productDecisionUpdateCount > 0 {
+      log(
+        "Reflect updated \(productDecisionUpdateCount) product experiment decision(s).",
+        level: .success
+      )
+    }
   }
 
   func reflectEvery() -> Int {
@@ -760,13 +781,144 @@ extension CompassProject {
     return verdict
   }
 
-  func validatePlanTransition(from current: PlanState, to next: PlanState) throws {
+  func validatePlanTransition(
+    from current: PlanState,
+    to next: PlanState,
+    productizationConfig: ProductizationConfig? = nil
+  ) throws {
     do {
       try PlanTransitionValidator.validate(
-        from: current, to: next, forgeProfile: forgeProfile)
+        from: current,
+        to: next,
+        forgeProfile: forgeProfile,
+        productizationConfig: productizationConfig
+      )
     } catch let error as PlanTransitionValidationError {
       throw AppModelError.rejectedPlan(error.message)
     }
+  }
+
+  func applyProductizationDecisionUpdates(
+    _ updates: [ProductizationReflectDecisionUpdate],
+    from currentConfig: ProductizationConfig,
+    workspace: CompassWorkspace,
+    sessionIndex: Int
+  ) throws -> Int {
+    guard !updates.isEmpty else { return 0 }
+    let nextConfig = try ProductizationReflectDecisionApplier.applying(
+      updates,
+      to: currentConfig
+    )
+    try workspace.writeProductizationConfig(nextConfig)
+    productizationConfig = nextConfig
+
+    recordProductizationDecisionMetadata(
+      updates,
+      previousConfig: currentConfig,
+      nextConfig: nextConfig,
+      sessionIndex: sessionIndex
+    )
+    try persistSessions()
+    return updates.count
+  }
+
+  func recordProductizationPlanMetadata(
+    for immediate: PlanNext?,
+    productizationConfig: ProductizationConfig,
+    sessionIndex: Int
+  ) {
+    guard sessions.indices.contains(sessionIndex), let immediate else { return }
+    let experimentIDs = productizationExperimentIDs(
+      mentionedIn: [
+        immediate.plan,
+        immediate.selectedBecause,
+        immediate.candidateID,
+      ]
+      .compactMap { $0 }
+      .joined(separator: "\n"),
+      productizationConfig: productizationConfig
+    )
+    guard experimentIDs.count == 1,
+      let experiment = productizationConfig.experiments.first(where: { $0.id == experimentIDs[0] })
+    else { return }
+
+    sessions[sessionIndex].productExperimentID = experiment.id
+    sessions[sessionIndex].productSolutionID = experiment.solutionID
+    sessions[sessionIndex].productPainID = productizationPainID(
+      forSolutionID: experiment.solutionID,
+      config: productizationConfig
+    )
+    sessions[sessionIndex].productExperimentBranchName = experiment.branchName
+    sessions[sessionIndex].productExperimentCommitSha = experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].productExperimentBeforeSha = experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].productDecision = experiment.decision
+  }
+
+  func recordProductizationDecisionMetadata(
+    _ updates: [ProductizationReflectDecisionUpdate],
+    previousConfig: ProductizationConfig,
+    nextConfig: ProductizationConfig,
+    sessionIndex: Int
+  ) {
+    guard sessions.indices.contains(sessionIndex), let latest = updates.last,
+      let experiment = nextConfig.experiments.first(where: { $0.id == latest.experimentID })
+    else { return }
+
+    let previousExperiment = previousConfig.experiments.first { $0.id == latest.experimentID }
+    sessions[sessionIndex].productExperimentID = experiment.id
+    sessions[sessionIndex].productSolutionID = experiment.solutionID
+    sessions[sessionIndex].productPainID = productizationPainID(
+      forSolutionID: experiment.solutionID,
+      config: nextConfig
+    )
+    sessions[sessionIndex].productExperimentBranchName = experiment.branchName
+    sessions[sessionIndex].productExperimentCommitSha = experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].productExperimentBeforeSha =
+      previousExperiment?.currentSha ?? previousExperiment?.baseSha
+    sessions[sessionIndex].productExperimentAfterSha = experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].productEvidenceRunIDs = Array(
+      Set(updates.flatMap(\.evidenceRunIDs))
+    )
+    .sorted()
+    sessions[sessionIndex].productDecision = latest.decision
+  }
+
+  private func productizationPainID(
+    forSolutionID solutionID: String,
+    config: ProductizationConfig
+  ) -> String? {
+    config.solutionHypotheses.first { $0.id == solutionID }?.painID
+  }
+
+  private func productizationExperimentIDs(
+    mentionedIn text: String,
+    productizationConfig: ProductizationConfig
+  ) -> [String] {
+    let normalizedText = normalizedProductizationMatchText(text)
+    guard !normalizedText.isEmpty else { return [] }
+    var matches: [String] = []
+    for experiment in productizationConfig.experiments {
+      let tokens = [
+        experiment.id,
+        experiment.branchName,
+        experiment.worktreeID,
+        experiment.title,
+      ]
+      .map(normalizedProductizationMatchText)
+      .filter { $0.count >= 3 }
+      if tokens.contains(where: { normalizedText.contains($0) }) {
+        matches.append(experiment.id)
+      }
+    }
+    return Array(Set(matches)).sorted()
+  }
+
+  private func normalizedProductizationMatchText(_ text: String) -> String {
+    text
+      .lowercased()
+      .replacingOccurrences(of: #"[^a-z0-9/._-]+"#, with: " ", options: .regularExpression)
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   func runPostChecks(

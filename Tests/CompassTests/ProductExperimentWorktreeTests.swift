@@ -147,16 +147,28 @@ struct ProductExperimentWorktreeTests {
       verifyOutput: nil,
       feedback: nil,
       productExperimentID: "experiment-command-board",
+      productSolutionID: "solution-command-board",
+      productPainID: "pain-command-board",
       productExperimentBranchName: "compass/exp/command-board",
-      productExperimentCommitSha: "abc123"
+      productExperimentCommitSha: "abc123",
+      productExperimentBeforeSha: "before123",
+      productExperimentAfterSha: "after123",
+      productEvidenceRunIDs: ["run-one", "run-two"],
+      productDecision: .narrow
     )
 
     let data = try JSONEncoder().encode(record)
     let decoded = try JSONDecoder().decode(SessionRecord.self, from: data)
 
     try #require(decoded.productExperimentID == "experiment-command-board")
+    try #require(decoded.productSolutionID == "solution-command-board")
+    try #require(decoded.productPainID == "pain-command-board")
     try #require(decoded.productExperimentBranchName == "compass/exp/command-board")
     try #require(decoded.productExperimentCommitSha == "abc123")
+    try #require(decoded.productExperimentBeforeSha == "before123")
+    try #require(decoded.productExperimentAfterSha == "after123")
+    try #require(decoded.productEvidenceRunIDs == ["run-one", "run-two"])
+    try #require(decoded.productDecision == .narrow)
   }
 
   @Test func simulationTargetCapturesReadOnlyCommitIdentity() throws {

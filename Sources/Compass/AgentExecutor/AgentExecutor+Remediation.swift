@@ -420,6 +420,12 @@ extension AgentExecutor {
         - Do not clear candidates, strategic context, open questions, or completed context as a side effect of selecting Immediate Work.
         - Return the smallest valid state change that keeps the factory moving.
         """
+    case .multiExperimentImmediate:
+      return """
+        - Choose one product experiment for `state.immediate`.
+        - Preserve experiment branch isolation; do not implement several product bets in one handoff.
+        - If the work truly serves multiple experiments, explicitly scope it as shared experiment infrastructure and explain why.
+        """
     case .unknown:
       return """
         - Choose one concrete Immediate Plan unless the project truly has no actionable candidates or useful repo-originated work.

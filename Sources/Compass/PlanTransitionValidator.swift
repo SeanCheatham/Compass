@@ -8,6 +8,7 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
     case placeholderVerify
     case coverageRequirement
     case weakHandoff
+    case multiExperimentImmediate
   }
 
   var message: String
@@ -40,7 +41,10 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
 
 enum PlanTransitionValidator {
   static func validate(
-    from current: PlanState, to next: PlanState, forgeProfile: ForgeProfile? = nil
+    from current: PlanState,
+    to next: PlanState,
+    forgeProfile: ForgeProfile? = nil,
+    productizationConfig: ProductizationConfig? = nil
   )
     throws
   {
@@ -148,6 +152,11 @@ enum PlanTransitionValidator {
         vagueAcceptanceChecks: vagueAcceptanceChecks
       )
     }
+
+    try validateProductizationScope(
+      immediate: immediate,
+      productizationConfig: productizationConfig
+    )
   }
 
   private static func remainingPlanFields(in state: PlanState, label: String) -> [String] {
@@ -198,5 +207,82 @@ enum PlanTransitionValidator {
 
     guard !details.isEmpty else { return "" }
     return " " + details.joined(separator: " ")
+  }
+
+  private static func validateProductizationScope(
+    immediate: PlanNext,
+    productizationConfig: ProductizationConfig?
+  ) throws {
+    guard let productizationConfig, productizationConfig.experiments.count > 1 else { return }
+    let handoffText = [
+      immediate.plan,
+      immediate.selectedBecause,
+      immediate.candidateID,
+      immediate.verify,
+    ]
+    .compactMap { $0 }
+    .joined(separator: "\n")
+    guard !isSharedProductizationInfrastructureScope(handoffText) else { return }
+
+    let mentioned = mentionedExperimentIDs(
+      in: handoffText,
+      productizationConfig: productizationConfig
+    )
+    guard mentioned.count <= 1 else {
+      throw PlanTransitionValidationError(
+        message:
+          "Plan immediate handoff mentions multiple product experiments (\(mentioned.joined(separator: ", "))). Choose one experiment for the next commit-sized slice, or explicitly scope the handoff to shared experiment infrastructure.",
+        reason: .multiExperimentImmediate,
+        missingLabels: ["Single experiment scope"]
+      )
+    }
+  }
+
+  private static func mentionedExperimentIDs(
+    in text: String,
+    productizationConfig: ProductizationConfig
+  ) -> [String] {
+    let normalizedText = normalizedForProductizationMatch(text)
+    guard !normalizedText.isEmpty else { return [] }
+
+    var matches: [String] = []
+    for experiment in productizationConfig.experiments {
+      let tokens = [
+        experiment.id,
+        experiment.branchName,
+        experiment.worktreeID,
+        experiment.title,
+      ]
+      .map(normalizedForProductizationMatch)
+      .filter { $0.count >= 3 }
+
+      if tokens.contains(where: { normalizedText.contains($0) }) {
+        matches.append(experiment.id)
+      }
+    }
+    return Array(Set(matches)).sorted()
+  }
+
+  private static func isSharedProductizationInfrastructureScope(_ text: String) -> Bool {
+    let normalized = normalizedForProductizationMatch(text)
+    let sharedSignals = [
+      "shared experiment infrastructure",
+      "shared productization infrastructure",
+      "cross experiment infrastructure",
+      "cross experiment",
+      "common experiment infrastructure",
+      "common productization infrastructure",
+      "shared simulation harness",
+      "common simulation harness",
+    ]
+    return sharedSignals.contains { normalized.contains($0) }
+  }
+
+  private static func normalizedForProductizationMatch(_ value: String) -> String {
+    value
+      .lowercased()
+      .replacingOccurrences(of: #"[^a-z0-9/._-]+"#, with: " ", options: .regularExpression)
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }

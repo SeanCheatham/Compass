@@ -646,6 +646,8 @@ enum ProductExperimentDecision: String, Codable, CaseIterable, Equatable, Sendab
   case pivot
   case kill
   case promote
+  case archived
+  case promoted
 }
 
 struct ProductScenarioCohort: Codable, Equatable, Identifiable, Sendable {

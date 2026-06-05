@@ -164,10 +164,16 @@ struct PMFPlanningEvidenceFormatterTests {
 
     try #require(plan.contains("## Productization Context"))
     try #require(plan.contains("advisory product pressure"))
+    try #require(plan.contains("active pain hypotheses and"))
+    try #require(plan.contains("Preserve experiment branch isolation"))
+    try #require(plan.contains("deterministic productization simulation fixtures"))
     try #require(plan.contains("Repeated target-persona confusion"))
     try #require(plan.contains("Missing proof of ROI"))
     try #require(reflect.contains("## Productization Context"))
     try #require(reflect.contains("durable product lessons"))
+    try #require(reflect.contains("\"productDecisionUpdates\": []"))
+    try #require(reflect.contains("Allowed experiment decision transitions"))
+    try #require(reflect.contains("kill -> archived"))
     try #require(reflect.contains("persona-specific objections"))
     try #require(reflect.contains("Missing proof of ROI"))
   }

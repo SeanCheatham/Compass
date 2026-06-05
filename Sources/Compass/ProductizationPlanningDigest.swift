@@ -245,12 +245,14 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func experimentDecisionRank(_ decision: ProductExperimentDecision) -> Int {
     switch decision {
+    case .promoted: return 0
     case .promote: return 0
     case .keepGoing: return 1
     case .narrow: return 2
     case .pivot: return 3
     case .notRun: return 4
     case .kill: return 5
+    case .archived: return 6
     }
   }
 

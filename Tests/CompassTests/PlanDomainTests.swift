@@ -88,6 +88,61 @@ struct PlanTransitionValidatorTests {
     try PlanTransitionValidator.validate(from: current, to: next)
   }
 
+  @Test func testRejectsProductizationImmediateThatMentionsMultipleExperiments() throws {
+    let config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users cannot compare product bets.",
+      now: Date(timeIntervalSince1970: 1)
+    )
+    let first = config.experiments[0]
+    let second = config.experiments[1]
+    let current = makeState(candidates: "- Improve active experiments")
+    let next = makeState(
+      immediate: PlanNext(
+        plan: executablePlan("Improve \(first.id) and \(second.id) in one slice"),
+        verify: "swift test --filter ProductizationLoopTests"
+      ),
+      candidates: "- Improve active experiments"
+    )
+
+    let error = try rejectedTransition(
+      from: current,
+      to: next,
+      productizationConfig: config
+    )
+
+    try #require(error.reason == .multiExperimentImmediate)
+    try #require(error.message.contains(first.id))
+    try #require(error.message.contains(second.id))
+    try #require(error.missingLabels == ["Single experiment scope"])
+  }
+
+  @Test func testAcceptsSharedInfrastructureImmediateAcrossExperiments() throws {
+    let config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users cannot compare product bets.",
+      now: Date(timeIntervalSince1970: 1)
+    )
+    let first = config.experiments[0]
+    let second = config.experiments[1]
+    let current = makeState(candidates: "- Improve active experiments")
+    let next = makeState(
+      immediate: PlanNext(
+        plan: executablePlan(
+          "Add shared experiment infrastructure for \(first.id) and \(second.id)"
+        ),
+        verify: "swift test --filter ProductizationLoopTests"
+      ),
+      candidates: "- Improve active experiments"
+    )
+
+    try PlanTransitionValidator.validate(
+      from: current,
+      to: next,
+      productizationConfig: config
+    )
+  }
+
   @Test func testAcceptsCandidateRewriteWithoutChangingCompleted() throws {
     let current = makeState(completed: ["First slice"], candidates: "- Old queue")
     let proposal = testPlanProposal(
@@ -266,10 +321,16 @@ struct PlanTransitionValidatorTests {
   private func rejectedTransition(
     from current: PlanState,
     to next: PlanState,
-    forgeProfile: ForgeProfile? = nil
+    forgeProfile: ForgeProfile? = nil,
+    productizationConfig: ProductizationConfig? = nil
   ) throws -> PlanTransitionValidationError {
     do {
-      try PlanTransitionValidator.validate(from: current, to: next, forgeProfile: forgeProfile)
+      try PlanTransitionValidator.validate(
+        from: current,
+        to: next,
+        forgeProfile: forgeProfile,
+        productizationConfig: productizationConfig
+      )
     } catch let error as PlanTransitionValidationError {
       return error
     }
@@ -1515,6 +1576,34 @@ struct PlanningEnvelopeDecoderTests {
         == "The strategy still points at non-engineer UX.\nNo immediate planning update is needed."
     )
     try #require(summary.lessonEdits.isEmpty)
+  }
+
+  @Test func reflectSummaryDecoderAcceptsProductDecisionUpdates() throws {
+    let data = Data(
+      """
+      {
+        "state": null,
+        "summary": "Evidence supports narrowing the prototype.",
+        "lessonEdits": [],
+        "productDecisionUpdates": [
+          {
+            "experimentID": "experiment-command-board",
+            "decision": "narrow",
+            "summary": "Repeated objections point at import setup, not the pain.",
+            "evidenceRunIDs": ["run-one", "run-two"],
+            "decidedBy": "Reflect"
+          }
+        ]
+      }
+      """.utf8
+    )
+
+    let summary = try JSONDecoder().decode(ReflectSummary.self, from: data)
+
+    try #require(summary.productDecisionUpdates.count == 1)
+    try #require(summary.productDecisionUpdates[0].experimentID == "experiment-command-board")
+    try #require(summary.productDecisionUpdates[0].decision == .narrow)
+    try #require(summary.productDecisionUpdates[0].evidenceRunIDs == ["run-one", "run-two"])
   }
 
   @Test func planProposalDecoderAcceptsCanonicalTypedState() throws {

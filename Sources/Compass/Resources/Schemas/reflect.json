@@ -31,6 +31,12 @@
     "lessonEdits": {
       "type": "array",
       "items": { "$ref": "#/$defs/lessonEdit" }
+    },
+    "productDecisionUpdates": {
+      "type": "array",
+      "maxItems": 4,
+      "description": "Product experiment decision updates justified by productization evidence. Use [] when no experiment decision should change.",
+      "items": { "$ref": "#/$defs/productDecisionUpdate" }
     }
   },
   "$defs": {
@@ -157,6 +163,35 @@
             { "type": "boolean" },
             { "type": "null" }
           ]
+        }
+      }
+    },
+    "productDecisionUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["experimentID", "decision", "summary", "evidenceRunIDs", "decidedBy"],
+      "properties": {
+        "experimentID": {
+          "type": "string",
+          "description": "Exact product experiment id from Productization Context."
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["not_run", "continue", "narrow", "pivot", "kill", "promote", "archived", "promoted"],
+          "description": "Next experiment decision following the allowed transition table."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Evidence-grounded decision summary. Required to be non-empty for kill, promote, archived, and promoted."
+        },
+        "evidenceRunIDs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "maxItems": 8
+        },
+        "decidedBy": {
+          "type": "string",
+          "description": "Decision source, normally Reflect."
         }
       }
     }
