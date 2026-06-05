@@ -3816,6 +3816,7 @@ enum ProductMarketFitNextActionAdvisor {
       ?? " Target AI-user segment: add an enabled scenario for an untested segment."
     let debtSummary = StringUtils.boundedText(readiness.proofDebt.summary, limit: 140)
     let targetName = target?.name ?? "the missing AI-user segment"
+    let targetDecision = action.targetDecision ?? liftCutDecisionHint(for: readiness.recommendation)
     let detail: String
     if canRunTarget {
       detail =
@@ -3838,7 +3839,8 @@ enum ProductMarketFitNextActionAdvisor {
       requiredSimulationMode: .personaModel,
       targetPersonaID: target?.id,
       targetPersonaName: target?.name,
-      targetScenarioID: executableScenarioID
+      targetScenarioID: executableScenarioID,
+      targetDecision: targetDecision
     )
   }
 
