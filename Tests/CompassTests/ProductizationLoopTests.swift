@@ -675,6 +675,154 @@ struct ProductizationLoopTests {
     try #require(digest.contains("target_decision kill"))
   }
 
+  @Test func productFactoryStalledProofTargetRequiresMatchingDecisionIntent() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let operatorID = try #require(config.userSegments.first?.id)
+    let buyerID = try #require(config.userSegments.dropFirst().first?.id)
+    let weakScores = ProductizationEvidenceScores(
+      painRecognition: 2,
+      workflowImprovement: 1,
+      alternativeAdvantage: 2,
+      switchingReadiness: 1,
+      continuedUsePull: 2
+    )
+    let index = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "weak-a",
+          experiment: experiment,
+          config: config,
+          personaID: operatorID,
+          mode: .personaModel,
+          endedAt: 300,
+          verdict: .weak,
+          scores: weakScores,
+          objections: ["No reason to switch"],
+          currentAlternativeComparison: ""
+        ),
+        makeDecisionAdvisorRecord(
+          id: "weak-b",
+          experiment: experiment,
+          config: config,
+          personaID: buyerID,
+          mode: .personaModel,
+          endedAt: 200,
+          verdict: .rejected,
+          scores: weakScores,
+          objections: ["No reason to switch"],
+          currentAlternativeComparison: ""
+        ),
+      ]
+    )
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let proofTarget = try #require(ProductFactoryProofTargetAdvisor.target(
+      for: experiment,
+      config: config,
+      evidenceIndex: index
+    ))
+    let stepID = ProductFactoryCycleFailureAdvisor.stepID(for: action)
+
+    func stalledAudit(id: String, proofTargetSummary: String) -> ProductFactoryCycleAudit {
+      ProductFactoryCycleAudit(
+        id: id,
+        startedAt: 500,
+        endedAt: 510,
+        executedStepIDs: [stepID],
+        experimentIDs: [experiment.id],
+        messages: ["AI-user rejection target ran 1 scenario(s): 1 completed."],
+        maxSteps: 3,
+        evidenceRunStepCount: 1,
+        evidenceRunIDs: ["kill-proof-run"],
+        completedEvidenceRunCount: 1,
+        failedEvidenceRunCount: 0,
+        skippedScenarioCount: 0,
+        startingProofDebtCount: 4,
+        endingProofDebtCount: 4,
+        proofTargetSummaries: [proofTargetSummary],
+        stopReason: .noExecutableStep,
+        stopDetail: "Stopped because no executable product-factory step remains.",
+        userMessage: "Factory cycle ran 1 step(s). Proof debt held steady (4 -> 4)."
+      )
+    }
+
+    let mismatchedSummary = proofTarget.auditSummary.replacingOccurrences(
+      of: "target_decision kill",
+      with: "target_decision promote"
+    )
+    let mismatchedConfig = config.recordingFactoryCycleAudit(
+      stalledAudit(
+        id: "factory-cycle-wrong-decision-target",
+        proofTargetSummary: mismatchedSummary
+      )
+    )
+    let matchedAudit = stalledAudit(
+      id: "factory-cycle-matching-decision-target",
+      proofTargetSummary: proofTarget.auditSummary
+    )
+    let matchedConfig = config.recordingFactoryCycleAudit(
+      matchedAudit
+    )
+    let matchedConfigTarget = try #require(ProductFactoryProofTargetAdvisor.target(
+      for: experiment,
+      config: matchedConfig,
+      evidenceIndex: index
+    ))
+    let mismatchedStep = try #require(ProductFactoryAutopilotPlanner.nextStep(
+      config: mismatchedConfig,
+      evidenceIndex: index,
+      isPersonaModelAvailable: true
+    ))
+    let matchedStep = try #require(ProductFactoryAutopilotPlanner.nextStep(
+      config: matchedConfig,
+      evidenceIndex: index,
+      isPersonaModelAvailable: true
+    ))
+
+    try #require(action.targetDecision == .kill)
+    let targetScenarioID = try #require(action.targetScenarioID)
+    try #require(action.title == "Run AI-user alternative rejection check")
+    try #require(matchedAudit.proofDebtDelta == 0)
+    try #require(matchedAudit.proofTargetSummaries[0].contains("target_decision kill"))
+    try #require(matchedAudit.proofTargetSummaries[0].contains(targetScenarioID))
+    try #require(proofTarget.auditSummary.contains("target_decision kill"))
+    try #require(proofTarget.auditSummary.contains(targetScenarioID))
+    try #require(matchedConfigTarget.label == proofTarget.label)
+    if let targetPersonaName = action.targetPersonaName {
+      try #require(proofTarget.auditSummary.localizedCaseInsensitiveContains(targetPersonaName))
+      try #require(
+        matchedAudit.proofTargetSummaries[0].localizedCaseInsensitiveContains(targetPersonaName))
+    }
+    try #require(mismatchedSummary.contains("target_decision promote"))
+    try #require(ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
+      for: action,
+      experiment: experiment,
+      config: mismatchedConfig,
+      evidenceIndex: index
+    ) == nil)
+    try #require(ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
+      for: action,
+      experiment: experiment,
+      config: matchedConfig,
+      evidenceIndex: index
+    )?.id == "factory-cycle-matching-decision-target")
+    try #require(mismatchedStep.canExecute)
+    try #require(!matchedStep.canExecute)
+    try #require(matchedStep.blockedReason != nil)
+  }
+
   @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforeKill() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",

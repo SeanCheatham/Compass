@@ -1060,7 +1060,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     )
     self.proofTargetSummaries = ProductizationModelText.cleanedList(
       proofTargetSummaries,
-      limit: 240
+      limit: 360
     )
     self.personaRationaleSignalSummaries = ProductizationModelText.cleanedList(
       personaRationaleSignalSummaries,

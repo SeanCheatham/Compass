@@ -1426,7 +1426,7 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
       parts.append("cohort \(cohortID)")
     }
     parts.append("debt \(debtSummary)")
-    return StringUtils.boundedText(parts.joined(separator: "; "), limit: 240)
+    return StringUtils.boundedText(parts.joined(separator: "; "), limit: 360)
   }
 
   init(
@@ -2559,9 +2559,14 @@ enum ProductFactoryCycleLearningAdvisor {
           action.targetPersonaName.map {
             summary.localizedCaseInsensitiveContains($0)
           } ?? true
+        let decisionMatches =
+          (action.targetDecision ?? target.targetDecision).map {
+            summary.contains("target_decision \($0.rawValue)")
+          } ?? true
         return summary.localizedCaseInsensitiveContains(target.label)
           && scenarioMatches
           && personaMatches
+          && decisionMatches
       }
       return action.targetScenarioID.map { summary.contains($0) } ?? false
     }
