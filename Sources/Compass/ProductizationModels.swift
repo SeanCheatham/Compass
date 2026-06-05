@@ -879,6 +879,8 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
   var messages: [String]
   var maxSteps: Int
   var stopReason: ProductFactoryCycleAuditStopReason
+  var stopStepID: String?
+  var stopStepTitle: String?
   var stopDetail: String
   var userMessage: String
 
@@ -887,7 +889,8 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
   }
 
   var summary: String {
-    "\(executedStepCount) step(s); \(stopReason.rawValue); \(stopDetail)"
+    let stopTarget = stopStepTitle.map { "; stopped at \($0)" } ?? ""
+    return "\(executedStepCount) step(s); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
   }
 
   init(
@@ -899,6 +902,8 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     messages: [String],
     maxSteps: Int,
     stopReason: ProductFactoryCycleAuditStopReason,
+    stopStepID: String? = nil,
+    stopStepTitle: String? = nil,
     stopDetail: String,
     userMessage: String
   ) {
@@ -912,6 +917,8 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     self.messages = ProductizationModelText.cleanedList(messages, limit: 500)
     self.maxSteps = max(1, maxSteps)
     self.stopReason = stopReason
+    self.stopStepID = ProductizationModelText.optionalCleanedText(stopStepID, limit: 200)
+    self.stopStepTitle = ProductizationModelText.optionalCleanedText(stopStepTitle, limit: 180)
     let cleanedStopDetail = ProductizationModelText.cleanedText(
       stopDetail,
       fallback: "Factory cycle stopped.",

@@ -330,6 +330,63 @@ struct ProductizationLoopTests {
     try #require(ProductizationSimulationMode.modelFree.productFactoryLabel == "Model-free")
   }
 
+  @Test func productFactoryAutopilotBlocksRecentlyFailedStep() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    for index in config.experiments.indices.dropFirst() {
+      config.experiments[index].decision = .promoted
+    }
+    let runnable = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+    config = config.recordingFactoryCycleAudit(
+      ProductFactoryCycleAudit(
+        id: "factory-cycle-failed-step",
+        startedAt: 100,
+        endedAt: 110,
+        executedStepIDs: [],
+        experimentIDs: [runnable.experimentID],
+        messages: [],
+        maxSteps: 3,
+        stopReason: .executionFailed,
+        stopStepID: runnable.id,
+        stopStepTitle: runnable.title,
+        stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
+        userMessage:
+          "Factory cycle ran no steps. Stopped because Run evidence cohort failed: contract missing."
+      )
+    )
+
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+    let plan = ProductFactoryAutopilotPlanner.cyclePlan(
+      config: config,
+      evidenceIndex: .empty
+    )
+
+    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
+      config: config,
+      evidenceIndex: .empty
+    ) == nil)
+    try #require(!step.canExecute)
+    try #require(step.id == runnable.id)
+    try #require(step.blockedReason?.contains("factory-cycle-failed-step") == true)
+    try #require(step.blockedReason?.contains("contract missing") == true)
+    try #require(!plan.canRun)
+    try #require(plan.nextBlockedStep?.id == runnable.id)
+  }
+
   @Test func productFactoryAutopilotCyclePlanCapsExecutableSteps() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",
@@ -439,6 +496,13 @@ struct ProductizationLoopTests {
       outcome.userMessage.contains(
         "Stopped because Run evidence cohort failed: Command timed out while simulating the buyer."
       ))
+    let audit = outcome.audit(
+      startedAt: Date(timeIntervalSince1970: 200),
+      endedAt: Date(timeIntervalSince1970: 210)
+    )
+    try #require(audit.stopReason == .executionFailed)
+    try #require(audit.stopStepID == step.id)
+    try #require(audit.stopStepTitle == step.title)
   }
 
   @Test func productFactoryAutopilotCycleOutcomeBuildsDurableAudit() throws {

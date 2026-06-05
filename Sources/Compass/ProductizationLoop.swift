@@ -573,6 +573,24 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     stopReasonMessage
   }
 
+  var stopStepID: String? {
+    switch stopReason {
+    case .repeatedStep(let stepID, _), .executionFailed(let stepID, _, _):
+      return stepID
+    case .reachedStepLimit, .noExecutableStep:
+      return nil
+    }
+  }
+
+  var stopStepTitle: String? {
+    switch stopReason {
+    case .repeatedStep(_, let title), .executionFailed(_, let title, _):
+      return title
+    case .reachedStepLimit, .noExecutableStep:
+      return nil
+    }
+  }
+
   func audit(
     startedAt: Date,
     endedAt: Date = Date()
@@ -592,6 +610,8 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       messages: messages,
       maxSteps: maxSteps,
       stopReason: auditStopReason,
+      stopStepID: stopStepID,
+      stopStepTitle: stopStepTitle,
       stopDetail: stopDetail,
       userMessage: userMessage
     )
@@ -643,7 +663,7 @@ enum ProductFactoryAutopilotPlanner {
           evidenceIndex: evidenceIndex
         )
       else { return nil }
-      return ProductFactoryAutopilotStep(
+      let step = ProductFactoryAutopilotStep(
         experiment: experiment,
         action: action,
         cohortReadiness: ProductMarketFitNextActionAdvisor.cohortRunReadiness(
@@ -652,6 +672,7 @@ enum ProductFactoryAutopilotPlanner {
           config: config
         )
       )
+      return applyingRecentCycleFailureBlock(to: step, config: config)
     }
   }
 
@@ -686,6 +707,36 @@ enum ProductFactoryAutopilotPlanner {
       maxSteps: limit,
       capped: executableSteps.count > selectedExecutableSteps.count
     )
+  }
+
+  private static func applyingRecentCycleFailureBlock(
+    to step: ProductFactoryAutopilotStep,
+    config: ProductizationConfig
+  ) -> ProductFactoryAutopilotStep {
+    guard step.canExecute,
+      let audit = recentExecutionFailureAudit(for: step.id, config: config)
+    else { return step }
+    var blocked = step
+    blocked.canExecute = false
+    blocked.blockedReason =
+      "Recent factory cycle \(audit.id) failed while running this step; repair the generated app contract, runner, scenario, or cohort before retrying. \(audit.stopDetail)"
+    return blocked
+  }
+
+  private static func recentExecutionFailureAudit(
+    for stepID: String,
+    config: ProductizationConfig
+  ) -> ProductFactoryCycleAudit? {
+    config.factoryCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(5)
+      .first {
+        $0.stopReason == .executionFailed
+          && $0.stopStepID == stepID
+      }
   }
 }
 

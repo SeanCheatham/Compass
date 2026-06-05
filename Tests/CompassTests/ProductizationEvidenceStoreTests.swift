@@ -299,6 +299,54 @@ struct ProductizationEvidenceStoreTests {
     try #require(!text.contains("transcript.jsonl"))
   }
 
+  @Test func planningDigestBlocksAutopilotAfterRecentCycleFailure() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Weekly reporting takes too long.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    for index in config.experiments.indices.dropFirst() {
+      config.experiments[index].decision = .promoted
+    }
+    let runnable = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+    config = config.recordingFactoryCycleAudit(
+      ProductFactoryCycleAudit(
+        id: "factory-cycle-failed-step",
+        startedAt: 50,
+        endedAt: 55,
+        executedStepIDs: [],
+        experimentIDs: [runnable.experimentID],
+        messages: [],
+        maxSteps: 3,
+        stopReason: .executionFailed,
+        stopStepID: runnable.id,
+        stopStepTitle: runnable.title,
+        stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
+        userMessage:
+          "Factory cycle ran no steps. Stopped because Run evidence cohort failed: contract missing."
+      )
+    )
+
+    let text = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: .empty
+    )
+
+    try #require(text.contains("Factory autopilot step"))
+    try #require(text.contains("executable false"))
+    try #require(text.contains("cycle executable 0"))
+    try #require(text.contains("factory-cycle-failed-step"))
+    try #require(text.contains("Recent factory cycle"))
+    try #require(text.contains("contract missing"))
+  }
+
   @Test func planAndReflectPromptsIncludeProductizationEvidenceWithoutTranscripts() throws {
     let config = ProductizationConfig.seedDefaults(
       projectTitle: "Reporting Helper",
