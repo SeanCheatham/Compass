@@ -245,6 +245,8 @@ struct ProductizationSimulationRequestContext: Equatable, Sendable {
   var solution: SolutionHypothesis
   var experiment: ProductExperiment
   var scenarioID: String
+  var scenarioTask: String
+  var scenarioSuccessSignal: String
   var commitSha: String
   var settings: AgentRuntimeSettings
 }
@@ -301,7 +303,7 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
   ) async throws -> ProductizationPersonaActionChoice {
     try await selectAction(
       prompt: Self.choicePrompt(context: context),
-      promptVersionID: "productization.persona_action.foundation_models.v2"
+      promptVersionID: "productization.persona_action.foundation_models.v3"
     )
   }
 
@@ -310,7 +312,7 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
   ) async throws -> ProductizationPersonaActionChoice {
     try await selectAction(
       prompt: Self.repairPrompt(context: context),
-      promptVersionID: "productization.persona_action_repair.foundation_models.v2"
+      promptVersionID: "productization.persona_action_repair.foundation_models.v3"
     )
   }
 
@@ -329,7 +331,7 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
 
   static func parseChoice(
     _ response: String,
-    promptVersionID: String = "productization.persona_action.foundation_models.v2"
+    promptVersionID: String = "productization.persona_action.foundation_models.v3"
   ) throws -> ProductizationPersonaActionChoice {
     guard let json = firstJSONObject(in: response) else {
       throw ProductizationPersonaActionModelError.invalidJSON(response)
@@ -398,9 +400,25 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
       ? "none"
       : actionPrefix.map(\.id).joined(separator: " -> ")
     let observations = trace.initialState.observations.prefix(4).joined(separator: "; ")
-    let alternatives = request.alternatives.prefix(4)
-      .map { "\($0.title): \($0.switchingCost)" }
+    let alternatives = request.alternatives.prefix(4).map { alternative in
+      let strengths = alternative.strengths.prefix(2).joined(separator: "; ")
+      let weaknesses = alternative.weaknesses.prefix(2).joined(separator: "; ")
+      return [
+        "\(alternative.title) [\(alternative.kind.rawValue)]",
+        alternative.switchingCost.isEmpty ? "" : "switching \(alternative.switchingCost)",
+        strengths.isEmpty ? "" : "strengths \(strengths)",
+        weaknesses.isEmpty ? "" : "weaknesses \(weaknesses)",
+      ].filter { !$0.isEmpty }.joined(separator: "; ")
+    }
       .joined(separator: "; ")
+    let workflowFailureModes = (
+      request.currentWorkflow.failureModes
+        + request.currentWorkflow.handoffs
+        + request.currentWorkflow.workarounds
+    ).prefix(6).joined(separator: "; ")
+    let decisionCriteria = request.segment.decisionCriteria.prefix(6).joined(separator: "; ")
+    let constraints = request.segment.constraints.prefix(6).joined(separator: "; ")
+    let requiredProof = request.solution.requiredProof.prefix(6).joined(separator: "; ")
     return """
       \(title)
 
@@ -413,10 +431,17 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
 
       Persona: \(bounded(request.segment.name, 120)) - \(bounded(request.segment.role, 180)).
       Skepticism: \(bounded(request.segment.skepticism, 320)).
+      Persona constraints: \(bounded(constraints, 500)).
+      Decision criteria: \(bounded(decisionCriteria, 500)).
       Pain: \(bounded(request.pain.rawPain, 500)).
       Current workflow: \(bounded(request.currentWorkflow.title, 160)); \(bounded(request.currentWorkflow.estimatedCost, 240)).
+      Current workflow failure modes: \(bounded(workflowFailureModes, 500)).
       Alternatives: \(bounded(alternatives, 500)).
       Solution promise: \(bounded(request.solution.promise, 500)).
+      Required proof: \(bounded(requiredProof, 500)).
+      Prototype scope: \(bounded(request.experiment.prototypeScope, 500)).
+      Scenario task: \(bounded(request.scenarioTask, 500)).
+      Scenario success signal: \(bounded(request.scenarioSuccessSignal, 400)).
       Scenario: \(request.scenarioID), commit \(request.commitSha), turn \(turnIndex).
       Prior actions: \(priorActions).
       Current screen: \(bounded(trace.initialState.headline, 120)) - \(bounded(trace.initialState.body, 500)).
@@ -1026,6 +1051,8 @@ struct ProductizationSimulationRunner {
         solution: request.solution,
         experiment: request.experiment,
         scenarioID: request.scenarioID,
+        scenarioTask: request.scenarioTask,
+        scenarioSuccessSignal: request.scenarioSuccessSignal,
         commitSha: request.commitSha,
         settings: request.settings
       ),

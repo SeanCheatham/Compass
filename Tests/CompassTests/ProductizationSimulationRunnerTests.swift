@@ -185,11 +185,20 @@ struct ProductizationSimulationRunnerTests {
 
     let choice = try await selector.chooseAction(context: context)
     try #require(choice.action.id == "inspect_pain")
-    try #require(choice.promptVersionID == "productization.persona_action.foundation_models.v2")
+    try #require(choice.promptVersionID == "productization.persona_action.foundation_models.v3")
     try #require(stream.prompts[0].contains("skeptical target user"))
     try #require(stream.prompts[0].contains("PMF scorecard to stress-test"))
     try #require(stream.prompts[0].contains("switching readiness"))
     try #require(stream.prompts[0].contains("reasons the user would keep the current alternative"))
+    try #require(stream.prompts[0].contains("Persona constraints"))
+    try #require(stream.prompts[0].contains("Decision criteria"))
+    try #require(stream.prompts[0].contains("Current workflow failure modes"))
+    try #require(stream.prompts[0].contains("Required proof"))
+    try #require(stream.prompts[0].contains("Prototype scope"))
+    try #require(stream.prompts[0].contains("Scenario task"))
+    try #require(stream.prompts[0].contains("Scenario success signal"))
+    try #require(stream.prompts[0].contains("Reporting is reusable in the weekly review"))
+    try #require(stream.prompts[0].contains("manual export"))
     try #require(stream.prompts[0].contains("Allowed actions"))
     try #require(stream.prompts[0].contains("Weekly reporting takes too long."))
 
@@ -203,7 +212,7 @@ struct ProductizationSimulationRunnerTests {
       )
     )
     try #require(repair.action.id == "compare_current_alternative")
-    try #require(repair.promptVersionID == "productization.persona_action_repair.foundation_models.v2")
+    try #require(repair.promptVersionID == "productization.persona_action_repair.foundation_models.v3")
     try #require(stream.prompts[1].contains("previous action `invent_new_button` was invalid"))
   }
 }
@@ -315,6 +324,8 @@ private func makeProductizationRequest(
     solution: solution,
     experiment: experiment,
     scenarioID: "scenario-reporting",
+    scenarioTask: "Try the reporting helper against the weekly manual export.",
+    scenarioSuccessSignal: "Reporting is reusable in the weekly review.",
     generatedAppWorkingDirectory: generatedAppWorkingDirectory,
     mode: mode,
     maxTurns: maxTurns,
@@ -335,6 +346,8 @@ private func makePersonaActionContext() -> ProductizationPersonaActionContext {
       solution: request.solution,
       experiment: request.experiment,
       scenarioID: request.scenarioID,
+      scenarioTask: request.scenarioTask,
+      scenarioSuccessSignal: request.scenarioSuccessSignal,
       commitSha: request.commitSha,
       settings: request.settings
     ),
