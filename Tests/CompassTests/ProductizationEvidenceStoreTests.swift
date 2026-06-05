@@ -344,6 +344,8 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("cycle executable 0"))
     try #require(text.contains("factory-cycle-failed-step"))
     try #require(text.contains("Recent factory cycle"))
+    try #require(text.contains("kind repair_failures"))
+    try #require(text.contains("Repair factory cycle failure"))
     try #require(text.contains("contract missing"))
   }
 

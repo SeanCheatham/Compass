@@ -467,7 +467,9 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
     case .repairFailures:
       self.kind = .blocked
       self.canExecute = false
-      self.blockedReason = "Repair failed evidence runs before autopilot can continue."
+      self.blockedReason = action.detail.isEmpty
+        ? "Repair failed evidence runs before autopilot can continue."
+        : action.detail
     case .refineBet:
       self.kind = .blocked
       self.canExecute = false
@@ -641,6 +643,50 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   }
 }
 
+enum ProductFactoryCycleFailureAdvisor {
+  static func stepID(for action: ProductMarketFitNextAction) -> String {
+    "\(action.experimentID):\(action.kind.rawValue):\(action.cohortID ?? "none")"
+  }
+
+  static func blockingAudit(
+    forStepID stepID: String,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryCycleAudit? {
+    guard let audit = recentExecutionFailureAudit(forStepID: stepID, config: config),
+      !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
+    else { return nil }
+    return audit
+  }
+
+  private static func recentExecutionFailureAudit(
+    forStepID stepID: String,
+    config: ProductizationConfig
+  ) -> ProductFactoryCycleAudit? {
+    config.factoryCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(5)
+      .first {
+        $0.stopReason == .executionFailed
+          && $0.stopStepID == stepID
+      }
+  }
+
+  private static func hasCompletedEvidence(
+    after audit: ProductFactoryCycleAudit,
+    for experiment: ProductExperiment,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> Bool {
+    evidenceIndex.summaries(for: experiment).contains {
+      $0.isCompleted && $0.endedAt > audit.endedAt
+    }
+  }
+}
+
 enum ProductFactoryAutopilotPlanner {
   static func cohortSimulationMode(
     isPersonaModelAvailable: Bool
@@ -721,40 +767,18 @@ enum ProductFactoryAutopilotPlanner {
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductFactoryAutopilotStep {
     guard step.canExecute,
-      let audit = recentExecutionFailureAudit(for: step.id, config: config),
-      !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
+      let audit = ProductFactoryCycleFailureAdvisor.blockingAudit(
+        forStepID: step.id,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
     else { return step }
     var blocked = step
     blocked.canExecute = false
     blocked.blockedReason =
       "Recent factory cycle \(audit.id) failed while running this step; repair the generated app contract, runner, scenario, or cohort before retrying. \(audit.stopDetail)"
     return blocked
-  }
-
-  private static func recentExecutionFailureAudit(
-    for stepID: String,
-    config: ProductizationConfig
-  ) -> ProductFactoryCycleAudit? {
-    config.factoryCycleAudits
-      .sorted { lhs, rhs in
-        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
-        return lhs.endedAt > rhs.endedAt
-      }
-      .prefix(5)
-      .first {
-        $0.stopReason == .executionFailed
-          && $0.stopStepID == stepID
-      }
-  }
-
-  private static func hasCompletedEvidence(
-    after audit: ProductFactoryCycleAudit,
-    for experiment: ProductExperiment,
-    evidenceIndex: ProductizationEvidenceIndex
-  ) -> Bool {
-    evidenceIndex.summaries(for: experiment).contains {
-      $0.isCompleted && $0.endedAt > audit.endedAt
-    }
   }
 }
 
@@ -824,15 +848,20 @@ enum ProductMarketFitNextActionAdvisor {
           priority: staleCount > 0 ? 96 : 91
         )
       }
-      return ProductMarketFitNextAction(
-        experimentID: experiment.id,
-        kind: staleCount > 0 ? .rerunCohort : .runCohort,
-        title: staleCount > 0 ? "Rerun current evidence" : "Run productization cohort",
-        detail: staleCount > 0
-          ? "\(staleCount) stale run(s) exist for older commits; rerun cohort `\(cohort.id)` against the current experiment commit before deciding."
-          : "No current-commit evidence exists yet; run cohort `\(cohort.id)` before changing the product decision.",
-        priority: staleCount > 0 ? 95 : 90,
-        cohortID: cohort.id
+      return applyingRecentCycleFailureGuard(
+        to: ProductMarketFitNextAction(
+          experimentID: experiment.id,
+          kind: staleCount > 0 ? .rerunCohort : .runCohort,
+          title: staleCount > 0 ? "Rerun current evidence" : "Run productization cohort",
+          detail: staleCount > 0
+            ? "\(staleCount) stale run(s) exist for older commits; rerun cohort `\(cohort.id)` against the current experiment commit before deciding."
+            : "No current-commit evidence exists yet; run cohort `\(cohort.id)` before changing the product decision.",
+          priority: staleCount > 0 ? 95 : 90,
+          cohortID: cohort.id
+        ),
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
       )
     }
 
@@ -850,16 +879,21 @@ enum ProductMarketFitNextActionAdvisor {
       )
     }
     if readiness.completedRunCount < 2 || readiness.distinctPersonaCount < 2 {
-      return ProductMarketFitNextAction(
-        experimentID: experiment.id,
-        kind: cohort == nil ? .refineBet : .runCohort,
-        title: "Gather broader persona evidence",
-        detail: cohort.map {
-          "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); run cohort `\($0.id)` to broaden evidence before deciding."
-        }
-          ?? "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); define another enabled scenario or persona before deciding.",
-        priority: 80,
-        cohortID: cohort?.id
+      return applyingRecentCycleFailureGuard(
+        to: ProductMarketFitNextAction(
+          experimentID: experiment.id,
+          kind: cohort == nil ? .refineBet : .runCohort,
+          title: "Gather broader persona evidence",
+          detail: cohort.map {
+            "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); run cohort `\($0.id)` to broaden evidence before deciding."
+          }
+            ?? "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); define another enabled scenario or persona before deciding.",
+          priority: 80,
+          cohortID: cohort?.id
+        ),
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
       )
     }
 
@@ -901,18 +935,47 @@ enum ProductMarketFitNextActionAdvisor {
         priority: 73
       )
     case .gatherEvidence, .keepGoing:
-      return ProductMarketFitNextAction(
-        experimentID: experiment.id,
-        kind: cohort == nil ? .refineBet : .runCohort,
-        title: "Run another evidence cohort",
-        detail: cohort.map {
-          "Current PMF readiness is \(readiness.scoreLabel)/100; run cohort `\($0.id)` or add a scenario variant before changing the product decision."
-        }
-          ?? "Current PMF readiness is \(readiness.scoreLabel)/100; define another enabled scenario cohort before changing the product decision.",
-        priority: 70,
-        cohortID: cohort?.id
+      return applyingRecentCycleFailureGuard(
+        to: ProductMarketFitNextAction(
+          experimentID: experiment.id,
+          kind: cohort == nil ? .refineBet : .runCohort,
+          title: "Run another evidence cohort",
+          detail: cohort.map {
+            "Current PMF readiness is \(readiness.scoreLabel)/100; run cohort `\($0.id)` or add a scenario variant before changing the product decision."
+          }
+            ?? "Current PMF readiness is \(readiness.scoreLabel)/100; define another enabled scenario cohort before changing the product decision.",
+          priority: 70,
+          cohortID: cohort?.id
+        ),
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
       )
     }
+  }
+
+  private static func applyingRecentCycleFailureGuard(
+    to action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductMarketFitNextAction {
+    guard action.kind == .runCohort || action.kind == .rerunCohort,
+      let audit = ProductFactoryCycleFailureAdvisor.blockingAudit(
+        forStepID: ProductFactoryCycleFailureAdvisor.stepID(for: action),
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    else { return action }
+    return ProductMarketFitNextAction(
+      experimentID: experiment.id,
+      kind: .repairFailures,
+      title: "Repair factory cycle failure",
+      detail:
+        "Recent factory cycle \(audit.id) failed while running the suggested cohort; repair the generated app contract, runner, scenario, or cohort before retrying. \(audit.stopDetail)",
+      priority: min(99, max(action.priority + 1, 86))
+    )
   }
 
   static func cohortRunReadiness(

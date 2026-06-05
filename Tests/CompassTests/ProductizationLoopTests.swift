@@ -370,6 +370,12 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: .empty
       ))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: config.experiments[0],
+        config: config,
+        evidenceIndex: .empty
+      ))
     let plan = ProductFactoryAutopilotPlanner.cyclePlan(
       config: config,
       evidenceIndex: .empty
@@ -380,11 +386,15 @@ struct ProductizationLoopTests {
       evidenceIndex: .empty
     ) == nil)
     try #require(!step.canExecute)
-    try #require(step.id == runnable.id)
+    try #require(step.action.kind == .repairFailures)
+    try #require(action.kind == .repairFailures)
+    try #require(action.title == "Repair factory cycle failure")
+    try #require(action.detail.contains("factory-cycle-failed-step"))
+    try #require(action.detail.contains("contract missing"))
     try #require(step.blockedReason?.contains("factory-cycle-failed-step") == true)
     try #require(step.blockedReason?.contains("contract missing") == true)
     try #require(!plan.canRun)
-    try #require(plan.nextBlockedStep?.id == runnable.id)
+    try #require(plan.nextBlockedStep?.action.kind == .repairFailures)
   }
 
   @Test func productFactoryAutopilotClearsFailureBlockAfterCompletedEvidence() throws {
