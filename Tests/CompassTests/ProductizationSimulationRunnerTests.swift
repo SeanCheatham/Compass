@@ -163,8 +163,11 @@ struct ProductizationSimulationRunnerTests {
 
     let choice = try await selector.chooseAction(context: context)
     try #require(choice.action.id == "inspect_pain")
-    try #require(choice.promptVersionID == "productization.persona_action.foundation_models.v1")
+    try #require(choice.promptVersionID == "productization.persona_action.foundation_models.v2")
     try #require(stream.prompts[0].contains("skeptical target user"))
+    try #require(stream.prompts[0].contains("PMF scorecard to stress-test"))
+    try #require(stream.prompts[0].contains("switching readiness"))
+    try #require(stream.prompts[0].contains("reasons the user would keep the current alternative"))
     try #require(stream.prompts[0].contains("Allowed actions"))
     try #require(stream.prompts[0].contains("Weekly reporting takes too long."))
 
@@ -178,6 +181,7 @@ struct ProductizationSimulationRunnerTests {
       )
     )
     try #require(repair.action.id == "compare_current_alternative")
+    try #require(repair.promptVersionID == "productization.persona_action_repair.foundation_models.v2")
     try #require(stream.prompts[1].contains("previous action `invent_new_button` was invalid"))
   }
 }

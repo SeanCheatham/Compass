@@ -301,7 +301,7 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
   ) async throws -> ProductizationPersonaActionChoice {
     try await selectAction(
       prompt: Self.choicePrompt(context: context),
-      promptVersionID: "productization.persona_action.foundation_models.v1"
+      promptVersionID: "productization.persona_action.foundation_models.v2"
     )
   }
 
@@ -310,7 +310,7 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
   ) async throws -> ProductizationPersonaActionChoice {
     try await selectAction(
       prompt: Self.repairPrompt(context: context),
-      promptVersionID: "productization.persona_action_repair.foundation_models.v1"
+      promptVersionID: "productization.persona_action_repair.foundation_models.v2"
     )
   }
 
@@ -329,7 +329,7 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
 
   static func parseChoice(
     _ response: String,
-    promptVersionID: String = "productization.persona_action.foundation_models.v1"
+    promptVersionID: String = "productization.persona_action.foundation_models.v2"
   ) throws -> ProductizationPersonaActionChoice {
     guard let json = firstJSONObject(in: response) else {
       throw ProductizationPersonaActionModelError.invalidJSON(response)
@@ -407,6 +407,9 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
       You are simulating a skeptical target user, not helping the product team.
       Pick the next action the persona would actually take while evaluating
       whether this prototype beats the current workflow.
+      Do not advance toward success just because an action is available; prefer
+      actions that expose switching objections, missing capability proof, or
+      reasons the user would keep the current alternative.
 
       Persona: \(bounded(request.segment.name, 120)) - \(bounded(request.segment.role, 180)).
       Skepticism: \(bounded(request.segment.skepticism, 320)).
@@ -418,6 +421,10 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
       Prior actions: \(priorActions).
       Current screen: \(bounded(trace.initialState.headline, 120)) - \(bounded(trace.initialState.body, 500)).
       Observations: \(bounded(observations, 500)).
+      PMF scorecard to stress-test: pain recognition, workflow improvement,
+      alternative advantage, switching readiness, continued-use pull.
+      A good simulated user action should increase evidence for one of those
+      dimensions or reveal why the prototype fails it.
       \(repairNote ?? "")
 
       Allowed actions:
