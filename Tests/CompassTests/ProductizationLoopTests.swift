@@ -197,6 +197,7 @@ struct ProductizationLoopTests {
           experiment: badExperiment,
           config: config,
           personaID: "operator",
+          mode: .personaModel,
           endedAt: 260,
           verdict: .weak,
           scores: weakScores,
@@ -230,6 +231,68 @@ struct ProductizationLoopTests {
     try #require(narrow.update.summary.contains("csv_import"))
     try #require(kill.update.decision == .kill)
     try #require(kill.update.decidedBy == "PMF Decision Advisor")
+  }
+
+  @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let weakScores = ProductizationEvidenceScores(
+      painRecognition: 2,
+      workflowImprovement: 1,
+      alternativeAdvantage: 2,
+      switchingReadiness: 1,
+      continuedUsePull: 2
+    )
+    let index = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "weak-a",
+          experiment: experiment,
+          config: config,
+          personaID: "operator",
+          endedAt: 300,
+          verdict: .weak,
+          scores: weakScores,
+          objections: ["No reason to switch"]
+        ),
+        makeDecisionAdvisorRecord(
+          id: "weak-b",
+          experiment: experiment,
+          config: config,
+          personaID: "buyer",
+          endedAt: 200,
+          verdict: .rejected,
+          scores: weakScores,
+          objections: ["No reason to switch"]
+        ),
+      ]
+    )
+
+    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(readiness.aiUserCompletedRunCount == 0)
+    try #require(readiness.recommendation == .gatherEvidence)
+    try #require(ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: index
+    ).isEmpty)
+    try #require(action.kind == .runCohort)
+    try #require(action.title == "Run AI-user rejection check")
+    try #require(action.detail.contains("before stopping the experiment"))
+    try #require(action.requiredSimulationMode == .personaModel)
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {

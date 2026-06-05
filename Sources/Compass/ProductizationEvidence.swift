@@ -252,7 +252,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       && (readinessScore <= 30 || averageScore > 0 && averageScore <= 2.1
         || rejectedOrWeakCount >= 2)
     {
-      return .kill
+      return aiUserCompletedRunCount > 0 ? .kill : .gatherEvidence
     }
     if completed.count >= 2 && painRecognition >= 4 && productPull > 0 && productPull <= 2.8 {
       return .pivot

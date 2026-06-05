@@ -127,6 +127,7 @@ struct ProductizationEvidenceStoreTests {
         id: "weak-a",
         experimentID: "bad-experiment",
         personaID: "operator",
+        mode: .personaModel,
         endedAt: 220,
         verdict: .weak,
         objections: ["No reason to switch"],
@@ -179,6 +180,7 @@ struct ProductizationEvidenceStoreTests {
     try #require(good.rationale.contains { $0.contains("Average PMF score") })
 
     try #require(bad.recommendation == .kill)
+    try #require(bad.aiUserCompletedRunCount == 1)
     try #require(bad.readinessScore <= 30)
     try #require(bad.rationale.contains { $0.contains("Repeated objections") })
 

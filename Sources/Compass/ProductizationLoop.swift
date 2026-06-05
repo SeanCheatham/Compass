@@ -1033,6 +1033,25 @@ enum ProductMarketFitNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
+    if readiness.aiUserCompletedRunCount == 0 && shouldRunAIUserRejectionCheck(readiness) {
+      return applyingRecentCycleFailureGuard(
+        to: ProductMarketFitNextAction(
+          experimentID: experiment.id,
+          kind: cohort == nil ? .refineBet : .runCohort,
+          title: "Run AI-user rejection check",
+          detail: cohort.map {
+            "Model-free evidence is weak, but no AI-user run has tested whether this bet deserves killing; run cohort `\($0.id)` in persona-model mode before stopping the experiment."
+          }
+            ?? "Model-free evidence is weak, but no AI-user run has tested whether this bet deserves killing; define another enabled cohort before stopping the experiment.",
+          priority: 82,
+          cohortID: cohort?.id,
+          requiredSimulationMode: .personaModel
+        ),
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
 
     switch readiness.recommendation {
     case .narrow:
@@ -1089,6 +1108,15 @@ enum ProductMarketFitNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
+  }
+
+  private static func shouldRunAIUserRejectionCheck(
+    _ readiness: ProductMarketFitReadiness
+  ) -> Bool {
+    readiness.completedRunCount >= 2
+      && (readiness.readinessScore <= 40
+        || readiness.averageScore > 0 && readiness.averageScore <= 2.5
+        || readiness.weakestVerdict == .rejected)
   }
 
   private static func applyingRecentCycleFailureGuard(
