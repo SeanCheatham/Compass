@@ -269,6 +269,7 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
   var requiredSimulationMode: ProductizationSimulationMode?
   var targetPersonaID: String?
   var targetPersonaName: String?
+  var targetScenarioID: String?
 
   init(
     experimentID: String,
@@ -279,7 +280,8 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
     cohortID: String? = nil,
     requiredSimulationMode: ProductizationSimulationMode? = nil,
     targetPersonaID: String? = nil,
-    targetPersonaName: String? = nil
+    targetPersonaName: String? = nil,
+    targetScenarioID: String? = nil
   ) {
     self.experimentID = ProductizationModelText.identifier(
       experimentID,
@@ -299,6 +301,10 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
       targetPersonaName,
       limit: 160
     )
+    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+      targetScenarioID,
+      fallback: "scenario"
+    )
   }
 }
 
@@ -308,6 +314,7 @@ struct ProductMarketFitCohortRunReadiness: Equatable, Sendable {
   var cohortEnabled: Bool
   var enabledScenarioCount: Int
   var missingTargetCommitCount: Int
+  var targetScenarioID: String?
 
   var canRun: Bool {
     cohortEnabled && enabledScenarioCount > 0 && missingTargetCommitCount == 0
@@ -318,9 +325,15 @@ struct ProductMarketFitCohortRunReadiness: Equatable, Sendable {
       return "Suggested cohort is disabled."
     }
     if enabledScenarioCount == 0 {
+      if let targetScenarioID {
+        return "Suggested target scenario `\(targetScenarioID)` is disabled or missing."
+      }
       return "Suggested cohort has no enabled scenarios."
     }
     if missingTargetCommitCount > 0 {
+      if targetScenarioID != nil {
+        return "Suggested target scenario needs a target commit."
+      }
       return "\(missingTargetCommitCount) enabled scenario(s) need a target commit."
     }
     return nil
@@ -331,7 +344,8 @@ struct ProductMarketFitCohortRunReadiness: Equatable, Sendable {
     cohortTitle: String,
     cohortEnabled: Bool,
     enabledScenarioCount: Int,
-    missingTargetCommitCount: Int
+    missingTargetCommitCount: Int,
+    targetScenarioID: String? = nil
   ) {
     self.cohortID = ProductizationModelText.identifier(cohortID, fallback: "cohort")
     self.cohortTitle = ProductizationModelText.cleanedText(
@@ -342,6 +356,10 @@ struct ProductMarketFitCohortRunReadiness: Equatable, Sendable {
     self.cohortEnabled = cohortEnabled
     self.enabledScenarioCount = max(0, enabledScenarioCount)
     self.missingTargetCommitCount = max(0, missingTargetCommitCount)
+    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+      targetScenarioID,
+      fallback: "scenario"
+    )
   }
 }
 
@@ -504,7 +522,9 @@ enum ProductFactoryAutopilotStepKind: String, Equatable, Sendable {
 }
 
 struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
-  var id: String { "\(experimentID):\(action.kind.rawValue):\(cohortID ?? "none")" }
+  var id: String {
+    "\(experimentID):\(action.kind.rawValue):\(targetScenarioID ?? cohortID ?? "none")"
+  }
 
   var experimentID: String
   var experimentTitle: String
@@ -515,6 +535,7 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
   var blockedReason: String?
 
   var cohortID: String? { action.cohortID }
+  var targetScenarioID: String? { action.targetScenarioID }
 
   var title: String {
     switch kind {
@@ -755,7 +776,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
 
 enum ProductFactoryCycleFailureAdvisor {
   static func stepID(for action: ProductMarketFitNextAction) -> String {
-    "\(action.experimentID):\(action.kind.rawValue):\(action.cohortID ?? "none")"
+    "\(action.experimentID):\(action.kind.rawValue):\(action.targetScenarioID ?? action.cohortID ?? "none")"
   }
 
   static func blockingAudit(
@@ -1048,7 +1069,8 @@ enum ProductMarketFitNextActionAdvisor {
           cohortID: cohort?.id,
           requiredSimulationMode: .personaModel,
           targetPersonaID: missingAIUserTarget?.id,
-          targetPersonaName: missingAIUserTarget?.name
+          targetPersonaName: missingAIUserTarget?.name,
+          targetScenarioID: missingAIUserTarget?.executableScenarioID
         ),
         experiment: experiment,
         config: config,
@@ -1069,7 +1091,8 @@ enum ProductMarketFitNextActionAdvisor {
           cohortID: cohort?.id,
           requiredSimulationMode: .personaModel,
           targetPersonaID: missingAIUserTarget?.id,
-          targetPersonaName: missingAIUserTarget?.name
+          targetPersonaName: missingAIUserTarget?.name,
+          targetScenarioID: missingAIUserTarget?.executableScenarioID
         ),
         experiment: experiment,
         config: config,
@@ -1148,6 +1171,10 @@ enum ProductMarketFitNextActionAdvisor {
     var name: String
     var scenarioID: String?
     var isScenarioInCohort: Bool
+
+    var executableScenarioID: String? {
+      isScenarioInCohort ? scenarioID : nil
+    }
 
     func guidance(cohort: ProductScenarioCohort?) -> String {
       if let scenarioID, isScenarioInCohort {
@@ -1299,15 +1326,19 @@ enum ProductMarketFitNextActionAdvisor {
         && $0.enabled
         && cohortScenarioIDs.contains($0.id)
     }
-    let missingTargetCommitCount = enabledScenarios.filter {
+    let runnableScenarios = action.targetScenarioID.map { targetScenarioID in
+      enabledScenarios.filter { $0.id == targetScenarioID }
+    } ?? enabledScenarios
+    let missingTargetCommitCount = runnableScenarios.filter {
       targetCommit(for: $0, experiment: experiment) == nil
     }.count
     return ProductMarketFitCohortRunReadiness(
       cohortID: cohort.id,
       cohortTitle: cohort.title,
       cohortEnabled: cohort.enabled,
-      enabledScenarioCount: cohort.enabled ? enabledScenarios.count : 0,
-      missingTargetCommitCount: cohort.enabled ? missingTargetCommitCount : 0
+      enabledScenarioCount: cohort.enabled ? runnableScenarios.count : 0,
+      missingTargetCommitCount: cohort.enabled ? missingTargetCommitCount : 0,
+      targetScenarioID: action.targetScenarioID
     )
   }
 

@@ -254,6 +254,12 @@ enum ProductizationPlanningDigestFormatter {
     if let cohortID = step.cohortID {
       metadata.append("cohort \(cohortID)")
     }
+    if let targetScenarioID = step.targetScenarioID {
+      metadata.append("target_scenario \(targetScenarioID)")
+    }
+    if let targetPersonaID = step.action.targetPersonaID {
+      metadata.append("target_persona \(targetPersonaID)")
+    }
     if let requiredMode = step.action.requiredSimulationMode {
       metadata.append("required_mode \(requiredMode.rawValue)")
     }
@@ -293,6 +299,12 @@ enum ProductizationPlanningDigestFormatter {
       ]
       if let cohortID = action.cohortID {
         metadata.append("cohort \(cohortID)")
+      }
+      if let targetScenarioID = action.targetScenarioID {
+        metadata.append("target_scenario \(targetScenarioID)")
+      }
+      if let targetPersonaID = action.targetPersonaID {
+        metadata.append("target_persona \(targetPersonaID)")
       }
       if let requiredMode = action.requiredSimulationMode {
         metadata.append("required_mode \(requiredMode.rawValue)")

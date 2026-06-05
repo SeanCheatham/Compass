@@ -1157,7 +1157,17 @@ struct ProductizationWorkbenchTab: View {
   }
 
   private func runSuggestedCohort(mode: ProductizationSimulationMode) async {
-    guard let cohortID = selectedPMFNextAction?.cohortID else { return }
+    guard let action = selectedPMFNextAction,
+      let cohortID = action.cohortID
+    else { return }
+    if let targetScenarioID = action.targetScenarioID {
+      await runScenario(
+        mode: mode,
+        scenarioID: targetScenarioID,
+        saveDraftFirst: false
+      )
+      return
+    }
     await runScenarioCohort(
       mode: mode,
       cohortID: cohortID,
@@ -1244,6 +1254,27 @@ struct ProductizationWorkbenchTab: View {
           isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
         )
       let outcome: ProductizationScenarioCohortRunOutcome?
+      if let targetScenarioID = step.targetScenarioID {
+        let scenarioOutcome: ProductizationScenarioRunOutcome?
+        switch mode {
+        case .modelFree:
+          scenarioOutcome = await project.runProductizationScenarioModelFree(
+            experimentID: step.experimentID,
+            scenarioID: targetScenarioID
+          )
+        case .personaModel:
+          scenarioOutcome = await project.runProductizationScenarioPersonaModel(
+            experimentID: step.experimentID,
+            scenarioID: targetScenarioID
+          )
+        }
+        if let scenarioOutcome {
+          selectedRunID = scenarioOutcome.record.id
+          loadSelectedRecord()
+          return "\(scenarioOutcome.userMessage) Run \(scenarioOutcome.record.id)."
+        }
+        return nil
+      }
       switch mode {
       case .modelFree:
         outcome = await project.runProductizationScenarioCohortModelFree(
@@ -1269,11 +1300,15 @@ struct ProductizationWorkbenchTab: View {
     }
   }
 
-  private func runScenario(mode: ProductizationSimulationMode) async {
+  private func runScenario(
+    mode: ProductizationSimulationMode,
+    scenarioID: String? = nil,
+    saveDraftFirst: Bool = true
+  ) async {
     guard let experiment = selectedExperiment,
-      let selectedScenarioID
+      let targetScenarioID = scenarioID ?? selectedScenarioID
     else { return }
-    if scenarioDraftCanSave {
+    if saveDraftFirst && scenarioDraftCanSave {
       await saveScenarioDraft()
     }
     isRunningScenario = true
@@ -1283,12 +1318,12 @@ struct ProductizationWorkbenchTab: View {
     case .modelFree:
       outcome = await project.runProductizationScenarioModelFree(
         experimentID: experiment.id,
-        scenarioID: selectedScenarioID
+        scenarioID: targetScenarioID
       )
     case .personaModel:
       outcome = await project.runProductizationScenarioPersonaModel(
         experimentID: experiment.id,
-        scenarioID: selectedScenarioID
+        scenarioID: targetScenarioID
       )
     }
     if let outcome {
