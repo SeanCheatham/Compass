@@ -220,6 +220,17 @@ struct ProductMarketFitDecisionProposal: Equatable, Sendable {
   var readiness: ProductMarketFitReadiness
 }
 
+enum ProductMarketFitDecisionAdvisorError: LocalizedError, Equatable {
+  case noProposal(String)
+
+  var errorDescription: String? {
+    switch self {
+    case .noProposal(let experimentID):
+      return "No PMF decision recommendation is available for product experiment \(experimentID)."
+    }
+  }
+}
+
 enum ProductMarketFitDecisionAdvisor {
   static func proposals(
     config: ProductizationConfig,
@@ -260,6 +271,37 @@ enum ProductMarketFitDecisionAdvisor {
         readiness: readiness
       )
     }
+  }
+
+  static func proposal(
+    experimentID: String,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductMarketFitDecisionProposal? {
+    proposals(config: config, evidenceIndex: evidenceIndex)
+      .first { $0.experimentID == experimentID }
+  }
+
+  static func applyingRecommendedDecision(
+    experimentID: String,
+    to config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex,
+    now: Date = Date()
+  ) throws -> ProductizationConfig {
+    guard
+      let proposal = proposal(
+        experimentID: experimentID,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    else {
+      throw ProductMarketFitDecisionAdvisorError.noProposal(experimentID)
+    }
+    return try ProductizationReflectDecisionApplier.applying(
+      [proposal.update],
+      to: config,
+      now: now
+    )
   }
 
   private static func targetDecision(

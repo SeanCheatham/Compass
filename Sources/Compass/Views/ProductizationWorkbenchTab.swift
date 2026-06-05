@@ -49,6 +49,15 @@ struct ProductizationWorkbenchTab: View {
     }
   }
 
+  private var selectedPMFDecisionProposal: ProductMarketFitDecisionProposal? {
+    guard let experimentID = selectedExperiment?.id else { return nil }
+    return ProductMarketFitDecisionAdvisor.proposal(
+      experimentID: experimentID,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var scenariosForSelectedExperiment: [ProductScenario] {
     guard let experimentID = selectedExperiment?.id else { return [] }
     return config.scenarios
@@ -584,6 +593,27 @@ struct ProductizationWorkbenchTab: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
+          if let proposal = selectedPMFDecisionProposal {
+            WorkbenchFact(
+              label: "PMF advice",
+              value:
+                "\(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue)"
+            )
+            Text(proposal.update.summary)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Button {
+              Task {
+                await project.applyProductMarketFitDecisionRecommendation(
+                  experimentID: experiment.id
+                )
+              }
+            } label: {
+              Label("Apply PMF Advice", systemImage: "checkmark.seal")
+            }
+            .buttonStyle(.borderedProminent)
+          }
           gitRolloutPreviewBlock(for: experiment)
           HStack(spacing: 8) {
             rolloutButton(.promoteOrConfirm, experiment: experiment)

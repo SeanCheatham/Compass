@@ -231,6 +231,36 @@ struct ProductizationLoopTests {
     try #require(kill.update.decidedBy == "PMF Decision Advisor")
   }
 
+  @Test func pmfDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let index = makePMFPromotionEvidenceIndex(config: config)
+
+    let next = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
+      experimentID: experiment.id,
+      to: config,
+      evidenceIndex: index,
+      now: Date(timeIntervalSince1970: 400)
+    )
+    let savedExperiment = try #require(next.experiments.first { $0.id == experiment.id })
+    let decision = try #require(next.decisions.last)
+
+    try #require(savedExperiment.decision == .promote)
+    try #require(savedExperiment.evidenceSummary.contains("PMF readiness"))
+    try #require(decision.decision == .promote)
+    try #require(decision.evidenceRunIDs == ["promote-a", "promote-b", "promote-c"])
+    try #require(decision.decidedBy == "PMF Decision Advisor")
+    try #require(decision.beforeSha == experiment.currentSha)
+    try #require(decision.afterSha == experiment.currentSha)
+  }
+
   @Test func rolloutWorkflowPromotesExperimentWithBranchCommitAndEvidenceTrail() throws {
     let config = makeRolloutConfig(decision: .keepGoing)
     let experiment = config.experiments[0]
@@ -369,6 +399,48 @@ private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> Productiz
     summary: "Evidence supports the rollout decision."
   )
   return ProductizationEvidenceIndex.build(records: [record])
+}
+
+private func makePMFPromotionEvidenceIndex(config: ProductizationConfig) -> ProductizationEvidenceIndex {
+  let scores = ProductizationEvidenceScores(
+    painRecognition: 5,
+    workflowImprovement: 5,
+    alternativeAdvantage: 5,
+    switchingReadiness: 5,
+    continuedUsePull: 5
+  )
+  let experiment = config.experiments[0]
+  return ProductizationEvidenceIndex.build(
+    records: [
+      makeDecisionAdvisorRecord(
+        id: "promote-a",
+        experiment: experiment,
+        config: config,
+        personaID: "operator",
+        endedAt: 300,
+        verdict: .strongPull,
+        scores: scores
+      ),
+      makeDecisionAdvisorRecord(
+        id: "promote-b",
+        experiment: experiment,
+        config: config,
+        personaID: "buyer",
+        endedAt: 200,
+        verdict: .strongPull,
+        scores: scores
+      ),
+      makeDecisionAdvisorRecord(
+        id: "promote-c",
+        experiment: experiment,
+        config: config,
+        personaID: "operator",
+        endedAt: 100,
+        verdict: .promising,
+        scores: scores
+      ),
+    ]
+  )
 }
 
 private func makeDecisionAdvisorRecord(

@@ -767,4 +767,35 @@ extension CompassProject {
       fail(error)
     }
   }
+
+  func applyProductMarketFitDecisionRecommendation(experimentID: String) async {
+    do {
+      guard let workspace else {
+        fail(AppModelError.noRepositorySelected)
+        return
+      }
+      guard
+        let proposal = ProductMarketFitDecisionAdvisor.proposal(
+          experimentID: experimentID,
+          config: productizationConfig,
+          evidenceIndex: productizationEvidenceIndex
+        )
+      else {
+        throw ProductMarketFitDecisionAdvisorError.noProposal(experimentID)
+      }
+      let next = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
+        experimentID: experimentID,
+        to: productizationConfig,
+        evidenceIndex: productizationEvidenceIndex
+      )
+      try workspace.writeProductizationConfig(next)
+      productizationConfig = next
+      log(
+        "Applied PMF recommendation for product experiment \(experimentID): \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue).",
+        level: .success
+      )
+    } catch {
+      fail(error)
+    }
+  }
 }
