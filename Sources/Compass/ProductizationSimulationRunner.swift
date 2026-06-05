@@ -11,6 +11,8 @@ struct ProductizationSimulationRequest {
   var solution: SolutionHypothesis
   var experiment: ProductExperiment
   var scenarioID: String
+  var scenarioTask: String
+  var scenarioSuccessSignal: String
   var commitSha: String
   var generatedAppWorkingDirectory: URL
   var launchPlan: AgentExecutionLaunchPlan
@@ -30,6 +32,8 @@ struct ProductizationSimulationRequest {
     solution: SolutionHypothesis,
     experiment: ProductExperiment,
     scenarioID: String,
+    scenarioTask: String = "",
+    scenarioSuccessSignal: String = "",
     commitSha: String? = nil,
     generatedAppWorkingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan = .host(),
@@ -48,6 +52,11 @@ struct ProductizationSimulationRequest {
     self.solution = solution
     self.experiment = experiment
     self.scenarioID = ProductizationModelText.identifier(scenarioID, fallback: "scenario")
+    self.scenarioTask = ProductizationModelText.cleanedText(scenarioTask, limit: 800)
+    self.scenarioSuccessSignal = ProductizationModelText.cleanedText(
+      scenarioSuccessSignal,
+      limit: 500
+    )
     let commit = StringUtils.boundedText(
       commitSha ?? experiment.currentSha ?? experiment.baseSha ?? "unknown",
       limit: 80
@@ -86,7 +95,9 @@ struct ProductizationSimulationRequest {
       experiment: ProductizationExperienceExperiment(
         id: experiment.id,
         branchName: experiment.branchName,
-        successSignal: solution.requiredProof.first ?? experiment.prototypeScope
+        successSignal: scenarioSuccessSignal.isEmpty
+          ? (solution.requiredProof.first ?? experiment.prototypeScope)
+          : scenarioSuccessSignal
       ),
       scenario: ProductizationExperienceScenario(
         seed: scenarioID,
@@ -97,6 +108,8 @@ struct ProductizationSimulationRequest {
           "Skepticism: \(segment.skepticism)",
         ].filter { !$0.isEmpty }.joined(separator: ". "),
         task: [
+          scenarioTask,
+          scenarioSuccessSignal.isEmpty ? "" : "Success signal: \(scenarioSuccessSignal)",
           experiment.prototypeScope,
           "Desired pain relief: \(solution.promise)",
           "Decision criteria: \(segment.decisionCriteria.joined(separator: "; "))",

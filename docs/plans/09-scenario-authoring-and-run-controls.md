@@ -66,4 +66,20 @@ Do not start persona-model runs automatically in this plan.
 
 ## Status
 
-Planned.
+Complete on 2026-06-04.
+
+Completed scenario and cohort authoring in the Productization workbench, added
+model-free run controls tied to generated app contract availability, and wired
+run outcomes back into productization evidence and experiment summaries.
+
+Verification:
+
+- `./scripts/test-local.sh --filter ProductizationScenarioRunTests`
+- `./scripts/test-local.sh --filter ProductizationConfigTests`
+- `./scripts/test-local.sh --filter ProductizationSimulationRunnerTests`
+- `./scripts/test-local.sh --filter ProductizationEvidenceStoreTests`
+- `./scripts/test-local.sh --filter DiscoverPromptContractTests`
+- `./scripts/test-local.sh --filter PromptSchemaLoadingTests`
+- `COMPASS_RUN_GENERATED_RUST_SMOKE=1 ./scripts/test-local.sh --filter generatedRustScaffoldCargoSmokeWhenRequested`
+  passed; `xtask verify` was skipped inside the test because `cargo llvm-cov`
+  is not installed, and the generated `productization-smoke` path ran.

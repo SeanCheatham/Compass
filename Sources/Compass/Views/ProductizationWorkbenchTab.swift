@@ -10,6 +10,24 @@ struct ProductizationWorkbenchTab: View {
   @State private var gitPreview: ProductExperimentGitRolloutPreview?
   @State private var gitPreviewError: String?
   @State private var isLoadingGitPreview = false
+  @State private var selectedScenarioID: String?
+  @State private var scenarioTitle = ""
+  @State private var scenarioCohortID = ""
+  @State private var scenarioCohortTitle = ""
+  @State private var scenarioCohortEnabled = true
+  @State private var scenarioTask = ""
+  @State private var scenarioSuccessSignal = ""
+  @State private var scenarioSegmentID = ""
+  @State private var scenarioWorkflowID = ""
+  @State private var scenarioAlternativeID = ""
+  @State private var scenarioTargetCommit = ""
+  @State private var scenarioMaxTurns = 8
+  @State private var scenarioTimeoutSeconds = 120.0
+  @State private var scenarioEnabled = true
+  @State private var isSavingScenario = false
+  @State private var isRunningScenario = false
+  @State private var scenarioRunMessage: String?
+  @State private var contractAvailable: Bool?
 
   private var config: ProductizationConfig { project.productizationConfig }
   private var evidenceIndex: ProductizationEvidenceIndex { project.productizationEvidenceIndex }
@@ -22,6 +40,23 @@ struct ProductizationWorkbenchTab: View {
   private var runsForSelectedExperiment: [ProductizationEvidenceSummary] {
     guard let experimentID = selectedExperiment?.id else { return [] }
     return evidenceIndex.summaries.filter { $0.experimentID == experimentID }
+  }
+
+  private var scenariosForSelectedExperiment: [ProductScenario] {
+    guard let experimentID = selectedExperiment?.id else { return [] }
+    return config.scenarios
+      .filter { $0.experimentID == experimentID }
+      .sorted { lhs, rhs in
+        if lhs.updatedAt == rhs.updatedAt { return lhs.title < rhs.title }
+        return lhs.updatedAt > rhs.updatedAt
+      }
+  }
+
+  private var cohortsForSelectedExperiment: [ProductScenarioCohort] {
+    guard let experimentID = selectedExperiment?.id else { return [] }
+    return config.scenarioCohorts
+      .filter { $0.experimentID == experimentID }
+      .sorted { $0.title < $1.title }
   }
 
   var body: some View {
@@ -55,17 +90,29 @@ struct ProductizationWorkbenchTab: View {
         selectedRunID = runsForSelectedExperiment.first?.runID
       }
       loadSelectedRecord()
+      loadScenarioDraft()
     }
     .task(id: gitPreviewTaskID) {
       await loadGitPreview()
     }
+    .task(id: contractStatusTaskID) {
+      await loadContractStatus()
+    }
     .onChange(of: selectedExperimentID) { _, _ in
       selectedRunID = runsForSelectedExperiment.first?.runID
       loadSelectedRecord()
+      selectedScenarioID = scenariosForSelectedExperiment.first?.id
+      loadScenarioDraft()
+      scenarioRunMessage = nil
       Task { await loadGitPreview() }
+      Task { await loadContractStatus() }
     }
     .onChange(of: selectedRunID) { _, _ in
       loadSelectedRecord()
+    }
+    .onChange(of: selectedScenarioID) { _, _ in
+      loadScenarioDraft()
+      scenarioRunMessage = nil
     }
   }
 
@@ -76,6 +123,15 @@ struct ProductizationWorkbenchTab: View {
       experiment?.decision.rawValue ?? "",
       experiment?.currentSha ?? "",
       "\(config.decisions.count)",
+    ].joined(separator: "|")
+  }
+
+  private var contractStatusTaskID: String {
+    let experiment = selectedExperiment
+    return [
+      selectedExperimentID ?? "",
+      experiment?.currentSha ?? "",
+      "\(config.scenarios.count)",
     ].joined(separator: "|")
   }
 
@@ -248,12 +304,138 @@ struct ProductizationWorkbenchTab: View {
       VStack(alignment: .leading, spacing: 10) {
         aggregateEvidence
         selectedExperimentActions
+        scenarioAuthoring
         evidenceRuns
         selectedEvidenceDetail
         decisionTimeline
       }
       .padding(.trailing, 8)
     }
+  }
+
+  @ViewBuilder
+  private var scenarioAuthoring: some View {
+    if let experiment = selectedExperiment {
+      WorkbenchSection("Scenario Authoring", systemImage: "target") {
+        VStack(alignment: .leading, spacing: 9) {
+          if !scenariosForSelectedExperiment.isEmpty {
+            Picker("Scenario", selection: scenarioSelectionBinding) {
+              ForEach(scenariosForSelectedExperiment) { scenario in
+                Text(scenario.title).tag(scenario.id)
+              }
+            }
+            .pickerStyle(.menu)
+          }
+
+          TextField("Scenario title", text: $scenarioTitle)
+            .textFieldStyle(.roundedBorder)
+          HStack(spacing: 8) {
+            TextField("Cohort title", text: $scenarioCohortTitle)
+              .textFieldStyle(.roundedBorder)
+            Toggle("Cohort enabled", isOn: $scenarioCohortEnabled)
+              .toggleStyle(.checkbox)
+          }
+          HStack(spacing: 8) {
+            Picker("Segment", selection: $scenarioSegmentID) {
+              ForEach(config.userSegments) { segment in
+                Text(segment.name).tag(segment.id)
+              }
+            }
+            Picker("Workflow", selection: $scenarioWorkflowID) {
+              ForEach(config.currentWorkflows) { workflow in
+                Text(workflow.title).tag(workflow.id)
+              }
+            }
+            Picker("Alternative", selection: $scenarioAlternativeID) {
+              Text("None").tag("")
+              ForEach(config.alternatives) { alternative in
+                Text(alternative.title).tag(alternative.id)
+              }
+            }
+          }
+          .pickerStyle(.menu)
+          TextEditor(text: $scenarioTask)
+            .font(.caption)
+            .frame(minHeight: 58, maxHeight: 76)
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.18)))
+          TextField("Success signal", text: $scenarioSuccessSignal)
+            .textFieldStyle(.roundedBorder)
+          HStack(spacing: 10) {
+            Stepper("Turns \(scenarioMaxTurns)", value: $scenarioMaxTurns, in: 1...20)
+              .frame(width: 130, alignment: .leading)
+            Stepper("Timeout \(Int(scenarioTimeoutSeconds))s", value: $scenarioTimeoutSeconds, in: 5...1200, step: 5)
+              .frame(width: 170, alignment: .leading)
+            Toggle("Enabled", isOn: $scenarioEnabled)
+              .toggleStyle(.checkbox)
+          }
+          WorkbenchFact(
+            label: "Target",
+            value: scenarioTargetCommit.isEmpty
+              ? (experiment.currentSha ?? experiment.baseSha ?? "no commit")
+              : scenarioTargetCommit
+          )
+          if let contractAvailable {
+            Label(
+              contractAvailable ? "Productization contract available" : "Productization contract missing",
+              systemImage: contractAvailable ? "checkmark.circle" : "exclamationmark.triangle"
+            )
+            .font(.caption)
+            .foregroundStyle(contractAvailable ? Color.secondary : Color.orange)
+          } else {
+            WorkbenchEmptyLine("Checking productization contract...")
+          }
+          if let scenarioRunMessage {
+            Text(scenarioRunMessage)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          HStack(spacing: 8) {
+            Button {
+              Task { await saveScenarioDraft() }
+            } label: {
+              Label(isSavingScenario ? "Saving" : "Save Scenario", systemImage: "square.and.arrow.down")
+            }
+            .buttonStyle(.bordered)
+            .disabled(isSavingScenario || !scenarioDraftCanSave)
+
+            Button {
+              Task { await runScenarioModelFree() }
+            } label: {
+              Label(isRunningScenario ? "Running" : "Run Model-Free", systemImage: "play.circle")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isRunningScenario || !scenarioCanRun)
+          }
+        }
+      }
+    }
+  }
+
+  private var scenarioSelectionBinding: Binding<String> {
+    Binding(
+      get: { selectedScenarioID ?? scenariosForSelectedExperiment.first?.id ?? "" },
+      set: { selectedScenarioID = $0.isEmpty ? nil : $0 }
+    )
+  }
+
+  private var scenarioDraftCanSave: Bool {
+    selectedExperiment != nil
+      && !scenarioTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !scenarioCohortTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !scenarioTask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !scenarioSuccessSignal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !scenarioSegmentID.isEmpty
+      && !scenarioWorkflowID.isEmpty
+  }
+
+  private var scenarioCanRun: Bool {
+    scenarioDraftCanSave
+      && selectedScenarioID != nil
+      && scenarioEnabled
+      && scenarioCohortEnabled
+      && contractAvailable == true
+      && !(scenarioTargetCommit.isEmpty && selectedExperiment?.currentSha == nil && selectedExperiment?.baseSha == nil)
   }
 
   private var aggregateEvidence: some View {
@@ -512,6 +694,126 @@ struct ProductizationWorkbenchTab: View {
       gitPreview = nil
       gitPreviewError = error.localizedDescription
     }
+  }
+
+  private func loadScenarioDraft() {
+    guard let experiment = selectedExperiment else {
+      selectedScenarioID = nil
+      scenarioTitle = ""
+      scenarioCohortID = ""
+      scenarioCohortTitle = ""
+      scenarioCohortEnabled = true
+      scenarioTask = ""
+      scenarioSuccessSignal = ""
+      scenarioSegmentID = ""
+      scenarioWorkflowID = ""
+      scenarioAlternativeID = ""
+      scenarioTargetCommit = ""
+      scenarioMaxTurns = 8
+      scenarioTimeoutSeconds = 120
+      scenarioEnabled = true
+      return
+    }
+    if selectedScenarioID == nil {
+      selectedScenarioID = scenariosForSelectedExperiment.first?.id
+    }
+    if let scenario = scenariosForSelectedExperiment.first(where: { $0.id == selectedScenarioID }) {
+      let cohort = cohortsForSelectedExperiment.first { $0.scenarioIDs.contains(scenario.id) }
+        ?? cohortsForSelectedExperiment.first
+      scenarioTitle = scenario.title
+      scenarioCohortID = cohort?.id ?? "\(experiment.id)-starter-cohort"
+      scenarioCohortTitle = cohort?.title ?? "\(experiment.title) cohort"
+      scenarioCohortEnabled = cohort?.enabled ?? true
+      scenarioTask = scenario.task
+      scenarioSuccessSignal = scenario.successSignal
+      scenarioSegmentID = scenario.segmentID
+      scenarioWorkflowID = scenario.currentWorkflowID
+      scenarioAlternativeID = scenario.alternativeID ?? ""
+      scenarioTargetCommit = scenario.targetCommitSha ?? experiment.currentSha ?? experiment.baseSha ?? ""
+      scenarioMaxTurns = scenario.maxTurns
+      scenarioTimeoutSeconds = scenario.appCommandTimeoutSeconds
+      scenarioEnabled = scenario.enabled
+      return
+    }
+    let draft = ProductizationScenarioCoordinator.defaultDraft(
+      for: experiment,
+      in: config
+    )
+    selectedScenarioID = draft.id
+    scenarioTitle = draft.title
+    scenarioCohortID = draft.cohortID ?? ""
+    scenarioCohortTitle = draft.cohortTitle
+    scenarioCohortEnabled = draft.cohortEnabled
+    scenarioTask = draft.task
+    scenarioSuccessSignal = draft.successSignal
+    scenarioSegmentID = draft.segmentID
+    scenarioWorkflowID = draft.currentWorkflowID
+    scenarioAlternativeID = draft.alternativeID ?? ""
+    scenarioTargetCommit = draft.targetCommitSha ?? ""
+    scenarioMaxTurns = draft.maxTurns
+    scenarioTimeoutSeconds = draft.appCommandTimeoutSeconds
+    scenarioEnabled = draft.enabled
+  }
+
+  private func saveScenarioDraft() async {
+    guard let experiment = selectedExperiment else { return }
+    isSavingScenario = true
+    defer { isSavingScenario = false }
+    let draft = ProductScenarioDraft(
+      id: selectedScenarioID,
+      experimentID: experiment.id,
+      cohortID: scenarioCohortID.isEmpty ? nil : scenarioCohortID,
+      cohortTitle: scenarioCohortTitle,
+      cohortEnabled: scenarioCohortEnabled,
+      segmentID: scenarioSegmentID,
+      currentWorkflowID: scenarioWorkflowID,
+      alternativeID: scenarioAlternativeID.isEmpty ? nil : scenarioAlternativeID,
+      title: scenarioTitle,
+      task: scenarioTask,
+      successSignal: scenarioSuccessSignal,
+      targetCommitSha: scenarioTargetCommit.isEmpty
+        ? (experiment.currentSha ?? experiment.baseSha)
+        : scenarioTargetCommit,
+      maxTurns: scenarioMaxTurns,
+      appCommandTimeoutSeconds: scenarioTimeoutSeconds,
+      enabled: scenarioEnabled
+    )
+    await project.saveProductScenarioDraft(draft)
+    selectedScenarioID = draft.id
+    scenarioRunMessage = "Scenario saved."
+    await loadContractStatus()
+  }
+
+  private func runScenarioModelFree() async {
+    guard let experiment = selectedExperiment,
+      let selectedScenarioID
+    else { return }
+    if scenarioDraftCanSave {
+      await saveScenarioDraft()
+    }
+    isRunningScenario = true
+    defer { isRunningScenario = false }
+    if let outcome = await project.runProductizationScenarioModelFree(
+      experimentID: experiment.id,
+      scenarioID: selectedScenarioID
+    ) {
+      scenarioRunMessage = "\(outcome.userMessage) Run \(outcome.record.id)."
+      selectedRunID = outcome.record.id
+      loadSelectedRecord()
+    } else {
+      scenarioRunMessage = project.errorMessage
+    }
+    await loadContractStatus()
+  }
+
+  private func loadContractStatus() async {
+    guard let experiment = selectedExperiment else {
+      contractAvailable = nil
+      return
+    }
+    contractAvailable = await project.productizationScenarioContractAvailable(
+      experimentID: experiment.id
+    )
   }
 
   private func score(_ value: Int?) -> String {

@@ -11,6 +11,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
   var alternatives: [Alternative]
   var solutionHypotheses: [SolutionHypothesis]
   var experiments: [ProductExperiment]
+  var scenarios: [ProductScenario]
   var scenarioCohorts: [ProductScenarioCohort]
   var decisions: [ProductDecision]
 
@@ -22,6 +23,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     alternatives: [],
     solutionHypotheses: [],
     experiments: [],
+    scenarios: [],
     scenarioCohorts: [],
     decisions: []
   )
@@ -35,6 +37,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     case alternatives
     case solutionHypotheses
     case experiments
+    case scenarios
     case scenarioCohorts
     case decisions
   }
@@ -48,6 +51,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     alternatives: [Alternative],
     solutionHypotheses: [SolutionHypothesis],
     experiments: [ProductExperiment],
+    scenarios: [ProductScenario] = [],
     scenarioCohorts: [ProductScenarioCohort] = [],
     decisions: [ProductDecision] = []
   ) {
@@ -59,6 +63,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     self.alternatives = alternatives
     self.solutionHypotheses = solutionHypotheses
     self.experiments = experiments
+    self.scenarios = scenarios
     self.scenarioCohorts = scenarioCohorts
     self.decisions = decisions
   }
@@ -85,6 +90,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
         [SolutionHypothesis].self, forKey: .solutionHypotheses) ?? [],
       experiments: try container.decodeIfPresent([ProductExperiment].self, forKey: .experiments)
         ?? [],
+      scenarios: try container.decodeIfPresent([ProductScenario].self, forKey: .scenarios) ?? [],
       scenarioCohorts: try container.decodeIfPresent(
         [ProductScenarioCohort].self, forKey: .scenarioCohorts) ?? [],
       decisions: try container.decodeIfPresent([ProductDecision].self, forKey: .decisions) ?? []
@@ -99,6 +105,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
       && alternatives.isEmpty
       && solutionHypotheses.isEmpty
       && experiments.isEmpty
+      && scenarios.isEmpty
       && scenarioCohorts.isEmpty
       && decisions.isEmpty
   }
@@ -124,6 +131,8 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     let proofSolutionID = "\(slug)-proof-assistant"
     let workflowExperimentID = "\(slug)-workflow-prototype"
     let proofExperimentID = "\(slug)-proof-prototype"
+    let workflowScenarioID = "\(workflowExperimentID)-starter-scenario"
+    let proofScenarioID = "\(proofExperimentID)-starter-scenario"
 
     let pain = PainHypothesis(
       id: painID,
@@ -330,12 +339,47 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
       ),
     ]
 
+    let scenarios = [
+      ProductScenario(
+        id: workflowScenarioID,
+        experimentID: workflowExperimentID,
+        segmentID: operatorSegmentID,
+        currentWorkflowID: workflowID,
+        alternativeID: manualAlternativeID,
+        title: "\(title) workflow proof",
+        task: "Try the prototype against the current manual workflow and decide whether it makes the next action clearer.",
+        successSignal: "The operator can complete one workflow moment with less ambiguity than the manual workaround.",
+        targetCommitSha: nil,
+        maxTurns: 8,
+        appCommandTimeoutSeconds: 120,
+        enabled: true,
+        createdAt: timestamp
+      ),
+      ProductScenario(
+        id: proofScenarioID,
+        experimentID: proofExperimentID,
+        segmentID: buyerSegmentID,
+        currentWorkflowID: workflowID,
+        alternativeID: doNothingAlternativeID,
+        title: "\(title) decision proof",
+        task: "Use the prototype to compare the product bet against doing nothing and decide whether evidence is strong enough to continue.",
+        successSignal: "The buyer can explain the decision criteria and the next product decision with reusable evidence.",
+        targetCommitSha: nil,
+        maxTurns: 8,
+        appCommandTimeoutSeconds: 120,
+        enabled: true,
+        createdAt: timestamp
+      ),
+    ]
+
     let cohorts = experiments.map { experiment in
       ProductScenarioCohort(
         id: "\(experiment.id)-starter-cohort",
         title: "\(experiment.title) starter cohort",
         experimentID: experiment.id,
-        scenarioIDs: [],
+        scenarioIDs: scenarios
+          .filter { $0.experimentID == experiment.id }
+          .map(\.id),
         enabled: true,
         tags: ["seeded", "starter"]
       )
@@ -349,6 +393,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
       alternatives: alternatives,
       solutionHypotheses: solutions,
       experiments: experiments,
+      scenarios: scenarios,
       scenarioCohorts: cohorts,
       decisions: []
     )
@@ -650,6 +695,76 @@ enum ProductExperimentDecision: String, Codable, CaseIterable, Equatable, Sendab
   case promoted
 }
 
+struct ProductScenario: Codable, Equatable, Identifiable, Sendable {
+  var id: String
+  var experimentID: String
+  var segmentID: String
+  var currentWorkflowID: String
+  var alternativeID: String?
+  var title: String
+  var task: String
+  var successSignal: String
+  var targetCommitSha: String?
+  var maxTurns: Int
+  var appCommandTimeoutSeconds: Double
+  var enabled: Bool
+  var createdAt: Double
+  var updatedAt: Double
+
+  init(
+    id: String,
+    experimentID: String,
+    segmentID: String,
+    currentWorkflowID: String,
+    alternativeID: String? = nil,
+    title: String,
+    task: String,
+    successSignal: String,
+    targetCommitSha: String? = nil,
+    maxTurns: Int = 8,
+    appCommandTimeoutSeconds: Double = 120,
+    enabled: Bool = true,
+    createdAt: Double,
+    updatedAt: Double? = nil
+  ) {
+    self.id = ProductizationModelText.identifier(id, fallback: "scenario")
+    self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
+    self.segmentID = ProductizationModelText.identifier(segmentID, fallback: "segment")
+    self.currentWorkflowID = ProductizationModelText.identifier(
+      currentWorkflowID,
+      fallback: "workflow"
+    )
+    self.alternativeID = ProductizationModelText.optionalIdentifier(
+      alternativeID,
+      fallback: "alternative"
+    )
+    self.title = ProductizationModelText.cleanedText(
+      title,
+      fallback: "Productization scenario",
+      limit: 180
+    )
+    self.task = ProductizationModelText.cleanedText(
+      task,
+      fallback: "Try the product experiment against the current workflow.",
+      limit: 800
+    )
+    self.successSignal = ProductizationModelText.cleanedText(
+      successSignal,
+      fallback: "The scenario produces evidence for the next product decision.",
+      limit: 500
+    )
+    self.targetCommitSha = ProductizationModelText.optionalCleanedText(
+      targetCommitSha,
+      limit: 80
+    )
+    self.maxTurns = min(20, max(1, maxTurns))
+    self.appCommandTimeoutSeconds = min(20 * 60, max(5, appCommandTimeoutSeconds))
+    self.enabled = enabled
+    self.createdAt = createdAt
+    self.updatedAt = updatedAt ?? createdAt
+  }
+}
+
 struct ProductScenarioCohort: Codable, Equatable, Identifiable, Sendable {
   var id: String
   var title: String
@@ -766,6 +881,12 @@ enum ProductizationModelText {
       .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "-", options: .regularExpression)
       .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
     return String((normalized.isEmpty ? fallbackSlug : normalized).prefix(96))
+  }
+
+  static func optionalIdentifier(_ value: String?, fallback: String) -> String? {
+    let cleaned = StringUtils.boundedText(value ?? "", limit: 120)
+    guard !cleaned.isEmpty else { return nil }
+    return identifier(cleaned, fallback: fallback)
   }
 
   static func cleanedText(_ value: String, fallback: String = "", limit: Int) -> String {

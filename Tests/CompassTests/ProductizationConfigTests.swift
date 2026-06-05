@@ -88,15 +88,21 @@ struct ProductizationConfigTests {
     try #require(config.alternatives.count == 2)
     try #require(config.solutionHypotheses.count == 2)
     try #require(config.experiments.count == 2)
+    try #require(config.scenarios.count == 2)
     try #require(config.scenarioCohorts.count == 2)
     try #require(Set(config.userSegments.map(\.id)).count == config.userSegments.count)
     try #require(Set(config.solutionHypotheses.map(\.id)).count == config.solutionHypotheses.count)
     try #require(Set(config.experiments.map(\.id)).count == config.experiments.count)
+    try #require(Set(config.scenarios.map(\.id)).count == config.scenarios.count)
     try #require(config.painHypotheses[0].status == .active)
     try #require(config.solutionHypotheses.contains { $0.status == .active })
     try #require(config.solutionHypotheses.allSatisfy { $0.painID == config.painHypotheses[0].id })
     try #require(config.experiments.allSatisfy { !$0.branchName.isEmpty })
     try #require(config.experiments.allSatisfy { !$0.worktreeID.isEmpty })
+    try #require(config.scenarioCohorts.allSatisfy { !$0.scenarioIDs.isEmpty })
+    try #require(
+      Set(config.scenarioCohorts.flatMap(\.scenarioIDs)).isSubset(of: Set(config.scenarios.map(\.id)))
+    )
     try #require(config.experiments[0].createdAt == 1_700_000_000)
   }
 
@@ -211,6 +217,22 @@ private func makeProductizationConfig() -> ProductizationConfig {
     createdAt: 100,
     updatedAt: 200
   )
+  let scenario = ProductScenario(
+    id: "scenario-lead",
+    experimentID: experiment.id,
+    segmentID: segment.id,
+    currentWorkflowID: workflow.id,
+    alternativeID: alternative.id,
+    title: "Delivery lead handoff scenario",
+    task: "Complete the owner handoff and decide whether the board reduces repeated follow-up.",
+    successSignal: "The lead can find the owner and decision faster than chat.",
+    targetCommitSha: experiment.currentSha,
+    maxTurns: 6,
+    appCommandTimeoutSeconds: 90,
+    enabled: true,
+    createdAt: 100,
+    updatedAt: 200
+  )
   let cohort = ProductScenarioCohort(
     id: "cohort-handoff",
     title: "Handoff cohort",
@@ -235,6 +257,7 @@ private func makeProductizationConfig() -> ProductizationConfig {
     alternatives: [alternative],
     solutionHypotheses: [solution],
     experiments: [experiment],
+    scenarios: [scenario],
     scenarioCohorts: [cohort],
     decisions: [decision]
   )
