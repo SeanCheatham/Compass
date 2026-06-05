@@ -264,6 +264,233 @@ struct ProductizationLoopTests {
     try #require(digest.contains("evidence kill-a"))
   }
 
+  @Test func pmfDecisionAdvisorDefersPromotionWhenEvidenceIsSplit() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let operatorID = try #require(config.userSegments.first?.id)
+    let buyerID = try #require(config.userSegments.dropFirst().first?.id)
+    let strongScores = ProductizationEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 5,
+      alternativeAdvantage: 5,
+      switchingReadiness: 5,
+      continuedUsePull: 5
+    )
+    let rejectedScores = ProductizationEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 1,
+      alternativeAdvantage: 1,
+      switchingReadiness: 1,
+      continuedUsePull: 1
+    )
+    let index = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "split-promote-a",
+          experiment: experiment,
+          config: config,
+          personaID: operatorID,
+          mode: .personaModel,
+          endedAt: 600,
+          verdict: .strongPull,
+          scores: strongScores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "split-promote-b",
+          experiment: experiment,
+          config: config,
+          personaID: buyerID,
+          mode: .personaModel,
+          endedAt: 590,
+          verdict: .strongPull,
+          scores: strongScores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "split-promote-c",
+          experiment: experiment,
+          config: config,
+          personaID: "operations-lead",
+          endedAt: 580,
+          verdict: .strongPull,
+          scores: strongScores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "split-promote-d",
+          experiment: experiment,
+          config: config,
+          personaID: "finance-lead",
+          endedAt: 570,
+          verdict: .strongPull,
+          scores: strongScores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "split-promote-e",
+          experiment: experiment,
+          config: config,
+          personaID: operatorID,
+          endedAt: 560,
+          verdict: .promising,
+          scores: strongScores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "split-reject-a",
+          experiment: experiment,
+          config: config,
+          personaID: buyerID,
+          mode: .personaModel,
+          endedAt: 550,
+          verdict: .rejected,
+          scores: rejectedScores,
+          objections: ["Too risky to switch budget workflows"]
+        ),
+      ]
+    )
+
+    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let tension = try #require(
+      ProductFactoryEvidenceTensionAdvisor.tension(
+        for: experiment,
+        evidenceIndex: index
+      ))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
+
+    try #require(readiness.recommendation == .promote)
+    try #require(readiness.proofDebt.isClear)
+    try #require(tension.label == "resolve split PMF evidence")
+    try #require(tension.positiveEvidenceRunIDs.first == "split-promote-a")
+    try #require(tension.negativeEvidenceRunIDs == ["split-reject-a"])
+    try #require(ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: index
+    ).isEmpty)
+    try #require(ProductFactoryDecisionCandidateAdvisor.candidates(
+      config: config,
+      evidenceIndex: index
+    ).isEmpty)
+    try #require(action.kind == .runCohort)
+    try #require(action.title == "Resolve split PMF evidence")
+    try #require(action.cohortID == config.scenarioCohorts[0].id)
+    try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.detail.contains("pull signal"))
+    try #require(action.detail.contains("rejection signal"))
+    try #require(digest.contains("Product-factory evidence tensions"))
+    try #require(digest.contains("action resolve_signal_split"))
+    try #require(digest.contains("pull split-promote-a"))
+    try #require(digest.contains("reject split-reject-a"))
+
+    do {
+      _ = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
+        experimentID: experiment.id,
+        to: config,
+        evidenceIndex: index
+      )
+      #expect(Bool(false), "Expected split evidence to block automatic PMF promotion.")
+    } catch let error as ProductMarketFitDecisionAdvisorError {
+      try #require(error == .noProposal(experiment.id))
+    }
+  }
+
+  @Test func pmfDecisionAdvisorDefersKillWhenEvidenceIsSplit() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let operatorID = try #require(config.userSegments.first?.id)
+    let buyerID = try #require(config.userSegments.dropFirst().first?.id)
+    let strongScores = ProductizationEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 5,
+      alternativeAdvantage: 5,
+      switchingReadiness: 5,
+      continuedUsePull: 5
+    )
+    let weakScores = ProductizationEvidenceScores(
+      painRecognition: 2,
+      workflowImprovement: 1,
+      alternativeAdvantage: 1,
+      switchingReadiness: 1,
+      continuedUsePull: 1
+    )
+    let index = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "split-kill-pull",
+          experiment: experiment,
+          config: config,
+          personaID: operatorID,
+          mode: .personaModel,
+          endedAt: 300,
+          verdict: .strongPull,
+          scores: strongScores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "split-kill-weak",
+          experiment: experiment,
+          config: config,
+          personaID: operatorID,
+          mode: .personaModel,
+          endedAt: 200,
+          verdict: .weak,
+          scores: weakScores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "split-kill-reject",
+          experiment: experiment,
+          config: config,
+          personaID: buyerID,
+          mode: .personaModel,
+          endedAt: 100,
+          verdict: .rejected,
+          scores: weakScores
+        ),
+      ]
+    )
+
+    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let tension = try #require(
+      ProductFactoryEvidenceTensionAdvisor.tension(
+        for: experiment,
+        evidenceIndex: index
+      ))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(readiness.recommendation == .kill)
+    try #require(tension.positiveEvidenceRunIDs == ["split-kill-pull"])
+    try #require(tension.negativeEvidenceRunIDs == ["split-kill-weak", "split-kill-reject"])
+    try #require(ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: index
+    ).isEmpty)
+    try #require(action.title == "Resolve split PMF evidence")
+    try #require(action.requiredSimulationMode == .personaModel)
+  }
+
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",

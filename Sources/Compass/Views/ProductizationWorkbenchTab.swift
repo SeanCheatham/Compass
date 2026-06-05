@@ -118,6 +118,13 @@ struct ProductizationWorkbenchTab: View {
     )
   }
 
+  private var factoryEvidenceTensions: [ProductFactoryEvidenceTension] {
+    ProductFactoryEvidenceTensionAdvisor.tensions(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var factoryDecisionCandidates: [ProductFactoryDecisionCandidate] {
     ProductFactoryDecisionCandidateAdvisor.candidates(
       config: config,
@@ -394,6 +401,18 @@ struct ProductizationWorkbenchTab: View {
           }
         }
 
+        WorkbenchSection("Evidence Tensions", systemImage: "exclamationmark.triangle") {
+          VStack(alignment: .leading, spacing: 8) {
+            if factoryEvidenceTensions.isEmpty {
+              WorkbenchEmptyLine("No split PMF evidence detected.")
+            } else {
+              ForEach(factoryEvidenceTensions.prefix(4)) { tension in
+                evidenceTensionRow(tension)
+              }
+            }
+          }
+        }
+
         WorkbenchSection("Decision Candidates", systemImage: "checkmark.seal") {
           VStack(alignment: .leading, spacing: 8) {
             if factoryDecisionCandidates.isEmpty {
@@ -482,6 +501,45 @@ struct ProductizationWorkbenchTab: View {
     }
     .buttonStyle(.plain)
     .help(target.displayDetail)
+  }
+
+  private func evidenceTensionRow(_ tension: ProductFactoryEvidenceTension) -> some View {
+    Button {
+      selectedExperimentID = tension.experimentID
+    } label: {
+      VStack(alignment: .leading, spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text(tension.displayTitle)
+            .font(.callout.weight(.semibold))
+            .lineLimit(2)
+          Spacer()
+          WorkbenchStatusPill(text: "\(tension.readinessScore)/100")
+        }
+        WorkbenchFact(label: "Experiment", value: tension.experimentID)
+        WorkbenchFact(label: "Split", value: tension.displaySubtitle)
+        WorkbenchFact(
+          label: "Pull",
+          value: tension.positiveEvidenceRunIDs.isEmpty
+            ? "none"
+            : tension.positiveEvidenceRunIDs.prefix(3).joined(separator: ", ")
+        )
+        WorkbenchFact(
+          label: "Reject",
+          value: tension.negativeEvidenceRunIDs.isEmpty
+            ? "none"
+            : tension.negativeEvidenceRunIDs.prefix(3).joined(separator: ", ")
+        )
+        Text(tension.summary)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .help(tension.displayDetail)
   }
 
   private func decisionCandidateRow(_ candidate: ProductFactoryDecisionCandidate) -> some View {

@@ -374,6 +374,160 @@ enum ProductFactoryDecisionCandidateAdvisor {
   }
 }
 
+struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
+  var id: String { experimentID }
+
+  var experimentID: String
+  var label: String
+  var readinessScore: Int
+  var strongestVerdict: ProductizationEvidenceVerdict
+  var weakestVerdict: ProductizationEvidenceVerdict
+  var positiveEvidenceRunIDs: [String]
+  var negativeEvidenceRunIDs: [String]
+  var summary: String
+
+  var evidenceRunIDs: [String] {
+    var seen = Set<String>()
+    var runIDs: [String] = []
+    for runID in positiveEvidenceRunIDs + negativeEvidenceRunIDs {
+      guard !seen.contains(runID) else { continue }
+      seen.insert(runID)
+      runIDs.append(runID)
+    }
+    return runIDs
+  }
+
+  var urgencyScore: Int {
+    85 + min(15, max(0, abs(readinessScore - 50) / 3))
+  }
+
+  var displayTitle: String {
+    label
+  }
+
+  var displaySubtitle: String {
+    "\(readinessScore)/100, \(strongestVerdict.rawValue) vs \(weakestVerdict.rawValue)"
+  }
+
+  var displayDetail: String {
+    let positive =
+      positiveEvidenceRunIDs.isEmpty
+      ? "positive evidence unavailable"
+      : "positive \(positiveEvidenceRunIDs.prefix(3).joined(separator: ", "))"
+    let negative =
+      negativeEvidenceRunIDs.isEmpty
+      ? "negative evidence unavailable"
+      : "negative \(negativeEvidenceRunIDs.prefix(3).joined(separator: ", "))"
+    return "\(summary) Evidence: \(positive); \(negative)."
+  }
+
+  var auditSummary: String {
+    StringUtils.boundedText(
+      "\(experimentID): \(label); score \(readinessScore)/100; \(strongestVerdict.rawValue) vs \(weakestVerdict.rawValue); evidence \(evidenceRunIDs.prefix(6).joined(separator: ", ")); \(summary)",
+      limit: 320
+    )
+  }
+
+  init(
+    experimentID: String,
+    label: String = "resolve split PMF evidence",
+    readinessScore: Int,
+    strongestVerdict: ProductizationEvidenceVerdict,
+    weakestVerdict: ProductizationEvidenceVerdict,
+    positiveEvidenceRunIDs: [String],
+    negativeEvidenceRunIDs: [String],
+    summary: String
+  ) {
+    self.experimentID = ProductizationModelText.identifier(
+      experimentID,
+      fallback: "experiment"
+    )
+    self.label = ProductizationModelText.cleanedText(
+      label,
+      fallback: "resolve split PMF evidence",
+      limit: 120
+    )
+    self.readinessScore = min(100, max(0, readinessScore))
+    self.strongestVerdict = strongestVerdict
+    self.weakestVerdict = weakestVerdict
+    self.positiveEvidenceRunIDs = ProductizationModelText.cleanedList(
+      positiveEvidenceRunIDs,
+      limit: 96
+    )
+    self.negativeEvidenceRunIDs = ProductizationModelText.cleanedList(
+      negativeEvidenceRunIDs,
+      limit: 96
+    )
+    self.summary = ProductizationModelText.cleanedText(
+      summary,
+      fallback:
+        "Current PMF evidence contains both pull and rejection; resolve the split before lift/cut decisions.",
+      limit: 1_000
+    )
+  }
+}
+
+enum ProductFactoryEvidenceTensionAdvisor {
+  static func tensions(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [ProductFactoryEvidenceTension] {
+    config.experiments.compactMap { experiment in
+      tension(for: experiment, evidenceIndex: evidenceIndex)
+    }
+    .sorted { lhs, rhs in
+      if lhs.urgencyScore == rhs.urgencyScore { return lhs.experimentID < rhs.experimentID }
+      return lhs.urgencyScore > rhs.urgencyScore
+    }
+  }
+
+  static func tension(
+    for experiment: ProductExperiment,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryEvidenceTension? {
+    guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment) else {
+      return nil
+    }
+    let completed = evidenceIndex.summaries(for: experiment).filter(\.isCompleted)
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
+        return lhs.endedAt > rhs.endedAt
+      }
+    let positive = completed.filter { isPositive($0.verdict) }
+    let negative = completed.filter { isNegative($0.verdict) }
+    guard !positive.isEmpty, !negative.isEmpty else { return nil }
+
+    let summary =
+      "Current PMF evidence is split: \(positive.count) pull signal(s) and \(negative.count) rejection signal(s) on the current commit. Run a targeted AI-user comparison or narrow the scenario before applying lift/cut decisions."
+    return ProductFactoryEvidenceTension(
+      experimentID: experiment.id,
+      readinessScore: Int(readiness.readinessScore.rounded()),
+      strongestVerdict: readiness.strongestVerdict,
+      weakestVerdict: readiness.weakestVerdict,
+      positiveEvidenceRunIDs: positive.prefix(4).map(\.runID),
+      negativeEvidenceRunIDs: negative.prefix(4).map(\.runID),
+      summary: summary
+    )
+  }
+
+  static func blocksAutomaticDecision(
+    targetDecision: ProductExperimentDecision,
+    experiment: ProductExperiment,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> Bool {
+    guard targetDecision == .promote || targetDecision == .kill else { return false }
+    return tension(for: experiment, evidenceIndex: evidenceIndex) != nil
+  }
+
+  private static func isPositive(_ verdict: ProductizationEvidenceVerdict) -> Bool {
+    verdict == .strongPull || verdict == .promising
+  }
+
+  private static func isNegative(_ verdict: ProductizationEvidenceVerdict) -> Bool {
+    verdict == .weak || verdict == .rejected
+  }
+}
+
 struct ProductMarketFitNextAction: Equatable, Sendable {
   var experimentID: String
   var kind: ProductMarketFitNextActionKind
@@ -1760,6 +1914,28 @@ enum ProductMarketFitNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
+    if let tension = ProductFactoryEvidenceTensionAdvisor.tension(
+      for: experiment,
+      evidenceIndex: evidenceIndex
+    ) {
+      return applyingRecentCycleGuards(
+        to: ProductMarketFitNextAction(
+          experimentID: experiment.id,
+          kind: cohort == nil ? .refineBet : .runCohort,
+          title: "Resolve split PMF evidence",
+          detail: cohort.map {
+            "\(tension.summary) Run cohort `\($0.id)` in AI-user mode to compare the disagreeing personas before lift/cut."
+          }
+            ?? "\(tension.summary) Add an enabled AI-user scenario that directly compares the disagreeing evidence before lift/cut.",
+          priority: tension.urgencyScore,
+          cohortID: cohort?.id,
+          requiredSimulationMode: .personaModel
+        ),
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
 
     switch readiness.recommendation {
     case .narrow:
@@ -2300,7 +2476,12 @@ enum ProductMarketFitDecisionAdvisor {
     return config.experiments.compactMap { experiment in
       guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment),
         let target = targetDecision(for: readiness, current: experiment.decision),
-        target != experiment.decision
+        target != experiment.decision,
+        !ProductFactoryEvidenceTensionAdvisor.blocksAutomaticDecision(
+          targetDecision: target,
+          experiment: experiment,
+          evidenceIndex: evidenceIndex
+        )
       else { return nil }
       let summary = summary(for: readiness, target: target, experiment: experiment)
       do {

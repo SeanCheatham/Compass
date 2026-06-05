@@ -25,6 +25,7 @@ enum ProductizationPlanningDigestFormatter {
     lines += decisionLines(config: config, maxDecisions: maxDecisions)
     lines += unknownLines(config: config)
     lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
+    lines += evidenceTensionLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += autopilotLines(config: config, evidenceIndex: evidenceIndex)
@@ -200,6 +201,37 @@ enum ProductizationPlanningDigestFormatter {
       ]
       lines.append(
         "- \(candidate.experimentID): \(metadata.joined(separator: "; ")); \(evidence); \(bounded(candidate.summary, 220))."
+      )
+    }
+    return lines
+  }
+
+  private static func evidenceTensionLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    let tensions = ProductFactoryEvidenceTensionAdvisor.tensions(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    guard !tensions.isEmpty else { return [] }
+    var lines = ["Product-factory evidence tensions:"]
+    for tension in tensions.prefix(4) {
+      var metadata = [
+        "action resolve_signal_split",
+        "score \(tension.readinessScore)/100",
+        "strongest \(tension.strongestVerdict.rawValue)",
+        "weakest \(tension.weakestVerdict.rawValue)",
+      ]
+      if !tension.positiveEvidenceRunIDs.isEmpty {
+        metadata.append("pull \(tension.positiveEvidenceRunIDs.prefix(4).joined(separator: ", "))")
+      }
+      if !tension.negativeEvidenceRunIDs.isEmpty {
+        metadata.append(
+          "reject \(tension.negativeEvidenceRunIDs.prefix(4).joined(separator: ", "))")
+      }
+      lines.append(
+        "- \(tension.experimentID): \(metadata.joined(separator: "; ")); \(bounded(tension.summary, 240))."
       )
     }
     return lines
