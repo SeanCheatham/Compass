@@ -160,8 +160,10 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     let proofSolutionID = "\(slug)-proof-assistant"
     let workflowExperimentID = "\(slug)-workflow-prototype"
     let proofExperimentID = "\(slug)-proof-prototype"
-    let workflowScenarioID = "\(workflowExperimentID)-starter-scenario"
-    let proofScenarioID = "\(proofExperimentID)-starter-scenario"
+    let workflowOperatorScenarioID = "\(workflowExperimentID)-operator-starter-scenario"
+    let workflowBuyerScenarioID = "\(workflowExperimentID)-buyer-starter-scenario"
+    let proofOperatorScenarioID = "\(proofExperimentID)-operator-starter-scenario"
+    let proofBuyerScenarioID = "\(proofExperimentID)-buyer-starter-scenario"
 
     let pain = PainHypothesis(
       id: painID,
@@ -370,7 +372,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
 
     let scenarios = [
       ProductScenario(
-        id: workflowScenarioID,
+        id: workflowOperatorScenarioID,
         experimentID: workflowExperimentID,
         segmentID: operatorSegmentID,
         currentWorkflowID: workflowID,
@@ -385,7 +387,37 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
         createdAt: timestamp
       ),
       ProductScenario(
-        id: proofScenarioID,
+        id: workflowBuyerScenarioID,
+        experimentID: workflowExperimentID,
+        segmentID: buyerSegmentID,
+        currentWorkflowID: workflowID,
+        alternativeID: doNothingAlternativeID,
+        title: "\(title) workflow sponsor proof",
+        task: "Review the workflow prototype as the sponsor and decide whether the evidence justifies more product investment.",
+        successSignal: "The buyer can explain whether the workflow relief is valuable enough to sponsor.",
+        targetCommitSha: nil,
+        maxTurns: 8,
+        appCommandTimeoutSeconds: 120,
+        enabled: true,
+        createdAt: timestamp
+      ),
+      ProductScenario(
+        id: proofOperatorScenarioID,
+        experimentID: proofExperimentID,
+        segmentID: operatorSegmentID,
+        currentWorkflowID: workflowID,
+        alternativeID: manualAlternativeID,
+        title: "\(title) evidence operator proof",
+        task: "Use the proof assistant during the current workflow and decide whether it makes product evidence easier to capture.",
+        successSignal: "The operator can capture reusable evidence with less rework than the manual workaround.",
+        targetCommitSha: nil,
+        maxTurns: 8,
+        appCommandTimeoutSeconds: 120,
+        enabled: true,
+        createdAt: timestamp
+      ),
+      ProductScenario(
+        id: proofBuyerScenarioID,
         experimentID: proofExperimentID,
         segmentID: buyerSegmentID,
         currentWorkflowID: workflowID,

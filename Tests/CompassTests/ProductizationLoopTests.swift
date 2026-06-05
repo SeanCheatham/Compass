@@ -360,10 +360,10 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index
     ).isEmpty)
-    try #require(action.kind == .refineBet)
+    try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user rejection check")
     try #require(action.detail.contains("requires at least 2"))
-    try #require(action.detail.contains("does not cover a runnable AI-user target"))
+    try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
   }
 
@@ -438,10 +438,10 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index
     ).isEmpty)
-    try #require(action.kind == .refineBet)
+    try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user validation cohort")
     try #require(action.detail.contains("requires at least 2"))
-    try #require(action.detail.contains("does not cover a runnable AI-user target"))
+    try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
   }
 
@@ -564,6 +564,22 @@ struct ProductizationLoopTests {
     }
     let experiment = config.experiments[0]
     let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
+    config.scenarios.removeAll { $0.experimentID == experiment.id && $0.segmentID == buyer.id }
+    for index in config.scenarioCohorts.indices
+      where config.scenarioCohorts[index].experimentID == experiment.id
+    {
+      let cohort = config.scenarioCohorts[index]
+      config.scenarioCohorts[index] = ProductScenarioCohort(
+        id: cohort.id,
+        title: cohort.title,
+        experimentID: cohort.experimentID,
+        scenarioIDs: cohort.scenarioIDs.filter { scenarioID in
+          config.scenarios.contains { $0.id == scenarioID }
+        },
+        enabled: cohort.enabled,
+        tags: cohort.tags
+      )
+    }
     let operatorScenario = try #require(
       config.scenarios.first { $0.experimentID == experiment.id && $0.segmentID != buyer.id }
     )
@@ -662,6 +678,22 @@ struct ProductizationLoopTests {
     }
     let experiment = config.experiments[0]
     let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
+    config.scenarios.removeAll { $0.experimentID == experiment.id && $0.segmentID == buyer.id }
+    for index in config.scenarioCohorts.indices
+      where config.scenarioCohorts[index].experimentID == experiment.id
+    {
+      let cohort = config.scenarioCohorts[index]
+      config.scenarioCohorts[index] = ProductScenarioCohort(
+        id: cohort.id,
+        title: cohort.title,
+        experimentID: cohort.experimentID,
+        scenarioIDs: cohort.scenarioIDs.filter { scenarioID in
+          config.scenarios.contains { $0.id == scenarioID }
+        },
+        enabled: cohort.enabled,
+        tags: cohort.tags
+      )
+    }
     let index = makePMFPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
@@ -1245,7 +1277,7 @@ struct ProductizationLoopTests {
       ))
     try #require(readiness.canRun)
     try #require(readiness.cohortID == config.scenarioCohorts[0].id)
-    try #require(readiness.enabledScenarioCount == 1)
+    try #require(readiness.enabledScenarioCount == 2)
     try #require(readiness.missingTargetCommitCount == 0)
   }
 
@@ -1305,8 +1337,8 @@ struct ProductizationLoopTests {
 
     try #require(action.kind == .runCohort)
     try #require(!readiness.canRun)
-    try #require(readiness.enabledScenarioCount == 1)
-    try #require(readiness.missingTargetCommitCount == 1)
+    try #require(readiness.enabledScenarioCount == 2)
+    try #require(readiness.missingTargetCommitCount == 2)
     try #require(readiness.blockedReason?.contains("target commit") == true)
   }
 

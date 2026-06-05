@@ -135,7 +135,7 @@ struct ProductizationConfigTests {
     try #require(config.alternatives.count == 2)
     try #require(config.solutionHypotheses.count == 2)
     try #require(config.experiments.count == 2)
-    try #require(config.scenarios.count == 2)
+    try #require(config.scenarios.count == 4)
     try #require(config.scenarioCohorts.count == 2)
     try #require(Set(config.userSegments.map(\.id)).count == config.userSegments.count)
     try #require(Set(config.solutionHypotheses.map(\.id)).count == config.solutionHypotheses.count)
@@ -146,7 +146,15 @@ struct ProductizationConfigTests {
     try #require(config.solutionHypotheses.allSatisfy { $0.painID == config.painHypotheses[0].id })
     try #require(config.experiments.allSatisfy { !$0.branchName.isEmpty })
     try #require(config.experiments.allSatisfy { !$0.worktreeID.isEmpty })
-    try #require(config.scenarioCohorts.allSatisfy { !$0.scenarioIDs.isEmpty })
+    try #require(config.scenarioCohorts.allSatisfy { $0.scenarioIDs.count == 2 })
+    for experiment in config.experiments {
+      let scenarioSegmentIDs = Set(
+        config.scenarios
+          .filter { $0.experimentID == experiment.id }
+          .map(\.segmentID)
+      )
+      try #require(scenarioSegmentIDs == Set(config.userSegments.map(\.id)))
+    }
     try #require(config.factoryCycleAudits.isEmpty)
     try #require(
       Set(config.scenarioCohorts.flatMap(\.scenarioIDs)).isSubset(of: Set(config.scenarios.map(\.id)))
