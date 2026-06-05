@@ -220,25 +220,40 @@ struct ProductMarketFitDecisionProposal: Equatable, Sendable {
   var readiness: ProductMarketFitReadiness
 }
 
+enum ProductMarketFitNextActionKind: String, Equatable, Sendable {
+  case applyDecision = "apply_decision"
+  case runCohort = "run_cohort"
+  case rerunCohort = "rerun_cohort"
+  case repairFailures = "repair_failures"
+  case refineBet = "refine_bet"
+  case reviewDecision = "review_decision"
+}
+
 struct ProductMarketFitNextAction: Equatable, Sendable {
   var experimentID: String
+  var kind: ProductMarketFitNextActionKind
   var title: String
   var detail: String
   var priority: Int
+  var cohortID: String?
 
   init(
     experimentID: String,
+    kind: ProductMarketFitNextActionKind,
     title: String,
     detail: String,
-    priority: Int
+    priority: Int,
+    cohortID: String? = nil
   ) {
     self.experimentID = ProductizationModelText.identifier(
       experimentID,
       fallback: "experiment"
     )
+    self.kind = kind
     self.title = StringUtils.boundedText(title, limit: 160)
     self.detail = StringUtils.boundedText(detail, limit: 500)
     self.priority = max(0, priority)
+    self.cohortID = ProductizationModelText.optionalIdentifier(cohortID, fallback: "cohort")
   }
 }
 
@@ -286,6 +301,7 @@ enum ProductMarketFitNextActionAdvisor {
     ) {
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
+        kind: .applyDecision,
         title: "Apply PMF decision",
         detail:
           "Current evidence supports \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue) using \(proposal.update.evidenceRunIDs.count) current run(s).",
@@ -295,14 +311,27 @@ enum ProductMarketFitNextActionAdvisor {
 
     let currentSummaries = evidenceIndex.summaries(for: experiment)
     let staleCount = evidenceIndex.staleSummaryCount(for: experiment)
+    let cohort = runnableCohort(for: experiment, config: config)
     if currentSummaries.isEmpty {
+      guard let cohort else {
+        return ProductMarketFitNextAction(
+          experimentID: experiment.id,
+          kind: .refineBet,
+          title: "Define evidence cohort",
+          detail:
+            "No enabled scenario cohort is ready for this experiment; define an enabled cohort before the factory can gather PMF evidence.",
+          priority: staleCount > 0 ? 96 : 91
+        )
+      }
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
+        kind: staleCount > 0 ? .rerunCohort : .runCohort,
         title: staleCount > 0 ? "Rerun current evidence" : "Run productization cohort",
         detail: staleCount > 0
-          ? "\(staleCount) stale run(s) exist for older commits; rerun the scenario cohort against the current experiment commit before deciding."
-          : "No current-commit evidence exists yet; run the scenario cohort before changing the product decision.",
-        priority: staleCount > 0 ? 95 : 90
+          ? "\(staleCount) stale run(s) exist for older commits; rerun cohort `\(cohort.id)` against the current experiment commit before deciding."
+          : "No current-commit evidence exists yet; run cohort `\(cohort.id)` before changing the product decision.",
+        priority: staleCount > 0 ? 95 : 90,
+        cohortID: cohort.id
       )
     }
 
@@ -312,6 +341,7 @@ enum ProductMarketFitNextActionAdvisor {
     if readiness.failedRunCount > readiness.completedRunCount {
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
+        kind: .repairFailures,
         title: "Repair evidence run failures",
         detail:
           "\(readiness.failedRunCount) of \(readiness.runCount) current run(s) failed; fix the generated app contract or runner before trusting PMF signals.",
@@ -321,10 +351,14 @@ enum ProductMarketFitNextActionAdvisor {
     if readiness.completedRunCount < 2 || readiness.distinctPersonaCount < 2 {
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
+        kind: cohort == nil ? .refineBet : .runCohort,
         title: "Gather broader persona evidence",
-        detail:
-          "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); run more scenarios or personas before deciding.",
-        priority: 80
+        detail: cohort.map {
+          "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); run cohort `\($0.id)` to broaden evidence before deciding."
+        }
+          ?? "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); define another enabled scenario or persona before deciding.",
+        priority: 80,
+        cohortID: cohort?.id
       )
     }
 
@@ -332,6 +366,7 @@ enum ProductMarketFitNextActionAdvisor {
     case .narrow:
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
+        kind: .refineBet,
         title: "Narrow the product bet",
         detail:
           "Current PMF evidence points to missing capabilities or repeated objections; narrow the next prototype before more rollout work.",
@@ -340,6 +375,7 @@ enum ProductMarketFitNextActionAdvisor {
     case .pivot:
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
+        kind: .refineBet,
         title: "Prepare a pivot",
         detail:
           "Users recognize the pain, but current product pull is weak; reshape the solution before more cohort runs.",
@@ -348,6 +384,7 @@ enum ProductMarketFitNextActionAdvisor {
     case .kill:
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
+        kind: .reviewDecision,
         title: "Review kill decision",
         detail:
           "Current evidence is weak, but the existing experiment state blocks an automatic kill recommendation; inspect the decision path.",
@@ -356,6 +393,7 @@ enum ProductMarketFitNextActionAdvisor {
     case .promote:
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
+        kind: .reviewDecision,
         title: "Review promotion path",
         detail:
           "Current evidence has promotion strength, but the existing experiment state blocks an automatic promote recommendation.",
@@ -364,12 +402,41 @@ enum ProductMarketFitNextActionAdvisor {
     case .gatherEvidence, .keepGoing:
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
+        kind: cohort == nil ? .refineBet : .runCohort,
         title: "Run another evidence cohort",
-        detail:
-          "Current PMF readiness is \(readiness.scoreLabel)/100; run another cohort or scenario variant before changing the product decision.",
-        priority: 70
+        detail: cohort.map {
+          "Current PMF readiness is \(readiness.scoreLabel)/100; run cohort `\($0.id)` or add a scenario variant before changing the product decision."
+        }
+          ?? "Current PMF readiness is \(readiness.scoreLabel)/100; define another enabled scenario cohort before changing the product decision.",
+        priority: 70,
+        cohortID: cohort?.id
       )
     }
+  }
+
+  private static func runnableCohort(
+    for experiment: ProductExperiment,
+    config: ProductizationConfig
+  ) -> ProductScenarioCohort? {
+    let enabledScenarioIDs = Set(
+      config.scenarios
+        .filter { $0.experimentID == experiment.id && $0.enabled }
+        .map(\.id)
+    )
+    guard !enabledScenarioIDs.isEmpty else { return nil }
+    return config.scenarioCohorts
+      .filter { cohort in
+        cohort.experimentID == experiment.id
+          && cohort.enabled
+          && cohort.scenarioIDs.contains { enabledScenarioIDs.contains($0) }
+      }
+      .sorted { lhs, rhs in
+        let lhsCoverage = lhs.scenarioIDs.filter { enabledScenarioIDs.contains($0) }.count
+        let rhsCoverage = rhs.scenarioIDs.filter { enabledScenarioIDs.contains($0) }.count
+        if lhsCoverage == rhsCoverage { return lhs.title < rhs.title }
+        return lhsCoverage > rhsCoverage
+      }
+      .first
   }
 }
 

@@ -258,8 +258,10 @@ struct ProductizationLoopTests {
     let savedExperiment = try #require(next.experiments.first { $0.id == experiment.id })
     let decision = try #require(next.decisions.last)
 
+    try #require(action.kind == .applyDecision)
     try #require(action.title == "Apply PMF decision")
     try #require(action.detail.contains("continue -> promote"))
+    try #require(action.cohortID == nil)
     try #require(savedExperiment.decision == .promote)
     try #require(savedExperiment.evidenceSummary.contains("PMF readiness"))
     try #require(decision.decision == .promote)
@@ -294,8 +296,10 @@ struct ProductizationLoopTests {
       ))
 
     try #require(proposals.isEmpty)
+    try #require(action.kind == .rerunCohort)
     try #require(action.title == "Rerun current evidence")
     try #require(action.detail.contains("stale run"))
+    try #require(action.cohortID == config.scenarioCohorts[0].id)
     do {
       _ = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
         experimentID: config.experiments[0].id,
@@ -306,6 +310,62 @@ struct ProductizationLoopTests {
     } catch let error as ProductMarketFitDecisionAdvisorError {
       try #require(error == .noProposal(config.experiments[0].id))
     }
+  }
+
+  @Test func pmfNextActionTargetsRunnableCohortBeforeEvidenceExists() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: .empty
+      ))
+
+    try #require(action.kind == .runCohort)
+    try #require(action.title == "Run productization cohort")
+    try #require(action.cohortID == config.scenarioCohorts[0].id)
+    try #require(action.detail.contains(config.scenarioCohorts[0].id))
+  }
+
+  @Test func pmfNextActionAsksForEvidenceCohortWhenNoneIsRunnable() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    config.scenarioCohorts = config.scenarioCohorts.map {
+      ProductScenarioCohort(
+        id: $0.id,
+        title: $0.title,
+        experimentID: $0.experimentID,
+        scenarioIDs: $0.scenarioIDs,
+        enabled: false,
+        tags: $0.tags
+      )
+    }
+
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: config.experiments[0],
+        config: config,
+        evidenceIndex: .empty
+      ))
+
+    try #require(action.kind == .refineBet)
+    try #require(action.title == "Define evidence cohort")
+    try #require(action.cohortID == nil)
   }
 
   @Test func rolloutWorkflowPromotesExperimentWithBranchCommitAndEvidenceTrail() throws {
