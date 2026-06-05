@@ -300,6 +300,109 @@ struct ProductMarketFitCohortRunReadiness: Equatable, Sendable {
   }
 }
 
+struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
+  var id: String { experimentID }
+
+  var experimentID: String
+  var readinessScore: Int?
+  var readinessRecommendation: ProductMarketFitRecommendation?
+  var nextActionKind: ProductMarketFitNextActionKind?
+  var nextActionTitle: String?
+  var nextActionPriority: Int
+  var staleEvidenceCount: Int
+
+  var urgencyScore: Int {
+    (nextActionPriority * 1_000)
+      + (readinessScore ?? 0)
+      + min(50, staleEvidenceCount * 5)
+  }
+
+  var pmfLabel: String {
+    guard let readinessScore else { return "No current PMF evidence" }
+    let recommendation = readinessRecommendation?.title ?? "Review"
+    return "\(readinessScore)/100, \(recommendation)"
+  }
+
+  var nextActionLabel: String {
+    guard let nextActionTitle else { return "No action queued" }
+    return "\(nextActionTitle) (priority \(nextActionPriority))"
+  }
+
+  init(
+    experimentID: String,
+    readinessScore: Int?,
+    readinessRecommendation: ProductMarketFitRecommendation?,
+    nextActionKind: ProductMarketFitNextActionKind?,
+    nextActionTitle: String?,
+    nextActionPriority: Int,
+    staleEvidenceCount: Int
+  ) {
+    self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
+    self.readinessScore = readinessScore.map { min(100, max(0, $0)) }
+    self.readinessRecommendation = readinessRecommendation
+    self.nextActionKind = nextActionKind
+    self.nextActionTitle = nextActionTitle.map { StringUtils.boundedText($0, limit: 160) }
+    self.nextActionPriority = max(0, nextActionPriority)
+    self.staleEvidenceCount = max(0, staleEvidenceCount)
+  }
+}
+
+enum ProductFactoryExperimentRanker {
+  static func rankedExperiments(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [ProductExperiment] {
+    let signals = Dictionary(
+      uniqueKeysWithValues: experimentSignals(
+        config: config,
+        evidenceIndex: evidenceIndex
+      ).map { ($0.experimentID, $0) }
+    )
+    return config.experiments.sorted { lhs, rhs in
+      let lhsSignal = signals[lhs.id]
+      let rhsSignal = signals[rhs.id]
+      let lhsUrgency = lhsSignal?.urgencyScore ?? 0
+      let rhsUrgency = rhsSignal?.urgencyScore ?? 0
+      if lhsUrgency == rhsUrgency {
+        if lhs.updatedAt == rhs.updatedAt { return lhs.title < rhs.title }
+        return lhs.updatedAt > rhs.updatedAt
+      }
+      return lhsUrgency > rhsUrgency
+    }
+  }
+
+  static func experimentSignals(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [ProductFactoryExperimentSignal] {
+    config.experiments.map {
+      signal(for: $0, config: config, evidenceIndex: evidenceIndex)
+    }
+  }
+
+  static func signal(
+    for experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryExperimentSignal {
+    let readiness = evidenceIndex.currentPMFReadiness(for: experiment)
+    let nextAction = ProductMarketFitNextActionAdvisor.nextAction(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    return ProductFactoryExperimentSignal(
+      experimentID: experiment.id,
+      readinessScore: readiness.map { Int($0.readinessScore.rounded()) },
+      readinessRecommendation: readiness?.recommendation,
+      nextActionKind: nextAction?.kind,
+      nextActionTitle: nextAction?.title,
+      nextActionPriority: nextAction?.priority ?? 0,
+      staleEvidenceCount: evidenceIndex.staleSummaryCount(for: experiment)
+    )
+  }
+}
+
 enum ProductMarketFitDecisionAdvisorError: LocalizedError, Equatable {
   case noProposal(String)
 

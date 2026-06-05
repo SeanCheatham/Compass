@@ -231,6 +231,45 @@ struct ProductizationLoopTests {
     try #require(kill.update.decidedBy == "PMF Decision Advisor")
   }
 
+  @Test func productFactoryRankerPrioritizesActionablePMFPressure() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    try #require(config.experiments.count >= 2)
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    config.experiments[1].decision = .keepGoing
+    config.experiments[1].baseSha = "base-sha"
+    config.experiments[1].currentSha = "head-sha"
+    let index = makePMFPromotionEvidenceIndex(config: config)
+
+    let ranked = ProductFactoryExperimentRanker.rankedExperiments(
+      config: config,
+      evidenceIndex: index
+    )
+    let firstSignal = ProductFactoryExperimentRanker.signal(
+      for: config.experiments[0],
+      config: config,
+      evidenceIndex: index
+    )
+    let secondSignal = ProductFactoryExperimentRanker.signal(
+      for: config.experiments[1],
+      config: config,
+      evidenceIndex: index
+    )
+
+    try #require(ranked.first?.id == config.experiments[0].id)
+    try #require(firstSignal.nextActionKind == .applyDecision)
+    try #require(firstSignal.readinessRecommendation == .promote)
+    try #require(firstSignal.pmfLabel.contains("Promote"))
+    try #require(firstSignal.urgencyScore > secondSignal.urgencyScore)
+    try #require(secondSignal.nextActionKind == .runCohort)
+    try #require(secondSignal.pmfLabel == "No current PMF evidence")
+  }
+
   @Test func pmfDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",

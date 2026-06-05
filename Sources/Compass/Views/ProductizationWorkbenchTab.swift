@@ -102,6 +102,13 @@ struct ProductizationWorkbenchTab: View {
       .sorted { $0.title < $1.title }
   }
 
+  private var experimentsForBoard: [ProductExperiment] {
+    ProductFactoryExperimentRanker.rankedExperiments(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       header
@@ -306,7 +313,7 @@ struct ProductizationWorkbenchTab: View {
             if config.experiments.isEmpty {
               WorkbenchEmptyLine("No experiment branches yet.")
             } else {
-              ForEach(config.experiments) { experiment in
+              ForEach(experimentsForBoard) { experiment in
                 experimentRow(experiment)
               }
             }
@@ -318,7 +325,12 @@ struct ProductizationWorkbenchTab: View {
   }
 
   private func experimentRow(_ experiment: ProductExperiment) -> some View {
-    Button {
+    let signal = ProductFactoryExperimentRanker.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    return Button {
       selectedExperimentID = experiment.id
     } label: {
       VStack(alignment: .leading, spacing: 7) {
@@ -329,6 +341,8 @@ struct ProductizationWorkbenchTab: View {
           Spacer()
           WorkbenchStatusPill(text: experiment.decision.rawValue)
         }
+        WorkbenchFact(label: "PMF", value: signal.pmfLabel)
+        WorkbenchFact(label: "Next", value: signal.nextActionLabel)
         WorkbenchFact(label: "Branch", value: experiment.branchName)
         WorkbenchFact(label: "Worktree", value: experiment.worktreeID)
         WorkbenchFact(
