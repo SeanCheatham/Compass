@@ -1650,6 +1650,9 @@ struct SessionRecord: Codable, Identifiable, Equatable {
   var verifyOutput: VerifyOutput?
   var feedback: String?
   var executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot]
+  var productExperimentID: String?
+  var productExperimentBranchName: String?
+  var productExperimentCommitSha: String?
 
   static func started(_ number: Int) -> SessionRecord {
     SessionRecord(
@@ -1665,7 +1668,10 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       notes: [],
       verifyOutput: nil,
       feedback: nil,
-      executionEnvironmentSnapshots: []
+      executionEnvironmentSnapshots: [],
+      productExperimentID: nil,
+      productExperimentBranchName: nil,
+      productExperimentCommitSha: nil
     )
   }
 
@@ -1685,6 +1691,9 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     case verifyOutput
     case feedback
     case executionEnvironmentSnapshots
+    case productExperimentID
+    case productExperimentBranchName
+    case productExperimentCommitSha
   }
 
   init(
@@ -1700,7 +1709,10 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     notes: [String],
     verifyOutput: VerifyOutput?,
     feedback: String?,
-    executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = []
+    executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = [],
+    productExperimentID: String? = nil,
+    productExperimentBranchName: String? = nil,
+    productExperimentCommitSha: String? = nil
   ) {
     self.session = session
     self.startedAt = startedAt
@@ -1716,6 +1728,18 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     self.feedback = feedback
     self.executionEnvironmentSnapshots = Self.normalizedExecutionEnvironmentSnapshots(
       executionEnvironmentSnapshots
+    )
+    self.productExperimentID = Self.normalizedOptionalProductizationField(
+      productExperimentID,
+      limit: 120
+    )
+    self.productExperimentBranchName = Self.normalizedOptionalProductizationField(
+      productExperimentBranchName,
+      limit: 240
+    )
+    self.productExperimentCommitSha = Self.normalizedOptionalProductizationField(
+      productExperimentCommitSha,
+      limit: 80
     )
   }
 
@@ -1739,6 +1763,18 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         forKey: .executionEnvironmentSnapshots
       ) ?? []
     )
+    productExperimentID = Self.normalizedOptionalProductizationField(
+      try container.decodeIfPresent(String.self, forKey: .productExperimentID),
+      limit: 120
+    )
+    productExperimentBranchName = Self.normalizedOptionalProductizationField(
+      try container.decodeIfPresent(String.self, forKey: .productExperimentBranchName),
+      limit: 240
+    )
+    productExperimentCommitSha = Self.normalizedOptionalProductizationField(
+      try container.decodeIfPresent(String.self, forKey: .productExperimentCommitSha),
+      limit: 80
+    )
   }
 
   func encode(to encoder: Encoder) throws {
@@ -1758,6 +1794,9 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     if !executionEnvironmentSnapshots.isEmpty {
       try container.encode(executionEnvironmentSnapshots, forKey: .executionEnvironmentSnapshots)
     }
+    try container.encodeIfPresent(productExperimentID, forKey: .productExperimentID)
+    try container.encodeIfPresent(productExperimentBranchName, forKey: .productExperimentBranchName)
+    try container.encodeIfPresent(productExperimentCommitSha, forKey: .productExperimentCommitSha)
   }
 
   var latestExecutionEnvironmentSnapshot: SessionExecutionEnvironmentSnapshot? {
@@ -1791,6 +1830,13 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     snapshots.reduce(into: []) { partialResult, snapshot in
       partialResult = recording(snapshot, in: partialResult)
     }
+  }
+
+  private static func normalizedOptionalProductizationField(_ value: String?, limit: Int)
+    -> String?
+  {
+    let bounded = StringUtils.boundedText(value ?? "", limit: limit)
+    return bounded.isEmpty ? nil : bounded
   }
 }
 

@@ -1,161 +1,163 @@
-# 03 - PMF Simulation Runner
+# 03 - Experiment Branches And Parallel Worktrees
 
 ## Objective
 
-Add a Compass service that runs PMF scenarios by repeatedly asking a persona LLM
-to choose from the generated app's allowed semantic actions, then replaying the
-chosen action prefix through the deterministic app experience contract.
+Make experiment branches and worktrees first-class so Compass can explore
+multiple solution hypotheses without mixing their commits or evidence.
+
+This is the infrastructure plan for parallel productization. It should support
+one mutating agent per experiment branch and multiple read-only simulation jobs
+against verified commits.
 
 ## Scope
 
-Build the orchestration path. Keep UI minimal. Feedback survey prompts are
-covered in the next plan, but the runner should leave hooks for them.
+Implement branch naming, worktree creation, guest workspace catalog keys,
+promotion staging refs, and scheduling rules.
 
-## Runner Shape
+This plan does not yet implement the generated Rust contract or evidence
+analysis. It creates the safe execution containers those plans need.
 
-Suggested service:
+## Branch Model
 
-```swift
-PMFSimulationRunner
+Use these branch roles:
+
+```text
+main or current user branch
+  accepted product direction
+
+compass/exp/<solution-slug>
+  active prototype branch for one solution hypothesis
+
+compass/archive/<solution-slug>
+  optional parked branch for killed or inactive experiments
+
+compass/promoted/<date>-<solution-slug>
+  optional marker branch for promoted experiment snapshots
 ```
 
-Inputs:
+Experiment branch names come from `ProductExperiment.branchName` and must pass
+`git check-ref-format`.
 
-- project
-- product hypothesis
-- persona
-- task
-- generated app working directory
-- execution route
-- model/settings
-- max turns
+## Worktree Model
 
-Outputs:
+Each experiment gets an isolated host worktree:
 
-- `PMFRunResult`
-- raw persona action transcript
-- deterministic experience trace JSON
-- run status
-- failure details
-
-## Execution Route
-
-Use the same workspace route principles as Verify:
-
-- If Shared VM is active for the project, run app CLI commands in the guest
-  workspace through vsock bash.
-- If route falls back to host, run locally using the existing process runner.
-
-The runner must use the generated app's CLI as the state transition oracle:
-
-```bash
-cargo run -p app-cli -- experience --input '<json>'
+```text
+.compass/productization/worktrees/<experiment-id>/
 ```
 
-The runner should maintain an action prefix. Each turn:
+or a host application-support equivalent when repo-local storage is not used.
 
-1. Invoke app CLI with current scenario plus action prefix.
-2. Parse latest semantic state and allowed actions.
-3. Ask persona agent to choose one allowed action.
-4. Validate the chosen action id exists in allowed actions.
-5. Append action and repeat until terminal or max turns.
+Each shared VM workspace should be keyed by:
 
-## Action Validation
+```text
+repoID + experimentID + branchName
+```
 
-If the persona returns an invalid action:
+not only by repo. This prevents one experiment from overwriting another
+experiment's guest state.
 
-- Do not pass it to the app.
-- Give one repair prompt naming the allowed actions.
-- If still invalid, mark the run as `invalidPersonaAction`.
+## Mutating Agent Rule
 
-Never silently map invalid actions to a nearby valid action.
+Only one Develop run may mutate a given experiment branch at a time.
 
-## Deterministic Trace Validation
+Different experiment branches may run Develop concurrently only if the shared VM
+capacity, model runtime, and UI scheduling can show each run clearly. Start with
+a conservative global limit of one mutating Develop run, then relax after the
+branch model is reliable.
 
-After the final action prefix is selected:
+## Parallel Simulation Rule
 
-- Run the app CLI twice with the same scenario and action prefix.
-- Hash both trace JSON payloads after stable normalization.
-- If hashes differ, mark the run as `nondeterministicExperienceTrace`.
+Read-only simulations may run in parallel when they target immutable commits:
 
-This protects the PMF loop from accidental time, randomness, or ordering drift.
+```text
+experimentID
+branchName
+commitSha
+scenarioCohortID
+```
 
-## Failure Modes
+CLI-only deterministic simulations can run with a wider concurrency limit.
+Visual verification and desktop screenshot capture should use a tighter
+semaphore because they consume GUI/session resources.
 
-Represent at least:
+## Git Exchange Changes
 
-- app contract missing
-- app command failed
-- app output not JSON
-- no allowed actions
-- persona invalid action
-- persona call failed
-- max turns reached
-- nondeterministic trace
+The shared VM git exchange should support:
 
-Failures should be evidence too, but should not be treated as product feedback.
+- fetching a named experiment branch from host to guest
+- committing on that experiment branch in guest
+- staging guest commits to an experiment-specific ref
+- fast-forwarding only that experiment branch on success
+- leaving main/current branch untouched until promotion
+
+Promotion is a separate action handled later.
+
+## Safety Rules
+
+- Refuse to create an experiment branch from a dirty base worktree.
+- Record `baseSha` and `currentSha` in productization state.
+- Refuse to promote if the experiment branch is not descended from its recorded
+  base without an explicit rebase or merge plan.
+- Never use broad destructive git operations.
+- Keep generated build outputs out of branches.
 
 ## Likely Files
 
-- `Sources/Compass/PMF/` or equivalent new folder
-- `Sources/Compass/AgentExecutor/`
-- `Sources/Compass/AgentExecutionLaunchPlan.swift`
+- `Sources/Compass/SharedVM/Workspace/SharedCompassVMGitExchange.swift`
+- `Sources/Compass/SharedVM/Workspace/SharedCompassVMGitWorkspaceSync.swift`
+- `Sources/Compass/SharedVM/Workspace/SharedCompassVMGuestWorkspaceCatalog.swift`
+- `Sources/Compass/SharedVM/Workspace/SharedCompassVMRepoWorkspaceSync.swift`
 - `Sources/Compass/CompassProject+RunPasses.swift`
-- `Sources/Compass/AgentTools/AgentBashRunner.swift`
-- `Tests/CompassTests/`
+- `Sources/Compass/SessionRecordStore.swift`
+- `Sources/Compass/Workspace.swift`
+- productization state and tests from Plan 01
 
 ## Acceptance Criteria
 
-- Runner can execute a canned scenario against the blessed scaffold without UI.
-- Runner validates action ids against allowed actions.
-- Runner detects nondeterministic traces.
-- Runner supports host and Shared VM command execution paths where existing
-  route abstractions allow it.
-- Unit tests cover the runner with mocked app CLI output and mocked LLM action
-  responses.
+- Compass can create an experiment branch for a solution hypothesis.
+- Compass can create or reuse a matching worktree.
+- Develop can target an experiment worktree without changing main.
+- Shared VM catalog entries are separated by experiment.
+- Simulation jobs can target a branch commit as read-only work.
+- Session records include experiment id, branch name, and commit sha when
+  relevant.
 
 ## Verification
 
-Run:
+- Add git utility tests with temporary repositories.
+- Test branch slug validation and invalid ref rejection.
+- Test two experiments for the same repo keep separate worktree paths.
+- Run a manual smoke that creates two experiment branches and verifies their
+  commits do not collide.
+
+## Status
+
+Complete.
+
+Completed on 2026-06-04. Added `ProductExperimentWorktreeManager` and
+`CompassWorkspace.prepareProductExperimentWorktree` to validate experiment branch
+names with git, refuse dirty base worktrees, create missing experiment branches,
+create or reuse `.compass/productization/worktrees/<experiment-id>/`, and record
+`baseSha`/`currentSha` back into productization state.
+
+Added experiment-aware Shared VM guest catalog entries under
+`.compass/productization/guest-workspaces/`, keyed by experiment id and branch
+name while preserving the existing per-repo catalog API. Added optional
+experiment metadata to `SessionRecord` so future Develop and simulation records
+can carry experiment id, branch name, and commit sha. Added
+`ProductExperimentSimulationTarget` as the read-only simulation identity:
+experiment id, branch name, commit sha, and scenario cohort id.
+
+Focused tests cover invalid branch rejection, dirty base rejection, branch and
+worktree creation, two experiments for the same repo staying isolated, Shared VM
+catalog separation, session metadata round trip, and read-only simulation target
+round trip.
+
+Verification completed and passed:
 
 ```bash
-./scripts/test-local.sh
+./scripts/test-local.sh --filter ProductExperimentWorktreeTests
+./scripts/test-local.sh --filter SharedCompassVMGuestWorkspaceCatalogTests
+./scripts/test-local.sh --filter SessionRecordStoreTests
 ```
-
-If a generated scaffold fixture is available, run the PMF runner against it with
-a fake/mocked persona model before integrating real model calls.
-
-## Implementation Progress
-
-- Added `PMFSimulationRunner` with structured request/result models, persona
-  action transcript entries, PMF run statuses, and failure details.
-- Added PMF experience input/trace models that match the generated
-  `app-cli experience` contract, including allowed actions, state, turns, and
-  terminal status.
-- Added `PMFExperienceCLIAppRunner` for
-  `cargo run -p app-cli -- experience --input '<json>'`, passing through the
-  existing `AgentExecutionLaunchPlan`/`ProcessRunner.runShell` route abstraction.
-- The runner maintains an action prefix, validates persona action IDs against
-  `allowedNextActions`, gives one repair opportunity, and never forwards invalid
-  persona actions to the app contract.
-- Final action prefixes are replayed twice, normalized as JSON, and hashed with
-  SHA-256 to detect nondeterministic experience traces.
-- Added mocked unit coverage for completion, invalid action repair, invalid
-  action failure, nondeterminism, missing contract, command failure, invalid
-  JSON, no allowed actions, persona failure, and launch-plan command behavior.
-- Added an opt-in generated scaffold fixture test
-  `COMPASS_RUN_GENERATED_RUST_PMF_RUNNER=1 ./scripts/test-local.sh --filter PMFSimulationRunnerTests/runnerExecutesGeneratedScaffoldWhenRequested`.
-
-## Completion
-
-Status: complete.
-
-Completed on 2026-06-04 after implementing the PMF simulation runner, mocked
-runner coverage, launch-plan command coverage, and opt-in generated scaffold
-fixture coverage.
-
-Verification passed:
-
-- `./scripts/test-local.sh --filter PMFSimulationRunnerTests`
-- `COMPASS_RUN_GENERATED_RUST_PMF_RUNNER=1 ./scripts/test-local.sh --filter PMFSimulationRunnerTests/runnerExecutesGeneratedScaffoldWhenRequested`
-- `./scripts/test-local.sh` (1813 tests)
