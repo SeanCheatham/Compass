@@ -639,8 +639,8 @@ struct ProductizationSimulationRunner {
       )
     case (.success(let trace, let firstJSON), .success(_, let secondJSON)):
       do {
-        let firstNormalized = try PMFJSONCanonicalizer.canonicalJSON(firstJSON)
-        let secondNormalized = try PMFJSONCanonicalizer.canonicalJSON(secondJSON)
+        let firstNormalized = try ProductizationJSONCanonicalizer.canonicalJSON(firstJSON)
+        let secondNormalized = try ProductizationJSONCanonicalizer.canonicalJSON(secondJSON)
         let firstHash = Self.sha256Hex(firstNormalized)
         let secondHash = Self.sha256Hex(secondNormalized)
         guard firstHash == secondHash else {
@@ -897,9 +897,9 @@ struct ProductizationExperienceAlternative: Codable, Equatable, Sendable {
 
 struct ProductizationExperienceAction: Codable, Equatable, Sendable {
   var id: String
-  var params: PMFJSONValue
+  var params: ProductizationJSONValue
 
-  init(id: String, params: PMFJSONValue = .object([:])) {
+  init(id: String, params: ProductizationJSONValue = .object([:])) {
     self.id = id
     self.params = params
   }
@@ -912,7 +912,7 @@ struct ProductizationExperienceAction: Codable, Equatable, Sendable {
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     id = try container.decode(String.self, forKey: .id)
-    params = try container.decodeIfPresent(PMFJSONValue.self, forKey: .params) ?? .object([:])
+    params = try container.decodeIfPresent(ProductizationJSONValue.self, forKey: .params) ?? .object([:])
   }
 }
 
@@ -956,7 +956,7 @@ struct ProductizationExperienceAllowedAction: Codable, Equatable, Sendable {
   var id: String
   var label: String
   var description: String
-  var paramsSchema: PMFJSONValue
+  var paramsSchema: ProductizationJSONValue
 }
 
 struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {

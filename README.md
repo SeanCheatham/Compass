@@ -45,7 +45,7 @@ cargo run -p xtask -- visual-verify
 cargo run -p xtask -- visual-verify --emit-base64
 cargo run -p xtask -- factory-smoke
 cargo run -p xtask -- factory-smoke --emit-base64
-cargo run -p xtask -- pmf-smoke
+cargo run -p xtask -- productization-smoke
 ```
 
 `xtask verify` is the normal fast path: format, lint, test, coverage, and
@@ -59,49 +59,51 @@ repositories and for Compass's own Swift code; it is not a generated-output
 dependency. The Compass host app remains Swift/macOS; the Rust engine is a
 factory sidecar and is not used for the host UI or VM lifecycle.
 
-## Product-Market-Fit Simulation
+## Productization Evidence
 
-Compass can collect PMF evidence for generated Rust apps that expose the
-deterministic PMF experience contract. PMF simulation is not user research, a
-sales forecast, or a Verify gate. It is a skeptical, repeatable product-pressure
-loop: a configured persona works through the app's semantic `ExperienceTrace`,
-records structured feedback, and gives Plan/Reflect bounded evidence about
-confusion, objections, missing capabilities, scores, verdicts, and scenario
-gaps.
+Compass can collect productization evidence for generated Rust apps that expose
+the deterministic productization experience contract. Simulation is not user
+research, a sales forecast, or a Verify gate. It is a skeptical, repeatable
+product-pressure loop: a scenario works through the app's semantic
+`ProductizationExperienceTrace`, records structured feedback, and gives
+Plan/Reflect bounded evidence about pain recognition, workflow improvement,
+objections, missing capabilities, scores, verdicts, and scenario gaps.
 
 Generated apps expose the contract through:
 
 ```bash
-cargo run -p app-cli -- experience-schema
-cargo run -p app-cli -- experience --input '{"schemaVersion":1,"scenario":{"seed":"demo","personaSummary":"Operations lead","task":"Find the workflow value"},"actions":[]}'
-cargo run -p xtask -- pmf-smoke
+cargo run -p app-cli -- productization-experience-schema
+cargo run -p app-cli -- productization-experience --input '{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"solution":{"id":"solution-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"productization/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[]}'
+cargo run -p xtask -- productization-smoke
 ```
 
-`pmf-smoke` is the model-free generated-project check. It proves the app owns a
-stable experience contract and can replay a deterministic PMF journey. Live
-persona and feedback calls are manual/interactive checks, not part of normal
-automated tests.
+`productization-smoke` is the model-free generated-project check. It proves the
+app owns a stable experience contract and can replay a deterministic
+productization journey. Live persona and feedback calls are manual/interactive
+checks, not part of normal automated tests.
 
-PMF evidence is stored under `.compass/pmf/` with a quick-loading
-`evidence-index.json` and separate run artifacts for traces and raw transcripts.
-The PMF tab lists runs, feedback scores, objections, missing capabilities,
-failure kinds, and copyable Markdown summaries. Plan and Reflect receive only a
+Productization evidence is stored under `.compass/productization/` with a
+quick-loading `evidence-index.json` and separate run artifacts for traces,
+feedback, transcripts, and Markdown summaries. The Productization workbench
+lists pain hypotheses, solution bets, experiment branches, scenario runs,
+feedback scores, objections, missing capabilities, failure kinds, decision
+history, and copyable Markdown summaries. Plan and Reflect receive only a
 compact advisory summary: latest evidence per active scenario, repeated
-objections, low-score clusters, verdict distribution, failures, and evidence
-gaps. Raw transcripts stay out of prompt context unless a human inspects them in
-the app.
+objections, low-score clusters, verdict distribution, failures, and current
+alternative comparisons. Raw transcripts stay out of prompt context unless a
+human inspects them in the app.
 
 Interpret subjective feedback carefully. Repeated objections across personas or
 tasks can justify product work; a single persona-specific complaint should be
-treated as a signal to investigate. PMF evidence can motivate the next Plan
+treated as a signal to investigate. Productization evidence can motivate the next Plan
 increment, suggest better scenarios, or challenge the hypothesis, but it never
 bypasses normal build/test/Verify discipline.
 
-PMF prompts use the same model/provider settings already configured for the
-project and do not add a new network destination. Automatic PMF execution is
-kept disabled unless rollout controls can bound runtime and flake risk; run the
-generated `pmf-smoke` and inspect PMF evidence manually when evaluating the
-feature.
+Productization prompts use the same model/provider settings already configured
+for the project and do not add a new network destination. Automatic
+persona-model execution is kept disabled unless rollout controls can bound
+runtime and flake risk; run the generated `productization-smoke` and inspect
+productization evidence manually when evaluating the feature.
 
 ## Developing compass-engine
 
@@ -290,8 +292,8 @@ Everything lives in `.compass/` inside each selected repository:
 ├── drafts.md         # User-owned draft queue.
 ├── lessons.md        # Durable guidance shared across iterations.
 ├── assumptions.json  # Agent-recorded assumptions and user reviews.
-├── pmf.json          # Product hypothesis, personas, tasks, scenarios.
-├── pmf/              # PMF evidence index and run artifacts.
+├── productization.json # Pain hypotheses, solutions, experiments, decisions.
+├── productization/     # Productization evidence, runs, and worktrees.
 ├── sessions.jsonl    # Per-iteration session index and latest feedback.
 ├── sessions-archive/ # Segmented older session records.
 ├── sessions/         # Session audit manifests, events, and artifacts.

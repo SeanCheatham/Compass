@@ -58,7 +58,7 @@ final class CompassWorkspaceStorageMigrationTests {
     )
     try #require(
       FileManager.default.fileExists(
-        atPath: plan.destinationURL.appending(path: "pmf/evidence-index.json").path
+        atPath: plan.destinationURL.appending(path: "productization/evidence-index.json").path
       )
     )
 

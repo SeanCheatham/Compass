@@ -95,7 +95,6 @@ extension CompassProject {
         coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace),
         productizationConfig: productizationConfigForPrompt,
         productizationEvidenceIndex: workspace.readProductizationEvidenceIndex(),
-        pmfEvidenceIndex: workspace.readPMFEvidenceIndex(),
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
       let promptURL = try workspace.writeSessionArtifact(
@@ -644,7 +643,6 @@ extension CompassProject {
       iteration: iteration,
       productizationConfig: productizationConfigForPrompt,
       productizationEvidenceIndex: workspace.readProductizationEvidenceIndex(),
-      pmfEvidenceIndex: workspace.readPMFEvidenceIndex(),
       hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
     )
 

@@ -27,8 +27,6 @@ struct CompassWorkspace {
   var productizationEvidenceStore: ProductizationEvidenceStore {
     ProductizationEvidenceStore(workspace: self)
   }
-  var pmfConfigURL: URL { compassURL.appending(path: "pmf.json") }
-  var pmfEvidenceStore: PMFEvidenceStore { PMFEvidenceStore(workspace: self) }
   var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
   var sessionsRecordURL: URL { sessionRecordStore.activeRecordURL }
   var sessionRecordStore: SessionRecordStore {
@@ -74,7 +72,6 @@ struct CompassWorkspace {
     try createFileIfMissing(sessionsRecordURL, contents: "")
     try fm.createDirectory(at: productizationURL, withIntermediateDirectories: true)
     _ = try productizationEvidenceStore.rebuildIndex()
-    _ = try pmfEvidenceStore.rebuildIndex()
     if isRepoLocalStorage {
       try ensureCompassIsIgnored()
     }
@@ -230,11 +227,6 @@ struct CompassWorkspace {
     try text.write(to: visionURL, atomically: true, encoding: .utf8)
   }
 
-  var hasSupersededPMFConfigWithoutProductization: Bool {
-    FileManager.default.fileExists(atPath: pmfConfigURL.path)
-      && !FileManager.default.fileExists(atPath: productizationConfigURL.path)
-  }
-
   func readProductizationConfig() throws -> ProductizationConfig {
     guard FileManager.default.fileExists(atPath: productizationConfigURL.path) else {
       return .empty
@@ -281,53 +273,6 @@ struct CompassWorkspace {
     let nextConfig = try output.validatedProductizationConfig(applyingTo: baseConfig)
     try writeProductizationConfig(nextConfig)
     return nextConfig
-  }
-
-  func readPMFConfig() throws -> PMFConfig {
-    guard FileManager.default.fileExists(atPath: pmfConfigURL.path) else {
-      return .empty
-    }
-    let data = try Data(contentsOf: pmfConfigURL)
-    guard !data.isEmpty else { return .empty }
-    return try JSONDecoder().decode(PMFConfig.self, from: data)
-  }
-
-  func readOrSeedPMFConfig(
-    projectTitle: String,
-    vision: String,
-    now: Date = Date()
-  ) throws -> PMFConfig {
-    guard FileManager.default.fileExists(atPath: pmfConfigURL.path) else {
-      return PMFConfig.seedDefaults(projectTitle: projectTitle, vision: vision, now: now)
-    }
-    let config = try readPMFConfig()
-    return config
-  }
-
-  func writePMFConfig(_ config: PMFConfig) throws {
-    try FileManager.default.createDirectory(at: compassURL, withIntermediateDirectories: true)
-    try Self.encodePMFConfig(config).write(to: pmfConfigURL, atomically: true, encoding: .utf8)
-  }
-
-  func readPMFEvidenceIndex() -> PMFEvidenceIndex {
-    (try? pmfEvidenceStore.readIndex()) ?? .empty
-  }
-
-  func readPMFEvidenceRecord(id: String) throws -> PMFEvidenceRecord {
-    try pmfEvidenceStore.readRecord(id: id)
-  }
-
-  @discardableResult
-  func writePMFEvidenceRecord(
-    _ record: PMFEvidenceRecord,
-    experienceTraceJSON: String? = nil,
-    rawTranscriptJSON: String? = nil
-  ) throws -> PMFEvidenceRecord {
-    try pmfEvidenceStore.writeRecord(
-      record,
-      experienceTraceJSON: experienceTraceJSON,
-      rawTranscriptJSON: rawTranscriptJSON
-    )
   }
 
   func readProductizationEvidenceIndex() -> ProductizationEvidenceIndex {
@@ -523,13 +468,6 @@ struct CompassWorkspace {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(state)
-    return String(decoding: data, as: UTF8.self) + "\n"
-  }
-
-  static func encodePMFConfig(_ config: PMFConfig) throws -> String {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(config)
     return String(decoding: data, as: UTF8.self) + "\n"
   }
 

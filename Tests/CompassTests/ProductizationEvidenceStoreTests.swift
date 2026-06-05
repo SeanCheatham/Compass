@@ -104,6 +104,144 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("Beat the spreadsheet"))
     try #require(!text.contains("transcript.jsonl"))
   }
+
+  @Test func planAndReflectPromptsIncludeProductizationEvidenceWithoutTranscripts() throws {
+    let config = ProductizationConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Weekly reporting takes too long.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let first = makeEvidenceRecord(
+      id: "prompt-run-one",
+      experimentID: config.experiments[0].id,
+      solutionID: config.solutionHypotheses[0].id,
+      painID: config.painHypotheses[0].id,
+      branchName: config.experiments[0].branchName,
+      objections: ["The spreadsheet is already trusted"],
+      missingCapabilities: ["csv_import"],
+      comparison: "Beat the spreadsheet on review speed."
+    )
+    let second = makeEvidenceRecord(
+      id: "prompt-run-two",
+      experimentID: config.experiments[0].id,
+      solutionID: config.solutionHypotheses[0].id,
+      painID: config.painHypotheses[0].id,
+      branchName: config.experiments[0].branchName,
+      endedAt: 30,
+      objections: ["The spreadsheet is already trusted"],
+      missingCapabilities: ["csv_import"],
+      comparison: "Still needs import proof before switching."
+    )
+    let index = ProductizationEvidenceIndex.build(records: [first, second])
+
+    let plan = try Prompts.planPrompt(
+      state: .empty,
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature,
+      productizationConfig: config,
+      productizationEvidenceIndex: index
+    )
+    let reflect = try Prompts.reflectPrompt(
+      state: .empty,
+      lessons: "",
+      vision: "",
+      recentSessions: [],
+      iteration: 1,
+      productizationConfig: config,
+      productizationEvidenceIndex: index
+    )
+
+    for prompt in [plan, reflect] {
+      try #require(prompt.contains("## Productization Context"))
+      try #require(prompt.contains(config.experiments[0].branchName))
+      try #require(prompt.contains("prompt-run-two"))
+      try #require(prompt.contains("Repeated objections"))
+      try #require(prompt.contains("the spreadsheet is already trusted (2x)"))
+      try #require(prompt.contains("csv_import (2x)"))
+      try #require(prompt.contains("Beat the spreadsheet"))
+      try #require(!prompt.contains("transcript.jsonl"))
+      try #require(!prompt.contains(#""turn":0"#))
+    }
+  }
+
+  @MainActor
+  @Test func productizationSmokeConnectsWorkspaceWorkbenchPromptAndRollout() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try initGitRepo(at: root)
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Weekly reporting takes too long.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    try workspace.writeProductizationConfig(config)
+
+    let record = makeEvidenceRecord(
+      id: "smoke-run",
+      experimentID: config.experiments[0].id,
+      solutionID: config.solutionHypotheses[0].id,
+      painID: config.painHypotheses[0].id,
+      branchName: config.experiments[0].branchName,
+      commitSha: "head-sha",
+      objections: ["Spreadsheet is already trusted"],
+      missingCapabilities: ["csv_import"],
+      comparison: "The prototype beats the spreadsheet for review speed."
+    )
+    _ = try workspace.writeProductizationEvidenceRecord(
+      record,
+      traceJSON: #"{"trace":true}"#,
+      transcriptJSONL: #"{"raw":"persona transcript should stay out of prompts"}"#
+    )
+
+    let project = CompassProject(repoURL: root)
+    await project.refresh()
+
+    try #require(project.productizationConfig.experiments[0].decision == .keepGoing)
+    try #require(project.productizationEvidenceIndex.summaries.map(\.runID) == ["smoke-run"])
+    _ = ProductizationWorkbenchTab(project: project).body
+
+    let prompt = try Prompts.planPrompt(
+      state: .empty,
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature,
+      productizationConfig: project.productizationConfig,
+      productizationEvidenceIndex: project.productizationEvidenceIndex
+    )
+
+    try #require(prompt.contains("smoke-run"))
+    try #require(prompt.contains(config.experiments[0].branchName))
+    try #require(prompt.contains("csv_import"))
+    try #require(!prompt.contains("persona transcript should stay out of prompts"))
+
+    await project.applyProductExperimentRolloutAction(
+      .promoteOrConfirm,
+      experimentID: config.experiments[0].id
+    )
+
+    let saved = try workspace.readProductizationConfig()
+    let savedExperiment = try #require(saved.experiments.first { $0.id == config.experiments[0].id })
+    let savedDecision = try #require(saved.decisions.last)
+    try #require(project.errorMessage == nil)
+    try #require(savedExperiment.decision == .promote)
+    try #require(savedDecision.decision == .promote)
+    try #require(savedDecision.branchName == config.experiments[0].branchName)
+    try #require(savedDecision.beforeSha == "head-sha")
+    try #require(savedDecision.evidenceRunIDs == ["smoke-run"])
+  }
 }
 
 private func makeEvidenceRecord(

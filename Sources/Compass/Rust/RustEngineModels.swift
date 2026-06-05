@@ -376,7 +376,6 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     guiReplay = try container.decodeIfPresent(Bool.self, forKey: .guiReplay) ?? false
     productizationExperience =
       try container.decodeIfPresent(Bool.self, forKey: .productizationExperience)
-      ?? container.decodeIfPresent(Bool.self, forKey: .pmfExperience)
       ?? false
   }
 
@@ -399,7 +398,6 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     case simulationFixtures = "simulation_fixtures"
     case guiReplay = "gui_replay"
     case productizationExperience = "productization_experience"
-    case pmfExperience = "pmf_experience"
   }
 }
 

@@ -684,6 +684,9 @@ struct ProductDecision: Codable, Equatable, Identifiable, Sendable {
   var decision: ProductExperimentDecision
   var summary: String
   var evidenceRunIDs: [String]
+  var branchName: String?
+  var beforeSha: String?
+  var afterSha: String?
   var decidedAt: Double
   var decidedBy: String
 
@@ -693,6 +696,9 @@ struct ProductDecision: Codable, Equatable, Identifiable, Sendable {
     decision: ProductExperimentDecision,
     summary: String,
     evidenceRunIDs: [String] = [],
+    branchName: String? = nil,
+    beforeSha: String? = nil,
+    afterSha: String? = nil,
     decidedAt: Double,
     decidedBy: String
   ) {
@@ -704,6 +710,9 @@ struct ProductDecision: Codable, Equatable, Identifiable, Sendable {
     self.evidenceRunIDs =
       ProductizationModelText.cleanedList(evidenceRunIDs, limit: 120)
       .map { ProductizationModelText.identifier($0, fallback: "evidence-run") }
+    self.branchName = ProductizationModelText.optionalCleanedText(branchName, limit: 240)
+    self.beforeSha = ProductizationModelText.optionalCleanedText(beforeSha, limit: 80)
+    self.afterSha = ProductizationModelText.optionalCleanedText(afterSha, limit: 80)
     self.decidedAt = decidedAt
     self.decidedBy = ProductizationModelText.cleanedText(
       decidedBy, fallback: "Compass", limit: 120)

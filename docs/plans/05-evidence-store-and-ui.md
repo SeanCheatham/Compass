@@ -5,7 +5,8 @@
 Run deterministic and model-backed simulations against experiment commits, then
 store evidence that explains whether a prototype relieved the original pain.
 
-This plan upgrades PMF evidence into productization evidence.
+This plan replaces the superseded app-fit evidence path with productization
+evidence.
 
 ## Scope
 
@@ -144,10 +145,9 @@ Visual verification should use a separate tighter semaphore.
 
 ## Likely Files
 
-- `Sources/Compass/PMFSimulationRunner.swift`
-- `Sources/Compass/PMFEvidence.swift`
-- `Sources/Compass/PMFPlanningEvidence.swift`
-- `Sources/Compass/Prompts/Prompts+PMF.swift`
+- `Sources/Compass/ProductizationSimulationRunner.swift`
+- `Sources/Compass/ProductizationEvidence.swift`
+- `Sources/Compass/ProductizationPlanningDigest.swift`
 - `Sources/Compass/Workspace.swift`
 - `Sources/Compass/Rust/RustVerifyCommands.swift`
 - `Sources/Compass/Resources/Schemas/`
@@ -195,7 +195,7 @@ Verification passed:
 - `./scripts/test-local.sh --filter ProductizationEvidenceStoreTests`
 - `./scripts/test-local.sh --filter DiscoverPromptContractTests`
 - `./scripts/test-local.sh --filter PlanPromptTests`
-- `./scripts/test-local.sh --filter PMFPlanningEvidenceFormatterTests`
+- `./scripts/test-local.sh --filter ProductizationEvidenceStoreTests`
 - `COMPASS_RUN_GENERATED_RUST_SMOKE=1 ./scripts/test-local.sh --filter RustProjectScaffoldTests`
 
 Notes:

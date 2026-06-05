@@ -186,11 +186,12 @@ Preferred layout:
     decisions/
 ```
 
-Breaking migration behavior:
+Breaking replacement behavior:
 
 - If `productization.json` exists, read it.
 - If only `pmf.json` exists, do not silently map it to the new model.
-- Show or log a clear message that old PMF state is superseded.
+- Treat old PMF state as superseded and seed fresh productization state from
+  current project pain instead of keeping a compatibility layer.
 - Seed a new pain model from `COMPASS.md`, drafts, or direct user intake.
 
 ## Prompt Digest
@@ -208,9 +209,9 @@ Do not inject raw transcripts into Plan or Reflect.
 
 ## Likely Files
 
-- `Sources/Compass/PMFModels.swift`
-- `Sources/Compass/PMFPlanningEvidence.swift`
-- `Sources/Compass/PMFEvidence.swift`
+- `Sources/Compass/ProductizationModels.swift`
+- `Sources/Compass/ProductizationPlanningDigest.swift`
+- `Sources/Compass/ProductizationEvidence.swift`
 - `Sources/Compass/Workspace.swift`
 - `Sources/Compass/CompassProject+Workspace.swift`
 - `Sources/Compass/Resources/Schemas/`
@@ -243,25 +244,24 @@ hypotheses, product experiments, scenario cohorts, and product decisions.
 
 Added `.compass/productization.json` read/write support and
 `.compass/productization/` directory initialization through `CompassWorkspace`.
-Project refresh now seeds productization state from project pain/vision/drafts,
-logs when legacy `.compass/pmf.json` exists without productization state, and
-does not silently treat old PMF state as the current product model.
+Project refresh now seeds productization state from project pain/vision/drafts
+and does not silently treat superseded `.compass/pmf.json` state as the current
+product model.
 
 Plan and Reflect prompts now receive a bounded productization digest covering
 active pain, active/candidate solutions, experiment branches/worktrees,
 decisions, unknowns, and summarized evidence signals/objections without raw
-transcripts. Legacy PMF configuration remains available for the existing PMF
-simulation runner until later plans replace that contract.
+transcripts. Later rollout work removed the superseded PMF configuration,
+evidence store, prompt schemas, simulation runner, and UI surface.
 
 Focused tests in `Tests/CompassTests/ProductizationConfigTests.swift` cover
 round trip storage, missing file, malformed file, unsupported schema version,
 seed defaults, unique seeded ids, project refresh seeding, project save/reload,
-and old PMF state not being silently migrated.
+and old PMF state not being silently treated as current productization state.
 
 Verification completed and passed:
 
 ```bash
 ./scripts/test-local.sh --filter ProductizationConfigTests
-./scripts/test-local.sh --filter PMFPlanningEvidenceFormatterTests
-./scripts/test-local.sh --filter PMFEndToEndSmokeTests
+./scripts/test-local.sh --filter ProductizationEvidenceStoreTests
 ```

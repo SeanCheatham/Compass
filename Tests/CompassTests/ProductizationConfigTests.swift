@@ -133,28 +133,6 @@ struct ProductizationConfigTests {
     try #require(try CompassWorkspace(repoURL: root).readProductizationConfig() == config)
   }
 
-  @Test func oldPMFConfigDoesNotSilentlyBecomeProductizationState() throws {
-    let root = try makeTempDir()
-    defer { try? FileManager.default.removeItem(at: root) }
-    let workspace = CompassWorkspace(repoURL: root)
-    let oldPMF = PMFConfig.seedDefaults(
-      projectTitle: "Legacy PMF",
-      vision: "Old product-first state",
-      now: Date(timeIntervalSince1970: 1_700_000_000)
-    )
-    try workspace.writePMFConfig(oldPMF)
-
-    try #require(workspace.hasSupersededPMFConfigWithoutProductization)
-    try #require(try workspace.readProductizationConfig() == .empty)
-
-    let seeded = try workspace.readOrSeedProductizationConfig(
-      projectTitle: "Legacy PMF",
-      rawPain: "Operators lose incident decisions in chat."
-    )
-
-    try #require(seeded.rawPain.contains("incident decisions"))
-    try #require(!seeded.solutionHypotheses.map(\.title).contains(oldPMF.hypotheses[0].title))
-  }
 }
 
 private func makeProductizationConfig() -> ProductizationConfig {

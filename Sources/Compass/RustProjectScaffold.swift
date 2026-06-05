@@ -1751,7 +1751,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                     serde_json::to_string_pretty(&gui_replay_trace_schema())?
                 );
             }
-            Some("productization-experience-schema") | Some("experience-schema") => {
+            Some("productization-experience-schema") => {
                 println!(
                     "{}",
                     serde_json::to_string_pretty(&productization_experience_contract_schema())?
@@ -1765,7 +1765,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 let trace = parse_gui_replay_trace(args)?;
                 println!("{}", serde_json::to_string_pretty(&run_gui_replay(trace))?);
             }
-            Some("productization-experience") | Some("experience") => {
+            Some("productization-experience") => {
                 let input = parse_productization_experience_input(args)?;
                 println!(
                     "{}",
@@ -2209,7 +2209,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "build" => \(xtaskCargoRunExpression(RustVerifyCommands.build)),
             "run" => \(xtaskCargoRunExpression(RustVerifyCommands.runDesktop)),
             "verify" => verify_all(),
-            "productization-smoke" | "pmf-smoke" => productization_smoke(),
+            "productization-smoke" => productization_smoke(),
             "factory-smoke" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
             "engine-parity-check" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
             "visual-verify" => visual_verify(args.iter().any(|arg| arg == "--emit-base64")),

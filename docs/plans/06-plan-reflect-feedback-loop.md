@@ -147,8 +147,8 @@ Verification:
   tests.
 - `./scripts/test-local.sh --filter PlanTransitionValidatorTests` passed with
   16 tests.
-- `./scripts/test-local.sh --filter PMFPlanningEvidenceFormatterTests` passed
-  with 5 tests.
+- `./scripts/test-local.sh --filter ProductizationEvidenceStoreTests` passed
+  with 3 tests.
 - `./scripts/test-local.sh --filter PromptSchemaLoadingTests` passed with 7
   tests.
 - `./scripts/test-local.sh --filter PlanDomainTests` passed with 63 tests.

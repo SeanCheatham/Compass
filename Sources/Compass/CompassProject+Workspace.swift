@@ -33,8 +33,7 @@ extension CompassProject {
       assumptions = []
       vision = ""
       productizationConfig = .empty
-      pmfConfig = .empty
-      pmfEvidenceIndex = .empty
+      productizationEvidenceIndex = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -66,8 +65,7 @@ extension CompassProject {
       assumptions = []
       vision = ""
       productizationConfig = .empty
-      pmfConfig = .empty
-      pmfEvidenceIndex = .empty
+      productizationEvidenceIndex = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -90,21 +88,11 @@ extension CompassProject {
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
       .joined(separator: "\n\n")
-    if workspace.hasSupersededPMFConfigWithoutProductization {
-      log(
-        "Found legacy .compass/pmf.json; productization state now seeds from pain instead of silently migrating old PMF state.",
-        level: .info
-      )
-    }
     productizationConfig = try workspace.readOrSeedProductizationConfig(
       projectTitle: workspace.repoURL.lastPathComponent,
       rawPain: rawProductPain.isEmpty ? vision : rawProductPain
     )
-    pmfConfig = try workspace.readOrSeedPMFConfig(
-      projectTitle: workspace.repoURL.lastPathComponent,
-      vision: vision
-    )
-    pmfEvidenceIndex = workspace.readPMFEvidenceIndex()
+    productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()
     sessions = workspace.readSessions()
     archivedSessions = []
     hasOlderArchivedSessions = workspace.hasArchivedSessions()
@@ -124,33 +112,19 @@ extension CompassProject {
     }
   }
 
-  func savePMFConfig(_ config: PMFConfig? = nil) async {
-    do {
-      guard let workspace else {
-        fail(AppModelError.noRepositorySelected)
-        return
-      }
-      let value = config ?? pmfConfig
-      try workspace.writePMFConfig(value)
-      pmfConfig = value
-    } catch {
-      fail(error)
-    }
-  }
-
-  func reloadPMFEvidenceIndex() async {
+  func reloadProductizationEvidenceIndex() async {
     guard let workspace else {
-      pmfEvidenceIndex = .empty
+      productizationEvidenceIndex = .empty
       return
     }
-    pmfEvidenceIndex = workspace.readPMFEvidenceIndex()
+    productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()
   }
 
-  func readPMFEvidenceRecord(id: String) throws -> PMFEvidenceRecord {
+  func readProductizationEvidenceRecord(id: String) throws -> ProductizationEvidenceRecord {
     guard let workspace else {
       throw AppModelError.noRepositorySelected
     }
-    return try workspace.readPMFEvidenceRecord(id: id)
+    return try workspace.readProductizationEvidenceRecord(id: id)
   }
 
   func initializeIfNeeded(_ workspace: CompassWorkspace) async throws {

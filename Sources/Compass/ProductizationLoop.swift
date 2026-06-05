@@ -254,6 +254,11 @@ enum ProductizationReflectDecisionApplier {
           decision: update.decision,
           summary: update.summary,
           evidenceRunIDs: update.evidenceRunIDs,
+          branchName: next.experiments[experimentIndex].branchName,
+          beforeSha: next.experiments[experimentIndex].currentSha
+            ?? next.experiments[experimentIndex].baseSha,
+          afterSha: next.experiments[experimentIndex].currentSha
+            ?? next.experiments[experimentIndex].baseSha,
           decidedAt: timestamp,
           decidedBy: update.decidedBy
         )

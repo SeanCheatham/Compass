@@ -20,8 +20,6 @@ struct PromptSchemaLoadingTests {
       ("reflectHostXcode", Prompts.reflectHostXcodeSchema),
       ("critic", Prompts.criticSchema),
       ("subAgent", Prompts.subAgentSchema),
-      ("pmfPersonaAction", Prompts.pmfPersonaActionSchema),
-      ("pmfFeedback", Prompts.pmfFeedbackSchema),
     ]
     for (name, text) in schemas {
       try #require(!text.isEmpty, "schema \(name) is empty")
@@ -74,21 +72,6 @@ struct PromptSchemaLoadingTests {
       propertyDescription("feedback", in: criticProperties)
         .contains("concrete punch list")
     )
-  }
-
-  @Test
-  func testPMFSchemasDescribeStrictPersonaContracts() throws {
-    let actionProperties = try schemaProperties(Prompts.pmfPersonaActionSchema)
-    let feedbackProperties = try schemaProperties(Prompts.pmfFeedbackSchema)
-
-    try #require(try additionalProperties(Prompts.pmfPersonaActionSchema) == false)
-    try #require(try additionalProperties(Prompts.pmfFeedbackSchema) == false)
-    try #require(propertyDescription("actionId", in: actionProperties).contains("Exact id"))
-    try #require(propertyDescription("params", in: actionProperties).contains("empty object"))
-    try #require(propertyDescription("valueScore", in: feedbackProperties).contains("product value"))
-    try #require(
-      propertyDescription("switchLikelihood", in: feedbackProperties)
-        .contains("current alternative"))
   }
 
   @Test

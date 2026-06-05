@@ -26,7 +26,7 @@ rust-toolchain.toml
 
 ## Contract Shape
 
-Replace the generic PMF experience input with productization-aware input:
+Replace the generic app-fit experience input with productization-aware input:
 
 ```text
 ProductizationExperienceInput
@@ -126,7 +126,7 @@ gui_replay = true
 productization_experience = true
 ```
 
-The old `pmf_experience` capability can be removed or treated as obsolete.
+The old app-fit capability can be removed or treated as obsolete.
 
 ## Likely Files
 
@@ -164,7 +164,7 @@ cargo run -p xtask -- visual-verify
 Status: complete.
 
 Completed on 2026-06-04 after converting the generated Rust scaffold contract
-from the old PMF capability to `productization_experience`. New generated
+from the old app-fit capability to `productization_experience`. New generated
 workspaces now write productization experience schemas, expose
 `run_productization_experience(ProductizationExperienceInput)`, support
 `app-cli productization-experience(-schema)`, and run `xtask

@@ -10,8 +10,6 @@ extension Prompts {
     iteration: Int,
     productizationConfig: ProductizationConfig = .empty,
     productizationEvidenceIndex: ProductizationEvidenceIndex = .empty,
-    pmfConfig: PMFConfig = .empty,
-    pmfEvidenceIndex: PMFEvidenceIndex = .empty,
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
     let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()

@@ -1,150 +1,162 @@
-# 07 - Verification And Rollout
+# 07 - UI Promotion And Rollout
 
 ## Objective
 
-Harden the Compass-only PMF simulation feature so it can run repeatedly inside a
-Codex goal loop without creating noisy, flaky, or misleading product evidence.
+Make pain-driven productization visible and operable in the Compass UI, then add
+the promotion/archive workflows that turn experiment results into product
+direction.
+
+This plan ties the epic together.
 
 ## Scope
 
-This is the final integration and quality pass across models, scaffold,
-runner, prompts, storage, UI, and Plan/Reflect integration.
+Implement UI surfaces, promotion/merge actions, archive actions, migration
+behavior, documentation, and end-to-end smoke tests.
+
+## UI Surfaces
+
+Add or reshape UI around:
+
+- Pain Map: active pain hypotheses, user segments, current workflows, and
+  alternatives.
+- Solution Board: solution hypotheses grouped by status.
+- Experiment Board: branch, worktree, latest commit, latest Verify, latest
+  evidence, and current decision.
+- Evidence View: scenario runs, verdict distribution, repeated objections,
+  missing capabilities, current-alternative comparison, and trace artifacts.
+- Decision Timeline: continue, narrow, pivot, kill, promote, and why.
+
+Avoid turning this into a marketing dashboard. The UI should feel like a dense
+desktop product workbench.
+
+## Promotion Workflow
+
+Promotion should be explicit:
+
+```text
+1. User or Reflect marks an experiment as promotion-ready.
+2. Compass verifies the experiment branch.
+3. Compass shows evidence summary, branch diff, and risk notes.
+4. User confirms promotion.
+5. Compass merges or fast-forwards into the accepted product branch.
+6. Compass records a ProductDecision with commit ids and evidence ids.
+```
+
+Start with fast-forward or normal merge. Add squash only if Explore and session
+history can still explain the product lineage.
+
+## Archive Workflow
+
+Killing or parking an experiment should:
+
+- mark the solution or experiment as rejected or parked
+- keep evidence available
+- stop automatic simulation runs
+- optionally move the branch to `compass/archive/<solution-slug>`
+- preserve the worktree until the user deletes it
+
+Do not delete branches automatically.
+
+## Rollout And Migration
+
+Breaking changes are allowed, and legacy PMF compatibility is intentionally
+removed:
+
+- New projects seed `productization.json`.
+- Old PMF config, evidence stores, prompt schemas, and UI surfaces are removed
+  rather than maintained in parallel.
+- Old PMF evidence is not injected into prompts.
+- The plan docs should state that productization evidence replaces PMF.
 
 ## End-To-End Smoke
 
-Create a local end-to-end smoke path:
+Create a smoke path:
 
-1. Create or use a blessed generated Rust app.
-2. Ensure it exposes the PMF experience contract.
-3. Seed a product hypothesis, persona, task, and scenario.
-4. Run the PMF simulation with a fake deterministic persona model in tests.
-5. Persist evidence.
-6. Load evidence in the project view.
-7. Generate Plan context containing the PMF summary.
+```text
+1. Start from raw pain.
+2. Run Discover.
+3. Create two solution hypotheses.
+4. Create two experiment branches.
+5. Build one generated Rust prototype.
+6. Run verify and productization-smoke.
+7. Run one evidence simulation.
+8. Reflect updates experiment decision.
+9. Promote or archive through the UI.
+```
 
-This smoke should not require a live model.
+## Likely Files
 
-## Live Model Manual Check
-
-Add a manual checklist for a real model-backed run:
-
-- Scenario starts.
-- Persona chooses only allowed actions.
-- Invalid output repair works if forced.
-- Feedback is skeptical and structured.
-- Evidence appears in UI.
-- Plan receives a bounded summary.
-
-Do not make live model calls part of normal automated tests.
-
-## Flake Controls
-
-Add safeguards:
-
-- max turns per scenario
-- timeout per model call
-- timeout per app CLI invocation
-- evidence record for failed runs
-- disabled-by-default automatic PMF execution if runtime is too high
-- clear user-facing reason when PMF simulation cannot run
-
-## Privacy And Safety
-
-PMF prompts may include product ideas and generated app text. Keep them within
-the same model/provider settings the project already uses. Do not add new
-network destinations.
-
-Avoid storing secrets in evidence:
-
-- redact environment variables from command output
-- avoid raw shell logs unless needed
-- store app semantic traces, not full filesystem snapshots
-
-## Documentation
-
-Update Compass docs with:
-
-- what PMF simulation is
-- what it is not
-- how deterministic app experience contracts work
-- how subjective feedback should be interpreted
-- how to run PMF simulation manually
-- how Plan uses PMF evidence
-
-Likely docs:
-
+- `Sources/Compass/Views/`
+- `Sources/Compass/ProjectIntakeGuide.swift`
+- `Sources/Compass/PlanWorkflowOverview.swift`
+- `Sources/Compass/PlanSessionHistoryGuide.swift`
+- `Sources/Compass/NativeFeedbackService.swift`
+- `Sources/Compass/CompassProject+RunControl.swift`
+- `Sources/Compass/Workspace.swift`
+- `Sources/Compass/SharedVM/Workspace/`
 - `README.md`
-- `Sources/Compass/RustProjectScaffold.swift` generated README text
-- any in-app guide/narrator text if present
+- `docs/plans/`
 
-## Final Acceptance Criteria
+## Acceptance Criteria
 
-- All plan acceptance criteria are complete.
-- Swift tests pass.
-- Rust engine tests pass.
-- A generated scaffold can pass `verify` and `pmf-smoke`.
-- PMF evidence is persisted and visible.
-- Plan/Reflect consume PMF summaries.
-- The feature remains Compass-only and does not require Murphy.
+- Users can enter pain and inspect the resulting pain/productization model.
+- Users can see active solution hypotheses and experiment branches.
+- Users can run or inspect simulations per experiment commit.
+- Users can promote or archive experiments with an evidence-backed decision.
+- Legacy PMF-specific UI language, code paths, prompt schemas, and generated
+  command aliases are removed or replaced with productization evidence.
+- The end-to-end smoke can be performed without hidden manual file edits.
 
 ## Verification
 
-Run:
-
-```bash
-./scripts/test-local.sh
-./scripts/test-rust-engine.sh
-./scripts/build-local.sh
-```
-
-For a generated Rust app fixture or temporary scaffold, run:
+- Run Swift test suite or focused UI/model tests.
+- Run Rust engine tests after scaffold changes.
+- Run a generated Rust workspace smoke:
 
 ```bash
 cargo run -p xtask -- verify
-cargo run -p xtask -- pmf-smoke
+cargo run -p xtask -- productization-smoke
+cargo run -p xtask -- visual-verify
 ```
 
-If any command cannot run in the current environment, record the exact reason
-in the final implementation summary.
+- Manually inspect one full productization flow in the app.
+- Confirm no prompt injects raw transcripts by default.
 
-## Implementation Progress
+## Status
 
-- Added a model-free PMF end-to-end smoke test that:
-  - seeds a PMF hypothesis/persona/task/scenario,
-  - runs `PMFSimulationRunner` with a deterministic fake app and persona,
-  - persists evidence and artifacts,
-  - reloads evidence through `CompassProject`,
-  - instantiates the PMF evidence view surface, and
-  - generates Plan context containing the PMF summary without raw transcript
-    text.
-- Updated the generated Rust scaffold smoke test so the gated generated-app
-  check runs `cargo run -p xtask -- verify` and
-  `cargo run -p xtask -- pmf-smoke`.
-- Updated the Compass README with PMF simulation purpose, limits, manual
-  commands, evidence storage, interpretation guidance, privacy/provider notes,
-  and Plan/Reflect usage.
-- Updated generated Rust project README text with manual PMF checklist and
-  subjective-feedback interpretation guidance.
-- Confirmed focused PMF smoke, PMF planning-context, and scaffold documentation
-  tests pass.
+Complete on 2026-06-04.
 
-## Completion
+Implementation notes:
 
-Status: complete on 2026-06-04.
+- Added project-level productization evidence loading helpers for the rollout
+  workbench.
+- Added a Productization workbench tab with Pain Map, Solution Board,
+  Experiment Board, Evidence View, promotion/archive controls, scenario run
+  detail, copyable evidence summaries, and Decision Timeline.
+- Added promotion/archive rollout state transitions that record branch names,
+  before/after commit ids, evidence run ids, solution status changes, and
+  product decisions.
+- User clarified that backwards compatibility is not required, so this plan now
+  removes legacy PMF code instead of reframing it.
+- Removed legacy PMF models, evidence store, runner, prompt schemas, prompt
+  injection, generated `pmf-smoke`/`pmf_experience` aliases, and the PMF tab.
+- Updated README and plan docs so productization evidence replaces the old PMF
+  vocabulary.
+- Added `docs/plans/08-git-backed-promotion-and-archive.md` as the next
+  increment for actual branch merge/archive-ref operations. Plan 07 records and
+  exposes evidence-backed rollout decisions; Plan 08 will make those decisions
+  mutate git history deliberately.
 
-Verification:
+Verification completed and passed:
 
-- `./scripts/test-local.sh --filter PMFEndToEndSmokeTests` passed with 1 test.
-- `./scripts/test-local.sh --filter RustProjectScaffoldTests` passed with 11 tests.
-- `./scripts/test-local.sh --filter PMFPlanningEvidenceFormatterTests` passed
-  with 5 tests.
-- `COMPASS_RUN_GENERATED_RUST_SMOKE=1 ./scripts/test-local.sh --filter
-  RustProjectScaffoldTests.generatedRustScaffoldCargoSmokeWhenRequested` passed
-  with 1 generated-scaffold smoke test. The generated `cargo run -p xtask --
-  verify` path requires `cargo llvm-cov`, which is not installed in this
-  environment, so the gated smoke recorded that reason and ran the fallback
-  generated-app checks plus `cargo run -p xtask -- pmf-smoke`.
-- `./scripts/test-local.sh` passed with 1832 tests in 186 suites.
-- `./scripts/test-rust-engine.sh` passed the Rust engine test suite.
-- `./scripts/build-local.sh` succeeded and installed
-  `/Applications/CompassLocal.app`.
+```bash
+./scripts/test-local.sh --filter ProductizationEvidenceStoreTests
+./scripts/test-local.sh --filter ProductizationLoopTests
+./scripts/test-local.sh --filter ProductizationConfigTests
+./scripts/test-local.sh --filter ProductizationSimulationRunnerTests
+./scripts/test-local.sh --filter PromptSchemaLoadingTests
+./scripts/test-local.sh --filter RustProjectScaffoldTests
+./scripts/test-local.sh --filter CompassWorkspaceStorageMigrationTests
+./scripts/test-local.sh --filter RustVerifyCommandsTests
+./scripts/test-rust-engine.sh
+```

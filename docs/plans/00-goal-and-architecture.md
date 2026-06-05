@@ -1,119 +1,129 @@
-# 00 - Goal And Architecture
+# 00 - Pain Driven Productization Architecture
 
 ## Objective
 
-Add a Compass-only PMF simulation capability that runs LLM personas through
-semantic product journeys in generated Rust apps and turns the results into
-actionable product evidence.
+Reframe Compass around user pain rather than product ideas.
 
-This plan establishes boundaries and sequencing. Implement it as documentation
-and lightweight scaffolding first, then use later plans for concrete model,
-runner, prompt, UI, and Plan integration work.
+Compass should take a rough pain statement, discover possible product directions,
+build isolated Rust desktop prototypes, collect pain-relief evidence, and decide
+which direction deserves more investment.
+
+This plan establishes the epic boundary and vocabulary. Later plans implement
+the state model, discovery prompts, experiment branches, generated Rust
+contracts, evidence runner, planning loop, UI, and rollout.
 
 ## Product Bet
 
-Compass can attack "building the wrong product" by repeatedly asking simulated
-target users to try the current app, describe their expectations, and explain
-whether the experience feels valuable.
+Users often know the pain before they know the product. Asking for a product
+idea pushes Compass to implement the user's first guess. Asking for user pain
+lets Compass act more like a product partner:
 
-This is not QA automation. The output is advisory product evidence:
+- clarify who hurts and when
+- model the current workflow and alternatives
+- generate multiple solution hypotheses
+- build small executable probes
+- pressure-test those probes with skeptical scenarios
+- promote only the direction with evidence
 
-- Where personas got confused.
-- Which value promises felt credible.
-- Which workflows produced desire or skepticism.
-- Which objections repeated across a cohort.
-- Whether a product variant appears to improve a target journey.
+Productization evidence replaces the old app-fit simulation framing. Evidence
+becomes one input inside a larger productization loop rather than the whole
+product model.
 
-## Compass-Only Determinism Model
+## Target Architecture
 
-The first version approximates determinism by tightly controlling generated app
-shape:
+Compass should introduce these concepts:
 
-- Load-bearing behavior lives in Rust `app-core`.
-- App state is serializable.
-- User actions are serializable.
-- The app exposes allowed actions for each semantic state.
-- The experience trace is stable JSON.
-- Screenshots are optional supporting proof, not the main PMF assertion surface.
+- Pain hypothesis: the durable problem statement and its operating context.
+- User segment: a group that experiences the pain in a specific way.
+- Current workflow: what users do today, including tools, handoffs, and coping
+  mechanisms.
+- Alternative: a direct tool, spreadsheet, manual process, internal workaround,
+  or decision to do nothing.
+- Solution hypothesis: a product bet that might relieve the pain.
+- Product experiment: a branch, worktree, prototype scope, and evidence trail for
+  one solution hypothesis.
+- Evidence run: deterministic or model-backed simulation output tied to a
+  branch and commit.
+- Product decision: continue, narrow, pivot, kill, or promote.
 
-LLM persona judgment is not deterministic. Treat it as sampled opinion with
-strong provenance:
+## Loop Shape
 
-- model id
-- prompt version
-- persona id
-- scenario id
-- app commit
-- trace hash
-- timestamp
-- raw transcript
-- structured feedback
+```text
+Discover
+  Input: raw user pain, repository state, previous evidence
+  Output: pain model, solution hypotheses, experiment candidates
 
-## New Concepts
+Plan
+  Input: productization state and evidence
+  Output: one commit-sized implementation or experiment-management slice
 
-- Product hypothesis: target user, job, pain, promise, alternatives, success
-  criteria, pricing or switching assumptions.
-- Persona: a simulated user or buyer with goals, context, constraints,
-  skepticism, and decision criteria.
-- PMF task: a product journey or buying situation the persona attempts.
-- Experience state: the semantic state of the generated app.
-- Experience action: one allowed user action selected by the persona agent.
-- Experience trace: ordered states, actions, rationales, and app observations.
-- PMF feedback: subjective post-run assessment of value, clarity, trust,
-  switching likelihood, payment likelihood, objections, and desired changes.
-- PMF evidence: the stored unit Compass can show and feed back into planning.
+Develop
+  Input: one experiment branch/worktree and immediate handoff
+  Output: verified Rust prototype commits
+
+Simulate
+  Input: verified experiment commit and scenario cohort
+  Output: deterministic traces, persona feedback, evidence summaries
+
+Reflect
+  Input: session history, evidence, branch state
+  Output: continue, narrow, pivot, kill, promote, or plan next increment
+```
+
+## Compass Boundary
+
+Generated apps remain Rust-only. Compass itself remains a native Swift/macOS app
+with a Rust engine sidecar.
+
+The first epic should not introduce external product analytics, live SaaS
+integrations, hosted deployments, or real customer interviews. It should produce
+local executable product experiments with auditable evidence.
 
 ## Non-Goals
 
-- Do not run full desktop automation as the first PMF loop.
-- Do not require Murphy, VMM snapshots, Linux images, or nested virtualization.
-- Do not use persona feedback as a hard verify failure.
-- Do not let LLM personas invent actions outside the generated app's allowed
-  action list.
-- Do not build a generic survey product. This stays inside Compass's factory
-  loop.
+- Do not preserve the old product-first simulation schema when it blocks a
+  cleaner pain model.
+- Do not run multiple mutating agents on the same branch.
+- Do not promote an experiment just because Verify passed.
+- Do not make subjective persona feedback a hard test failure.
+- Do not require a final production-ready app before evidence can be collected.
+- Do not add external collaboration or cloud sync in this epic.
 
-## Expected Repository Shape
+## Likely Files
 
-Likely Compass files:
-
-- `Sources/Compass/Models.swift`
-- `Sources/Compass/CompassProject+Storage.swift`
-- `Sources/Compass/RustProjectScaffold.swift`
+- `Sources/Compass/ProductizationModels.swift`
+- `Sources/Compass/ProductizationEvidence.swift`
+- `Sources/Compass/ProductizationSimulationRunner.swift`
+- `Sources/Compass/Workspace.swift`
+- `Sources/Compass/CompassProject+RunPasses.swift`
 - `Sources/Compass/Prompts/`
-- `Sources/Compass/AgentExecutor/`
+- `Sources/Compass/RustProjectScaffold.swift`
+- `Sources/Compass/SharedVM/Workspace/`
 - `Sources/Compass/Views/`
 - `Sources/Compass/Resources/Schemas/`
 - `crates/compass-engine/src/scaffold.rs`
-- `crates/compass-engine/tests/scaffold_check.rs`
-
-Likely generated Rust project additions:
-
-- `schemas/product-hypothesis.schema.json`
-- `schemas/pmf-scenario.schema.json`
-- `schemas/experience-input.schema.json`
-- `schemas/experience-trace.schema.json`
-- `crates/app-core` experience models and pure transitions
-- `crates/app-cli experience --input '<json>'`
-- `xtask pmf-smoke`
 
 ## Acceptance Criteria
 
-- This plan set is present and ordered.
-- Later plans can be implemented independently in sequence.
-- The PMF feature has a clear Compass-only boundary.
-- The shared vocabulary appears consistently in docs and future code.
+- The epic has a clear pain-driven vocabulary.
+- The implementation plans are ordered and independently executable.
+- Productization simulation is explicitly scoped as evidence, not the whole
+  product model.
+- Experiment branches and worktrees are treated as first-class architecture.
+- The generated Rust contract remains deterministic and serializable.
 
 ## Verification
 
 - Read every file in `docs/plans/`.
-- Confirm no plan requires Murphy for the first implementation.
-- Confirm each later plan has explicit acceptance criteria and test guidance.
+- Confirm the plan set starts from pain and ends with promotion or archive.
+- Confirm every plan includes acceptance criteria and verification guidance.
 
-## Completion
+## Status
 
-Status: Complete.
+Complete on 2026-06-04.
 
-Completed on 2026-06-04. The plan set is present, ordered, and scoped to a
-Compass-only semantic PMF loop. Later plans have explicit acceptance criteria and
-verification guidance, and none require Murphy for the first implementation.
+The architecture vocabulary and plan sequence are established. Plans 01-07
+implemented the pain-driven productization state, discovery contract,
+experiment worktrees, generated Rust productization contract, evidence storage,
+Plan/Reflect feedback loop, and rollout workbench. Plan 08 is the next
+follow-up for git-backed promotion/archive operations.

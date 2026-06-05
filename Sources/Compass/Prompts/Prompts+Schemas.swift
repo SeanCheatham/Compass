@@ -15,8 +15,6 @@ extension Prompts {
   static let reflectHostXcodeSchema = loadSchema("reflectHostXcode")
   static let criticSchema = loadSchema("critic")
   static let subAgentSchema = loadSchema("subAgent")
-  static let pmfPersonaActionSchema = loadSchema("pmfPersonaAction")
-  static let pmfFeedbackSchema = loadSchema("pmfFeedback")
 
   static func planSchema(hostXcodeBuildTestEnabled: Bool) -> String {
     hostXcodeBuildTestEnabled ? planHostXcodeSchema : planSchema
