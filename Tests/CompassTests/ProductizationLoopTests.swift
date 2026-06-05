@@ -387,6 +387,70 @@ struct ProductizationLoopTests {
     try #require(plan.nextBlockedStep?.id == runnable.id)
   }
 
+  @Test func productFactoryAutopilotClearsFailureBlockAfterCompletedEvidence() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    for index in config.experiments.indices.dropFirst() {
+      config.experiments[index].decision = .promoted
+    }
+    let runnable = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+    config = config.recordingFactoryCycleAudit(
+      ProductFactoryCycleAudit(
+        id: "factory-cycle-failed-step",
+        startedAt: 100,
+        endedAt: 110,
+        executedStepIDs: [],
+        experimentIDs: [runnable.experimentID],
+        messages: [],
+        maxSteps: 3,
+        stopReason: .executionFailed,
+        stopStepID: runnable.id,
+        stopStepTitle: runnable.title,
+        stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
+        userMessage:
+          "Factory cycle ran no steps. Stopped because Run evidence cohort failed: contract missing."
+      )
+    )
+    let evidenceIndex = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "repair-run",
+          experiment: config.experiments[0],
+          config: config,
+          personaID: "operator",
+          endedAt: 120,
+          verdict: .promising,
+          scores: ProductizationEvidenceScores(
+            painRecognition: 4,
+            workflowImprovement: 4,
+            alternativeAdvantage: 3,
+            switchingReadiness: 3,
+            continuedUsePull: 3
+          )
+        )
+      ])
+
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
+
+    try #require(step.id == runnable.id)
+    try #require(step.canExecute)
+    try #require(step.blockedReason == nil)
+  }
+
   @Test func productFactoryAutopilotCyclePlanCapsExecutableSteps() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",

@@ -672,7 +672,12 @@ enum ProductFactoryAutopilotPlanner {
           config: config
         )
       )
-      return applyingRecentCycleFailureBlock(to: step, config: config)
+      return applyingRecentCycleFailureBlock(
+        to: step,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
     }
   }
 
@@ -711,10 +716,13 @@ enum ProductFactoryAutopilotPlanner {
 
   private static func applyingRecentCycleFailureBlock(
     to step: ProductFactoryAutopilotStep,
-    config: ProductizationConfig
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductFactoryAutopilotStep {
     guard step.canExecute,
-      let audit = recentExecutionFailureAudit(for: step.id, config: config)
+      let audit = recentExecutionFailureAudit(for: step.id, config: config),
+      !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
     else { return step }
     var blocked = step
     blocked.canExecute = false
@@ -737,6 +745,16 @@ enum ProductFactoryAutopilotPlanner {
         $0.stopReason == .executionFailed
           && $0.stopStepID == stepID
       }
+  }
+
+  private static func hasCompletedEvidence(
+    after audit: ProductFactoryCycleAudit,
+    for experiment: ProductExperiment,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> Bool {
+    evidenceIndex.summaries(for: experiment).contains {
+      $0.isCompleted && $0.endedAt > audit.endedAt
+    }
   }
 }
 
