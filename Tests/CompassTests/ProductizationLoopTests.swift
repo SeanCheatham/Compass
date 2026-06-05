@@ -264,9 +264,12 @@ struct ProductizationLoopTests {
     try #require(ranked.first?.id == config.experiments[0].id)
     try #require(firstSignal.nextActionKind == .applyDecision)
     try #require(firstSignal.readinessRecommendation == .promote)
+    try #require(firstSignal.pressure == .lift)
+    try #require(firstSignal.pressureLabel == "Lift pressure")
     try #require(firstSignal.pmfLabel.contains("Promote"))
     try #require(firstSignal.urgencyScore > secondSignal.urgencyScore)
     try #require(secondSignal.nextActionKind == .runCohort)
+    try #require(secondSignal.pressure == .learn)
     try #require(secondSignal.pmfLabel == "No current PMF evidence")
   }
 
@@ -380,6 +383,11 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: .empty
     )
+    let signal = ProductFactoryExperimentRanker.signal(
+      for: config.experiments[0],
+      config: config,
+      evidenceIndex: .empty
+    )
 
     try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
       config: config,
@@ -393,6 +401,8 @@ struct ProductizationLoopTests {
     try #require(action.detail.contains("contract missing"))
     try #require(step.blockedReason?.contains("factory-cycle-failed-step") == true)
     try #require(step.blockedReason?.contains("contract missing") == true)
+    try #require(signal.pressure == .repair)
+    try #require(signal.nextActionKind == .repairFailures)
     try #require(!plan.canRun)
     try #require(plan.nextBlockedStep?.action.kind == .repairFailures)
   }

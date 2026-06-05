@@ -25,6 +25,7 @@ enum ProductizationPlanningDigestFormatter {
     lines += decisionLines(config: config, maxDecisions: maxDecisions)
     lines += unknownLines(config: config)
     lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
+    lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
     lines += autopilotLines(config: config, evidenceIndex: evidenceIndex)
     lines += factoryCycleAuditLines(config: config)
     lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
@@ -192,6 +193,37 @@ enum ProductizationPlanningDigestFormatter {
       lines.append(
         "- \(proposal.experimentID): \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue); score \(proposal.readiness.scoreLabel)/100; \(evidence); \(bounded(proposal.update.summary, 220))."
       )
+    }
+    return lines
+  }
+
+  private static func portfolioPressureLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    let signals = ProductFactoryExperimentRanker.experimentSignals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    .filter {
+      $0.pressure != .wait || $0.nextActionKind != nil || $0.readinessScore != nil
+    }
+    .sorted { lhs, rhs in
+      if lhs.urgencyScore == rhs.urgencyScore { return lhs.experimentID < rhs.experimentID }
+      return lhs.urgencyScore > rhs.urgencyScore
+    }
+    guard !signals.isEmpty else { return [] }
+    var lines = ["Product-factory portfolio pressure:"]
+    for signal in signals.prefix(4) {
+      var metadata = [
+        "pressure \(signal.pressure.rawValue)",
+        "pmf \(bounded(signal.pmfLabel, 80))",
+        "next \(bounded(signal.nextActionLabel, 120))",
+      ]
+      if signal.staleEvidenceCount > 0 {
+        metadata.append("stale \(signal.staleEvidenceCount)")
+      }
+      lines.append("- \(signal.experimentID): \(metadata.joined(separator: "; ")).")
     }
     return lines
   }

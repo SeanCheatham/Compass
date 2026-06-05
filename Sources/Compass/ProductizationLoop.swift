@@ -229,6 +229,36 @@ enum ProductMarketFitNextActionKind: String, Equatable, Sendable {
   case reviewDecision = "review_decision"
 }
 
+enum ProductFactoryPortfolioPressure: String, Equatable, Sendable {
+  case lift
+  case cut
+  case reshape
+  case learn
+  case repair
+  case wait
+
+  var title: String {
+    switch self {
+    case .lift: return "Lift"
+    case .cut: return "Cut"
+    case .reshape: return "Reshape"
+    case .learn: return "Learn"
+    case .repair: return "Repair"
+    case .wait: return "Wait"
+    }
+  }
+
+  var priorityBoost: Int {
+    switch self {
+    case .repair: return 90
+    case .lift, .cut: return 80
+    case .reshape: return 50
+    case .learn: return 30
+    case .wait: return 0
+    }
+  }
+}
+
 struct ProductMarketFitNextAction: Equatable, Sendable {
   var experimentID: String
   var kind: ProductMarketFitNextActionKind
@@ -309,11 +339,13 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
   var nextActionKind: ProductMarketFitNextActionKind?
   var nextActionTitle: String?
   var nextActionPriority: Int
+  var pressure: ProductFactoryPortfolioPressure
   var staleEvidenceCount: Int
 
   var urgencyScore: Int {
     (nextActionPriority * 1_000)
       + (readinessScore ?? 0)
+      + pressure.priorityBoost
       + min(50, staleEvidenceCount * 5)
   }
 
@@ -328,6 +360,10 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
     return "\(nextActionTitle) (priority \(nextActionPriority))"
   }
 
+  var pressureLabel: String {
+    "\(pressure.title) pressure"
+  }
+
   init(
     experimentID: String,
     readinessScore: Int?,
@@ -335,6 +371,7 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
     nextActionKind: ProductMarketFitNextActionKind?,
     nextActionTitle: String?,
     nextActionPriority: Int,
+    pressure: ProductFactoryPortfolioPressure,
     staleEvidenceCount: Int
   ) {
     self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
@@ -343,6 +380,7 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
     self.nextActionKind = nextActionKind
     self.nextActionTitle = nextActionTitle.map { StringUtils.boundedText($0, limit: 160) }
     self.nextActionPriority = max(0, nextActionPriority)
+    self.pressure = pressure
     self.staleEvidenceCount = max(0, staleEvidenceCount)
   }
 }
@@ -398,8 +436,49 @@ enum ProductFactoryExperimentRanker {
       nextActionKind: nextAction?.kind,
       nextActionTitle: nextAction?.title,
       nextActionPriority: nextAction?.priority ?? 0,
+      pressure: pressure(for: experiment, readiness: readiness, nextAction: nextAction),
       staleEvidenceCount: evidenceIndex.staleSummaryCount(for: experiment)
     )
+  }
+
+  private static func pressure(
+    for experiment: ProductExperiment,
+    readiness: ProductMarketFitReadiness?,
+    nextAction: ProductMarketFitNextAction?
+  ) -> ProductFactoryPortfolioPressure {
+    if nextAction?.kind == .repairFailures {
+      return .repair
+    }
+    if let readiness {
+      switch readiness.recommendation {
+      case .promote: return .lift
+      case .kill: return .cut
+      case .pivot, .narrow: return .reshape
+      case .gatherEvidence, .keepGoing: break
+      }
+    }
+    switch nextAction?.kind {
+    case .applyDecision:
+      switch readiness?.recommendation {
+      case .promote: return .lift
+      case .kill: return .cut
+      case .pivot, .narrow: return .reshape
+      case .gatherEvidence, .keepGoing, nil: return .learn
+      }
+    case .runCohort, .rerunCohort:
+      return .learn
+    case .refineBet, .reviewDecision:
+      return .reshape
+    case .repairFailures:
+      return .repair
+    case nil:
+      switch experiment.decision {
+      case .promoted, .archived:
+        return .wait
+      case .notRun, .keepGoing, .narrow, .pivot, .kill, .promote:
+        return readiness == nil ? .learn : .wait
+      }
+    }
   }
 }
 

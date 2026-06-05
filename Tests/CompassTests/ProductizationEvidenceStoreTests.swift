@@ -282,6 +282,8 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("Top current-commit evidence signals and objections"))
     try #require(text.contains("Current-commit product-market-fit readiness"))
     try #require(text.contains("Factory autopilot step"))
+    try #require(text.contains("Product-factory portfolio pressure"))
+    try #require(text.contains("pressure learn"))
     try #require(text.contains("executable false"))
     try #require(text.contains("cycle executable 0"))
     try #require(text.contains("cycle queue Blocked"))
@@ -340,6 +342,8 @@ struct ProductizationEvidenceStoreTests {
     )
 
     try #require(text.contains("Factory autopilot step"))
+    try #require(text.contains("Product-factory portfolio pressure"))
+    try #require(text.contains("pressure repair"))
     try #require(text.contains("executable false"))
     try #require(text.contains("cycle executable 0"))
     try #require(text.contains("factory-cycle-failed-step"))
