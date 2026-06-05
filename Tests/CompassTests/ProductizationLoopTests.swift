@@ -1060,40 +1060,39 @@ struct ProductizationLoopTests {
       switchingReadiness: 4,
       continuedUsePull: 4
     )
-    let index = ProductizationEvidenceIndex.build(
-      records: [
-        makeDecisionAdvisorRecord(
-          id: "rationale-operator",
-          experiment: experiment,
-          config: config,
-          personaID: operatorSegment.id,
-          mode: .personaModel,
-          endedAt: 200,
-          verdict: .promising,
-          scores: scores,
-          currentAlternativeComparison: "Compared against the current workflow.",
-          scenarioID: operatorScenario.id,
-          personaActionRationales: [
-            "turn 1 choose valid action compare_current_alternative: Needed proof against the manual workflow before switching."
-          ]
-        ),
-        makeDecisionAdvisorRecord(
-          id: "rationale-buyer",
-          experiment: experiment,
-          config: config,
-          personaID: buyer.id,
-          mode: .personaModel,
-          endedAt: 300,
-          verdict: .promising,
-          scores: scores,
-          currentAlternativeComparison: "Compared against the current workflow.",
-          scenarioID: buyerScenario.id,
-          personaActionRationales: [
-            "turn 2 choose valid action reduce_switching_objection: Needed proof against the manual workflow before switching."
-          ]
-        ),
-      ]
-    )
+    let rationaleRecords = [
+      makeDecisionAdvisorRecord(
+        id: "rationale-operator",
+        experiment: experiment,
+        config: config,
+        personaID: operatorSegment.id,
+        mode: .personaModel,
+        endedAt: 200,
+        verdict: .promising,
+        scores: scores,
+        currentAlternativeComparison: "Compared against the current workflow.",
+        scenarioID: operatorScenario.id,
+        personaActionRationales: [
+          "turn 1 choose valid action compare_current_alternative: Needed proof against the manual workflow before switching."
+        ]
+      ),
+      makeDecisionAdvisorRecord(
+        id: "rationale-buyer",
+        experiment: experiment,
+        config: config,
+        personaID: buyer.id,
+        mode: .personaModel,
+        endedAt: 300,
+        verdict: .promising,
+        scores: scores,
+        currentAlternativeComparison: "Compared against the current workflow.",
+        scenarioID: buyerScenario.id,
+        personaActionRationales: [
+          "turn 2 choose valid action reduce_switching_objection: Needed proof against the manual workflow before switching."
+        ]
+      ),
+    ]
+    let index = ProductizationEvidenceIndex.build(records: rationaleRecords)
 
     let signal = try #require(
       ProductFactoryRationaleSignalAdvisor.signal(
@@ -1234,6 +1233,69 @@ struct ProductizationLoopTests {
     try #require(validationStep.kind == .runCohort)
     try #require(validationStep.canExecute)
     try #require(validationStep.targetScenarioID == buyerScenario.id)
+    let validationIndex = ProductizationEvidenceIndex.build(
+      records: rationaleRecords + [
+        makeDecisionAdvisorRecord(
+          id: "revision-validation-rerun",
+          experiment: experiment,
+          config: config,
+          personaID: buyer.id,
+          mode: .personaModel,
+          endedAt: 390,
+          verdict: .promising,
+          scores: scores,
+          currentAlternativeComparison: "Compared against the current workflow.",
+          scenarioID: buyerScenario.id,
+          personaActionRationales: [
+            "turn 3 choose valid action reduce_switching_objection: Needed proof against the manual workflow before switching."
+          ]
+        ),
+      ]
+    )
+    let validationSignal = try #require(
+      ProductFactoryRationaleSignalAdvisor.signal(
+        for: experiment,
+        config: revisedConfig,
+        evidenceIndex: validationIndex
+      ))
+    let validationAudit = ProductFactoryCycleAudit(
+      id: "factory-cycle-validation-rationale",
+      startedAt: 400,
+      endedAt: 410,
+      executedStepIDs: [validationStep.id],
+      experimentIDs: [experiment.id],
+      messages: ["Revision validation ran 1 scenario(s): 1 completed, 0 needing review."],
+      maxSteps: 3,
+      evidenceRunStepCount: 1,
+      evidenceRunIDs: ["revision-validation-rerun"],
+      completedEvidenceRunCount: 1,
+      failedEvidenceRunCount: 0,
+      skippedScenarioCount: 0,
+      personaRationaleSignalSummaries: [validationSignal.auditSummary],
+      stopReason: .noExecutableStep,
+      stopDetail: "Stopped because no executable product-factory step remains.",
+      userMessage: "Factory cycle ran 1 step(s). Product revision validation still showed the rationale."
+    )
+    let validationConfig = revisedConfig.recordingFactoryCycleAudit(validationAudit)
+    let postValidationAction = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: validationConfig,
+        evidenceIndex: validationIndex
+      ))
+    let postValidationStep = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: validationConfig,
+        evidenceIndex: validationIndex,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(postValidationAction.kind == .refineBet)
+    try #require(postValidationAction.title == "Retarget AI-user rationale signal")
+    try #require(postValidationAction.detail.contains(validationAudit.id))
+    try #require(postValidationAction.targetScenarioID == buyerScenario.id)
+    try #require(postValidationStep.kind == .applyRevision)
+    try #require(postValidationStep.targetScenarioID == buyerScenario.id)
     try #require(digest.contains("Retarget AI-user rationale signal"))
     try #require(digest.contains("Retarget product revision for AI-user rationale"))
     try #require(digest.contains("factory-cycle-stalled-rationale"))

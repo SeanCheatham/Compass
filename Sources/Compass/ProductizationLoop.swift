@@ -2262,7 +2262,7 @@ enum ProductFactoryCycleLearningAdvisor {
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductFactoryCycleAudit? {
     guard isTargetedRationaleSignalAction(action) else { return nil }
-    let stepID = ProductFactoryCycleFailureAdvisor.stepID(for: action)
+    let stepIDs = targetedScenarioStepIDs(for: action)
     let currentSignal = ProductFactoryRationaleSignalAdvisor.signal(
       for: experiment,
       config: config,
@@ -2279,7 +2279,7 @@ enum ProductFactoryCycleLearningAdvisor {
           audit.experimentIDs.contains(experiment.id),
           audit.evidenceRunStepCount > 0,
           audit.completedEvidenceRunCount > 0,
-          matchesExecutedStepID(stepID, audit: audit),
+          matchesAnyExecutedStepID(stepIDs, audit: audit),
           !audit.personaRationaleSignalSummaries.isEmpty,
           matchesCurrentRationaleSignal(
             audit: audit,
@@ -2380,6 +2380,25 @@ enum ProductFactoryCycleLearningAdvisor {
         || stepID.hasPrefix(executedStepID)
         || executedStepID.hasPrefix(stepID)
     }
+  }
+
+  private static func matchesAnyExecutedStepID(
+    _ stepIDs: Set<String>,
+    audit: ProductFactoryCycleAudit
+  ) -> Bool {
+    stepIDs.contains { matchesExecutedStepID($0, audit: audit) }
+  }
+
+  private static func targetedScenarioStepIDs(
+    for action: ProductMarketFitNextAction
+  ) -> Set<String> {
+    guard let targetScenarioID = action.targetScenarioID else {
+      return [ProductFactoryCycleFailureAdvisor.stepID(for: action)]
+    }
+    return [
+      "\(action.experimentID):\(ProductMarketFitNextActionKind.runCohort.rawValue):\(targetScenarioID)",
+      "\(action.experimentID):\(ProductMarketFitNextActionKind.rerunCohort.rawValue):\(targetScenarioID)",
+    ]
   }
 
   private static func matchesCurrentProofTarget(
