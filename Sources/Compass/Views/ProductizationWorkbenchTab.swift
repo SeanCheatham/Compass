@@ -70,13 +70,19 @@ struct ProductizationWorkbenchTab: View {
     )
   }
 
-  private var suggestedCohortCanRun: Bool {
+  private var selectedSuggestedCohortReadiness: ProductMarketFitCohortRunReadiness? {
     guard let selectedExperiment,
-      selectedPMFNextAction?.cohortID != nil
-    else { return false }
-    return contractAvailable == true
-      && !(scenarioTargetCommit.isEmpty && selectedExperiment.currentSha == nil
-        && selectedExperiment.baseSha == nil)
+      let action = selectedPMFNextAction
+    else { return nil }
+    return ProductMarketFitNextActionAdvisor.cohortRunReadiness(
+      for: action,
+      experiment: selectedExperiment,
+      config: config
+    )
+  }
+
+  private var suggestedCohortCanRun: Bool {
+    contractAvailable == true && selectedSuggestedCohortReadiness?.canRun == true
   }
 
   private var scenariosForSelectedExperiment: [ProductScenario] {
@@ -588,6 +594,20 @@ struct ProductizationWorkbenchTab: View {
         }
         if let nextAction = selectedPMFNextAction {
           WorkbenchFact(label: "Next action", value: nextAction.title)
+          WorkbenchFact(
+            label: "Action",
+            value: "\(nextAction.kind.rawValue), priority \(nextAction.priority)"
+          )
+          if let readiness = selectedSuggestedCohortReadiness {
+            WorkbenchFact(
+              label: "Cohort",
+              value:
+                "\(readiness.cohortTitle) (\(readiness.enabledScenarioCount) enabled scenario(s))"
+            )
+            if let blockedReason = readiness.blockedReason {
+              WorkbenchFact(label: "Blocked", value: blockedReason)
+            }
+          }
           Text(nextAction.detail)
             .font(.caption)
             .foregroundStyle(.secondary)

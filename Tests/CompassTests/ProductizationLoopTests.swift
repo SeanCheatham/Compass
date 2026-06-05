@@ -334,6 +334,17 @@ struct ProductizationLoopTests {
     try #require(action.title == "Run productization cohort")
     try #require(action.cohortID == config.scenarioCohorts[0].id)
     try #require(action.detail.contains(config.scenarioCohorts[0].id))
+
+    let readiness = try #require(
+      ProductMarketFitNextActionAdvisor.cohortRunReadiness(
+        for: action,
+        experiment: experiment,
+        config: config
+      ))
+    try #require(readiness.canRun)
+    try #require(readiness.cohortID == config.scenarioCohorts[0].id)
+    try #require(readiness.enabledScenarioCount == 1)
+    try #require(readiness.missingTargetCommitCount == 0)
   }
 
   @Test func pmfNextActionAsksForEvidenceCohortWhenNoneIsRunnable() throws {
@@ -366,6 +377,35 @@ struct ProductizationLoopTests {
     try #require(action.kind == .refineBet)
     try #require(action.title == "Define evidence cohort")
     try #require(action.cohortID == nil)
+  }
+
+  @Test func pmfSuggestedCohortReadinessBlocksMissingTargetCommit() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    let experiment = config.experiments[0]
+
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: .empty
+      ))
+    let readiness = try #require(
+      ProductMarketFitNextActionAdvisor.cohortRunReadiness(
+        for: action,
+        experiment: experiment,
+        config: config
+      ))
+
+    try #require(action.kind == .runCohort)
+    try #require(!readiness.canRun)
+    try #require(readiness.enabledScenarioCount == 1)
+    try #require(readiness.missingTargetCommitCount == 1)
+    try #require(readiness.blockedReason?.contains("target commit") == true)
   }
 
   @Test func rolloutWorkflowPromotesExperimentWithBranchCommitAndEvidenceTrail() throws {

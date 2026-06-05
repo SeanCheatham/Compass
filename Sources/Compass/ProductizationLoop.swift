@@ -257,6 +257,49 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
   }
 }
 
+struct ProductMarketFitCohortRunReadiness: Equatable, Sendable {
+  var cohortID: String
+  var cohortTitle: String
+  var cohortEnabled: Bool
+  var enabledScenarioCount: Int
+  var missingTargetCommitCount: Int
+
+  var canRun: Bool {
+    cohortEnabled && enabledScenarioCount > 0 && missingTargetCommitCount == 0
+  }
+
+  var blockedReason: String? {
+    if !cohortEnabled {
+      return "Suggested cohort is disabled."
+    }
+    if enabledScenarioCount == 0 {
+      return "Suggested cohort has no enabled scenarios."
+    }
+    if missingTargetCommitCount > 0 {
+      return "\(missingTargetCommitCount) enabled scenario(s) need a target commit."
+    }
+    return nil
+  }
+
+  init(
+    cohortID: String,
+    cohortTitle: String,
+    cohortEnabled: Bool,
+    enabledScenarioCount: Int,
+    missingTargetCommitCount: Int
+  ) {
+    self.cohortID = ProductizationModelText.identifier(cohortID, fallback: "cohort")
+    self.cohortTitle = ProductizationModelText.cleanedText(
+      cohortTitle,
+      fallback: "Product scenario cohort",
+      limit: 180
+    )
+    self.cohortEnabled = cohortEnabled
+    self.enabledScenarioCount = max(0, enabledScenarioCount)
+    self.missingTargetCommitCount = max(0, missingTargetCommitCount)
+  }
+}
+
 enum ProductMarketFitDecisionAdvisorError: LocalizedError, Equatable {
   case noProposal(String)
 
@@ -414,6 +457,35 @@ enum ProductMarketFitNextActionAdvisor {
     }
   }
 
+  static func cohortRunReadiness(
+    for action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig
+  ) -> ProductMarketFitCohortRunReadiness? {
+    guard action.experimentID == experiment.id,
+      let cohortID = action.cohortID,
+      let cohort = config.scenarioCohorts.first(where: {
+        $0.id == cohortID && $0.experimentID == experiment.id
+      })
+    else { return nil }
+    let cohortScenarioIDs = Set(cohort.scenarioIDs)
+    let enabledScenarios = config.scenarios.filter {
+      $0.experimentID == experiment.id
+        && $0.enabled
+        && cohortScenarioIDs.contains($0.id)
+    }
+    let missingTargetCommitCount = enabledScenarios.filter {
+      targetCommit(for: $0, experiment: experiment) == nil
+    }.count
+    return ProductMarketFitCohortRunReadiness(
+      cohortID: cohort.id,
+      cohortTitle: cohort.title,
+      cohortEnabled: cohort.enabled,
+      enabledScenarioCount: cohort.enabled ? enabledScenarios.count : 0,
+      missingTargetCommitCount: cohort.enabled ? missingTargetCommitCount : 0
+    )
+  }
+
   private static func runnableCohort(
     for experiment: ProductExperiment,
     config: ProductizationConfig
@@ -437,6 +509,15 @@ enum ProductMarketFitNextActionAdvisor {
         return lhsCoverage > rhsCoverage
       }
       .first
+  }
+
+  private static func targetCommit(
+    for scenario: ProductScenario,
+    experiment: ProductExperiment
+  ) -> String? {
+    let commit = scenario.targetCommitSha ?? experiment.currentSha ?? experiment.baseSha
+    let trimmed = commit?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return trimmed.isEmpty ? nil : trimmed
   }
 }
 
