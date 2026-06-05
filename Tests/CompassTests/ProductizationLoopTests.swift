@@ -1632,12 +1632,19 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
+    let candidate = try #require(
+      ProductFactoryDecisionCandidateAdvisor.candidates(
+        config: config,
+        evidenceIndex: index
+      ).first { $0.experimentID == step.experimentID }
+    )
 
     let outcome = ProductFactoryAutopilotCycleOutcome(
       executedSteps: [step],
       messages: ["Applied PMF advice for \(step.experimentTitle)."],
       maxSteps: 3,
-      stopReason: .noExecutableStep
+      stopReason: .noExecutableStep,
+      decisionCandidateSummaries: [candidate.auditSummary]
     )
     let audit = outcome.audit(
       startedAt: Date(timeIntervalSince1970: 300),
@@ -1650,9 +1657,14 @@ struct ProductizationLoopTests {
     try #require(outcome.killedDecisionCount == 0)
     try #require(outcome.evidenceRunStepCount == 0)
     try #require(outcome.userMessage.contains("1 PMF decision(s) applied (1 promote, 0 kill)"))
+    try #require(outcome.userMessage.contains("Decision candidates:"))
+    try #require(outcome.userMessage.contains("continue -> promote"))
     try #require(audit.appliedDecisionCount == 1)
     try #require(audit.promotedDecisionCount == 1)
     try #require(audit.killedDecisionCount == 0)
+    try #require(audit.decisionCandidateSummaries.count == 1)
+    try #require(audit.decisionCandidateSummaries[0].contains("continue -> promote"))
+    try #require(audit.decisionCandidateSummaries[0].contains("pressure lift"))
     try #require(audit.evidenceRunStepCount == 0)
     try #require(audit.evidenceRunIDs.isEmpty)
     try #require(audit.completedEvidenceRunCount == 0)
@@ -1661,7 +1673,17 @@ struct ProductizationLoopTests {
     try #require(audit.startingProofDebtCount == nil)
     try #require(audit.endingProofDebtCount == nil)
     try #require(audit.proofDebtDelta == nil)
+    try #require(audit.summary.contains("candidates"))
+    try #require(audit.summary.contains("continue -> promote"))
     try #require(audit.summary.contains("decisions 1 (1 promote, 0 kill); evidence 0"))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config.recordingFactoryCycleAudit(audit),
+      evidenceIndex: index
+    )
+    try #require(digest.contains("Recent product-factory cycle audits"))
+    try #require(digest.contains("decision candidates"))
+    try #require(digest.contains("pressure lift"))
+    try #require(digest.contains("continue -> promote"))
   }
 
   @Test func productFactoryAutopilotCycleOutcomeReportsFailureStop() throws {

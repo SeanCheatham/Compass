@@ -291,6 +291,19 @@ struct ProductFactoryDecisionCandidate: Equatable, Sendable, Identifiable {
     return "\(summary) \(evidence)"
   }
 
+  var auditSummary: String {
+    var parts = [
+      "\(experimentID): \(currentDecision.rawValue) -> \(targetDecision.rawValue)",
+      "pressure \(pressure.rawValue)",
+      "score \(readinessScore)/100",
+    ]
+    if !evidenceRunIDs.isEmpty {
+      parts.append("evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))")
+    }
+    parts.append(StringUtils.boundedText(summary, limit: 160))
+    return StringUtils.boundedText(parts.joined(separator: "; "), limit: 300)
+  }
+
   init(proposal: ProductMarketFitDecisionProposal) {
     self.experimentID = ProductizationModelText.identifier(
       proposal.experimentID,
@@ -985,6 +998,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   var endingProofDebtCount: Int?
   var startingProofDebtSummary: String?
   var endingProofDebtSummary: String?
+  var decisionCandidateSummaries: [String]
   var proofTargetSummaries: [String]
 
   init(
@@ -1000,6 +1014,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     endingProofDebtCount: Int? = nil,
     startingProofDebtSummary: String? = nil,
     endingProofDebtSummary: String? = nil,
+    decisionCandidateSummaries: [String] = [],
     proofTargetSummaries: [String] = []
   ) {
     self.executedSteps = executedSteps
@@ -1019,6 +1034,10 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     self.endingProofDebtSummary = ProductizationModelText.optionalCleanedText(
       endingProofDebtSummary,
       limit: 500
+    )
+    self.decisionCandidateSummaries = ProductizationModelText.cleanedList(
+      decisionCandidateSummaries,
+      limit: 300
     )
     self.proofTargetSummaries = ProductizationModelText.cleanedList(
       proofTargetSummaries,
@@ -1058,6 +1077,9 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     }
     if !messages.isEmpty {
       parts.append(messages.joined(separator: " "))
+    }
+    if let decisionCandidateMessage {
+      parts.append(decisionCandidateMessage)
     }
     if let proofTargetMessage {
       parts.append(proofTargetMessage)
@@ -1134,6 +1156,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       endingProofDebtCount: endingProofDebtCount,
       startingProofDebtSummary: startingProofDebtSummary,
       endingProofDebtSummary: endingProofDebtSummary,
+      decisionCandidateSummaries: decisionCandidateSummaries,
       proofTargetSummaries: proofTargetSummaries,
       stopReason: auditStopReason,
       stopStepID: stopStepID,
@@ -1158,6 +1181,12 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   private var hasEvidenceRunOutcomes: Bool {
     !evidenceRunIDs.isEmpty || completedEvidenceRunCount > 0 || failedEvidenceRunCount > 0
       || skippedScenarioCount > 0
+  }
+
+  private var decisionCandidateMessage: String? {
+    guard !decisionCandidateSummaries.isEmpty else { return nil }
+    let candidates = decisionCandidateSummaries.prefix(3).joined(separator: " | ")
+    return "Decision candidates: \(StringUtils.boundedText(candidates, limit: 420))."
   }
 
   private var proofTargetMessage: String? {

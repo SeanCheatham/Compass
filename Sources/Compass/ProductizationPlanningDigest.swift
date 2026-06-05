@@ -385,13 +385,19 @@ enum ProductizationPlanningDigestFormatter {
           audit.experimentIDs.isEmpty
           ? "no experiments"
           : "experiments \(audit.experimentIDs.joined(separator: ", "))"
+        let decisionCandidateList = audit.decisionCandidateSummaries.prefix(3)
+          .joined(separator: " | ")
+        let decisionCandidates =
+          audit.decisionCandidateSummaries.isEmpty
+          ? ""
+          : "; decision candidates \(bounded(decisionCandidateList, 260))"
         let proofTargetList = audit.proofTargetSummaries.prefix(3).joined(separator: " | ")
         let proofTargets =
           audit.proofTargetSummaries.isEmpty
           ? ""
           : "; proof targets \(bounded(proofTargetList, 260))"
         return
-          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(proofTargets)"
+          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(proofTargets)"
             + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
   }

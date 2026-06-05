@@ -1308,6 +1308,7 @@ struct ProductizationWorkbenchTab: View {
     var skippedScenarioCount = 0
     var touchedExperimentIDs: [String] = []
     var startingProofDebts: [String: ProductMarketFitProofDebt] = [:]
+    var decisionCandidateSummaries: [String] = []
     var proofTargetSummaries: [String] = []
     var seenStepIDs = Set<String>()
     var stopReason: ProductFactoryAutopilotCycleStopReason = .reachedStepLimit
@@ -1332,6 +1333,12 @@ struct ProductizationWorkbenchTab: View {
         startingProofDebts[step.experimentID] = productFactoryProofDebt(
           forExperimentID: step.experimentID
         )
+      }
+      if step.action.kind == .applyDecision,
+        let candidate = productFactoryDecisionCandidate(forExperimentID: step.experimentID),
+        !decisionCandidateSummaries.contains(candidate.auditSummary)
+      {
+        decisionCandidateSummaries.append(candidate.auditSummary)
       }
       if let proofTarget = productFactoryProofTarget(forExperimentID: step.experimentID),
         !proofTargetSummaries.contains(proofTarget.auditSummary)
@@ -1373,6 +1380,7 @@ struct ProductizationWorkbenchTab: View {
       endingProofDebtCount: endingProofDebt?.count,
       startingProofDebtSummary: startingProofDebt?.summary,
       endingProofDebtSummary: endingProofDebt?.summary,
+      decisionCandidateSummaries: decisionCandidateSummaries,
       proofTargetSummaries: proofTargetSummaries
     )
     let audit = outcome.audit(startedAt: cycleStartedAt)
@@ -1412,6 +1420,16 @@ struct ProductizationWorkbenchTab: View {
       config: project.productizationConfig,
       evidenceIndex: project.productizationEvidenceIndex
     )
+  }
+
+  private func productFactoryDecisionCandidate(
+    forExperimentID experimentID: String
+  ) -> ProductFactoryDecisionCandidate? {
+    ProductFactoryDecisionCandidateAdvisor.candidates(
+      config: project.productizationConfig,
+      evidenceIndex: project.productizationEvidenceIndex
+    )
+    .first { $0.experimentID == experimentID }
   }
 
   private func productFactoryProofDebtSnapshot(
