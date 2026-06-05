@@ -1271,7 +1271,8 @@ struct ProductizationLoopTests {
     let step = try #require(
       ProductFactoryAutopilotPlanner.nextStep(
         config: config,
-        evidenceIndex: evidenceIndex
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: true
       ))
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
@@ -1279,20 +1280,138 @@ struct ProductizationLoopTests {
     )
 
     try #require(audit.id == "factory-cycle-stalled-proof")
-    try #require(action.kind == .refineBet)
-    try #require(action.title == "Retarget stalled proof debt")
+    try #require(action.kind == .runCohort)
+    try #require(action.title == "Retarget AI-user proof debt")
     try #require(action.detail.contains("factory-cycle-stalled-proof"))
     try #require(action.detail.contains("without reducing proof debt"))
-    try #require(action.detail.contains("retarget the scenario cohort"))
+    try #require(action.detail.contains("targeted persona-model scenario"))
+    try #require(action.detail.contains("Remaining proof debt"))
+    try #require(action.requiredSimulationMode == .personaModel)
+    let targetScenarioID = try #require(action.targetScenarioID)
+    let executable = try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: true
+    ))
+    try #require(executable.canExecute)
+    try #require(step.canExecute)
+    try #require(step.kind == .runCohort)
+    try #require(step.action.kind == .runCohort)
+    try #require(step.targetScenarioID == targetScenarioID)
+    try #require(digest.contains("Retarget AI-user proof debt"))
+    try #require(digest.contains("factory-cycle-stalled-proof"))
+    try #require(digest.contains("target_scenario \(targetScenarioID)"))
+    try #require(digest.contains("proof debt 6 -> 6 (0)"))
+  }
+
+  @Test func productFactoryAutopilotFallsBackWhenStalledProofDebtHasNoAIUserTarget() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    for index in config.experiments.indices.dropFirst() {
+      config.experiments[index].decision = .promoted
+    }
+    let experiment = config.experiments[0]
+    let operatorID = config.userSegments[0].id
+    let buyer = try #require(config.userSegments.dropFirst().first)
+    config.scenarios.removeAll {
+      $0.experimentID == experiment.id && $0.segmentID != operatorID
+    }
+    for index in config.scenarioCohorts.indices
+      where config.scenarioCohorts[index].experimentID == experiment.id
+    {
+      let cohort = config.scenarioCohorts[index]
+      config.scenarioCohorts[index] = ProductScenarioCohort(
+        id: cohort.id,
+        title: cohort.title,
+        experimentID: cohort.experimentID,
+        scenarioIDs: cohort.scenarioIDs.filter { scenarioID in
+          config.scenarios.contains { $0.id == scenarioID }
+        },
+        enabled: cohort.enabled,
+        tags: cohort.tags
+      )
+    }
+    let evidenceIndex = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "operator-ai-user-pass",
+          experiment: experiment,
+          config: config,
+          personaID: operatorID,
+          mode: .personaModel,
+          endedAt: 30,
+          verdict: .promising,
+          scores: ProductizationEvidenceScores(
+            painRecognition: 4,
+            workflowImprovement: 4,
+            alternativeAdvantage: 3,
+            switchingReadiness: 3,
+            continuedUsePull: 3
+          )
+        )
+      ])
+    let broadStep = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
+    config = config.recordingFactoryCycleAudit(
+      ProductFactoryCycleAudit(
+        id: "factory-cycle-stalled-no-target",
+        startedAt: 100,
+        endedAt: 110,
+        executedStepIDs: [broadStep.id],
+        experimentIDs: [experiment.id],
+        messages: ["AI-user cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+        maxSteps: 3,
+        evidenceRunStepCount: 1,
+        evidenceRunIDs: ["operator-ai-user-pass"],
+        completedEvidenceRunCount: 1,
+        failedEvidenceRunCount: 0,
+        skippedScenarioCount: 0,
+        startingProofDebtCount: 4,
+        endingProofDebtCount: 4,
+        startingProofDebtSummary:
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 1 AI-user persona(s), 1 AI-user current-alternative proof(s)",
+        endingProofDebtSummary:
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 1 AI-user persona(s), 1 AI-user current-alternative proof(s)",
+        stopReason: .noExecutableStep,
+        stopDetail: "Stopped because no executable product-factory step remains.",
+        userMessage: "Factory cycle ran 1 step(s). Proof debt held steady (4 -> 4)."
+      )
+    )
+
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
+
+    try #require(action.kind == .refineBet)
+    try #require(action.title == "Retarget AI-user proof debt")
+    try #require(action.targetPersonaID == buyer.id)
+    try #require(action.targetScenarioID == nil)
+    try #require(action.detail.contains("factory-cycle-stalled-no-target"))
+    try #require(action.detail.contains("does not cover a runnable AI-user target"))
+    try #require(action.detail.contains("add an enabled scenario"))
     try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
       config: config,
       evidenceIndex: evidenceIndex
     ) == nil)
     try #require(step.kind == .blocked)
     try #require(step.action.kind == .refineBet)
-    try #require(digest.contains("Retarget stalled proof debt"))
-    try #require(digest.contains("factory-cycle-stalled-proof"))
-    try #require(digest.contains("proof debt 6 -> 6 (0)"))
   }
 
   @Test func productFactoryAutopilotCyclePlanCapsExecutableSteps() throws {

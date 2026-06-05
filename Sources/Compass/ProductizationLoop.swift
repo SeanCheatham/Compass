@@ -1433,7 +1433,7 @@ enum ProductMarketFitNextActionAdvisor {
       target?.guidance(selectedCohort: selectedCohort, executableCohortID: executableCohortID)
       ?? " Target AI-user segment: add an enabled scenario for an untested segment."
     let detail: String
-    if let executableCohortID, canRunTarget {
+    if let executableCohortID, executableScenarioID != nil {
       detail =
         "Current evidence has \(observedCount) \(observedEvidenceLabel), but \(gateReason); run the targeted persona-model scenario in cohort `\(executableCohortID)` before \(decisionGate).\(guidance)"
     } else if let selectedCohort {
@@ -1663,6 +1663,20 @@ enum ProductMarketFitNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     else { return action }
+    if let retargetedAction = stalledProofDebtRetargetAction(
+      audit: audit,
+      replacing: action,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return applyingRecentCycleFailureGuard(
+        to: retargetedAction,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
     return ProductMarketFitNextAction(
       experimentID: experiment.id,
       kind: .refineBet,
@@ -1670,6 +1684,107 @@ enum ProductMarketFitNextActionAdvisor {
       detail:
         "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt (\(audit.summary)); retarget the scenario cohort, persona, or current-alternative proof before rerunning broad evidence.",
       priority: min(98, max(action.priority + 1, 84))
+    )
+  }
+
+  private static func stalledProofDebtRetargetAction(
+    audit: ProductFactoryCycleAudit,
+    replacing action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductMarketFitNextAction? {
+    guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment),
+      !readiness.proofDebt.isClear
+    else { return nil }
+    let selectedCohort = action.cohortID.flatMap { cohortID in
+      config.scenarioCohorts.first {
+        $0.id == cohortID && $0.experimentID == experiment.id
+      }
+    } ?? runnableCohort(for: experiment, config: config)
+    if readiness.proofDebt.aiUserPersonaDeficit > 0 {
+      return retargetedAIUserProofDebtAction(
+        audit: audit,
+        replacing: action,
+        experiment: experiment,
+        readiness: readiness,
+        selectedCohort: selectedCohort,
+        target: missingAIUserPersonaTarget(
+          for: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex,
+          cohort: selectedCohort
+        ),
+        title: "Retarget AI-user proof debt",
+        proofNeed: "\(readiness.proofDebt.aiUserPersonaDeficit) AI-user persona(s)"
+      )
+    }
+    if readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0 {
+      return retargetedAIUserProofDebtAction(
+        audit: audit,
+        replacing: action,
+        experiment: experiment,
+        readiness: readiness,
+        selectedCohort: selectedCohort,
+        target: missingAIUserPersonaTarget(
+          for: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex,
+          cohort: selectedCohort,
+          testedPersonaIDs: aiUserCurrentAlternativePersonaIDs(
+            for: experiment,
+            evidenceIndex: evidenceIndex
+          )
+        ),
+        title: "Retarget AI-user alternative proof",
+        proofNeed:
+          "\(readiness.proofDebt.aiUserCurrentAlternativeDeficit) AI-user current-alternative proof(s)"
+      )
+    }
+    return nil
+  }
+
+  private static func retargetedAIUserProofDebtAction(
+    audit: ProductFactoryCycleAudit,
+    replacing action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    readiness: ProductMarketFitReadiness,
+    selectedCohort: ProductScenarioCohort?,
+    target: AIUserPersonaTarget?,
+    title: String,
+    proofNeed: String
+  ) -> ProductMarketFitNextAction {
+    let executableCohortID = target?.executableCohortID
+    let executableScenarioID = target?.executableScenarioID
+    let canRunTarget = executableCohortID != nil && executableScenarioID != nil
+    let guidance =
+      target?.guidance(selectedCohort: selectedCohort, executableCohortID: executableCohortID)
+      ?? " Target AI-user segment: add an enabled scenario for an untested segment."
+    let debtSummary = StringUtils.boundedText(readiness.proofDebt.summary, limit: 140)
+    let targetName = target?.name ?? "the missing AI-user segment"
+    let detail: String
+    if canRunTarget {
+      detail =
+        "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt; run a targeted persona-model scenario for \(targetName) to pay down \(proofNeed). Remaining proof debt: \(debtSummary)."
+    } else if let selectedCohort {
+      let cohortTitle = StringUtils.boundedText(selectedCohort.title, limit: 80)
+      detail =
+        "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt; cohort \(cohortTitle) does not cover a runnable AI-user target for \(proofNeed). \(guidance) Remaining proof debt: \(debtSummary)."
+    } else {
+      detail =
+        "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt; define an enabled AI-user scenario cohort for \(proofNeed).\(guidance) Remaining proof debt: \(debtSummary)."
+    }
+    return ProductMarketFitNextAction(
+      experimentID: experiment.id,
+      kind: canRunTarget ? .runCohort : .refineBet,
+      title: title,
+      detail: detail,
+      priority: min(98, max(action.priority + 2, 86)),
+      cohortID: executableCohortID,
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: target?.id,
+      targetPersonaName: target?.name,
+      targetScenarioID: executableScenarioID
     )
   }
 
