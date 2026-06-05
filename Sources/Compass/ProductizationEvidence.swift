@@ -539,16 +539,37 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     lines.append(
       "\(currentAlternativeComparisonCount) current-alternative comparison(s), including \(aiUserCurrentAlternativePersonaCount) AI-user persona(s)."
     )
+    let isStopGate =
+      completed.count >= 2
+      && (readinessScore <= 40
+        || averageScore > 0 && averageScore <= 2.5
+        || summaries.contains { $0.verdict == .rejected })
     if aiUserCompletedRunCount == 0 && !completed.isEmpty {
-      lines.append(
-        "No AI-user evidence has tested this bet yet; promotion requires simulated-user pull.")
+      if isStopGate {
+        lines.append(
+          "No AI-user evidence has tested this bet yet; stopping requires simulated-user rejection."
+        )
+      } else {
+        lines.append(
+          "No AI-user evidence has tested this bet yet; promotion requires simulated-user pull.")
+      }
     } else if aiUserDistinctPersonaCount < 2 && !completed.isEmpty {
-      lines.append("Decisive PMF decisions require AI-user evidence across at least 2 personas.")
+      if isStopGate {
+        lines.append("Stopping a bet requires AI-user rejection evidence across at least 2 personas.")
+      } else {
+        lines.append("Decisive PMF decisions require AI-user evidence across at least 2 personas.")
+      }
     }
     if aiUserCurrentAlternativePersonaCount < 2 && !completed.isEmpty {
-      lines.append(
-        "Decisive PMF decisions require current-alternative proof from at least 2 AI-user personas."
-      )
+      if isStopGate {
+        lines.append(
+          "Stopping a bet requires current-alternative rejection proof from at least 2 AI-user personas."
+        )
+      } else {
+        lines.append(
+          "Decisive PMF decisions require current-alternative proof from at least 2 AI-user personas."
+        )
+      }
     }
     if !proofDebt.isClear {
       lines.append("Proof debt: \(proofDebt.summary).")

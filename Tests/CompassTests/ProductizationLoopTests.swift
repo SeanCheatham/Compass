@@ -652,6 +652,9 @@ struct ProductizationLoopTests {
 
     try #require(readiness.aiUserCompletedRunCount == 0)
     try #require(readiness.recommendation == .gatherEvidence)
+    try #require(readiness.rationale.contains {
+      $0.contains("stopping requires simulated-user rejection")
+    })
     try #require(ProductMarketFitDecisionAdvisor.proposals(
       config: config,
       evidenceIndex: index
@@ -726,7 +729,9 @@ struct ProductizationLoopTests {
     try #require(readiness.aiUserCompletedRunCount == 1)
     try #require(readiness.aiUserDistinctPersonaCount == 1)
     try #require(readiness.recommendation == .gatherEvidence)
-    try #require(readiness.rationale.contains { $0.contains("at least 2 personas") })
+    try #require(readiness.rationale.contains {
+      $0.contains("AI-user rejection evidence across at least 2 personas")
+    })
     try #require(ProductMarketFitDecisionAdvisor.proposals(
       config: config,
       evidenceIndex: index
@@ -799,7 +804,9 @@ struct ProductizationLoopTests {
     try #require(readiness.aiUserDistinctPersonaCount == 2)
     try #require(readiness.aiUserCurrentAlternativePersonaCount == 0)
     try #require(readiness.recommendation == .gatherEvidence)
-    try #require(readiness.rationale.contains { $0.contains("current-alternative proof") })
+    try #require(readiness.rationale.contains {
+      $0.contains("current-alternative rejection proof")
+    })
     try #require(ProductMarketFitDecisionAdvisor.proposals(
       config: config,
       evidenceIndex: index
