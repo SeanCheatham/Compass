@@ -790,6 +790,10 @@ struct ProductizationLoopTests {
       evidenceIndex: index,
       isPersonaModelAvailable: true
     ))
+    let matchedDigest = ProductizationPlanningDigestFormatter.promptText(
+      config: matchedConfig,
+      evidenceIndex: index
+    )
 
     try #require(action.targetDecision == .kill)
     let targetScenarioID = try #require(action.targetScenarioID)
@@ -818,6 +822,8 @@ struct ProductizationLoopTests {
       config: matchedConfig,
       evidenceIndex: index
     )?.id == "factory-cycle-matching-decision-target")
+    try #require(matchedDigest.contains("target_decision kill"))
+    try #require(matchedDigest.contains(targetScenarioID))
     try #require(mismatchedStep.canExecute)
     try #require(!matchedStep.canExecute)
     try #require(matchedStep.blockedReason != nil)
