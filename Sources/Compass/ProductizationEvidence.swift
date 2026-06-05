@@ -1455,6 +1455,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
   var failuresByKind: [String: Int]
   var personaRationaleSignals: [ProductizationPersonaRationaleSignal]
   var currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary]
+  var decisionIntentOutcomes: [ProductizationDecisionIntentOutcomeCount]
 
   enum CodingKeys: String, CodingKey {
     case latestRunByExperiment
@@ -1466,6 +1467,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
     case failuresByKind
     case personaRationaleSignals
     case currentAlternativeComparisons
+    case decisionIntentOutcomes
   }
 
   init(
@@ -1477,7 +1479,8 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
     verdictCounts: [String: Int],
     failuresByKind: [String: Int],
     personaRationaleSignals: [ProductizationPersonaRationaleSignal] = [],
-    currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary]
+    currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary],
+    decisionIntentOutcomes: [ProductizationDecisionIntentOutcomeCount] = []
   ) {
     self.latestRunByExperiment = latestRunByExperiment
     self.pmfReadinessByExperiment = pmfReadinessByExperiment
@@ -1488,6 +1491,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
     self.failuresByKind = failuresByKind
     self.personaRationaleSignals = personaRationaleSignals
     self.currentAlternativeComparisons = currentAlternativeComparisons
+    self.decisionIntentOutcomes = decisionIntentOutcomes
   }
 
   init(from decoder: Decoder) throws {
@@ -1528,6 +1532,10 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
       currentAlternativeComparisons: try container.decodeIfPresent(
         [ProductizationAlternativeComparisonSummary].self,
         forKey: .currentAlternativeComparisons
+      ) ?? [],
+      decisionIntentOutcomes: try container.decodeIfPresent(
+        [ProductizationDecisionIntentOutcomeCount].self,
+        forKey: .decisionIntentOutcomes
       ) ?? []
     )
   }
@@ -1643,6 +1651,32 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
           verdict: $0.verdict
         )
       }
+
+    let outcomeGroups = Dictionary(
+      grouping: summaries.compactMap(ProductizationDecisionIntentOutcomeSource.init),
+      by: { "\($0.intent.targetDecision.rawValue)|\($0.evaluation.outcome.rawValue)" }
+    )
+    decisionIntentOutcomes =
+      outcomeGroups
+      .map { _, sources in
+        let first = sources[0]
+        return ProductizationDecisionIntentOutcomeCount(
+          targetDecision: first.intent.targetDecision,
+          outcome: first.evaluation.outcome,
+          count: sources.count,
+          runIDs: sources.map(\.summary.runID),
+          experimentIDs: sources.map(\.summary.experimentID)
+        )
+      }
+      .sorted { lhs, rhs in
+        if lhs.count == rhs.count {
+          if lhs.targetDecision == rhs.targetDecision {
+            return lhs.outcome.rawValue < rhs.outcome.rawValue
+          }
+          return lhs.targetDecision.rawValue < rhs.targetDecision.rawValue
+        }
+        return lhs.count > rhs.count
+      }
   }
 
   private static func personaRationaleSignalText(_ value: String) -> String {
@@ -1698,6 +1732,56 @@ struct ProductizationPersonaRationaleSignal: Codable, Equatable, Sendable {
 private struct ProductizationPersonaRationaleSignalSource {
   var summary: ProductizationEvidenceSummary
   var rationale: String
+}
+
+struct ProductizationDecisionIntentOutcomeCount: Codable, Equatable, Sendable {
+  var targetDecision: ProductExperimentDecision
+  var outcome: ProductizationDecisionIntentOutcome
+  var count: Int
+  var runIDs: [String]
+  var experimentIDs: [String]
+
+  var auditSummary: String {
+    let runs =
+      runIDs.isEmpty
+      ? "no runs"
+      : "runs \(runIDs.prefix(4).joined(separator: ", "))"
+    let experiments =
+      experimentIDs.isEmpty
+      ? "no experiments"
+      : "experiments \(experimentIDs.prefix(3).joined(separator: ", "))"
+    return
+      "target_decision \(targetDecision.rawValue); outcome \(outcome.rawValue); count \(count); \(runs); \(experiments)"
+  }
+
+  init(
+    targetDecision: ProductExperimentDecision,
+    outcome: ProductizationDecisionIntentOutcome,
+    count: Int,
+    runIDs: [String],
+    experimentIDs: [String]
+  ) {
+    self.targetDecision = targetDecision
+    self.outcome = outcome
+    self.count = max(0, count)
+    self.runIDs = ProductizationEvidenceRecord.cleanedList(runIDs, limit: 96)
+    self.experimentIDs = ProductizationEvidenceRecord.cleanedList(experimentIDs, limit: 96)
+  }
+}
+
+private struct ProductizationDecisionIntentOutcomeSource {
+  var summary: ProductizationEvidenceSummary
+  var intent: ProductizationSimulationDecisionIntent
+  var evaluation: ProductizationDecisionIntentEvaluation
+
+  init?(_ summary: ProductizationEvidenceSummary) {
+    guard let intent = summary.decisionIntent,
+      let evaluation = summary.decisionIntentEvaluation
+    else { return nil }
+    self.summary = summary
+    self.intent = intent
+    self.evaluation = evaluation
+  }
 }
 
 struct ProductizationAlternativeComparisonSummary: Codable, Equatable, Sendable {

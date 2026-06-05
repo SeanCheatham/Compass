@@ -75,6 +75,7 @@ struct ProductizationEvidenceStoreTests {
 
     let index = ProductizationEvidenceIndex.build(records: [record])
     let summary = try #require(index.summaries.first)
+    let outcome = try #require(index.aggregate.decisionIntentOutcomes.first)
     let markdown = ProductizationEvidenceMarkdownExporter.markdown(record: record)
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
@@ -85,12 +86,16 @@ struct ProductizationEvidenceStoreTests {
     try #require(record.decisionIntentEvaluation?.outcome == .supportsTarget)
     try #require(summary.decisionIntent?.targetDecision == .promote)
     try #require(summary.decisionIntentEvaluation?.outcome == .supportsTarget)
+    try #require(outcome.targetDecision == .promote)
+    try #require(outcome.outcome == .supportsTarget)
+    try #require(outcome.runIDs == ["intent-run"])
     try #require(markdown.contains("target_decision promote"))
     try #require(markdown.contains("supports_target"))
     try #require(markdown.contains("alternative advantage"))
     try #require(digest.contains("intent-run"))
     try #require(digest.contains("target_decision promote"))
     try #require(digest.contains("intent_outcome supports_target"))
+    try #require(digest.contains("Targeted PMF proof outcomes"))
     try #require(digest.contains("intent_focus alternative advantage"))
   }
 

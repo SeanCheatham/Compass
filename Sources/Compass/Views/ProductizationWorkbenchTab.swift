@@ -1079,6 +1079,13 @@ struct ProductizationWorkbenchTab: View {
             value: "\(rationale.rationale) (\(rationale.count)x)"
           )
         }
+        if let outcome = evidenceIndex.aggregate.decisionIntentOutcomes.first {
+          WorkbenchFact(
+            label: "Targeted proof",
+            value:
+              "\(outcome.targetDecision.rawValue) \(outcome.outcome.rawValue) (\(outcome.count)x)"
+          )
+        }
         if let missing = evidenceIndex.aggregate.missingCapabilityFrequency.first {
           WorkbenchFact(
             label: "Missing capability", value: "\(missing.capabilityID) (\(missing.count)x)")

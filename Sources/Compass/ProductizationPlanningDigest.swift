@@ -654,6 +654,20 @@ enum ProductizationPlanningDigestFormatter {
       lines.append("AI-user rationale signals: \(signals).")
     }
 
+    if !currentAggregate.decisionIntentOutcomes.isEmpty {
+      let outcomes = currentAggregate.decisionIntentOutcomes.prefix(4)
+        .map { outcome in
+          let runs =
+            outcome.runIDs.isEmpty
+            ? ""
+            : "; runs \(outcome.runIDs.prefix(3).joined(separator: ", "))"
+          return
+            "\(outcome.targetDecision.rawValue) \(outcome.outcome.rawValue) (\(outcome.count)x\(runs))"
+        }
+        .joined(separator: "; ")
+      lines.append("Targeted PMF proof outcomes: \(outcomes).")
+    }
+
     let currentReadiness = config.experiments
       .compactMap { index.currentPMFReadiness(for: $0) }
       .sorted { lhs, rhs in
