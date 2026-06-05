@@ -1322,6 +1322,58 @@ struct ProductizationLoopTests {
     try #require(digest.contains("target_name Budget owner"))
     try #require(digest.contains("required_mode persona_model"))
     try #require(digest.contains("proof debt 6 -> 6 (0)"))
+
+    config = config.recordingFactoryCycleAudit(
+      ProductFactoryCycleAudit(
+        id: "factory-cycle-stalled-target",
+        startedAt: 120,
+        endedAt: 130,
+        executedStepIDs: [step.id],
+        experimentIDs: [experiment.id],
+        messages: ["AI-user target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+        maxSteps: 3,
+        evidenceRunStepCount: 1,
+        evidenceRunIDs: ["buyer-ai-user-stalled"],
+        completedEvidenceRunCount: 1,
+        failedEvidenceRunCount: 0,
+        skippedScenarioCount: 0,
+        startingProofDebtCount: 6,
+        endingProofDebtCount: 6,
+        startingProofDebtSummary:
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 AI-user persona(s), 0 AI-user current-alternative proof(s)",
+        endingProofDebtSummary:
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 AI-user persona(s), 0 AI-user current-alternative proof(s)",
+        proofTargetSummaries: [proofTarget.auditSummary],
+        stopReason: .noExecutableStep,
+        stopDetail: "Stopped because no executable product-factory step remains.",
+        userMessage: "Factory cycle ran 1 step(s). Proof debt held steady (6 -> 6)."
+      )
+    )
+
+    let stalledTargetAudit = try #require(
+      ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
+        for: action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
+    let blockedStep = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(stalledTargetAudit.id == "factory-cycle-stalled-target")
+    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: true
+    ) == nil)
+    try #require(!blockedStep.canExecute)
+    try #require(blockedStep.targetScenarioID == targetScenarioID)
+    try #require(blockedStep.blockedReason?.contains("already attempted this proof target") == true)
+    try #require(blockedStep.blockedReason?.contains("change the scenario") == true)
   }
 
   @Test func productFactoryAutopilotFallsBackWhenStalledProofDebtHasNoAIUserTarget() throws {

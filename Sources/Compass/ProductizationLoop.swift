@@ -1177,10 +1177,86 @@ enum ProductFactoryCycleLearningAdvisor {
       }
   }
 
+  static func stalledProofTargetAudit(
+    for action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryCycleAudit? {
+    guard isTargetedProofAction(action) else { return nil }
+    let stepID = ProductFactoryCycleFailureAdvisor.stepID(for: action)
+    let currentTarget = ProductFactoryProofTargetAdvisor.target(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    return config.factoryCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(5)
+      .first { audit in
+        guard audit.stopReason != .executionFailed,
+          audit.experimentIDs.contains(experiment.id),
+          audit.evidenceRunStepCount > 0,
+          audit.completedEvidenceRunCount > 0,
+          (audit.endingProofDebtCount ?? 0) > 0,
+          audit.proofDebtDelta.map({ $0 >= 0 }) == true,
+          matchesExecutedStepID(stepID, audit: audit),
+          !audit.proofTargetSummaries.isEmpty,
+          matchesCurrentProofTarget(
+            audit: audit,
+            action: action,
+            target: currentTarget
+          ),
+          !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
+        else { return false }
+        return true
+      }
+  }
+
   private static func isBroadCohortAction(_ action: ProductMarketFitNextAction) -> Bool {
     (action.kind == .runCohort || action.kind == .rerunCohort)
       && action.targetScenarioID == nil
       && action.cohortID != nil
+  }
+
+  private static func isTargetedProofAction(_ action: ProductMarketFitNextAction) -> Bool {
+    (action.kind == .runCohort || action.kind == .rerunCohort)
+      && action.targetScenarioID != nil
+      && action.requiredSimulationMode == .personaModel
+  }
+
+  private static func matchesExecutedStepID(
+    _ stepID: String,
+    audit: ProductFactoryCycleAudit
+  ) -> Bool {
+    audit.executedStepIDs.contains { executedStepID in
+      executedStepID == stepID
+        || stepID.hasPrefix(executedStepID)
+        || executedStepID.hasPrefix(stepID)
+    }
+  }
+
+  private static func matchesCurrentProofTarget(
+    audit: ProductFactoryCycleAudit,
+    action: ProductMarketFitNextAction,
+    target: ProductFactoryProofTarget?
+  ) -> Bool {
+    audit.proofTargetSummaries.contains { summary in
+      if let target {
+        let scenarioMatches = action.targetScenarioID.map { summary.contains($0) } ?? true
+        let personaMatches =
+          action.targetPersonaName.map {
+            summary.localizedCaseInsensitiveContains($0)
+          } ?? true
+        return summary.localizedCaseInsensitiveContains(target.label)
+          && scenarioMatches
+          && personaMatches
+      }
+      return action.targetScenarioID.map { summary.contains($0) } ?? false
+    }
   }
 
   private static func broadCohortStepIDs(for action: ProductMarketFitNextAction) -> Set<String> {
@@ -1235,8 +1311,14 @@ enum ProductFactoryAutopilotPlanner {
         ),
         isPersonaModelAvailable: isPersonaModelAvailable
       )
-      return applyingRecentCycleFailureBlock(
+      let failureGuarded = applyingRecentCycleFailureBlock(
         to: step,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      return applyingRecentCycleLearningBlock(
+        to: failureGuarded,
         experiment: experiment,
         config: config,
         evidenceIndex: evidenceIndex
@@ -1314,6 +1396,27 @@ enum ProductFactoryAutopilotPlanner {
     blocked.canExecute = false
     blocked.blockedReason =
       "Recent factory cycle \(audit.id) failed while running this step; repair the generated app contract, runner, scenario, or cohort before retrying. \(audit.stopDetail)"
+    return blocked
+  }
+
+  private static func applyingRecentCycleLearningBlock(
+    to step: ProductFactoryAutopilotStep,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryAutopilotStep {
+    guard step.canExecute,
+      let audit = ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
+        for: step.action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    else { return step }
+    var blocked = step
+    blocked.canExecute = false
+    blocked.blockedReason =
+      "Recent factory cycle \(audit.id) already attempted this proof target without reducing proof debt; inspect the run evidence, change the scenario or current-alternative proof, or choose a different AI-user target before retrying."
     return blocked
   }
 }

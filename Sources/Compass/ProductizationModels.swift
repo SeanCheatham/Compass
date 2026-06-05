@@ -992,7 +992,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     self.id = ProductizationModelText.identifier(id, fallback: "factory-cycle-audit")
     self.startedAt = startedAt
     self.endedAt = max(startedAt, endedAt)
-    self.executedStepIDs = ProductizationModelText.cleanedList(executedStepIDs, limit: 160)
+    self.executedStepIDs = ProductizationModelText.cleanedList(executedStepIDs, limit: 260)
     self.experimentIDs =
       ProductizationModelText.cleanedList(experimentIDs, limit: 120)
       .map { ProductizationModelText.identifier($0, fallback: "experiment") }
