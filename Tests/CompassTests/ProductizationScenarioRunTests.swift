@@ -94,10 +94,21 @@ struct ProductizationScenarioRunTests {
     try #require(request.commitSha == head)
     try #require(request.maxTurns == scenario.maxTurns)
     try #require(request.appCommandTimeout == scenario.appCommandTimeoutSeconds)
+    try #require(request.mode == .modelFree)
     try #require(input.scenario.task.contains(scenario.task))
     try #require(input.scenario.task.contains(scenario.successSignal))
     try #require(input.experiment.successSignal == scenario.successSignal)
     try #require(input.alternatives.map(\.id) == [scenario.alternativeID])
+
+    let personaRequest = try await ProductizationScenarioCoordinator.request(
+      experimentID: config.experiments[0].id,
+      scenarioID: scenario.id,
+      in: config,
+      projectTitle: "Scenario Helper",
+      generatedAppWorkingDirectory: root,
+      mode: .personaModel
+    )
+    try #require(personaRequest.mode == .personaModel)
   }
 
   @Test func modelFreeRunWritesEvidenceAndRefreshableIndex() async throws {
@@ -134,6 +145,50 @@ struct ProductizationScenarioRunTests {
     try #require(index.summaries.map(\.runID) == [outcome.record.id])
     try #require(index.aggregate.pmfReadinessByExperiment.first?.averageScore == 4)
     try #require(saved.experiments[0].evidenceSummary.contains("completed the scenario"))
+  }
+
+  @Test func personaModelRunWritesEvidenceTranscriptAndMode() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let head = try await setupScenarioRepo(at: root)
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    let config = try makeScenarioRunConfig(commitSha: head)
+    try workspace.writeProductizationConfig(config)
+    let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
+    let selector = ScriptedScenarioPersonaSelector(actionIDs: [
+      "inspect_pain",
+      "compare_current_alternative",
+      "reduce_switching_objection",
+      "start_solution_workflow",
+      "provide_requested_input",
+    ])
+
+    let outcome = try await ProductizationScenarioCoordinator.runPersonaModel(
+      experimentID: config.experiments[0].id,
+      scenarioID: config.scenarios[0].id,
+      in: workspace,
+      projectTitle: "Scenario Helper",
+      appRunner: appRunner,
+      personaSelector: selector,
+      now: Date(timeIntervalSince1970: 160)
+    )
+    let stored = try workspace.readProductizationEvidenceRecord(id: outcome.record.id)
+    let transcriptPath = try #require(stored.transcriptArtifactPath)
+    let transcript = try String(
+      contentsOf: workspace.compassURL.appending(path: transcriptPath),
+      encoding: .utf8
+    )
+
+    try #require(outcome.result.status == .completed)
+    try #require(outcome.result.mode == .personaModel)
+    try #require(outcome.userMessage.contains("AI-user"))
+    try #require(stored.mode == .personaModel)
+    try #require(stored.promptVersions == ["test.persona_action"])
+    try #require(stored.verdict == .promising)
+    try #require(transcript.contains(#""phase":"choose""#))
+    try #require(transcript.contains(#""chosenActionID":"inspect_pain""#))
+    try #require(workspace.readProductizationEvidenceIndex().summaries.first?.mode == .personaModel)
   }
 
   @Test func modelFreeRunRecordsContractMissingAsUserVisibleFailureEvidence() async throws {
@@ -257,6 +312,36 @@ private final class MockScenarioExperienceAppRunner: ProductizationExperienceApp
   ) async throws -> ProcessResult {
     inputs.append(input)
     return try await handler(input, workingDirectory, launchPlan, timeout)
+  }
+}
+
+private final class ScriptedScenarioPersonaSelector: ProductizationPersonaActionSelecting {
+  private var actionIDs: [String]
+
+  init(actionIDs: [String]) {
+    self.actionIDs = actionIDs
+  }
+
+  func chooseAction(
+    context: ProductizationPersonaActionContext
+  ) async throws -> ProductizationPersonaActionChoice {
+    ProductizationPersonaActionChoice(
+      promptVersionID: "test.persona_action",
+      action: ProductizationExperienceAction(id: actionIDs.removeFirst()),
+      rationale: "Scripted target user action.",
+      rawResponse: #"{"actionID":"scripted"}"#
+    )
+  }
+
+  func repairAction(
+    context: ProductizationPersonaActionRepairContext
+  ) async throws -> ProductizationPersonaActionChoice {
+    ProductizationPersonaActionChoice(
+      promptVersionID: "test.persona_repair",
+      action: ProductizationExperienceAction(id: context.allowedActionIDs[0]),
+      rationale: "Scripted repair action.",
+      rawResponse: #"{"actionID":"repair"}"#
+    )
   }
 }
 

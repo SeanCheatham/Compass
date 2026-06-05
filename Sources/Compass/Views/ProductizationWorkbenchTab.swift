@@ -425,6 +425,22 @@ struct ProductizationWorkbenchTab: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(isRunningScenario || !scenarioCanRun)
+
+            Button {
+              Task { await runScenarioPersonaModel() }
+            } label: {
+              Label(
+                isRunningScenario ? "Running" : "Run AI User",
+                systemImage: "brain.head.profile"
+              )
+            }
+            .buttonStyle(.bordered)
+            .disabled(isRunningScenario || !personaScenarioCanRun)
+            .help(
+              FoundationModelsAvailability.isAvailable
+                ? "Run with an AI simulated user"
+                : ProductizationPersonaActionModelError.unavailable.localizedDescription
+            )
           }
         }
       }
@@ -456,6 +472,10 @@ struct ProductizationWorkbenchTab: View {
       && contractAvailable == true
       && !(scenarioTargetCommit.isEmpty && selectedExperiment?.currentSha == nil
         && selectedExperiment?.baseSha == nil)
+  }
+
+  private var personaScenarioCanRun: Bool {
+    scenarioCanRun && FoundationModelsAvailability.isAvailable
   }
 
   private var aggregateEvidence: some View {
@@ -851,6 +871,14 @@ struct ProductizationWorkbenchTab: View {
   }
 
   private func runScenarioModelFree() async {
+    await runScenario(mode: .modelFree)
+  }
+
+  private func runScenarioPersonaModel() async {
+    await runScenario(mode: .personaModel)
+  }
+
+  private func runScenario(mode: ProductizationSimulationMode) async {
     guard let experiment = selectedExperiment,
       let selectedScenarioID
     else { return }
@@ -859,10 +887,20 @@ struct ProductizationWorkbenchTab: View {
     }
     isRunningScenario = true
     defer { isRunningScenario = false }
-    if let outcome = await project.runProductizationScenarioModelFree(
-      experimentID: experiment.id,
-      scenarioID: selectedScenarioID
-    ) {
+    let outcome: ProductizationScenarioRunOutcome?
+    switch mode {
+    case .modelFree:
+      outcome = await project.runProductizationScenarioModelFree(
+        experimentID: experiment.id,
+        scenarioID: selectedScenarioID
+      )
+    case .personaModel:
+      outcome = await project.runProductizationScenarioPersonaModel(
+        experimentID: experiment.id,
+        scenarioID: selectedScenarioID
+      )
+    }
+    if let outcome {
       scenarioRunMessage = "\(outcome.userMessage) Run \(outcome.record.id)."
       selectedRunID = outcome.record.id
       loadSelectedRecord()
