@@ -26,6 +26,7 @@ struct ProductizationWorkbenchTab: View {
   @State private var scenarioEnabled = true
   @State private var isSavingScenario = false
   @State private var isRunningScenario = false
+  @State private var isRunningFactoryStep = false
   @State private var scenarioRunMessage: String?
   @State private var contractAvailable: Bool?
 
@@ -107,6 +108,17 @@ struct ProductizationWorkbenchTab: View {
       config: config,
       evidenceIndex: evidenceIndex
     )
+  }
+
+  private var factoryAutopilotStep: ProductFactoryAutopilotStep? {
+    ProductFactoryAutopilotPlanner.nextStep(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
+  private var factoryAutopilotCanRun: Bool {
+    factoryAutopilotStep?.canExecute == true && !isRunningFactoryStep && !isRunningScenario
   }
 
   var body: some View {
@@ -366,6 +378,7 @@ struct ProductizationWorkbenchTab: View {
   private var evidenceAndDecisionPane: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
+        factoryAutopilot
         aggregateEvidence
         selectedExperimentActions
         scenarioAuthoring
@@ -374,6 +387,36 @@ struct ProductizationWorkbenchTab: View {
         decisionTimeline
       }
       .padding(.trailing, 8)
+    }
+  }
+
+  private var factoryAutopilot: some View {
+    WorkbenchSection("Factory Autopilot", systemImage: "sparkles") {
+      VStack(alignment: .leading, spacing: 8) {
+        if let step = factoryAutopilotStep {
+          WorkbenchFact(label: "Experiment", value: step.experimentTitle)
+          WorkbenchFact(
+            label: "Step",
+            value: "\(step.title), \(step.action.kind.rawValue)"
+          )
+          Text(step.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Button {
+            Task { await runFactoryAutopilotStep() }
+          } label: {
+            Label(
+              isRunningFactoryStep ? "Running Factory Step" : "Run Factory Step",
+              systemImage: "play.fill"
+            )
+          }
+          .buttonStyle(.borderedProminent)
+          .disabled(!factoryAutopilotCanRun)
+        } else {
+          WorkbenchEmptyLine("No product-factory action queued.")
+        }
+      }
     }
   }
 
@@ -1054,6 +1097,41 @@ struct ProductizationWorkbenchTab: View {
       cohortID: cohortID,
       saveDraftFirst: false
     )
+  }
+
+  private func runFactoryAutopilotStep() async {
+    guard let step = factoryAutopilotStep, step.canExecute else { return }
+    selectedExperimentID = step.experimentID
+    isRunningFactoryStep = true
+    defer { isRunningFactoryStep = false }
+    switch step.kind {
+    case .applyDecision:
+      let decisionCount = project.productizationConfig.decisions.count
+      await project.applyProductMarketFitDecisionRecommendation(experimentID: step.experimentID)
+      if project.productizationConfig.decisions.count > decisionCount {
+        scenarioRunMessage = "Factory applied PMF advice for \(step.experimentTitle)."
+      } else {
+        scenarioRunMessage = project.errorMessage
+      }
+    case .runCohort:
+      guard let cohortID = step.cohortID else { return }
+      let outcome = await project.runProductizationScenarioCohortModelFree(
+        experimentID: step.experimentID,
+        cohortID: cohortID
+      )
+      if let outcome {
+        scenarioRunMessage = outcome.userMessage
+        if let latestRecordID = outcome.latestRecordID {
+          selectedRunID = latestRecordID
+          loadSelectedRecord()
+        }
+      } else {
+        scenarioRunMessage = project.errorMessage
+      }
+    case .blocked:
+      scenarioRunMessage = step.blockedReason
+    }
+    await loadContractStatus()
   }
 
   private func runScenario(mode: ProductizationSimulationMode) async {

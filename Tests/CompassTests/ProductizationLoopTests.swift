@@ -270,6 +270,53 @@ struct ProductizationLoopTests {
     try #require(secondSignal.pmfLabel == "No current PMF evidence")
   }
 
+  @Test func productFactoryAutopilotChoosesExecutablePMFDecision() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let index = makePMFPromotionEvidenceIndex(config: config)
+
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(step.canExecute)
+    try #require(step.kind == .applyDecision)
+    try #require(step.action.kind == .applyDecision)
+    try #require(step.experimentID == config.experiments[0].id)
+    try #require(step.detail.contains(config.experiments[0].title))
+  }
+
+  @Test func productFactoryAutopilotRunsRunnableCohortWhenEvidenceIsMissing() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+
+    try #require(step.canExecute)
+    try #require(step.kind == .runCohort)
+    try #require(step.action.kind == .runCohort)
+    try #require(step.cohortID == config.scenarioCohorts[0].id)
+    try #require(step.cohortReadiness?.canRun == true)
+  }
+
   @Test func pmfDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",

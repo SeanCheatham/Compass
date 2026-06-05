@@ -403,6 +403,128 @@ enum ProductFactoryExperimentRanker {
   }
 }
 
+enum ProductFactoryAutopilotStepKind: String, Equatable, Sendable {
+  case applyDecision = "apply_decision"
+  case runCohort = "run_cohort"
+  case blocked = "blocked"
+}
+
+struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
+  var id: String { "\(experimentID):\(action.kind.rawValue):\(cohortID ?? "none")" }
+
+  var experimentID: String
+  var experimentTitle: String
+  var kind: ProductFactoryAutopilotStepKind
+  var action: ProductMarketFitNextAction
+  var cohortReadiness: ProductMarketFitCohortRunReadiness?
+  var canExecute: Bool
+  var blockedReason: String?
+
+  var cohortID: String? { action.cohortID }
+
+  var title: String {
+    switch kind {
+    case .applyDecision:
+      return "Apply PMF decision"
+    case .runCohort:
+      return action.kind == .rerunCohort ? "Rerun evidence cohort" : "Run evidence cohort"
+    case .blocked:
+      return action.title
+    }
+  }
+
+  var detail: String {
+    if let blockedReason {
+      return "\(experimentTitle): \(blockedReason)"
+    }
+    if let cohortReadiness {
+      return
+        "\(experimentTitle): \(action.title) with \(cohortReadiness.enabledScenarioCount) enabled scenario(s)."
+    }
+    return "\(experimentTitle): \(action.detail)"
+  }
+
+  init(
+    experiment: ProductExperiment,
+    action: ProductMarketFitNextAction,
+    cohortReadiness: ProductMarketFitCohortRunReadiness?
+  ) {
+    self.experimentID = experiment.id
+    self.experimentTitle = experiment.title
+    self.action = action
+    self.cohortReadiness = cohortReadiness
+    switch action.kind {
+    case .applyDecision:
+      self.kind = .applyDecision
+      self.canExecute = true
+      self.blockedReason = nil
+    case .runCohort, .rerunCohort:
+      self.kind = .runCohort
+      self.canExecute = cohortReadiness?.canRun == true
+      self.blockedReason =
+        cohortReadiness?.blockedReason
+        ?? (cohortReadiness == nil ? "Suggested cohort is missing." : nil)
+    case .repairFailures:
+      self.kind = .blocked
+      self.canExecute = false
+      self.blockedReason = "Repair failed evidence runs before autopilot can continue."
+    case .refineBet:
+      self.kind = .blocked
+      self.canExecute = false
+      self.blockedReason = "Refine the product bet before autopilot can run more evidence."
+    case .reviewDecision:
+      self.kind = .blocked
+      self.canExecute = false
+      self.blockedReason = "Review the decision path before autopilot changes state."
+    }
+  }
+}
+
+enum ProductFactoryAutopilotPlanner {
+  static func steps(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [ProductFactoryAutopilotStep] {
+    ProductFactoryExperimentRanker.rankedExperiments(
+      config: config,
+      evidenceIndex: evidenceIndex
+    ).compactMap { experiment in
+      guard
+        let action = ProductMarketFitNextActionAdvisor.nextAction(
+          for: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
+      else { return nil }
+      return ProductFactoryAutopilotStep(
+        experiment: experiment,
+        action: action,
+        cohortReadiness: ProductMarketFitNextActionAdvisor.cohortRunReadiness(
+          for: action,
+          experiment: experiment,
+          config: config
+        )
+      )
+    }
+  }
+
+  static func nextExecutableStep(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryAutopilotStep? {
+    steps(config: config, evidenceIndex: evidenceIndex)
+      .first { $0.canExecute }
+  }
+
+  static func nextStep(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryAutopilotStep? {
+    nextExecutableStep(config: config, evidenceIndex: evidenceIndex)
+      ?? steps(config: config, evidenceIndex: evidenceIndex).first
+  }
+}
+
 enum ProductMarketFitDecisionAdvisorError: LocalizedError, Equatable {
   case noProposal(String)
 
