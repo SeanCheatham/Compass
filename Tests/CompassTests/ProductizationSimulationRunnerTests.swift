@@ -132,6 +132,54 @@ struct ProductizationSimulationRunnerTests {
     try #require(result.status == .completed)
     try #require(result.experienceTraceHash != nil)
   }
+
+  @Test func foundationModelsPersonaSelectorParsesFencedJSONAliasesAndParams() throws {
+    let choice = try ProductizationFoundationModelsPersonaSelector.parseChoice(
+      """
+      ```json
+      {"action_id":"inspect_pain","reason":"The user needs to see if this matches the pain.","params":{"depth":"quick"}}
+      ```
+      """,
+      promptVersionID: "test.persona"
+    )
+
+    try #require(choice.promptVersionID == "test.persona")
+    try #require(choice.action.id == "inspect_pain")
+    try #require(choice.rationale.contains("matches the pain"))
+    try #require(choice.action.params == .object(["depth": .string("quick")]))
+  }
+
+  @Test func foundationModelsPersonaSelectorBuildsChoiceAndRepairPrompts() async throws {
+    let stream = PersonaTextStream(
+      responses: [
+        #"{"actionID":"inspect_pain","rationale":"First verify the pain is real."}"#,
+        #"{"actionID":"compare_current_alternative","rationale":"Now compare against the spreadsheet."}"#,
+      ]
+    )
+    let selector = ProductizationFoundationModelsPersonaSelector(
+      streamText: { prompt in await stream.stream(prompt) }
+    )
+    let context = makePersonaActionContext()
+
+    let choice = try await selector.chooseAction(context: context)
+    try #require(choice.action.id == "inspect_pain")
+    try #require(choice.promptVersionID == "productization.persona_action.foundation_models.v1")
+    try #require(stream.prompts[0].contains("skeptical target user"))
+    try #require(stream.prompts[0].contains("Allowed actions"))
+    try #require(stream.prompts[0].contains("Weekly reporting takes too long."))
+
+    let repair = try await selector.repairAction(
+      context: ProductizationPersonaActionRepairContext(
+        actionContext: context,
+        invalidChoice: ProductizationPersonaActionChoice(
+          action: ProductizationExperienceAction(id: "invent_new_button")
+        ),
+        allowedActionIDs: context.allowedActions.map(\.id)
+      )
+    )
+    try #require(repair.action.id == "compare_current_alternative")
+    try #require(stream.prompts[1].contains("previous action `invent_new_button` was invalid"))
+  }
 }
 
 private final class MockProductizationExperienceAppRunner: ProductizationExperienceAppRunning {
@@ -165,6 +213,20 @@ private final class MockProductizationExperienceAppRunner: ProductizationExperie
   ) async throws -> ProcessResult {
     inputs.append(input)
     return try await handler(input, inputs.count)
+  }
+}
+
+private final class PersonaTextStream: @unchecked Sendable {
+  var prompts: [String] = []
+  private var responses: [String]
+
+  init(responses: [String]) {
+    self.responses = responses
+  }
+
+  func stream(_ prompt: String) async -> String? {
+    prompts.append(prompt)
+    return responses.isEmpty ? nil : responses.removeFirst()
   }
 }
 
@@ -231,6 +293,29 @@ private func makeProductizationRequest(
     mode: mode,
     maxTurns: maxTurns,
     appCommandTimeout: appCommandTimeout
+  )
+}
+
+private func makePersonaActionContext() -> ProductizationPersonaActionContext {
+  let request = makeProductizationRequest(mode: .personaModel)
+  let trace = defaultProductizationTrace(for: request.experienceInput(actions: []))
+  return ProductizationPersonaActionContext(
+    request: ProductizationSimulationRequestContext(
+      projectTitle: request.projectTitle,
+      pain: request.pain,
+      segment: request.segment,
+      currentWorkflow: request.currentWorkflow,
+      alternatives: request.alternatives,
+      solution: request.solution,
+      experiment: request.experiment,
+      scenarioID: request.scenarioID,
+      commitSha: request.commitSha,
+      settings: request.settings
+    ),
+    turnIndex: 0,
+    trace: trace,
+    allowedActions: trace.allowedNextActions,
+    actionPrefix: []
   )
 }
 

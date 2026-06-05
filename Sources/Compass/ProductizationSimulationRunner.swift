@@ -121,11 +121,10 @@ struct ProductizationSimulationRequest {
           currentWorkflow.steps.joined(separator: " -> "),
           currentWorkflow.estimatedCost,
         ].filter { !$0.isEmpty }.joined(separator: ". "),
-        frictionPoints: (
-          currentWorkflow.failureModes + currentWorkflow.handoffs + currentWorkflow.workarounds
-        ).isEmpty ? currentWorkflow.steps : (
-          currentWorkflow.failureModes + currentWorkflow.handoffs + currentWorkflow.workarounds
-        )
+        frictionPoints: (currentWorkflow.failureModes + currentWorkflow.handoffs
+          + currentWorkflow.workarounds).isEmpty
+          ? currentWorkflow.steps
+          : (currentWorkflow.failureModes + currentWorkflow.handoffs + currentWorkflow.workarounds)
       ),
       alternatives: alternatives.map {
         ProductizationExperienceAlternative(
@@ -259,6 +258,244 @@ protocol ProductizationPersonaActionSelecting {
   ) async throws -> ProductizationPersonaActionChoice
 }
 
+enum ProductizationPersonaActionModelError: LocalizedError, Equatable {
+  case unavailable
+  case emptyResponse
+  case invalidJSON(String)
+  case missingActionID
+
+  var errorDescription: String? {
+    switch self {
+    case .unavailable:
+      return "Foundation Models is unavailable for persona action selection."
+    case .emptyResponse:
+      return "Persona action model returned an empty response."
+    case .invalidJSON(let response):
+      return
+        "Persona action model did not return a JSON object: \(StringUtils.boundedText(response, limit: 500))"
+    case .missingActionID:
+      return "Persona action model response did not include an actionID."
+    }
+  }
+}
+
+struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActionSelecting {
+  var streamText: @Sendable (_ prompt: String) async -> String?
+
+  private static let defaultStreamText: @Sendable (_ prompt: String) async -> String? = { prompt in
+    guard FoundationModelsAvailability.isAvailable else { return nil }
+    if #available(macOS 26.0, *) {
+      return await FoundationModelsAvailability._streamText(prompt: prompt)
+    }
+    return nil
+  }
+
+  init(
+    streamText: @escaping @Sendable (_ prompt: String) async -> String? = Self.defaultStreamText
+  ) {
+    self.streamText = streamText
+  }
+
+  func chooseAction(
+    context: ProductizationPersonaActionContext
+  ) async throws -> ProductizationPersonaActionChoice {
+    try await selectAction(
+      prompt: Self.choicePrompt(context: context),
+      promptVersionID: "productization.persona_action.foundation_models.v1"
+    )
+  }
+
+  func repairAction(
+    context: ProductizationPersonaActionRepairContext
+  ) async throws -> ProductizationPersonaActionChoice {
+    try await selectAction(
+      prompt: Self.repairPrompt(context: context),
+      promptVersionID: "productization.persona_action_repair.foundation_models.v1"
+    )
+  }
+
+  private func selectAction(
+    prompt: String,
+    promptVersionID: String
+  ) async throws -> ProductizationPersonaActionChoice {
+    guard let response = await streamText(prompt) else {
+      throw ProductizationPersonaActionModelError.emptyResponse
+    }
+    return try Self.parseChoice(
+      response,
+      promptVersionID: promptVersionID
+    )
+  }
+
+  static func parseChoice(
+    _ response: String,
+    promptVersionID: String = "productization.persona_action.foundation_models.v1"
+  ) throws -> ProductizationPersonaActionChoice {
+    guard let json = firstJSONObject(in: response) else {
+      throw ProductizationPersonaActionModelError.invalidJSON(response)
+    }
+    guard let data = json.data(using: .utf8) else {
+      throw ProductizationPersonaActionModelError.invalidJSON(response)
+    }
+    let decoded: PersonaActionModelResponse
+    do {
+      decoded = try JSONDecoder().decode(PersonaActionModelResponse.self, from: data)
+    } catch {
+      throw ProductizationPersonaActionModelError.invalidJSON(response)
+    }
+    guard !decoded.actionID.isEmpty else {
+      throw ProductizationPersonaActionModelError.missingActionID
+    }
+    return ProductizationPersonaActionChoice(
+      promptVersionID: promptVersionID,
+      action: ProductizationExperienceAction(id: decoded.actionID, params: decoded.params),
+      rationale: decoded.rationale,
+      rawResponse: response
+    )
+  }
+
+  private static func choicePrompt(context: ProductizationPersonaActionContext) -> String {
+    prompt(
+      title: "Choose the next simulated-user action.",
+      request: context.request,
+      turnIndex: context.turnIndex,
+      trace: context.trace,
+      allowedActions: context.allowedActions,
+      actionPrefix: context.actionPrefix,
+      repairNote: nil
+    )
+  }
+
+  private static func repairPrompt(context: ProductizationPersonaActionRepairContext) -> String {
+    let invalid = context.invalidChoice.action.id
+    let allowed = context.allowedActionIDs.joined(separator: ", ")
+    return prompt(
+      title: "Repair the simulated-user action.",
+      request: context.actionContext.request,
+      turnIndex: context.actionContext.turnIndex,
+      trace: context.actionContext.trace,
+      allowedActions: context.actionContext.allowedActions,
+      actionPrefix: context.actionContext.actionPrefix,
+      repairNote:
+        "The previous action `\(invalid)` was invalid. Choose exactly one allowed action ID from: \(allowed)."
+    )
+  }
+
+  private static func prompt(
+    title: String,
+    request: ProductizationSimulationRequestContext,
+    turnIndex: Int,
+    trace: ProductizationExperienceTrace,
+    allowedActions: [ProductizationExperienceAllowedAction],
+    actionPrefix: [ProductizationExperienceAction],
+    repairNote: String?
+  ) -> String {
+    let allowed = allowedActions.map {
+      "- \($0.id): \(bounded($0.label, 80)) — \(bounded($0.description, 180))"
+    }.joined(separator: "\n")
+    let priorActions =
+      actionPrefix.isEmpty
+      ? "none"
+      : actionPrefix.map(\.id).joined(separator: " -> ")
+    let observations = trace.initialState.observations.prefix(4).joined(separator: "; ")
+    let alternatives = request.alternatives.prefix(4)
+      .map { "\($0.title): \($0.switchingCost)" }
+      .joined(separator: "; ")
+    return """
+      \(title)
+
+      You are simulating a skeptical target user, not helping the product team.
+      Pick the next action the persona would actually take while evaluating
+      whether this prototype beats the current workflow.
+
+      Persona: \(bounded(request.segment.name, 120)) - \(bounded(request.segment.role, 180)).
+      Skepticism: \(bounded(request.segment.skepticism, 320)).
+      Pain: \(bounded(request.pain.rawPain, 500)).
+      Current workflow: \(bounded(request.currentWorkflow.title, 160)); \(bounded(request.currentWorkflow.estimatedCost, 240)).
+      Alternatives: \(bounded(alternatives, 500)).
+      Solution promise: \(bounded(request.solution.promise, 500)).
+      Scenario: \(request.scenarioID), commit \(request.commitSha), turn \(turnIndex).
+      Prior actions: \(priorActions).
+      Current screen: \(bounded(trace.initialState.headline, 120)) - \(bounded(trace.initialState.body, 500)).
+      Observations: \(bounded(observations, 500)).
+      \(repairNote ?? "")
+
+      Allowed actions:
+      \(allowed)
+
+      Return exactly one JSON object and no prose:
+      {"actionID":"<one allowed action id>","rationale":"<short persona-grounded reason>"}
+      """
+  }
+
+  private static func firstJSONObject(in text: String) -> String? {
+    let characters = Array(text)
+    guard let start = characters.firstIndex(of: "{") else { return nil }
+    var depth = 0
+    var inString = false
+    var escaped = false
+    for index in start..<characters.count {
+      let character = characters[index]
+      if inString {
+        if escaped {
+          escaped = false
+        } else if character == "\\" {
+          escaped = true
+        } else if character == "\"" {
+          inString = false
+        }
+        continue
+      }
+      if character == "\"" {
+        inString = true
+      } else if character == "{" {
+        depth += 1
+      } else if character == "}" {
+        depth -= 1
+        if depth == 0 {
+          return String(characters[start...index])
+        }
+      }
+    }
+    return nil
+  }
+
+  private static func bounded(_ value: String, _ limit: Int) -> String {
+    StringUtils.boundedText(value, limit: limit)
+  }
+}
+
+private struct PersonaActionModelResponse: Decodable {
+  var actionID: String
+  var rationale: String
+  var params: ProductizationJSONValue
+
+  enum CodingKeys: String, CodingKey {
+    case actionID
+    case actionIDSnake = "action_id"
+    case id
+    case rationale
+    case reason
+    case params
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    actionID =
+      try container.decodeIfPresent(String.self, forKey: .actionID)
+      ?? container.decodeIfPresent(String.self, forKey: .actionIDSnake)
+      ?? container.decodeIfPresent(String.self, forKey: .id)
+      ?? ""
+    rationale =
+      try container.decodeIfPresent(String.self, forKey: .rationale)
+      ?? container.decodeIfPresent(String.self, forKey: .reason)
+      ?? ""
+    params =
+      try container.decodeIfPresent(ProductizationJSONValue.self, forKey: .params)
+      ?? .object([:])
+  }
+}
+
 protocol ProductizationExperienceAppRunning {
   func productizationExperienceContractAvailable(workingDirectory: URL) async -> Bool
 
@@ -335,9 +572,11 @@ struct ProductizationSimulationRunner {
   }
 
   func run(_ request: ProductizationSimulationRequest) async -> ProductizationRunResult {
-    guard await appRunner.productizationExperienceContractAvailable(
-      workingDirectory: request.generatedAppWorkingDirectory
-    ) else {
+    guard
+      await appRunner.productizationExperienceContractAvailable(
+        workingDirectory: request.generatedAppWorkingDirectory
+      )
+    else {
       return makeResult(
         request: request,
         status: .appContractMissing,
@@ -925,7 +1164,8 @@ struct ProductizationExperienceAction: Codable, Equatable, Sendable {
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     id = try container.decode(String.self, forKey: .id)
-    params = try container.decodeIfPresent(ProductizationJSONValue.self, forKey: .params) ?? .object([:])
+    params =
+      try container.decodeIfPresent(ProductizationJSONValue.self, forKey: .params) ?? .object([:])
   }
 }
 
