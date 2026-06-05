@@ -1369,6 +1369,7 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
   var targetScenarioID: String?
   var targetPersonaID: String?
   var targetPersonaName: String?
+  var targetDecision: ProductExperimentDecision?
   var requiredSimulationMode: ProductizationSimulationMode?
 
   var urgencyScore: Int {
@@ -1386,6 +1387,9 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
     } else if let requiredSimulationMode {
       parts.append("mode \(requiredSimulationMode.rawValue)")
     }
+    if let targetDecision {
+      parts.append("decision \(targetDecision.rawValue)")
+    }
     return parts.joined(separator: ", ")
   }
 
@@ -1393,6 +1397,9 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
     var parts = ["Debt: \(debtSummary)"]
     if let nextActionTitle {
       parts.append("Next: \(nextActionTitle)")
+    }
+    if let targetDecision {
+      parts.append("Decision: \(targetDecision.rawValue)")
     }
     if let targetScenarioID {
       parts.append("Scenario: \(targetScenarioID)")
@@ -1407,6 +1414,9 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
 
   var auditSummary: String {
     var parts = ["\(experimentID): \(label)"]
+    if let targetDecision {
+      parts.append("target_decision \(targetDecision.rawValue)")
+    }
     if let targetPersonaName {
       parts.append("target \(targetPersonaName)")
     }
@@ -1445,6 +1455,7 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
     self.targetScenarioID = nextAction?.targetScenarioID
     self.targetPersonaID = nextAction?.targetPersonaID
     self.targetPersonaName = nextAction?.targetPersonaName
+    self.targetDecision = nextAction?.targetDecision
     self.requiredSimulationMode = nextAction?.requiredSimulationMode
   }
 }

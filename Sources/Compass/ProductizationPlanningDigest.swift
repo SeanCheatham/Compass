@@ -391,6 +391,9 @@ enum ProductizationPlanningDigestFormatter {
       if let targetPersonaName = target.targetPersonaName {
         metadata.append("target_name \(bounded(targetPersonaName, 80))")
       }
+      if let targetDecision = target.targetDecision {
+        metadata.append("target_decision \(targetDecision.rawValue)")
+      }
       if let requiredMode = target.requiredSimulationMode {
         metadata.append("required_mode \(requiredMode.rawValue)")
       }
