@@ -718,6 +718,25 @@ struct ProductizationEvidenceScores: Codable, Equatable, Sendable {
   }
 }
 
+enum ProductizationDecisionIntentOutcome: String, Codable, CaseIterable, Equatable, Sendable {
+  case supportsTarget = "supports_target"
+  case contradictsTarget = "contradicts_target"
+  case inconclusive
+}
+
+struct ProductizationDecisionIntentEvaluation: Codable, Equatable, Sendable {
+  var outcome: ProductizationDecisionIntentOutcome
+  var rationale: String
+
+  init(
+    outcome: ProductizationDecisionIntentOutcome,
+    rationale: String
+  ) {
+    self.outcome = outcome
+    self.rationale = StringUtils.boundedText(rationale, limit: 500)
+  }
+}
+
 struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable {
   static let supportedSchemaVersion = 1
 
@@ -733,6 +752,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   var personaID: String
   var mode: ProductizationSimulationMode
   var decisionIntent: ProductizationSimulationDecisionIntent?
+  var decisionIntentEvaluation: ProductizationDecisionIntentEvaluation?
   var status: ProductizationRunStatus
   var startedAt: Double
   var endedAt: Double
@@ -765,6 +785,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     case personaID
     case mode
     case decisionIntent
+    case decisionIntentEvaluation
     case status
     case startedAt
     case endedAt
@@ -803,6 +824,10 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       decisionIntent: try container.decodeIfPresent(
         ProductizationSimulationDecisionIntent.self,
         forKey: .decisionIntent
+      ),
+      decisionIntentEvaluation: try container.decodeIfPresent(
+        ProductizationDecisionIntentEvaluation.self,
+        forKey: .decisionIntentEvaluation
       ),
       status: try container.decode(ProductizationRunStatus.self, forKey: .status),
       startedAt: try container.decode(Double.self, forKey: .startedAt),
@@ -859,6 +884,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     personaID: String,
     mode: ProductizationSimulationMode,
     decisionIntent: ProductizationSimulationDecisionIntent? = nil,
+    decisionIntentEvaluation: ProductizationDecisionIntentEvaluation? = nil,
     status: ProductizationRunStatus,
     startedAt: Double,
     endedAt: Double,
@@ -891,6 +917,16 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     self.personaID = Self.cleanedIdentifier(personaID, fallback: "persona")
     self.mode = mode
     self.decisionIntent = decisionIntent
+    self.decisionIntentEvaluation =
+      decisionIntentEvaluation
+      ?? Self.derivedDecisionIntentEvaluation(
+        intent: decisionIntent,
+        status: status,
+        verdict: verdict,
+        scores: scores,
+        missingCapabilities: missingCapabilities,
+        currentAlternativeComparison: currentAlternativeComparison
+      )
     self.status = status
     self.startedAt = startedAt
     self.endedAt = max(startedAt, endedAt)
@@ -983,6 +1019,154 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     return Array(cleanedList(lines, limit: 360).prefix(8))
   }
 
+  private static func derivedDecisionIntentEvaluation(
+    intent: ProductizationSimulationDecisionIntent?,
+    status: ProductizationRunStatus,
+    verdict: ProductizationEvidenceVerdict,
+    scores: ProductizationEvidenceScores,
+    missingCapabilities: [String],
+    currentAlternativeComparison: String
+  ) -> ProductizationDecisionIntentEvaluation? {
+    guard let intent else { return nil }
+    guard status == .completed else {
+      return ProductizationDecisionIntentEvaluation(
+        outcome: .inconclusive,
+        rationale: "Run ended with status \(status.rawValue), so it did not answer the targeted \(intent.targetDecision.rawValue) decision."
+      )
+    }
+
+    let missing = cleanedList(missingCapabilities, limit: 160)
+    let hasMissingCapabilities = !missing.isEmpty
+    let strongVerdict = verdict == .strongPull || verdict == .promising
+    let weakVerdict = verdict == .weak || verdict == .rejected
+    let productPullScores = [
+      scores.workflowImprovement,
+      scores.alternativeAdvantage,
+      scores.switchingReadiness,
+      scores.continuedUsePull,
+    ].compactMap { $0 }
+    let productPullCeiling = productPullScores.max() ?? 0
+    let productPullFloor = productPullScores.min() ?? 0
+    let painRecognition = scores.painRecognition ?? 0
+    let comparedAlternative = hasSubstantiveCurrentAlternativeComparison(
+      currentAlternativeComparison
+    )
+
+    switch intent.targetDecision {
+    case .promote, .promoted:
+      if strongVerdict && !hasMissingCapabilities
+        && (productPullFloor == 0 || productPullFloor >= 3)
+      {
+        return ProductizationDecisionIntentEvaluation(
+          outcome: .supportsTarget,
+          rationale:
+            "The run produced \(verdict.rawValue) evidence without missing capabilities, supporting the targeted promotion proof."
+        )
+      }
+      if weakVerdict || hasMissingCapabilities
+        || (productPullCeiling > 0 && productPullCeiling <= 2)
+      {
+        let blocker =
+          hasMissingCapabilities
+          ? "missing \(missing.prefix(3).joined(separator: ", "))"
+          : "weak pull"
+        return ProductizationDecisionIntentEvaluation(
+          outcome: .contradictsTarget,
+          rationale:
+            "The targeted promotion proof was contradicted by \(verdict.rawValue) evidence and \(blocker)."
+        )
+      }
+    case .kill, .archived:
+      if weakVerdict || (productPullCeiling > 0 && productPullCeiling <= 2) {
+        return ProductizationDecisionIntentEvaluation(
+          outcome: .supportsTarget,
+          rationale:
+            "The run produced \(verdict.rawValue) evidence with weak product pull, supporting the targeted stop decision."
+        )
+      }
+      if strongVerdict && !hasMissingCapabilities
+        && (productPullCeiling == 0 || productPullCeiling >= 3)
+      {
+        return ProductizationDecisionIntentEvaluation(
+          outcome: .contradictsTarget,
+          rationale:
+            "The targeted stop decision was contradicted by \(verdict.rawValue) evidence and no missing capabilities."
+        )
+      }
+    case .narrow:
+      if hasMissingCapabilities || (productPullFloor > 0 && productPullFloor <= 2) {
+        let pressure =
+          hasMissingCapabilities
+          ? "missing \(missing.prefix(3).joined(separator: ", "))"
+          : "low scorecard pull"
+        return ProductizationDecisionIntentEvaluation(
+          outcome: .supportsTarget,
+          rationale:
+            "The run exposed narrower scope pressure through \(pressure)."
+        )
+      }
+      if verdict == .strongPull && !hasMissingCapabilities
+        && (productPullFloor == 0 || productPullFloor >= 4)
+      {
+        return ProductizationDecisionIntentEvaluation(
+          outcome: .contradictsTarget,
+          rationale:
+            "The targeted narrow decision was contradicted by strong pull without missing capabilities."
+        )
+      }
+    case .pivot:
+      if painRecognition >= 4 && productPullCeiling > 0 && productPullCeiling <= 2 {
+        return ProductizationDecisionIntentEvaluation(
+          outcome: .supportsTarget,
+          rationale:
+            "The pain was recognized, but the current product shape did not create enough pull."
+        )
+      }
+      if strongVerdict && !hasMissingCapabilities
+        && (productPullCeiling == 0 || productPullCeiling >= 4)
+      {
+        return ProductizationDecisionIntentEvaluation(
+          outcome: .contradictsTarget,
+          rationale:
+            "The targeted pivot decision was contradicted by strong pull for the current product shape."
+        )
+      }
+    case .keepGoing:
+      if strongVerdict || verdict == .unclear || comparedAlternative {
+        return ProductizationDecisionIntentEvaluation(
+          outcome: .supportsTarget,
+          rationale:
+            "The run reduced uncertainty enough to support continuing the current product bet."
+        )
+      }
+      if verdict == .rejected {
+        return ProductizationDecisionIntentEvaluation(
+          outcome: .contradictsTarget,
+          rationale: "The continue target was contradicted by rejected evidence."
+        )
+      }
+    case .notRun:
+      return ProductizationDecisionIntentEvaluation(
+        outcome: .supportsTarget,
+        rationale: "The first targeted evidence run completed and moved the bet out of not-run state."
+      )
+    }
+
+    return ProductizationDecisionIntentEvaluation(
+      outcome: .inconclusive,
+      rationale:
+        "The run produced \(verdict.rawValue) evidence, but it did not decisively answer the targeted \(intent.targetDecision.rawValue) decision."
+    )
+  }
+
+  private static func hasSubstantiveCurrentAlternativeComparison(_ value: String) -> Bool {
+    let normalized = value.normalizedProductizationEvidenceText
+    guard !normalized.isEmpty else { return false }
+    return !normalized.contains("did not address")
+      && !normalized.contains("no current-alternative comparison")
+      && !normalized.contains("no current alternative")
+  }
+
   var summaryRecord: ProductizationEvidenceSummary {
     ProductizationEvidenceSummary(record: self)
   }
@@ -1061,6 +1245,7 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
   var personaID: String
   var mode: ProductizationSimulationMode
   var decisionIntent: ProductizationSimulationDecisionIntent?
+  var decisionIntentEvaluation: ProductizationDecisionIntentEvaluation?
   var status: ProductizationRunStatus
   var startedAt: Double
   var endedAt: Double
@@ -1087,6 +1272,7 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     case personaID
     case mode
     case decisionIntent
+    case decisionIntentEvaluation
     case status
     case startedAt
     case endedAt
@@ -1117,6 +1303,10 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     decisionIntent = try container.decodeIfPresent(
       ProductizationSimulationDecisionIntent.self,
       forKey: .decisionIntent
+    )
+    decisionIntentEvaluation = try container.decodeIfPresent(
+      ProductizationDecisionIntentEvaluation.self,
+      forKey: .decisionIntentEvaluation
     )
     status = try container.decode(ProductizationRunStatus.self, forKey: .status)
     startedAt = try container.decode(Double.self, forKey: .startedAt)
@@ -1150,6 +1340,7 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     personaID = record.personaID
     mode = record.mode
     decisionIntent = record.decisionIntent
+    decisionIntentEvaluation = record.decisionIntentEvaluation
     status = record.status
     startedAt = record.startedAt
     endedAt = record.endedAt
@@ -1714,6 +1905,9 @@ enum ProductizationEvidenceMarkdownExporter {
       "- Status: \(record.status.rawValue)",
       "- Verdict: \(record.verdict.rawValue)",
       record.decisionIntent.map { "- Decision Intent: \(decisionIntentLine($0))" },
+      record.decisionIntentEvaluation.map {
+        "- Decision Intent Outcome: \(decisionIntentEvaluationLine($0))"
+      },
       "",
       "## Summary",
       "",
@@ -1758,6 +1952,14 @@ enum ProductizationEvidenceMarkdownExporter {
       parts.append("focus \(intent.scorecardFocus.prefix(5).joined(separator: ", "))")
     }
     return parts.joined(separator: "; ")
+  }
+
+  private static func decisionIntentEvaluationLine(
+    _ evaluation: ProductizationDecisionIntentEvaluation
+  ) -> String {
+    let rationale = StringUtils.boundedText(evaluation.rationale, limit: 220)
+    guard !rationale.isEmpty else { return evaluation.outcome.rawValue }
+    return "\(evaluation.outcome.rawValue); \(rationale)"
   }
 }
 

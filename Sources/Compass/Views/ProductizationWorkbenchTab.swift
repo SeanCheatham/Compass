@@ -1228,9 +1228,7 @@ struct ProductizationWorkbenchTab: View {
                   .foregroundStyle(.secondary)
                   .lineLimit(1)
                 if let decisionIntent = summary.decisionIntent {
-                  Text(
-                    "target_decision \(decisionIntent.targetDecision.rawValue), current \(decisionIntent.currentDecision.rawValue)"
-                  )
+                  Text(evidenceIntentSummary(summary, intent: decisionIntent))
                   .font(.caption)
                   .foregroundStyle(.secondary)
                   .lineLimit(1)
@@ -1282,6 +1280,13 @@ struct ProductizationWorkbenchTab: View {
                 value: decisionIntent.scorecardFocus.prefix(5).joined(separator: ", ")
               )
             }
+          }
+          if let decisionIntentEvaluation = record.decisionIntentEvaluation {
+            WorkbenchFact(
+              label: "Intent outcome",
+              value: decisionIntentEvaluation.outcome.rawValue
+            )
+            WorkbenchFact(label: "Intent rationale", value: decisionIntentEvaluation.rationale)
           }
           WorkbenchFact(label: "Trace", value: record.traceHash ?? "none")
           if !record.objections.isEmpty {
@@ -2120,6 +2125,20 @@ struct ProductizationWorkbenchTab: View {
 
   private func score(_ value: Int?) -> String {
     value.map(String.init) ?? "n/a"
+  }
+
+  private func evidenceIntentSummary(
+    _ summary: ProductizationEvidenceSummary,
+    intent: ProductizationSimulationDecisionIntent
+  ) -> String {
+    var parts = [
+      "target_decision \(intent.targetDecision.rawValue)",
+      "current \(intent.currentDecision.rawValue)",
+    ]
+    if let evaluation = summary.decisionIntentEvaluation {
+      parts.append(evaluation.outcome.rawValue)
+    }
+    return parts.joined(separator: ", ")
   }
 
   private func short(_ sha: String) -> String {

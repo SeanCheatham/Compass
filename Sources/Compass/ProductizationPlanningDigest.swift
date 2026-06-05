@@ -598,6 +598,12 @@ enum ProductizationPlanningDigestFormatter {
             )
           }
         }
+        if let evaluation = summary.decisionIntentEvaluation {
+          parts.append("intent_outcome \(evaluation.outcome.rawValue)")
+          if !evaluation.rationale.isEmpty {
+            parts.append("intent_rationale \(bounded(evaluation.rationale, 180))")
+          }
+        }
         if summary.scores.hasScores {
           let scores = [
             summary.scores.painRecognition.map { "pain \($0)" },

@@ -259,6 +259,7 @@ struct ProductizationScenarioRunTests {
     try #require(outcome.userMessage.contains("AI-user"))
     try #require(stored.mode == .personaModel)
     try #require(stored.decisionIntent?.targetDecision == .promote)
+    try #require(stored.decisionIntentEvaluation?.outcome == .supportsTarget)
     try #require(stored.promptVersions == ["test.persona_action"])
     try #require(
       stored.personaActionRationales.contains {
@@ -270,6 +271,7 @@ struct ProductizationScenarioRunTests {
     let summary = workspace.readProductizationEvidenceIndex().summaries.first
     try #require(summary?.mode == .personaModel)
     try #require(summary?.decisionIntent?.targetDecision == .promote)
+    try #require(summary?.decisionIntentEvaluation?.outcome == .supportsTarget)
     try #require(summary?.personaActionRationales.first?.contains("inspect_pain") == true)
   }
 

@@ -52,6 +52,13 @@ struct ProductizationEvidenceStoreTests {
       currentDecision: .keepGoing,
       targetDecision: .promote
     )
+    let scores = ProductizationEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 5,
+      alternativeAdvantage: 4,
+      switchingReadiness: 4,
+      continuedUsePull: 5
+    )
     let record = makeEvidenceRecord(
       id: "intent-run",
       experimentID: experiment.id,
@@ -62,7 +69,8 @@ struct ProductizationEvidenceStoreTests {
       scenarioID: config.scenarios[0].id,
       personaID: config.userSegments[0].id,
       mode: .personaModel,
-      decisionIntent: intent
+      decisionIntent: intent,
+      scores: scores
     )
 
     let index = ProductizationEvidenceIndex.build(records: [record])
@@ -74,12 +82,76 @@ struct ProductizationEvidenceStoreTests {
     )
 
     try #require(record.decisionIntent?.targetDecision == .promote)
+    try #require(record.decisionIntentEvaluation?.outcome == .supportsTarget)
     try #require(summary.decisionIntent?.targetDecision == .promote)
+    try #require(summary.decisionIntentEvaluation?.outcome == .supportsTarget)
     try #require(markdown.contains("target_decision promote"))
+    try #require(markdown.contains("supports_target"))
     try #require(markdown.contains("alternative advantage"))
     try #require(digest.contains("intent-run"))
     try #require(digest.contains("target_decision promote"))
+    try #require(digest.contains("intent_outcome supports_target"))
     try #require(digest.contains("intent_focus alternative advantage"))
+  }
+
+  @Test func decisionIntentEvaluationClassifiesLiftAndCutProof() throws {
+    let strongScores = ProductizationEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 5,
+      alternativeAdvantage: 4,
+      switchingReadiness: 4,
+      continuedUsePull: 5
+    )
+    let weakScores = ProductizationEvidenceScores(
+      painRecognition: 2,
+      workflowImprovement: 1,
+      alternativeAdvantage: 1,
+      switchingReadiness: 1,
+      continuedUsePull: 1
+    )
+    let promoteIntent = ProductizationSimulationDecisionIntent(
+      currentDecision: .keepGoing,
+      targetDecision: .promote
+    )
+    let killIntent = ProductizationSimulationDecisionIntent(
+      currentDecision: .keepGoing,
+      targetDecision: .kill
+    )
+
+    let promoted = makeEvidenceRecord(
+      id: "promote-support",
+      mode: .personaModel,
+      decisionIntent: promoteIntent,
+      verdict: .strongPull,
+      scores: strongScores
+    )
+    let promotionRejected = makeEvidenceRecord(
+      id: "promote-contradict",
+      mode: .personaModel,
+      decisionIntent: promoteIntent,
+      verdict: .rejected,
+      comparison: "The spreadsheet remained better.",
+      scores: weakScores
+    )
+    let killed = makeEvidenceRecord(
+      id: "kill-support",
+      mode: .personaModel,
+      decisionIntent: killIntent,
+      verdict: .weak,
+      scores: weakScores
+    )
+    let killContradicted = makeEvidenceRecord(
+      id: "kill-contradict",
+      mode: .personaModel,
+      decisionIntent: killIntent,
+      verdict: .promising,
+      scores: strongScores
+    )
+
+    try #require(promoted.decisionIntentEvaluation?.outcome == .supportsTarget)
+    try #require(promotionRejected.decisionIntentEvaluation?.outcome == .contradictsTarget)
+    try #require(killed.decisionIntentEvaluation?.outcome == .supportsTarget)
+    try #require(killContradicted.decisionIntentEvaluation?.outcome == .contradictsTarget)
   }
 
   @Test func indexAggregatesExperimentEvidenceSignals() throws {
