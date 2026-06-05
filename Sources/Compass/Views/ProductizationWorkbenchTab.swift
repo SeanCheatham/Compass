@@ -61,6 +61,15 @@ struct ProductizationWorkbenchTab: View {
     )
   }
 
+  private var selectedPMFNextAction: ProductMarketFitNextAction? {
+    guard let selectedExperiment else { return nil }
+    return ProductMarketFitNextActionAdvisor.nextAction(
+      for: selectedExperiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var scenariosForSelectedExperiment: [ProductScenario] {
     guard let experimentID = selectedExperiment?.id else { return [] }
     return config.scenarios
@@ -567,6 +576,13 @@ struct ProductizationWorkbenchTab: View {
             label: "Stale evidence",
             value: "\(selectedStaleEvidenceCount) run(s) from older experiment commits ignored"
           )
+        }
+        if let nextAction = selectedPMFNextAction {
+          WorkbenchFact(label: "Next action", value: nextAction.title)
+          Text(nextAction.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
         if let objection = evidenceIndex.aggregate.repeatedObjections.first {
           WorkbenchFact(

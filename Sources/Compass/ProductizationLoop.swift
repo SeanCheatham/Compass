@@ -220,6 +220,28 @@ struct ProductMarketFitDecisionProposal: Equatable, Sendable {
   var readiness: ProductMarketFitReadiness
 }
 
+struct ProductMarketFitNextAction: Equatable, Sendable {
+  var experimentID: String
+  var title: String
+  var detail: String
+  var priority: Int
+
+  init(
+    experimentID: String,
+    title: String,
+    detail: String,
+    priority: Int
+  ) {
+    self.experimentID = ProductizationModelText.identifier(
+      experimentID,
+      fallback: "experiment"
+    )
+    self.title = StringUtils.boundedText(title, limit: 160)
+    self.detail = StringUtils.boundedText(detail, limit: 500)
+    self.priority = max(0, priority)
+  }
+}
+
 enum ProductMarketFitDecisionAdvisorError: LocalizedError, Equatable {
   case noProposal(String)
 
@@ -227,6 +249,126 @@ enum ProductMarketFitDecisionAdvisorError: LocalizedError, Equatable {
     switch self {
     case .noProposal(let experimentID):
       return "No PMF decision recommendation is available for product experiment \(experimentID)."
+    }
+  }
+}
+
+enum ProductMarketFitNextActionAdvisor {
+  static func actions(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [ProductMarketFitNextAction] {
+    config.experiments.compactMap { experiment in
+      nextAction(for: experiment, config: config, evidenceIndex: evidenceIndex)
+    }
+    .sorted { lhs, rhs in
+      if lhs.priority == rhs.priority { return lhs.experimentID < rhs.experimentID }
+      return lhs.priority > rhs.priority
+    }
+  }
+
+  static func nextAction(
+    for experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductMarketFitNextAction? {
+    switch experiment.decision {
+    case .archived, .promoted:
+      return nil
+    case .notRun, .keepGoing, .narrow, .pivot, .kill, .promote:
+      break
+    }
+
+    if let proposal = ProductMarketFitDecisionAdvisor.proposal(
+      experimentID: experiment.id,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        title: "Apply PMF decision",
+        detail:
+          "Current evidence supports \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue) using \(proposal.update.evidenceRunIDs.count) current run(s).",
+        priority: 100
+      )
+    }
+
+    let currentSummaries = evidenceIndex.summaries(for: experiment)
+    let staleCount = evidenceIndex.staleSummaryCount(for: experiment)
+    if currentSummaries.isEmpty {
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        title: staleCount > 0 ? "Rerun current evidence" : "Run productization cohort",
+        detail: staleCount > 0
+          ? "\(staleCount) stale run(s) exist for older commits; rerun the scenario cohort against the current experiment commit before deciding."
+          : "No current-commit evidence exists yet; run the scenario cohort before changing the product decision.",
+        priority: staleCount > 0 ? 95 : 90
+      )
+    }
+
+    guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment) else {
+      return nil
+    }
+    if readiness.failedRunCount > readiness.completedRunCount {
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        title: "Repair evidence run failures",
+        detail:
+          "\(readiness.failedRunCount) of \(readiness.runCount) current run(s) failed; fix the generated app contract or runner before trusting PMF signals.",
+        priority: 85
+      )
+    }
+    if readiness.completedRunCount < 2 || readiness.distinctPersonaCount < 2 {
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        title: "Gather broader persona evidence",
+        detail:
+          "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); run more scenarios or personas before deciding.",
+        priority: 80
+      )
+    }
+
+    switch readiness.recommendation {
+    case .narrow:
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        title: "Narrow the product bet",
+        detail:
+          "Current PMF evidence points to missing capabilities or repeated objections; narrow the next prototype before more rollout work.",
+        priority: 75
+      )
+    case .pivot:
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        title: "Prepare a pivot",
+        detail:
+          "Users recognize the pain, but current product pull is weak; reshape the solution before more cohort runs.",
+        priority: 74
+      )
+    case .kill:
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        title: "Review kill decision",
+        detail:
+          "Current evidence is weak, but the existing experiment state blocks an automatic kill recommendation; inspect the decision path.",
+        priority: 73
+      )
+    case .promote:
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        title: "Review promotion path",
+        detail:
+          "Current evidence has promotion strength, but the existing experiment state blocks an automatic promote recommendation.",
+        priority: 73
+      )
+    case .gatherEvidence, .keepGoing:
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        title: "Run another evidence cohort",
+        detail:
+          "Current PMF readiness is \(readiness.scoreLabel)/100; run another cohort or scenario variant before changing the product decision.",
+        priority: 70
+      )
     }
   }
 }

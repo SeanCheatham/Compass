@@ -242,6 +242,12 @@ struct ProductizationLoopTests {
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
     let index = makePMFPromotionEvidenceIndex(config: config)
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
 
     let next = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
       experimentID: experiment.id,
@@ -252,6 +258,8 @@ struct ProductizationLoopTests {
     let savedExperiment = try #require(next.experiments.first { $0.id == experiment.id })
     let decision = try #require(next.decisions.last)
 
+    try #require(action.title == "Apply PMF decision")
+    try #require(action.detail.contains("continue -> promote"))
     try #require(savedExperiment.decision == .promote)
     try #require(savedExperiment.evidenceSummary.contains("PMF readiness"))
     try #require(decision.decision == .promote)
@@ -278,8 +286,16 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index
     )
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: config.experiments[0],
+        config: config,
+        evidenceIndex: index
+      ))
 
     try #require(proposals.isEmpty)
+    try #require(action.title == "Rerun current evidence")
+    try #require(action.detail.contains("stale run"))
     do {
       _ = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
         experimentID: config.experiments[0].id,

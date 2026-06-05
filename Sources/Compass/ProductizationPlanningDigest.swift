@@ -25,6 +25,7 @@ enum ProductizationPlanningDigestFormatter {
     lines += decisionLines(config: config, maxDecisions: maxDecisions)
     lines += unknownLines(config: config)
     lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
+    lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
     lines += evidenceSignalLines(
       config: config,
       index: evidenceIndex,
@@ -188,6 +189,24 @@ enum ProductizationPlanningDigestFormatter {
         : "evidence \(proposal.update.evidenceRunIDs.prefix(4).joined(separator: ", "))"
       lines.append(
         "- \(proposal.experimentID): \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue); score \(proposal.readiness.scoreLabel)/100; \(evidence); \(bounded(proposal.update.summary, 220))."
+      )
+    }
+    return lines
+  }
+
+  private static func nextActionLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    let actions = ProductMarketFitNextActionAdvisor.actions(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    guard !actions.isEmpty else { return [] }
+    var lines = ["Next product-factory actions:"]
+    for action in actions.prefix(4) {
+      lines.append(
+        "- \(action.experimentID): \(bounded(action.title, 120)); \(bounded(action.detail, 220))."
       )
     }
     return lines

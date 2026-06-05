@@ -266,6 +266,7 @@ struct ProductizationEvidenceStoreTests {
 
     try #require(text.contains("Top current-commit evidence signals and objections"))
     try #require(text.contains("Current-commit product-market-fit readiness"))
+    try #require(text.contains("Next product-factory actions"))
     try #require(text.contains("digest-run"))
     try #require(text.contains("csv_import"))
     try #require(text.contains("Beat the spreadsheet"))
