@@ -267,6 +267,8 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
   var priority: Int
   var cohortID: String?
   var requiredSimulationMode: ProductizationSimulationMode?
+  var targetPersonaID: String?
+  var targetPersonaName: String?
 
   init(
     experimentID: String,
@@ -275,7 +277,9 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
     detail: String,
     priority: Int,
     cohortID: String? = nil,
-    requiredSimulationMode: ProductizationSimulationMode? = nil
+    requiredSimulationMode: ProductizationSimulationMode? = nil,
+    targetPersonaID: String? = nil,
+    targetPersonaName: String? = nil
   ) {
     self.experimentID = ProductizationModelText.identifier(
       experimentID,
@@ -287,6 +291,14 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
     self.priority = max(0, priority)
     self.cohortID = ProductizationModelText.optionalIdentifier(cohortID, fallback: "cohort")
     self.requiredSimulationMode = requiredSimulationMode
+    self.targetPersonaID = ProductizationModelText.optionalIdentifier(
+      targetPersonaID,
+      fallback: "persona"
+    )
+    self.targetPersonaName = ProductizationModelText.optionalCleanedText(
+      targetPersonaName,
+      limit: 160
+    )
   }
 }
 
@@ -520,8 +532,9 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
       return "\(experimentTitle): \(blockedReason)"
     }
     if let cohortReadiness {
+      let target = action.targetPersonaName.map { " targeting \($0)" } ?? ""
       return
-        "\(experimentTitle): \(action.title) with \(cohortReadiness.enabledScenarioCount) enabled scenario(s)."
+        "\(experimentTitle): \(action.title)\(target) with \(cohortReadiness.enabledScenarioCount) enabled scenario(s)."
     }
     return "\(experimentTitle): \(action.detail)"
   }
@@ -1014,6 +1027,13 @@ enum ProductMarketFitNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
+    let missingAIUserTarget = missingAIUserPersonaTarget(
+      for: experiment,
+      readiness: readiness,
+      config: config,
+      evidenceIndex: evidenceIndex,
+      cohort: cohort
+    )
     if readiness.aiUserDistinctPersonaCount < 2 && readiness.readinessScore >= 70 {
       return applyingRecentCycleFailureGuard(
         to: ProductMarketFitNextAction(
@@ -1021,12 +1041,14 @@ enum ProductMarketFitNextActionAdvisor {
           kind: cohort == nil ? .refineBet : .runCohort,
           title: "Run AI-user validation cohort",
           detail: cohort.map {
-            "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but promotion requires at least 2; run cohort `\($0.id)` in persona-model mode before promotion."
+            "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but promotion requires at least 2; run cohort `\($0.id)` in persona-model mode before promotion.\(missingAIUserTarget?.guidance(cohort: $0) ?? "")"
           }
-            ?? "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but promotion requires at least 2; define another enabled cohort before promotion.",
+            ?? "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but promotion requires at least 2; define another enabled cohort before promotion.\(missingAIUserTarget?.guidance(cohort: nil) ?? "")",
           priority: 78,
           cohortID: cohort?.id,
-          requiredSimulationMode: .personaModel
+          requiredSimulationMode: .personaModel,
+          targetPersonaID: missingAIUserTarget?.id,
+          targetPersonaName: missingAIUserTarget?.name
         ),
         experiment: experiment,
         config: config,
@@ -1040,12 +1062,14 @@ enum ProductMarketFitNextActionAdvisor {
           kind: cohort == nil ? .refineBet : .runCohort,
           title: "Run AI-user rejection check",
           detail: cohort.map {
-            "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but stopping a bet requires at least 2; run cohort `\($0.id)` in persona-model mode before stopping the experiment."
+            "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but stopping a bet requires at least 2; run cohort `\($0.id)` in persona-model mode before stopping the experiment.\(missingAIUserTarget?.guidance(cohort: $0) ?? "")"
           }
-            ?? "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but stopping a bet requires at least 2; define another enabled cohort before stopping the experiment.",
+            ?? "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but stopping a bet requires at least 2; define another enabled cohort before stopping the experiment.\(missingAIUserTarget?.guidance(cohort: nil) ?? "")",
           priority: 82,
           cohortID: cohort?.id,
-          requiredSimulationMode: .personaModel
+          requiredSimulationMode: .personaModel,
+          targetPersonaID: missingAIUserTarget?.id,
+          targetPersonaName: missingAIUserTarget?.name
         ),
         experiment: experiment,
         config: config,
@@ -1117,6 +1141,121 @@ enum ProductMarketFitNextActionAdvisor {
       && (readiness.readinessScore <= 40
         || readiness.averageScore > 0 && readiness.averageScore <= 2.5
         || readiness.weakestVerdict == .rejected)
+  }
+
+  private struct AIUserPersonaTarget: Equatable, Sendable {
+    var id: String
+    var name: String
+    var scenarioID: String?
+    var isScenarioInCohort: Bool
+
+    func guidance(cohort: ProductScenarioCohort?) -> String {
+      if let scenarioID, isScenarioInCohort {
+        return " Target AI-user segment: \(name) via scenario `\(scenarioID)`."
+      }
+      if let scenarioID, let cohort {
+        return
+          " Target AI-user segment: \(name); add scenario `\(scenarioID)` to cohort `\(cohort.id)` or run a cohort that includes it."
+      }
+      if let scenarioID {
+        return " Target AI-user segment: \(name); run or enable scenario `\(scenarioID)`."
+      }
+      return " Target AI-user segment: \(name); add an enabled scenario for this segment."
+    }
+  }
+
+  private static func missingAIUserPersonaTarget(
+    for experiment: ProductExperiment,
+    readiness: ProductMarketFitReadiness,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex,
+    cohort: ProductScenarioCohort?
+  ) -> AIUserPersonaTarget? {
+    guard readiness.aiUserDistinctPersonaCount < 2 else { return nil }
+    let testedPersonaIDs = Set(
+      evidenceIndex.summaries(for: experiment)
+        .filter { $0.isCompleted && $0.mode == .personaModel }
+        .map(\.personaID)
+        .filter { !$0.isEmpty }
+    )
+    let enabledScenarios = config.scenarios
+      .filter { $0.experimentID == experiment.id && $0.enabled }
+    let cohortScenarioIDs = Set(cohort?.scenarioIDs ?? [])
+    let untestedCohortScenarios = enabledScenarios.filter { scenario in
+      cohortScenarioIDs.contains(scenario.id) && !testedPersonaIDs.contains(scenario.segmentID)
+    }
+    if let scenario = untestedCohortScenarios.sorted(by: scenarioSort(config: config)).first {
+      return AIUserPersonaTarget(
+        id: scenario.segmentID,
+        name: segmentName(for: scenario.segmentID, config: config),
+        scenarioID: scenario.id,
+        isScenarioInCohort: true
+      )
+    }
+
+    let candidateSegmentIDs = targetSegmentIDs(for: experiment, config: config)
+    guard let segmentID = candidateSegmentIDs.first(where: { segmentID in
+      !testedPersonaIDs.contains(segmentID)
+    }) else { return nil }
+    let scenario = enabledScenarios.filter { scenario in
+      scenario.segmentID == segmentID
+    }
+    .sorted(by: scenarioSort(config: config))
+    .first
+    let isScenarioInCohort = scenario.map { scenario in
+      cohortScenarioIDs.contains(scenario.id)
+    } ?? false
+    return AIUserPersonaTarget(
+      id: segmentID,
+      name: segmentName(for: segmentID, config: config),
+      scenarioID: scenario?.id,
+      isScenarioInCohort: isScenarioInCohort
+    )
+  }
+
+  private static func targetSegmentIDs(
+    for experiment: ProductExperiment,
+    config: ProductizationConfig
+  ) -> [String] {
+    let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
+    let painID = solution?.painID
+    var segmentIDs: [String] = []
+    if let solution {
+      segmentIDs.append(contentsOf: solution.targetSegmentIDs)
+    }
+    segmentIDs.append(contentsOf: config.userSegments
+      .filter { painID == nil || $0.painID == painID }
+      .map(\.id))
+    segmentIDs.append(contentsOf: config.scenarios
+      .filter { $0.experimentID == experiment.id }
+      .map(\.segmentID))
+    return orderedUnique(segmentIDs)
+  }
+
+  private static func segmentName(for segmentID: String, config: ProductizationConfig) -> String {
+    let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
+    return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
+  }
+
+  private static func scenarioSort(
+    config: ProductizationConfig
+  ) -> (ProductScenario, ProductScenario) -> Bool {
+    { lhs, rhs in
+      let lhsName = segmentName(for: lhs.segmentID, config: config)
+      let rhsName = segmentName(for: rhs.segmentID, config: config)
+      if lhsName == rhsName { return lhs.id < rhs.id }
+      return lhsName < rhsName
+    }
+  }
+
+  private static func orderedUnique(_ values: [String]) -> [String] {
+    var seen = Set<String>()
+    var result: [String] = []
+    for value in values where !value.isEmpty && !seen.contains(value) {
+      seen.insert(value)
+      result.append(value)
+    }
+    return result
   }
 
   private static func applyingRecentCycleFailureGuard(

@@ -439,6 +439,107 @@ struct ProductizationLoopTests {
     try #require(action.requiredSimulationMode == .personaModel)
   }
 
+  @Test func pmfNextActionNamesMissingAIUserSegmentInSuggestedCohort() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
+    let workflow = try #require(config.currentWorkflows.first)
+    let alternative = try #require(config.alternatives.first { $0.kind == .doNothing })
+    let buyerScenarioID = "\(experiment.id)-buyer-ai-user-check"
+    config.scenarios.append(
+      ProductScenario(
+        id: buyerScenarioID,
+        experimentID: experiment.id,
+        segmentID: buyer.id,
+        currentWorkflowID: workflow.id,
+        alternativeID: alternative.id,
+        title: "Buyer AI-user check",
+        task: "Use the prototype to decide whether the evidence is good enough to sponsor.",
+        successSignal: "The buyer can make a clear continue or stop decision.",
+        targetCommitSha: "head-sha",
+        createdAt: 20
+      )
+    )
+    let cohort = config.scenarioCohorts[0]
+    config.scenarioCohorts[0] = ProductScenarioCohort(
+      id: cohort.id,
+      title: cohort.title,
+      experimentID: cohort.experimentID,
+      scenarioIDs: cohort.scenarioIDs + [buyerScenarioID],
+      enabled: cohort.enabled,
+      tags: cohort.tags
+    )
+    let operatorScenario = try #require(
+      config.scenarios.first { $0.experimentID == experiment.id && $0.segmentID != buyer.id }
+    )
+    let scores = ProductizationEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 5,
+      alternativeAdvantage: 5,
+      switchingReadiness: 5,
+      continuedUsePull: 5
+    )
+    let index = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "operator-ai",
+          experiment: experiment,
+          config: config,
+          personaID: operatorScenario.segmentID,
+          mode: .personaModel,
+          endedAt: 300,
+          verdict: .strongPull,
+          scores: scores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "buyer-model-free",
+          experiment: experiment,
+          config: config,
+          personaID: buyer.id,
+          endedAt: 200,
+          verdict: .strongPull,
+          scores: scores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "operator-model-free",
+          experiment: experiment,
+          config: config,
+          personaID: operatorScenario.segmentID,
+          endedAt: 100,
+          verdict: .promising,
+          scores: scores
+        ),
+      ]
+    )
+
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(action.title == "Run AI-user validation cohort")
+    try #require(action.targetPersonaID == buyer.id)
+    try #require(action.targetPersonaName == buyer.name)
+    try #require(action.detail.contains("Target AI-user segment: \(buyer.name)"))
+    try #require(action.detail.contains("via scenario `\(buyerScenarioID)`"))
+    try #require(step.detail.contains("targeting \(buyer.name)"))
+  }
+
   @Test func productFactoryAutopilotBlocksRequiredAIUserCohortWhenUnavailable() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",

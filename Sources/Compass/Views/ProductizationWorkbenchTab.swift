@@ -715,6 +715,12 @@ struct ProductizationWorkbenchTab: View {
             label: "Action",
             value: "\(nextAction.kind.rawValue), priority \(nextAction.priority)"
           )
+          if let targetPersonaName = nextAction.targetPersonaName {
+            let targetValue = nextAction.targetPersonaID.map {
+              "\(targetPersonaName) (\($0))"
+            } ?? targetPersonaName
+            WorkbenchFact(label: "Target AI-user", value: targetValue)
+          }
           if let readiness = selectedSuggestedCohortReadiness {
             WorkbenchFact(
               label: "Cohort",
