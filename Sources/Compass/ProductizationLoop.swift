@@ -975,6 +975,24 @@ enum ProductMarketFitNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
+    if readiness.aiUserCompletedRunCount == 0 && readiness.readinessScore >= 70 {
+      return applyingRecentCycleFailureGuard(
+        to: ProductMarketFitNextAction(
+          experimentID: experiment.id,
+          kind: cohort == nil ? .refineBet : .runCohort,
+          title: "Run AI-user validation cohort",
+          detail: cohort.map {
+            "Model-free evidence is strong, but no AI-user run has tested switching pull yet; run cohort `\($0.id)` in persona-model mode before promotion."
+          }
+            ?? "Model-free evidence is strong, but no AI-user run has tested switching pull yet; define another enabled cohort before promotion.",
+          priority: 78,
+          cohortID: cohort?.id
+        ),
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
 
     switch readiness.recommendation {
     case .narrow:

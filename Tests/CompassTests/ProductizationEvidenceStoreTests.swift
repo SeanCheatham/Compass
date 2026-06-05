@@ -102,6 +102,7 @@ struct ProductizationEvidenceStoreTests {
         id: "strong-a",
         experimentID: "good-experiment",
         personaID: "operator",
+        mode: .personaModel,
         endedAt: 300,
         verdict: .strongPull,
         scores: strongScores
@@ -170,8 +171,11 @@ struct ProductizationEvidenceStoreTests {
 
     try #require(good.recommendation == .promote)
     try #require(good.readinessScore >= 76)
+    try #require(good.aiUserCompletedRunCount == 1)
+    try #require(good.modelFreeCompletedRunCount == 2)
     try #require(good.distinctPersonaCount == 2)
     try #require(good.evidenceRunIDs.first == "strong-a")
+    try #require(good.rationale.contains { $0.contains("1 AI-user run") })
     try #require(good.rationale.contains { $0.contains("Average PMF score") })
 
     try #require(bad.recommendation == .kill)
@@ -281,6 +285,8 @@ struct ProductizationEvidenceStoreTests {
 
     try #require(text.contains("Top current-commit evidence signals and objections"))
     try #require(text.contains("Current-commit product-market-fit readiness"))
+    try #require(text.contains("ai-user 0"))
+    try #require(text.contains("model-free 1"))
     try #require(text.contains("Factory autopilot step"))
     try #require(text.contains("Product-factory portfolio pressure"))
     try #require(text.contains("pressure learn"))

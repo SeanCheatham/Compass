@@ -35,7 +35,7 @@ enum ProductizationPlanningDigestFormatter {
       maxEvidenceSignals: maxEvidenceSignals
     )
 
-    return boundedLines(lines, maxLines: 50, maxCharacters: 5_400)
+    return boundedLines(lines, maxLines: 56, maxCharacters: 6_000)
   }
 
   private static func painLines(
@@ -365,6 +365,9 @@ enum ProductizationPlanningDigestFormatter {
           parts.append(
             "missing \(bounded(summary.missingCapabilities.joined(separator: ", "), 180))")
         }
+        if !summary.currentAlternativeComparison.isEmpty {
+          parts.append("alternative \(bounded(summary.currentAlternativeComparison, 180))")
+        }
         if let hash = summary.traceHash {
           parts.append("trace \(bounded(hash, 80))")
         }
@@ -396,7 +399,7 @@ enum ProductizationPlanningDigestFormatter {
           : "evidence \(readiness.evidenceRunIDs.prefix(4).joined(separator: ", "))"
         let rationale = readiness.rationale.first.map { "; \(bounded($0, 180))" } ?? ""
         lines.append(
-          "- \(readiness.experimentID): score \(readiness.scoreLabel)/100; recommend \(readiness.recommendation.rawValue); \(evidence)\(rationale)."
+          "- \(readiness.experimentID): score \(readiness.scoreLabel)/100; recommend \(readiness.recommendation.rawValue); ai-user \(readiness.aiUserCompletedRunCount); model-free \(readiness.modelFreeCompletedRunCount); \(evidence)\(rationale)."
         )
       }
     }

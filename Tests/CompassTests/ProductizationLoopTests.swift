@@ -149,6 +149,7 @@ struct ProductizationLoopTests {
           experiment: config.experiments[0],
           config: config,
           personaID: "operator",
+          mode: .personaModel,
           endedAt: 300,
           verdict: .strongPull,
           scores: strongScores
@@ -229,6 +230,43 @@ struct ProductizationLoopTests {
     try #require(narrow.update.summary.contains("csv_import"))
     try #require(kill.update.decision == .kill)
     try #require(kill.update.decidedBy == "PMF Decision Advisor")
+  }
+
+  @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let index = makePMFPromotionEvidenceIndex(
+      experiment: experiment,
+      config: config,
+      includeAIUserEvidence: false
+    )
+
+    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(readiness.aiUserCompletedRunCount == 0)
+    try #require(readiness.modelFreeCompletedRunCount == 3)
+    try #require(readiness.recommendation == .keepGoing)
+    try #require(readiness.rationale.contains { $0.contains("No AI-user evidence") })
+    try #require(ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: index
+    ).isEmpty)
+    try #require(action.kind == .runCohort)
+    try #require(action.title == "Run AI-user validation cohort")
+    try #require(action.detail.contains("persona-model mode"))
   }
 
   @Test func productFactoryRankerPrioritizesActionablePMFPressure() throws {
@@ -943,7 +981,8 @@ private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> Productiz
 
 private func makePMFPromotionEvidenceIndex(
   experiment: ProductExperiment? = nil,
-  config: ProductizationConfig
+  config: ProductizationConfig,
+  includeAIUserEvidence: Bool = true
 ) -> ProductizationEvidenceIndex {
   let scores = ProductizationEvidenceScores(
     painRecognition: 5,
@@ -960,6 +999,7 @@ private func makePMFPromotionEvidenceIndex(
         experiment: experiment,
         config: config,
         personaID: "operator",
+        mode: includeAIUserEvidence ? .personaModel : .modelFree,
         endedAt: 300,
         verdict: .strongPull,
         scores: scores
@@ -991,6 +1031,7 @@ private func makeDecisionAdvisorRecord(
   experiment: ProductExperiment,
   config: ProductizationConfig,
   personaID: String,
+  mode: ProductizationSimulationMode = .modelFree,
   endedAt: Double,
   verdict: ProductizationEvidenceVerdict,
   scores: ProductizationEvidenceScores,
@@ -1007,12 +1048,12 @@ private func makeDecisionAdvisorRecord(
     commitSha: experiment.currentSha ?? experiment.baseSha ?? "head-sha",
     scenarioID: "\(experiment.id)-scenario",
     personaID: personaID,
-    mode: .modelFree,
+    mode: mode,
     status: .completed,
     startedAt: endedAt - 10,
     endedAt: endedAt,
     traceHash: "trace-\(id)",
-    model: "model-free",
+    model: mode == .modelFree ? "model-free" : "gpt-test",
     scores: scores,
     objections: objections,
     missingCapabilities: missingCapabilities,

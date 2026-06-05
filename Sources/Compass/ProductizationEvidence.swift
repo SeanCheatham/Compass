@@ -59,6 +59,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
   var runCount: Int
   var completedRunCount: Int
   var failedRunCount: Int
+  var aiUserCompletedRunCount: Int
+  var modelFreeCompletedRunCount: Int
   var distinctPersonaCount: Int
   var latestRunID: String?
   var readinessScore: Double
@@ -78,6 +80,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     runCount: Int,
     completedRunCount: Int,
     failedRunCount: Int,
+    aiUserCompletedRunCount: Int,
+    modelFreeCompletedRunCount: Int,
     distinctPersonaCount: Int,
     latestRunID: String?,
     readinessScore: Double,
@@ -95,6 +99,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     self.runCount = max(0, runCount)
     self.completedRunCount = max(0, completedRunCount)
     self.failedRunCount = max(0, failedRunCount)
+    self.aiUserCompletedRunCount = max(0, aiUserCompletedRunCount)
+    self.modelFreeCompletedRunCount = max(0, modelFreeCompletedRunCount)
     self.distinctPersonaCount = max(0, distinctPersonaCount)
     self.latestRunID = ProductizationEvidenceRecord.optionalBounded(latestRunID, limit: 96)
     self.readinessScore = Self.roundedScore(readinessScore, upperBound: 100)
@@ -113,6 +119,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     }
     let completed = summaries.filter(\.isCompleted)
     let failedCount = summaries.count - completed.count
+    let aiUserCompletedCount = completed.filter { $0.mode == .personaModel }.count
+    let modelFreeCompletedCount = completed.filter { $0.mode == .modelFree }.count
     let personaCount = Set(completed.map(\.personaID).filter { !$0.isEmpty }).count
     let scoreValues = completed.flatMap { summary in
       [
@@ -143,6 +151,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       readinessScore: readinessScore,
       averageScore: averageScore,
       distinctPersonaCount: personaCount,
+      aiUserCompletedRunCount: aiUserCompletedCount,
       failedRunCount: failedCount
     )
 
@@ -151,6 +160,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       runCount: summaries.count,
       completedRunCount: completed.count,
       failedRunCount: failedCount,
+      aiUserCompletedRunCount: aiUserCompletedCount,
+      modelFreeCompletedRunCount: modelFreeCompletedCount,
       distinctPersonaCount: personaCount,
       latestRunID: summaries.first?.runID,
       readinessScore: readinessScore,
@@ -164,6 +175,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
         readinessScore: readinessScore,
         averageScore: averageScore,
         distinctPersonaCount: personaCount,
+        aiUserCompletedRunCount: aiUserCompletedCount,
+        modelFreeCompletedRunCount: modelFreeCompletedCount,
         failedRunCount: failedCount,
         recommendation: recommendation
       ),
@@ -212,6 +225,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     readinessScore: Double,
     averageScore: Double,
     distinctPersonaCount: Int,
+    aiUserCompletedRunCount: Int,
     failedRunCount: Int
   ) -> ProductMarketFitRecommendation {
     guard !completed.isEmpty else { return .gatherEvidence }
@@ -245,6 +259,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     }
     if completed.count >= 3
       && distinctPersonaCount >= 2
+      && aiUserCompletedRunCount > 0
       && readinessScore >= 76
       && missingCount == 0
       && repeatedObjections == 0
@@ -267,6 +282,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     readinessScore: Double,
     averageScore: Double,
     distinctPersonaCount: Int,
+    aiUserCompletedRunCount: Int,
+    modelFreeCompletedRunCount: Int,
     failedRunCount: Int,
     recommendation: ProductMarketFitRecommendation
   ) -> [String] {
@@ -292,6 +309,12 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     }
     if failedRunCount > 0 {
       lines.append("\(failedRunCount) failed run(s) reduce confidence in the evidence.")
+    }
+    lines.append(
+      "\(aiUserCompletedRunCount) AI-user run(s), \(modelFreeCompletedRunCount) model-free run(s)."
+    )
+    if aiUserCompletedRunCount == 0 && !completed.isEmpty {
+      lines.append("No AI-user evidence has tested this bet yet; promotion requires simulated-user pull.")
     }
     switch recommendation {
     case .promote:
