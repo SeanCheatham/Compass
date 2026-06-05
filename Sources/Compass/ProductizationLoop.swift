@@ -870,7 +870,9 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
 }
 
 struct ProductFactoryRationaleSignal: Equatable, Sendable, Identifiable {
-  var id: String { "\(experimentID):\(rationale)" }
+  var id: String {
+    "\(experimentID):\(targetDecision?.rawValue ?? "none"):\(rationale)"
+  }
 
   var experimentID: String
   var rationale: String
@@ -880,6 +882,7 @@ struct ProductFactoryRationaleSignal: Equatable, Sendable, Identifiable {
   var targetPersonaName: String?
   var targetScenarioID: String?
   var targetCohortID: String?
+  var targetDecision: ProductExperimentDecision?
   var summary: String
 
   var urgencyScore: Int {
@@ -893,6 +896,9 @@ struct ProductFactoryRationaleSignal: Equatable, Sendable, Identifiable {
     ]
     if !runIDs.isEmpty {
       parts.append("runs \(runIDs.prefix(4).joined(separator: ", "))")
+    }
+    if let targetDecision {
+      parts.append("target_decision \(targetDecision.rawValue)")
     }
     parts.append(rationale)
     if let targetPersonaName {
@@ -917,6 +923,7 @@ struct ProductFactoryRationaleSignal: Equatable, Sendable, Identifiable {
     targetPersonaName: String? = nil,
     targetScenarioID: String? = nil,
     targetCohortID: String? = nil,
+    targetDecision: ProductExperimentDecision? = nil,
     summary: String
   ) {
     self.experimentID = ProductizationModelText.identifier(
@@ -946,6 +953,7 @@ struct ProductFactoryRationaleSignal: Equatable, Sendable, Identifiable {
       targetCohortID,
       fallback: "cohort"
     )
+    self.targetDecision = targetDecision
     self.summary = ProductizationModelText.cleanedText(
       summary,
       fallback:
@@ -983,6 +991,10 @@ enum ProductFactoryRationaleSignalAdvisor {
     let sourceRunIDs = Set(aggregateSignal.runIDs)
     let sourceSummaries = summaries.filter { sourceRunIDs.contains($0.runID) }
     let target = target(for: sourceSummaries, experiment: experiment, config: config)
+    let targetDecision = targetDecision(
+      for: evidenceIndex.currentPMFReadiness(for: experiment),
+      currentDecision: experiment.decision
+    )
     let targetLabel =
       target?.personaName.map { " Target \(StringUtils.boundedText($0, limit: 80))" } ?? ""
     let rationaleText = aggregateSignal.rationale.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -998,8 +1010,36 @@ enum ProductFactoryRationaleSignalAdvisor {
       targetPersonaName: target?.personaName,
       targetScenarioID: target?.scenarioID,
       targetCohortID: target?.cohortID,
+      targetDecision: targetDecision,
       summary: summary
     )
+  }
+
+  private static func targetDecision(
+    for readiness: ProductMarketFitReadiness?,
+    currentDecision: ProductExperimentDecision
+  ) -> ProductExperimentDecision? {
+    guard let readiness else { return nil }
+    let target: ProductExperimentDecision?
+    switch readiness.recommendation {
+    case .promote:
+      target = .promote
+    case .kill:
+      target = .kill
+    case .narrow:
+      target = .narrow
+    case .pivot:
+      target = .pivot
+    case .gatherEvidence, .keepGoing:
+      target = nil
+    }
+    guard let target,
+      target == currentDecision
+        || ProductizationDecisionTransitionValidator.allowedNextDecisions(
+          from: currentDecision
+        ).contains(target)
+    else { return nil }
+    return target
   }
 
   private struct SignalTarget: Equatable, Sendable {
@@ -1129,7 +1169,12 @@ enum ProductFactoryRevisionBriefSource: String, Equatable, Sendable {
 
 struct ProductFactoryRevisionBrief: Equatable, Sendable, Identifiable {
   var id: String {
-    "\(experimentID):\(source.rawValue):\(targetScenarioID ?? targetPersonaID ?? triggerSummary)"
+    [
+      experimentID,
+      source.rawValue,
+      targetDecision?.rawValue ?? "none",
+      targetScenarioID ?? targetPersonaID ?? triggerSummary,
+    ].joined(separator: ":")
   }
 
   var experimentID: String
@@ -1144,19 +1189,25 @@ struct ProductFactoryRevisionBrief: Equatable, Sendable, Identifiable {
   var targetPersonaName: String?
   var targetScenarioID: String?
   var targetCohortID: String?
+  var targetDecision: ProductExperimentDecision?
 
   var displaySubtitle: String {
     let target = targetPersonaName.map { "target \($0)" } ?? "no target persona"
-    return "\(source.rawValue); \(target); priority \(priority)"
+    let decision = targetDecision.map { "; decision \($0.rawValue)" } ?? ""
+    return "\(source.rawValue); \(target)\(decision); priority \(priority)"
   }
 
   var displayDetail: String {
-    [
+    var parts = [
       "Trigger: \(triggerSummary)",
       "Prototype: \(prototypeChange)",
       "Scenario: \(scenarioChange)",
       "Proof: \(proofPlan)",
-    ].joined(separator: " ")
+    ]
+    if let targetDecision {
+      parts.append("Decision: \(targetDecision.rawValue)")
+    }
+    return parts.joined(separator: " ")
   }
 
   var auditSummary: String {
@@ -1165,6 +1216,9 @@ struct ProductFactoryRevisionBrief: Equatable, Sendable, Identifiable {
       "source \(source.rawValue)",
       "priority \(priority)",
     ]
+    if let targetDecision {
+      parts.append("target_decision \(targetDecision.rawValue)")
+    }
     if let targetPersonaName {
       parts.append("target \(targetPersonaName)")
     }
@@ -1191,7 +1245,8 @@ struct ProductFactoryRevisionBrief: Equatable, Sendable, Identifiable {
     targetPersonaID: String? = nil,
     targetPersonaName: String? = nil,
     targetScenarioID: String? = nil,
-    targetCohortID: String? = nil
+    targetCohortID: String? = nil,
+    targetDecision: ProductExperimentDecision? = nil
   ) {
     self.experimentID = ProductizationModelText.identifier(
       experimentID,
@@ -1240,6 +1295,7 @@ struct ProductFactoryRevisionBrief: Equatable, Sendable, Identifiable {
       targetCohortID,
       fallback: "cohort"
     )
+    self.targetDecision = targetDecision
   }
 }
 
@@ -1294,7 +1350,8 @@ enum ProductFactoryRevisionBriefAdvisor {
       targetPersonaID: signal.targetPersonaID,
       targetPersonaName: signal.targetPersonaName,
       targetScenarioID: signal.targetScenarioID,
-      targetCohortID: signal.targetCohortID
+      targetCohortID: signal.targetCohortID,
+      targetDecision: action?.targetDecision ?? signal.targetDecision
     )
   }
 
@@ -2642,7 +2699,11 @@ enum ProductFactoryCycleLearningAdvisor {
           action.targetPersonaName.map {
             summary.localizedCaseInsensitiveContains($0)
           } ?? true
-        return labelMatches && rationaleMatches && personaMatches
+        let decisionMatches =
+          (action.targetDecision ?? signal.targetDecision).map {
+            summary.contains("target_decision \($0.rawValue)")
+          } ?? true
+        return labelMatches && rationaleMatches && personaMatches && decisionMatches
       }
       return action.targetScenarioID.map { summary.contains($0) } ?? false
     }
@@ -2660,7 +2721,11 @@ enum ProductFactoryCycleLearningAdvisor {
         brief.targetPersonaName.map {
           summary.localizedCaseInsensitiveContains($0)
         } ?? true
-      return titleMatches && sourceMatches && scenarioMatches && personaMatches
+      let decisionMatches =
+        brief.targetDecision.map {
+          summary.contains("target_decision \($0.rawValue)")
+        } ?? true
+      return titleMatches && sourceMatches && scenarioMatches && personaMatches && decisionMatches
     }
   }
 
@@ -2674,7 +2739,11 @@ enum ProductFactoryCycleLearningAdvisor {
         action.targetPersonaName.map {
           summary.localizedCaseInsensitiveContains($0)
         } ?? true
-      return scenarioMatches && personaMatches
+      let decisionMatches =
+        action.targetDecision.map {
+          summary.contains("target_decision \($0.rawValue)")
+        } ?? true
+      return scenarioMatches && personaMatches && decisionMatches
     }
   }
 
@@ -2928,6 +2997,11 @@ enum ProductFactoryAutopilotPlanner {
     }
     if let targetPersonaID = action.targetPersonaID,
       brief.targetPersonaID != targetPersonaID
+    {
+      return false
+    }
+    if let targetDecision = action.targetDecision,
+      brief.targetDecision != targetDecision
     {
       return false
     }
@@ -3227,7 +3301,8 @@ enum ProductMarketFitNextActionAdvisor {
           requiredSimulationMode: .personaModel,
           targetPersonaID: rationaleSignal.targetPersonaID,
           targetPersonaName: rationaleSignal.targetPersonaName,
-          targetScenarioID: rationaleSignal.targetScenarioID
+          targetScenarioID: rationaleSignal.targetScenarioID,
+          targetDecision: rationaleSignal.targetDecision
         ),
         experiment: experiment,
         config: config,
@@ -3619,7 +3694,8 @@ enum ProductMarketFitNextActionAdvisor {
         requiredSimulationMode: .personaModel,
         targetPersonaID: action.targetPersonaID,
         targetPersonaName: action.targetPersonaName,
-        targetScenarioID: action.targetScenarioID
+        targetScenarioID: action.targetScenarioID,
+        targetDecision: action.targetDecision
       )
     }
     guard
@@ -3737,7 +3813,8 @@ enum ProductMarketFitNextActionAdvisor {
       requiredSimulationMode: .personaModel,
       targetPersonaID: action.targetPersonaID,
       targetPersonaName: action.targetPersonaName,
-      targetScenarioID: action.targetScenarioID
+      targetScenarioID: action.targetScenarioID,
+      targetDecision: action.targetDecision
     )
   }
 

@@ -1895,22 +1895,45 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
+    let rationaleSignal = try #require(
+      ProductFactoryRationaleSignalAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let revisionBrief = try #require(
+      ProductFactoryRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
     let signal = ProductFactoryExperimentRanker.signal(
       for: experiment,
       config: config,
       evidenceIndex: index
     )
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
 
     try #require(readiness.recommendation == .narrow)
+    try #require(rationaleSignal.targetDecision == .narrow)
+    try #require(rationaleSignal.auditSummary.contains("target_decision narrow"))
     try #require(action.kind == .refineBet)
     try #require(action.title == "Resolve AI-user rationale signal")
     try #require(action.cohortID == nil)
     try #require(action.targetPersonaID == buyer.id)
     try #require(action.targetScenarioID == buyerScenario.id)
+    try #require(action.targetDecision == .narrow)
     try #require(action.detail.contains("needed csv import proof"))
     try #require(action.detail.contains("Update the prototype or scenario"))
+    try #require(revisionBrief.targetDecision == .narrow)
+    try #require(revisionBrief.auditSummary.contains("target_decision narrow"))
     try #require(signal.nextActionTitle == "Resolve AI-user rationale signal")
+    try #require(signal.targetDecision == .narrow)
     try #require(signal.pressure == .reshape)
+    try #require(digest.contains("target_decision narrow"))
   }
 
   @Test func pmfNextActionNamesMissingAIUserSegmentInSuggestedCohort() throws {

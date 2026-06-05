@@ -565,6 +565,9 @@ struct ProductizationWorkbenchTab: View {
         if let targetPersonaName = signal.targetPersonaName {
           WorkbenchFact(label: "Target", value: targetPersonaName)
         }
+        if let targetDecision = signal.targetDecision {
+          WorkbenchFact(label: "Decision", value: targetDecision.rawValue)
+        }
         if let targetScenarioID = signal.targetScenarioID {
           WorkbenchFact(label: "Scenario", value: targetScenarioID)
         }

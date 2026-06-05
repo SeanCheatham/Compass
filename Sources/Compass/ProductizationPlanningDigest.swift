@@ -319,6 +319,9 @@ enum ProductizationPlanningDigestFormatter {
       if let targetPersonaName = signal.targetPersonaName {
         metadata.append("target_name \(bounded(targetPersonaName, 80))")
       }
+      if let targetDecision = signal.targetDecision {
+        metadata.append("target_decision \(targetDecision.rawValue)")
+      }
       if !signal.runIDs.isEmpty {
         metadata.append("runs \(signal.runIDs.prefix(4).joined(separator: ", "))")
       }
@@ -356,6 +359,9 @@ enum ProductizationPlanningDigestFormatter {
       }
       if let targetPersonaName = brief.targetPersonaName {
         metadata.append("target_name \(bounded(targetPersonaName, 80))")
+      }
+      if let targetDecision = brief.targetDecision {
+        metadata.append("target_decision \(targetDecision.rawValue)")
       }
       lines.append(
         "- \(brief.experimentID): \(metadata.joined(separator: "; ")); \(bounded(brief.title, 140)); prototype \(bounded(brief.prototypeChange, 220)); scenario \(bounded(brief.scenarioChange, 220)); proof \(bounded(brief.proofPlan, 220))."
