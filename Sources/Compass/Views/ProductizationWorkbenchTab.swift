@@ -729,8 +729,11 @@ struct ProductizationWorkbenchTab: View {
           WorkbenchFact(label: "Experiment", value: step.experimentTitle)
           WorkbenchFact(
             label: "Step",
-            value: "\(step.title), \(step.action.kind.rawValue)"
+            value: "\(step.queueTitle), \(step.action.kind.rawValue)"
           )
+          if let decisionIntentSummary = step.decisionIntentSummary {
+            WorkbenchFact(label: "Intent", value: decisionIntentSummary)
+          }
           WorkbenchFact(label: "Cycle", value: factoryAutopilotCyclePlan.summary)
           WorkbenchFact(label: "Queue", value: factoryAutopilotCyclePlan.queueSummary)
           if step.kind == .runCohort {

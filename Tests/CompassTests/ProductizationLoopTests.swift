@@ -1990,6 +1990,11 @@ struct ProductizationLoopTests {
         evidenceIndex: index,
         isPersonaModelAvailable: false
       ))
+    let blockedPlan = ProductFactoryAutopilotPlanner.cyclePlan(
+      config: config,
+      evidenceIndex: index,
+      isPersonaModelAvailable: false
+    )
     let executable = ProductFactoryAutopilotPlanner.nextExecutableStep(
       config: config,
       evidenceIndex: index,
@@ -2001,13 +2006,29 @@ struct ProductizationLoopTests {
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
+    let availablePlan = ProductFactoryAutopilotPlanner.cyclePlan(
+      config: config,
+      evidenceIndex: index,
+      isPersonaModelAvailable: true
+    )
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
 
     try #require(executable == nil)
     try #require(!blocked.canExecute)
     try #require(blocked.action.requiredSimulationMode == .personaModel)
+    try #require(blocked.decisionIntentSummary == "decision target promote")
+    try #require(blocked.queueTitle.contains("decision target promote"))
     try #require(blocked.blockedReason?.contains("Foundation Models") == true)
+    try #require(blockedPlan.queueSummary.contains("Blocked:"))
+    try #require(blockedPlan.queueSummary.contains("decision target promote"))
     try #require(available.canExecute)
     try #require(available.action.requiredSimulationMode == .personaModel)
+    try #require(available.decisionIntentSummary == "decision target promote")
+    try #require(availablePlan.queueSummary.contains("decision target promote"))
+    try #require(digest.contains("decision target promote"))
   }
 
   @Test func productFactoryRankerPrioritizesActionablePMFPressure() throws {

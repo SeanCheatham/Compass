@@ -1677,6 +1677,16 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
   var cohortID: String? { action.cohortID }
   var targetScenarioID: String? { action.targetScenarioID }
 
+  var decisionIntentSummary: String? {
+    guard let targetDecision = action.targetDecision else { return nil }
+    return "decision target \(targetDecision.rawValue)"
+  }
+
+  var queueTitle: String {
+    guard let decisionIntentSummary else { return title }
+    return "\(title) (\(decisionIntentSummary))"
+  }
+
   private var idKind: String {
     switch kind {
     case .applyRevision:
@@ -1793,12 +1803,12 @@ struct ProductFactoryAutopilotCyclePlan: Equatable, Sendable {
     if executableSteps.isEmpty {
       if let nextBlockedStep {
         return
-          "Blocked: \(nextBlockedStep.experimentTitle): \(nextBlockedStep.title) - \(nextBlockedStep.detail)"
+          "Blocked: \(nextBlockedStep.experimentTitle): \(nextBlockedStep.queueTitle) - \(nextBlockedStep.detail)"
       }
       return "No product-factory action queued."
     }
     let queued = executableSteps
-      .map { "\($0.experimentTitle): \($0.title)" }
+      .map { "\($0.experimentTitle): \($0.queueTitle)" }
       .joined(separator: " -> ")
     return capped ? "\(queued) -> plus more queued" : queued
   }
