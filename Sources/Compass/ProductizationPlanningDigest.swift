@@ -244,6 +244,9 @@ enum ProductizationPlanningDigestFormatter {
       if let targetPersonaName = tension.targetPersonaName {
         metadata.append("target_name \(bounded(targetPersonaName, 80))")
       }
+      if let targetDecision = tension.targetDecision {
+        metadata.append("target_decision \(targetDecision.rawValue)")
+      }
       lines.append(
         "- \(tension.experimentID): \(metadata.joined(separator: "; ")); \(bounded(tension.summary, 240))."
       )

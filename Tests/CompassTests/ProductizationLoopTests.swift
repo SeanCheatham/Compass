@@ -392,6 +392,9 @@ struct ProductizationLoopTests {
     try #require(tension.targetPersonaName == "Budget owner")
     try #require(tension.targetScenarioID == buyerScenario.id)
     try #require(tension.targetCohortID == config.scenarioCohorts[0].id)
+    try #require(tension.targetDecision == .promote)
+    try #require(tension.displaySubtitle.contains("decision promote"))
+    try #require(tension.auditSummary.contains("target_decision promote"))
     try #require(ProductMarketFitDecisionAdvisor.proposals(
       config: config,
       evidenceIndex: index
@@ -417,6 +420,7 @@ struct ProductizationLoopTests {
     try #require(digest.contains("reject split-reject-a"))
     try #require(digest.contains("target_scenario \(buyerScenario.id)"))
     try #require(digest.contains("target_name Budget owner"))
+    try #require(digest.contains("target_decision promote"))
 
     do {
       _ = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
@@ -448,6 +452,36 @@ struct ProductizationLoopTests {
       userMessage: "Factory cycle ran 1 step(s). Evidence tensions remained split."
     )
     let stalledConfig = config.recordingFactoryCycleAudit(stalledAudit)
+    let mismatchedDecisionAudit = ProductFactoryCycleAudit(
+      id: "factory-cycle-split-wrong-decision",
+      startedAt: 720,
+      endedAt: 730,
+      executedStepIDs: [ProductFactoryCycleFailureAdvisor.stepID(for: action)],
+      experimentIDs: [experiment.id],
+      messages: ["AI-user target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+      maxSteps: 3,
+      evidenceRunStepCount: 1,
+      evidenceRunIDs: ["split-resolution-kill-repeat"],
+      completedEvidenceRunCount: 1,
+      failedEvidenceRunCount: 0,
+      skippedScenarioCount: 0,
+      evidenceTensionSummaries: [
+        tension.auditSummary.replacingOccurrences(
+          of: "target_decision promote",
+          with: "target_decision kill"
+        )
+      ],
+      stopReason: .noExecutableStep,
+      stopDetail: "Stopped because no executable product-factory step remains.",
+      userMessage: "Factory cycle ran 1 step(s). Evidence tensions remained split."
+    )
+    let mismatchedDecisionConfig = config.recordingFactoryCycleAudit(mismatchedDecisionAudit)
+    try #require(ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
+      for: action,
+      experiment: experiment,
+      config: mismatchedDecisionConfig,
+      evidenceIndex: index
+    ) == nil)
     let learningAudit = try #require(
       ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
         for: action,
@@ -568,12 +602,18 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
 
     try #require(readiness.recommendation == .kill)
     try #require(tension.positiveEvidenceRunIDs == ["split-kill-pull"])
     try #require(tension.negativeEvidenceRunIDs == ["split-kill-weak", "split-kill-reject"])
     try #require(tension.targetPersonaID == operatorID)
     try #require(tension.targetScenarioID == operatorScenario.id)
+    try #require(tension.targetDecision == .kill)
+    try #require(tension.auditSummary.contains("target_decision kill"))
     try #require(ProductMarketFitDecisionAdvisor.proposals(
       config: config,
       evidenceIndex: index
@@ -582,6 +622,7 @@ struct ProductizationLoopTests {
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetScenarioID == operatorScenario.id)
     try #require(action.targetDecision == .kill)
+    try #require(digest.contains("target_decision kill"))
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {

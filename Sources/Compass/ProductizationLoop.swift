@@ -388,6 +388,7 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
   var targetPersonaName: String?
   var targetScenarioID: String?
   var targetCohortID: String?
+  var targetDecision: ProductExperimentDecision?
   var summary: String
 
   var evidenceRunIDs: [String] {
@@ -417,6 +418,9 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
     if let targetPersonaName {
       parts.append("target \(targetPersonaName)")
     }
+    if let targetDecision {
+      parts.append("decision \(targetDecision.rawValue)")
+    }
     return parts.joined(separator: ", ")
   }
 
@@ -444,6 +448,9 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
       "score \(readinessScore)/100",
       "\(strongestVerdict.rawValue) vs \(weakestVerdict.rawValue)",
     ]
+    if let targetDecision {
+      parts.append("target_decision \(targetDecision.rawValue)")
+    }
     if let targetPersonaName {
       parts.append("target \(targetPersonaName)")
     }
@@ -470,6 +477,7 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
     targetPersonaName: String? = nil,
     targetScenarioID: String? = nil,
     targetCohortID: String? = nil,
+    targetDecision: ProductExperimentDecision? = nil,
     summary: String
   ) {
     self.experimentID = ProductizationModelText.identifier(
@@ -508,6 +516,7 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
       targetCohortID,
       fallback: "cohort"
     )
+    self.targetDecision = targetDecision
     self.summary = ProductizationModelText.cleanedText(
       summary,
       fallback:
@@ -579,6 +588,7 @@ enum ProductFactoryEvidenceTensionAdvisor {
       targetPersonaName: target?.personaName,
       targetScenarioID: target?.scenarioID,
       targetCohortID: target?.cohortID,
+      targetDecision: targetDecision(for: readiness.recommendation),
       summary: summary
     )
   }
@@ -598,6 +608,19 @@ enum ProductFactoryEvidenceTensionAdvisor {
 
   private static func isNegative(_ verdict: ProductizationEvidenceVerdict) -> Bool {
     verdict == .weak || verdict == .rejected
+  }
+
+  private static func targetDecision(
+    for recommendation: ProductMarketFitRecommendation
+  ) -> ProductExperimentDecision? {
+    switch recommendation {
+    case .promote:
+      return .promote
+    case .kill:
+      return .kill
+    case .gatherEvidence, .keepGoing, .narrow, .pivot:
+      return nil
+    }
   }
 
   private struct EvidenceTensionTarget: Equatable, Sendable {
@@ -2595,7 +2618,11 @@ enum ProductFactoryCycleLearningAdvisor {
           action.targetPersonaName.map {
             summary.localizedCaseInsensitiveContains($0)
           } ?? true
-        return labelMatches && scenarioMatches && personaMatches
+        let decisionMatches =
+          (action.targetDecision ?? tension.targetDecision).map {
+            summary.contains("target_decision \($0.rawValue)")
+          } ?? true
+        return labelMatches && scenarioMatches && personaMatches && decisionMatches
       }
       return action.targetScenarioID.map { summary.contains($0) } ?? false
     }
