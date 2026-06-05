@@ -2681,6 +2681,59 @@ struct ProductizationLoopTests {
     try #require(outcome.userMessage.contains("Stopped before repeating Run evidence cohort."))
   }
 
+  @Test func productFactoryAutopilotCycleOutcomeSeparatesTargetedProofFromAppliedDecisions()
+    throws
+  {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let index = makePMFPromotionEvidenceIndex(
+      config: config,
+      includeAIUserEvidence: false
+    )
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+
+    let outcome = ProductFactoryAutopilotCycleOutcome(
+      executedSteps: [step],
+      messages: ["AI-user validation cohort ran 1 scenario(s): 1 completed."],
+      maxSteps: 3,
+      stopReason: .noExecutableStep,
+      evidenceRunIDs: ["ai-validation-run"],
+      completedEvidenceRunCount: 1
+    )
+    let audit = outcome.audit(
+      startedAt: Date(timeIntervalSince1970: 330),
+      endedAt: Date(timeIntervalSince1970: 335)
+    )
+
+    try #require(step.action.kind == .runCohort)
+    try #require(step.action.targetDecision == .promote)
+    try #require(outcome.appliedDecisionCount == 0)
+    try #require(outcome.promotedDecisionCount == 0)
+    try #require(outcome.killedDecisionCount == 0)
+    try #require(outcome.targetedPromoteProofCount == 1)
+    try #require(outcome.targetedKillProofCount == 0)
+    try #require(outcome.evidenceRunStepCount == 1)
+    try #require(outcome.userMessage.contains("0 PMF decision(s) applied (0 promote, 0 kill)"))
+    try #require(outcome.userMessage.contains("targeted proof 1 promote, 0 kill"))
+    try #require(outcome.userMessage.contains("1 evidence step(s)"))
+    try #require(audit.appliedDecisionCount == 0)
+    try #require(audit.promotedDecisionCount == 0)
+    try #require(audit.killedDecisionCount == 0)
+    try #require(audit.evidenceRunStepCount == 1)
+    try #require(audit.userMessage.contains("targeted proof 1 promote, 0 kill"))
+  }
+
   @Test func productFactoryAutopilotCycleOutcomeCountsLiftAndCutDecisions() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",

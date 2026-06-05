@@ -1932,11 +1932,27 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   }
 
   var promotedDecisionCount: Int {
-    executedSteps.filter { $0.action.targetDecision == .promote }.count
+    executedSteps.filter {
+      $0.action.kind == .applyDecision && $0.action.targetDecision == .promote
+    }.count
   }
 
   var killedDecisionCount: Int {
-    executedSteps.filter { $0.action.targetDecision == .kill }.count
+    executedSteps.filter {
+      $0.action.kind == .applyDecision && $0.action.targetDecision == .kill
+    }.count
+  }
+
+  var targetedPromoteProofCount: Int {
+    executedSteps.filter {
+      $0.action.kind != .applyDecision && $0.action.targetDecision == .promote
+    }.count
+  }
+
+  var targetedKillProofCount: Int {
+    executedSteps.filter {
+      $0.action.kind != .applyDecision && $0.action.targetDecision == .kill
+    }.count
   }
 
   var evidenceRunStepCount: Int {
@@ -2068,8 +2084,13 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       hasEvidenceRunOutcomes
       ? ", evidence runs \(completedEvidenceRunCount) completed, \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped"
       : ""
+    let targetedProofCount = targetedPromoteProofCount + targetedKillProofCount
+    let targetedProof =
+      targetedProofCount > 0
+      ? ", targeted proof \(targetedPromoteProofCount) promote, \(targetedKillProofCount) kill"
+      : ""
     return
-      "Cycle outcomes: \(appliedDecisionCount) PMF decision(s) applied (\(promotedDecisionCount) promote, \(killedDecisionCount) kill), \(evidenceRunStepCount) evidence step(s)\(evidenceOutcome)."
+      "Cycle outcomes: \(appliedDecisionCount) PMF decision(s) applied (\(promotedDecisionCount) promote, \(killedDecisionCount) kill), \(evidenceRunStepCount) evidence step(s)\(targetedProof)\(evidenceOutcome)."
   }
 
   private var hasEvidenceRunOutcomes: Bool {
