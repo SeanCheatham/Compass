@@ -1,185 +1,267 @@
-# 01 - Product Hypothesis Model
+# 01 - Pain And Productization State Model
 
 ## Objective
 
-Create Compass-owned data models and storage for product hypotheses, personas,
-and PMF tasks. This gives persona simulations a concrete product context instead
-of generic "try this app" prompts.
+Replace the product-first PMF model with a pain-driven productization model.
+
+The new state should preserve the durable pain, track multiple solution bets,
+bind experiments to branches, and store decisions without assuming that the
+first generated app is the right product.
 
 ## Scope
 
-Add model types and persistence only. Do not build the simulation runner yet.
+Implement the Swift models, storage, seeding, prompt digest, and basic tests for
+productization state.
+
+This plan may make breaking changes to `.compass/pmf.json`. Prefer renaming the
+storage file to `.compass/productization.json` over keeping a misleading PMF
+name.
 
 ## Data Model
 
-Add Codable, Equatable, Sendable models for:
+Introduce `ProductizationConfig` with schema version 1:
 
-- `ProductHypothesis`
-- `PMFPersona`
-- `PMFTask`
-- `PMFScenario`
-- `PMFScenarioCohort`
+```text
+schemaVersion
+rawPain
+painHypotheses
+userSegments
+currentWorkflows
+alternatives
+solutionHypotheses
+experiments
+scenarioCohorts
+decisions
+```
 
-Suggested `ProductHypothesis` fields:
+### PainHypothesis
+
+Fields:
 
 - `id`
 - `title`
-- `targetUser`
-- `jobToBeDone`
-- `pain`
-- `promise`
-- `currentAlternatives`
-- `successCriteria`
-- `pricingAssumptions`
-- `switchingAssumptions`
-- `knownRisks`
+- `rawPain`
+- `targetSituation`
+- `painFrequency`
+- `painSeverity`
+- `costOfInaction`
+- `successSignals`
+- `unknowns`
+- `status`
 - `createdAt`
 - `updatedAt`
 
-Suggested `PMFPersona` fields:
+`status` values:
+
+- `draft`
+- `active`
+- `reframed`
+- `resolved`
+- `parked`
+
+### UserSegment
+
+Fields:
 
 - `id`
+- `painID`
 - `name`
 - `role`
 - `context`
 - `goals`
 - `constraints`
-- `currentWorkflow`
-- `skepticism`
+- `currentWorkflowIDs`
+- `alternativeIDs`
 - `decisionCriteria`
-- `technicalComfort`
+- `skepticism`
 
-Suggested `PMFTask` fields:
+### CurrentWorkflow
 
-- `id`
-- `title`
-- `situation`
-- `desiredOutcome`
-- `startingContext`
-- `successSignals`
-- `failureSignals`
-- `maxTurns`
-
-Suggested `PMFScenario` fields:
+Fields:
 
 - `id`
+- `painID`
 - `title`
-- `hypothesisID`
-- `personaID`
-- `taskID`
-- `seed`
-- `enabled`
-- `tags`
+- `steps`
+- `tools`
+- `handoffs`
+- `failureModes`
+- `workarounds`
+- `estimatedCost`
+
+### Alternative
+
+Fields:
+
+- `id`
+- `painID`
+- `title`
+- `kind`
+- `strengths`
+- `weaknesses`
+- `switchingCost`
+
+`kind` values:
+
+- `manual`
+- `spreadsheet`
+- `existing_tool`
+- `internal_workaround`
+- `outsourced`
+- `do_nothing`
+
+### SolutionHypothesis
+
+Fields:
+
+- `id`
+- `painID`
+- `title`
+- `promise`
+- `workflowBet`
+- `targetSegmentIDs`
+- `differentiator`
+- `whyThisCouldWin`
+- `whyThisMightFail`
+- `requiredProof`
+- `status`
+
+`status` values:
+
+- `candidate`
+- `active`
+- `promoted`
+- `rejected`
+- `parked`
+
+### ProductExperiment
+
+Fields:
+
+- `id`
+- `solutionID`
+- `title`
+- `branchName`
+- `worktreeID`
+- `baseSha`
+- `currentSha`
+- `prototypeScope`
+- `scenarioCohortIDs`
+- `evidenceSummary`
+- `decision`
+- `createdAt`
+- `updatedAt`
+
+`decision` values:
+
+- `not_run`
+- `continue`
+- `narrow`
+- `pivot`
+- `kill`
+- `promote`
+
+### ProductDecision
+
+Fields:
+
+- `id`
+- `experimentID`
+- `decision`
+- `summary`
+- `evidenceRunIDs`
+- `decidedAt`
+- `decidedBy`
 
 ## Storage
 
-Persist project-local PMF configuration under `.compass/` with the same care as
-existing Compass state.
-
-Suggested file:
+Preferred layout:
 
 ```text
-.compass/pmf.json
+.compass/
+  productization.json
+  productization/
+    evidence-index.json
+    runs/
+    decisions/
 ```
 
-Suggested shape:
+Breaking migration behavior:
 
-```json
-{
-  "schemaVersion": 1,
-  "hypotheses": [],
-  "personas": [],
-  "tasks": [],
-  "scenarios": []
-}
-```
+- If `productization.json` exists, read it.
+- If only `pmf.json` exists, do not silently map it to the new model.
+- Show or log a clear message that old PMF state is superseded.
+- Seed a new pain model from `COMPASS.md`, drafts, or direct user intake.
 
-Use atomic writes where existing Compass storage helpers do. Preserve unknown
-future fields only if the surrounding storage layer already has a pattern for
-that; otherwise keep schema versioning explicit and simple.
+## Prompt Digest
 
-## UI Entry Point
+Expose a bounded prompt digest that includes:
 
-Add a minimal project-facing affordance only if it can be done cheaply:
+- active pain hypotheses
+- active solution hypotheses
+- active experiments and branches
+- latest decision per experiment
+- unresolved unknowns
+- top evidence signals and objections
 
-- A "PMF" or "Product" document/tab entry.
-- Read-only summaries are enough for this plan.
-- Full editing can be basic text fields or deferred if the runner can use
-  seeded defaults.
-
-Do not overbuild UI before the runner proves useful.
-
-## Seed Defaults
-
-When a project has no PMF config, Compass should be able to create starter
-content from existing project vision/intake information:
-
-- one product hypothesis
-- three personas
-- two PMF tasks
-- a small scenario cohort
-
-Make defaults editable and project-specific. Avoid generic praise-friendly
-personas.
+Do not inject raw transcripts into Plan or Reflect.
 
 ## Likely Files
 
-- `Sources/Compass/Models.swift`
-- `Sources/Compass/CompassProject+Storage.swift`
-- `Sources/Compass/ProjectVisionGuide.swift`
-- `Sources/Compass/Views/`
-- `Tests/CompassTests/`
+- `Sources/Compass/PMFModels.swift`
+- `Sources/Compass/PMFPlanningEvidence.swift`
+- `Sources/Compass/PMFEvidence.swift`
+- `Sources/Compass/Workspace.swift`
+- `Sources/Compass/CompassProject+Workspace.swift`
+- `Sources/Compass/Resources/Schemas/`
+- tests for model decoding, cleaning, seeding, and prompt digest
 
 ## Acceptance Criteria
 
-- PMF config can be loaded for a project.
-- Missing config produces a valid empty or seeded config.
-- Config can be saved and reloaded without data loss.
-- Model decoding rejects or handles unsupported schema versions clearly.
-- Unit tests cover round trip, missing file, malformed file, and seed defaults.
+- Compass can seed productization state from a raw pain statement.
+- Multiple solution hypotheses can point at one pain hypothesis.
+- Experiments can reference branch/worktree identities before those branches are
+  created.
+- Old PMF state no longer defines the product model.
+- Prompt digests are bounded and omit raw transcripts.
 
 ## Verification
 
-Run:
+- Run focused Swift tests for productization model decoding and seeding.
+- Confirm `.compass/productization.json` round-trips through JSON encoding.
+- Confirm empty or missing state seeds from the project pain without crashing.
+- Confirm old `pmf.json` does not get silently treated as current state.
 
-```bash
-./scripts/test-local.sh
-```
+## Status
 
-If SwiftPM tests are enough for the touched files, also run:
+Complete.
 
-```bash
-swift test
-```
+Completed on 2026-06-04. Implemented productization-native Swift state in
+`Sources/Compass/ProductizationModels.swift`, including `ProductizationConfig`,
+pain hypotheses, user segments, current workflows, alternatives, solution
+hypotheses, product experiments, scenario cohorts, and product decisions.
 
-Record any intentionally skipped UI work in the plan file before moving on.
+Added `.compass/productization.json` read/write support and
+`.compass/productization/` directory initialization through `CompassWorkspace`.
+Project refresh now seeds productization state from project pain/vision/drafts,
+logs when legacy `.compass/pmf.json` exists without productization state, and
+does not silently treat old PMF state as the current product model.
 
-## Completion
+Plan and Reflect prompts now receive a bounded productization digest covering
+active pain, active/candidate solutions, experiment branches/worktrees,
+decisions, unknowns, and summarized evidence signals/objections without raw
+transcripts. Legacy PMF configuration remains available for the existing PMF
+simulation runner until later plans replace that contract.
 
-Status: Complete.
-
-Completed on 2026-06-04. Implemented Compass-owned PMF configuration models in
-`Sources/Compass/PMFModels.swift`, including `ProductHypothesis`, `PMFPersona`,
-`PMFTask`, `PMFScenario`, `PMFScenarioCohort`, and schema-versioned `PMFConfig`.
-Added project-local `.compass/pmf.json` read/write support through
-`CompassWorkspace`, plus `CompassProject.pmfConfig` refresh/save plumbing.
-
-Seed defaults now create one hypothesis, three skeptical personas, two PMF
-tasks, six starter scenarios, and a starter cohort from project title and
-vision text when no PMF config exists. Missing config still decodes to an empty
-config through the direct workspace API.
-
-Focused tests in `Tests/CompassTests/PMFConfigTests.swift` cover round trip,
-missing file, malformed file, unsupported schema version, seed defaults, project
-refresh seeding, and project save/reload.
-
-Intentionally skipped UI work: no PMF document/tab entry was added in this
-slice. The UI entry point remains deferred until the runner or evidence view can
-make the tab useful instead of a read-only placeholder.
+Focused tests in `Tests/CompassTests/ProductizationConfigTests.swift` cover
+round trip storage, missing file, malformed file, unsupported schema version,
+seed defaults, unique seeded ids, project refresh seeding, project save/reload,
+and old PMF state not being silently migrated.
 
 Verification completed and passed:
 
 ```bash
-./scripts/test-local.sh --filter PMFConfigTests
-./scripts/test-local.sh
+./scripts/test-local.sh --filter ProductizationConfigTests
+./scripts/test-local.sh --filter PMFPlanningEvidenceFormatterTests
+./scripts/test-local.sh --filter PMFEndToEndSmokeTests
 ```

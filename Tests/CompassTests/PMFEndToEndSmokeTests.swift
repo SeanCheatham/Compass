@@ -93,10 +93,11 @@ struct PMFEndToEndSmokeTests {
       lessons: "",
       vision: project.vision,
       focus: .feature,
+      productizationConfig: project.productizationConfig,
       pmfConfig: project.pmfConfig,
       pmfEvidenceIndex: project.pmfEvidenceIndex
     )
-    try #require(planPrompt.contains("## PMF Evidence"))
+    try #require(planPrompt.contains("## Productization Context"))
     try #require(planPrompt.contains("pmf-e2e-smoke"))
     try #require(planPrompt.contains("stronger proof of ROI"))
     try #require(!planPrompt.contains("rawResponse"))

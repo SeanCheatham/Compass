@@ -32,6 +32,7 @@ extension CompassProject {
       lessons = ""
       assumptions = []
       vision = ""
+      productizationConfig = .empty
       pmfConfig = .empty
       pmfEvidenceIndex = .empty
       sessions = []
@@ -64,6 +65,7 @@ extension CompassProject {
       lessons = ""
       assumptions = []
       vision = ""
+      productizationConfig = .empty
       pmfConfig = .empty
       pmfEvidenceIndex = .empty
       sessions = []
@@ -84,6 +86,20 @@ extension CompassProject {
     lessons = workspace.readLessons()
     assumptions = try workspace.readAssumptionLedger().assumptions
     vision = workspace.readVision()
+    let rawProductPain = [vision, includeDrafts ? drafts : workspace.readDrafts()]
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+      .joined(separator: "\n\n")
+    if workspace.hasSupersededPMFConfigWithoutProductization {
+      log(
+        "Found legacy .compass/pmf.json; productization state now seeds from pain instead of silently migrating old PMF state.",
+        level: .info
+      )
+    }
+    productizationConfig = try workspace.readOrSeedProductizationConfig(
+      projectTitle: workspace.repoURL.lastPathComponent,
+      rawPain: rawProductPain.isEmpty ? vision : rawProductPain
+    )
     pmfConfig = try workspace.readOrSeedPMFConfig(
       projectTitle: workspace.repoURL.lastPathComponent,
       vision: vision
@@ -92,6 +108,20 @@ extension CompassProject {
     sessions = workspace.readSessions()
     archivedSessions = []
     hasOlderArchivedSessions = workspace.hasArchivedSessions()
+  }
+
+  func saveProductizationConfig(_ config: ProductizationConfig? = nil) async {
+    do {
+      guard let workspace else {
+        fail(AppModelError.noRepositorySelected)
+        return
+      }
+      let value = config ?? productizationConfig
+      try workspace.writeProductizationConfig(value)
+      productizationConfig = value
+    } catch {
+      fail(error)
+    }
   }
 
   func savePMFConfig(_ config: PMFConfig? = nil) async {

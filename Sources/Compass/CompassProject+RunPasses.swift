@@ -74,9 +74,13 @@ extension CompassProject {
       log("Plan focus this iteration: \(focus.displayName).", level: .info)
 
       let visionText = workspace.readVision()
-      let pmfConfigForPrompt = try workspace.readOrSeedPMFConfig(
+      let productPainText = [visionText, consumedDrafts]
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+        .joined(separator: "\n\n")
+      let productizationConfigForPrompt = try workspace.readOrSeedProductizationConfig(
         projectTitle: workspace.repoURL.lastPathComponent,
-        vision: visionText
+        rawPain: productPainText.isEmpty ? visionText : productPainText
       )
       let prompt = try Prompts.planPrompt(
         state: currentState.proposal,
@@ -89,7 +93,7 @@ extension CompassProject {
         focus: focus,
         forgeProfile: forgeProfile,
         coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace),
-        pmfConfig: pmfConfigForPrompt,
+        productizationConfig: productizationConfigForPrompt,
         pmfEvidenceIndex: workspace.readPMFEvidenceIndex(),
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
@@ -617,9 +621,9 @@ extension CompassProject {
       .prefix(reflectSessionWindow)
 
     let visionText = workspace.readVision()
-    let pmfConfigForPrompt = try workspace.readOrSeedPMFConfig(
+    let productizationConfigForPrompt = try workspace.readOrSeedProductizationConfig(
       projectTitle: workspace.repoURL.lastPathComponent,
-      vision: visionText
+      rawPain: visionText
     )
     let prompt = try Prompts.reflectPrompt(
       state: workspace.readState().proposal,
@@ -628,7 +632,7 @@ extension CompassProject {
       vision: visionText,
       recentSessions: Array(recentSessions),
       iteration: iteration,
-      pmfConfig: pmfConfigForPrompt,
+      productizationConfig: productizationConfigForPrompt,
       pmfEvidenceIndex: workspace.readPMFEvidenceIndex(),
       hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
     )

@@ -105,8 +105,13 @@ struct PMFPlanningEvidenceFormatterTests {
     try #require(text.contains("some_pull: 1"))
   }
 
-  @Test func planAndReflectPromptsIncludeAdvisoryPMFEvidence() throws {
+  @Test func planAndReflectPromptsIncludeProductizationEvidenceDigest() throws {
     let config = makePMFPlanningConfig()
+    let productizationConfig = ProductizationConfig.seedDefaults(
+      projectTitle: "ROI validation",
+      rawPain: "Budget owners cannot tell whether a workflow tool saves enough time to switch.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
     let index = PMFEvidenceIndex.build(records: [
       makePlanningEvidenceRecord(
         id: "run-prompt",
@@ -123,6 +128,7 @@ struct PMFPlanningEvidenceFormatterTests {
       lessons: "",
       vision: "",
       focus: .feature,
+      productizationConfig: productizationConfig,
       pmfConfig: config,
       pmfEvidenceIndex: index
     )
@@ -132,16 +138,17 @@ struct PMFPlanningEvidenceFormatterTests {
       vision: "",
       recentSessions: [],
       iteration: 1,
+      productizationConfig: productizationConfig,
       pmfConfig: config,
       pmfEvidenceIndex: index
     )
 
-    try #require(plan.contains("## PMF Evidence"))
+    try #require(plan.contains("## Productization Context"))
     try #require(plan.contains("advisory product pressure"))
     try #require(plan.contains("Repeated target-persona confusion"))
     try #require(plan.contains("Missing proof of ROI"))
-    try #require(reflect.contains("## PMF Evidence"))
-    try #require(reflect.contains("Extract durable product"))
+    try #require(reflect.contains("## Productization Context"))
+    try #require(reflect.contains("durable product lessons"))
     try #require(reflect.contains("persona-specific objections"))
     try #require(reflect.contains("Missing proof of ROI"))
   }

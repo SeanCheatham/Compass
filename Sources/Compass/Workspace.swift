@@ -22,6 +22,8 @@ struct CompassWorkspace {
   var lessonsURL: URL { compassURL.appending(path: "lessons.md") }
   var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
   var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
+  var productizationConfigURL: URL { compassURL.appending(path: "productization.json") }
+  var productizationURL: URL { compassURL.appending(path: "productization", directoryHint: .isDirectory) }
   var pmfConfigURL: URL { compassURL.appending(path: "pmf.json") }
   var pmfEvidenceStore: PMFEvidenceStore { PMFEvidenceStore(workspace: self) }
   var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
@@ -67,6 +69,7 @@ struct CompassWorkspace {
     try createFileIfMissing(assumptionsURL, contents: AssumptionLedger.emptyJSON)
     try createFileIfMissing(visionURL, contents: "")
     try createFileIfMissing(sessionsRecordURL, contents: "")
+    try fm.createDirectory(at: productizationURL, withIntermediateDirectories: true)
     _ = try pmfEvidenceStore.rebuildIndex()
     if isRepoLocalStorage {
       try ensureCompassIsIgnored()
@@ -221,6 +224,48 @@ struct CompassWorkspace {
 
   func writeVision(_ text: String) throws {
     try text.write(to: visionURL, atomically: true, encoding: .utf8)
+  }
+
+  var hasSupersededPMFConfigWithoutProductization: Bool {
+    FileManager.default.fileExists(atPath: pmfConfigURL.path)
+      && !FileManager.default.fileExists(atPath: productizationConfigURL.path)
+  }
+
+  func readProductizationConfig() throws -> ProductizationConfig {
+    guard FileManager.default.fileExists(atPath: productizationConfigURL.path) else {
+      return .empty
+    }
+    let data = try Data(contentsOf: productizationConfigURL)
+    guard !data.isEmpty else { return .empty }
+    return try JSONDecoder().decode(ProductizationConfig.self, from: data)
+  }
+
+  func readOrSeedProductizationConfig(
+    projectTitle: String,
+    rawPain: String,
+    now: Date = Date()
+  ) throws -> ProductizationConfig {
+    guard FileManager.default.fileExists(atPath: productizationConfigURL.path) else {
+      return ProductizationConfig.seedDefaults(
+        projectTitle: projectTitle,
+        rawPain: rawPain,
+        now: now
+      )
+    }
+    let config = try readProductizationConfig()
+    return config.isEmpty
+      ? ProductizationConfig.seedDefaults(projectTitle: projectTitle, rawPain: rawPain, now: now)
+      : config
+  }
+
+  func writeProductizationConfig(_ config: ProductizationConfig) throws {
+    try FileManager.default.createDirectory(at: compassURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: productizationURL, withIntermediateDirectories: true)
+    try Self.encodeProductizationConfig(config).write(
+      to: productizationConfigURL,
+      atomically: true,
+      encoding: .utf8
+    )
   }
 
   func readPMFConfig() throws -> PMFConfig {
@@ -442,6 +487,13 @@ struct CompassWorkspace {
   }
 
   static func encodePMFConfig(_ config: PMFConfig) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let data = try encoder.encode(config)
+    return String(decoding: data, as: UTF8.self) + "\n"
+  }
+
+  static func encodeProductizationConfig(_ config: ProductizationConfig) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(config)
