@@ -1529,6 +1529,7 @@ struct ProductizationWorkbenchTab: View {
     var decisionCandidateSummaries: [String] = []
     var evidenceTensionSummaries: [String] = []
     var proofTargetSummaries: [String] = []
+    var revisionBriefSummaries: [String] = []
     var personaRationaleSignalSummaries = ProductFactoryRationaleSignalAdvisor.signals(
       config: project.productizationConfig,
       evidenceIndex: project.productizationEvidenceIndex
@@ -1574,6 +1575,12 @@ struct ProductizationWorkbenchTab: View {
         !proofTargetSummaries.contains(proofTarget.auditSummary)
       {
         proofTargetSummaries.append(proofTarget.auditSummary)
+      }
+      if let revisionBrief = productFactoryRevisionBrief(forExperimentID: step.experimentID),
+        step.kind == .applyRevision,
+        !revisionBriefSummaries.contains(revisionBrief.auditSummary)
+      {
+        revisionBriefSummaries.append(revisionBrief.auditSummary)
       }
       if let stepExperiment = project.productizationConfig.experiments.first(where: {
         $0.id == step.experimentID
@@ -1625,7 +1632,8 @@ struct ProductizationWorkbenchTab: View {
       decisionCandidateSummaries: decisionCandidateSummaries,
       evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,
-      personaRationaleSignalSummaries: personaRationaleSignalSummaries
+      personaRationaleSignalSummaries: personaRationaleSignalSummaries,
+      revisionBriefSummaries: revisionBriefSummaries
     )
     let audit = outcome.audit(startedAt: cycleStartedAt)
     scenarioRunMessage = audit.userMessage
@@ -1685,6 +1693,21 @@ struct ProductizationWorkbenchTab: View {
       })
     else { return nil }
     return ProductFactoryEvidenceTensionAdvisor.tension(
+      for: experiment,
+      config: project.productizationConfig,
+      evidenceIndex: project.productizationEvidenceIndex
+    )
+  }
+
+  private func productFactoryRevisionBrief(
+    forExperimentID experimentID: String
+  ) -> ProductFactoryRevisionBrief? {
+    guard
+      let experiment = project.productizationConfig.experiments.first(where: {
+        $0.id == experimentID
+      })
+    else { return nil }
+    return ProductFactoryRevisionBriefAdvisor.brief(
       for: experiment,
       config: project.productizationConfig,
       evidenceIndex: project.productizationEvidenceIndex
@@ -1790,6 +1813,33 @@ struct ProductizationWorkbenchTab: View {
         )
       }
       return nil
+    case .applyRevision:
+      guard let brief = productFactoryRevisionBrief(forExperimentID: step.experimentID) else {
+        return nil
+      }
+      do {
+        let draft = try ProductizationScenarioCoordinator.revisionDraft(
+          for: brief,
+          in: project.productizationConfig
+        )
+        selectedExperimentID = draft.experimentID
+        loadScenarioDraftValues(draft)
+        await project.saveProductScenarioDraft(draft)
+        guard let scenarioID = draft.id,
+          project.productizationConfig.scenarios.contains(where: { $0.id == scenarioID })
+        else {
+          return nil
+        }
+        selectedScenarioID = scenarioID
+        await loadContractStatus()
+        return ProductFactoryAutopilotStepResult(
+          message:
+            "Applied product revision for \(step.experimentTitle): \(brief.title) to scenario \(scenarioID)."
+        )
+      } catch {
+        project.fail(error)
+        return nil
+      }
     case .blocked:
       return nil
     }

@@ -1147,7 +1147,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let blockedStep = try #require(
+    let revisionStep = try #require(
       ProductFactoryAutopilotPlanner.nextStep(
         config: config,
         evidenceIndex: index,
@@ -1175,12 +1175,53 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index,
       isPersonaModelAvailable: true
-    ) == nil)
-    try #require(blockedStep.kind == .blocked)
-    try #require(blockedStep.blockedReason?.contains("same AI-user rationale target") == true)
+    )?.kind == .applyRevision)
+    try #require(revisionStep.kind == .applyRevision)
+    try #require(revisionStep.canExecute)
+    try #require(revisionStep.id.contains("apply_revision"))
+    try #require(revisionStep.targetScenarioID == buyerScenario.id)
     try #require(revisionBrief.title == "Retarget product revision for AI-user rationale")
     try #require(revisionBrief.prototypeChange.contains("same rationale survived"))
     try #require(revisionBrief.proofPlan.contains("current alternative"))
+    let revisionAudit = ProductFactoryCycleAudit(
+      id: "factory-cycle-applied-revision",
+      startedAt: 370,
+      endedAt: 380,
+      executedStepIDs: [revisionStep.id],
+      experimentIDs: [experiment.id],
+      messages: ["Applied product revision for \(experiment.title)."],
+      maxSteps: 3,
+      revisionBriefSummaries: [revisionBrief.auditSummary],
+      stopReason: .repeatedStep,
+      stopStepID: revisionStep.id,
+      stopStepTitle: revisionStep.title,
+      stopDetail: "Stopped before repeating Apply product revision.",
+      userMessage: "Factory cycle ran 1 step(s). Product revision applied."
+    )
+    let revisedConfig = config.recordingFactoryCycleAudit(revisionAudit)
+    let appliedAudit = try #require(
+      ProductFactoryCycleLearningAdvisor.appliedRevisionBriefAudit(
+        for: revisionBrief,
+        experiment: experiment,
+        config: revisedConfig,
+        evidenceIndex: index
+      ))
+    let rememberedStep = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: revisedConfig,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(appliedAudit.id == revisionAudit.id)
+    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
+      config: revisedConfig,
+      evidenceIndex: index,
+      isPersonaModelAvailable: true
+    ) == nil)
+    try #require(rememberedStep.kind == .applyRevision)
+    try #require(!rememberedStep.canExecute)
+    try #require(rememberedStep.blockedReason?.contains("already applied this product revision") == true)
     try #require(digest.contains("Retarget AI-user rationale signal"))
     try #require(digest.contains("Retarget product revision for AI-user rationale"))
     try #require(digest.contains("factory-cycle-stalled-rationale"))
@@ -2502,6 +2543,9 @@ struct ProductizationLoopTests {
       ],
       proofTargetSummaries: [
         "\(step.experimentID): broaden completed persona coverage; debt 2 completed run(s), 2 persona(s)"
+      ],
+      revisionBriefSummaries: [
+        "\(step.experimentID): Retarget product revision for AI-user rationale; source ai_user_rationale; priority 88; target Budget owner"
       ]
     )
 
@@ -2529,11 +2573,14 @@ struct ProductizationLoopTests {
     try #require(audit.evidenceTensionSummaries[0].contains("resolve split PMF evidence"))
     try #require(audit.proofTargetSummaries.count == 1)
     try #require(audit.proofTargetSummaries[0].contains("broaden completed persona coverage"))
+    try #require(audit.revisionBriefSummaries.count == 1)
+    try #require(audit.revisionBriefSummaries[0].contains("Retarget product revision"))
     try #require(audit.stopReason == .noExecutableStep)
     try #require(audit.userMessage.contains("Factory cycle ran 1 step(s)."))
     try #require(audit.userMessage.contains("evidence runs 1 completed, 0 needing review"))
     try #require(audit.userMessage.contains("Evidence tensions:"))
     try #require(audit.userMessage.contains("Proof targets:"))
+    try #require(audit.userMessage.contains("Product revisions:"))
     try #require(audit.userMessage.contains("Proof debt improved by 2"))
     try #require(audit.summary.contains("runs run-one"))
     try #require(audit.summary.contains("proof debt 8 -> 6 (-2)"))
@@ -2541,6 +2588,8 @@ struct ProductizationLoopTests {
     try #require(audit.summary.contains("resolve split PMF evidence"))
     try #require(audit.summary.contains("targets"))
     try #require(audit.summary.contains("broaden completed persona coverage"))
+    try #require(audit.summary.contains("revisions"))
+    try #require(audit.summary.contains("Retarget product revision"))
     try #require(audit.userMessage.contains("Stopped because no executable product-factory step remains."))
   }
 

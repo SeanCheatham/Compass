@@ -527,8 +527,14 @@ enum ProductizationPlanningDigestFormatter {
           audit.personaRationaleSignalSummaries.isEmpty
           ? ""
           : "; rationale signals \(bounded(rationaleSignalList, 260))"
+        let revisionBriefList = audit.revisionBriefSummaries.prefix(3)
+          .joined(separator: " | ")
+        let revisionBriefs =
+          audit.revisionBriefSummaries.isEmpty
+          ? ""
+          : "; revisions \(bounded(revisionBriefList, 260))"
         return
-          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(rationaleSignals)"
+          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(rationaleSignals)\(revisionBriefs)"
             + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
   }

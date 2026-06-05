@@ -1616,12 +1616,13 @@ enum ProductFactoryExperimentRanker {
 enum ProductFactoryAutopilotStepKind: String, Equatable, Sendable {
   case applyDecision = "apply_decision"
   case runCohort = "run_cohort"
+  case applyRevision = "apply_revision"
   case blocked = "blocked"
 }
 
 struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
   var id: String {
-    "\(experimentID):\(action.kind.rawValue):\(targetScenarioID ?? cohortID ?? "none")"
+    "\(experimentID):\(idKind):\(targetScenarioID ?? cohortID ?? "none")"
   }
 
   var experimentID: String
@@ -1635,12 +1636,23 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
   var cohortID: String? { action.cohortID }
   var targetScenarioID: String? { action.targetScenarioID }
 
+  private var idKind: String {
+    switch kind {
+    case .applyRevision:
+      return ProductFactoryAutopilotStepKind.applyRevision.rawValue
+    case .applyDecision, .runCohort, .blocked:
+      return action.kind.rawValue
+    }
+  }
+
   var title: String {
     switch kind {
     case .applyDecision:
       return "Apply PMF decision"
     case .runCohort:
       return action.kind == .rerunCohort ? "Rerun evidence cohort" : "Run evidence cohort"
+    case .applyRevision:
+      return "Apply product revision"
     case .blocked:
       return action.title
     }
@@ -1813,6 +1825,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   var evidenceTensionSummaries: [String]
   var proofTargetSummaries: [String]
   var personaRationaleSignalSummaries: [String]
+  var revisionBriefSummaries: [String]
 
   init(
     executedSteps: [ProductFactoryAutopilotStep],
@@ -1830,7 +1843,8 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     decisionCandidateSummaries: [String] = [],
     evidenceTensionSummaries: [String] = [],
     proofTargetSummaries: [String] = [],
-    personaRationaleSignalSummaries: [String] = []
+    personaRationaleSignalSummaries: [String] = [],
+    revisionBriefSummaries: [String] = []
   ) {
     self.executedSteps = executedSteps
     self.messages = ProductizationModelText.cleanedList(messages, limit: 500)
@@ -1865,6 +1879,10 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     self.personaRationaleSignalSummaries = ProductizationModelText.cleanedList(
       personaRationaleSignalSummaries,
       limit: 360
+    )
+    self.revisionBriefSummaries = ProductizationModelText.cleanedList(
+      revisionBriefSummaries,
+      limit: 300
     )
   }
 
@@ -1912,6 +1930,9 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     }
     if let personaRationaleSignalMessage {
       parts.append(personaRationaleSignalMessage)
+    }
+    if let revisionBriefMessage {
+      parts.append(revisionBriefMessage)
     }
     if let proofDebtMessage {
       parts.append(proofDebtMessage)
@@ -1989,6 +2010,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,
       personaRationaleSignalSummaries: personaRationaleSignalSummaries,
+      revisionBriefSummaries: revisionBriefSummaries,
       stopReason: auditStopReason,
       stopStepID: stopStepID,
       stopStepTitle: stopStepTitle,
@@ -2036,6 +2058,12 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     guard !personaRationaleSignalSummaries.isEmpty else { return nil }
     let signals = personaRationaleSignalSummaries.prefix(3).joined(separator: " | ")
     return "AI-user rationale signals: \(StringUtils.boundedText(signals, limit: 420))."
+  }
+
+  private var revisionBriefMessage: String? {
+    guard !revisionBriefSummaries.isEmpty else { return nil }
+    let briefs = revisionBriefSummaries.prefix(3).joined(separator: " | ")
+    return "Product revisions: \(StringUtils.boundedText(briefs, limit: 420))."
   }
 
   private var proofDebtMessage: String? {
@@ -2264,6 +2292,29 @@ enum ProductFactoryCycleLearningAdvisor {
       }
   }
 
+  static func appliedRevisionBriefAudit(
+    for brief: ProductFactoryRevisionBrief,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryCycleAudit? {
+    config.factoryCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(5)
+      .first { audit in
+        guard audit.stopReason != .executionFailed,
+          audit.experimentIDs.contains(experiment.id),
+          !audit.revisionBriefSummaries.isEmpty,
+          matchesCurrentRevisionBrief(audit: audit, brief: brief),
+          !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
+        else { return false }
+        return true
+      }
+  }
+
   private static func isBroadCohortAction(_ action: ProductMarketFitNextAction) -> Bool {
     (action.kind == .runCohort || action.kind == .rerunCohort)
       && action.targetScenarioID == nil
@@ -2364,6 +2415,22 @@ enum ProductFactoryCycleLearningAdvisor {
     }
   }
 
+  private static func matchesCurrentRevisionBrief(
+    audit: ProductFactoryCycleAudit,
+    brief: ProductFactoryRevisionBrief
+  ) -> Bool {
+    audit.revisionBriefSummaries.contains { summary in
+      let titleMatches = summary.localizedCaseInsensitiveContains(brief.title)
+      let sourceMatches = summary.contains(brief.source.rawValue)
+      let scenarioMatches = brief.targetScenarioID.map { summary.contains($0) } ?? true
+      let personaMatches =
+        brief.targetPersonaName.map {
+          summary.localizedCaseInsensitiveContains($0)
+        } ?? true
+      return titleMatches && sourceMatches && scenarioMatches && personaMatches
+    }
+  }
+
   private static func broadCohortStepIDs(for action: ProductMarketFitNextAction) -> Set<String> {
     guard let cohortID = action.cohortID else { return [] }
     return [
@@ -2422,8 +2489,14 @@ enum ProductFactoryAutopilotPlanner {
         config: config,
         evidenceIndex: evidenceIndex
       )
-      return applyingRecentCycleLearningBlock(
+      let revisionReady = applyingRevisionBriefStep(
         to: failureGuarded,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      return applyingRecentCycleLearningBlock(
+        to: revisionReady,
         experiment: experiment,
         config: config,
         evidenceIndex: evidenceIndex
@@ -2511,6 +2584,26 @@ enum ProductFactoryAutopilotPlanner {
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductFactoryAutopilotStep {
     if step.canExecute,
+      step.kind == .applyRevision,
+      let brief = ProductFactoryRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      let audit = ProductFactoryCycleLearningAdvisor.appliedRevisionBriefAudit(
+        for: brief,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    {
+      var blocked = step
+      blocked.canExecute = false
+      blocked.blockedReason =
+        "Recent factory cycle \(audit.id) already applied this product revision; run fresh targeted AI-user evidence or change the prototype before applying it again."
+      return blocked
+    }
+    if step.canExecute,
       let audit = ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
         for: step.action,
         experiment: experiment,
@@ -2551,6 +2644,47 @@ enum ProductFactoryAutopilotPlanner {
     blocked.blockedReason =
       "Recent factory cycle \(audit.id) already attempted this proof target without reducing proof debt; inspect the run evidence, change the scenario or current-alternative proof, or choose a different AI-user target before retrying."
     return blocked
+  }
+
+  private static func applyingRevisionBriefStep(
+    to step: ProductFactoryAutopilotStep,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryAutopilotStep {
+    guard step.action.kind == .refineBet,
+      let brief = ProductFactoryRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      revisionBriefMatches(action: step.action, brief: brief)
+    else { return step }
+    var executable = step
+    executable.kind = .applyRevision
+    executable.canExecute = true
+    executable.blockedReason = nil
+    return executable
+  }
+
+  private static func revisionBriefMatches(
+    action: ProductMarketFitNextAction,
+    brief: ProductFactoryRevisionBrief
+  ) -> Bool {
+    if action.targetScenarioID == nil && action.targetPersonaID == nil {
+      return false
+    }
+    if let targetScenarioID = action.targetScenarioID,
+      brief.targetScenarioID != targetScenarioID
+    {
+      return false
+    }
+    if let targetPersonaID = action.targetPersonaID,
+      brief.targetPersonaID != targetPersonaID
+    {
+      return false
+    }
+    return true
   }
 }
 
