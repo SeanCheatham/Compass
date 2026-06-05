@@ -223,6 +223,9 @@ enum ProductizationPlanningDigestFormatter {
       if signal.staleEvidenceCount > 0 {
         metadata.append("stale \(signal.staleEvidenceCount)")
       }
+      if let proofDebtSummary = signal.proofDebtSummary {
+        metadata.append("proof_debt \(bounded(proofDebtSummary, 160))")
+      }
       lines.append("- \(signal.experimentID): \(metadata.joined(separator: "; ")).")
     }
     return lines
@@ -426,8 +429,12 @@ enum ProductizationPlanningDigestFormatter {
           ? "no evidence runs"
           : "evidence \(readiness.evidenceRunIDs.prefix(4).joined(separator: ", "))"
         let rationale = readiness.rationale.first.map { "; \(bounded($0, 180))" } ?? ""
+        let proofDebt =
+          readiness.proofDebt.isClear
+          ? "proof-debt clear"
+          : "proof-debt \(bounded(readiness.proofDebt.summary, 180))"
         lines.append(
-          "- \(readiness.experimentID): score \(readiness.scoreLabel)/100; recommend \(readiness.recommendation.rawValue); ai-user \(readiness.aiUserCompletedRunCount) across \(readiness.aiUserDistinctPersonaCount) persona(s); alt-proof \(readiness.aiUserCurrentAlternativePersonaCount) AI-user persona(s); model-free \(readiness.modelFreeCompletedRunCount); \(evidence)\(rationale)."
+          "- \(readiness.experimentID): score \(readiness.scoreLabel)/100; recommend \(readiness.recommendation.rawValue); ai-user \(readiness.aiUserCompletedRunCount) across \(readiness.aiUserDistinctPersonaCount) persona(s); alt-proof \(readiness.aiUserCurrentAlternativePersonaCount) AI-user persona(s); model-free \(readiness.modelFreeCompletedRunCount); \(proofDebt); \(evidence)\(rationale)."
         )
       }
     }

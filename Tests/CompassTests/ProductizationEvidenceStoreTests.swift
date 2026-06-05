@@ -181,6 +181,8 @@ struct ProductizationEvidenceStoreTests {
     try #require(good.modelFreeCompletedRunCount == 1)
     try #require(good.distinctPersonaCount == 2)
     try #require(good.evidenceRunIDs.first == "strong-a")
+    try #require(good.proofDebt.isClear)
+    try #require(good.proofDebt.summary == "proof complete")
     try #require(good.rationale.contains { $0.contains("2 AI-user run(s) across 2 persona(s)") })
     try #require(good.rationale.contains { $0.contains("Average PMF score") })
 
@@ -188,11 +190,16 @@ struct ProductizationEvidenceStoreTests {
     try #require(bad.aiUserCompletedRunCount == 2)
     try #require(bad.aiUserDistinctPersonaCount == 2)
     try #require(bad.aiUserCurrentAlternativePersonaCount == 2)
+    try #require(bad.proofDebt.isClear)
     try #require(bad.readinessScore <= 30)
     try #require(bad.rationale.contains { $0.contains("Repeated objections") })
 
     try #require(narrow.recommendation == .narrow)
+    try #require(narrow.proofDebt.aiUserPersonaDeficit == 2)
+    try #require(narrow.proofDebt.aiUserCurrentAlternativeDeficit == 2)
+    try #require(narrow.proofDebt.summary.contains("AI-user persona"))
     try #require(narrow.rationale.contains { $0.contains("Missing capabilities") })
+    try #require(narrow.rationale.contains { $0.contains("Proof debt") })
   }
 
   @Test func currentCommitReadinessIgnoresStaleExperimentEvidence() throws {
@@ -299,6 +306,8 @@ struct ProductizationEvidenceStoreTests {
 
     try #require(text.contains("Top current-commit evidence signals and objections"))
     try #require(text.contains("Current-commit product-market-fit readiness"))
+    try #require(text.contains("proof-debt"))
+    try #require(text.contains("2 AI-user persona(s)"))
     try #require(text.contains("ai-user 0"))
     try #require(text.contains("model-free 1"))
     try #require(text.contains("Factory autopilot step"))

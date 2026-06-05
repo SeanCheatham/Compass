@@ -930,6 +930,37 @@ struct ProductizationLoopTests {
     try #require(secondSignal.pmfLabel == "No current PMF evidence")
   }
 
+  @Test func productFactoryRankerSurfacesPMFProofDebt() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let index = makePMFPromotionEvidenceIndex(
+      config: config,
+      includeAIUserEvidence: false
+    )
+
+    let signal = ProductFactoryExperimentRanker.signal(
+      for: config.experiments[0],
+      config: config,
+      evidenceIndex: index
+    )
+    let readiness = try #require(index.currentPMFReadiness(for: config.experiments[0]))
+
+    try #require(!readiness.proofDebt.isClear)
+    try #require(readiness.proofDebt.aiUserPersonaDeficit == 2)
+    try #require(readiness.proofDebt.aiUserCurrentAlternativeDeficit == 2)
+    try #require(readiness.rationale.contains { $0.contains("Proof debt") })
+    try #require(signal.proofDebtCount == readiness.proofDebt.blockingDebtCount)
+    try #require(signal.proofDebtSummary?.contains("AI-user persona") == true)
+    try #require(signal.nextActionKind == .runCohort)
+    try #require(signal.pressure == .learn)
+  }
+
   @Test func productFactoryAutopilotChoosesExecutablePMFDecision() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",

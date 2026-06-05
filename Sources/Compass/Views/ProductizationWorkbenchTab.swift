@@ -699,6 +699,9 @@ struct ProductizationWorkbenchTab: View {
             value:
               "\(readiness.recommendation.title), \(readiness.completedRunCount)/\(readiness.runCount) completed, \(readiness.distinctPersonaCount) persona(s)"
           )
+          if !readiness.proofDebt.isClear {
+            WorkbenchFact(label: "Proof debt", value: readiness.proofDebt.summary)
+          }
           ForEach(Array(readiness.rationale.prefix(3).enumerated()), id: \.offset) { _, rationale in
             WorkbenchFact(label: "Why", value: rationale)
           }

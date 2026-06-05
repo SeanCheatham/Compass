@@ -377,12 +377,15 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
   var nextActionPriority: Int
   var pressure: ProductFactoryPortfolioPressure
   var staleEvidenceCount: Int
+  var proofDebtCount: Int
+  var proofDebtSummary: String?
 
   var urgencyScore: Int {
     (nextActionPriority * 1_000)
       + (readinessScore ?? 0)
       + pressure.priorityBoost
       + min(50, staleEvidenceCount * 5)
+      + min(40, proofDebtCount * 4)
   }
 
   var pmfLabel: String {
@@ -408,7 +411,9 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
     nextActionTitle: String?,
     nextActionPriority: Int,
     pressure: ProductFactoryPortfolioPressure,
-    staleEvidenceCount: Int
+    staleEvidenceCount: Int,
+    proofDebtCount: Int = 0,
+    proofDebtSummary: String? = nil
   ) {
     self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
     self.readinessScore = readinessScore.map { min(100, max(0, $0)) }
@@ -418,6 +423,8 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
     self.nextActionPriority = max(0, nextActionPriority)
     self.pressure = pressure
     self.staleEvidenceCount = max(0, staleEvidenceCount)
+    self.proofDebtCount = max(0, proofDebtCount)
+    self.proofDebtSummary = proofDebtSummary.map { StringUtils.boundedText($0, limit: 240) }
   }
 }
 
@@ -473,7 +480,9 @@ enum ProductFactoryExperimentRanker {
       nextActionTitle: nextAction?.title,
       nextActionPriority: nextAction?.priority ?? 0,
       pressure: pressure(for: experiment, readiness: readiness, nextAction: nextAction),
-      staleEvidenceCount: evidenceIndex.staleSummaryCount(for: experiment)
+      staleEvidenceCount: evidenceIndex.staleSummaryCount(for: experiment),
+      proofDebtCount: readiness?.proofDebt.blockingDebtCount ?? 0,
+      proofDebtSummary: readiness?.proofDebt.isClear == false ? readiness?.proofDebt.summary : nil
     )
   }
 

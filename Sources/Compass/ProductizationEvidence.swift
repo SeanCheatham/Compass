@@ -52,6 +52,84 @@ enum ProductMarketFitRecommendation: String, Codable, CaseIterable, Equatable, S
   }
 }
 
+struct ProductMarketFitProofDebt: Codable, Equatable, Sendable {
+  var completedRunDeficit: Int
+  var personaDeficit: Int
+  var aiUserPersonaDeficit: Int
+  var aiUserCurrentAlternativeDeficit: Int
+  var failedRunCount: Int
+
+  var isClear: Bool {
+    blockingDebtCount == 0
+  }
+
+  var blockingDebtCount: Int {
+    completedRunDeficit + personaDeficit + aiUserPersonaDeficit
+      + aiUserCurrentAlternativeDeficit + (failedRunCount > 0 ? 1 : 0)
+  }
+
+  var summary: String {
+    let labels = debtLabels
+    guard !labels.isEmpty else { return "proof complete" }
+    return labels.joined(separator: ", ")
+  }
+
+  var debtLabels: [String] {
+    var labels: [String] = []
+    if completedRunDeficit > 0 {
+      labels.append("\(completedRunDeficit) completed run(s)")
+    }
+    if personaDeficit > 0 {
+      labels.append("\(personaDeficit) persona(s)")
+    }
+    if aiUserPersonaDeficit > 0 {
+      labels.append("\(aiUserPersonaDeficit) AI-user persona(s)")
+    }
+    if aiUserCurrentAlternativeDeficit > 0 {
+      labels.append("\(aiUserCurrentAlternativeDeficit) AI-user current-alternative proof(s)")
+    }
+    if failedRunCount > 0 {
+      labels.append("\(failedRunCount) failed run(s) to repair")
+    }
+    return labels
+  }
+
+  init(
+    completedRunCount: Int,
+    distinctPersonaCount: Int,
+    aiUserDistinctPersonaCount: Int,
+    aiUserCurrentAlternativePersonaCount: Int,
+    failedRunCount: Int,
+    minimumCompletedRuns: Int = 2,
+    minimumPersonaCount: Int = 2,
+    minimumAIUserPersonaCount: Int = 2,
+    minimumAIUserCurrentAlternativePersonaCount: Int = 2
+  ) {
+    self.completedRunDeficit = max(0, minimumCompletedRuns - completedRunCount)
+    self.personaDeficit = max(0, minimumPersonaCount - distinctPersonaCount)
+    self.aiUserPersonaDeficit = max(0, minimumAIUserPersonaCount - aiUserDistinctPersonaCount)
+    self.aiUserCurrentAlternativeDeficit = max(
+      0,
+      minimumAIUserCurrentAlternativePersonaCount - aiUserCurrentAlternativePersonaCount
+    )
+    self.failedRunCount = max(0, failedRunCount)
+  }
+
+  init(
+    completedRunDeficit: Int,
+    personaDeficit: Int,
+    aiUserPersonaDeficit: Int,
+    aiUserCurrentAlternativeDeficit: Int,
+    failedRunCount: Int
+  ) {
+    self.completedRunDeficit = max(0, completedRunDeficit)
+    self.personaDeficit = max(0, personaDeficit)
+    self.aiUserPersonaDeficit = max(0, aiUserPersonaDeficit)
+    self.aiUserCurrentAlternativeDeficit = max(0, aiUserCurrentAlternativeDeficit)
+    self.failedRunCount = max(0, failedRunCount)
+  }
+}
+
 struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
   var id: String { experimentID }
 
@@ -71,6 +149,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
   var strongestVerdict: ProductizationEvidenceVerdict
   var weakestVerdict: ProductizationEvidenceVerdict
   var recommendation: ProductMarketFitRecommendation
+  var proofDebt: ProductMarketFitProofDebt
   var rationale: [String]
   var evidenceRunIDs: [String]
 
@@ -95,46 +174,56 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     case strongestVerdict
     case weakestVerdict
     case recommendation
+    case proofDebt
     case rationale
     case evidenceRunIDs
   }
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    let aiUserCompletedRunCount = try container.decodeIfPresent(
-      Int.self,
-      forKey: .aiUserCompletedRunCount
-    ) ?? 0
-    let distinctPersonaCount = try container.decodeIfPresent(
-      Int.self,
-      forKey: .distinctPersonaCount
-    ) ?? 0
-    let aiUserDistinctPersonaCount = try container.decodeIfPresent(
-      Int.self,
-      forKey: .aiUserDistinctPersonaCount
-    ) ?? min(aiUserCompletedRunCount, distinctPersonaCount)
-    let currentAlternativeComparisonCount = try container.decodeIfPresent(
-      Int.self,
-      forKey: .currentAlternativeComparisonCount
-    ) ?? 0
-    let aiUserCurrentAlternativePersonaCount = try container.decodeIfPresent(
-      Int.self,
-      forKey: .aiUserCurrentAlternativePersonaCount
-    ) ?? 0
+    let aiUserCompletedRunCount =
+      try container.decodeIfPresent(
+        Int.self,
+        forKey: .aiUserCompletedRunCount
+      ) ?? 0
+    let distinctPersonaCount =
+      try container.decodeIfPresent(
+        Int.self,
+        forKey: .distinctPersonaCount
+      ) ?? 0
+    let aiUserDistinctPersonaCount =
+      try container.decodeIfPresent(
+        Int.self,
+        forKey: .aiUserDistinctPersonaCount
+      ) ?? min(aiUserCompletedRunCount, distinctPersonaCount)
+    let currentAlternativeComparisonCount =
+      try container.decodeIfPresent(
+        Int.self,
+        forKey: .currentAlternativeComparisonCount
+      ) ?? 0
+    let aiUserCurrentAlternativePersonaCount =
+      try container.decodeIfPresent(
+        Int.self,
+        forKey: .aiUserCurrentAlternativePersonaCount
+      ) ?? 0
+    let completedRunCount = try container.decode(Int.self, forKey: .completedRunCount)
+    let failedRunCount = try container.decode(Int.self, forKey: .failedRunCount)
+    let modelFreeCompletedRunCount =
+      try container.decodeIfPresent(
+        Int.self,
+        forKey: .modelFreeCompletedRunCount
+      ) ?? 0
 
     self.init(
       experimentID: try container.decode(String.self, forKey: .experimentID),
       runCount: try container.decode(Int.self, forKey: .runCount),
-      completedRunCount: try container.decode(Int.self, forKey: .completedRunCount),
-      failedRunCount: try container.decode(Int.self, forKey: .failedRunCount),
+      completedRunCount: completedRunCount,
+      failedRunCount: failedRunCount,
       aiUserCompletedRunCount: aiUserCompletedRunCount,
       aiUserDistinctPersonaCount: aiUserDistinctPersonaCount,
       currentAlternativeComparisonCount: currentAlternativeComparisonCount,
       aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
-      modelFreeCompletedRunCount: try container.decodeIfPresent(
-        Int.self,
-        forKey: .modelFreeCompletedRunCount
-      ) ?? 0,
+      modelFreeCompletedRunCount: modelFreeCompletedRunCount,
       distinctPersonaCount: distinctPersonaCount,
       latestRunID: try container.decodeIfPresent(String.self, forKey: .latestRunID),
       readinessScore: try container.decode(Double.self, forKey: .readinessScore),
@@ -150,6 +239,10 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       recommendation: try container.decode(
         ProductMarketFitRecommendation.self,
         forKey: .recommendation
+      ),
+      proofDebt: try container.decodeIfPresent(
+        ProductMarketFitProofDebt.self,
+        forKey: .proofDebt
       ),
       rationale: try container.decodeIfPresent([String].self, forKey: .rationale) ?? [],
       evidenceRunIDs: try container.decodeIfPresent([String].self, forKey: .evidenceRunIDs)
@@ -174,6 +267,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     strongestVerdict: ProductizationEvidenceVerdict,
     weakestVerdict: ProductizationEvidenceVerdict,
     recommendation: ProductMarketFitRecommendation,
+    proofDebt: ProductMarketFitProofDebt? = nil,
     rationale: [String],
     evidenceRunIDs: [String]
   ) {
@@ -196,6 +290,15 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     self.strongestVerdict = strongestVerdict
     self.weakestVerdict = weakestVerdict
     self.recommendation = recommendation
+    self.proofDebt =
+      proofDebt
+      ?? ProductMarketFitProofDebt(
+        completedRunCount: self.completedRunCount,
+        distinctPersonaCount: self.distinctPersonaCount,
+        aiUserDistinctPersonaCount: self.aiUserDistinctPersonaCount,
+        aiUserCurrentAlternativePersonaCount: self.aiUserCurrentAlternativePersonaCount,
+        failedRunCount: self.failedRunCount
+      )
     self.rationale = ProductizationEvidenceRecord.cleanedList(rationale, limit: 260)
     self.evidenceRunIDs = ProductizationEvidenceRecord.cleanedList(evidenceRunIDs, limit: 96)
   }
@@ -251,6 +354,13 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
       failedRunCount: failedCount
     )
+    let proofDebt = ProductMarketFitProofDebt(
+      completedRunCount: completed.count,
+      distinctPersonaCount: personaCount,
+      aiUserDistinctPersonaCount: aiUserPersonaCount,
+      aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
+      failedRunCount: failedCount
+    )
 
     self.init(
       experimentID: summaries.first?.experimentID ?? "experiment",
@@ -269,6 +379,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       strongestVerdict: strongest,
       weakestVerdict: weakest,
       recommendation: recommendation,
+      proofDebt: proofDebt,
       rationale: Self.rationale(
         summaries: summaries,
         completed: completed,
@@ -281,7 +392,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
         aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
         modelFreeCompletedRunCount: modelFreeCompletedCount,
         failedRunCount: failedCount,
-        recommendation: recommendation
+        recommendation: recommendation,
+        proofDebt: proofDebt
       ),
       evidenceRunIDs: summaries.prefix(8).map(\.runID)
     )
@@ -395,7 +507,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     aiUserCurrentAlternativePersonaCount: Int,
     modelFreeCompletedRunCount: Int,
     failedRunCount: Int,
-    recommendation: ProductMarketFitRecommendation
+    recommendation: ProductMarketFitRecommendation,
+    proofDebt: ProductMarketFitProofDebt
   ) -> [String] {
     var lines = [
       "\(completed.count) completed of \(summaries.count) run(s) across \(distinctPersonaCount) persona(s)."
@@ -427,13 +540,18 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       "\(currentAlternativeComparisonCount) current-alternative comparison(s), including \(aiUserCurrentAlternativePersonaCount) AI-user persona(s)."
     )
     if aiUserCompletedRunCount == 0 && !completed.isEmpty {
-      lines.append("No AI-user evidence has tested this bet yet; promotion requires simulated-user pull.")
+      lines.append(
+        "No AI-user evidence has tested this bet yet; promotion requires simulated-user pull.")
     } else if aiUserDistinctPersonaCount < 2 && !completed.isEmpty {
       lines.append("Decisive PMF decisions require AI-user evidence across at least 2 personas.")
     }
     if aiUserCurrentAlternativePersonaCount < 2 && !completed.isEmpty {
       lines.append(
-        "Decisive PMF decisions require current-alternative proof from at least 2 AI-user personas.")
+        "Decisive PMF decisions require current-alternative proof from at least 2 AI-user personas."
+      )
+    }
+    if !proofDebt.isClear {
+      lines.append("Proof debt: \(proofDebt.summary).")
     }
     switch recommendation {
     case .promote:
