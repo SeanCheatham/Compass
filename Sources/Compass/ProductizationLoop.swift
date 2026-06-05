@@ -1057,20 +1057,15 @@ enum ProductMarketFitNextActionAdvisor {
     )
     if readiness.aiUserDistinctPersonaCount < 2 && readiness.readinessScore >= 70 {
       return applyingRecentCycleFailureGuard(
-        to: ProductMarketFitNextAction(
-          experimentID: experiment.id,
-          kind: cohort == nil ? .refineBet : .runCohort,
+        to: aiUserBreadthAction(
+          experiment: experiment,
+          readiness: readiness,
+          selectedCohort: cohort,
+          target: missingAIUserTarget,
           title: "Run AI-user validation cohort",
-          detail: cohort.map {
-            "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but promotion requires at least 2; run cohort `\($0.id)` in persona-model mode before promotion.\(missingAIUserTarget?.guidance(cohort: $0) ?? "")"
-          }
-            ?? "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but promotion requires at least 2; define another enabled cohort before promotion.\(missingAIUserTarget?.guidance(cohort: nil) ?? "")",
-          priority: 78,
-          cohortID: cohort?.id,
-          requiredSimulationMode: .personaModel,
-          targetPersonaID: missingAIUserTarget?.id,
-          targetPersonaName: missingAIUserTarget?.name,
-          targetScenarioID: missingAIUserTarget?.executableScenarioID
+          decisionGate: "promotion",
+          gateReason: "promotion requires at least 2",
+          priority: 78
         ),
         experiment: experiment,
         config: config,
@@ -1079,20 +1074,15 @@ enum ProductMarketFitNextActionAdvisor {
     }
     if readiness.aiUserDistinctPersonaCount < 2 && shouldRunAIUserRejectionCheck(readiness) {
       return applyingRecentCycleFailureGuard(
-        to: ProductMarketFitNextAction(
-          experimentID: experiment.id,
-          kind: cohort == nil ? .refineBet : .runCohort,
+        to: aiUserBreadthAction(
+          experiment: experiment,
+          readiness: readiness,
+          selectedCohort: cohort,
+          target: missingAIUserTarget,
           title: "Run AI-user rejection check",
-          detail: cohort.map {
-            "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but stopping a bet requires at least 2; run cohort `\($0.id)` in persona-model mode before stopping the experiment.\(missingAIUserTarget?.guidance(cohort: $0) ?? "")"
-          }
-            ?? "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but stopping a bet requires at least 2; define another enabled cohort before stopping the experiment.\(missingAIUserTarget?.guidance(cohort: nil) ?? "")",
-          priority: 82,
-          cohortID: cohort?.id,
-          requiredSimulationMode: .personaModel,
-          targetPersonaID: missingAIUserTarget?.id,
-          targetPersonaName: missingAIUserTarget?.name,
-          targetScenarioID: missingAIUserTarget?.executableScenarioID
+          decisionGate: "stopping the experiment",
+          gateReason: "stopping a bet requires at least 2",
+          priority: 82
         ),
         experiment: experiment,
         config: config,
@@ -1166,26 +1156,71 @@ enum ProductMarketFitNextActionAdvisor {
         || readiness.weakestVerdict == .rejected)
   }
 
+  private static func aiUserBreadthAction(
+    experiment: ProductExperiment,
+    readiness: ProductMarketFitReadiness,
+    selectedCohort: ProductScenarioCohort?,
+    target: AIUserPersonaTarget?,
+    title: String,
+    decisionGate: String,
+    gateReason: String,
+    priority: Int
+  ) -> ProductMarketFitNextAction {
+    let executableCohortID = target?.executableCohortID
+    let executableScenarioID = target?.executableScenarioID
+    let canRunTarget = executableCohortID != nil && executableScenarioID != nil
+    let guidance =
+      target?.guidance(selectedCohort: selectedCohort, executableCohortID: executableCohortID)
+      ?? " Target AI-user segment: add an enabled scenario for an untested segment."
+    let detail: String
+    if let executableCohortID, canRunTarget {
+      detail =
+        "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but \(gateReason); run the targeted persona-model scenario in cohort `\(executableCohortID)` before \(decisionGate).\(guidance)"
+    } else if let selectedCohort {
+      detail =
+        "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but \(gateReason); cohort `\(selectedCohort.id)` does not cover a runnable AI-user target before \(decisionGate).\(guidance)"
+    } else {
+      detail =
+        "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but \(gateReason); define an enabled AI-user scenario cohort before \(decisionGate).\(guidance)"
+    }
+    return ProductMarketFitNextAction(
+      experimentID: experiment.id,
+      kind: canRunTarget ? .runCohort : .refineBet,
+      title: title,
+      detail: detail,
+      priority: priority,
+      cohortID: executableCohortID,
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: target?.id,
+      targetPersonaName: target?.name,
+      targetScenarioID: executableScenarioID
+    )
+  }
+
   private struct AIUserPersonaTarget: Equatable, Sendable {
     var id: String
     var name: String
     var scenarioID: String?
-    var isScenarioInCohort: Bool
+    var executableCohortID: String?
 
     var executableScenarioID: String? {
-      isScenarioInCohort ? scenarioID : nil
+      executableCohortID == nil ? nil : scenarioID
     }
 
-    func guidance(cohort: ProductScenarioCohort?) -> String {
-      if let scenarioID, isScenarioInCohort {
-        return " Target AI-user segment: \(name) via scenario `\(scenarioID)`."
-      }
-      if let scenarioID, let cohort {
+    func guidance(
+      selectedCohort: ProductScenarioCohort?,
+      executableCohortID: String?
+    ) -> String {
+      if let scenarioID, let executableCohortID {
         return
-          " Target AI-user segment: \(name); add scenario `\(scenarioID)` to cohort `\(cohort.id)` or run a cohort that includes it."
+          " Target AI-user segment: \(name) via scenario `\(scenarioID)` in cohort `\(executableCohortID)`."
+      }
+      if let scenarioID, let selectedCohort {
+        return
+          " Target AI-user segment: \(name); add scenario `\(scenarioID)` to cohort `\(selectedCohort.id)` or enable a cohort that includes it."
       }
       if let scenarioID {
-        return " Target AI-user segment: \(name); run or enable scenario `\(scenarioID)`."
+        return " Target AI-user segment: \(name); enable a cohort that includes scenario `\(scenarioID)`."
       }
       return " Target AI-user segment: \(name); add an enabled scenario for this segment."
     }
@@ -1216,7 +1251,7 @@ enum ProductMarketFitNextActionAdvisor {
         id: scenario.segmentID,
         name: segmentName(for: scenario.segmentID, config: config),
         scenarioID: scenario.id,
-        isScenarioInCohort: true
+        executableCohortID: cohort?.id
       )
     }
 
@@ -1229,15 +1264,35 @@ enum ProductMarketFitNextActionAdvisor {
     }
     .sorted(by: scenarioSort(config: config))
     .first
-    let isScenarioInCohort = scenario.map { scenario in
-      cohortScenarioIDs.contains(scenario.id)
-    } ?? false
     return AIUserPersonaTarget(
       id: segmentID,
       name: segmentName(for: segmentID, config: config),
       scenarioID: scenario?.id,
-      isScenarioInCohort: isScenarioInCohort
+      executableCohortID: executableCohortID(
+        forScenarioID: scenario?.id,
+        experiment: experiment,
+        config: config
+      )
     )
+  }
+
+  private static func executableCohortID(
+    forScenarioID scenarioID: String?,
+    experiment: ProductExperiment,
+    config: ProductizationConfig
+  ) -> String? {
+    guard let scenarioID else { return nil }
+    return config.scenarioCohorts
+      .filter {
+        $0.experimentID == experiment.id
+          && $0.enabled
+          && $0.scenarioIDs.contains(scenarioID)
+      }
+      .sorted {
+        if $0.scenarioIDs.count == $1.scenarioIDs.count { return $0.title < $1.title }
+        return $0.scenarioIDs.count < $1.scenarioIDs.count
+      }
+      .first?.id
   }
 
   private static func targetSegmentIDs(

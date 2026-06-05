@@ -245,6 +245,8 @@ struct ProductizationLoopTests {
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
+    let operatorID = try #require(config.userSegments.first?.id)
+    let buyerID = try #require(config.userSegments.dropFirst().first?.id)
     let weakScores = ProductizationEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
@@ -258,7 +260,7 @@ struct ProductizationLoopTests {
           id: "weak-a",
           experiment: experiment,
           config: config,
-          personaID: "operator",
+          personaID: operatorID,
           endedAt: 300,
           verdict: .weak,
           scores: weakScores,
@@ -268,7 +270,7 @@ struct ProductizationLoopTests {
           id: "weak-b",
           experiment: experiment,
           config: config,
-          personaID: "buyer",
+          personaID: buyerID,
           endedAt: 200,
           verdict: .rejected,
           scores: weakScores,
@@ -307,6 +309,8 @@ struct ProductizationLoopTests {
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
+    let operatorID = try #require(config.userSegments.first?.id)
+    let buyerID = try #require(config.userSegments.dropFirst().first?.id)
     let weakScores = ProductizationEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
@@ -320,7 +324,7 @@ struct ProductizationLoopTests {
           id: "weak-a",
           experiment: experiment,
           config: config,
-          personaID: "operator",
+          personaID: operatorID,
           mode: .personaModel,
           endedAt: 300,
           verdict: .weak,
@@ -331,7 +335,7 @@ struct ProductizationLoopTests {
           id: "weak-b",
           experiment: experiment,
           config: config,
-          personaID: "buyer",
+          personaID: buyerID,
           endedAt: 200,
           verdict: .rejected,
           scores: weakScores,
@@ -356,9 +360,10 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index
     ).isEmpty)
-    try #require(action.kind == .runCohort)
+    try #require(action.kind == .refineBet)
     try #require(action.title == "Run AI-user rejection check")
     try #require(action.detail.contains("requires at least 2"))
+    try #require(action.detail.contains("does not cover a runnable AI-user target"))
     try #require(action.requiredSimulationMode == .personaModel)
   }
 
@@ -396,7 +401,7 @@ struct ProductizationLoopTests {
     ).isEmpty)
     try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user validation cohort")
-    try #require(action.detail.contains("persona-model mode"))
+    try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
   }
 
@@ -433,9 +438,10 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index
     ).isEmpty)
-    try #require(action.kind == .runCohort)
+    try #require(action.kind == .refineBet)
     try #require(action.title == "Run AI-user validation cohort")
     try #require(action.detail.contains("requires at least 2"))
+    try #require(action.detail.contains("does not cover a runnable AI-user target"))
     try #require(action.requiredSimulationMode == .personaModel)
   }
 
@@ -542,6 +548,153 @@ struct ProductizationLoopTests {
     try #require(step.cohortReadiness?.enabledScenarioCount == 1)
     try #require(step.id.contains(buyerScenarioID))
     try #require(step.detail.contains("targeting \(buyer.name)"))
+  }
+
+  @Test func pmfNextActionRedirectsMissingAIUserSegmentToRunnableCohort() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    for index in config.experiments.indices.dropFirst() {
+      config.experiments[index].decision = .promoted
+    }
+    let experiment = config.experiments[0]
+    let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
+    let operatorScenario = try #require(
+      config.scenarios.first { $0.experimentID == experiment.id && $0.segmentID != buyer.id }
+    )
+    let buyerScenarioID = "\(experiment.id)-buyer-ai-user-check"
+    let overflowOperatorScenarioID = "\(experiment.id)-operator-extra-check"
+    config.scenarios.append(
+      ProductScenario(
+        id: overflowOperatorScenarioID,
+        experimentID: experiment.id,
+        segmentID: operatorScenario.segmentID,
+        currentWorkflowID: operatorScenario.currentWorkflowID,
+        alternativeID: operatorScenario.alternativeID,
+        title: "Operator extra check",
+        task: operatorScenario.task,
+        successSignal: operatorScenario.successSignal,
+        targetCommitSha: "head-sha",
+        createdAt: 20
+      )
+    )
+    config.scenarios.append(
+      ProductScenario(
+        id: buyerScenarioID,
+        experimentID: experiment.id,
+        segmentID: buyer.id,
+        currentWorkflowID: operatorScenario.currentWorkflowID,
+        alternativeID: config.alternatives.first { $0.kind == .doNothing }?.id,
+        title: "Buyer AI-user check",
+        task: "Use the prototype to decide whether the evidence is good enough to sponsor.",
+        successSignal: "The buyer can make a clear continue or stop decision.",
+        targetCommitSha: "head-sha",
+        createdAt: 21
+      )
+    )
+    let selectedCohort = config.scenarioCohorts[0]
+    config.scenarioCohorts[0] = ProductScenarioCohort(
+      id: selectedCohort.id,
+      title: selectedCohort.title,
+      experimentID: selectedCohort.experimentID,
+      scenarioIDs: selectedCohort.scenarioIDs + [overflowOperatorScenarioID],
+      enabled: selectedCohort.enabled,
+      tags: selectedCohort.tags
+    )
+    let buyerCohortID = "\(experiment.id)-buyer-ai-user-cohort"
+    config.scenarioCohorts.append(
+      ProductScenarioCohort(
+        id: buyerCohortID,
+        title: "Buyer AI-user cohort",
+        experimentID: experiment.id,
+        scenarioIDs: [buyerScenarioID],
+        enabled: true,
+        tags: ["ai-user"]
+      )
+    )
+    let index = makePMFPromotionEvidenceIndex(
+      experiment: experiment,
+      config: config,
+      includeAIUserEvidence: true,
+      includeAIUserPersonaBreadth: false
+    )
+
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(action.kind == .runCohort)
+    try #require(action.cohortID == buyerCohortID)
+    try #require(action.targetScenarioID == buyerScenarioID)
+    try #require(action.targetPersonaID == buyer.id)
+    try #require(action.detail.contains("cohort `\(buyerCohortID)`"))
+    try #require(step.canExecute)
+    try #require(step.cohortID == buyerCohortID)
+    try #require(step.targetScenarioID == buyerScenarioID)
+    try #require(step.id.contains(buyerScenarioID))
+  }
+
+  @Test func pmfNextActionBlocksAIUserCohortWhenMissingSegmentHasNoScenario() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    for index in config.experiments.indices.dropFirst() {
+      config.experiments[index].decision = .promoted
+    }
+    let experiment = config.experiments[0]
+    let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
+    let index = makePMFPromotionEvidenceIndex(
+      experiment: experiment,
+      config: config,
+      includeAIUserEvidence: true,
+      includeAIUserPersonaBreadth: false
+    )
+
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(action.kind == .refineBet)
+    try #require(action.cohortID == nil)
+    try #require(action.targetScenarioID == nil)
+    try #require(action.targetPersonaID == buyer.id)
+    try #require(action.detail.contains("does not cover a runnable AI-user target"))
+    try #require(action.detail.contains("add an enabled scenario"))
+    try #require(!step.canExecute)
+    try #require(step.kind == .blocked)
+    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
+      config: config,
+      evidenceIndex: index,
+      isPersonaModelAvailable: true
+    ) == nil)
   }
 
   @Test func productFactoryAutopilotBlocksRequiredAIUserCohortWhenUnavailable() throws {
@@ -1311,13 +1464,15 @@ private func makePMFPromotionEvidenceIndex(
     continuedUsePull: 5
   )
   let experiment = experiment ?? config.experiments[0]
+  let operatorID = config.userSegments.first?.id ?? "operator"
+  let buyerID = config.userSegments.dropFirst().first?.id ?? "buyer"
   return ProductizationEvidenceIndex.build(
     records: [
       makeDecisionAdvisorRecord(
         id: "promote-a",
         experiment: experiment,
         config: config,
-        personaID: "operator",
+        personaID: operatorID,
         mode: includeAIUserEvidence ? .personaModel : .modelFree,
         endedAt: 300,
         verdict: .strongPull,
@@ -1327,7 +1482,7 @@ private func makePMFPromotionEvidenceIndex(
         id: "promote-b",
         experiment: experiment,
         config: config,
-        personaID: "buyer",
+        personaID: buyerID,
         mode: includeAIUserEvidence && includeAIUserPersonaBreadth ? .personaModel : .modelFree,
         endedAt: 200,
         verdict: .strongPull,
@@ -1337,7 +1492,7 @@ private func makePMFPromotionEvidenceIndex(
         id: "promote-c",
         experiment: experiment,
         config: config,
-        personaID: "operator",
+        personaID: operatorID,
         endedAt: 100,
         verdict: .promising,
         scores: scores
