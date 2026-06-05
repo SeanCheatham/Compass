@@ -60,6 +60,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
   var completedRunCount: Int
   var failedRunCount: Int
   var aiUserCompletedRunCount: Int
+  var aiUserDistinctPersonaCount: Int
   var modelFreeCompletedRunCount: Int
   var distinctPersonaCount: Int
   var latestRunID: String?
@@ -75,12 +76,80 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     "\(Int(readinessScore.rounded()))"
   }
 
+  private enum CodingKeys: String, CodingKey {
+    case experimentID
+    case runCount
+    case completedRunCount
+    case failedRunCount
+    case aiUserCompletedRunCount
+    case aiUserDistinctPersonaCount
+    case modelFreeCompletedRunCount
+    case distinctPersonaCount
+    case latestRunID
+    case readinessScore
+    case averageScore
+    case strongestVerdict
+    case weakestVerdict
+    case recommendation
+    case rationale
+    case evidenceRunIDs
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let aiUserCompletedRunCount = try container.decodeIfPresent(
+      Int.self,
+      forKey: .aiUserCompletedRunCount
+    ) ?? 0
+    let distinctPersonaCount = try container.decodeIfPresent(
+      Int.self,
+      forKey: .distinctPersonaCount
+    ) ?? 0
+    let aiUserDistinctPersonaCount = try container.decodeIfPresent(
+      Int.self,
+      forKey: .aiUserDistinctPersonaCount
+    ) ?? min(aiUserCompletedRunCount, distinctPersonaCount)
+
+    self.init(
+      experimentID: try container.decode(String.self, forKey: .experimentID),
+      runCount: try container.decode(Int.self, forKey: .runCount),
+      completedRunCount: try container.decode(Int.self, forKey: .completedRunCount),
+      failedRunCount: try container.decode(Int.self, forKey: .failedRunCount),
+      aiUserCompletedRunCount: aiUserCompletedRunCount,
+      aiUserDistinctPersonaCount: aiUserDistinctPersonaCount,
+      modelFreeCompletedRunCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .modelFreeCompletedRunCount
+      ) ?? 0,
+      distinctPersonaCount: distinctPersonaCount,
+      latestRunID: try container.decodeIfPresent(String.self, forKey: .latestRunID),
+      readinessScore: try container.decode(Double.self, forKey: .readinessScore),
+      averageScore: try container.decode(Double.self, forKey: .averageScore),
+      strongestVerdict: try container.decode(
+        ProductizationEvidenceVerdict.self,
+        forKey: .strongestVerdict
+      ),
+      weakestVerdict: try container.decode(
+        ProductizationEvidenceVerdict.self,
+        forKey: .weakestVerdict
+      ),
+      recommendation: try container.decode(
+        ProductMarketFitRecommendation.self,
+        forKey: .recommendation
+      ),
+      rationale: try container.decodeIfPresent([String].self, forKey: .rationale) ?? [],
+      evidenceRunIDs: try container.decodeIfPresent([String].self, forKey: .evidenceRunIDs)
+        ?? []
+    )
+  }
+
   init(
     experimentID: String,
     runCount: Int,
     completedRunCount: Int,
     failedRunCount: Int,
     aiUserCompletedRunCount: Int,
+    aiUserDistinctPersonaCount: Int,
     modelFreeCompletedRunCount: Int,
     distinctPersonaCount: Int,
     latestRunID: String?,
@@ -100,6 +169,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     self.completedRunCount = max(0, completedRunCount)
     self.failedRunCount = max(0, failedRunCount)
     self.aiUserCompletedRunCount = max(0, aiUserCompletedRunCount)
+    self.aiUserDistinctPersonaCount = max(0, aiUserDistinctPersonaCount)
     self.modelFreeCompletedRunCount = max(0, modelFreeCompletedRunCount)
     self.distinctPersonaCount = max(0, distinctPersonaCount)
     self.latestRunID = ProductizationEvidenceRecord.optionalBounded(latestRunID, limit: 96)
@@ -119,7 +189,9 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     }
     let completed = summaries.filter(\.isCompleted)
     let failedCount = summaries.count - completed.count
-    let aiUserCompletedCount = completed.filter { $0.mode == .personaModel }.count
+    let aiUserCompleted = completed.filter { $0.mode == .personaModel }
+    let aiUserCompletedCount = aiUserCompleted.count
+    let aiUserPersonaCount = Set(aiUserCompleted.map(\.personaID).filter { !$0.isEmpty }).count
     let modelFreeCompletedCount = completed.filter { $0.mode == .modelFree }.count
     let personaCount = Set(completed.map(\.personaID).filter { !$0.isEmpty }).count
     let scoreValues = completed.flatMap { summary in
@@ -151,7 +223,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       readinessScore: readinessScore,
       averageScore: averageScore,
       distinctPersonaCount: personaCount,
-      aiUserCompletedRunCount: aiUserCompletedCount,
+      aiUserDistinctPersonaCount: aiUserPersonaCount,
       failedRunCount: failedCount
     )
 
@@ -161,6 +233,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       completedRunCount: completed.count,
       failedRunCount: failedCount,
       aiUserCompletedRunCount: aiUserCompletedCount,
+      aiUserDistinctPersonaCount: aiUserPersonaCount,
       modelFreeCompletedRunCount: modelFreeCompletedCount,
       distinctPersonaCount: personaCount,
       latestRunID: summaries.first?.runID,
@@ -176,6 +249,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
         averageScore: averageScore,
         distinctPersonaCount: personaCount,
         aiUserCompletedRunCount: aiUserCompletedCount,
+        aiUserDistinctPersonaCount: aiUserPersonaCount,
         modelFreeCompletedRunCount: modelFreeCompletedCount,
         failedRunCount: failedCount,
         recommendation: recommendation
@@ -225,7 +299,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     readinessScore: Double,
     averageScore: Double,
     distinctPersonaCount: Int,
-    aiUserCompletedRunCount: Int,
+    aiUserDistinctPersonaCount: Int,
     failedRunCount: Int
   ) -> ProductMarketFitRecommendation {
     guard !completed.isEmpty else { return .gatherEvidence }
@@ -252,14 +326,14 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       && (readinessScore <= 30 || averageScore > 0 && averageScore <= 2.1
         || rejectedOrWeakCount >= 2)
     {
-      return aiUserCompletedRunCount > 0 ? .kill : .gatherEvidence
+      return aiUserDistinctPersonaCount >= 2 ? .kill : .gatherEvidence
     }
     if completed.count >= 2 && painRecognition >= 4 && productPull > 0 && productPull <= 2.8 {
       return .pivot
     }
     if completed.count >= 3
       && distinctPersonaCount >= 2
-      && aiUserCompletedRunCount > 0
+      && aiUserDistinctPersonaCount >= 2
       && readinessScore >= 76
       && missingCount == 0
       && repeatedObjections == 0
@@ -283,6 +357,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     averageScore: Double,
     distinctPersonaCount: Int,
     aiUserCompletedRunCount: Int,
+    aiUserDistinctPersonaCount: Int,
     modelFreeCompletedRunCount: Int,
     failedRunCount: Int,
     recommendation: ProductMarketFitRecommendation
@@ -311,10 +386,12 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       lines.append("\(failedRunCount) failed run(s) reduce confidence in the evidence.")
     }
     lines.append(
-      "\(aiUserCompletedRunCount) AI-user run(s), \(modelFreeCompletedRunCount) model-free run(s)."
+      "\(aiUserCompletedRunCount) AI-user run(s) across \(aiUserDistinctPersonaCount) persona(s), \(modelFreeCompletedRunCount) model-free run(s)."
     )
     if aiUserCompletedRunCount == 0 && !completed.isEmpty {
       lines.append("No AI-user evidence has tested this bet yet; promotion requires simulated-user pull.")
+    } else if aiUserDistinctPersonaCount < 2 && !completed.isEmpty {
+      lines.append("Decisive PMF decisions require AI-user evidence across at least 2 personas.")
     }
     switch recommendation {
     case .promote:

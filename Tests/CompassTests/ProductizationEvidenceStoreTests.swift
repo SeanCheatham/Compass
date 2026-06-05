@@ -111,6 +111,7 @@ struct ProductizationEvidenceStoreTests {
         id: "strong-b",
         experimentID: "good-experiment",
         personaID: "buyer",
+        mode: .personaModel,
         endedAt: 200,
         verdict: .strongPull,
         scores: strongScores
@@ -138,6 +139,7 @@ struct ProductizationEvidenceStoreTests {
         id: "weak-b",
         experimentID: "bad-experiment",
         personaID: "buyer",
+        mode: .personaModel,
         endedAt: 210,
         verdict: .rejected,
         objections: ["No reason to switch"],
@@ -172,15 +174,17 @@ struct ProductizationEvidenceStoreTests {
 
     try #require(good.recommendation == .promote)
     try #require(good.readinessScore >= 76)
-    try #require(good.aiUserCompletedRunCount == 1)
-    try #require(good.modelFreeCompletedRunCount == 2)
+    try #require(good.aiUserCompletedRunCount == 2)
+    try #require(good.aiUserDistinctPersonaCount == 2)
+    try #require(good.modelFreeCompletedRunCount == 1)
     try #require(good.distinctPersonaCount == 2)
     try #require(good.evidenceRunIDs.first == "strong-a")
-    try #require(good.rationale.contains { $0.contains("1 AI-user run") })
+    try #require(good.rationale.contains { $0.contains("2 AI-user run(s) across 2 persona(s)") })
     try #require(good.rationale.contains { $0.contains("Average PMF score") })
 
     try #require(bad.recommendation == .kill)
-    try #require(bad.aiUserCompletedRunCount == 1)
+    try #require(bad.aiUserCompletedRunCount == 2)
+    try #require(bad.aiUserDistinctPersonaCount == 2)
     try #require(bad.readinessScore <= 30)
     try #require(bad.rationale.contains { $0.contains("Repeated objections") })
 

@@ -1014,16 +1014,16 @@ enum ProductMarketFitNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
-    if readiness.aiUserCompletedRunCount == 0 && readiness.readinessScore >= 70 {
+    if readiness.aiUserDistinctPersonaCount < 2 && readiness.readinessScore >= 70 {
       return applyingRecentCycleFailureGuard(
         to: ProductMarketFitNextAction(
           experimentID: experiment.id,
           kind: cohort == nil ? .refineBet : .runCohort,
           title: "Run AI-user validation cohort",
           detail: cohort.map {
-            "Model-free evidence is strong, but no AI-user run has tested switching pull yet; run cohort `\($0.id)` in persona-model mode before promotion."
+            "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but promotion requires at least 2; run cohort `\($0.id)` in persona-model mode before promotion."
           }
-            ?? "Model-free evidence is strong, but no AI-user run has tested switching pull yet; define another enabled cohort before promotion.",
+            ?? "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but promotion requires at least 2; define another enabled cohort before promotion.",
           priority: 78,
           cohortID: cohort?.id,
           requiredSimulationMode: .personaModel
@@ -1033,16 +1033,16 @@ enum ProductMarketFitNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
-    if readiness.aiUserCompletedRunCount == 0 && shouldRunAIUserRejectionCheck(readiness) {
+    if readiness.aiUserDistinctPersonaCount < 2 && shouldRunAIUserRejectionCheck(readiness) {
       return applyingRecentCycleFailureGuard(
         to: ProductMarketFitNextAction(
           experimentID: experiment.id,
           kind: cohort == nil ? .refineBet : .runCohort,
           title: "Run AI-user rejection check",
           detail: cohort.map {
-            "Model-free evidence is weak, but no AI-user run has tested whether this bet deserves killing; run cohort `\($0.id)` in persona-model mode before stopping the experiment."
+            "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but stopping a bet requires at least 2; run cohort `\($0.id)` in persona-model mode before stopping the experiment."
           }
-            ?? "Model-free evidence is weak, but no AI-user run has tested whether this bet deserves killing; define another enabled cohort before stopping the experiment.",
+            ?? "Current evidence has \(readiness.aiUserDistinctPersonaCount) AI-user persona(s), but stopping a bet requires at least 2; define another enabled cohort before stopping the experiment.",
           priority: 82,
           cohortID: cohort?.id,
           requiredSimulationMode: .personaModel

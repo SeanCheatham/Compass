@@ -159,6 +159,7 @@ struct ProductizationLoopTests {
           experiment: config.experiments[0],
           config: config,
           personaID: "buyer",
+          mode: .personaModel,
           endedAt: 200,
           verdict: .strongPull,
           scores: strongScores
@@ -208,6 +209,7 @@ struct ProductizationLoopTests {
           experiment: badExperiment,
           config: config,
           personaID: "buyer",
+          mode: .personaModel,
           endedAt: 250,
           verdict: .rejected,
           scores: weakScores,
@@ -295,6 +297,71 @@ struct ProductizationLoopTests {
     try #require(action.requiredSimulationMode == .personaModel)
   }
 
+  @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforeKill() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let weakScores = ProductizationEvidenceScores(
+      painRecognition: 2,
+      workflowImprovement: 1,
+      alternativeAdvantage: 2,
+      switchingReadiness: 1,
+      continuedUsePull: 2
+    )
+    let index = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "weak-a",
+          experiment: experiment,
+          config: config,
+          personaID: "operator",
+          mode: .personaModel,
+          endedAt: 300,
+          verdict: .weak,
+          scores: weakScores,
+          objections: ["No reason to switch"]
+        ),
+        makeDecisionAdvisorRecord(
+          id: "weak-b",
+          experiment: experiment,
+          config: config,
+          personaID: "buyer",
+          endedAt: 200,
+          verdict: .rejected,
+          scores: weakScores,
+          objections: ["No reason to switch"]
+        ),
+      ]
+    )
+
+    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(readiness.aiUserCompletedRunCount == 1)
+    try #require(readiness.aiUserDistinctPersonaCount == 1)
+    try #require(readiness.recommendation == .gatherEvidence)
+    try #require(readiness.rationale.contains { $0.contains("at least 2 personas") })
+    try #require(ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: index
+    ).isEmpty)
+    try #require(action.kind == .runCohort)
+    try #require(action.title == "Run AI-user rejection check")
+    try #require(action.detail.contains("requires at least 2"))
+    try #require(action.requiredSimulationMode == .personaModel)
+  }
+
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",
@@ -330,6 +397,45 @@ struct ProductizationLoopTests {
     try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user validation cohort")
     try #require(action.detail.contains("persona-model mode"))
+    try #require(action.requiredSimulationMode == .personaModel)
+  }
+
+  @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforePromotion() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let index = makePMFPromotionEvidenceIndex(
+      experiment: experiment,
+      config: config,
+      includeAIUserEvidence: true,
+      includeAIUserPersonaBreadth: false
+    )
+
+    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(readiness.aiUserCompletedRunCount == 1)
+    try #require(readiness.aiUserDistinctPersonaCount == 1)
+    try #require(readiness.recommendation == .keepGoing)
+    try #require(readiness.rationale.contains { $0.contains("at least 2 personas") })
+    try #require(ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: index
+    ).isEmpty)
+    try #require(action.kind == .runCohort)
+    try #require(action.title == "Run AI-user validation cohort")
+    try #require(action.detail.contains("requires at least 2"))
     try #require(action.requiredSimulationMode == .personaModel)
   }
 
@@ -1089,7 +1195,8 @@ private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> Productiz
 private func makePMFPromotionEvidenceIndex(
   experiment: ProductExperiment? = nil,
   config: ProductizationConfig,
-  includeAIUserEvidence: Bool = true
+  includeAIUserEvidence: Bool = true,
+  includeAIUserPersonaBreadth: Bool = true
 ) -> ProductizationEvidenceIndex {
   let scores = ProductizationEvidenceScores(
     painRecognition: 5,
@@ -1116,6 +1223,7 @@ private func makePMFPromotionEvidenceIndex(
         experiment: experiment,
         config: config,
         personaID: "buyer",
+        mode: includeAIUserEvidence && includeAIUserPersonaBreadth ? .personaModel : .modelFree,
         endedAt: 200,
         verdict: .strongPull,
         scores: scores
