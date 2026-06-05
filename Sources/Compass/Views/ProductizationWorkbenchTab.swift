@@ -118,6 +118,13 @@ struct ProductizationWorkbenchTab: View {
     )
   }
 
+  private var factoryRationaleSignals: [ProductFactoryRationaleSignal] {
+    ProductFactoryRationaleSignalAdvisor.signals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var factoryEvidenceTensions: [ProductFactoryEvidenceTension] {
     ProductFactoryEvidenceTensionAdvisor.tensions(
       config: config,
@@ -401,6 +408,18 @@ struct ProductizationWorkbenchTab: View {
           }
         }
 
+        WorkbenchSection("AI-User Rationale Signals", systemImage: "person.2.wave.2") {
+          VStack(alignment: .leading, spacing: 8) {
+            if factoryRationaleSignals.isEmpty {
+              WorkbenchEmptyLine("No repeated AI-user rationale signals detected.")
+            } else {
+              ForEach(factoryRationaleSignals.prefix(4)) { signal in
+                rationaleSignalRow(signal)
+              }
+            }
+          }
+        }
+
         WorkbenchSection("Evidence Tensions", systemImage: "exclamationmark.triangle") {
           VStack(alignment: .leading, spacing: 8) {
             if factoryEvidenceTensions.isEmpty {
@@ -501,6 +520,49 @@ struct ProductizationWorkbenchTab: View {
     }
     .buttonStyle(.plain)
     .help(target.displayDetail)
+  }
+
+  private func rationaleSignalRow(_ signal: ProductFactoryRationaleSignal) -> some View {
+    Button {
+      selectedExperimentID = signal.experimentID
+      if let targetScenarioID = signal.targetScenarioID {
+        selectedScenarioID = targetScenarioID
+      }
+    } label: {
+      VStack(alignment: .leading, spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text(signal.targetPersonaName.map { "AI-user rationale: \($0)" }
+            ?? "AI-user rationale signal")
+            .font(.callout.weight(.semibold))
+            .lineLimit(2)
+          Spacer()
+          WorkbenchStatusPill(text: "\(signal.count)x")
+        }
+        WorkbenchFact(label: "Experiment", value: signal.experimentID)
+        WorkbenchFact(label: "Rationale", value: signal.rationale)
+        if !signal.runIDs.isEmpty {
+          WorkbenchFact(label: "Runs", value: signal.runIDs.prefix(3).joined(separator: ", "))
+        }
+        if let targetPersonaName = signal.targetPersonaName {
+          WorkbenchFact(label: "Target", value: targetPersonaName)
+        }
+        if let targetScenarioID = signal.targetScenarioID {
+          WorkbenchFact(label: "Scenario", value: targetScenarioID)
+        }
+        if let targetCohortID = signal.targetCohortID {
+          WorkbenchFact(label: "Cohort", value: targetCohortID)
+        }
+        Text(signal.summary)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .help(signal.auditSummary)
   }
 
   private func evidenceTensionRow(_ tension: ProductFactoryEvidenceTension) -> some View {
