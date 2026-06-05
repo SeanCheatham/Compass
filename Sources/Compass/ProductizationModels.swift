@@ -1056,7 +1056,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     )
     self.evidenceTensionSummaries = ProductizationModelText.cleanedList(
       evidenceTensionSummaries,
-      limit: 300
+      limit: 360
     )
     self.proofTargetSummaries = ProductizationModelText.cleanedList(
       proofTargetSummaries,

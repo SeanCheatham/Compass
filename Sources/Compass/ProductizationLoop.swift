@@ -1948,11 +1948,11 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     )
     self.evidenceTensionSummaries = ProductizationModelText.cleanedList(
       evidenceTensionSummaries,
-      limit: 300
+      limit: 360
     )
     self.proofTargetSummaries = ProductizationModelText.cleanedList(
       proofTargetSummaries,
-      limit: 240
+      limit: 360
     )
     self.personaRationaleSignalSummaries = ProductizationModelText.cleanedList(
       personaRationaleSignalSummaries,
@@ -2013,6 +2013,10 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     if !messages.isEmpty {
       parts.append(messages.joined(separator: " "))
     }
+    if let proofDebtMessage {
+      parts.append(proofDebtMessage)
+    }
+    parts.append(stopReasonMessage)
     if let decisionCandidateMessage {
       parts.append(decisionCandidateMessage)
     }
@@ -2028,10 +2032,6 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     if let revisionBriefMessage {
       parts.append(revisionBriefMessage)
     }
-    if let proofDebtMessage {
-      parts.append(proofDebtMessage)
-    }
-    parts.append(stopReasonMessage)
     return parts.joined(separator: " ")
   }
 

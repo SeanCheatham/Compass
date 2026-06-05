@@ -3165,6 +3165,12 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: .empty
       ))
+    let longScenarioID =
+      "\(step.experimentID)-budget-owner-current-alternative-switching-proof-scenario"
+    let tensionSummary =
+      "\(step.experimentID): resolve split PMF evidence; score 82/100; strong_pull vs rejected; target_decision promote; target Budget owner; scenario \(longScenarioID); evidence split-a, split-b; Current PMF evidence is split."
+    let proofTargetSummary =
+      "\(step.experimentID): run targeted AI-user validation proof; target_decision promote; target Budget owner; scenario \(longScenarioID); debt 2 completed run(s), 2 persona(s), 1 AI-user current-alternative proof(s)"
     let outcome = ProductFactoryAutopilotCycleOutcome(
       executedSteps: [step],
       messages: ["Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
@@ -3178,12 +3184,8 @@ struct ProductizationLoopTests {
       endingProofDebtCount: 6,
       startingProofDebtSummary: "\(step.experimentID): 2 completed run(s), 2 persona(s)",
       endingProofDebtSummary: "\(step.experimentID): 1 completed run(s), 1 persona(s)",
-      evidenceTensionSummaries: [
-        "\(step.experimentID): resolve split PMF evidence; score 82/100; strong_pull vs rejected; target Budget owner"
-      ],
-      proofTargetSummaries: [
-        "\(step.experimentID): broaden completed persona coverage; debt 2 completed run(s), 2 persona(s)"
-      ],
+      evidenceTensionSummaries: [tensionSummary],
+      proofTargetSummaries: [proofTargetSummary],
       revisionBriefSummaries: [
         "\(step.experimentID): Retarget product revision for AI-user rationale; source ai_user_rationale; priority 88; target Budget owner"
       ]
@@ -3211,8 +3213,12 @@ struct ProductizationLoopTests {
     try #require(audit.endingProofDebtSummary?.contains("1 completed run") == true)
     try #require(audit.evidenceTensionSummaries.count == 1)
     try #require(audit.evidenceTensionSummaries[0].contains("resolve split PMF evidence"))
+    try #require(audit.evidenceTensionSummaries[0].contains("target_decision promote"))
+    try #require(audit.evidenceTensionSummaries[0].contains(longScenarioID))
     try #require(audit.proofTargetSummaries.count == 1)
-    try #require(audit.proofTargetSummaries[0].contains("broaden completed persona coverage"))
+    try #require(audit.proofTargetSummaries[0].contains("targeted AI-user validation proof"))
+    try #require(audit.proofTargetSummaries[0].contains("target_decision promote"))
+    try #require(audit.proofTargetSummaries[0].contains(longScenarioID))
     try #require(audit.revisionBriefSummaries.count == 1)
     try #require(audit.revisionBriefSummaries[0].contains("Retarget product revision"))
     try #require(audit.stopReason == .noExecutableStep)
@@ -3227,7 +3233,9 @@ struct ProductizationLoopTests {
     try #require(audit.summary.contains("tensions"))
     try #require(audit.summary.contains("resolve split PMF evidence"))
     try #require(audit.summary.contains("targets"))
-    try #require(audit.summary.contains("broaden completed persona coverage"))
+    try #require(audit.summary.contains("targeted AI-user validation proof"))
+    try #require(audit.summary.contains("target_decision promote"))
+    try #require(audit.summary.contains(longScenarioID))
     try #require(audit.summary.contains("revisions"))
     try #require(audit.summary.contains("Retarget product revision"))
     try #require(audit.userMessage.contains("Stopped because no executable product-factory step remains."))
