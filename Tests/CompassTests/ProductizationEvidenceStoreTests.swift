@@ -182,6 +182,64 @@ struct ProductizationEvidenceStoreTests {
     try #require(narrow.rationale.contains { $0.contains("Missing capabilities") })
   }
 
+  @Test func currentCommitReadinessIgnoresStaleExperimentEvidence() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Weekly reporting takes too long.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let strongScores = ProductizationEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 5,
+      alternativeAdvantage: 5,
+      switchingReadiness: 5,
+      continuedUsePull: 5
+    )
+    let records = [
+      makeEvidenceRecord(
+        id: "old-a",
+        experimentID: experiment.id,
+        commitSha: "old-sha",
+        personaID: "operator",
+        endedAt: 300,
+        verdict: .strongPull,
+        scores: strongScores
+      ),
+      makeEvidenceRecord(
+        id: "old-b",
+        experimentID: experiment.id,
+        commitSha: "old-sha",
+        personaID: "buyer",
+        endedAt: 200,
+        verdict: .strongPull,
+        scores: strongScores
+      ),
+      makeEvidenceRecord(
+        id: "current-a",
+        experimentID: experiment.id,
+        commitSha: "head-sha",
+        personaID: "operator",
+        endedAt: 100,
+        verdict: .promising,
+        scores: strongScores
+      ),
+    ]
+
+    let index = ProductizationEvidenceIndex.build(records: records)
+    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+
+    try #require(index.staleSummaryCount(for: experiment) == 2)
+    try #require(index.summaries(for: experiment).map(\.runID) == ["current-a"])
+    try #require(readiness.runCount == 1)
+    try #require(readiness.evidenceRunIDs == ["current-a"])
+    try #require(
+      index.aggregate.pmfReadinessByExperiment.first { $0.experimentID == experiment.id }?
+        .evidenceRunIDs.first == "old-a")
+  }
+
   @Test func planningDigestIncludesBoundedProductizationEvidence() throws {
     let config = ProductizationConfig.seedDefaults(
       projectTitle: "Reporting Helper",
@@ -206,8 +264,8 @@ struct ProductizationEvidenceStoreTests {
       evidenceIndex: index
     )
 
-    try #require(text.contains("Top evidence signals and objections"))
-    try #require(text.contains("Product-market-fit readiness"))
+    try #require(text.contains("Top current-commit evidence signals and objections"))
+    try #require(text.contains("Current-commit product-market-fit readiness"))
     try #require(text.contains("digest-run"))
     try #require(text.contains("csv_import"))
     try #require(text.contains("Beat the spreadsheet"))

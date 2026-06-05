@@ -713,6 +713,36 @@ struct ProductizationEvidenceIndex: Codable, Equatable, Sendable {
       malformedRecordCount: malformedRecordCount
     )
   }
+
+  func targetCommit(for experiment: ProductExperiment) -> String? {
+    let commit = experiment.currentSha ?? experiment.baseSha ?? ""
+    let trimmed = commit.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+  }
+
+  func summaries(
+    for experiment: ProductExperiment,
+    currentCommitOnly: Bool = true
+  ) -> [ProductizationEvidenceSummary] {
+    let experimentSummaries = summaries.filter { $0.experimentID == experiment.id }
+    guard currentCommitOnly, let targetCommit = targetCommit(for: experiment) else {
+      return experimentSummaries
+    }
+    return experimentSummaries.filter {
+      ProductExperimentGit.commitMatches(expected: targetCommit, actual: $0.commitSha)
+    }
+  }
+
+  func staleSummaryCount(for experiment: ProductExperiment) -> Int {
+    let all = summaries(for: experiment, currentCommitOnly: false)
+    return max(0, all.count - summaries(for: experiment).count)
+  }
+
+  func currentPMFReadiness(for experiment: ProductExperiment) -> ProductMarketFitReadiness? {
+    let currentSummaries = summaries(for: experiment)
+    guard !currentSummaries.isEmpty else { return nil }
+    return ProductMarketFitReadiness(summaries: currentSummaries)
+  }
 }
 
 struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {

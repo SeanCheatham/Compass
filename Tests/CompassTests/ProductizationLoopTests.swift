@@ -261,6 +261,37 @@ struct ProductizationLoopTests {
     try #require(decision.afterSha == experiment.currentSha)
   }
 
+  @Test func pmfDecisionAdvisorDoesNotPromoteFromStaleEvidence() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    var staleExperiment = config.experiments[0]
+    staleExperiment.currentSha = "old-sha"
+    let index = makePMFPromotionEvidenceIndex(experiment: staleExperiment, config: config)
+
+    let proposals = ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: index
+    )
+
+    try #require(proposals.isEmpty)
+    do {
+      _ = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
+        experimentID: config.experiments[0].id,
+        to: config,
+        evidenceIndex: index
+      )
+      #expect(Bool(false), "Expected stale evidence to produce no PMF proposal.")
+    } catch let error as ProductMarketFitDecisionAdvisorError {
+      try #require(error == .noProposal(config.experiments[0].id))
+    }
+  }
+
   @Test func rolloutWorkflowPromotesExperimentWithBranchCommitAndEvidenceTrail() throws {
     let config = makeRolloutConfig(decision: .keepGoing)
     let experiment = config.experiments[0]
@@ -401,7 +432,10 @@ private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> Productiz
   return ProductizationEvidenceIndex.build(records: [record])
 }
 
-private func makePMFPromotionEvidenceIndex(config: ProductizationConfig) -> ProductizationEvidenceIndex {
+private func makePMFPromotionEvidenceIndex(
+  experiment: ProductExperiment? = nil,
+  config: ProductizationConfig
+) -> ProductizationEvidenceIndex {
   let scores = ProductizationEvidenceScores(
     painRecognition: 5,
     workflowImprovement: 5,
@@ -409,7 +443,7 @@ private func makePMFPromotionEvidenceIndex(config: ProductizationConfig) -> Prod
     switchingReadiness: 5,
     continuedUsePull: 5
   )
-  let experiment = config.experiments[0]
+  let experiment = experiment ?? config.experiments[0]
   return ProductizationEvidenceIndex.build(
     records: [
       makeDecisionAdvisorRecord(

@@ -25,7 +25,11 @@ enum ProductizationPlanningDigestFormatter {
     lines += decisionLines(config: config, maxDecisions: maxDecisions)
     lines += unknownLines(config: config)
     lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
-    lines += evidenceSignalLines(index: evidenceIndex, maxEvidenceSignals: maxEvidenceSignals)
+    lines += evidenceSignalLines(
+      config: config,
+      index: evidenceIndex,
+      maxEvidenceSignals: maxEvidenceSignals
+    )
 
     return boundedLines(lines, maxLines: 44, maxCharacters: 4_200)
   }
@@ -190,13 +194,30 @@ enum ProductizationPlanningDigestFormatter {
   }
 
   private static func evidenceSignalLines(
+    config: ProductizationConfig,
     index: ProductizationEvidenceIndex,
     maxEvidenceSignals: Int
   ) -> [String] {
     var lines: [String] = []
-    let summaries = index.summaries.prefix(maxEvidenceSignals)
+    let currentSummaries = config.experiments
+      .flatMap { index.summaries(for: $0) }
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
+        return lhs.endedAt > rhs.endedAt
+      }
+    let currentAggregate = ProductizationEvidenceAggregateSummary(summaries: currentSummaries)
+    let staleCount = config.experiments
+      .map { index.staleSummaryCount(for: $0) }
+      .reduce(0, +)
+    if staleCount > 0 {
+      lines.append(
+        "Stale productization evidence ignored for current PMF decisions: \(staleCount) run(s) from older experiment commits."
+      )
+    }
+
+    let summaries = currentSummaries.prefix(maxEvidenceSignals)
     if !summaries.isEmpty {
-      lines.append("Top evidence signals and objections:")
+      lines.append("Top current-commit evidence signals and objections:")
       for summary in summaries {
         var parts = [
           "run \(summary.runID)",
@@ -231,16 +252,24 @@ enum ProductizationPlanningDigestFormatter {
       }
     }
 
-    if !index.aggregate.repeatedObjections.isEmpty {
-      let objections = index.aggregate.repeatedObjections.prefix(4)
+    if !currentAggregate.repeatedObjections.isEmpty {
+      let objections = currentAggregate.repeatedObjections.prefix(4)
         .map { "\(bounded($0.objection, 120)) (\($0.count)x)" }
         .joined(separator: "; ")
       lines.append("Repeated objections: \(objections).")
     }
 
-    if !index.aggregate.pmfReadinessByExperiment.isEmpty {
-      lines.append("Product-market-fit readiness:")
-      for readiness in index.aggregate.pmfReadinessByExperiment.prefix(4) {
+    let currentReadiness = config.experiments
+      .compactMap { index.currentPMFReadiness(for: $0) }
+      .sorted { lhs, rhs in
+        if lhs.readinessScore == rhs.readinessScore {
+          return lhs.experimentID < rhs.experimentID
+        }
+        return lhs.readinessScore > rhs.readinessScore
+      }
+    if !currentReadiness.isEmpty {
+      lines.append("Current-commit product-market-fit readiness:")
+      for readiness in currentReadiness.prefix(4) {
         let evidence =
           readiness.evidenceRunIDs.isEmpty
           ? "no evidence runs"
@@ -252,16 +281,16 @@ enum ProductizationPlanningDigestFormatter {
       }
     }
 
-    if !index.aggregate.missingCapabilityFrequency.isEmpty {
-      let missing = index.aggregate.missingCapabilityFrequency.prefix(4)
+    if !currentAggregate.missingCapabilityFrequency.isEmpty {
+      let missing = currentAggregate.missingCapabilityFrequency.prefix(4)
         .map { "\(bounded($0.capabilityID, 120)) (\($0.count)x)" }
         .joined(separator: "; ")
       lines.append("Missing capabilities: \(missing).")
     }
 
-    if !index.aggregate.currentAlternativeComparisons.isEmpty {
+    if !currentAggregate.currentAlternativeComparisons.isEmpty {
       lines.append("Current alternative comparisons:")
-      for comparison in index.aggregate.currentAlternativeComparisons.prefix(3) {
+      for comparison in currentAggregate.currentAlternativeComparisons.prefix(3) {
         lines.append(
           "- \(comparison.experimentID) / \(comparison.runID): \(bounded(comparison.comparison, 220)) [\(comparison.verdict.rawValue)]."
         )

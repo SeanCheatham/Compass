@@ -176,7 +176,7 @@ enum ProductExperimentRolloutWorkflow {
     )
 
     let timestamp = now.timeIntervalSince1970
-    let evidenceRunIDs = evidenceRunIDs(for: experiment.id, evidenceIndex: evidenceIndex)
+    let evidenceRunIDs = evidenceRunIDs(for: experiment, evidenceIndex: evidenceIndex)
     let beforeSha = experiment.currentSha ?? experiment.baseSha
 
     next.experiments[experimentIndex].decision = target
@@ -215,11 +215,10 @@ enum ProductExperimentRolloutWorkflow {
   }
 
   static func evidenceRunIDs(
-    for experimentID: String,
+    for experiment: ProductExperiment,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> [String] {
-    evidenceIndex.summaries
-      .filter { $0.experimentID == experimentID }
+    evidenceIndex.summaries(for: experiment)
       .prefix(8)
       .map(\.runID)
   }
@@ -390,7 +389,7 @@ enum ProductExperimentGitRolloutWorkflow {
       summary:
         "Promoted \(experiment.title) from \(experiment.branchName) into \(preview.acceptedBranchName) using \(preview.kind.rawValue).",
       evidenceRunIDs: ProductExperimentRolloutWorkflow.evidenceRunIDs(
-        for: experiment.id,
+        for: experiment,
         evidenceIndex: evidenceIndex
       ),
       branchName: experiment.branchName,
@@ -465,7 +464,7 @@ enum ProductExperimentGitRolloutWorkflow {
       summary:
         "Archived \(experiment.title) by preserving \(experiment.branchName) at \(preview.actualExperimentSha) and updating \(archiveBranch).",
       evidenceRunIDs: ProductExperimentRolloutWorkflow.evidenceRunIDs(
-        for: experiment.id,
+        for: experiment,
         evidenceIndex: evidenceIndex
       ),
       branchName: experiment.branchName,

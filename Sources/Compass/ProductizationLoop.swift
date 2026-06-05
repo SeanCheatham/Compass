@@ -236,13 +236,8 @@ enum ProductMarketFitDecisionAdvisor {
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> [ProductMarketFitDecisionProposal] {
-    let readinessByExperiment = Dictionary(
-      uniqueKeysWithValues: evidenceIndex.aggregate.pmfReadinessByExperiment.map {
-        ($0.experimentID, $0)
-      }
-    )
     return config.experiments.compactMap { experiment in
-      guard let readiness = readinessByExperiment[experiment.id],
+      guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment),
         let target = targetDecision(for: readiness, current: experiment.decision),
         target != experiment.decision
       else { return nil }

@@ -38,15 +38,18 @@ struct ProductizationWorkbenchTab: View {
   }
 
   private var runsForSelectedExperiment: [ProductizationEvidenceSummary] {
-    guard let experimentID = selectedExperiment?.id else { return [] }
-    return evidenceIndex.summaries.filter { $0.experimentID == experimentID }
+    guard let selectedExperiment else { return [] }
+    return evidenceIndex.summaries(for: selectedExperiment)
   }
 
   private var selectedPMFReadiness: ProductMarketFitReadiness? {
-    guard let experimentID = selectedExperiment?.id else { return nil }
-    return evidenceIndex.aggregate.pmfReadinessByExperiment.first {
-      $0.experimentID == experimentID
-    }
+    guard let selectedExperiment else { return nil }
+    return evidenceIndex.currentPMFReadiness(for: selectedExperiment)
+  }
+
+  private var selectedStaleEvidenceCount: Int {
+    guard let selectedExperiment else { return 0 }
+    return evidenceIndex.staleSummaryCount(for: selectedExperiment)
   }
 
   private var selectedPMFDecisionProposal: ProductMarketFitDecisionProposal? {
@@ -558,6 +561,12 @@ struct ProductizationWorkbenchTab: View {
           ForEach(Array(readiness.rationale.prefix(3).enumerated()), id: \.offset) { _, rationale in
             WorkbenchFact(label: "Why", value: rationale)
           }
+        }
+        if selectedStaleEvidenceCount > 0 {
+          WorkbenchFact(
+            label: "Stale evidence",
+            value: "\(selectedStaleEvidenceCount) run(s) from older experiment commits ignored"
+          )
         }
         if let objection = evidenceIndex.aggregate.repeatedObjections.first {
           WorkbenchFact(
