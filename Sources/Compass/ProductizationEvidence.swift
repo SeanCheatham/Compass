@@ -1442,6 +1442,18 @@ struct ProductizationPersonaRationaleSignal: Codable, Equatable, Sendable {
   var runIDs: [String]
   var experimentIDs: [String]
 
+  var auditSummary: String {
+    let experiments =
+      experimentIDs.isEmpty
+      ? "no experiments"
+      : "experiments \(experimentIDs.prefix(3).joined(separator: ", "))"
+    let runs =
+      runIDs.isEmpty
+      ? "no runs"
+      : "runs \(runIDs.prefix(4).joined(separator: ", "))"
+    return "\(rationale); count \(count); \(experiments); \(runs)"
+  }
+
   init(
     rationale: String,
     count: Int,

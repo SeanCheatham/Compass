@@ -1303,6 +1303,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   var decisionCandidateSummaries: [String]
   var evidenceTensionSummaries: [String]
   var proofTargetSummaries: [String]
+  var personaRationaleSignalSummaries: [String]
 
   init(
     executedSteps: [ProductFactoryAutopilotStep],
@@ -1319,7 +1320,8 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     endingProofDebtSummary: String? = nil,
     decisionCandidateSummaries: [String] = [],
     evidenceTensionSummaries: [String] = [],
-    proofTargetSummaries: [String] = []
+    proofTargetSummaries: [String] = [],
+    personaRationaleSignalSummaries: [String] = []
   ) {
     self.executedSteps = executedSteps
     self.messages = ProductizationModelText.cleanedList(messages, limit: 500)
@@ -1350,6 +1352,10 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     self.proofTargetSummaries = ProductizationModelText.cleanedList(
       proofTargetSummaries,
       limit: 240
+    )
+    self.personaRationaleSignalSummaries = ProductizationModelText.cleanedList(
+      personaRationaleSignalSummaries,
+      limit: 300
     )
   }
 
@@ -1394,6 +1400,9 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     }
     if let proofTargetMessage {
       parts.append(proofTargetMessage)
+    }
+    if let personaRationaleSignalMessage {
+      parts.append(personaRationaleSignalMessage)
     }
     if let proofDebtMessage {
       parts.append(proofDebtMessage)
@@ -1470,6 +1479,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       decisionCandidateSummaries: decisionCandidateSummaries,
       evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,
+      personaRationaleSignalSummaries: personaRationaleSignalSummaries,
       stopReason: auditStopReason,
       stopStepID: stopStepID,
       stopStepTitle: stopStepTitle,
@@ -1511,6 +1521,12 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     guard !proofTargetSummaries.isEmpty else { return nil }
     let targets = proofTargetSummaries.prefix(3).joined(separator: " | ")
     return "Proof targets: \(StringUtils.boundedText(targets, limit: 360))."
+  }
+
+  private var personaRationaleSignalMessage: String? {
+    guard !personaRationaleSignalSummaries.isEmpty else { return nil }
+    let signals = personaRationaleSignalSummaries.prefix(3).joined(separator: " | ")
+    return "AI-user rationale signals: \(StringUtils.boundedText(signals, limit: 420))."
   }
 
   private var proofDebtMessage: String? {

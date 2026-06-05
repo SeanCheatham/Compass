@@ -446,8 +446,14 @@ enum ProductizationPlanningDigestFormatter {
           audit.proofTargetSummaries.isEmpty
           ? ""
           : "; proof targets \(bounded(proofTargetList, 260))"
+        let rationaleSignalList = audit.personaRationaleSignalSummaries.prefix(3)
+          .joined(separator: " | ")
+        let rationaleSignals =
+          audit.personaRationaleSignalSummaries.isEmpty
+          ? ""
+          : "; rationale signals \(bounded(rationaleSignalList, 260))"
         return
-          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(evidenceTensions)\(proofTargets)"
+          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(rationaleSignals)"
             + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
   }

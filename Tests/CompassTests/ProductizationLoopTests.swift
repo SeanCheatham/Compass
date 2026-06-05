@@ -1962,7 +1962,10 @@ struct ProductizationLoopTests {
       messages: ["Applied PMF advice for \(step.experimentTitle)."],
       maxSteps: 3,
       stopReason: .noExecutableStep,
-      decisionCandidateSummaries: [candidate.auditSummary]
+      decisionCandidateSummaries: [candidate.auditSummary],
+      personaRationaleSignalSummaries: [
+        "needed import proof before switching; count 2; experiments \(step.experimentID); runs promote-a, promote-b"
+      ]
     )
     let audit = outcome.audit(
       startedAt: Date(timeIntervalSince1970: 300),
@@ -1977,12 +1980,17 @@ struct ProductizationLoopTests {
     try #require(outcome.userMessage.contains("1 PMF decision(s) applied (1 promote, 0 kill)"))
     try #require(outcome.userMessage.contains("Decision candidates:"))
     try #require(outcome.userMessage.contains("continue -> promote"))
+    try #require(outcome.userMessage.contains("AI-user rationale signals:"))
+    try #require(outcome.userMessage.contains("needed import proof before switching"))
     try #require(audit.appliedDecisionCount == 1)
     try #require(audit.promotedDecisionCount == 1)
     try #require(audit.killedDecisionCount == 0)
     try #require(audit.decisionCandidateSummaries.count == 1)
     try #require(audit.decisionCandidateSummaries[0].contains("continue -> promote"))
     try #require(audit.decisionCandidateSummaries[0].contains("pressure lift"))
+    try #require(audit.personaRationaleSignalSummaries.count == 1)
+    try #require(
+      audit.personaRationaleSignalSummaries[0].contains("needed import proof before switching"))
     try #require(audit.evidenceRunStepCount == 0)
     try #require(audit.evidenceRunIDs.isEmpty)
     try #require(audit.completedEvidenceRunCount == 0)
@@ -1993,6 +2001,7 @@ struct ProductizationLoopTests {
     try #require(audit.proofDebtDelta == nil)
     try #require(audit.summary.contains("candidates"))
     try #require(audit.summary.contains("continue -> promote"))
+    try #require(audit.summary.contains("rationale signals"))
     try #require(audit.summary.contains("decisions 1 (1 promote, 0 kill); evidence 0"))
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config.recordingFactoryCycleAudit(audit),
@@ -2002,6 +2011,8 @@ struct ProductizationLoopTests {
     try #require(digest.contains("decision candidates"))
     try #require(digest.contains("pressure lift"))
     try #require(digest.contains("continue -> promote"))
+    try #require(digest.contains("rationale signals"))
+    try #require(digest.contains("needed import proof before switching"))
   }
 
   @Test func productFactoryAutopilotCycleOutcomeReportsFailureStop() throws {

@@ -1381,6 +1381,10 @@ struct ProductizationWorkbenchTab: View {
     var decisionCandidateSummaries: [String] = []
     var evidenceTensionSummaries: [String] = []
     var proofTargetSummaries: [String] = []
+    let personaRationaleSignalSummaries = project.productizationEvidenceIndex.aggregate
+      .personaRationaleSignals
+      .prefix(3)
+      .map(\.auditSummary)
     var seenStepIDs = Set<String>()
     var stopReason: ProductFactoryAutopilotCycleStopReason = .reachedStepLimit
     for _ in 0..<maxSteps {
@@ -1458,7 +1462,8 @@ struct ProductizationWorkbenchTab: View {
       endingProofDebtSummary: endingProofDebt?.summary,
       decisionCandidateSummaries: decisionCandidateSummaries,
       evidenceTensionSummaries: evidenceTensionSummaries,
-      proofTargetSummaries: proofTargetSummaries
+      proofTargetSummaries: proofTargetSummaries,
+      personaRationaleSignalSummaries: personaRationaleSignalSummaries
     )
     let audit = outcome.audit(startedAt: cycleStartedAt)
     scenarioRunMessage = audit.userMessage
