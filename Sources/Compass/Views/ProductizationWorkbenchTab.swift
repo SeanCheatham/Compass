@@ -585,37 +585,47 @@ struct ProductizationWorkbenchTab: View {
   }
 
   private func revisionBriefRow(_ brief: ProductFactoryRevisionBrief) -> some View {
-    Button {
-      selectedExperimentID = brief.experimentID
-      if let targetScenarioID = brief.targetScenarioID {
-        selectedScenarioID = targetScenarioID
-      }
-    } label: {
-      VStack(alignment: .leading, spacing: 7) {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-          Text(brief.title)
-            .font(.callout.weight(.semibold))
-            .lineLimit(2)
-          Spacer()
-          WorkbenchStatusPill(text: "\(brief.priority)")
-        }
-        WorkbenchFact(label: "Experiment", value: brief.experimentID)
-        WorkbenchFact(label: "Source", value: brief.displaySubtitle)
-        WorkbenchFact(label: "Prototype", value: brief.prototypeChange)
-        WorkbenchFact(label: "Scenario", value: brief.scenarioChange)
-        WorkbenchFact(label: "Proof", value: brief.proofPlan)
-        if let targetPersonaName = brief.targetPersonaName {
-          WorkbenchFact(label: "Target", value: targetPersonaName)
-        }
+    VStack(alignment: .leading, spacing: 8) {
+      Button {
+        selectedExperimentID = brief.experimentID
         if let targetScenarioID = brief.targetScenarioID {
-          WorkbenchFact(label: "Target scenario", value: targetScenarioID)
+          selectedScenarioID = targetScenarioID
+        }
+      } label: {
+        VStack(alignment: .leading, spacing: 7) {
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(brief.title)
+              .font(.callout.weight(.semibold))
+              .lineLimit(2)
+            Spacer()
+            WorkbenchStatusPill(text: "\(brief.priority)")
+          }
+          WorkbenchFact(label: "Experiment", value: brief.experimentID)
+          WorkbenchFact(label: "Source", value: brief.displaySubtitle)
+          WorkbenchFact(label: "Prototype", value: brief.prototypeChange)
+          WorkbenchFact(label: "Scenario", value: brief.scenarioChange)
+          WorkbenchFact(label: "Proof", value: brief.proofPlan)
+          if let targetPersonaName = brief.targetPersonaName {
+            WorkbenchFact(label: "Target", value: targetPersonaName)
+          }
+          if let targetScenarioID = brief.targetScenarioID {
+            WorkbenchFact(label: "Target scenario", value: targetScenarioID)
+          }
         }
       }
-      .padding(10)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      .buttonStyle(.plain)
+
+      Button {
+        Task { await applyRevisionBrief(brief) }
+      } label: {
+        Label("Apply Scenario", systemImage: "wand.and.stars")
+      }
+      .buttonStyle(.bordered)
+      .disabled(isSavingScenario)
     }
-    .buttonStyle(.plain)
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     .help(brief.displayDetail)
   }
 
@@ -1390,6 +1400,10 @@ struct ProductizationWorkbenchTab: View {
       for: experiment,
       in: config
     )
+    loadScenarioDraftValues(draft)
+  }
+
+  private func loadScenarioDraftValues(_ draft: ProductScenarioDraft) {
     selectedScenarioID = draft.id
     scenarioTitle = draft.title
     scenarioCohortID = draft.cohortID ?? ""
@@ -1433,6 +1447,24 @@ struct ProductizationWorkbenchTab: View {
     selectedScenarioID = draft.id
     scenarioRunMessage = "Scenario saved."
     await loadContractStatus()
+  }
+
+  private func applyRevisionBrief(_ brief: ProductFactoryRevisionBrief) async {
+    isSavingScenario = true
+    defer { isSavingScenario = false }
+    do {
+      let draft = try ProductizationScenarioCoordinator.revisionDraft(
+        for: brief,
+        in: project.productizationConfig
+      )
+      selectedExperimentID = draft.experimentID
+      loadScenarioDraftValues(draft)
+      await project.saveProductScenarioDraft(draft)
+      scenarioRunMessage = "Revision scenario applied."
+      await loadContractStatus()
+    } catch {
+      scenarioRunMessage = error.localizedDescription
+    }
   }
 
   private func runScenarioModelFree() async {

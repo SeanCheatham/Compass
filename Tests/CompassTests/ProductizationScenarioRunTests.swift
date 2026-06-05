@@ -75,6 +75,71 @@ struct ProductizationScenarioRunTests {
     try #require(editedCohort.scenarioIDs == ["scenario-support"])
   }
 
+  @Test func revisionBriefCreatesTargetedScenarioDraft() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Scenario Helper",
+      rawPain: "Support teams lose workflow context.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
+    let scenario = try #require(
+      config.scenarios.first {
+        $0.experimentID == experiment.id && $0.segmentID == buyer.id
+      })
+    let cohort = try #require(
+      config.scenarioCohorts.first {
+        $0.experimentID == experiment.id && $0.scenarioIDs.contains(scenario.id)
+      })
+    let brief = ProductFactoryRevisionBrief(
+      experimentID: experiment.id,
+      source: .aiUserRationale,
+      title: "Revise prototype for AI-user rationale",
+      priority: 86,
+      triggerSummary:
+        "Repeated AI-user rationale appeared in 2 current runs: needed proof before switching.",
+      prototypeChange:
+        "make the proof artifact inspectable with source context and decision criteria.",
+      scenarioChange:
+        "Make Budget owner inspect the evidence trail before deciding whether to switch.",
+      proofPlan:
+        "Rerun targeted AI-user proof against the current alternative.",
+      targetPersonaID: buyer.id,
+      targetPersonaName: buyer.name,
+      targetScenarioID: scenario.id,
+      targetCohortID: cohort.id
+    )
+
+    let draft = try ProductizationScenarioCoordinator.revisionDraft(
+      for: brief,
+      in: config,
+      now: Date(timeIntervalSince1970: 40)
+    )
+    let saved = try ProductizationScenarioCoordinator.saving(
+      draft: draft,
+      to: config,
+      now: Date(timeIntervalSince1970: 50)
+    )
+    let revisedScenario = try #require(saved.scenarios.first { $0.id == scenario.id })
+    let revisedCohort = try #require(saved.scenarioCohorts.first { $0.id == cohort.id })
+
+    try #require(draft.id == scenario.id)
+    try #require(draft.experimentID == experiment.id)
+    try #require(draft.cohortID == cohort.id)
+    try #require(draft.segmentID == buyer.id)
+    try #require(draft.targetCommitSha == "head-sha")
+    try #require(draft.task.contains("proof artifact inspectable"))
+    try #require(draft.task.contains("Budget owner"))
+    try #require(draft.successSignal.contains("resolved the original rationale"))
+    try #require(draft.successSignal.contains("current alternative"))
+    try #require(revisedScenario.task == draft.task)
+    try #require(revisedScenario.successSignal == draft.successSignal)
+    try #require(revisedScenario.updatedAt == 50)
+    try #require(revisedCohort.scenarioIDs.contains(scenario.id))
+  }
+
   @Test func requestConstructionUsesScenarioTaskSuccessSignalAndSelectedAlternative() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }

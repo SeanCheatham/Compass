@@ -187,6 +187,71 @@ enum ProductizationScenarioRunError: LocalizedError, Equatable {
 }
 
 enum ProductizationScenarioCoordinator {
+  static func revisionDraft(
+    for brief: ProductFactoryRevisionBrief,
+    in config: ProductizationConfig,
+    now: Date = Date()
+  ) throws -> ProductScenarioDraft {
+    guard let experiment = config.experiments.first(where: { $0.id == brief.experimentID }) else {
+      throw ProductizationScenarioRunError.unknownExperiment(brief.experimentID)
+    }
+    let fallback = defaultDraft(for: experiment, in: config, now: now)
+    let existingScenario = brief.targetScenarioID.flatMap { scenarioID in
+      config.scenarios.first {
+        $0.id == scenarioID && $0.experimentID == experiment.id
+      }
+    }
+    let segmentID = brief.targetPersonaID ?? existingScenario?.segmentID ?? fallback.segmentID
+    guard config.userSegments.contains(where: { $0.id == segmentID }) else {
+      throw ProductizationScenarioRunError.unknownSegment(segmentID)
+    }
+    let workflowID = existingScenario?.currentWorkflowID ?? fallback.currentWorkflowID
+    guard config.currentWorkflows.contains(where: { $0.id == workflowID }) else {
+      throw ProductizationScenarioRunError.unknownWorkflow(workflowID)
+    }
+    let alternativeID = existingScenario?.alternativeID ?? fallback.alternativeID
+    if let alternativeID {
+      guard config.alternatives.contains(where: { $0.id == alternativeID }) else {
+        throw ProductizationScenarioRunError.unknownAlternative(alternativeID)
+      }
+    }
+    let cohortID =
+      brief.targetCohortID
+      ?? cohortID(containing: existingScenario?.id, experiment: experiment, config: config)
+      ?? fallback.cohortID
+      ?? "\(experiment.id)-revision-cohort"
+    let cohort = config.scenarioCohorts.first {
+      $0.id == cohortID && $0.experimentID == experiment.id
+    }
+    let scenarioID =
+      existingScenario?.id
+      ?? ProductizationModelText.identifier(
+        "\(experiment.id)-revision-\(Int(now.timeIntervalSince1970))",
+        fallback: "revision-scenario"
+      )
+    let targetName = brief.targetPersonaName ?? segmentName(for: segmentID, in: config)
+    return ProductScenarioDraft(
+      id: scenarioID,
+      experimentID: experiment.id,
+      cohortID: cohortID,
+      cohortTitle: cohort?.title ?? fallback.cohortTitle,
+      cohortEnabled: cohort?.enabled ?? fallback.cohortEnabled,
+      segmentID: segmentID,
+      currentWorkflowID: workflowID,
+      alternativeID: alternativeID,
+      title: existingScenario?.title ?? "\(experiment.title) revision proof",
+      task:
+        "Revise the product bet for \(targetName). Prototype change to inspect: \(brief.prototypeChange) Scenario change: \(brief.scenarioChange) Trigger: \(brief.triggerSummary)",
+      successSignal:
+        "The AI user can say whether the revision resolved the original rationale. Proof plan: \(brief.proofPlan)",
+      targetCommitSha: experiment.currentSha ?? experiment.baseSha,
+      maxTurns: existingScenario?.maxTurns ?? fallback.maxTurns,
+      appCommandTimeoutSeconds: existingScenario?.appCommandTimeoutSeconds
+        ?? fallback.appCommandTimeoutSeconds,
+      enabled: true
+    )
+  }
+
   static func defaultDraft(
     for experiment: ProductExperiment,
     in config: ProductizationConfig,
@@ -224,6 +289,22 @@ enum ProductizationScenarioCoordinator {
       appCommandTimeoutSeconds: 120,
       enabled: true
     )
+  }
+
+  private static func cohortID(
+    containing scenarioID: String?,
+    experiment: ProductExperiment,
+    config: ProductizationConfig
+  ) -> String? {
+    guard let scenarioID else { return nil }
+    return config.scenarioCohorts.first {
+      $0.experimentID == experiment.id && $0.scenarioIDs.contains(scenarioID)
+    }?.id
+  }
+
+  private static func segmentName(for segmentID: String, in config: ProductizationConfig) -> String {
+    let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
+    return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
   }
 
   static func saving(
