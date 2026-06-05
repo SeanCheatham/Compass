@@ -25,6 +25,7 @@ enum ProductizationPlanningDigestFormatter {
     lines += decisionLines(config: config, maxDecisions: maxDecisions)
     lines += unknownLines(config: config)
     lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
+    lines += autopilotLines(config: config, evidenceIndex: evidenceIndex)
     lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
     lines += evidenceSignalLines(
       config: config,
@@ -32,7 +33,7 @@ enum ProductizationPlanningDigestFormatter {
       maxEvidenceSignals: maxEvidenceSignals
     )
 
-    return boundedLines(lines, maxLines: 44, maxCharacters: 4_800)
+    return boundedLines(lines, maxLines: 46, maxCharacters: 5_100)
   }
 
   private static func painLines(
@@ -192,6 +193,35 @@ enum ProductizationPlanningDigestFormatter {
       )
     }
     return lines
+  }
+
+  private static func autopilotLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    guard
+      let step = ProductFactoryAutopilotPlanner.nextStep(
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    else { return [] }
+    var metadata = [
+      "experiment \(step.experimentID)",
+      "kind \(step.kind.rawValue)",
+      "action \(step.action.kind.rawValue)",
+      "priority \(step.action.priority)",
+      "executable \(step.canExecute)",
+    ]
+    if let cohortID = step.cohortID {
+      metadata.append("cohort \(cohortID)")
+    }
+    if let blockedReason = step.blockedReason {
+      metadata.append("blocked \(bounded(blockedReason, 140))")
+    }
+    return [
+      "Factory autopilot step:",
+      "- \(metadata.joined(separator: "; ")); \(bounded(step.title, 120)); \(bounded(step.detail, 220)).",
+    ]
   }
 
   private static func nextActionLines(

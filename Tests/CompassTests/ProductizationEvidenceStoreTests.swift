@@ -266,6 +266,8 @@ struct ProductizationEvidenceStoreTests {
 
     try #require(text.contains("Top current-commit evidence signals and objections"))
     try #require(text.contains("Current-commit product-market-fit readiness"))
+    try #require(text.contains("Factory autopilot step"))
+    try #require(text.contains("executable false"))
     try #require(text.contains("Next product-factory actions"))
     try #require(text.contains("kind run_cohort"))
     try #require(text.contains("cohort \(config.scenarioCohorts[0].id)"))
@@ -328,6 +330,8 @@ struct ProductizationEvidenceStoreTests {
     for prompt in [plan, reflect] {
       try #require(prompt.contains("## Productization Context"))
       try #require(prompt.contains(config.experiments[0].branchName))
+      try #require(prompt.contains("Factory autopilot step"))
+      try #require(prompt.contains("executable false"))
       try #require(prompt.contains("kind run_cohort"))
       try #require(prompt.contains("cohort \(config.scenarioCohorts[0].id)"))
       try #require(prompt.contains("prompt-run-two"))
