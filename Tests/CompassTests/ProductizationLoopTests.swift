@@ -1245,6 +1245,10 @@ struct ProductizationLoopTests {
     try #require(audit.promotedDecisionCount == 1)
     try #require(audit.killedDecisionCount == 0)
     try #require(audit.evidenceRunStepCount == 0)
+    try #require(audit.evidenceRunIDs.isEmpty)
+    try #require(audit.completedEvidenceRunCount == 0)
+    try #require(audit.failedEvidenceRunCount == 0)
+    try #require(audit.skippedScenarioCount == 0)
     try #require(audit.summary.contains("decisions 1 (1 promote, 0 kill); evidence 0"))
   }
 
@@ -1306,7 +1310,11 @@ struct ProductizationLoopTests {
       executedSteps: [step],
       messages: ["Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
       maxSteps: 3,
-      stopReason: .noExecutableStep
+      stopReason: .noExecutableStep,
+      evidenceRunIDs: ["run-one"],
+      completedEvidenceRunCount: 1,
+      failedEvidenceRunCount: 0,
+      skippedScenarioCount: 0
     )
 
     let audit = outcome.audit(
@@ -1320,8 +1328,14 @@ struct ProductizationLoopTests {
     try #require(audit.experimentIDs == [step.experimentID])
     try #require(audit.appliedDecisionCount == 0)
     try #require(audit.evidenceRunStepCount == 1)
+    try #require(audit.evidenceRunIDs == ["run-one"])
+    try #require(audit.completedEvidenceRunCount == 1)
+    try #require(audit.failedEvidenceRunCount == 0)
+    try #require(audit.skippedScenarioCount == 0)
     try #require(audit.stopReason == .noExecutableStep)
     try #require(audit.userMessage.contains("Factory cycle ran 1 step(s)."))
+    try #require(audit.userMessage.contains("evidence runs 1 completed, 0 needing review"))
+    try #require(audit.summary.contains("runs run-one"))
     try #require(audit.userMessage.contains("Stopped because no executable product-factory step remains."))
   }
 

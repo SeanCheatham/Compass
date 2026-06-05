@@ -914,6 +914,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
   var promotedDecisionCount: Int
   var killedDecisionCount: Int
   var evidenceRunStepCount: Int
+  var evidenceRunIDs: [String]
+  var completedEvidenceRunCount: Int
+  var failedEvidenceRunCount: Int
+  var skippedScenarioCount: Int
   var stopReason: ProductFactoryCycleAuditStopReason
   var stopStepID: String?
   var stopStepTitle: String?
@@ -926,7 +930,12 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
 
   var summary: String {
     let stopTarget = stopStepTitle.map { "; stopped at \($0)" } ?? ""
-    return "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill); evidence \(evidenceRunStepCount); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
+    let runIDs =
+      evidenceRunIDs.isEmpty
+      ? ""
+      : "; runs \(evidenceRunIDs.prefix(5).joined(separator: ", "))"
+    return
+      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
   }
 
   init(
@@ -941,6 +950,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     promotedDecisionCount: Int = 0,
     killedDecisionCount: Int = 0,
     evidenceRunStepCount: Int = 0,
+    evidenceRunIDs: [String] = [],
+    completedEvidenceRunCount: Int = 0,
+    failedEvidenceRunCount: Int = 0,
+    skippedScenarioCount: Int = 0,
     stopReason: ProductFactoryCycleAuditStopReason,
     stopStepID: String? = nil,
     stopStepTitle: String? = nil,
@@ -960,6 +973,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     self.promotedDecisionCount = max(0, promotedDecisionCount)
     self.killedDecisionCount = max(0, killedDecisionCount)
     self.evidenceRunStepCount = max(0, evidenceRunStepCount)
+    self.evidenceRunIDs = ProductizationModelText.cleanedList(evidenceRunIDs, limit: 120)
+    self.completedEvidenceRunCount = max(0, completedEvidenceRunCount)
+    self.failedEvidenceRunCount = max(0, failedEvidenceRunCount)
+    self.skippedScenarioCount = max(0, skippedScenarioCount)
     self.stopReason = stopReason
     self.stopStepID = ProductizationModelText.optionalCleanedText(stopStepID, limit: 200)
     self.stopStepTitle = ProductizationModelText.optionalCleanedText(stopStepTitle, limit: 180)
@@ -973,6 +990,78 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       userMessage,
       fallback: cleanedStopDetail,
       limit: 1_200
+    )
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case startedAt
+    case endedAt
+    case executedStepIDs
+    case experimentIDs
+    case messages
+    case maxSteps
+    case appliedDecisionCount
+    case promotedDecisionCount
+    case killedDecisionCount
+    case evidenceRunStepCount
+    case evidenceRunIDs
+    case completedEvidenceRunCount
+    case failedEvidenceRunCount
+    case skippedScenarioCount
+    case stopReason
+    case stopStepID
+    case stopStepTitle
+    case stopDetail
+    case userMessage
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      id: try container.decode(String.self, forKey: .id),
+      startedAt: try container.decode(Double.self, forKey: .startedAt),
+      endedAt: try container.decode(Double.self, forKey: .endedAt),
+      executedStepIDs: try container.decode([String].self, forKey: .executedStepIDs),
+      experimentIDs: try container.decode([String].self, forKey: .experimentIDs),
+      messages: try container.decode([String].self, forKey: .messages),
+      maxSteps: try container.decode(Int.self, forKey: .maxSteps),
+      appliedDecisionCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .appliedDecisionCount
+      ) ?? 0,
+      promotedDecisionCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .promotedDecisionCount
+      ) ?? 0,
+      killedDecisionCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .killedDecisionCount
+      ) ?? 0,
+      evidenceRunStepCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .evidenceRunStepCount
+      ) ?? 0,
+      evidenceRunIDs: try container.decodeIfPresent([String].self, forKey: .evidenceRunIDs)
+        ?? [],
+      completedEvidenceRunCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .completedEvidenceRunCount
+      ) ?? 0,
+      failedEvidenceRunCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .failedEvidenceRunCount
+      ) ?? 0,
+      skippedScenarioCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .skippedScenarioCount
+      ) ?? 0,
+      stopReason: try container.decode(
+        ProductFactoryCycleAuditStopReason.self, forKey: .stopReason),
+      stopStepID: try container.decodeIfPresent(String.self, forKey: .stopStepID),
+      stopStepTitle: try container.decodeIfPresent(String.self, forKey: .stopStepTitle),
+      stopDetail: try container.decode(String.self, forKey: .stopDetail),
+      userMessage: try container.decode(String.self, forKey: .userMessage)
     )
   }
 }

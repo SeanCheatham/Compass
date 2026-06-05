@@ -269,6 +269,10 @@ struct ProductizationEvidenceStoreTests {
         messages: ["Model-free cohort ran 1 scenario(s): 0 completed, 1 needing review, 0 skipped."],
         maxSteps: 3,
         evidenceRunStepCount: 1,
+        evidenceRunIDs: ["digest-run"],
+        completedEvidenceRunCount: 0,
+        failedEvidenceRunCount: 1,
+        skippedScenarioCount: 0,
         stopReason: .executionFailed,
         stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
         userMessage:
@@ -307,6 +311,8 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("factory-cycle-digest"))
     try #require(text.contains("decisions 0"))
     try #require(text.contains("evidence 1"))
+    try #require(text.contains("runs digest-run"))
+    try #require(text.contains("1 needing review"))
     try #require(text.contains("execution_failed"))
     try #require(text.contains("contract missing"))
     try #require(text.contains("Next product-factory actions"))

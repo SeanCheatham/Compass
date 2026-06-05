@@ -1180,8 +1180,8 @@ struct ProductizationWorkbenchTab: View {
     selectedExperimentID = step.experimentID
     isRunningFactoryStep = true
     defer { isRunningFactoryStep = false }
-    let message = await executeFactoryAutopilotStep(step)
-    scenarioRunMessage = message ?? project.errorMessage ?? step.blockedReason
+    let result = await executeFactoryAutopilotStep(step)
+    scenarioRunMessage = result?.message ?? project.errorMessage ?? step.blockedReason
     await loadContractStatus()
   }
 
@@ -1193,6 +1193,10 @@ struct ProductizationWorkbenchTab: View {
     let maxSteps = factoryAutopilotCyclePlan.maxSteps
     var executedSteps: [ProductFactoryAutopilotStep] = []
     var messages: [String] = []
+    var evidenceRunIDs: [String] = []
+    var completedEvidenceRunCount = 0
+    var failedEvidenceRunCount = 0
+    var skippedScenarioCount = 0
     var seenStepIDs = Set<String>()
     var stopReason: ProductFactoryAutopilotCycleStopReason = .reachedStepLimit
     for _ in 0..<maxSteps {
@@ -1209,7 +1213,7 @@ struct ProductizationWorkbenchTab: View {
         break
       }
       selectedExperimentID = step.experimentID
-      guard let message = await executeFactoryAutopilotStep(step) else {
+      guard let result = await executeFactoryAutopilotStep(step) else {
         stopReason = .executionFailed(
           stepID: step.id,
           title: step.title,
@@ -1218,13 +1222,21 @@ struct ProductizationWorkbenchTab: View {
         break
       }
       executedSteps.append(step)
-      messages.append(message)
+      messages.append(result.message)
+      evidenceRunIDs.append(contentsOf: result.evidenceRunIDs)
+      completedEvidenceRunCount += result.completedEvidenceRunCount
+      failedEvidenceRunCount += result.failedEvidenceRunCount
+      skippedScenarioCount += result.skippedScenarioCount
     }
     let outcome = ProductFactoryAutopilotCycleOutcome(
       executedSteps: executedSteps,
       messages: messages,
       maxSteps: maxSteps,
-      stopReason: stopReason
+      stopReason: stopReason,
+      evidenceRunIDs: evidenceRunIDs,
+      completedEvidenceRunCount: completedEvidenceRunCount,
+      failedEvidenceRunCount: failedEvidenceRunCount,
+      skippedScenarioCount: skippedScenarioCount
     )
     let audit = outcome.audit(startedAt: cycleStartedAt)
     scenarioRunMessage = audit.userMessage
@@ -1234,13 +1246,17 @@ struct ProductizationWorkbenchTab: View {
     await loadContractStatus()
   }
 
-  private func executeFactoryAutopilotStep(_ step: ProductFactoryAutopilotStep) async -> String? {
+  private func executeFactoryAutopilotStep(
+    _ step: ProductFactoryAutopilotStep
+  ) async -> ProductFactoryAutopilotStepResult? {
     switch step.kind {
     case .applyDecision:
       let decisionCount = project.productizationConfig.decisions.count
       await project.applyProductMarketFitDecisionRecommendation(experimentID: step.experimentID)
       if project.productizationConfig.decisions.count > decisionCount {
-        return "Applied PMF advice for \(step.experimentTitle)."
+        return ProductFactoryAutopilotStepResult(
+          message: "Applied PMF advice for \(step.experimentTitle)."
+        )
       }
       return nil
     case .runCohort:
@@ -1271,7 +1287,12 @@ struct ProductizationWorkbenchTab: View {
         if let scenarioOutcome {
           selectedRunID = scenarioOutcome.record.id
           loadSelectedRecord()
-          return "\(scenarioOutcome.userMessage) Run \(scenarioOutcome.record.id)."
+          return ProductFactoryAutopilotStepResult(
+            message: "\(scenarioOutcome.userMessage) Run \(scenarioOutcome.record.id).",
+            evidenceRunIDs: [scenarioOutcome.record.id],
+            completedEvidenceRunCount: scenarioOutcome.result.isSuccess ? 1 : 0,
+            failedEvidenceRunCount: scenarioOutcome.result.isSuccess ? 0 : 1
+          )
         }
         return nil
       }
@@ -1292,7 +1313,13 @@ struct ProductizationWorkbenchTab: View {
           selectedRunID = latestRecordID
           loadSelectedRecord()
         }
-        return outcome.userMessage
+        return ProductFactoryAutopilotStepResult(
+          message: outcome.userMessage,
+          evidenceRunIDs: outcome.outcomes.map(\.record.id),
+          completedEvidenceRunCount: outcome.completedRunCount,
+          failedEvidenceRunCount: outcome.failedRunCount,
+          skippedScenarioCount: outcome.skippedScenarioIDs.count
+        )
       }
       return nil
     case .blocked:

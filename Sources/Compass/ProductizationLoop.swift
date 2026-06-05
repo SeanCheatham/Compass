@@ -673,11 +673,61 @@ enum ProductFactoryAutopilotCycleStopReason: Equatable, Sendable {
   case executionFailed(stepID: String, title: String, message: String?)
 }
 
+struct ProductFactoryAutopilotStepResult: Equatable, Sendable {
+  var message: String
+  var evidenceRunIDs: [String]
+  var completedEvidenceRunCount: Int
+  var failedEvidenceRunCount: Int
+  var skippedScenarioCount: Int
+
+  init(
+    message: String,
+    evidenceRunIDs: [String] = [],
+    completedEvidenceRunCount: Int = 0,
+    failedEvidenceRunCount: Int = 0,
+    skippedScenarioCount: Int = 0
+  ) {
+    self.message = ProductizationModelText.cleanedText(
+      message,
+      fallback: "Factory step completed.",
+      limit: 1_200
+    )
+    self.evidenceRunIDs = ProductizationModelText.cleanedList(evidenceRunIDs, limit: 120)
+    self.completedEvidenceRunCount = max(0, completedEvidenceRunCount)
+    self.failedEvidenceRunCount = max(0, failedEvidenceRunCount)
+    self.skippedScenarioCount = max(0, skippedScenarioCount)
+  }
+}
+
 struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   var executedSteps: [ProductFactoryAutopilotStep]
   var messages: [String]
   var maxSteps: Int
   var stopReason: ProductFactoryAutopilotCycleStopReason
+  var evidenceRunIDs: [String]
+  var completedEvidenceRunCount: Int
+  var failedEvidenceRunCount: Int
+  var skippedScenarioCount: Int
+
+  init(
+    executedSteps: [ProductFactoryAutopilotStep],
+    messages: [String],
+    maxSteps: Int,
+    stopReason: ProductFactoryAutopilotCycleStopReason,
+    evidenceRunIDs: [String] = [],
+    completedEvidenceRunCount: Int = 0,
+    failedEvidenceRunCount: Int = 0,
+    skippedScenarioCount: Int = 0
+  ) {
+    self.executedSteps = executedSteps
+    self.messages = ProductizationModelText.cleanedList(messages, limit: 500)
+    self.maxSteps = max(1, maxSteps)
+    self.stopReason = stopReason
+    self.evidenceRunIDs = ProductizationModelText.cleanedList(evidenceRunIDs, limit: 120)
+    self.completedEvidenceRunCount = max(0, completedEvidenceRunCount)
+    self.failedEvidenceRunCount = max(0, failedEvidenceRunCount)
+    self.skippedScenarioCount = max(0, skippedScenarioCount)
+  }
 
   var appliedDecisionCount: Int {
     executedSteps.filter { $0.action.kind == .applyDecision }.count
@@ -768,6 +818,10 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       promotedDecisionCount: promotedDecisionCount,
       killedDecisionCount: killedDecisionCount,
       evidenceRunStepCount: evidenceRunStepCount,
+      evidenceRunIDs: evidenceRunIDs,
+      completedEvidenceRunCount: completedEvidenceRunCount,
+      failedEvidenceRunCount: failedEvidenceRunCount,
+      skippedScenarioCount: skippedScenarioCount,
       stopReason: auditStopReason,
       stopStepID: stopStepID,
       stopStepTitle: stopStepTitle,
@@ -777,9 +831,20 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   }
 
   private var outcomeMessage: String? {
-    guard appliedDecisionCount > 0 || evidenceRunStepCount > 0 else { return nil }
+    guard
+      appliedDecisionCount > 0 || evidenceRunStepCount > 0 || hasEvidenceRunOutcomes
+    else { return nil }
+    let evidenceOutcome =
+      hasEvidenceRunOutcomes
+      ? ", evidence runs \(completedEvidenceRunCount) completed, \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped"
+      : ""
     return
-      "Cycle outcomes: \(appliedDecisionCount) PMF decision(s) applied (\(promotedDecisionCount) promote, \(killedDecisionCount) kill), \(evidenceRunStepCount) evidence step(s)."
+      "Cycle outcomes: \(appliedDecisionCount) PMF decision(s) applied (\(promotedDecisionCount) promote, \(killedDecisionCount) kill), \(evidenceRunStepCount) evidence step(s)\(evidenceOutcome)."
+  }
+
+  private var hasEvidenceRunOutcomes: Bool {
+    !evidenceRunIDs.isEmpty || completedEvidenceRunCount > 0 || failedEvidenceRunCount > 0
+      || skippedScenarioCount > 0
   }
 
   private var stopReasonMessage: String {
