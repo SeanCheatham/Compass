@@ -435,13 +435,19 @@ enum ProductizationPlanningDigestFormatter {
           audit.decisionCandidateSummaries.isEmpty
           ? ""
           : "; decision candidates \(bounded(decisionCandidateList, 260))"
+        let evidenceTensionList = audit.evidenceTensionSummaries.prefix(3)
+          .joined(separator: " | ")
+        let evidenceTensions =
+          audit.evidenceTensionSummaries.isEmpty
+          ? ""
+          : "; evidence tensions \(bounded(evidenceTensionList, 260))"
         let proofTargetList = audit.proofTargetSummaries.prefix(3).joined(separator: " | ")
         let proofTargets =
           audit.proofTargetSummaries.isEmpty
           ? ""
           : "; proof targets \(bounded(proofTargetList, 260))"
         return
-          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(proofTargets)"
+          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(evidenceTensions)\(proofTargets)"
             + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
   }

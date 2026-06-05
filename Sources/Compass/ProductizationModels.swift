@@ -923,6 +923,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
   var startingProofDebtSummary: String?
   var endingProofDebtSummary: String?
   var decisionCandidateSummaries: [String]
+  var evidenceTensionSummaries: [String]
   var proofTargetSummaries: [String]
   var stopReason: ProductFactoryCycleAuditStopReason
   var stopStepID: String?
@@ -951,12 +952,16 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       decisionCandidateSummaries.isEmpty
       ? ""
       : "; candidates \(decisionCandidateSummaries.prefix(3).joined(separator: " | "))"
+    let evidenceTensions =
+      evidenceTensionSummaries.isEmpty
+      ? ""
+      : "; tensions \(evidenceTensionSummaries.prefix(3).joined(separator: " | "))"
     let proofTargets =
       proofTargetSummaries.isEmpty
       ? ""
       : "; targets \(proofTargetSummaries.prefix(3).joined(separator: " | "))"
     return
-      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(decisionCandidates)\(proofTargets); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
+      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(decisionCandidates)\(evidenceTensions)\(proofTargets); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
   }
 
   private var proofDebtSummary: String? {
@@ -988,6 +993,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     startingProofDebtSummary: String? = nil,
     endingProofDebtSummary: String? = nil,
     decisionCandidateSummaries: [String] = [],
+    evidenceTensionSummaries: [String] = [],
     proofTargetSummaries: [String] = [],
     stopReason: ProductFactoryCycleAuditStopReason,
     stopStepID: String? = nil,
@@ -1024,6 +1030,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     )
     self.decisionCandidateSummaries = ProductizationModelText.cleanedList(
       decisionCandidateSummaries,
+      limit: 300
+    )
+    self.evidenceTensionSummaries = ProductizationModelText.cleanedList(
+      evidenceTensionSummaries,
       limit: 300
     )
     self.proofTargetSummaries = ProductizationModelText.cleanedList(
@@ -1067,6 +1077,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     case startingProofDebtSummary
     case endingProofDebtSummary
     case decisionCandidateSummaries
+    case evidenceTensionSummaries
     case proofTargetSummaries
     case stopReason
     case stopStepID
@@ -1134,6 +1145,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       decisionCandidateSummaries: try container.decodeIfPresent(
         [String].self,
         forKey: .decisionCandidateSummaries
+      ) ?? [],
+      evidenceTensionSummaries: try container.decodeIfPresent(
+        [String].self,
+        forKey: .evidenceTensionSummaries
       ) ?? [],
       proofTargetSummaries: try container.decodeIfPresent(
         [String].self,

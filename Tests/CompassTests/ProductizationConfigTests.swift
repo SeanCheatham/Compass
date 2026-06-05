@@ -313,6 +313,9 @@ private func makeProductizationConfig() -> ProductizationConfig {
     experimentIDs: [experiment.id],
     messages: ["Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
     maxSteps: 3,
+    evidenceTensionSummaries: [
+      "experiment-handoff-desk: resolve split PMF evidence; target Delivery lead"
+    ],
     stopReason: .noExecutableStep,
     stopDetail: "Stopped because no executable product-factory step remains.",
     userMessage:

@@ -1286,6 +1286,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   var startingProofDebtSummary: String?
   var endingProofDebtSummary: String?
   var decisionCandidateSummaries: [String]
+  var evidenceTensionSummaries: [String]
   var proofTargetSummaries: [String]
 
   init(
@@ -1302,6 +1303,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     startingProofDebtSummary: String? = nil,
     endingProofDebtSummary: String? = nil,
     decisionCandidateSummaries: [String] = [],
+    evidenceTensionSummaries: [String] = [],
     proofTargetSummaries: [String] = []
   ) {
     self.executedSteps = executedSteps
@@ -1324,6 +1326,10 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     )
     self.decisionCandidateSummaries = ProductizationModelText.cleanedList(
       decisionCandidateSummaries,
+      limit: 300
+    )
+    self.evidenceTensionSummaries = ProductizationModelText.cleanedList(
+      evidenceTensionSummaries,
       limit: 300
     )
     self.proofTargetSummaries = ProductizationModelText.cleanedList(
@@ -1367,6 +1373,9 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     }
     if let decisionCandidateMessage {
       parts.append(decisionCandidateMessage)
+    }
+    if let evidenceTensionMessage {
+      parts.append(evidenceTensionMessage)
     }
     if let proofTargetMessage {
       parts.append(proofTargetMessage)
@@ -1444,6 +1453,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       startingProofDebtSummary: startingProofDebtSummary,
       endingProofDebtSummary: endingProofDebtSummary,
       decisionCandidateSummaries: decisionCandidateSummaries,
+      evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,
       stopReason: auditStopReason,
       stopStepID: stopStepID,
@@ -1474,6 +1484,12 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     guard !decisionCandidateSummaries.isEmpty else { return nil }
     let candidates = decisionCandidateSummaries.prefix(3).joined(separator: " | ")
     return "Decision candidates: \(StringUtils.boundedText(candidates, limit: 420))."
+  }
+
+  private var evidenceTensionMessage: String? {
+    guard !evidenceTensionSummaries.isEmpty else { return nil }
+    let tensions = evidenceTensionSummaries.prefix(3).joined(separator: " | ")
+    return "Evidence tensions: \(StringUtils.boundedText(tensions, limit: 420))."
   }
 
   private var proofTargetMessage: String? {

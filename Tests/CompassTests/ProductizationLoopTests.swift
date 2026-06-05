@@ -2016,6 +2016,9 @@ struct ProductizationLoopTests {
       endingProofDebtCount: 6,
       startingProofDebtSummary: "\(step.experimentID): 2 completed run(s), 2 persona(s)",
       endingProofDebtSummary: "\(step.experimentID): 1 completed run(s), 1 persona(s)",
+      evidenceTensionSummaries: [
+        "\(step.experimentID): resolve split PMF evidence; score 82/100; strong_pull vs rejected; target Budget owner"
+      ],
       proofTargetSummaries: [
         "\(step.experimentID): broaden completed persona coverage; debt 2 completed run(s), 2 persona(s)"
       ]
@@ -2041,15 +2044,20 @@ struct ProductizationLoopTests {
     try #require(audit.proofDebtDelta == -2)
     try #require(audit.startingProofDebtSummary?.contains("2 completed run") == true)
     try #require(audit.endingProofDebtSummary?.contains("1 completed run") == true)
+    try #require(audit.evidenceTensionSummaries.count == 1)
+    try #require(audit.evidenceTensionSummaries[0].contains("resolve split PMF evidence"))
     try #require(audit.proofTargetSummaries.count == 1)
     try #require(audit.proofTargetSummaries[0].contains("broaden completed persona coverage"))
     try #require(audit.stopReason == .noExecutableStep)
     try #require(audit.userMessage.contains("Factory cycle ran 1 step(s)."))
     try #require(audit.userMessage.contains("evidence runs 1 completed, 0 needing review"))
+    try #require(audit.userMessage.contains("Evidence tensions:"))
     try #require(audit.userMessage.contains("Proof targets:"))
     try #require(audit.userMessage.contains("Proof debt improved by 2"))
     try #require(audit.summary.contains("runs run-one"))
     try #require(audit.summary.contains("proof debt 8 -> 6 (-2)"))
+    try #require(audit.summary.contains("tensions"))
+    try #require(audit.summary.contains("resolve split PMF evidence"))
     try #require(audit.summary.contains("targets"))
     try #require(audit.summary.contains("broaden completed persona coverage"))
     try #require(audit.userMessage.contains("Stopped because no executable product-factory step remains."))

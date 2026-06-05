@@ -286,6 +286,9 @@ struct ProductizationEvidenceStoreTests {
           "\(config.experiments[0].id): 2 completed run(s), 2 persona(s), 2 AI-user persona(s), 2 AI-user current-alternative proof(s)",
         endingProofDebtSummary:
           "\(config.experiments[0].id): 1 completed run(s), 2 persona(s), 2 AI-user persona(s), 2 AI-user current-alternative proof(s)",
+        evidenceTensionSummaries: [
+          "\(config.experiments[0].id): resolve split PMF evidence; score 82/100; strong_pull vs rejected; target Budget owner"
+        ],
         proofTargetSummaries: [
           "\(config.experiments[0].id): run targeted AI-user persona proof; target Budget owner; debt 2 AI-user persona(s)"
         ],
@@ -331,6 +334,8 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("evidence 1"))
     try #require(text.contains("runs digest-run"))
     try #require(text.contains("proof debt 8 -> 7 (-1)"))
+    try #require(text.contains("evidence tensions"))
+    try #require(text.contains("resolve split PMF evidence"))
     try #require(text.contains("targets"))
     try #require(text.contains("proof targets"))
     try #require(text.contains("run targeted AI-user persona proof"))

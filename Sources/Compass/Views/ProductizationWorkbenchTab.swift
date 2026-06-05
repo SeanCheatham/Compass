@@ -1373,6 +1373,7 @@ struct ProductizationWorkbenchTab: View {
     var touchedExperimentIDs: [String] = []
     var startingProofDebts: [String: ProductMarketFitProofDebt] = [:]
     var decisionCandidateSummaries: [String] = []
+    var evidenceTensionSummaries: [String] = []
     var proofTargetSummaries: [String] = []
     var seenStepIDs = Set<String>()
     var stopReason: ProductFactoryAutopilotCycleStopReason = .reachedStepLimit
@@ -1403,6 +1404,11 @@ struct ProductizationWorkbenchTab: View {
         !decisionCandidateSummaries.contains(candidate.auditSummary)
       {
         decisionCandidateSummaries.append(candidate.auditSummary)
+      }
+      if let evidenceTension = productFactoryEvidenceTension(forExperimentID: step.experimentID),
+        !evidenceTensionSummaries.contains(evidenceTension.auditSummary)
+      {
+        evidenceTensionSummaries.append(evidenceTension.auditSummary)
       }
       if let proofTarget = productFactoryProofTarget(forExperimentID: step.experimentID),
         !proofTargetSummaries.contains(proofTarget.auditSummary)
@@ -1445,6 +1451,7 @@ struct ProductizationWorkbenchTab: View {
       startingProofDebtSummary: startingProofDebt?.summary,
       endingProofDebtSummary: endingProofDebt?.summary,
       decisionCandidateSummaries: decisionCandidateSummaries,
+      evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries
     )
     let audit = outcome.audit(startedAt: cycleStartedAt)
@@ -1494,6 +1501,21 @@ struct ProductizationWorkbenchTab: View {
       evidenceIndex: project.productizationEvidenceIndex
     )
     .first { $0.experimentID == experimentID }
+  }
+
+  private func productFactoryEvidenceTension(
+    forExperimentID experimentID: String
+  ) -> ProductFactoryEvidenceTension? {
+    guard
+      let experiment = project.productizationConfig.experiments.first(where: {
+        $0.id == experimentID
+      })
+    else { return nil }
+    return ProductFactoryEvidenceTensionAdvisor.tension(
+      for: experiment,
+      config: project.productizationConfig,
+      evidenceIndex: project.productizationEvidenceIndex
+    )
   }
 
   private func productFactoryProofDebtSnapshot(
