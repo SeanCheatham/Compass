@@ -230,6 +230,18 @@ enum ProductizationPlanningDigestFormatter {
         metadata.append(
           "reject \(tension.negativeEvidenceRunIDs.prefix(4).joined(separator: ", "))")
       }
+      if let targetCohortID = tension.targetCohortID {
+        metadata.append("cohort \(targetCohortID)")
+      }
+      if let targetScenarioID = tension.targetScenarioID {
+        metadata.append("target_scenario \(targetScenarioID)")
+      }
+      if let targetPersonaID = tension.targetPersonaID {
+        metadata.append("target_persona \(targetPersonaID)")
+      }
+      if let targetPersonaName = tension.targetPersonaName {
+        metadata.append("target_name \(bounded(targetPersonaName, 80))")
+      }
       lines.append(
         "- \(tension.experimentID): \(metadata.joined(separator: "; ")); \(bounded(tension.summary, 240))."
       )

@@ -276,6 +276,12 @@ struct ProductizationLoopTests {
     let experiment = config.experiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
+    let buyerScenario = try #require(
+      config.scenarios.first { $0.experimentID == experiment.id && $0.segmentID == buyerID }
+    )
+    let operatorScenario = try #require(
+      config.scenarios.first { $0.experimentID == experiment.id && $0.segmentID == operatorID }
+    )
     let strongScores = ProductizationEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
@@ -300,7 +306,8 @@ struct ProductizationLoopTests {
           mode: .personaModel,
           endedAt: 600,
           verdict: .strongPull,
-          scores: strongScores
+          scores: strongScores,
+          scenarioID: operatorScenario.id
         ),
         makeDecisionAdvisorRecord(
           id: "split-promote-b",
@@ -310,7 +317,8 @@ struct ProductizationLoopTests {
           mode: .personaModel,
           endedAt: 590,
           verdict: .strongPull,
-          scores: strongScores
+          scores: strongScores,
+          scenarioID: buyerScenario.id
         ),
         makeDecisionAdvisorRecord(
           id: "split-promote-c",
@@ -319,7 +327,8 @@ struct ProductizationLoopTests {
           personaID: "operations-lead",
           endedAt: 580,
           verdict: .strongPull,
-          scores: strongScores
+          scores: strongScores,
+          scenarioID: operatorScenario.id
         ),
         makeDecisionAdvisorRecord(
           id: "split-promote-d",
@@ -328,7 +337,8 @@ struct ProductizationLoopTests {
           personaID: "finance-lead",
           endedAt: 570,
           verdict: .strongPull,
-          scores: strongScores
+          scores: strongScores,
+          scenarioID: operatorScenario.id
         ),
         makeDecisionAdvisorRecord(
           id: "split-promote-e",
@@ -337,7 +347,8 @@ struct ProductizationLoopTests {
           personaID: operatorID,
           endedAt: 560,
           verdict: .promising,
-          scores: strongScores
+          scores: strongScores,
+          scenarioID: operatorScenario.id
         ),
         makeDecisionAdvisorRecord(
           id: "split-reject-a",
@@ -348,7 +359,8 @@ struct ProductizationLoopTests {
           endedAt: 550,
           verdict: .rejected,
           scores: rejectedScores,
-          objections: ["Too risky to switch budget workflows"]
+          objections: ["Too risky to switch budget workflows"],
+          scenarioID: buyerScenario.id
         ),
       ]
     )
@@ -357,6 +369,7 @@ struct ProductizationLoopTests {
     let tension = try #require(
       ProductFactoryEvidenceTensionAdvisor.tension(
         for: experiment,
+        config: config,
         evidenceIndex: index
       ))
     let action = try #require(
@@ -375,6 +388,10 @@ struct ProductizationLoopTests {
     try #require(tension.label == "resolve split PMF evidence")
     try #require(tension.positiveEvidenceRunIDs.first == "split-promote-a")
     try #require(tension.negativeEvidenceRunIDs == ["split-reject-a"])
+    try #require(tension.targetPersonaID == buyerID)
+    try #require(tension.targetPersonaName == "Budget owner")
+    try #require(tension.targetScenarioID == buyerScenario.id)
+    try #require(tension.targetCohortID == config.scenarioCohorts[0].id)
     try #require(ProductMarketFitDecisionAdvisor.proposals(
       config: config,
       evidenceIndex: index
@@ -387,12 +404,18 @@ struct ProductizationLoopTests {
     try #require(action.title == "Resolve split PMF evidence")
     try #require(action.cohortID == config.scenarioCohorts[0].id)
     try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetPersonaID == buyerID)
+    try #require(action.targetPersonaName == "Budget owner")
+    try #require(action.targetScenarioID == buyerScenario.id)
     try #require(action.detail.contains("pull signal"))
     try #require(action.detail.contains("rejection signal"))
+    try #require(action.detail.contains(buyerScenario.id))
     try #require(digest.contains("Product-factory evidence tensions"))
     try #require(digest.contains("action resolve_signal_split"))
     try #require(digest.contains("pull split-promote-a"))
     try #require(digest.contains("reject split-reject-a"))
+    try #require(digest.contains("target_scenario \(buyerScenario.id)"))
+    try #require(digest.contains("target_name Budget owner"))
 
     do {
       _ = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
@@ -418,6 +441,12 @@ struct ProductizationLoopTests {
     let experiment = config.experiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
+    let operatorScenario = try #require(
+      config.scenarios.first { $0.experimentID == experiment.id && $0.segmentID == operatorID }
+    )
+    let buyerScenario = try #require(
+      config.scenarios.first { $0.experimentID == experiment.id && $0.segmentID == buyerID }
+    )
     let strongScores = ProductizationEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
@@ -442,7 +471,8 @@ struct ProductizationLoopTests {
           mode: .personaModel,
           endedAt: 300,
           verdict: .strongPull,
-          scores: strongScores
+          scores: strongScores,
+          scenarioID: operatorScenario.id
         ),
         makeDecisionAdvisorRecord(
           id: "split-kill-weak",
@@ -452,7 +482,8 @@ struct ProductizationLoopTests {
           mode: .personaModel,
           endedAt: 200,
           verdict: .weak,
-          scores: weakScores
+          scores: weakScores,
+          scenarioID: operatorScenario.id
         ),
         makeDecisionAdvisorRecord(
           id: "split-kill-reject",
@@ -462,7 +493,8 @@ struct ProductizationLoopTests {
           mode: .personaModel,
           endedAt: 100,
           verdict: .rejected,
-          scores: weakScores
+          scores: weakScores,
+          scenarioID: buyerScenario.id
         ),
       ]
     )
@@ -471,6 +503,7 @@ struct ProductizationLoopTests {
     let tension = try #require(
       ProductFactoryEvidenceTensionAdvisor.tension(
         for: experiment,
+        config: config,
         evidenceIndex: index
       ))
     let action = try #require(
@@ -483,12 +516,15 @@ struct ProductizationLoopTests {
     try #require(readiness.recommendation == .kill)
     try #require(tension.positiveEvidenceRunIDs == ["split-kill-pull"])
     try #require(tension.negativeEvidenceRunIDs == ["split-kill-weak", "split-kill-reject"])
+    try #require(tension.targetPersonaID == operatorID)
+    try #require(tension.targetScenarioID == operatorScenario.id)
     try #require(ProductMarketFitDecisionAdvisor.proposals(
       config: config,
       evidenceIndex: index
     ).isEmpty)
     try #require(action.title == "Resolve split PMF evidence")
     try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetScenarioID == operatorScenario.id)
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {
@@ -2405,7 +2441,8 @@ private func makeDecisionAdvisorRecord(
   scores: ProductizationEvidenceScores,
   objections: [String] = [],
   missingCapabilities: [String] = [],
-  currentAlternativeComparison: String = "Compared against the current workflow."
+  currentAlternativeComparison: String = "Compared against the current workflow.",
+  scenarioID: String? = nil
 ) -> ProductizationEvidenceRecord {
   let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
   return ProductizationEvidenceRecord(
@@ -2415,7 +2452,7 @@ private func makeDecisionAdvisorRecord(
     painID: solution?.painID ?? config.painHypotheses.first?.id ?? "pain",
     branchName: experiment.branchName,
     commitSha: experiment.currentSha ?? experiment.baseSha ?? "head-sha",
-    scenarioID: "\(experiment.id)-scenario",
+    scenarioID: scenarioID ?? "\(experiment.id)-scenario",
     personaID: personaID,
     mode: mode,
     status: .completed,

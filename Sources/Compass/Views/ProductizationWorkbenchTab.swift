@@ -517,6 +517,12 @@ struct ProductizationWorkbenchTab: View {
         }
         WorkbenchFact(label: "Experiment", value: tension.experimentID)
         WorkbenchFact(label: "Split", value: tension.displaySubtitle)
+        if let targetPersonaName = tension.targetPersonaName {
+          WorkbenchFact(label: "Target", value: targetPersonaName)
+        }
+        if let targetScenarioID = tension.targetScenarioID {
+          WorkbenchFact(label: "Scenario", value: targetScenarioID)
+        }
         WorkbenchFact(
           label: "Pull",
           value: tension.positiveEvidenceRunIDs.isEmpty

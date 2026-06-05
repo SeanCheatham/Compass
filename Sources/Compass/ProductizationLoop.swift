@@ -384,6 +384,10 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
   var weakestVerdict: ProductizationEvidenceVerdict
   var positiveEvidenceRunIDs: [String]
   var negativeEvidenceRunIDs: [String]
+  var targetPersonaID: String?
+  var targetPersonaName: String?
+  var targetScenarioID: String?
+  var targetCohortID: String?
   var summary: String
 
   var evidenceRunIDs: [String] {
@@ -406,7 +410,14 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
   }
 
   var displaySubtitle: String {
-    "\(readinessScore)/100, \(strongestVerdict.rawValue) vs \(weakestVerdict.rawValue)"
+    var parts = [
+      "\(readinessScore)/100",
+      "\(strongestVerdict.rawValue) vs \(weakestVerdict.rawValue)",
+    ]
+    if let targetPersonaName {
+      parts.append("target \(targetPersonaName)")
+    }
+    return parts.joined(separator: ", ")
   }
 
   var displayDetail: String {
@@ -418,7 +429,13 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
       negativeEvidenceRunIDs.isEmpty
       ? "negative evidence unavailable"
       : "negative \(negativeEvidenceRunIDs.prefix(3).joined(separator: ", "))"
-    return "\(summary) Evidence: \(positive); \(negative)."
+    var parts = ["\(summary) Evidence: \(positive); \(negative)."]
+    if let targetScenarioID {
+      parts.append("Target scenario: \(targetScenarioID).")
+    } else if let targetPersonaName {
+      parts.append("Target persona: \(targetPersonaName).")
+    }
+    return parts.joined(separator: " ")
   }
 
   var auditSummary: String {
@@ -436,6 +453,10 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
     weakestVerdict: ProductizationEvidenceVerdict,
     positiveEvidenceRunIDs: [String],
     negativeEvidenceRunIDs: [String],
+    targetPersonaID: String? = nil,
+    targetPersonaName: String? = nil,
+    targetScenarioID: String? = nil,
+    targetCohortID: String? = nil,
     summary: String
   ) {
     self.experimentID = ProductizationModelText.identifier(
@@ -458,6 +479,22 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
       negativeEvidenceRunIDs,
       limit: 96
     )
+    self.targetPersonaID = ProductizationModelText.optionalIdentifier(
+      targetPersonaID,
+      fallback: "persona"
+    )
+    self.targetPersonaName = ProductizationModelText.optionalCleanedText(
+      targetPersonaName,
+      limit: 160
+    )
+    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+      targetScenarioID,
+      fallback: "scenario"
+    )
+    self.targetCohortID = ProductizationModelText.optionalIdentifier(
+      targetCohortID,
+      fallback: "cohort"
+    )
     self.summary = ProductizationModelText.cleanedText(
       summary,
       fallback:
@@ -473,7 +510,7 @@ enum ProductFactoryEvidenceTensionAdvisor {
     evidenceIndex: ProductizationEvidenceIndex
   ) -> [ProductFactoryEvidenceTension] {
     config.experiments.compactMap { experiment in
-      tension(for: experiment, evidenceIndex: evidenceIndex)
+      tension(for: experiment, config: config, evidenceIndex: evidenceIndex)
     }
     .sorted { lhs, rhs in
       if lhs.urgencyScore == rhs.urgencyScore { return lhs.experimentID < rhs.experimentID }
@@ -483,6 +520,22 @@ enum ProductFactoryEvidenceTensionAdvisor {
 
   static func tension(
     for experiment: ProductExperiment,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryEvidenceTension? {
+    tension(for: experiment, config: nil, evidenceIndex: evidenceIndex)
+  }
+
+  static func tension(
+    for experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryEvidenceTension? {
+    tension(for: experiment, config: Optional(config), evidenceIndex: evidenceIndex)
+  }
+
+  private static func tension(
+    for experiment: ProductExperiment,
+    config: ProductizationConfig?,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductFactoryEvidenceTension? {
     guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment) else {
@@ -499,6 +552,9 @@ enum ProductFactoryEvidenceTensionAdvisor {
 
     let summary =
       "Current PMF evidence is split: \(positive.count) pull signal(s) and \(negative.count) rejection signal(s) on the current commit. Run a targeted AI-user comparison or narrow the scenario before applying lift/cut decisions."
+    let target = config.flatMap {
+      tensionTarget(for: negative, experiment: experiment, config: $0)
+    }
     return ProductFactoryEvidenceTension(
       experimentID: experiment.id,
       readinessScore: Int(readiness.readinessScore.rounded()),
@@ -506,6 +562,10 @@ enum ProductFactoryEvidenceTensionAdvisor {
       weakestVerdict: readiness.weakestVerdict,
       positiveEvidenceRunIDs: positive.prefix(4).map(\.runID),
       negativeEvidenceRunIDs: negative.prefix(4).map(\.runID),
+      targetPersonaID: target?.personaID,
+      targetPersonaName: target?.personaName,
+      targetScenarioID: target?.scenarioID,
+      targetCohortID: target?.cohortID,
       summary: summary
     )
   }
@@ -525,6 +585,79 @@ enum ProductFactoryEvidenceTensionAdvisor {
 
   private static func isNegative(_ verdict: ProductizationEvidenceVerdict) -> Bool {
     verdict == .weak || verdict == .rejected
+  }
+
+  private struct EvidenceTensionTarget: Equatable, Sendable {
+    var personaID: String?
+    var personaName: String?
+    var scenarioID: String?
+    var cohortID: String?
+  }
+
+  private static func tensionTarget(
+    for negative: [ProductizationEvidenceSummary],
+    experiment: ProductExperiment,
+    config: ProductizationConfig
+  ) -> EvidenceTensionTarget? {
+    for summary in negative {
+      let scenarioID = summary.scenarioID.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !scenarioID.isEmpty,
+        let scenario = config.scenarios.first(where: {
+          $0.id == scenarioID && $0.experimentID == experiment.id
+        })
+      else { continue }
+      let personaID = summary.personaID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        ? scenario.segmentID
+        : summary.personaID
+      return EvidenceTensionTarget(
+        personaID: personaID,
+        personaName: segmentName(for: personaID, config: config),
+        scenarioID: scenario.id,
+        cohortID: scenario.enabled
+          ? executableCohortID(
+            forScenarioID: scenario.id,
+            experiment: experiment,
+            config: config
+          )
+          : nil
+      )
+    }
+
+    guard let summary = negative.first(where: {
+      !$0.personaID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }) else { return nil }
+    return EvidenceTensionTarget(
+      personaID: summary.personaID,
+      personaName: segmentName(for: summary.personaID, config: config),
+      scenarioID: nil,
+      cohortID: nil
+    )
+  }
+
+  private static func executableCohortID(
+    forScenarioID scenarioID: String,
+    experiment: ProductExperiment,
+    config: ProductizationConfig
+  ) -> String? {
+    config.scenarioCohorts
+      .filter {
+        $0.experimentID == experiment.id
+          && $0.enabled
+          && $0.scenarioIDs.contains(scenarioID)
+      }
+      .sorted {
+        if $0.scenarioIDs.count == $1.scenarioIDs.count { return $0.title < $1.title }
+        return $0.scenarioIDs.count < $1.scenarioIDs.count
+      }
+      .first?.id
+  }
+
+  private static func segmentName(for segmentID: String, config: ProductizationConfig) -> String {
+    let trimmed = segmentID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return segmentID }
+    let name = config.userSegments.first { $0.id == trimmed }?.name ?? trimmed
+    let cleaned = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    return cleaned.isEmpty ? trimmed : cleaned
   }
 }
 
@@ -1916,20 +2049,40 @@ enum ProductMarketFitNextActionAdvisor {
     }
     if let tension = ProductFactoryEvidenceTensionAdvisor.tension(
       for: experiment,
+      config: config,
       evidenceIndex: evidenceIndex
     ) {
+      let actionCohortID = tension.targetScenarioID == nil ? cohort?.id : tension.targetCohortID
+      let canRunTarget = actionCohortID != nil
+      let detail: String
+      if let targetScenarioID = tension.targetScenarioID,
+        let targetPersonaName = tension.targetPersonaName,
+        let targetCohortID = tension.targetCohortID
+      {
+        detail =
+          "\(tension.summary) Rerun rejecting AI-user scenario `\(targetScenarioID)` for \(targetPersonaName) in cohort `\(targetCohortID)` before lift/cut."
+      } else if let targetPersonaName = tension.targetPersonaName {
+        detail =
+          "\(tension.summary) Add or enable a cohort scenario for \(targetPersonaName), then rerun it in AI-user mode before lift/cut."
+      } else if let actionCohortID {
+        detail =
+          "\(tension.summary) Run cohort `\(actionCohortID)` in AI-user mode to compare the disagreeing personas before lift/cut."
+      } else {
+        detail =
+          "\(tension.summary) Add an enabled AI-user scenario that directly compares the disagreeing evidence before lift/cut."
+      }
       return applyingRecentCycleGuards(
         to: ProductMarketFitNextAction(
           experimentID: experiment.id,
-          kind: cohort == nil ? .refineBet : .runCohort,
+          kind: canRunTarget ? .runCohort : .refineBet,
           title: "Resolve split PMF evidence",
-          detail: cohort.map {
-            "\(tension.summary) Run cohort `\($0.id)` in AI-user mode to compare the disagreeing personas before lift/cut."
-          }
-            ?? "\(tension.summary) Add an enabled AI-user scenario that directly compares the disagreeing evidence before lift/cut.",
+          detail: detail,
           priority: tension.urgencyScore,
-          cohortID: cohort?.id,
-          requiredSimulationMode: .personaModel
+          cohortID: actionCohortID,
+          requiredSimulationMode: .personaModel,
+          targetPersonaID: tension.targetPersonaID,
+          targetPersonaName: tension.targetPersonaName,
+          targetScenarioID: tension.targetScenarioID
         ),
         experiment: experiment,
         config: config,
