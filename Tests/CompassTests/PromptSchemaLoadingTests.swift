@@ -14,6 +14,7 @@ struct PromptSchemaLoadingTests {
     let schemas: [(String, String)] = [
       ("plan", Prompts.planSchema),
       ("planHostXcode", Prompts.planHostXcodeSchema),
+      ("discover", Prompts.discoverSchema),
       ("develop", Prompts.developSchema),
       ("reflect", Prompts.reflectSchema),
       ("reflectHostXcode", Prompts.reflectHostXcodeSchema),
@@ -88,6 +89,16 @@ struct PromptSchemaLoadingTests {
     try #require(
       propertyDescription("switchLikelihood", in: feedbackProperties)
         .contains("current alternative"))
+  }
+
+  @Test
+  func testDiscoverSchemaDescribesStructuredProductizationEdits() throws {
+    let properties = try schemaProperties(Prompts.discoverSchema)
+
+    try #require(try additionalProperties(Prompts.discoverSchema) == false)
+    try #require(propertyDescription("summary", in: properties).contains("pain model"))
+    try #require(properties.keys.contains("stateEdits"))
+    try #require(properties.keys.contains("candidateExperiments"))
   }
 
   @Test

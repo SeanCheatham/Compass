@@ -268,6 +268,17 @@ struct CompassWorkspace {
     )
   }
 
+  @discardableResult
+  func applyDiscoverOutput(
+    _ output: DiscoverPromptOutput,
+    currentConfig: ProductizationConfig? = nil
+  ) throws -> ProductizationConfig {
+    let baseConfig = try currentConfig ?? readProductizationConfig()
+    let nextConfig = try output.validatedProductizationConfig(applyingTo: baseConfig)
+    try writeProductizationConfig(nextConfig)
+    return nextConfig
+  }
+
   func readPMFConfig() throws -> PMFConfig {
     guard FileManager.default.fileExists(atPath: pmfConfigURL.path) else {
       return .empty

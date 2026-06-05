@@ -20,13 +20,15 @@ struct ProjectIntakeGuideTests {
     try #require(guide.steps[0].detail.contains("project folder"))
     try #require(guide.steps[0].detail.contains("repository root"))
     try #require(!guide.steps[0].detail.contains("Git root"))
-    try #require(guide.steps[1].detail.contains("who it helps"))
+    try #require(guide.steps[1].title == "Describe the pain")
+    try #require(guide.steps[1].detail.contains("What user pain should Compass explore?"))
+    try #require(guide.steps[1].detail.contains("current alternatives"))
     try #require(guide.steps[1].detail.contains("guardrails"))
     try #require(guide.steps[1].detail.contains("Project Vision"))
     try #require(guide.signals.map(\.id) == [
       "git", "verification", "project-vision", "plain-language-goal",
     ])
-    try #require(guide.signals.contains { $0.id == "project-vision" && $0.label == "Project vision" })
+    try #require(guide.signals.contains { $0.id == "project-vision" && $0.label == "Pain context" })
     try #require(guide.allowsNarration)
     try #require(guide.narrationIdentifier.contains("count:0"))
     try #require(guide.narrationIdentifier.contains("Add Your First Project"))
@@ -61,11 +63,11 @@ struct ProjectIntakeGuideTests {
 
     try #require(payload.text.contains("Compass Project Intake Handoff"))
     try #require(payload.text.contains("Recipient instructions:"))
-    try #require(payload.text.contains("capture Project Vision notes"))
+    try #require(payload.text.contains("capture the user pain"))
     try #require(payload.text.contains("Status: No projects yet"))
     try #require(payload.text.contains("- Choose a Git folder:"))
-    try #require(payload.text.contains("- Capture the vision:"))
-    try #require(payload.text.contains("Project vision:"))
+    try #require(payload.text.contains("- Describe the pain:"))
+    try #require(payload.text.contains("Pain context:"))
     try #require(payload.text.contains("Good project signals:"))
     try #require(payload.text.count <= ProjectIntakeGuide.handoffLimit)
   }

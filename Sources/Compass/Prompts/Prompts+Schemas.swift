@@ -9,6 +9,7 @@ extension Prompts {
   /// load time so a hand-edit that breaks syntax is caught immediately.
   static let planSchema = loadSchema("plan")
   static let planHostXcodeSchema = loadSchema("planHostXcode")
+  static let discoverSchema = loadSchema("discover")
   static let developSchema = loadSchema("develop")
   static let reflectSchema = loadSchema("reflect")
   static let reflectHostXcodeSchema = loadSchema("reflectHostXcode")

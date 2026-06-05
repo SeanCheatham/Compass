@@ -1,217 +1,164 @@
-# 02 - Generated Experience Contract
+# 02 - Discovery Phase And Prompt Contracts
 
 ## Objective
 
-Extend the blessed Rust generated-app scaffold so apps expose a deterministic
-semantic experience contract that PMF personas can interact with.
+Add a discovery phase that turns raw user pain into structured productization
+state before Compass starts implementation.
 
-The contract should be useful before any desktop UI exists.
+Discovery should generate pain hypotheses, user segments, current workflows,
+alternatives, solution hypotheses, and experiment candidates. Plan can then pick
+the next commit-sized slice from real product context instead of guessing from a
+single product idea.
 
 ## Scope
 
-Implement generated-project contract changes and scaffold validation. Do not
-call LLMs in this plan.
+Implement the prompt contracts and validation for a new Discover pass or a
+clearly separated Plan pre-pass.
 
-## Contract
+This plan should not yet create branches or generate prototypes. It prepares the
+state that later plans will use.
 
-Add these concepts to the generated Rust app:
+## Inputs
 
-- `ExperienceScenario`
-- `ExperienceState`
-- `ExperienceAction`
-- `ExperienceAllowedAction`
-- `ExperienceTurn`
-- `ExperienceTrace`
-- `run_experience(input: ExperienceInput) -> ExperienceTrace`
+Discovery receives:
 
-Suggested `ExperienceInput` shape:
+- raw user pain
+- existing `COMPASS.md`
+- drafts
+- lessons
+- assumptions
+- current productization state
+- latest evidence summary
+- repository shape, if a repo already exists
 
-```json
-{
-  "schemaVersion": 1,
-  "scenario": {
-    "seed": "demo",
-    "personaSummary": "Operations lead evaluating a workflow tool",
-    "task": "Find whether this app can reduce weekly reporting work"
-  },
-  "actions": [
-    {
-      "id": "inspect_value_prop",
-      "params": {}
-    }
-  ]
-}
+## Submit Result Shape
+
+Discovery returns:
+
+```text
+summary
+stateEdits
+candidateExperiments
+openQuestions
+lessonEdits
+assumptions
 ```
 
-The app should deterministically replay the supplied action prefix from the
-initial scenario and return:
+`stateEdits` should be structured, not free-form Markdown. The host applies
+them to `ProductizationConfig` after validation.
 
-- initial state
-- each action
-- each resulting state
-- allowed next actions
-- terminal status
-- stable event log
+## Discovery Rules
 
-## CLI
+Prompt guidance should require:
 
-Add an app CLI command:
+- Start from pain, not a solution.
+- Name the user segment before naming the app.
+- Describe what users do today.
+- Include non-software alternatives.
+- Generate multiple solution hypotheses when the pain is broad.
+- Make each experiment small enough to become a Rust desktop prototype.
+- Record unknowns that would materially change the product direction.
+- Avoid inventing evidence. Use "assumption" for guesses.
 
-```bash
-cargo run -p app-cli -- experience --input '<json>'
+## Candidate Experiment Rules
+
+Each candidate experiment should include:
+
+- solution hypothesis id
+- prototype name
+- branch slug
+- smallest workflow to prove
+- target scenario cohort
+- expected evidence signal
+- kill criteria
+
+Example:
+
+```text
+Pain: small SaaS teams lose incident decisions in Slack.
+Solution: Runbook Desk.
+Prototype: triage board with timeline, owner queue, and status composer.
+Evidence signal: persona can produce a clearer customer update than current workflow.
+Kill criteria: persona still prefers Slack thread plus checklist.
 ```
 
-It should print stable pretty JSON. A missing `--input` may use a demo scenario.
+## Validation
 
-Also add:
+Host-side validation should reject discovery output when:
 
-```bash
-cargo run -p app-cli -- experience-schema
+- no pain hypothesis is active
+- solution hypotheses do not reference a pain
+- experiments do not reference a solution
+- branch slugs are invalid git ref components
+- open questions are used instead of actionable next steps
+- state updates exceed prompt or storage bounds
+
+## UI Entry
+
+The project intake UI should shift from "describe the product" to "describe the
+pain."
+
+Suggested prompt:
+
+```text
+What user pain should Compass explore?
 ```
 
-This should print a JSON schema for the experience input or a combined contract
-schema if that is simpler.
-
-## Allowed Actions
-
-The generated app must own the action list. Persona agents can choose only from
-allowed actions surfaced in the latest semantic state.
-
-Example starter actions:
-
-- inspect value proposition
-- start core workflow
-- provide requested input
-- ask for help
-- compare with current alternative
-- abandon task
-
-Keep action labels product-neutral in the scaffold, but make them easy for
-Develop to specialize per generated app.
-
-## Xtask
-
-Add:
-
-```bash
-cargo run -p xtask -- pmf-smoke
-```
-
-The smoke should:
-
-- run the experience CLI with a demo scenario
-- assert valid JSON
-- assert at least one allowed action exists initially
-- replay at least two actions
-- assert the trace is stable across two identical invocations
-
-Include `pmf-smoke` in `factory-smoke` only if runtime cost is low. Otherwise
-document it as a separate optional PMF tier.
-
-## Scaffold Metadata
-
-Extend `compass-scaffold.toml` capabilities:
-
-```toml
-[capabilities]
-pmf_experience = true
-```
-
-Update `compass-engine scaffold-check` so it verifies:
-
-- capability marker exists
-- app-core has experience model markers
-- app-cli has `experience` and `experience-schema`
-- xtask has `pmf-smoke`
-- schemas include the PMF/experience contract
+Supporting text should ask for context, current workflow, and who feels the pain
+without requiring a technical spec.
 
 ## Likely Files
 
-- `Sources/Compass/RustProjectScaffold.swift`
-- `crates/compass-engine/src/scaffold.rs`
-- `crates/compass-engine/tests/scaffold_check.rs`
-- `crates/compass-engine/tests/fixtures/blessed-workspace/`
-- `Sources/Compass/Rust/RustVerifyCommands.swift`
-- `Sources/Compass/ForgeProfile.swift`
+- `Sources/Compass/Prompts/Prompts+System.swift`
+- `Sources/Compass/Prompts/Prompts+Plan.swift`
+- new `Sources/Compass/Prompts/Prompts+Discover.swift`
+- `Sources/Compass/CompassProject+RunPasses.swift`
+- `Sources/Compass/AgentExecutor/`
+- `Sources/Compass/ProjectIntakeGuide.swift`
+- `Sources/Compass/Views/`
+- `Sources/Compass/Resources/Schemas/`
 
 ## Acceptance Criteria
 
-- Newly generated Rust apps include the PMF experience contract.
-- `cargo run -p app-cli -- experience --input '<json>'` works.
-- `cargo run -p xtask -- pmf-smoke` works.
-- `cargo run -p xtask -- verify` still works.
-- `compass-engine scaffold-check` reports PMF contract drift.
-- Existing scaffold tests are updated and pass.
+- A raw pain can produce valid productization state without implementation work.
+- Discovery output is validated before storage mutation.
+- Product candidates are framed as experiments, not guaranteed product specs.
+- Branch slugs and experiment ids are available for later plans.
+- The UI language asks for pain and current workflow rather than a product idea.
 
 ## Verification
 
-Run:
+- Run prompt schema tests for Discover.
+- Add tests that invalid discovery output triggers remediation.
+- Manually inspect one generated Discover prompt.
+- Confirm the project can proceed from empty repo state to productization state.
 
-```bash
-./scripts/test-rust-engine.sh
-./scripts/test-local.sh
-```
+## Status
 
-Also create or regenerate a temporary scaffold and run:
+Complete.
 
-```bash
-cargo run -p xtask -- verify
-cargo run -p xtask -- pmf-smoke
-```
+Completed on 2026-06-04. Added a Discover prompt contract in
+`Sources/Compass/Prompts/Prompts+Discover.swift` with prompt version
+`discover.productization.v1`, structured `stateEdits`, candidate experiments,
+open questions, lesson edits, and assumptions. The prompt starts from raw user
+pain, current workflow, alternatives, user segments, and small Rust desktop
+experiment candidates rather than treating the first product idea as the target.
 
-## Completion
+Added strict schema loading for `Sources/Compass/Resources/Schemas/discover.json`
+and host-side response decoding/validation. Validation rejects missing active
+pain, broken pain/solution/experiment references, invalid git branch slugs,
+open questions used in place of actionable next steps, and oversized state
+updates. `CompassWorkspace.applyDiscoverOutput` validates before writing
+`.compass/productization.json`.
 
-Status: Complete.
-
-Completed on 2026-06-04. Extended the generated Rust scaffold with a
-Compass-only PMF semantic experience contract:
-
-- `ExperienceScenario`
-- `ExperienceInput`
-- `ExperienceState`
-- `ExperienceAction`
-- `ExperienceAllowedAction`
-- `ExperienceTurn`
-- `ExperienceTrace`
-- `run_experience(input: ExperienceInput) -> ExperienceTrace`
-
-The generated `app-cli` now supports:
-
-```bash
-cargo run -p app-cli -- experience --input '<json>'
-cargo run -p app-cli -- experience-schema
-```
-
-The generated `xtask` now supports:
-
-```bash
-cargo run -p xtask -- pmf-smoke
-```
-
-`pmf-smoke` runs the experience CLI, validates JSON, confirms initial allowed
-actions, replays two actions, and verifies stable output across identical
-invocations. `factory-smoke` also invokes `pmf-smoke` before visual verification.
-
-Updated scaffold metadata with `pmf_experience = true`, added
-`schemas/experience-input.schema.json` and
-`schemas/experience-trace.schema.json`, and taught `compass-engine
-scaffold-check` to report PMF contract drift across app-core, app-cli, xtask,
-and schema files. Compass's Swift scaffold capability decoder and tool
-formatting now include `pmf_experience`.
+Updated project intake language to ask what user pain Compass should explore,
+including who feels it, what they do today, current alternatives, success
+signals, and guardrails.
 
 Verification completed and passed:
 
 ```bash
-./scripts/test-local.sh --filter RustProjectScaffoldTests
-./scripts/test-local.sh --filter AgentRustVerifyToolsTests
-./scripts/test-local.sh --filter RustVerifyCommandsTests
-cargo test -p compass-engine scaffold_check
-COMPASS_RUN_GENERATED_RUST_SMOKE=1 ./scripts/test-local.sh --filter RustProjectScaffoldTests/generatedRustScaffoldCargoSmokeWhenRequested
-./scripts/test-local.sh
-./scripts/test-rust-engine.sh
+./scripts/test-local.sh --filter DiscoverPromptContractTests
+./scripts/test-local.sh --filter PromptSchemaLoadingTests
+./scripts/test-local.sh --filter ProjectIntakeGuideTests
 ```
-
-Generated `cargo run -p xtask -- pmf-smoke` was exercised by the opt-in generated
-Rust scaffold smoke test. Generated `cargo run -p xtask -- verify` was not run on
-this host because the existing verify tier requires `cargo-llvm-cov`, and
-`cargo llvm-cov --version` reports `error: no such command: llvm-cov`.

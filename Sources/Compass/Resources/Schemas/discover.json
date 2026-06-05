@@ -1,0 +1,368 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "stateEdits",
+    "candidateExperiments",
+    "openQuestions",
+    "lessonEdits",
+    "assumptions"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Concise explanation of the discovered pain model and product bets."
+    },
+    "stateEdits": { "$ref": "#/$defs/stateEdits" },
+    "candidateExperiments": {
+      "type": "array",
+      "maxItems": 6,
+      "items": { "$ref": "#/$defs/candidateExperiment" }
+    },
+    "openQuestions": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "type": "string", "maxLength": 240 }
+    },
+    "lessonEdits": {
+      "type": "array",
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/lessonEdit" }
+    },
+    "assumptions": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "$ref": "#/$defs/assumption" }
+    }
+  },
+  "$defs": {
+    "stateEdits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rawPain",
+        "painHypotheses",
+        "userSegments",
+        "currentWorkflows",
+        "alternatives",
+        "solutionHypotheses",
+        "experiments",
+        "scenarioCohorts",
+        "decisions"
+      ],
+      "properties": {
+        "rawPain": {
+          "anyOf": [
+            { "type": "string", "maxLength": 4000 },
+            { "type": "null" }
+          ]
+        },
+        "painHypotheses": {
+          "type": "array",
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/painHypothesis" }
+        },
+        "userSegments": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/userSegment" }
+        },
+        "currentWorkflows": {
+          "type": "array",
+          "maxItems": 6,
+          "items": { "$ref": "#/$defs/currentWorkflow" }
+        },
+        "alternatives": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/alternative" }
+        },
+        "solutionHypotheses": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/solutionHypothesis" }
+        },
+        "experiments": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/productExperiment" }
+        },
+        "scenarioCohorts": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/scenarioCohort" }
+        },
+        "decisions": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/productDecision" }
+        }
+      }
+    },
+    "painHypothesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "rawPain",
+        "targetSituation",
+        "painFrequency",
+        "painSeverity",
+        "costOfInaction",
+        "successSignals",
+        "unknowns",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "rawPain": { "type": "string" },
+        "targetSituation": { "type": "string" },
+        "painFrequency": { "type": "string" },
+        "painSeverity": { "type": "string" },
+        "costOfInaction": { "type": "string" },
+        "successSignals": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "unknowns": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "active", "reframed", "resolved", "parked"]
+        },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      }
+    },
+    "userSegment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "painID",
+        "name",
+        "role",
+        "context",
+        "goals",
+        "constraints",
+        "currentWorkflowIDs",
+        "alternativeIDs",
+        "decisionCriteria",
+        "skepticism"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "painID": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "context": { "type": "string" },
+        "goals": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "constraints": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "currentWorkflowIDs": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string" }
+        },
+        "alternativeIDs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "decisionCriteria": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "skepticism": { "type": "string" }
+      }
+    },
+    "currentWorkflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "painID",
+        "title",
+        "steps",
+        "tools",
+        "handoffs",
+        "failureModes",
+        "workarounds",
+        "estimatedCost"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "painID": { "type": "string" },
+        "title": { "type": "string" },
+        "steps": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "tools": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "handoffs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "failureModes": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "workarounds": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "estimatedCost": { "type": "string" }
+      }
+    },
+    "alternative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "painID", "title", "kind", "strengths", "weaknesses", "switchingCost"],
+      "properties": {
+        "id": { "type": "string" },
+        "painID": { "type": "string" },
+        "title": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "spreadsheet",
+            "existing_tool",
+            "internal_workaround",
+            "outsourced",
+            "do_nothing"
+          ]
+        },
+        "strengths": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "weaknesses": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "switchingCost": { "type": "string" }
+      }
+    },
+    "solutionHypothesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "painID",
+        "title",
+        "promise",
+        "workflowBet",
+        "targetSegmentIDs",
+        "differentiator",
+        "whyThisCouldWin",
+        "whyThisMightFail",
+        "requiredProof",
+        "status"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "painID": { "type": "string" },
+        "title": { "type": "string" },
+        "promise": { "type": "string" },
+        "workflowBet": { "type": "string" },
+        "targetSegmentIDs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "differentiator": { "type": "string" },
+        "whyThisCouldWin": { "type": "string" },
+        "whyThisMightFail": { "type": "string" },
+        "requiredProof": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "status": {
+          "type": "string",
+          "enum": ["candidate", "active", "promoted", "rejected", "parked"]
+        }
+      }
+    },
+    "productExperiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "solutionID",
+        "title",
+        "branchName",
+        "worktreeID",
+        "baseSha",
+        "currentSha",
+        "prototypeScope",
+        "scenarioCohortIDs",
+        "evidenceSummary",
+        "decision",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "solutionID": { "type": "string" },
+        "title": { "type": "string" },
+        "branchName": { "type": "string" },
+        "worktreeID": { "type": "string" },
+        "baseSha": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "currentSha": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "prototypeScope": { "type": "string" },
+        "scenarioCohortIDs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "evidenceSummary": { "type": "string" },
+        "decision": {
+          "type": "string",
+          "enum": ["not_run", "continue", "narrow", "pivot", "kill", "promote"]
+        },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      }
+    },
+    "scenarioCohort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "experimentID", "scenarioIDs", "enabled", "tags"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "experimentID": { "type": "string" },
+        "scenarioIDs": { "type": "array", "maxItems": 12, "items": { "type": "string" } },
+        "enabled": { "type": "boolean" },
+        "tags": { "type": "array", "maxItems": 8, "items": { "type": "string" } }
+      }
+    },
+    "productDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "experimentID", "decision", "summary", "evidenceRunIDs", "decidedAt", "decidedBy"],
+      "properties": {
+        "id": { "type": "string" },
+        "experimentID": { "type": "string" },
+        "decision": {
+          "type": "string",
+          "enum": ["not_run", "continue", "narrow", "pivot", "kill", "promote"]
+        },
+        "summary": { "type": "string" },
+        "evidenceRunIDs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "decidedAt": { "type": "number" },
+        "decidedBy": { "type": "string" }
+      }
+    },
+    "candidateExperiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "solutionHypothesisID",
+        "prototypeName",
+        "branchSlug",
+        "smallestWorkflowToProve",
+        "targetScenarioCohort",
+        "expectedEvidenceSignal",
+        "killCriteria"
+      ],
+      "properties": {
+        "solutionHypothesisID": { "type": "string" },
+        "prototypeName": { "type": "string" },
+        "branchSlug": { "type": "string" },
+        "smallestWorkflowToProve": { "type": "string" },
+        "targetScenarioCohort": { "type": "string" },
+        "expectedEvidenceSignal": { "type": "string" },
+        "killCriteria": { "type": "string" }
+      }
+    },
+    "lessonEdit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["find", "replace", "replaceAll"],
+      "properties": {
+        "find": { "type": "string" },
+        "replace": { "type": "string" },
+        "replaceAll": { "type": "boolean" }
+      }
+    },
+    "assumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "rationale", "evidence", "impact", "invalidation", "scope"],
+      "properties": {
+        "text": { "type": "string" },
+        "rationale": { "type": "string" },
+        "evidence": { "type": "array", "maxItems": 5, "items": { "type": "string" } },
+        "impact": { "type": "string" },
+        "invalidation": { "type": "string" },
+        "scope": { "type": "string", "enum": ["project", "feature", "session"] }
+      }
+    }
+  }
+}

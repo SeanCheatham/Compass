@@ -42,7 +42,7 @@ struct ProjectIntakeGuide: Equatable, Sendable {
       title = "Add Your First Project"
       statusLabel = "No projects yet"
       detail =
-        "Choose any Git repository you want Compass to improve. It can be an app, a package, or a fresh idea repo as long as Git can identify its root."
+        "Choose a Git repository where Compass can explore a user pain. It can be an app, a package, or a fresh experiment repo as long as Git can identify its root."
       actionLabel = "Add Project"
       systemImageName = "folder.badge.plus"
       steps = [
@@ -56,9 +56,9 @@ struct ProjectIntakeGuide: Equatable, Sendable {
         ),
         Step(
           id: "capture-project-vision",
-          title: "Capture the vision",
+          title: "Describe the pain",
           detail:
-            "After adding the repo, sketch who it helps, what pain it removes, how success should look, and any must-have guardrails in Project Vision.",
+            "After adding the repo, answer \"What user pain should Compass explore?\" Include who feels it, what they do today, current alternatives, success signals, and guardrails in Project Vision.",
           systemImage: "scope",
           isPrimary: false
         ),
@@ -153,9 +153,9 @@ struct ProjectIntakeGuide: Equatable, Sendable {
       ),
       Signal(
         id: "project-vision",
-        label: "Project vision",
+        label: "Pain context",
         detail:
-          "Short audience, problem, success, and guardrail notes give Plan and Reflect a stable north star.",
+          "Short notes on who hurts, the current workflow, alternatives, success, and guardrails give Discover, Plan, and Reflect a stable north star.",
         systemImage: "scope"
       ),
       Signal(
@@ -200,7 +200,7 @@ struct ProjectIntakeClipboardPayload: Equatable, Sendable {
       "Recipient instructions:",
       "- Help the user add or select a real Git repository. Do not invent a repo path.",
       "- Keep guidance plain-language and product-focused; the user may not know build tooling.",
-      "- After a project is selected, capture Project Vision notes, use Drafts for goals, and let Compass plan, develop, and verify.",
+      "- After a project is selected, capture the user pain, current workflow, alternatives, success signals, and guardrails in Project Vision; use Drafts for goals, and let Compass discover, plan, develop, and verify.",
       "",
       "Status: \(guide.statusLabel)",
       "Recommended action: \(guide.actionLabel)",
