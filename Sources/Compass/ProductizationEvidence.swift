@@ -525,8 +525,6 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       traceSignals?.currentAlternativeAddressed == true
       ? "The deterministic trace addressed the current alternative."
       : "The deterministic trace did not address the current alternative."
-    let verdict: ProductizationEvidenceVerdict =
-      runResult.status == .completed && missing.isEmpty ? .promising : .unclear
     self.init(
       id: id,
       projectID: runResult.projectID?.uuidString,
@@ -545,10 +543,11 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       promptVersions: runResult.rawPersonaActionTranscript.map(\.promptVersionID)
         .productizationEvidenceUniquedPreservingOrder(),
       model: runResult.model,
+      scores: Self.derivedScores(status: runResult.status, signals: traceSignals),
       objections: [],
       missingCapabilities: missing,
       currentAlternativeComparison: comparison,
-      verdict: verdict,
+      verdict: Self.derivedVerdict(status: runResult.status, signals: traceSignals),
       summary: traceSignals?.evidenceSummary ?? runResult.failure?.message ?? "No summary.",
       failure: runResult.failure
     )
@@ -577,6 +576,46 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   static func optionalBounded(_ value: String?, limit: Int) -> String? {
     let bounded = StringUtils.boundedText(value ?? "", limit: limit)
     return bounded.isEmpty ? nil : bounded
+  }
+
+  private static func derivedScores(
+    status: ProductizationRunStatus,
+    signals: ProductizationPainReliefSignals?
+  ) -> ProductizationEvidenceScores {
+    guard status == .completed, let signals else {
+      return ProductizationEvidenceScores()
+    }
+    let missingPenalty = signals.missingCapabilityIDs.isEmpty ? 0 : 1
+    let positiveWithPenalty = max(2, 4 - missingPenalty)
+    return ProductizationEvidenceScores(
+      painRecognition: signals.painRecognized ? 4 : 1,
+      workflowImprovement: signals.workflowAdvanced ? positiveWithPenalty : 2,
+      alternativeAdvantage: signals.currentAlternativeAddressed ? positiveWithPenalty : 2,
+      switchingReadiness: signals.switchingObjectionReduced ? positiveWithPenalty : 2,
+      continuedUsePull: continuedUsePullScore(signals: signals)
+    )
+  }
+
+  private static func continuedUsePullScore(signals: ProductizationPainReliefSignals) -> Int {
+    if signals.workflowAdvanced && signals.currentAlternativeAddressed
+      && signals.missingCapabilityIDs.isEmpty
+    {
+      return 4
+    }
+    if signals.workflowAdvanced {
+      return 3
+    }
+    return 2
+  }
+
+  private static func derivedVerdict(
+    status: ProductizationRunStatus,
+    signals: ProductizationPainReliefSignals?
+  ) -> ProductizationEvidenceVerdict {
+    guard status == .completed, let signals else { return .unclear }
+    guard signals.painRecognized, signals.workflowAdvanced else { return .weak }
+    guard signals.missingCapabilityIDs.isEmpty else { return .unclear }
+    return signals.currentAlternativeAddressed ? .promising : .unclear
   }
 }
 

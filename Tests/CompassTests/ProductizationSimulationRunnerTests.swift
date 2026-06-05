@@ -13,16 +13,30 @@ struct ProductizationSimulationRunnerTests {
     try #require(result.status == .completed)
     try #require(result.isSuccess)
     try #require(result.mode == .modelFree)
-    try #require(result.actions.map(\.id) == [
-      "inspect_pain",
-      "compare_current_alternative",
-      "reduce_switching_objection",
-      "start_solution_workflow",
-      "provide_requested_input",
-    ])
+    try #require(
+      result.actions.map(\.id) == [
+        "inspect_pain",
+        "compare_current_alternative",
+        "reduce_switching_objection",
+        "start_solution_workflow",
+        "provide_requested_input",
+      ])
     try #require(result.experienceTraceHash != nil)
     try #require(result.productizationTrace?.painReliefSignals.currentAlternativeAddressed == true)
     try #require(appRunner.inputs.filter { $0.actions.count == 5 }.count == 3)
+
+    let record = ProductizationEvidenceRecord(
+      runResult: result,
+      id: "runner-score",
+      startedAt: 10,
+      endedAt: 20
+    )
+    try #require(record.verdict == .promising)
+    try #require(record.scores.painRecognition == 4)
+    try #require(record.scores.workflowImprovement == 4)
+    try #require(record.scores.alternativeAdvantage == 4)
+    try #require(record.scores.switchingReadiness == 4)
+    try #require(record.scores.continuedUsePull == 4)
   }
 
   @Test func personaModelRejectsInventedActionsAndAllowsOneRepair() async throws {
@@ -73,7 +87,8 @@ struct ProductizationSimulationRunnerTests {
       capturedInvocation = invocation
       try #require(input == nil)
       try #require(timeout == 99)
-      return ProcessResult(exitCode: 0, stdout: try encodeTrace(defaultProductizationTrace()), stderr: "")
+      return ProcessResult(
+        exitCode: 0, stdout: try encodeTrace(defaultProductizationTrace()), stderr: "")
     }
 
     try #require(await appRunner.productizationExperienceContractAvailable(workingDirectory: root))
@@ -126,13 +141,15 @@ private final class MockProductizationExperienceAppRunner: ProductizationExperie
   var inputs: [ProductizationExperienceInput] = []
   private let handler: Handler
 
-  init(handler: @escaping Handler = { input, _ in
-    ProcessResult(
-      exitCode: 0,
-      stdout: try encodeTrace(defaultProductizationTrace(for: input)),
-      stderr: ""
-    )
-  }) {
+  init(
+    handler: @escaping Handler = { input, _ in
+      ProcessResult(
+        exitCode: 0,
+        stdout: try encodeTrace(defaultProductizationTrace(for: input)),
+        stderr: ""
+      )
+    }
+  ) {
     self.handler = handler
   }
 
@@ -168,7 +185,8 @@ private final class ScriptedProductizationPersonaSelector: ProductizationPersona
     context: ProductizationPersonaActionContext
   ) async throws -> ProductizationPersonaActionChoice {
     choices.isEmpty
-      ? ProductizationPersonaActionChoice(action: ProductizationExperienceAction(id: "abandon_task"))
+      ? ProductizationPersonaActionChoice(
+        action: ProductizationExperienceAction(id: "abandon_task"))
       : choices.removeFirst()
   }
 
@@ -177,7 +195,8 @@ private final class ScriptedProductizationPersonaSelector: ProductizationPersona
   ) async throws -> ProductizationPersonaActionChoice {
     repairContexts.append(context)
     return repairs.isEmpty
-      ? ProductizationPersonaActionChoice(action: ProductizationExperienceAction(id: "abandon_task"))
+      ? ProductizationPersonaActionChoice(
+        action: ProductizationExperienceAction(id: "abandon_task"))
       : repairs.removeFirst()
   }
 }
@@ -216,7 +235,8 @@ private func makeProductizationRequest(
 }
 
 private func defaultProductizationTrace(
-  for input: ProductizationExperienceInput = makeProductizationRequest().experienceInput(actions: [])
+  for input: ProductizationExperienceInput = makeProductizationRequest().experienceInput(actions: []
+  )
 ) -> ProductizationExperienceTrace {
   let lastActionID = input.actions.last?.id
   let terminalStatus: ProductizationExperienceTerminalStatus
@@ -291,7 +311,8 @@ private func defaultProductizationTrace(
       currentAlternativeAddressed: actionIDs.contains("compare_current_alternative")
         || actionIDs.contains("reduce_switching_objection"),
       switchingObjectionReduced: actionIDs.contains("reduce_switching_objection"),
-      missingCapabilityIDs: actionIDs.contains("provide_requested_input") ? [] : ["workflow_completion"],
+      missingCapabilityIDs: actionIDs.contains("provide_requested_input")
+        ? [] : ["workflow_completion"],
       evidenceSummary: actionIDs.contains("provide_requested_input")
         ? "The prototype completed the workflow and addressed the current alternative."
         : "The prototype has not completed the workflow yet."
@@ -329,7 +350,8 @@ private func encodeTrace(_ trace: ProductizationExperienceTrace) throws -> Strin
 
 private func makeTempDir() throws -> URL {
   let url = FileManager.default.temporaryDirectory
-    .appending(path: "ProductizationSimulationRunnerTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+    .appending(
+      path: "ProductizationSimulationRunnerTests-\(UUID().uuidString)", directoryHint: .isDirectory)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url.standardizedFileURL
 }

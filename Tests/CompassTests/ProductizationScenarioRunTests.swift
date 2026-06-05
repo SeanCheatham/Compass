@@ -124,7 +124,15 @@ struct ProductizationScenarioRunTests {
     try #require(outcome.result.status == .completed)
     try #require(outcome.record.scenarioID == config.scenarios[0].id)
     try #require(outcome.record.commitSha == head)
+    try #require(outcome.record.verdict == .promising)
+    try #require(outcome.record.scores.hasScores)
+    try #require(outcome.record.scores.painRecognition == 4)
+    try #require(outcome.record.scores.workflowImprovement == 4)
+    try #require(outcome.record.scores.alternativeAdvantage == 4)
+    try #require(outcome.record.scores.switchingReadiness == 4)
+    try #require(outcome.record.scores.continuedUsePull == 4)
     try #require(index.summaries.map(\.runID) == [outcome.record.id])
+    try #require(index.aggregate.pmfReadinessByExperiment.first?.averageScore == 4)
     try #require(saved.experiments[0].evidenceSummary.contains("completed the scenario"))
   }
 
@@ -206,7 +214,8 @@ struct ProductizationScenarioRunTests {
     try #require(outcome.result.status == .appCommandFailed)
     try #require(outcome.record.failure?.status == .appCommandFailed)
     try #require(outcome.userMessage.contains("exited with code 2"))
-    try #require(workspace.readProductizationEvidenceIndex().aggregate.failuresByKind["appCommandFailed"] == 1)
+    try #require(
+      workspace.readProductizationEvidenceIndex().aggregate.failuresByKind["appCommandFailed"] == 1)
   }
 }
 
