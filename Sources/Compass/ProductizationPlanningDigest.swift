@@ -24,6 +24,7 @@ enum ProductizationPlanningDigestFormatter {
     lines += experimentLines(config: config, maxExperiments: maxExperiments)
     lines += decisionLines(config: config, maxDecisions: maxDecisions)
     lines += unknownLines(config: config)
+    lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
     lines += evidenceSignalLines(index: evidenceIndex, maxEvidenceSignals: maxEvidenceSignals)
 
     return boundedLines(lines, maxLines: 44, maxCharacters: 4_200)
@@ -164,6 +165,28 @@ enum ProductizationPlanningDigestFormatter {
     guard !unknowns.isEmpty else { return [] }
     return ["Unresolved product unknowns:"]
       + unknowns.map { "- \(bounded($0, 220))." }
+  }
+
+  private static func decisionProposalLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    let proposals = ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    guard !proposals.isEmpty else { return [] }
+    var lines = ["Suggested product decisions from PMF readiness:"]
+    for proposal in proposals.prefix(4) {
+      let evidence =
+        proposal.update.evidenceRunIDs.isEmpty
+        ? "no evidence runs"
+        : "evidence \(proposal.update.evidenceRunIDs.prefix(4).joined(separator: ", "))"
+      lines.append(
+        "- \(proposal.experimentID): \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue); score \(proposal.readiness.scoreLabel)/100; \(evidence); \(bounded(proposal.update.summary, 220))."
+      )
+    }
+    return lines
   }
 
   private static func evidenceSignalLines(

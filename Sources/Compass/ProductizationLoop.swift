@@ -213,6 +213,119 @@ enum ProductizationDecisionTransitionValidator {
   }
 }
 
+struct ProductMarketFitDecisionProposal: Equatable, Sendable {
+  var experimentID: String
+  var currentDecision: ProductExperimentDecision
+  var update: ProductizationReflectDecisionUpdate
+  var readiness: ProductMarketFitReadiness
+}
+
+enum ProductMarketFitDecisionAdvisor {
+  static func proposals(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [ProductMarketFitDecisionProposal] {
+    let readinessByExperiment = Dictionary(
+      uniqueKeysWithValues: evidenceIndex.aggregate.pmfReadinessByExperiment.map {
+        ($0.experimentID, $0)
+      }
+    )
+    return config.experiments.compactMap { experiment in
+      guard let readiness = readinessByExperiment[experiment.id],
+        let target = targetDecision(for: readiness, current: experiment.decision),
+        target != experiment.decision
+      else { return nil }
+      let summary = summary(for: readiness, target: target, experiment: experiment)
+      do {
+        try ProductizationDecisionTransitionValidator.validate(
+          experimentID: experiment.id,
+          from: experiment.decision,
+          to: target,
+          summary: summary
+        )
+      } catch {
+        return nil
+      }
+      let update = ProductizationReflectDecisionUpdate(
+        experimentID: experiment.id,
+        decision: target,
+        summary: summary,
+        evidenceRunIDs: readiness.evidenceRunIDs,
+        decidedBy: "PMF Decision Advisor"
+      )
+      return ProductMarketFitDecisionProposal(
+        experimentID: experiment.id,
+        currentDecision: experiment.decision,
+        update: update,
+        readiness: readiness
+      )
+    }
+  }
+
+  private static func targetDecision(
+    for readiness: ProductMarketFitReadiness,
+    current: ProductExperimentDecision
+  ) -> ProductExperimentDecision? {
+    switch readiness.recommendation {
+    case .promote:
+      switch current {
+      case .keepGoing, .narrow:
+        return .promote
+      case .notRun, .pivot, .kill, .promote, .archived, .promoted:
+        return nil
+      }
+    case .kill:
+      switch current {
+      case .keepGoing, .narrow, .pivot:
+        return .kill
+      case .notRun, .kill, .promote, .archived, .promoted:
+        return nil
+      }
+    case .pivot:
+      switch current {
+      case .keepGoing, .narrow:
+        return .pivot
+      case .notRun, .pivot, .kill, .promote, .archived, .promoted:
+        return nil
+      }
+    case .narrow:
+      switch current {
+      case .keepGoing:
+        return .narrow
+      case .notRun, .narrow, .pivot, .kill, .promote, .archived, .promoted:
+        return nil
+      }
+    case .keepGoing:
+      switch current {
+      case .notRun, .narrow, .pivot:
+        return .keepGoing
+      case .keepGoing, .kill, .promote, .archived, .promoted:
+        return nil
+      }
+    case .gatherEvidence:
+      return nil
+    }
+  }
+
+  private static func summary(
+    for readiness: ProductMarketFitReadiness,
+    target: ProductExperimentDecision,
+    experiment: ProductExperiment
+  ) -> String {
+    let evidence =
+      readiness.evidenceRunIDs.isEmpty
+      ? "no evidence runs"
+      : "evidence \(readiness.evidenceRunIDs.prefix(4).joined(separator: ", "))"
+    let rationale = readiness.rationale.prefix(3).joined(separator: " ")
+    return StringUtils.boundedText(
+      """
+      PMF readiness \(readiness.scoreLabel)/100 recommends \(target.rawValue) for \(experiment.title): \(rationale) Supporting \(evidence).
+      """,
+      limit: 1_000
+    )
+  }
+}
+
 enum ProductizationReflectDecisionApplier {
   static func applying(
     _ updates: [ProductizationReflectDecisionUpdate],
@@ -226,7 +339,8 @@ enum ProductizationReflectDecisionApplier {
     var decisionSequence = next.decisions.count
 
     for update in updates {
-      guard let experimentIndex = next.experiments.firstIndex(where: { $0.id == update.experimentID })
+      guard
+        let experimentIndex = next.experiments.firstIndex(where: { $0.id == update.experimentID })
       else {
         throw ProductizationDecisionTransitionError.unknownExperiment(update.experimentID)
       }
@@ -240,7 +354,8 @@ enum ProductizationReflectDecisionApplier {
       )
 
       next.experiments[experimentIndex].decision = update.decision
-      next.experiments[experimentIndex].evidenceSummary = update.summary.isEmpty
+      next.experiments[experimentIndex].evidenceSummary =
+        update.summary.isEmpty
         ? next.experiments[experimentIndex].evidenceSummary
         : update.summary
       next.experiments[experimentIndex].updatedAt = timestamp

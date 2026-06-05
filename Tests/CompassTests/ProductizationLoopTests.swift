@@ -98,6 +98,139 @@ struct ProductizationLoopTests {
     try #require(savedDecision.decidedBy == "Reflect")
   }
 
+  @Test func pmfDecisionAdvisorProposesValidatedProductTransitions() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[1].decision = .keepGoing
+    let badExperiment = ProductExperiment(
+      id: "factory-bad-bet",
+      solutionID: config.solutionHypotheses[0].id,
+      title: "Factory bad bet",
+      branchName: "codex/factory-bad-bet",
+      worktreeID: "factory-bad-bet",
+      baseSha: "base-sha",
+      currentSha: "bad-sha",
+      prototypeScope: "Try a product shape that may not beat the current workflow.",
+      evidenceSummary: "No evidence recorded yet.",
+      decision: .keepGoing,
+      createdAt: 10
+    )
+    config.experiments.append(badExperiment)
+
+    let strongScores = ProductizationEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 5,
+      alternativeAdvantage: 4,
+      switchingReadiness: 5,
+      continuedUsePull: 5
+    )
+    let narrowScores = ProductizationEvidenceScores(
+      painRecognition: 4,
+      workflowImprovement: 3,
+      alternativeAdvantage: 3,
+      switchingReadiness: 3,
+      continuedUsePull: 4
+    )
+    let weakScores = ProductizationEvidenceScores(
+      painRecognition: 2,
+      workflowImprovement: 1,
+      alternativeAdvantage: 2,
+      switchingReadiness: 1,
+      continuedUsePull: 2
+    )
+    let index = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "promote-a",
+          experiment: config.experiments[0],
+          config: config,
+          personaID: "operator",
+          endedAt: 300,
+          verdict: .strongPull,
+          scores: strongScores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "promote-b",
+          experiment: config.experiments[0],
+          config: config,
+          personaID: "buyer",
+          endedAt: 200,
+          verdict: .strongPull,
+          scores: strongScores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "promote-c",
+          experiment: config.experiments[0],
+          config: config,
+          personaID: "operator",
+          endedAt: 100,
+          verdict: .promising,
+          scores: strongScores
+        ),
+        makeDecisionAdvisorRecord(
+          id: "narrow-a",
+          experiment: config.experiments[1],
+          config: config,
+          personaID: "operator",
+          endedAt: 280,
+          verdict: .promising,
+          scores: narrowScores,
+          missingCapabilities: ["csv_import"]
+        ),
+        makeDecisionAdvisorRecord(
+          id: "narrow-b",
+          experiment: config.experiments[1],
+          config: config,
+          personaID: "buyer",
+          endedAt: 270,
+          verdict: .unclear,
+          scores: narrowScores,
+          missingCapabilities: ["csv_import"]
+        ),
+        makeDecisionAdvisorRecord(
+          id: "kill-a",
+          experiment: badExperiment,
+          config: config,
+          personaID: "operator",
+          endedAt: 260,
+          verdict: .weak,
+          scores: weakScores,
+          objections: ["No reason to switch"]
+        ),
+        makeDecisionAdvisorRecord(
+          id: "kill-b",
+          experiment: badExperiment,
+          config: config,
+          personaID: "buyer",
+          endedAt: 250,
+          verdict: .rejected,
+          scores: weakScores,
+          objections: ["No reason to switch"]
+        ),
+      ]
+    )
+
+    let proposals = ProductMarketFitDecisionAdvisor.proposals(
+      config: config,
+      evidenceIndex: index
+    )
+    let promote = try #require(proposals.first { $0.experimentID == config.experiments[0].id })
+    let narrow = try #require(proposals.first { $0.experimentID == config.experiments[1].id })
+    let kill = try #require(proposals.first { $0.experimentID == badExperiment.id })
+
+    try #require(promote.update.decision == .promote)
+    try #require(promote.update.evidenceRunIDs.first == "promote-a")
+    try #require(promote.update.summary.contains("PMF readiness"))
+    try #require(narrow.update.decision == .narrow)
+    try #require(narrow.update.summary.contains("csv_import"))
+    try #require(kill.update.decision == .kill)
+    try #require(kill.update.decidedBy == "PMF Decision Advisor")
+  }
+
   @Test func rolloutWorkflowPromotesExperimentWithBranchCommitAndEvidenceTrail() throws {
     let config = makeRolloutConfig(decision: .keepGoing)
     let experiment = config.experiments[0]
@@ -236,4 +369,40 @@ private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> Productiz
     summary: "Evidence supports the rollout decision."
   )
   return ProductizationEvidenceIndex.build(records: [record])
+}
+
+private func makeDecisionAdvisorRecord(
+  id: String,
+  experiment: ProductExperiment,
+  config: ProductizationConfig,
+  personaID: String,
+  endedAt: Double,
+  verdict: ProductizationEvidenceVerdict,
+  scores: ProductizationEvidenceScores,
+  objections: [String] = [],
+  missingCapabilities: [String] = []
+) -> ProductizationEvidenceRecord {
+  let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
+  return ProductizationEvidenceRecord(
+    id: id,
+    experimentID: experiment.id,
+    solutionID: experiment.solutionID,
+    painID: solution?.painID ?? config.painHypotheses.first?.id ?? "pain",
+    branchName: experiment.branchName,
+    commitSha: experiment.currentSha ?? experiment.baseSha ?? "head-sha",
+    scenarioID: "\(experiment.id)-scenario",
+    personaID: personaID,
+    mode: .modelFree,
+    status: .completed,
+    startedAt: endedAt - 10,
+    endedAt: endedAt,
+    traceHash: "trace-\(id)",
+    model: "model-free",
+    scores: scores,
+    objections: objections,
+    missingCapabilities: missingCapabilities,
+    currentAlternativeComparison: "Compared against the current workflow.",
+    verdict: verdict,
+    summary: "Evidence summary for \(id)."
+  )
 }
