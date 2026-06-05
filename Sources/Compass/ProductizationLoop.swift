@@ -1097,6 +1097,261 @@ enum ProductFactoryRationaleSignalAdvisor {
   }
 }
 
+enum ProductFactoryRevisionBriefSource: String, Equatable, Sendable {
+  case aiUserRationale = "ai_user_rationale"
+}
+
+struct ProductFactoryRevisionBrief: Equatable, Sendable, Identifiable {
+  var id: String {
+    "\(experimentID):\(source.rawValue):\(targetScenarioID ?? targetPersonaID ?? triggerSummary)"
+  }
+
+  var experimentID: String
+  var source: ProductFactoryRevisionBriefSource
+  var title: String
+  var priority: Int
+  var triggerSummary: String
+  var prototypeChange: String
+  var scenarioChange: String
+  var proofPlan: String
+  var targetPersonaID: String?
+  var targetPersonaName: String?
+  var targetScenarioID: String?
+  var targetCohortID: String?
+
+  var displaySubtitle: String {
+    let target = targetPersonaName.map { "target \($0)" } ?? "no target persona"
+    return "\(source.rawValue); \(target); priority \(priority)"
+  }
+
+  var displayDetail: String {
+    [
+      "Trigger: \(triggerSummary)",
+      "Prototype: \(prototypeChange)",
+      "Scenario: \(scenarioChange)",
+      "Proof: \(proofPlan)",
+    ].joined(separator: " ")
+  }
+
+  var auditSummary: String {
+    var parts = [
+      "\(experimentID): \(title)",
+      "source \(source.rawValue)",
+      "priority \(priority)",
+    ]
+    if let targetPersonaName {
+      parts.append("target \(targetPersonaName)")
+    }
+    if let targetScenarioID {
+      parts.append("scenario \(targetScenarioID)")
+    }
+    if let targetCohortID {
+      parts.append("cohort \(targetCohortID)")
+    }
+    parts.append("prototype \(prototypeChange)")
+    parts.append("proof \(proofPlan)")
+    return StringUtils.boundedText(parts.joined(separator: "; "), limit: 420)
+  }
+
+  init(
+    experimentID: String,
+    source: ProductFactoryRevisionBriefSource,
+    title: String,
+    priority: Int,
+    triggerSummary: String,
+    prototypeChange: String,
+    scenarioChange: String,
+    proofPlan: String,
+    targetPersonaID: String? = nil,
+    targetPersonaName: String? = nil,
+    targetScenarioID: String? = nil,
+    targetCohortID: String? = nil
+  ) {
+    self.experimentID = ProductizationModelText.identifier(
+      experimentID,
+      fallback: "experiment"
+    )
+    self.source = source
+    self.title = ProductizationModelText.cleanedText(
+      title,
+      fallback: "Revise product bet",
+      limit: 160
+    )
+    self.priority = max(0, priority)
+    self.triggerSummary = ProductizationModelText.cleanedText(
+      triggerSummary,
+      fallback: "AI-user evidence found a product revision trigger.",
+      limit: 320
+    )
+    self.prototypeChange = ProductizationModelText.cleanedText(
+      prototypeChange,
+      fallback: "Update the prototype to address the evidence trigger.",
+      limit: 360
+    )
+    self.scenarioChange = ProductizationModelText.cleanedText(
+      scenarioChange,
+      fallback: "Retarget the scenario so the next AI-user run can test the change.",
+      limit: 360
+    )
+    self.proofPlan = ProductizationModelText.cleanedText(
+      proofPlan,
+      fallback: "Rerun targeted AI-user proof against the current alternative.",
+      limit: 360
+    )
+    self.targetPersonaID = ProductizationModelText.optionalIdentifier(
+      targetPersonaID,
+      fallback: "persona"
+    )
+    self.targetPersonaName = ProductizationModelText.optionalCleanedText(
+      targetPersonaName,
+      limit: 160
+    )
+    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+      targetScenarioID,
+      fallback: "scenario"
+    )
+    self.targetCohortID = ProductizationModelText.optionalIdentifier(
+      targetCohortID,
+      fallback: "cohort"
+    )
+  }
+}
+
+enum ProductFactoryRevisionBriefAdvisor {
+  static func briefs(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [ProductFactoryRevisionBrief] {
+    config.experiments.compactMap {
+      brief(for: $0, config: config, evidenceIndex: evidenceIndex)
+    }
+    .sorted { lhs, rhs in
+      if lhs.priority == rhs.priority { return lhs.experimentID < rhs.experimentID }
+      return lhs.priority > rhs.priority
+    }
+  }
+
+  static func brief(
+    for experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryRevisionBrief? {
+    guard let signal = ProductFactoryRationaleSignalAdvisor.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) else { return nil }
+    let action = ProductMarketFitNextActionAdvisor.nextAction(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    let isRetargeted = action?.title == "Retarget AI-user rationale signal"
+    guard isRetargeted || action?.title == "Resolve AI-user rationale signal" else {
+      return nil
+    }
+    let revision = revisionPlan(
+      for: signal,
+      isRetargeted: isRetargeted
+    )
+    return ProductFactoryRevisionBrief(
+      experimentID: experiment.id,
+      source: .aiUserRationale,
+      title: isRetargeted
+        ? "Retarget product revision for AI-user rationale"
+        : "Revise prototype for AI-user rationale",
+      priority: action?.priority ?? signal.urgencyScore,
+      triggerSummary: signal.summary,
+      prototypeChange: revision.prototypeChange,
+      scenarioChange: revision.scenarioChange,
+      proofPlan: revision.proofPlan,
+      targetPersonaID: signal.targetPersonaID,
+      targetPersonaName: signal.targetPersonaName,
+      targetScenarioID: signal.targetScenarioID,
+      targetCohortID: signal.targetCohortID
+    )
+  }
+
+  private struct RevisionPlan: Equatable, Sendable {
+    var prototypeChange: String
+    var scenarioChange: String
+    var proofPlan: String
+  }
+
+  private static func revisionPlan(
+    for signal: ProductFactoryRationaleSignal,
+    isRetargeted: Bool
+  ) -> RevisionPlan {
+    let rationale = signal.rationale.lowercased()
+    let targetName = signal.targetPersonaName ?? "the target AI user"
+    let retargetPrefix = isRetargeted
+      ? "The same rationale survived a factory cycle; "
+      : ""
+    if containsAny(rationale, ["csv", "import", "spreadsheet"]) {
+      return RevisionPlan(
+        prototypeChange:
+          "\(retargetPrefix)add a visible import or spreadsheet handoff path that proves the prototype can absorb real current-workflow data.",
+        scenarioChange:
+          "Ask \(targetName) to bring a realistic spreadsheet, CSV, or manual artifact into the scenario and judge whether the prototype preserves context.",
+        proofPlan:
+          "Rerun the targeted AI-user scenario and compare import effort, missing fields, and confidence against the manual spreadsheet alternative."
+      )
+    }
+    if containsAny(rationale, ["roi", "cost", "risk", "budget", "sponsor"]) {
+      return RevisionPlan(
+        prototypeChange:
+          "\(retargetPrefix)add sponsor-facing proof of cost, risk reduction, or decision confidence directly in the prototype flow.",
+        scenarioChange:
+          "Frame the next scenario around \(targetName)'s investment decision and require an explicit continue, narrow, kill, or promote rationale.",
+        proofPlan:
+          "Rerun AI-user sponsor proof and require a current-alternative comparison that names the ROI or risk threshold."
+      )
+    }
+    if containsAny(rationale, ["trust", "proof", "evidence", "confidence"]) {
+      return RevisionPlan(
+        prototypeChange:
+          "\(retargetPrefix)make the proof artifact inspectable: show source context, decision criteria, and why the prototype beats the current workflow.",
+        scenarioChange:
+          "Make \(targetName) inspect the evidence trail before choosing whether to switch or keep the current alternative.",
+        proofPlan:
+          "Rerun the targeted persona-model scenario and require explicit evidence-quality scoring against the current alternative."
+      )
+    }
+    if containsAny(rationale, ["switch", "switching", "manual", "alternative"]) {
+      return RevisionPlan(
+        prototypeChange:
+          "\(retargetPrefix)reduce switching friction by making the first successful workflow moment obvious and reversible.",
+        scenarioChange:
+          "Put \(targetName) at the exact switching decision between the prototype and the current manual workflow.",
+        proofPlan:
+          "Rerun AI-user proof and compare setup effort, risk, and first-use value against the current alternative."
+      )
+    }
+    if containsAny(rationale, ["unclear", "confusing", "missing", "cannot", "can't"]) {
+      return RevisionPlan(
+        prototypeChange:
+          "\(retargetPrefix)remove ambiguity in the next action and expose the missing capability where the AI user got stuck.",
+        scenarioChange:
+          "Rewrite the scenario around the moment \(targetName) could not complete, trust, or interpret the workflow.",
+        proofPlan:
+          "Rerun the targeted AI-user scenario and require the user to name the next action without external explanation."
+      )
+    }
+    return RevisionPlan(
+      prototypeChange:
+        "\(retargetPrefix)turn the repeated rationale into a visible product affordance, not just a better explanation.",
+      scenarioChange:
+        "Retarget the next scenario so \(targetName) must confront the repeated rationale before giving a PMF verdict.",
+      proofPlan:
+        "Rerun targeted AI-user proof and require a current-alternative comparison that says whether the rationale is resolved."
+    )
+  }
+
+  private static func containsAny(_ text: String, _ terms: [String]) -> Bool {
+    terms.contains { text.contains($0) }
+  }
+}
+
 struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
   var id: String { experimentID }
 

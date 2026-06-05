@@ -987,6 +987,12 @@ struct ProductizationLoopTests {
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
+    let revisionBrief = try #require(
+      ProductFactoryRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
@@ -1010,7 +1016,16 @@ struct ProductizationLoopTests {
     try #require(action.detail.contains("before lift/cut"))
     try #require(step.canExecute)
     try #require(step.action.title == "Resolve AI-user rationale signal")
+    try #require(revisionBrief.title == "Revise prototype for AI-user rationale")
+    try #require(revisionBrief.targetPersonaID == buyer.id)
+    try #require(revisionBrief.targetScenarioID == buyerScenario.id)
+    try #require(revisionBrief.prototypeChange.contains("proof artifact"))
+    try #require(revisionBrief.scenarioChange.contains("Budget owner"))
+    try #require(revisionBrief.proofPlan.contains("current alternative"))
     try #require(digest.contains("Product-factory rationale signals"))
+    try #require(digest.contains("Product-factory revision briefs"))
+    try #require(digest.contains("action revise_product_bet"))
+    try #require(digest.contains("prototype"))
     try #require(digest.contains("resolve_rationale_signal"))
     try #require(digest.contains("rationale-buyer"))
   }
@@ -1138,6 +1153,12 @@ struct ProductizationLoopTests {
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
+    let revisionBrief = try #require(
+      ProductFactoryRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
@@ -1157,9 +1178,58 @@ struct ProductizationLoopTests {
     ) == nil)
     try #require(blockedStep.kind == .blocked)
     try #require(blockedStep.blockedReason?.contains("same AI-user rationale target") == true)
+    try #require(revisionBrief.title == "Retarget product revision for AI-user rationale")
+    try #require(revisionBrief.prototypeChange.contains("same rationale survived"))
+    try #require(revisionBrief.proofPlan.contains("current alternative"))
     try #require(digest.contains("Retarget AI-user rationale signal"))
+    try #require(digest.contains("Retarget product revision for AI-user rationale"))
     try #require(digest.contains("factory-cycle-stalled-rationale"))
     try #require(digest.contains("rationale signals"))
+  }
+
+  @Test func revisionBriefDoesNotCompeteWithReadyPMFDecision() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let index = makePMFPromotionEvidenceIndex(
+      config: config,
+      personaActionRationales: [
+        "turn 1 choose valid action compare_current_alternative: Needed proof against the manual workflow before switching."
+      ]
+    )
+
+    let signal = try #require(
+      ProductFactoryRationaleSignalAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
+
+    try #require(signal.count == 3)
+    try #require(action.kind == .applyDecision)
+    try #require(action.title == "Apply PMF decision")
+    try #require(ProductFactoryRevisionBriefAdvisor.brief(
+      for: experiment,
+      config: config,
+      evidenceIndex: index
+    ) == nil)
+    try #require(!digest.contains("Product-factory revision briefs"))
   }
 
   @Test func pmfNextActionRefinesRepeatedRationaleSignalBeforeGenericNarrowing() throws {
@@ -2798,7 +2868,8 @@ private func makePMFPromotionEvidenceIndex(
   config: ProductizationConfig,
   includeAIUserEvidence: Bool = true,
   includeAIUserPersonaBreadth: Bool = true,
-  includeCurrentAlternativeProof: Bool = true
+  includeCurrentAlternativeProof: Bool = true,
+  personaActionRationales: [String] = []
 ) -> ProductizationEvidenceIndex {
   let scores = ProductizationEvidenceScores(
     painRecognition: 5,
@@ -2822,7 +2893,8 @@ private func makePMFPromotionEvidenceIndex(
         endedAt: 300,
         verdict: .strongPull,
         scores: scores,
-        currentAlternativeComparison: comparison
+        currentAlternativeComparison: comparison,
+        personaActionRationales: personaActionRationales
       ),
       makeDecisionAdvisorRecord(
         id: "promote-b",
@@ -2833,7 +2905,8 @@ private func makePMFPromotionEvidenceIndex(
         endedAt: 200,
         verdict: .strongPull,
         scores: scores,
-        currentAlternativeComparison: comparison
+        currentAlternativeComparison: comparison,
+        personaActionRationales: personaActionRationales
       ),
       makeDecisionAdvisorRecord(
         id: "promote-c",
@@ -2843,7 +2916,8 @@ private func makePMFPromotionEvidenceIndex(
         endedAt: 100,
         verdict: .promising,
         scores: scores,
-        currentAlternativeComparison: comparison
+        currentAlternativeComparison: comparison,
+        personaActionRationales: personaActionRationales
       ),
     ]
   )

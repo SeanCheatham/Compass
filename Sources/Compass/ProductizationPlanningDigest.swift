@@ -27,6 +27,7 @@ enum ProductizationPlanningDigestFormatter {
     lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
     lines += evidenceTensionLines(config: config, evidenceIndex: evidenceIndex)
     lines += rationaleSignalLines(config: config, evidenceIndex: evidenceIndex)
+    lines += revisionBriefLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += autopilotLines(config: config, evidenceIndex: evidenceIndex)
@@ -317,6 +318,41 @@ enum ProductizationPlanningDigestFormatter {
       }
       lines.append(
         "- \(signal.experimentID): \(metadata.joined(separator: "; ")); \(bounded(signal.rationale, 180)); \(bounded(signal.summary, 220))."
+      )
+    }
+    return lines
+  }
+
+  private static func revisionBriefLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    let briefs = ProductFactoryRevisionBriefAdvisor.briefs(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    guard !briefs.isEmpty else { return [] }
+    var lines = ["Product-factory revision briefs:"]
+    for brief in briefs.prefix(4) {
+      var metadata = [
+        "action revise_product_bet",
+        "source \(brief.source.rawValue)",
+        "priority \(brief.priority)",
+      ]
+      if let targetCohortID = brief.targetCohortID {
+        metadata.append("cohort \(targetCohortID)")
+      }
+      if let targetScenarioID = brief.targetScenarioID {
+        metadata.append("target_scenario \(targetScenarioID)")
+      }
+      if let targetPersonaID = brief.targetPersonaID {
+        metadata.append("target_persona \(targetPersonaID)")
+      }
+      if let targetPersonaName = brief.targetPersonaName {
+        metadata.append("target_name \(bounded(targetPersonaName, 80))")
+      }
+      lines.append(
+        "- \(brief.experimentID): \(metadata.joined(separator: "; ")); \(bounded(brief.title, 140)); prototype \(bounded(brief.prototypeChange, 220)); scenario \(bounded(brief.scenarioChange, 220)); proof \(bounded(brief.proofPlan, 220))."
       )
     }
     return lines
