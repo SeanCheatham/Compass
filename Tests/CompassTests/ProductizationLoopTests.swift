@@ -1280,6 +1280,9 @@ struct ProductizationLoopTests {
     try #require(audit.completedEvidenceRunCount == 0)
     try #require(audit.failedEvidenceRunCount == 0)
     try #require(audit.skippedScenarioCount == 0)
+    try #require(audit.startingProofDebtCount == nil)
+    try #require(audit.endingProofDebtCount == nil)
+    try #require(audit.proofDebtDelta == nil)
     try #require(audit.summary.contains("decisions 1 (1 promote, 0 kill); evidence 0"))
   }
 
@@ -1345,7 +1348,11 @@ struct ProductizationLoopTests {
       evidenceRunIDs: ["run-one"],
       completedEvidenceRunCount: 1,
       failedEvidenceRunCount: 0,
-      skippedScenarioCount: 0
+      skippedScenarioCount: 0,
+      startingProofDebtCount: 8,
+      endingProofDebtCount: 6,
+      startingProofDebtSummary: "\(step.experimentID): 2 completed run(s), 2 persona(s)",
+      endingProofDebtSummary: "\(step.experimentID): 1 completed run(s), 1 persona(s)"
     )
 
     let audit = outcome.audit(
@@ -1363,10 +1370,17 @@ struct ProductizationLoopTests {
     try #require(audit.completedEvidenceRunCount == 1)
     try #require(audit.failedEvidenceRunCount == 0)
     try #require(audit.skippedScenarioCount == 0)
+    try #require(audit.startingProofDebtCount == 8)
+    try #require(audit.endingProofDebtCount == 6)
+    try #require(audit.proofDebtDelta == -2)
+    try #require(audit.startingProofDebtSummary?.contains("2 completed run") == true)
+    try #require(audit.endingProofDebtSummary?.contains("1 completed run") == true)
     try #require(audit.stopReason == .noExecutableStep)
     try #require(audit.userMessage.contains("Factory cycle ran 1 step(s)."))
     try #require(audit.userMessage.contains("evidence runs 1 completed, 0 needing review"))
+    try #require(audit.userMessage.contains("Proof debt improved by 2"))
     try #require(audit.summary.contains("runs run-one"))
+    try #require(audit.summary.contains("proof debt 8 -> 6 (-2)"))
     try #require(audit.userMessage.contains("Stopped because no executable product-factory step remains."))
   }
 

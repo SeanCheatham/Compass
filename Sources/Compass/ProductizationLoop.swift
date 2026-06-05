@@ -717,6 +717,10 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   var completedEvidenceRunCount: Int
   var failedEvidenceRunCount: Int
   var skippedScenarioCount: Int
+  var startingProofDebtCount: Int?
+  var endingProofDebtCount: Int?
+  var startingProofDebtSummary: String?
+  var endingProofDebtSummary: String?
 
   init(
     executedSteps: [ProductFactoryAutopilotStep],
@@ -726,7 +730,11 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     evidenceRunIDs: [String] = [],
     completedEvidenceRunCount: Int = 0,
     failedEvidenceRunCount: Int = 0,
-    skippedScenarioCount: Int = 0
+    skippedScenarioCount: Int = 0,
+    startingProofDebtCount: Int? = nil,
+    endingProofDebtCount: Int? = nil,
+    startingProofDebtSummary: String? = nil,
+    endingProofDebtSummary: String? = nil
   ) {
     self.executedSteps = executedSteps
     self.messages = ProductizationModelText.cleanedList(messages, limit: 500)
@@ -736,6 +744,16 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     self.completedEvidenceRunCount = max(0, completedEvidenceRunCount)
     self.failedEvidenceRunCount = max(0, failedEvidenceRunCount)
     self.skippedScenarioCount = max(0, skippedScenarioCount)
+    self.startingProofDebtCount = startingProofDebtCount.map { max(0, $0) }
+    self.endingProofDebtCount = endingProofDebtCount.map { max(0, $0) }
+    self.startingProofDebtSummary = ProductizationModelText.optionalCleanedText(
+      startingProofDebtSummary,
+      limit: 500
+    )
+    self.endingProofDebtSummary = ProductizationModelText.optionalCleanedText(
+      endingProofDebtSummary,
+      limit: 500
+    )
   }
 
   var appliedDecisionCount: Int {
@@ -754,6 +772,11 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     executedSteps.filter { $0.action.kind == .runCohort || $0.action.kind == .rerunCohort }.count
   }
 
+  var proofDebtDelta: Int? {
+    guard let startingProofDebtCount, let endingProofDebtCount else { return nil }
+    return endingProofDebtCount - startingProofDebtCount
+  }
+
   var userMessage: String {
     var parts = [
       executedSteps.isEmpty
@@ -765,6 +788,9 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     }
     if !messages.isEmpty {
       parts.append(messages.joined(separator: " "))
+    }
+    if let proofDebtMessage {
+      parts.append(proofDebtMessage)
     }
     parts.append(stopReasonMessage)
     return parts.joined(separator: " ")
@@ -831,6 +857,10 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       completedEvidenceRunCount: completedEvidenceRunCount,
       failedEvidenceRunCount: failedEvidenceRunCount,
       skippedScenarioCount: skippedScenarioCount,
+      startingProofDebtCount: startingProofDebtCount,
+      endingProofDebtCount: endingProofDebtCount,
+      startingProofDebtSummary: startingProofDebtSummary,
+      endingProofDebtSummary: endingProofDebtSummary,
       stopReason: auditStopReason,
       stopStepID: stopStepID,
       stopStepTitle: stopStepTitle,
@@ -854,6 +884,22 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   private var hasEvidenceRunOutcomes: Bool {
     !evidenceRunIDs.isEmpty || completedEvidenceRunCount > 0 || failedEvidenceRunCount > 0
       || skippedScenarioCount > 0
+  }
+
+  private var proofDebtMessage: String? {
+    guard let startingProofDebtCount, let endingProofDebtCount, let proofDebtDelta else {
+      return nil
+    }
+    let direction: String
+    if proofDebtDelta < 0 {
+      direction = "improved by \(abs(proofDebtDelta))"
+    } else if proofDebtDelta > 0 {
+      direction = "worsened by \(proofDebtDelta)"
+    } else {
+      direction = "held steady"
+    }
+    return
+      "Proof debt \(direction) (\(startingProofDebtCount) -> \(endingProofDebtCount))."
   }
 
   private var stopReasonMessage: String {

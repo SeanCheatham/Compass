@@ -1200,6 +1200,8 @@ struct ProductizationWorkbenchTab: View {
     var completedEvidenceRunCount = 0
     var failedEvidenceRunCount = 0
     var skippedScenarioCount = 0
+    var touchedExperimentIDs: [String] = []
+    var startingProofDebts: [String: ProductMarketFitProofDebt] = [:]
     var seenStepIDs = Set<String>()
     var stopReason: ProductFactoryAutopilotCycleStopReason = .reachedStepLimit
     for _ in 0..<maxSteps {
@@ -1216,6 +1218,14 @@ struct ProductizationWorkbenchTab: View {
         break
       }
       selectedExperimentID = step.experimentID
+      if !touchedExperimentIDs.contains(step.experimentID) {
+        touchedExperimentIDs.append(step.experimentID)
+      }
+      if startingProofDebts[step.experimentID] == nil {
+        startingProofDebts[step.experimentID] = productFactoryProofDebt(
+          forExperimentID: step.experimentID
+        )
+      }
       guard let result = await executeFactoryAutopilotStep(step) else {
         stopReason = .executionFailed(
           stepID: step.id,
@@ -1231,6 +1241,13 @@ struct ProductizationWorkbenchTab: View {
       failedEvidenceRunCount += result.failedEvidenceRunCount
       skippedScenarioCount += result.skippedScenarioCount
     }
+    let startingProofDebt = productFactoryProofDebtSnapshot(
+      experimentIDs: touchedExperimentIDs,
+      proofDebts: startingProofDebts
+    )
+    let endingProofDebt = productFactoryProofDebtSnapshot(
+      experimentIDs: touchedExperimentIDs
+    )
     let outcome = ProductFactoryAutopilotCycleOutcome(
       executedSteps: executedSteps,
       messages: messages,
@@ -1239,7 +1256,11 @@ struct ProductizationWorkbenchTab: View {
       evidenceRunIDs: evidenceRunIDs,
       completedEvidenceRunCount: completedEvidenceRunCount,
       failedEvidenceRunCount: failedEvidenceRunCount,
-      skippedScenarioCount: skippedScenarioCount
+      skippedScenarioCount: skippedScenarioCount,
+      startingProofDebtCount: startingProofDebt?.count,
+      endingProofDebtCount: endingProofDebt?.count,
+      startingProofDebtSummary: startingProofDebt?.summary,
+      endingProofDebtSummary: endingProofDebt?.summary
     )
     let audit = outcome.audit(startedAt: cycleStartedAt)
     scenarioRunMessage = audit.userMessage
@@ -1247,6 +1268,45 @@ struct ProductizationWorkbenchTab: View {
       project.productizationConfig.recordingFactoryCycleAudit(audit)
     )
     await loadContractStatus()
+  }
+
+  private func productFactoryProofDebt(
+    forExperimentID experimentID: String
+  ) -> ProductMarketFitProofDebt? {
+    guard
+      let experiment = project.productizationConfig.experiments.first(where: { $0.id == experimentID })
+    else { return nil }
+    return project.productizationEvidenceIndex.currentPMFReadiness(for: experiment)?.proofDebt
+      ?? ProductMarketFitProofDebt(
+        completedRunCount: 0,
+        distinctPersonaCount: 0,
+        aiUserDistinctPersonaCount: 0,
+        aiUserCurrentAlternativePersonaCount: 0,
+        failedRunCount: 0
+      )
+  }
+
+  private func productFactoryProofDebtSnapshot(
+    experimentIDs: [String],
+    proofDebts: [String: ProductMarketFitProofDebt]? = nil
+  ) -> (count: Int, summary: String)? {
+    var orderedExperimentIDs: [String] = []
+    for experimentID in experimentIDs where !orderedExperimentIDs.contains(experimentID) {
+      orderedExperimentIDs.append(experimentID)
+    }
+    var total = 0
+    var parts: [String] = []
+    for experimentID in orderedExperimentIDs {
+      guard let debt = proofDebts?[experimentID] ?? productFactoryProofDebt(forExperimentID: experimentID)
+      else { continue }
+      total += debt.blockingDebtCount
+      parts.append("\(experimentID): \(debt.summary)")
+    }
+    guard !parts.isEmpty else { return nil }
+    return (
+      total,
+      StringUtils.boundedText(parts.joined(separator: "; "), limit: 500)
+    )
   }
 
   private func executeFactoryAutopilotStep(
