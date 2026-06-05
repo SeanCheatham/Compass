@@ -1663,7 +1663,7 @@ enum ProductFactoryAutopilotStepKind: String, Equatable, Sendable {
 
 struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
   var id: String {
-    "\(experimentID):\(idKind):\(targetScenarioID ?? cohortID ?? "none")"
+    "\(experimentID):\(idKind):\(targetScenarioID ?? cohortID ?? "none")\(idDecisionSuffix)"
   }
 
   var experimentID: String
@@ -1685,6 +1685,10 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
   var queueTitle: String {
     guard let decisionIntentSummary else { return title }
     return "\(title) (\(decisionIntentSummary))"
+  }
+
+  private var idDecisionSuffix: String {
+    action.targetDecision.map { ":target_decision:\($0.rawValue)" } ?? ""
   }
 
   private var idKind: String {
@@ -2182,7 +2186,9 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
 
 enum ProductFactoryCycleFailureAdvisor {
   static func stepID(for action: ProductMarketFitNextAction) -> String {
-    "\(action.experimentID):\(action.kind.rawValue):\(action.targetScenarioID ?? action.cohortID ?? "none")"
+    let decisionSuffix = action.targetDecision.map { ":target_decision:\($0.rawValue)" } ?? ""
+    return
+      "\(action.experimentID):\(action.kind.rawValue):\(action.targetScenarioID ?? action.cohortID ?? "none")\(decisionSuffix)"
   }
 
   static func blockingAudit(
@@ -2209,8 +2215,12 @@ enum ProductFactoryCycleFailureAdvisor {
       .prefix(5)
       .first {
         $0.stopReason == .executionFailed
-          && $0.stopStepID == stepID
+          && $0.stopStepID.map { stepIDsMatch($0, stepID) } == true
       }
+  }
+
+  private static func stepIDsMatch(_ lhs: String, _ rhs: String) -> Bool {
+    lhs == rhs || lhs.hasPrefix(rhs) || rhs.hasPrefix(lhs)
   }
 
   private static func hasCompletedEvidence(

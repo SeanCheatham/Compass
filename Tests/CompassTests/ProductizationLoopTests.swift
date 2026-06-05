@@ -829,6 +829,79 @@ struct ProductizationLoopTests {
     try #require(matchedStep.blockedReason != nil)
   }
 
+  @Test func productFactoryFailureBlockRequiresMatchingDecisionIntent() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let scenarioID = "\(experiment.id)-buyer-starter-scenario"
+    let promoteAction = ProductMarketFitNextAction(
+      experimentID: experiment.id,
+      kind: .runCohort,
+      title: "Run AI-user validation cohort",
+      detail: "Run promote proof.",
+      priority: 78,
+      cohortID: "\(experiment.id)-cohort",
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: "buyer",
+      targetPersonaName: "Budget owner",
+      targetScenarioID: scenarioID,
+      targetDecision: .promote
+    )
+    let killAction = ProductMarketFitNextAction(
+      experimentID: experiment.id,
+      kind: .runCohort,
+      title: "Run AI-user rejection check",
+      detail: "Run kill proof.",
+      priority: 82,
+      cohortID: "\(experiment.id)-cohort",
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: "buyer",
+      targetPersonaName: "Budget owner",
+      targetScenarioID: scenarioID,
+      targetDecision: .kill
+    )
+    let promoteStepID = ProductFactoryCycleFailureAdvisor.stepID(for: promoteAction)
+    let killStepID = ProductFactoryCycleFailureAdvisor.stepID(for: killAction)
+    config = config.recordingFactoryCycleAudit(
+      ProductFactoryCycleAudit(
+        id: "factory-cycle-promote-proof-failed",
+        startedAt: 500,
+        endedAt: 505,
+        executedStepIDs: [],
+        experimentIDs: [experiment.id],
+        messages: [],
+        maxSteps: 3,
+        stopReason: .executionFailed,
+        stopStepID: promoteStepID,
+        stopStepTitle: "Run AI-user validation cohort",
+        stopDetail: "Stopped because promote proof failed: runner crashed.",
+        userMessage: "Factory cycle ran no steps."
+      )
+    )
+
+    try #require(promoteStepID.contains("target_decision:promote"))
+    try #require(killStepID.contains("target_decision:kill"))
+    try #require(promoteStepID != killStepID)
+    try #require(ProductFactoryCycleFailureAdvisor.blockingAudit(
+      forStepID: promoteStepID,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: .empty
+    )?.id == "factory-cycle-promote-proof-failed")
+    try #require(ProductFactoryCycleFailureAdvisor.blockingAudit(
+      forStepID: killStepID,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: .empty
+    ) == nil)
+  }
+
   @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforeKill() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",
