@@ -1452,6 +1452,7 @@ struct ProductizationWorkbenchTab: View {
   private func applyRevisionBrief(_ brief: ProductFactoryRevisionBrief) async {
     isSavingScenario = true
     defer { isSavingScenario = false }
+    let startedAt = Date()
     do {
       let draft = try ProductizationScenarioCoordinator.revisionDraft(
         for: brief,
@@ -1460,11 +1461,56 @@ struct ProductizationWorkbenchTab: View {
       selectedExperimentID = draft.experimentID
       loadScenarioDraftValues(draft)
       await project.saveProductScenarioDraft(draft)
-      scenarioRunMessage = "Revision scenario applied."
+      guard let scenarioID = draft.id,
+        project.productizationConfig.scenarios.contains(where: { $0.id == scenarioID })
+      else {
+        scenarioRunMessage = project.errorMessage ?? "Revision scenario could not be saved."
+        return
+      }
+      selectedScenarioID = scenarioID
+      let audit = manualRevisionAudit(
+        for: brief,
+        scenarioID: scenarioID,
+        startedAt: startedAt
+      )
+      scenarioRunMessage = audit.userMessage
+      await project.saveProductizationConfig(
+        project.productizationConfig.recordingFactoryCycleAudit(audit)
+      )
       await loadContractStatus()
     } catch {
       scenarioRunMessage = error.localizedDescription
     }
+  }
+
+  private func manualRevisionAudit(
+    for brief: ProductFactoryRevisionBrief,
+    scenarioID: String,
+    startedAt: Date
+  ) -> ProductFactoryCycleAudit {
+    let started = startedAt.timeIntervalSince1970
+    let ended = Date().timeIntervalSince1970
+    return ProductFactoryCycleAudit(
+      id: "factory-cycle-manual-revision-\(brief.experimentID)-\(Int(started))-\(scenarioID)",
+      startedAt: started,
+      endedAt: ended,
+      executedStepIDs: [
+        "\(brief.experimentID):\(ProductFactoryAutopilotStepKind.applyRevision.rawValue):\(scenarioID)",
+      ],
+      experimentIDs: [brief.experimentID],
+      messages: [
+        "Applied product revision \(brief.title) to scenario \(scenarioID).",
+      ],
+      maxSteps: 1,
+      revisionBriefSummaries: [brief.auditSummary],
+      stopReason: .reachedStepLimit,
+      stopStepID:
+        "\(brief.experimentID):\(ProductFactoryAutopilotStepKind.applyRevision.rawValue):\(scenarioID)",
+      stopStepTitle: "Apply product revision",
+      stopDetail: "Manual product revision applied; run targeted validation evidence next.",
+      userMessage:
+        "Applied product revision for \(brief.experimentID). Run targeted validation evidence next."
+    )
   }
 
   private func runScenarioModelFree() async {
