@@ -345,7 +345,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
   var desktopHandshake: Bool
   var simulationFixtures: Bool
   var guiReplay: Bool
-  var pmfExperience: Bool
+  var productizationExperience: Bool
 
   init(
     xtaskVerify: Bool,
@@ -354,7 +354,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     desktopHandshake: Bool,
     simulationFixtures: Bool = false,
     guiReplay: Bool = false,
-    pmfExperience: Bool = false
+    productizationExperience: Bool = false
   ) {
     self.xtaskVerify = xtaskVerify
     self.visualVerify = visualVerify
@@ -362,7 +362,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     self.desktopHandshake = desktopHandshake
     self.simulationFixtures = simulationFixtures
     self.guiReplay = guiReplay
-    self.pmfExperience = pmfExperience
+    self.productizationExperience = productizationExperience
   }
 
   init(from decoder: Decoder) throws {
@@ -374,7 +374,21 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     simulationFixtures =
       try container.decodeIfPresent(Bool.self, forKey: .simulationFixtures) ?? false
     guiReplay = try container.decodeIfPresent(Bool.self, forKey: .guiReplay) ?? false
-    pmfExperience = try container.decodeIfPresent(Bool.self, forKey: .pmfExperience) ?? false
+    productizationExperience =
+      try container.decodeIfPresent(Bool.self, forKey: .productizationExperience)
+      ?? container.decodeIfPresent(Bool.self, forKey: .pmfExperience)
+      ?? false
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(xtaskVerify, forKey: .xtaskVerify)
+    try container.encode(visualVerify, forKey: .visualVerify)
+    try container.encode(schemaContracts, forKey: .schemaContracts)
+    try container.encode(desktopHandshake, forKey: .desktopHandshake)
+    try container.encode(simulationFixtures, forKey: .simulationFixtures)
+    try container.encode(guiReplay, forKey: .guiReplay)
+    try container.encode(productizationExperience, forKey: .productizationExperience)
   }
 
   enum CodingKeys: String, CodingKey {
@@ -384,6 +398,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     case desktopHandshake = "desktop_handshake"
     case simulationFixtures = "simulation_fixtures"
     case guiReplay = "gui_replay"
+    case productizationExperience = "productization_experience"
     case pmfExperience = "pmf_experience"
   }
 }

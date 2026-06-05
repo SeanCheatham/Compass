@@ -62,8 +62,8 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         - Use `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerifyNoBase64))` for
           desktop UI proof, or `\(RustVerifyCommands.cargo(RustVerifyCommands.factorySmoke))`
           when full factory proof is needed.
-        - Use `\(RustVerifyCommands.cargo(RustVerifyCommands.pmfSmoke))` to validate the
-          generated app's deterministic PMF experience contract without a live model call.
+        - Use `\(RustVerifyCommands.cargo(RustVerifyCommands.productizationSmoke))` to validate the
+          generated app's deterministic productization experience contract without a live model call.
         - Verify for test increments should use `\(RustVerifyCommands.cargo(RustVerifyCommands.coverage))` or \
         `cargo llvm-cov test --summary-only` (requires `cargo-llvm-cov` in the project or VM).
         - When an increment touches feature-gated crates, optional providers, `cfg(...)`

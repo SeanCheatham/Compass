@@ -1,180 +1,189 @@
-# 04 - Persona Action And Feedback Prompts
+# 04 - Generated Rust Productization Contracts
 
 ## Objective
 
-Create prompt contracts and JSON schemas for PMF persona action selection and
-post-run subjective feedback.
+Update the generated Rust workspace contract so prototypes can be evaluated as
+product experiments for a specific pain and solution hypothesis.
 
-The prompts should produce useful, skeptical product feedback without letting
-the persona invent app capabilities or actions.
+The existing deterministic experience contract is a good foundation, but it must
+include pain, solution, experiment, current workflow, and alternative context.
 
 ## Scope
 
-Add prompt builders, schemas, decoding, validation, repair prompts, and tests.
-Do not overbuild UI in this plan.
+Modify the generated Rust scaffold, schema files, CLI commands, xtask checks,
+and compass-engine scaffold checks.
 
-## Action Selection Prompt
+Keep the blessed workspace:
 
-The persona action prompt receives:
-
-- product hypothesis summary
-- persona
-- task
-- current semantic app state
-- visible copy and semantic nodes
-- allowed actions
-- prior action transcript
-- turn number and max turns
-
-The model must return JSON:
-
-```json
-{
-  "actionId": "inspect_value_prop",
-  "params": {},
-  "rationale": "I need to understand whether this solves my reporting pain.",
-  "expectation": "I expect to see a concrete workflow or outcome.",
-  "confusion": null
-}
+```text
+crates/app-core
+crates/app-cli
+crates/app-desktop
+xtask
+schemas/
+rust-toolchain.toml
 ```
 
-Validation rules:
+## Contract Shape
 
-- `actionId` is required.
-- `actionId` must match the allowed action list exactly.
-- `rationale` is required and non-empty.
-- `params` must be JSON object.
-- Unknown top-level fields should be rejected unless existing Compass schema
-  decoders intentionally tolerate them.
+Replace the generic PMF experience input with productization-aware input:
 
-## Feedback Prompt
-
-After the deterministic trace ends, ask the persona for subjective feedback.
-
-The model receives:
-
-- original product hypothesis
-- persona and task
-- complete experience trace summary
-- transcript of persona action rationales
-- terminal app state
-
-The model must return JSON:
-
-```json
-{
-  "valueScore": 3,
-  "clarityScore": 2,
-  "trustScore": 3,
-  "switchLikelihood": 2,
-  "payLikelihood": 1,
-  "taskOutcome": "partial",
-  "topObjection": "I still cannot tell how this replaces my current spreadsheet.",
-  "missingCapability": "A concrete import or reporting example.",
-  "momentOfDelight": null,
-  "momentOfConfusion": "The first screen says ready but not ready for what.",
-  "verdict": "not_yet",
-  "summary": "The promise is plausible, but the experience does not prove value quickly."
-}
+```text
+ProductizationExperienceInput
+  schemaVersion
+  pain
+  solution
+  experiment
+  scenario
+  currentWorkflow
+  alternatives
+  actions
 ```
 
-Suggested enums:
+The trace should report:
 
-- `taskOutcome`: `succeeded`, `partial`, `failed`, `abandoned`
-- `verdict`: `strong_pull`, `some_pull`, `not_yet`, `wrong_user`
+```text
+ProductizationExperienceTrace
+  schemaVersion
+  painID
+  solutionID
+  experimentID
+  initialState
+  turns
+  allowedNextActions
+  terminalStatus
+  eventLog
+  painReliefSignals
+```
 
-Scores should use a 1 to 5 integer scale. Make labels explicit in the prompt.
+`painReliefSignals` should include deterministic fields such as:
 
-## Skepticism Guardrails
+- `painRecognized`
+- `workflowAdvanced`
+- `currentAlternativeAddressed`
+- `switchingObjectionReduced`
+- `missingCapabilityIDs`
+- `evidenceSummary`
 
-The prompt should tell personas:
+## App-Core Rules
 
-- Do not be polite.
-- Do not assume hidden features.
-- Judge only the experience and product claim shown.
-- Prefer concrete objections over generic praise.
-- Distinguish "I understand it" from "I would use or pay for it."
-- Name the current alternative when relevant.
+Generated `app-core` must expose pure functions:
 
-## Prompt Versioning
+```text
+run_simulation(SimulationInput) -> SimulationSnapshot
+run_gui_replay(GuiReplayTrace) -> GuiSemanticSnapshot
+run_productization_experience(ProductizationExperienceInput)
+  -> ProductizationExperienceTrace
+```
 
-Add explicit prompt version ids:
+The app owns the allowed action list for each semantic state. Persona agents may
+only choose actions from the latest allowed list.
 
-- `pmf.persona_action.v1`
-- `pmf.feedback.v1`
+## CLI Commands
 
-Persist prompt version ids with each evidence record.
+`app-cli` should expose:
 
-## Repair Flow
+```text
+status
+schema
+simulation-schema
+gui-replay-schema
+productization-experience-schema
+simulate --input '<json>'
+gui-replay --input '<json>'
+productization-experience --input '<json>'
+```
 
-If the model returns invalid JSON or schema-invalid output:
+Keep compatibility aliases only if they do not preserve old product-first
+semantics. Breaking changes are allowed.
 
-- Send one concise repair prompt with the validation error.
-- Reuse the same state and allowed actions.
-- If repair fails, store a failed evidence record with raw output.
+## Xtask Commands
+
+Use:
+
+```text
+cargo run -p xtask -- verify
+cargo run -p xtask -- visual-verify
+cargo run -p xtask -- factory-smoke
+cargo run -p xtask -- productization-smoke
+```
+
+`productization-smoke` proves the generated app can run a deterministic
+model-free productization journey.
+
+## Scaffold Metadata
+
+Update `compass-scaffold.toml` capabilities:
+
+```text
+[capabilities]
+xtask_verify = true
+visual_verify = true
+schema_contracts = true
+desktop_handshake = true
+simulation_fixtures = true
+gui_replay = true
+productization_experience = true
+```
+
+The old `pmf_experience` capability can be removed or treated as obsolete.
 
 ## Likely Files
 
-- `Sources/Compass/Prompts/`
-- `Sources/Compass/Resources/Schemas/`
-- `Sources/Compass/AgentExecutor/AgentExecutor+Remediation.swift`
-- `Sources/Compass/Models.swift`
-- `Tests/CompassTests/`
+- `Sources/Compass/RustProjectScaffold.swift`
+- `Sources/Compass/Rust/RustVerifyCommands.swift`
+- `Sources/Compass/Rust/RustEngineModels.swift`
+- `Sources/Compass/AgentTools/AgentRustVerifyTools.swift`
+- `crates/compass-engine/src/scaffold.rs`
+- `crates/compass-engine/tests/scaffold_check.rs`
+- generated Rust scaffold fixture tests
 
 ## Acceptance Criteria
 
-- Action prompt produces a strict schema contract.
-- Feedback prompt produces a strict schema contract.
-- Invalid action ids are rejected.
-- Invalid feedback scores are rejected.
-- Prompt version ids are included in decoded outputs or run metadata.
-- Tests cover valid decode, invalid action, invalid enum, invalid score, and
-  repair prompt text.
+- New generated workspaces expose productization experience schemas.
+- `productization-smoke` passes without live model calls.
+- Scaffold checks verify the new capability markers.
+- The generated desktop still supports semantic GUI snapshots and visual
+  verification.
+- The contract can compare a solution against current alternatives.
 
 ## Verification
 
-Run:
+- Run Rust engine scaffold tests.
+- Run Swift tests for Rust scaffold generation.
+- Generate a sample workspace and run:
 
 ```bash
-./scripts/test-local.sh
+cargo run -p xtask -- verify
+cargo run -p xtask -- productization-smoke
+cargo run -p xtask -- visual-verify
 ```
-
-Add focused tests for prompt builders and schema validation rather than relying
-on live model calls.
-
-## Implementation Progress
-
-- Added prompt version ids `pmf.persona_action.v1` and `pmf.feedback.v1`.
-- Added PMF persona action prompt and repair prompt builders with skepticism
-  guardrails, semantic state context, allowed actions, and strict JSON output
-  instructions.
-- Added PMF feedback prompt and repair prompt builders with 1-5 score labels,
-  `taskOutcome`/`verdict` enums, trace summaries, terminal state, and transcript
-  context.
-- Added strict resource schemas:
-  - `Sources/Compass/Resources/Schemas/pmfPersonaAction.json`
-  - `Sources/Compass/Resources/Schemas/pmfFeedback.json`
-- Added strict decoders and validation for unknown top-level fields, required
-  fields, exact allowed action ids, JSON-object params, non-empty text fields,
-  score ranges, and enum values.
-- Threaded the persona action prompt version into `PMFPersonaActionChoice` and
-  `PMFPersonaActionTranscriptEntry` so later evidence records can persist the
-  prompt version.
-- Added focused tests for valid decode, invalid action id, non-object params,
-  unknown fields, invalid feedback score, invalid enum, prompt text, repair
-  prompt text, and schema loading.
 
 ## Completion
 
 Status: complete.
 
-Completed on 2026-06-04 after adding PMF persona action and feedback prompt
-contracts, strict schemas, strict decoders, repair prompts, prompt-version
-threading, and focused contract tests.
+Completed on 2026-06-04 after converting the generated Rust scaffold contract
+from the old PMF capability to `productization_experience`. New generated
+workspaces now write productization experience schemas, expose
+`run_productization_experience(ProductizationExperienceInput)`, support
+`app-cli productization-experience(-schema)`, and run `xtask
+productization-smoke` without model calls.
 
 Verification passed:
 
-- `./scripts/test-local.sh --filter PMFPromptContractTests`
-- `./scripts/test-local.sh --filter PMFSimulationRunnerTests`
-- `./scripts/test-local.sh --filter PromptSchemaLoadingTests`
-- `./scripts/test-local.sh` (1822 tests)
+- `./scripts/test-local.sh --filter RustProjectScaffoldTests`
+- `./scripts/test-local.sh --filter AgentRustVerifyToolsTests`
+- `COMPASS_RUN_GENERATED_RUST_SMOKE=1 ./scripts/test-local.sh --filter RustProjectScaffoldTests`
+- `./scripts/test-local.sh --filter RustVerifyCommandsTests`
+- `./scripts/test-local.sh --filter RustFactoryHealthTests`
+- `cargo fmt --check -p compass-engine`
+- `cargo test -p compass-engine scaffold_check`
+
+Notes:
+
+- The generated smoke test skipped `xtask verify` coverage because
+  `cargo llvm-cov` is not installed locally, then ran the generated
+  `productization-smoke` and built `app-desktop` successfully.
+- Live generated `visual-verify` was not launched in this slice; scaffold tests
+  continue to assert the semantic GUI snapshot and visual verification hooks.

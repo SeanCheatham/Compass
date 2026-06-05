@@ -45,8 +45,14 @@ struct RustProjectScaffold: Equatable, Sendable {
       ScaffoldFile(path: "schemas/demo-state.schema.json", contents: demoStateSchema()),
       ScaffoldFile(path: "schemas/simulation-input.schema.json", contents: simulationInputSchema()),
       ScaffoldFile(path: "schemas/gui-replay-trace.schema.json", contents: guiReplayTraceSchema()),
-      ScaffoldFile(path: "schemas/experience-input.schema.json", contents: experienceInputSchema()),
-      ScaffoldFile(path: "schemas/experience-trace.schema.json", contents: experienceTraceSchema()),
+      ScaffoldFile(
+        path: "schemas/productization-experience-input.schema.json",
+        contents: productizationExperienceInputSchema()
+      ),
+      ScaffoldFile(
+        path: "schemas/productization-experience-trace.schema.json",
+        contents: productizationExperienceTraceSchema()
+      ),
       ScaffoldFile(path: "crates/app-core/Cargo.toml", contents: appCoreManifest()),
       ScaffoldFile(path: "crates/app-core/src/lib.rs", contents: appCoreLib()),
       ScaffoldFile(path: "crates/app-core/tests/state_tests.rs", contents: appCoreTests()),
@@ -121,7 +127,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     desktop_handshake = true
     simulation_fixtures = true
     gui_replay = true
-    pmf_experience = true
+    productization_experience = true
     """
   }
 
@@ -195,27 +201,29 @@ struct RustProjectScaffold: Equatable, Sendable {
     use the semantic JSON as the replay/assertion target and the screenshot as
     human-facing rendering proof.
 
-    ## Deterministic PMF Experience Contract
+    ## Deterministic Productization Experience Contract
 
-    Product-market-fit simulations use `run_experience(ExperienceInput) ->
-    ExperienceTrace` as a semantic app journey. The generated app owns the
-    allowed action list for each state, and `app-cli experience --input '<json>'`
-    deterministically replays a supplied action prefix from the scenario. Persona
-    agents may choose only from the latest `allowedNextActions`; screenshots are
-    optional supporting proof, not the assertion surface.
+    Product experiments use `run_productization_experience(ProductizationExperienceInput) ->
+    ProductizationExperienceTrace` as a semantic app journey. The input carries
+    the pain, solution, experiment, current workflow, and alternatives being
+    evaluated. The generated app owns the allowed action list for each state,
+    and `app-cli productization-experience --input '<json>'` deterministically
+    replays a supplied action prefix. Persona agents may choose only from the
+    latest `allowedNextActions`; screenshots are optional supporting proof, not
+    the assertion surface.
 
-    PMF evidence is product pressure, not a release gate. Use `pmf-smoke` to
-    prove this generated app can replay a deterministic model-free PMF journey,
-    then use a live persona model only for manual product review. Treat repeated
-    objections and low scores as signals to investigate, not as automatic proof
-    that the product is good or bad.
+    Productization evidence is product pressure, not a release gate. Use
+    `productization-smoke` to prove this generated app can replay a deterministic
+    model-free product journey, then use a live persona model only for manual
+    product review. Treat repeated objections and low scores as signals to
+    investigate, not as automatic proof that the product is good or bad.
 
-    Manual PMF simulation checklist:
-    - Confirm `app-cli experience-schema` prints the expected contract.
-    - Run `xtask pmf-smoke` before involving a live model.
+    Manual productization simulation checklist:
+    - Confirm `app-cli productization-experience-schema` prints the expected contract.
+    - Run `xtask productization-smoke` before involving a live model.
     - For live review, verify persona actions come only from `allowedNextActions`.
     - Keep feedback skeptical and structured; avoid optimizing for praise.
-    - Inspect evidence summaries in Compass before changing the roadmap.
+    - Inspect pain-relief summaries in Compass before changing the roadmap.
 
     ## Standard Commands
 
@@ -227,9 +235,9 @@ struct RustProjectScaffold: Equatable, Sendable {
     - Run CLI: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "status"]))`
     - Run simulation fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "simulate", "--input", #"{"seed":"demo","ticks":3,"action":"advance"}"#]))`
     - Run GUI replay fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "gui-replay", "--input", #"{"seed":"demo","steps":[{"action":"advance","ticks":2},{"action":"visual_input","value":"space"}]}"#]))`
-    - Run PMF experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "experience", "--input", #"{"schemaVersion":1,"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Find whether this app can reduce weekly reporting work"},"actions":[{"id":"inspect_value_prop","params":{}},{"id":"start_core_workflow","params":{}}]}"#]))`
-    - Print PMF experience schema: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "experience-schema"]))`
-    - PMF smoke: `\(RustVerifyCommands.cargo(RustVerifyCommands.pmfSmoke))`
+    - Run productization experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "productization-experience", "--input", #"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"solution":{"id":"solution-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"productization/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"start_solution_workflow","params":{}}]}"#]))`
+    - Print productization experience schema: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "productization-experience-schema"]))`
+    - Productization smoke: `\(RustVerifyCommands.cargo(RustVerifyCommands.productizationSmoke))`
     - Run desktop: `\(RustVerifyCommands.cargo(RustVerifyCommands.runDesktop))`
     - Fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
     - Visual verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerifyNoBase64))`
@@ -307,15 +315,51 @@ struct RustProjectScaffold: Equatable, Sendable {
     """
   }
 
-  private static func experienceInputSchema() -> String {
+  private static func productizationExperienceInputSchema() -> String {
     """
     {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "title": "ExperienceInput",
+      "title": "ProductizationExperienceInput",
       "type": "object",
-      "required": ["schemaVersion", "scenario", "actions"],
+      "required": [
+        "schemaVersion",
+        "pain",
+        "solution",
+        "experiment",
+        "scenario",
+        "currentWorkflow",
+        "alternatives",
+        "actions"
+      ],
       "properties": {
         "schemaVersion": { "type": "integer", "const": 1 },
+        "pain": {
+          "type": "object",
+          "required": ["id", "summary", "impact"],
+          "properties": {
+            "id": { "type": "string" },
+            "summary": { "type": "string" },
+            "impact": { "type": "string" }
+          }
+        },
+        "solution": {
+          "type": "object",
+          "required": ["id", "title", "promise"],
+          "properties": {
+            "id": { "type": "string" },
+            "title": { "type": "string" },
+            "promise": { "type": "string" }
+          }
+        },
+        "experiment": {
+          "type": "object",
+          "required": ["id", "branchName", "successSignal"],
+          "properties": {
+            "id": { "type": "string" },
+            "branchName": { "type": "string" },
+            "successSignal": { "type": "string" }
+          }
+        },
         "scenario": {
           "type": "object",
           "required": ["seed", "personaSummary", "task"],
@@ -323,6 +367,30 @@ struct RustProjectScaffold: Equatable, Sendable {
             "seed": { "type": "string" },
             "personaSummary": { "type": "string" },
             "task": { "type": "string" }
+          }
+        },
+        "currentWorkflow": {
+          "type": "object",
+          "required": ["summary", "frictionPoints"],
+          "properties": {
+            "summary": { "type": "string" },
+            "frictionPoints": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "description", "switchingObjection"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "description": { "type": "string" },
+              "switchingObjection": { "type": "string" }
+            }
           }
         },
         "actions": {
@@ -341,24 +409,29 @@ struct RustProjectScaffold: Equatable, Sendable {
     """
   }
 
-  private static func experienceTraceSchema() -> String {
+  private static func productizationExperienceTraceSchema() -> String {
     """
     {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "title": "ExperienceTrace",
+      "title": "ProductizationExperienceTrace",
       "type": "object",
       "required": [
         "schemaVersion",
-        "scenario",
+        "painID",
+        "solutionID",
+        "experimentID",
         "initialState",
         "turns",
         "allowedNextActions",
         "terminalStatus",
-        "eventLog"
+        "eventLog",
+        "painReliefSignals"
       ],
       "properties": {
         "schemaVersion": { "type": "integer", "const": 1 },
-        "scenario": { "type": "object" },
+        "painID": { "type": "string" },
+        "solutionID": { "type": "string" },
+        "experimentID": { "type": "string" },
         "initialState": { "type": "object" },
         "turns": { "type": "array" },
         "allowedNextActions": { "type": "array" },
@@ -369,6 +442,28 @@ struct RustProjectScaffold: Equatable, Sendable {
         "eventLog": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "painReliefSignals": {
+          "type": "object",
+          "required": [
+            "painRecognized",
+            "workflowAdvanced",
+            "currentAlternativeAddressed",
+            "switchingObjectionReduced",
+            "missingCapabilityIDs",
+            "evidenceSummary"
+          ],
+          "properties": {
+            "painRecognized": { "type": "boolean" },
+            "workflowAdvanced": { "type": "boolean" },
+            "currentAlternativeAddressed": { "type": "boolean" },
+            "switchingObjectionReduced": { "type": "boolean" },
+            "missingCapabilityIDs": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "evidenceSummary": { "type": "string" }
+          }
         }
       }
     }
@@ -465,23 +560,67 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct ExperienceInput {
+    pub struct ProductizationExperienceInput {
         pub schema_version: u8,
-        pub scenario: ExperienceScenario,
+        pub pain: ProductizationPain,
+        pub solution: ProductizationSolution,
+        pub experiment: ProductizationExperiment,
+        pub scenario: ProductizationScenario,
+        pub current_workflow: ProductizationCurrentWorkflow,
         #[serde(default)]
-        pub actions: Vec<ExperienceAction>,
+        pub alternatives: Vec<ProductizationAlternative>,
+        #[serde(default)]
+        pub actions: Vec<ProductizationExperienceAction>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct ProductizationPain {
+        pub id: String,
+        pub summary: String,
+        pub impact: String,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct ProductizationSolution {
+        pub id: String,
+        pub title: String,
+        pub promise: String,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct ExperienceScenario {
+    pub struct ProductizationExperiment {
+        pub id: String,
+        pub branch_name: String,
+        pub success_signal: String,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ProductizationScenario {
         pub seed: String,
         pub persona_summary: String,
         pub task: String,
     }
 
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ProductizationCurrentWorkflow {
+        pub summary: String,
+        pub friction_points: Vec<String>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ProductizationAlternative {
+        pub id: String,
+        pub name: String,
+        pub description: String,
+        pub switching_objection: String,
+    }
+
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-    pub struct ExperienceAction {
+    pub struct ProductizationExperienceAction {
         pub id: String,
         #[serde(default = "empty_params")]
         pub params: Value,
@@ -489,7 +628,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct ExperienceAllowedAction {
+    pub struct ProductizationExperienceAllowedAction {
         pub id: String,
         pub label: String,
         pub description: String,
@@ -498,17 +637,17 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct ExperienceState {
+    pub struct ProductizationExperienceState {
         pub id: String,
         pub headline: String,
         pub body: String,
-        pub semantic_nodes: Vec<ExperienceNode>,
+        pub semantic_nodes: Vec<ProductizationExperienceNode>,
         pub observations: Vec<String>,
         pub terminal: bool,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct ExperienceNode {
+    pub struct ProductizationExperienceNode {
         pub id: String,
         pub role: String,
         pub text: String,
@@ -516,29 +655,46 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct ExperienceTurn {
+    pub struct ProductizationExperienceTurn {
         pub index: u32,
-        pub action: ExperienceAction,
-        pub state: ExperienceState,
-        pub allowed_next_actions: Vec<ExperienceAllowedAction>,
+        pub action: ProductizationExperienceAction,
+        pub state: ProductizationExperienceState,
+        pub allowed_next_actions: Vec<ProductizationExperienceAllowedAction>,
         pub event_log: Vec<String>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct PainReliefSignals {
+        pub pain_recognized: bool,
+        pub workflow_advanced: bool,
+        pub current_alternative_addressed: bool,
+        pub switching_objection_reduced: bool,
+        pub missing_capability_ids: Vec<String>,
+        pub evidence_summary: String,
     }
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct ExperienceTrace {
+    pub struct ProductizationExperienceTrace {
         pub schema_version: u8,
-        pub scenario: ExperienceScenario,
-        pub initial_state: ExperienceState,
-        pub turns: Vec<ExperienceTurn>,
-        pub allowed_next_actions: Vec<ExperienceAllowedAction>,
-        pub terminal_status: ExperienceTerminalStatus,
+        #[serde(rename = "painID")]
+        pub pain_id: String,
+        #[serde(rename = "solutionID")]
+        pub solution_id: String,
+        #[serde(rename = "experimentID")]
+        pub experiment_id: String,
+        pub initial_state: ProductizationExperienceState,
+        pub turns: Vec<ProductizationExperienceTurn>,
+        pub allowed_next_actions: Vec<ProductizationExperienceAllowedAction>,
+        pub terminal_status: ProductizationExperienceTerminalStatus,
         pub event_log: Vec<String>,
+        pub pain_relief_signals: PainReliefSignals,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "snake_case")]
-    pub enum ExperienceTerminalStatus {
+    pub enum ProductizationExperienceTerminalStatus {
         InProgress,
         Completed,
         Abandoned,
@@ -546,10 +702,14 @@ struct RustProjectScaffold: Equatable, Sendable {
     }
 
     #[derive(Debug, Clone)]
-    struct ExperienceRuntime {
-        state: ExperienceState,
-        terminal_status: ExperienceTerminalStatus,
+    struct ProductizationExperienceRuntime {
+        state: ProductizationExperienceState,
+        terminal_status: ProductizationExperienceTerminalStatus,
         event_log: Vec<String>,
+        pain_recognized: bool,
+        workflow_advanced: bool,
+        current_alternative_addressed: bool,
+        switching_objection_reduced: bool,
     }
 
     impl DemoState {
@@ -657,36 +817,80 @@ struct RustProjectScaffold: Equatable, Sendable {
         gui_semantic_snapshot(state, input_status, replay_events)
     }
 
-    impl Default for ExperienceInput {
+    impl Default for ProductizationExperienceInput {
         fn default() -> Self {
             Self {
                 schema_version: 1,
-                scenario: ExperienceScenario {
+                pain: ProductizationPain {
+                    id: "pain-reporting".to_owned(),
+                    summary: "Weekly reporting takes too long".to_owned(),
+                    impact: "Managers lose visibility and operators spend Friday chasing updates"
+                        .to_owned(),
+                },
+                solution: ProductizationSolution {
+                    id: "solution-compass".to_owned(),
+                    title: "Compass workflow helper".to_owned(),
+                    promise: "Turn scattered updates into a reviewed weekly report".to_owned(),
+                },
+                experiment: ProductizationExperiment {
+                    id: "experiment-reporting".to_owned(),
+                    branch_name: "productization/reporting".to_owned(),
+                    success_signal:
+                        "Persona completes a report draft and sees why it beats the current workflow"
+                            .to_owned(),
+                },
+                scenario: ProductizationScenario {
                     seed: "demo".to_owned(),
                     persona_summary: "Operations lead evaluating a workflow tool".to_owned(),
-                    task: "Find whether this app can reduce weekly reporting work".to_owned(),
+                    task: "Reduce weekly reporting work".to_owned(),
                 },
+                current_workflow: ProductizationCurrentWorkflow {
+                    summary:
+                        "Collect updates manually, paste them into a spreadsheet, and chase missing details"
+                            .to_owned(),
+                    friction_points: vec![
+                        "manual copy paste".to_owned(),
+                        "late follow ups".to_owned(),
+                    ],
+                },
+                alternatives: vec![ProductizationAlternative {
+                    id: "spreadsheet".to_owned(),
+                    name: "Shared spreadsheet".to_owned(),
+                    description: "A manual tracker with copied status updates.".to_owned(),
+                    switching_objection: "The team already knows the spreadsheet.".to_owned(),
+                }],
                 actions: Vec::new(),
             }
         }
     }
 
-    pub fn run_experience(input: ExperienceInput) -> ExperienceTrace {
-        let mut runtime = ExperienceRuntime {
-            state: initial_experience_state(&input.scenario),
-            terminal_status: ExperienceTerminalStatus::InProgress,
-            event_log: vec![format!("scenario_seed:{}", input.scenario.seed)],
+    pub fn run_productization_experience(
+        input: ProductizationExperienceInput,
+    ) -> ProductizationExperienceTrace {
+        let mut runtime = ProductizationExperienceRuntime {
+            state: initial_productization_experience_state(&input),
+            terminal_status: ProductizationExperienceTerminalStatus::InProgress,
+            event_log: vec![
+                format!("pain:{}", input.pain.id),
+                format!("solution:{}", input.solution.id),
+                format!("experiment:{}", input.experiment.id),
+                format!("scenario_seed:{}", input.scenario.seed),
+            ],
+            pain_recognized: false,
+            workflow_advanced: false,
+            current_alternative_addressed: false,
+            switching_objection_reduced: false,
         };
         let initial_state = runtime.state.clone();
         let mut turns = Vec::new();
 
-        for (index, action) in input.actions.into_iter().enumerate() {
-            let allowed_before = allowed_experience_actions(&runtime.state, runtime.terminal_status);
+        for (index, action) in input.actions.iter().cloned().enumerate() {
+            let allowed_before = allowed_productization_experience_actions(&runtime);
             let turn_events = if allowed_before.iter().any(|allowed| allowed.id == action.id) {
-                apply_experience_action(&mut runtime, &action, index)
+                apply_productization_experience_action(&mut runtime, &input, &action, index)
             } else {
-                runtime.terminal_status = ExperienceTerminalStatus::InvalidAction;
-                runtime.state = experience_state(
+                runtime.terminal_status = ProductizationExperienceTerminalStatus::InvalidAction;
+                runtime.state = productization_experience_state(
                     "invalid_action",
                     "Invalid action rejected",
                     format!(
@@ -699,85 +903,146 @@ struct RustProjectScaffold: Equatable, Sendable {
                 vec![format!("turn:{index}:invalid_action:{}", action.id)]
             };
             runtime.event_log.extend(turn_events.clone());
-            let allowed_next_actions =
-                allowed_experience_actions(&runtime.state, runtime.terminal_status);
-            turns.push(ExperienceTurn {
+            let allowed_next_actions = allowed_productization_experience_actions(&runtime);
+            turns.push(ProductizationExperienceTurn {
                 index: index as u32,
                 action,
                 state: runtime.state.clone(),
                 allowed_next_actions,
                 event_log: turn_events,
             });
-            if runtime.terminal_status != ExperienceTerminalStatus::InProgress {
+            if runtime.terminal_status != ProductizationExperienceTerminalStatus::InProgress {
                 break;
             }
         }
 
-        ExperienceTrace {
+        let pain_relief_signals = pain_relief_signals(&runtime, &input);
+        ProductizationExperienceTrace {
             schema_version: 1,
-            scenario: input.scenario,
+            pain_id: input.pain.id,
+            solution_id: input.solution.id,
+            experiment_id: input.experiment.id,
             initial_state,
             turns,
-            allowed_next_actions: allowed_experience_actions(&runtime.state, runtime.terminal_status),
+            allowed_next_actions: allowed_productization_experience_actions(&runtime),
             terminal_status: runtime.terminal_status,
             event_log: runtime.event_log,
+            pain_relief_signals,
         }
     }
 
-    fn initial_experience_state(scenario: &ExperienceScenario) -> ExperienceState {
-        experience_state(
+    fn initial_productization_experience_state(
+        input: &ProductizationExperienceInput,
+    ) -> ProductizationExperienceState {
+        productization_experience_state(
             "initial",
-            "Ready to evaluate the product promise",
+            "Ready to evaluate pain relief",
             format!(
-                "{} is trying to: {}",
-                scenario.persona_summary, scenario.task
+                "{} is trying to: {}. Current workflow: {}. Proposed solution: {}.",
+                input.scenario.persona_summary,
+                input.scenario.task,
+                input.current_workflow.summary,
+                input.solution.promise
             ),
             vec![
-                "value proposition visible".to_owned(),
-                "core workflow entry point visible".to_owned(),
+                format!("pain visible: {}", input.pain.summary),
+                "solution workflow entry point visible".to_owned(),
+                format!("alternatives available: {}", input.alternatives.len()),
             ],
             false,
         )
     }
 
-    fn apply_experience_action(
-        runtime: &mut ExperienceRuntime,
-        action: &ExperienceAction,
+    fn apply_productization_experience_action(
+        runtime: &mut ProductizationExperienceRuntime,
+        input: &ProductizationExperienceInput,
+        action: &ProductizationExperienceAction,
         index: usize,
     ) -> Vec<String> {
         match action.id.as_str() {
-            "inspect_value_prop" => {
-                runtime.state = experience_state(
-                    "value_prop_inspected",
-                    "Value proposition inspected",
-                    "The app claims it can make the target workflow clearer and easier to judge.",
+            "inspect_pain" => {
+                runtime.pain_recognized = true;
+                runtime.state = productization_experience_state(
+                    "pain_inspected",
+                    "Pain inspected",
+                    format!(
+                        "The app names `{}` and explains the impact: {}.",
+                        input.pain.summary, input.pain.impact
+                    ),
                     vec![
-                        "promise inspected".to_owned(),
-                        "specific proof still requested".to_owned(),
+                        "pain named".to_owned(),
+                        "impact visible".to_owned(),
+                        "solution proof still requested".to_owned(),
                     ],
                     false,
                 );
-                vec![format!("turn:{index}:inspect_value_prop")]
+                vec![format!("turn:{index}:inspect_pain")]
             }
-            "start_core_workflow" => {
-                runtime.state = experience_state(
+            "compare_current_alternative" => {
+                runtime.current_alternative_addressed = true;
+                runtime.state = productization_experience_state(
+                    "alternative_compared",
+                    "Current alternative compared",
+                    format!(
+                        "The app compares `{}` with `{}` and invites a switching objection: {}",
+                        input.solution.title,
+                        current_alternative_label(input),
+                        current_switching_objection(input)
+                    ),
+                    vec![
+                        "alternative named".to_owned(),
+                        "switching objection invited".to_owned(),
+                    ],
+                    false,
+                );
+                vec![format!("turn:{index}:compare_current_alternative")]
+            }
+            "reduce_switching_objection" => {
+                runtime.switching_objection_reduced = true;
+                runtime.current_alternative_addressed = true;
+                runtime.state = productization_experience_state(
+                    "switching_objection_reduced",
+                    "Switching objection reduced",
+                    format!(
+                        "The app answers why leaving `{}` is worth testing for this experiment.",
+                        current_alternative_label(input)
+                    ),
+                    vec![
+                        "switching objection acknowledged".to_owned(),
+                        "experiment-sized switch framed".to_owned(),
+                    ],
+                    false,
+                );
+                vec![format!("turn:{index}:reduce_switching_objection")]
+            }
+            "start_solution_workflow" => {
+                runtime.workflow_advanced = true;
+                runtime.state = productization_experience_state(
                     "workflow_started",
-                    "Core workflow started",
-                    "The app asks for one concrete input before it can show workflow value.",
+                    "Solution workflow started",
+                    format!(
+                        "The app starts `{}` and asks for one concrete input before it can show pain relief.",
+                        input.solution.title
+                    ),
                     vec![
                         "workflow entry accepted".to_owned(),
                         "requested input visible".to_owned(),
                     ],
                     false,
                 );
-                vec![format!("turn:{index}:start_core_workflow")]
+                vec![format!("turn:{index}:start_solution_workflow")]
             }
             "provide_requested_input" => {
-                runtime.terminal_status = ExperienceTerminalStatus::Completed;
-                runtime.state = experience_state(
+                runtime.workflow_advanced = true;
+                runtime.terminal_status = ProductizationExperienceTerminalStatus::Completed;
+                runtime.state = productization_experience_state(
                     "workflow_completed",
-                    "Workflow outcome shown",
-                    "The app returns a deterministic outcome that can be compared with the current alternative.",
+                    "Pain relief outcome shown",
+                    format!(
+                        "The app returns a deterministic outcome for `{}` that can be compared with `{}`.",
+                        input.experiment.success_signal,
+                        current_alternative_label(input)
+                    ),
                     vec![
                         "workflow completed".to_owned(),
                         "outcome ready for feedback".to_owned(),
@@ -787,10 +1052,10 @@ struct RustProjectScaffold: Equatable, Sendable {
                 vec![format!("turn:{index}:provide_requested_input")]
             }
             "ask_for_help" => {
-                runtime.state = experience_state(
+                runtime.state = productization_experience_state(
                     "help_requested",
                     "Help requested",
-                    "The app explains the next step but still expects the persona to judge whether the promise is concrete.",
+                    "The app explains the next step but still expects the persona to judge whether the pain relief is concrete.",
                     vec![
                         "help surfaced".to_owned(),
                         "next action clarified".to_owned(),
@@ -799,57 +1064,45 @@ struct RustProjectScaffold: Equatable, Sendable {
                 );
                 vec![format!("turn:{index}:ask_for_help")]
             }
-            "compare_with_current_alternative" => {
-                runtime.state = experience_state(
-                    "alternative_compared",
-                    "Current alternative compared",
-                    "The app frames the workflow against a manual process, spreadsheet, or existing workaround.",
-                    vec![
-                        "alternative named".to_owned(),
-                        "switching objection invited".to_owned(),
-                    ],
-                    false,
-                );
-                vec![format!("turn:{index}:compare_with_current_alternative")]
-            }
             "abandon_task" => {
-                runtime.terminal_status = ExperienceTerminalStatus::Abandoned;
-                runtime.state = experience_state(
+                runtime.terminal_status = ProductizationExperienceTerminalStatus::Abandoned;
+                runtime.state = productization_experience_state(
                     "abandoned",
                     "Task abandoned",
-                    "The persona left the flow before the app proved enough value.",
+                    "The persona left the flow before the app proved enough pain relief.",
                     vec!["task abandoned".to_owned()],
                     true,
                 );
                 vec![format!("turn:{index}:abandon_task")]
             }
-            _ => unreachable!("caller validates allowed experience actions"),
+            _ => unreachable!("caller validates allowed productization actions"),
         }
     }
 
-    fn allowed_experience_actions(
-        state: &ExperienceState,
-        terminal_status: ExperienceTerminalStatus,
-    ) -> Vec<ExperienceAllowedAction> {
-        if terminal_status != ExperienceTerminalStatus::InProgress || state.terminal {
+    fn allowed_productization_experience_actions(
+        runtime: &ProductizationExperienceRuntime,
+    ) -> Vec<ProductizationExperienceAllowedAction> {
+        if runtime.terminal_status != ProductizationExperienceTerminalStatus::InProgress
+            || runtime.state.terminal
+        {
             return Vec::new();
         }
-        match state.id.as_str() {
+        match runtime.state.id.as_str() {
             "initial" => vec![
                 allowed_action(
-                    "inspect_value_prop",
-                    "Inspect value proposition",
-                    "Read what product value the app claims to provide.",
+                    "inspect_pain",
+                    "Inspect pain",
+                    "Read the pain and impact this experiment is meant to relieve.",
                 ),
                 allowed_action(
-                    "start_core_workflow",
-                    "Start core workflow",
+                    "compare_current_alternative",
+                    "Compare current alternative",
+                    "Judge the solution against the current workflow or workaround.",
+                ),
+                allowed_action(
+                    "start_solution_workflow",
+                    "Start solution workflow",
                     "Try the main workflow exposed by the app.",
-                ),
-                allowed_action(
-                    "compare_with_current_alternative",
-                    "Compare with current alternative",
-                    "Judge the promise against the persona's existing workaround.",
                 ),
                 allowed_action(
                     "ask_for_help",
@@ -859,7 +1112,68 @@ struct RustProjectScaffold: Equatable, Sendable {
                 allowed_action(
                     "abandon_task",
                     "Abandon task",
-                    "Stop because value is not clear.",
+                    "Stop because pain relief is not clear.",
+                ),
+            ],
+            "pain_inspected" | "help_requested" => vec![
+                allowed_action(
+                    "compare_current_alternative",
+                    "Compare current alternative",
+                    "Judge the solution against the current workflow or workaround.",
+                ),
+                allowed_action(
+                    "start_solution_workflow",
+                    "Start solution workflow",
+                    "Try the main workflow exposed by the app.",
+                ),
+                allowed_action(
+                    "ask_for_help",
+                    "Ask for help",
+                    "Request clarification about what to do next.",
+                ),
+                allowed_action(
+                    "abandon_task",
+                    "Abandon task",
+                    "Stop because pain relief is not clear.",
+                ),
+            ],
+            "alternative_compared" => vec![
+                allowed_action(
+                    "reduce_switching_objection",
+                    "Reduce switching objection",
+                    "See whether the app answers why switching is worth testing.",
+                ),
+                allowed_action(
+                    "start_solution_workflow",
+                    "Start solution workflow",
+                    "Try the main workflow exposed by the app.",
+                ),
+                allowed_action(
+                    "ask_for_help",
+                    "Ask for help",
+                    "Request clarification about what to do next.",
+                ),
+                allowed_action(
+                    "abandon_task",
+                    "Abandon task",
+                    "Stop because pain relief is not clear.",
+                ),
+            ],
+            "switching_objection_reduced" => vec![
+                allowed_action(
+                    "start_solution_workflow",
+                    "Start solution workflow",
+                    "Try the main workflow exposed by the app.",
+                ),
+                allowed_action(
+                    "ask_for_help",
+                    "Ask for help",
+                    "Request clarification about what to do next.",
+                ),
+                allowed_action(
+                    "abandon_task",
+                    "Abandon task",
+                    "Stop because pain relief is not clear.",
                 ),
             ],
             "workflow_started" => vec![
@@ -876,37 +1190,64 @@ struct RustProjectScaffold: Equatable, Sendable {
                 allowed_action(
                     "abandon_task",
                     "Abandon task",
-                    "Stop because value is not clear.",
-                ),
-            ],
-            "value_prop_inspected" | "help_requested" | "alternative_compared" => vec![
-                allowed_action(
-                    "start_core_workflow",
-                    "Start core workflow",
-                    "Try the main workflow exposed by the app.",
-                ),
-                allowed_action(
-                    "compare_with_current_alternative",
-                    "Compare with current alternative",
-                    "Judge the promise against the persona's existing workaround.",
-                ),
-                allowed_action(
-                    "ask_for_help",
-                    "Ask for help",
-                    "Request clarification about what to do next.",
-                ),
-                allowed_action(
-                    "abandon_task",
-                    "Abandon task",
-                    "Stop because value is not clear.",
+                    "Stop because pain relief is not clear.",
                 ),
             ],
             _ => Vec::new(),
         }
     }
 
-    fn allowed_action(id: &str, label: &str, description: &str) -> ExperienceAllowedAction {
-        ExperienceAllowedAction {
+    fn pain_relief_signals(
+        runtime: &ProductizationExperienceRuntime,
+        input: &ProductizationExperienceInput,
+    ) -> PainReliefSignals {
+        let mut missing_capability_ids = Vec::new();
+        if !runtime.pain_recognized {
+            missing_capability_ids.push("pain_recognition".to_owned());
+        }
+        if !runtime.workflow_advanced {
+            missing_capability_ids.push("workflow_advancement".to_owned());
+        }
+        if !runtime.current_alternative_addressed {
+            missing_capability_ids.push("current_alternative_comparison".to_owned());
+        }
+        if !runtime.switching_objection_reduced {
+            missing_capability_ids.push("switching_objection_reduction".to_owned());
+        }
+        if input.alternatives.is_empty() {
+            missing_capability_ids.push("named_current_alternative".to_owned());
+        }
+
+        let evidence_summary = if missing_capability_ids.is_empty() {
+            format!(
+                "The trace recognizes `{}`, advances the solution workflow, compares against `{}`, and reduces the switching objection.",
+                input.pain.summary,
+                current_alternative_label(input)
+            )
+        } else {
+            format!(
+                "The trace partially evaluates `{}`; missing deterministic proof for {}.",
+                input.pain.summary,
+                missing_capability_ids.join(", ")
+            )
+        };
+
+        PainReliefSignals {
+            pain_recognized: runtime.pain_recognized,
+            workflow_advanced: runtime.workflow_advanced,
+            current_alternative_addressed: runtime.current_alternative_addressed,
+            switching_objection_reduced: runtime.switching_objection_reduced,
+            missing_capability_ids,
+            evidence_summary,
+        }
+    }
+
+    fn allowed_action(
+        id: &str,
+        label: &str,
+        description: &str,
+    ) -> ProductizationExperienceAllowedAction {
+        ProductizationExperienceAllowedAction {
             id: id.to_owned(),
             label: label.to_owned(),
             description: description.to_owned(),
@@ -917,24 +1258,24 @@ struct RustProjectScaffold: Equatable, Sendable {
         }
     }
 
-    fn experience_state(
+    fn productization_experience_state(
         id: &str,
         headline: impl Into<String>,
         body: impl Into<String>,
         observations: Vec<String>,
         terminal: bool,
-    ) -> ExperienceState {
+    ) -> ProductizationExperienceState {
         let headline = headline.into();
         let body = body.into();
-        ExperienceState {
+        ProductizationExperienceState {
             id: id.to_owned(),
             semantic_nodes: vec![
-                ExperienceNode {
+                ProductizationExperienceNode {
                     id: "screen.headline".to_owned(),
                     role: "heading".to_owned(),
                     text: headline.clone(),
                 },
-                ExperienceNode {
+                ProductizationExperienceNode {
                     id: "screen.body".to_owned(),
                     role: "text".to_owned(),
                     text: body.clone(),
@@ -945,6 +1286,22 @@ struct RustProjectScaffold: Equatable, Sendable {
             observations,
             terminal,
         }
+    }
+
+    fn current_alternative_label(input: &ProductizationExperienceInput) -> String {
+        input
+            .alternatives
+            .first()
+            .map(|alternative| alternative.name.clone())
+            .unwrap_or_else(|| input.current_workflow.summary.clone())
+    }
+
+    fn current_switching_objection(input: &ProductizationExperienceInput) -> String {
+        input
+            .alternatives
+            .first()
+            .map(|alternative| alternative.switching_objection.clone())
+            .unwrap_or_else(|| "No named alternative was provided.".to_owned())
     }
 
     fn empty_params() -> Value {
@@ -1044,14 +1401,50 @@ struct RustProjectScaffold: Equatable, Sendable {
         })
     }
 
-    pub fn experience_input_schema() -> Value {
+    pub fn productization_experience_input_schema() -> Value {
         json!({
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "ExperienceInput",
+            "title": "ProductizationExperienceInput",
             "type": "object",
-            "required": ["schemaVersion", "scenario", "actions"],
+            "required": [
+                "schemaVersion",
+                "pain",
+                "solution",
+                "experiment",
+                "scenario",
+                "currentWorkflow",
+                "alternatives",
+                "actions"
+            ],
             "properties": {
                 "schemaVersion": { "type": "integer", "const": 1 },
+                "pain": {
+                    "type": "object",
+                    "required": ["id", "summary", "impact"],
+                    "properties": {
+                        "id": { "type": "string" },
+                        "summary": { "type": "string" },
+                        "impact": { "type": "string" }
+                    }
+                },
+                "solution": {
+                    "type": "object",
+                    "required": ["id", "title", "promise"],
+                    "properties": {
+                        "id": { "type": "string" },
+                        "title": { "type": "string" },
+                        "promise": { "type": "string" }
+                    }
+                },
+                "experiment": {
+                    "type": "object",
+                    "required": ["id", "branchName", "successSignal"],
+                    "properties": {
+                        "id": { "type": "string" },
+                        "branchName": { "type": "string" },
+                        "successSignal": { "type": "string" }
+                    }
+                },
                 "scenario": {
                     "type": "object",
                     "required": ["seed", "personaSummary", "task"],
@@ -1059,6 +1452,30 @@ struct RustProjectScaffold: Equatable, Sendable {
                         "seed": { "type": "string" },
                         "personaSummary": { "type": "string" },
                         "task": { "type": "string" }
+                    }
+                },
+                "currentWorkflow": {
+                    "type": "object",
+                    "required": ["summary", "frictionPoints"],
+                    "properties": {
+                        "summary": { "type": "string" },
+                        "frictionPoints": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        }
+                    }
+                },
+                "alternatives": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["id", "name", "description", "switchingObjection"],
+                        "properties": {
+                            "id": { "type": "string" },
+                            "name": { "type": "string" },
+                            "description": { "type": "string" },
+                            "switchingObjection": { "type": "string" }
+                        }
                     }
                 },
                 "actions": {
@@ -1076,23 +1493,28 @@ struct RustProjectScaffold: Equatable, Sendable {
         })
     }
 
-    pub fn experience_trace_schema() -> Value {
+    pub fn productization_experience_trace_schema() -> Value {
         json!({
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "ExperienceTrace",
+            "title": "ProductizationExperienceTrace",
             "type": "object",
             "required": [
                 "schemaVersion",
-                "scenario",
+                "painID",
+                "solutionID",
+                "experimentID",
                 "initialState",
                 "turns",
                 "allowedNextActions",
                 "terminalStatus",
-                "eventLog"
+                "eventLog",
+                "painReliefSignals"
             ],
             "properties": {
                 "schemaVersion": { "type": "integer", "const": 1 },
-                "scenario": { "type": "object" },
+                "painID": { "type": "string" },
+                "solutionID": { "type": "string" },
+                "experimentID": { "type": "string" },
                 "initialState": { "type": "object" },
                 "turns": { "type": "array" },
                 "allowedNextActions": { "type": "array" },
@@ -1103,16 +1525,38 @@ struct RustProjectScaffold: Equatable, Sendable {
                 "eventLog": {
                     "type": "array",
                     "items": { "type": "string" }
+                },
+                "painReliefSignals": {
+                    "type": "object",
+                    "required": [
+                        "painRecognized",
+                        "workflowAdvanced",
+                        "currentAlternativeAddressed",
+                        "switchingObjectionReduced",
+                        "missingCapabilityIDs",
+                        "evidenceSummary"
+                    ],
+                    "properties": {
+                        "painRecognized": { "type": "boolean" },
+                        "workflowAdvanced": { "type": "boolean" },
+                        "currentAlternativeAddressed": { "type": "boolean" },
+                        "switchingObjectionReduced": { "type": "boolean" },
+                        "missingCapabilityIDs": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        },
+                        "evidenceSummary": { "type": "string" }
+                    }
                 }
             }
         })
     }
 
-    pub fn experience_contract_schema() -> Value {
+    pub fn productization_experience_contract_schema() -> Value {
         json!({
             "schemaVersion": 1,
-            "input": experience_input_schema(),
-            "trace": experience_trace_schema()
+            "input": productization_experience_input_schema(),
+            "trace": productization_experience_trace_schema()
         })
     }
 
@@ -1122,9 +1566,11 @@ struct RustProjectScaffold: Equatable, Sendable {
   private static func appCoreTests() -> String {
     """
     use app_core::{
-        run_experience, run_gui_replay, run_simulation, DemoState, ExperienceAction, ExperienceInput,
-        ExperienceScenario, ExperienceTerminalStatus, GuiReplayAction, GuiReplayStep, GuiReplayTrace,
-        SimulationAction, SimulationInput,
+        run_gui_replay, run_productization_experience, run_simulation, DemoState, GuiReplayAction,
+        GuiReplayStep, GuiReplayTrace, ProductizationAlternative, ProductizationCurrentWorkflow,
+        ProductizationExperienceAction, ProductizationExperienceInput,
+        ProductizationExperienceTerminalStatus, ProductizationExperiment, ProductizationPain,
+        ProductizationScenario, ProductizationSolution, SimulationAction, SimulationInput,
     };
     use serde_json::json;
 
@@ -1185,33 +1631,73 @@ struct RustProjectScaffold: Equatable, Sendable {
     }
 
     #[test]
-    fn experience_fixture_replays_allowed_actions_deterministically() {
-        let input = ExperienceInput {
+    fn productization_experience_fixture_replays_allowed_actions_deterministically() {
+        let input = ProductizationExperienceInput {
             schema_version: 1,
-            scenario: ExperienceScenario {
-                seed: "pmf-case".to_owned(),
+            pain: ProductizationPain {
+                id: "pain-reporting".to_owned(),
+                summary: "Weekly reporting takes too long".to_owned(),
+                impact: "Managers lack timely visibility".to_owned(),
+            },
+            solution: ProductizationSolution {
+                id: "solution-reporting".to_owned(),
+                title: "Reporting helper".to_owned(),
+                promise: "Generate a reviewed weekly report from scattered updates".to_owned(),
+            },
+            experiment: ProductizationExperiment {
+                id: "experiment-reporting".to_owned(),
+                branch_name: "productization/reporting".to_owned(),
+                success_signal: "Persona completes a report draft".to_owned(),
+            },
+            scenario: ProductizationScenario {
+                seed: "productization-case".to_owned(),
                 persona_summary: "Operations lead evaluating reporting workflow".to_owned(),
                 task: "Try the core workflow".to_owned(),
             },
+            current_workflow: ProductizationCurrentWorkflow {
+                summary: "Manual spreadsheet and follow-up messages".to_owned(),
+                friction_points: vec!["copy paste".to_owned(), "late follow ups".to_owned()],
+            },
+            alternatives: vec![ProductizationAlternative {
+                id: "spreadsheet".to_owned(),
+                name: "Shared spreadsheet".to_owned(),
+                description: "Existing reporting tracker".to_owned(),
+                switching_objection: "The team already knows it".to_owned(),
+            }],
             actions: vec![
-                ExperienceAction {
-                    id: "inspect_value_prop".to_owned(),
+                ProductizationExperienceAction {
+                    id: "inspect_pain".to_owned(),
                     params: json!({}),
                 },
-                ExperienceAction {
-                    id: "start_core_workflow".to_owned(),
+                ProductizationExperienceAction {
+                    id: "compare_current_alternative".to_owned(),
+                    params: json!({}),
+                },
+                ProductizationExperienceAction {
+                    id: "reduce_switching_objection".to_owned(),
+                    params: json!({}),
+                },
+                ProductizationExperienceAction {
+                    id: "start_solution_workflow".to_owned(),
                     params: json!({}),
                 },
             ],
         };
 
-        let first = run_experience(input.clone());
-        let second = run_experience(input);
+        let first = run_productization_experience(input.clone());
+        let second = run_productization_experience(input);
 
         assert_eq!(first, second);
         assert_eq!(first.schema_version, 1);
-        assert_eq!(first.turns.len(), 2);
-        assert_eq!(first.terminal_status, ExperienceTerminalStatus::InProgress);
+        assert_eq!(first.pain_id, "pain-reporting");
+        assert_eq!(first.turns.len(), 4);
+        assert_eq!(
+            first.terminal_status,
+            ProductizationExperienceTerminalStatus::InProgress
+        );
+        assert!(first.pain_relief_signals.pain_recognized);
+        assert!(first.pain_relief_signals.current_alternative_addressed);
+        assert!(first.pain_relief_signals.switching_objection_reduced);
         assert!(first
             .allowed_next_actions
             .iter()
@@ -1238,9 +1724,9 @@ struct RustProjectScaffold: Equatable, Sendable {
   private static func appCLIMain() -> String {
     """
     use app_core::{
-        demo_state_schema, experience_contract_schema, gui_replay_trace_schema, run_experience,
-        run_gui_replay, run_simulation, simulation_input_schema, DemoState, ExperienceInput,
-        GuiReplayTrace, SimulationInput,
+        demo_state_schema, gui_replay_trace_schema, productization_experience_contract_schema,
+        run_gui_replay, run_productization_experience, run_simulation, simulation_input_schema,
+        DemoState, GuiReplayTrace, ProductizationExperienceInput, SimulationInput,
     };
 
     fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -1264,10 +1750,10 @@ struct RustProjectScaffold: Equatable, Sendable {
                     serde_json::to_string_pretty(&gui_replay_trace_schema())?
                 );
             }
-            Some("experience-schema") => {
+            Some("productization-experience-schema") | Some("experience-schema") => {
                 println!(
                     "{}",
-                    serde_json::to_string_pretty(&experience_contract_schema())?
+                    serde_json::to_string_pretty(&productization_experience_contract_schema())?
                 );
             }
             Some("simulate") => {
@@ -1278,13 +1764,16 @@ struct RustProjectScaffold: Equatable, Sendable {
                 let trace = parse_gui_replay_trace(args)?;
                 println!("{}", serde_json::to_string_pretty(&run_gui_replay(trace))?);
             }
-            Some("experience") => {
-                let input = parse_experience_input(args)?;
-                println!("{}", serde_json::to_string_pretty(&run_experience(input))?);
+            Some("productization-experience") | Some("experience") => {
+                let input = parse_productization_experience_input(args)?;
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&run_productization_experience(input))?
+                );
             }
             Some(other) => {
                 eprintln!("unknown command: {other}");
-                eprintln!("usage: app-cli [status|schema|simulation-schema|gui-replay-schema|experience-schema|simulate --input <json>|gui-replay --input <json>|experience --input <json>]");
+                eprintln!("usage: app-cli [status|schema|simulation-schema|gui-replay-schema|productization-experience-schema|simulate --input <json>|gui-replay --input <json>|productization-experience --input <json>]");
                 std::process::exit(2);
             }
         }
@@ -1331,9 +1820,9 @@ struct RustProjectScaffold: Equatable, Sendable {
         }
     }
 
-    fn parse_experience_input(
+    fn parse_productization_experience_input(
         mut args: impl Iterator<Item = String>,
-    ) -> Result<ExperienceInput, Box<dyn std::error::Error>> {
+    ) -> Result<ProductizationExperienceInput, Box<dyn std::error::Error>> {
         let mut input_json = None;
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -1341,13 +1830,13 @@ struct RustProjectScaffold: Equatable, Sendable {
                     input_json = args.next();
                 }
                 other => {
-                    return Err(format!("unknown experience argument: {other}").into());
+                    return Err(format!("unknown productization-experience argument: {other}").into());
                 }
             }
         }
         match input_json {
             Some(value) => Ok(serde_json::from_str(&value)?),
-            None => Ok(ExperienceInput::default()),
+            None => Ok(ProductizationExperienceInput::default()),
         }
     }
 
@@ -1719,7 +2208,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "build" => \(xtaskCargoRunExpression(RustVerifyCommands.build)),
             "run" => \(xtaskCargoRunExpression(RustVerifyCommands.runDesktop)),
             "verify" => verify_all(),
-            "pmf-smoke" => pmf_smoke(),
+            "productization-smoke" | "pmf-smoke" => productization_smoke(),
             "factory-smoke" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
             "engine-parity-check" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
             "visual-verify" => visual_verify(args.iter().any(|arg| arg == "--emit-base64")),
@@ -1753,44 +2242,74 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     fn factory_smoke(emit_base64: bool) -> Result<()> {
         verify_all()?;
-        pmf_smoke()?;
+        productization_smoke()?;
         visual_verify(emit_base64)?;
         Ok(())
     }
 
-    fn pmf_smoke() -> Result<()> {
-        let demo = run_capture("cargo", &["run", "-p", "app-cli", "--", "experience"])?;
+    fn productization_smoke() -> Result<()> {
+        let demo = run_capture(
+            "cargo",
+            &["run", "-p", "app-cli", "--", "productization-experience"],
+        )?;
         let demo_json: serde_json::Value = serde_json::from_slice(&demo)?;
         let initial_allowed = demo_json
             .get("allowedNextActions")
             .and_then(|value| value.as_array())
-            .ok_or("experience trace is missing allowedNextActions")?;
+            .ok_or("productization trace is missing allowedNextActions")?;
         if initial_allowed.is_empty() {
-            return Err("experience trace did not expose any initial allowed actions".into());
+            return Err("productization trace did not expose any initial allowed actions".into());
         }
 
-        let input = r#"{"schemaVersion":1,"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Find whether this app can reduce weekly reporting work"},"actions":[{"id":"inspect_value_prop","params":{}},{"id":"start_core_workflow","params":{}}]}"#;
+        let input = r#"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"solution":{"id":"solution-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"productization/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_solution_workflow","params":{}}]}"#;
         let first = run_capture(
             "cargo",
-            &["run", "-p", "app-cli", "--", "experience", "--input", input],
+            &[
+                "run",
+                "-p",
+                "app-cli",
+                "--",
+                "productization-experience",
+                "--input",
+                input,
+            ],
         )?;
         let second = run_capture(
             "cargo",
-            &["run", "-p", "app-cli", "--", "experience", "--input", input],
+            &[
+                "run",
+                "-p",
+                "app-cli",
+                "--",
+                "productization-experience",
+                "--input",
+                input,
+            ],
         )?;
         if first != second {
-            return Err("experience trace changed across identical invocations".into());
+            return Err("productization trace changed across identical invocations".into());
         }
 
         let trace: serde_json::Value = serde_json::from_slice(&first)?;
         let turns = trace
             .get("turns")
             .and_then(|value| value.as_array())
-            .ok_or("experience trace is missing turns")?;
-        if turns.len() < 2 {
-            return Err("experience trace did not replay at least two actions".into());
+            .ok_or("productization trace is missing turns")?;
+        if turns.len() < 4 {
+            return Err("productization trace did not replay at least four actions".into());
         }
-        println!("COMPASS_PMF_SMOKE_TRACE_BYTES={}", first.len());
+        let signals = trace
+            .get("painReliefSignals")
+            .and_then(|value| value.as_object())
+            .ok_or("productization trace is missing painReliefSignals")?;
+        if signals
+            .get("currentAlternativeAddressed")
+            .and_then(|value| value.as_bool())
+            != Some(true)
+        {
+            return Err("productization trace did not address the current alternative".into());
+        }
+        println!("COMPASS_PRODUCTIZATION_SMOKE_TRACE_BYTES={}", first.len());
         Ok(())
     }
 
