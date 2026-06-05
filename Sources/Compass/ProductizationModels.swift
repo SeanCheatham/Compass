@@ -1048,7 +1048,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     )
     self.personaRationaleSignalSummaries = ProductizationModelText.cleanedList(
       personaRationaleSignalSummaries,
-      limit: 300
+      limit: 360
     )
     self.stopReason = stopReason
     self.stopStepID = ProductizationModelText.optionalCleanedText(stopStepID, limit: 200)

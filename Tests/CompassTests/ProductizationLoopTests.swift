@@ -1015,6 +1015,153 @@ struct ProductizationLoopTests {
     try #require(digest.contains("rationale-buyer"))
   }
 
+  @Test func pmfNextActionRetargetsStalledRationaleSignalAfterCycleAudit() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    for index in config.experiments.indices.dropFirst() {
+      config.experiments[index].decision = .promoted
+    }
+    let experiment = config.experiments[0]
+    let operatorSegment = config.userSegments[0]
+    let buyer = config.userSegments[1]
+    let operatorScenario = try #require(
+      config.scenarios.first {
+        $0.experimentID == experiment.id && $0.segmentID == operatorSegment.id
+      })
+    let buyerScenario = try #require(
+      config.scenarios.first {
+        $0.experimentID == experiment.id && $0.segmentID == buyer.id
+      })
+    let scores = ProductizationEvidenceScores(
+      painRecognition: 4,
+      workflowImprovement: 4,
+      alternativeAdvantage: 4,
+      switchingReadiness: 4,
+      continuedUsePull: 4
+    )
+    let index = ProductizationEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "rationale-operator",
+          experiment: experiment,
+          config: config,
+          personaID: operatorSegment.id,
+          mode: .personaModel,
+          endedAt: 200,
+          verdict: .promising,
+          scores: scores,
+          currentAlternativeComparison: "Compared against the current workflow.",
+          scenarioID: operatorScenario.id,
+          personaActionRationales: [
+            "turn 1 choose valid action compare_current_alternative: Needed proof against the manual workflow before switching."
+          ]
+        ),
+        makeDecisionAdvisorRecord(
+          id: "rationale-buyer",
+          experiment: experiment,
+          config: config,
+          personaID: buyer.id,
+          mode: .personaModel,
+          endedAt: 300,
+          verdict: .promising,
+          scores: scores,
+          currentAlternativeComparison: "Compared against the current workflow.",
+          scenarioID: buyerScenario.id,
+          personaActionRationales: [
+            "turn 2 choose valid action reduce_switching_objection: Needed proof against the manual workflow before switching."
+          ]
+        ),
+      ]
+    )
+
+    let signal = try #require(
+      ProductFactoryRationaleSignalAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+    config = config.recordingFactoryCycleAudit(
+      ProductFactoryCycleAudit(
+        id: "factory-cycle-stalled-rationale",
+        startedAt: 350,
+        endedAt: 360,
+        executedStepIDs: [step.id],
+        experimentIDs: [experiment.id],
+        messages: ["AI-user rationale target ran 1 scenario(s): 1 completed, 0 needing review."],
+        maxSteps: 3,
+        evidenceRunStepCount: 1,
+        evidenceRunIDs: ["rationale-buyer-rerun"],
+        completedEvidenceRunCount: 1,
+        failedEvidenceRunCount: 0,
+        skippedScenarioCount: 0,
+        personaRationaleSignalSummaries: [signal.auditSummary],
+        stopReason: .noExecutableStep,
+        stopDetail: "Stopped because no executable product-factory step remains.",
+        userMessage: "Factory cycle ran 1 step(s). AI-user rationale signal still present."
+      )
+    )
+
+    let audit = try #require(
+      ProductFactoryCycleLearningAdvisor.stalledRationaleSignalAudit(
+        for: action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let retarget = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let blockedStep = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
+
+    try #require(audit.id == "factory-cycle-stalled-rationale")
+    try #require(retarget.kind == .refineBet)
+    try #require(retarget.title == "Retarget AI-user rationale signal")
+    try #require(retarget.detail.contains("factory-cycle-stalled-rationale"))
+    try #require(retarget.detail.contains("same AI-user rationale target"))
+    try #require(retarget.targetPersonaID == buyer.id)
+    try #require(retarget.targetScenarioID == buyerScenario.id)
+    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
+      config: config,
+      evidenceIndex: index,
+      isPersonaModelAvailable: true
+    ) == nil)
+    try #require(blockedStep.kind == .blocked)
+    try #require(blockedStep.blockedReason?.contains("same AI-user rationale target") == true)
+    try #require(digest.contains("Retarget AI-user rationale signal"))
+    try #require(digest.contains("factory-cycle-stalled-rationale"))
+    try #require(digest.contains("rationale signals"))
+  }
+
   @Test func pmfNextActionRefinesRepeatedRationaleSignalBeforeGenericNarrowing() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",

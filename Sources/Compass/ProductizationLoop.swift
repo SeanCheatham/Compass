@@ -1609,7 +1609,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     )
     self.personaRationaleSignalSummaries = ProductizationModelText.cleanedList(
       personaRationaleSignalSummaries,
-      limit: 300
+      limit: 360
     )
   }
 
@@ -1972,6 +1972,43 @@ enum ProductFactoryCycleLearningAdvisor {
       }
   }
 
+  static func stalledRationaleSignalAudit(
+    for action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryCycleAudit? {
+    guard isTargetedRationaleSignalAction(action) else { return nil }
+    let stepID = ProductFactoryCycleFailureAdvisor.stepID(for: action)
+    let currentSignal = ProductFactoryRationaleSignalAdvisor.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    return config.factoryCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(5)
+      .first { audit in
+        guard audit.stopReason != .executionFailed,
+          audit.experimentIDs.contains(experiment.id),
+          audit.evidenceRunStepCount > 0,
+          audit.completedEvidenceRunCount > 0,
+          matchesExecutedStepID(stepID, audit: audit),
+          !audit.personaRationaleSignalSummaries.isEmpty,
+          matchesCurrentRationaleSignal(
+            audit: audit,
+            action: action,
+            signal: currentSignal
+          ),
+          !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
+        else { return false }
+        return true
+      }
+  }
+
   private static func isBroadCohortAction(_ action: ProductMarketFitNextAction) -> Bool {
     (action.kind == .runCohort || action.kind == .rerunCohort)
       && action.targetScenarioID == nil
@@ -1989,6 +2026,15 @@ enum ProductFactoryCycleLearningAdvisor {
   ) -> Bool {
     (action.kind == .runCohort || action.kind == .rerunCohort)
       && action.title == "Resolve split PMF evidence"
+      && action.targetScenarioID != nil
+      && action.requiredSimulationMode == .personaModel
+  }
+
+  private static func isTargetedRationaleSignalAction(
+    _ action: ProductMarketFitNextAction
+  ) -> Bool {
+    (action.kind == .runCohort || action.kind == .rerunCohort)
+      && action.title == "Resolve AI-user rationale signal"
       && action.targetScenarioID != nil
       && action.requiredSimulationMode == .personaModel
   }
@@ -2038,6 +2084,26 @@ enum ProductFactoryCycleLearningAdvisor {
             summary.localizedCaseInsensitiveContains($0)
           } ?? true
         return labelMatches && scenarioMatches && personaMatches
+      }
+      return action.targetScenarioID.map { summary.contains($0) } ?? false
+    }
+  }
+
+  private static func matchesCurrentRationaleSignal(
+    audit: ProductFactoryCycleAudit,
+    action: ProductMarketFitNextAction,
+    signal: ProductFactoryRationaleSignal?
+  ) -> Bool {
+    audit.personaRationaleSignalSummaries.contains { summary in
+      if let signal {
+        let labelMatches =
+          summary.localizedCaseInsensitiveContains("resolve AI-user rationale signal")
+        let rationaleMatches = summary.localizedCaseInsensitiveContains(signal.rationale)
+        let personaMatches =
+          action.targetPersonaName.map {
+            summary.localizedCaseInsensitiveContains($0)
+          } ?? true
+        return labelMatches && rationaleMatches && personaMatches
       }
       return action.targetScenarioID.map { summary.contains($0) } ?? false
     }
@@ -2201,6 +2267,20 @@ enum ProductFactoryAutopilotPlanner {
       blocked.canExecute = false
       blocked.blockedReason =
         "Recent factory cycle \(audit.id) already attempted this split-evidence target and the current PMF evidence is still split; revise the scenario, persona, prototype, or decision criteria before retrying."
+      return blocked
+    }
+    if step.canExecute,
+      let audit = ProductFactoryCycleLearningAdvisor.stalledRationaleSignalAudit(
+        for: step.action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    {
+      var blocked = step
+      blocked.canExecute = false
+      blocked.blockedReason =
+        "Recent factory cycle \(audit.id) already attempted this AI-user rationale signal and the same rationale is still present; revise the prototype, scenario, or current-alternative proof before retrying."
       return blocked
     }
     guard step.canExecute,
@@ -2833,6 +2913,25 @@ enum ProductMarketFitNextActionAdvisor {
         detail:
           "Recent factory cycle \(audit.id) reran the split-evidence target without resolving the contradiction (\(audit.summary)); revise the scenario, persona, prototype, or decision criteria before retrying.",
         priority: min(98, max(action.priority + 1, 86)),
+        targetPersonaID: action.targetPersonaID,
+        targetPersonaName: action.targetPersonaName,
+        targetScenarioID: action.targetScenarioID
+      )
+    }
+    if let audit = ProductFactoryCycleLearningAdvisor.stalledRationaleSignalAudit(
+      for: action,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        kind: .refineBet,
+        title: "Retarget AI-user rationale signal",
+        detail:
+          "Recent factory cycle \(audit.id) reran the same AI-user rationale target and the rationale is still present (\(audit.summary)); revise the prototype, scenario, current-alternative proof, or decision criteria before retrying.",
+        priority: min(98, max(action.priority + 1, 86)),
+        requiredSimulationMode: .personaModel,
         targetPersonaID: action.targetPersonaID,
         targetPersonaName: action.targetPersonaName,
         targetScenarioID: action.targetScenarioID
