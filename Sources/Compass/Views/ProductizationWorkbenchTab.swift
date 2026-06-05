@@ -111,6 +111,13 @@ struct ProductizationWorkbenchTab: View {
     )
   }
 
+  private var factoryProofTargets: [ProductFactoryProofTarget] {
+    ProductFactoryProofTargetAdvisor.targets(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var factoryAutopilotStep: ProductFactoryAutopilotStep? {
     ProductFactoryAutopilotPlanner.nextStep(
       config: config,
@@ -367,6 +374,18 @@ struct ProductizationWorkbenchTab: View {
             }
           }
         }
+
+        WorkbenchSection("Proof Targets", systemImage: "target") {
+          VStack(alignment: .leading, spacing: 8) {
+            if factoryProofTargets.isEmpty {
+              WorkbenchEmptyLine("No PMF proof debt queued.")
+            } else {
+              ForEach(factoryProofTargets.prefix(4)) { target in
+                proofTargetRow(target)
+              }
+            }
+          }
+        }
       }
       .padding(.trailing, 4)
     }
@@ -409,6 +428,41 @@ struct ProductizationWorkbenchTab: View {
       )
     }
     .buttonStyle(.plain)
+  }
+
+  private func proofTargetRow(_ target: ProductFactoryProofTarget) -> some View {
+    Button {
+      selectedExperimentID = target.experimentID
+      if let targetScenarioID = target.targetScenarioID {
+        selectedScenarioID = targetScenarioID
+      }
+    } label: {
+      VStack(alignment: .leading, spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text(target.displayTitle)
+            .font(.callout.weight(.semibold))
+            .lineLimit(2)
+          Spacer()
+          WorkbenchStatusPill(text: "\(target.readinessScore)/100")
+        }
+        WorkbenchFact(label: "Experiment", value: target.experimentID)
+        WorkbenchFact(label: "Target", value: target.displaySubtitle)
+        WorkbenchFact(label: "Debt", value: target.debtSummary)
+        if let nextActionTitle = target.nextActionTitle {
+          WorkbenchFact(label: "Next", value: nextActionTitle)
+        }
+        if let targetScenarioID = target.targetScenarioID {
+          WorkbenchFact(label: "Scenario", value: targetScenarioID)
+        } else if let cohortID = target.cohortID {
+          WorkbenchFact(label: "Cohort", value: cohortID)
+        }
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .help(target.displayDetail)
   }
 
   private var evidenceAndDecisionPane: some View {

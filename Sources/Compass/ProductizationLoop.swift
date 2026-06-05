@@ -448,6 +448,36 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
     (nextActionPriority * 1_000) + readinessScore
   }
 
+  var displayTitle: String {
+    label
+  }
+
+  var displaySubtitle: String {
+    var parts = ["score \(readinessScore)/100"]
+    if let targetPersonaName {
+      parts.append("target \(targetPersonaName)")
+    } else if let requiredSimulationMode {
+      parts.append("mode \(requiredSimulationMode.rawValue)")
+    }
+    return parts.joined(separator: ", ")
+  }
+
+  var displayDetail: String {
+    var parts = ["Debt: \(debtSummary)"]
+    if let nextActionTitle {
+      parts.append("Next: \(nextActionTitle)")
+    }
+    if let targetScenarioID {
+      parts.append("Scenario: \(targetScenarioID)")
+    } else if let cohortID {
+      parts.append("Cohort: \(cohortID)")
+    }
+    if targetScenarioID == nil, let targetPersonaName {
+      parts.append("Persona: \(targetPersonaName)")
+    }
+    return parts.joined(separator: " ")
+  }
+
   init(
     experimentID: String,
     label: String,
