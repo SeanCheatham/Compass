@@ -1274,6 +1274,12 @@ struct ProductizationLoopTests {
         evidenceIndex: evidenceIndex,
         isPersonaModelAvailable: true
       ))
+    let proofTarget = try #require(
+      ProductFactoryProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: evidenceIndex
@@ -1288,6 +1294,11 @@ struct ProductizationLoopTests {
     try #require(action.detail.contains("Remaining proof debt"))
     try #require(action.requiredSimulationMode == .personaModel)
     let targetScenarioID = try #require(action.targetScenarioID)
+    try #require(proofTarget.label == "run targeted AI-user persona proof")
+    try #require(proofTarget.nextActionTitle == "Retarget AI-user proof debt")
+    try #require(proofTarget.targetScenarioID == targetScenarioID)
+    try #require(proofTarget.targetPersonaName == "Budget owner")
+    try #require(proofTarget.requiredSimulationMode == .personaModel)
     let executable = try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
       config: config,
       evidenceIndex: evidenceIndex,
@@ -1402,6 +1413,12 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: evidenceIndex
       ))
+    let proofTarget = try #require(
+      ProductFactoryProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: evidenceIndex
@@ -1414,6 +1431,12 @@ struct ProductizationLoopTests {
     try #require(action.detail.contains("factory-cycle-stalled-no-target"))
     try #require(action.detail.contains("does not cover a runnable AI-user target"))
     try #require(action.detail.contains("add an enabled scenario"))
+    try #require(proofTarget.label == "add or enable runnable AI-user proof")
+    try #require(proofTarget.nextActionTitle == "Retarget AI-user proof debt")
+    try #require(proofTarget.targetPersonaID == buyer.id)
+    try #require(proofTarget.targetPersonaName == "Budget owner")
+    try #require(proofTarget.targetScenarioID == nil)
+    try #require(proofTarget.requiredSimulationMode == .personaModel)
     try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
       config: config,
       evidenceIndex: evidenceIndex

@@ -428,6 +428,124 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
   }
 }
 
+struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
+  var id: String { experimentID }
+
+  var experimentID: String
+  var label: String
+  var readinessScore: Int
+  var debtSummary: String
+  var nextActionTitle: String?
+  var nextActionKind: ProductMarketFitNextActionKind?
+  var nextActionPriority: Int
+  var cohortID: String?
+  var targetScenarioID: String?
+  var targetPersonaID: String?
+  var targetPersonaName: String?
+  var requiredSimulationMode: ProductizationSimulationMode?
+
+  var urgencyScore: Int {
+    (nextActionPriority * 1_000) + readinessScore
+  }
+
+  init(
+    experimentID: String,
+    label: String,
+    readinessScore: Int,
+    debtSummary: String,
+    nextAction: ProductMarketFitNextAction?
+  ) {
+    self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
+    self.label = ProductizationModelText.cleanedText(
+      label,
+      fallback: "close PMF proof debt",
+      limit: 160
+    )
+    self.readinessScore = min(100, max(0, readinessScore))
+    self.debtSummary = ProductizationModelText.cleanedText(
+      debtSummary,
+      fallback: "proof incomplete",
+      limit: 240
+    )
+    self.nextActionTitle = nextAction?.title
+    self.nextActionKind = nextAction?.kind
+    self.nextActionPriority = nextAction?.priority ?? 0
+    self.cohortID = nextAction?.cohortID
+    self.targetScenarioID = nextAction?.targetScenarioID
+    self.targetPersonaID = nextAction?.targetPersonaID
+    self.targetPersonaName = nextAction?.targetPersonaName
+    self.requiredSimulationMode = nextAction?.requiredSimulationMode
+  }
+}
+
+enum ProductFactoryProofTargetAdvisor {
+  static func targets(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [ProductFactoryProofTarget] {
+    ProductFactoryExperimentRanker.rankedExperiments(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    .compactMap { experiment in
+      target(for: experiment, config: config, evidenceIndex: evidenceIndex)
+    }
+    .sorted { lhs, rhs in
+      if lhs.urgencyScore == rhs.urgencyScore { return lhs.experimentID < rhs.experimentID }
+      return lhs.urgencyScore > rhs.urgencyScore
+    }
+  }
+
+  static func target(
+    for experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryProofTarget? {
+    guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment),
+      !readiness.proofDebt.isClear
+    else { return nil }
+    let action = ProductMarketFitNextActionAdvisor.nextAction(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    return ProductFactoryProofTarget(
+      experimentID: experiment.id,
+      label: label(readiness: readiness, action: action),
+      readinessScore: Int(readiness.readinessScore.rounded()),
+      debtSummary: readiness.proofDebt.summary,
+      nextAction: action
+    )
+  }
+
+  private static func label(
+    readiness: ProductMarketFitReadiness,
+    action: ProductMarketFitNextAction?
+  ) -> String {
+    if readiness.proofDebt.failedRunCount > 0 {
+      return "repair failed evidence"
+    }
+    if action?.targetScenarioID != nil {
+      if readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0
+        && action?.title.localizedCaseInsensitiveContains("alternative") == true
+      {
+        return "run targeted AI-user alternative proof"
+      }
+      return "run targeted AI-user persona proof"
+    }
+    if action?.requiredSimulationMode == .personaModel {
+      return "add or enable runnable AI-user proof"
+    }
+    if readiness.proofDebt.completedRunDeficit > 0 || readiness.proofDebt.personaDeficit > 0 {
+      return "broaden completed persona coverage"
+    }
+    if readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0 {
+      return "add AI-user current-alternative proof"
+    }
+    return "close remaining PMF proof debt"
+  }
+}
+
 enum ProductFactoryExperimentRanker {
   static func rankedExperiments(
     config: ProductizationConfig,
