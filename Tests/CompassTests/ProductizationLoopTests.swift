@@ -1298,9 +1298,13 @@ struct ProductizationLoopTests {
     try #require(step.kind == .runCohort)
     try #require(step.action.kind == .runCohort)
     try #require(step.targetScenarioID == targetScenarioID)
+    try #require(digest.contains("Product-factory proof targets"))
+    try #require(digest.contains("target run targeted AI-user persona proof"))
     try #require(digest.contains("Retarget AI-user proof debt"))
     try #require(digest.contains("factory-cycle-stalled-proof"))
     try #require(digest.contains("target_scenario \(targetScenarioID)"))
+    try #require(digest.contains("target_name Budget owner"))
+    try #require(digest.contains("required_mode persona_model"))
     try #require(digest.contains("proof debt 6 -> 6 (0)"))
   }
 
@@ -1398,6 +1402,10 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: evidenceIndex
       ))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
 
     try #require(action.kind == .refineBet)
     try #require(action.title == "Retarget AI-user proof debt")
@@ -1412,6 +1420,11 @@ struct ProductizationLoopTests {
     ) == nil)
     try #require(step.kind == .blocked)
     try #require(step.action.kind == .refineBet)
+    try #require(digest.contains("Product-factory proof targets"))
+    try #require(digest.contains("target add or enable runnable AI-user proof"))
+    try #require(digest.contains("target_persona \(buyer.id)"))
+    try #require(digest.contains("target_name Budget owner"))
+    try #require(digest.contains("required_mode persona_model"))
   }
 
   @Test func productFactoryAutopilotCyclePlanCapsExecutableSteps() throws {

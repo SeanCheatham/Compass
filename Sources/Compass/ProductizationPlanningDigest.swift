@@ -26,6 +26,7 @@ enum ProductizationPlanningDigestFormatter {
     lines += unknownLines(config: config)
     lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
+    lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += autopilotLines(config: config, evidenceIndex: evidenceIndex)
     lines += factoryCycleAuditLines(config: config)
     lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
@@ -35,7 +36,7 @@ enum ProductizationPlanningDigestFormatter {
       maxEvidenceSignals: maxEvidenceSignals
     )
 
-    return boundedLines(lines, maxLines: 56, maxCharacters: 6_000)
+    return boundedLines(lines, maxLines: 64, maxCharacters: 6_800)
   }
 
   private static func painLines(
@@ -229,6 +230,80 @@ enum ProductizationPlanningDigestFormatter {
       lines.append("- \(signal.experimentID): \(metadata.joined(separator: "; ")).")
     }
     return lines
+  }
+
+  private static func proofTargetLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    let rankedExperiments = ProductFactoryExperimentRanker.rankedExperiments(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    var lines = ["Product-factory proof targets:"]
+    for experiment in rankedExperiments {
+      guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment),
+        !readiness.proofDebt.isClear
+      else { continue }
+      let action = ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      var metadata = [
+        "target \(proofTargetLabel(readiness: readiness, action: action))",
+        "score \(readiness.scoreLabel)/100",
+        "debt \(bounded(readiness.proofDebt.summary, 160))",
+      ]
+      if let action {
+        metadata.append("next \(bounded(action.title, 100))")
+        if let cohortID = action.cohortID {
+          metadata.append("cohort \(cohortID)")
+        }
+        if let targetScenarioID = action.targetScenarioID {
+          metadata.append("target_scenario \(targetScenarioID)")
+        }
+        if let targetPersonaID = action.targetPersonaID {
+          metadata.append("target_persona \(targetPersonaID)")
+        }
+        if let targetPersonaName = action.targetPersonaName {
+          metadata.append("target_name \(bounded(targetPersonaName, 80))")
+        }
+        if let requiredMode = action.requiredSimulationMode {
+          metadata.append("required_mode \(requiredMode.rawValue)")
+        }
+      }
+      lines.append("- \(experiment.id): \(metadata.joined(separator: "; ")).")
+      if lines.count >= 5 { break }
+    }
+    return lines.count > 1 ? lines : []
+  }
+
+  private static func proofTargetLabel(
+    readiness: ProductMarketFitReadiness,
+    action: ProductMarketFitNextAction?
+  ) -> String {
+    if readiness.proofDebt.failedRunCount > 0 {
+      return "repair failed evidence"
+    }
+    if action?.targetScenarioID != nil {
+      if readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0
+        && action?.title.localizedCaseInsensitiveContains("alternative") == true
+      {
+        return "run targeted AI-user alternative proof"
+      }
+      return "run targeted AI-user persona proof"
+    }
+    if action?.requiredSimulationMode == .personaModel {
+      return "add or enable runnable AI-user proof"
+    }
+    if readiness.proofDebt.completedRunDeficit > 0 || readiness.proofDebt.personaDeficit > 0 {
+      return "broaden completed persona coverage"
+    }
+    if readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0 {
+      return "add AI-user current-alternative proof"
+    }
+    return "close remaining PMF proof debt"
   }
 
   private static func autopilotLines(
