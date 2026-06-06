@@ -77,6 +77,13 @@ struct PromptSchemaLoadingTests {
   @Test
   func testDiscoverSchemaDescribesStructuredProductTournamentEdits() throws {
     let properties = try schemaProperties(Prompts.discoverSchema)
+    let stateEdits = try #require(properties["stateEdits"] as? [String: Any])
+    let stateEditsRef = try #require(stateEdits["$ref"] as? String)
+    let stateEditsObject = try schemaDefinition(stateEditsRef, in: Prompts.discoverSchema)
+    let stateEditProperties = try #require(stateEditsObject["properties"] as? [String: Any])
+    let decisions = try #require(stateEditProperties["decisions"] as? [String: Any])
+    let decisionItems = try #require(decisions["items"] as? [String: Any])
+    let defs = try schemaDefinitions(Prompts.discoverSchema)
 
     try #require(try additionalProperties(Prompts.discoverSchema) == false)
     try #require(propertyDescription("summary", in: properties).contains("pain model"))
@@ -88,6 +95,9 @@ struct PromptSchemaLoadingTests {
       propertyDescription("candidateExperiments", in: properties)
         .contains("after the plan-only round")
     )
+    try #require(decisionItems["$ref"] as? String == "#/$defs/tournamentDecision")
+    try #require(defs.keys.contains("tournamentDecision"))
+    try #require(!defs.keys.contains("productDecision"))
   }
 
   @Test
@@ -131,6 +141,21 @@ struct PromptSchemaLoadingTests {
     let parsed = try JSONSerialization.jsonObject(with: Data(schema.utf8))
     let root = try #require(parsed as? [String: Any])
     return try #require(root["additionalProperties"] as? Bool)
+  }
+
+  private func schemaDefinitions(_ schema: String) throws -> [String: Any] {
+    let parsed = try JSONSerialization.jsonObject(with: Data(schema.utf8))
+    let root = try #require(parsed as? [String: Any])
+    return try #require(root["$defs"] as? [String: Any])
+  }
+
+  private func schemaDefinition(_ ref: String, in schema: String) throws -> [String: Any] {
+    let components = ref.split(separator: "/").map(String.init)
+    try #require(components.count == 3)
+    try #require(components[0] == "#")
+    try #require(components[1] == "$defs")
+    let defs = try schemaDefinitions(schema)
+    return try #require(defs[components[2]] as? [String: Any])
   }
 
   private func propertyDescription(_ name: String, in properties: [String: Any]) throws -> String {

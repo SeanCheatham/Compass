@@ -118,7 +118,7 @@
         "decisions": {
           "type": "array",
           "maxItems": 8,
-          "items": { "$ref": "#/$defs/productDecision" }
+          "items": { "$ref": "#/$defs/tournamentDecision" }
         }
       }
     },
@@ -432,7 +432,7 @@
         "tags": { "type": "array", "maxItems": 8, "items": { "type": "string" } }
       }
     },
-    "productDecision": {
+    "tournamentDecision": {
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "experimentID", "decision", "summary", "evidenceRunIDs", "decidedAt", "decidedBy"],
