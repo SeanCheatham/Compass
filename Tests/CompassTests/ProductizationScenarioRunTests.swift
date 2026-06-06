@@ -217,6 +217,54 @@ struct ProductizationScenarioRunTests {
     try #require(saved.experiments[0].evidenceSummary.contains("completed the scenario"))
   }
 
+  @Test func modelFreeRunStampsActiveTournamentRoundScope() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let head = try await setupScenarioRepo(at: root)
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    var config = try makeScenarioRunConfig(commitSha: head)
+    let scope = try activateRoundTwoTournamentScope(in: &config)
+    try workspace.writeProductizationConfig(config)
+    let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
+
+    let outcome = try await ProductizationScenarioCoordinator.runModelFree(
+      experimentID: config.experiments[0].id,
+      scenarioID: config.scenarios[0].id,
+      in: workspace,
+      projectTitle: "Scenario Helper",
+      appRunner: appRunner,
+      now: Date(timeIntervalSince1970: 180)
+    )
+    let stored = try workspace.readProductizationEvidenceRecord(id: outcome.record.id)
+    let index = workspace.readProductizationEvidenceIndex()
+    let summary = try #require(index.summaries.first)
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: try workspace.readProductizationConfig(),
+      evidenceIndex: index
+    )
+    let markdown = ProductizationEvidenceMarkdownExporter.markdown(record: stored)
+
+    try #require(outcome.record.tournamentID == scope.tournamentID)
+    try #require(outcome.record.roundID == scope.roundID)
+    try #require(outcome.record.contenderID == scope.contenderID)
+    try #require(stored.tournamentID == scope.tournamentID)
+    try #require(stored.roundID == scope.roundID)
+    try #require(stored.contenderID == scope.contenderID)
+    try #require(summary.tournamentID == scope.tournamentID)
+    try #require(summary.roundID == scope.roundID)
+    try #require(summary.contenderID == scope.contenderID)
+    try #require(
+      index.evidenceSummaries(for: config.tournaments[0], round: config.tournamentRounds[1]).count
+        == 1)
+    try #require(markdown.contains("- Tournament: \(scope.tournamentID)"))
+    try #require(markdown.contains("- Tournament Round: \(scope.roundID)"))
+    try #require(markdown.contains("- Contender: \(scope.contenderID)"))
+    try #require(digest.contains("tournament \(scope.tournamentID)"))
+    try #require(digest.contains("round \(scope.roundID)"))
+    try #require(digest.contains("contender \(scope.contenderID)"))
+  }
+
   @Test func personaModelRunWritesEvidenceTranscriptAndMode() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
@@ -511,6 +559,41 @@ private func makeScenarioRunConfig(commitSha: String) throws -> ProductizationCo
     draft: draft,
     to: config,
     now: Date(timeIntervalSince1970: 20)
+  )
+}
+
+private func activateRoundTwoTournamentScope(
+  in config: inout ProductizationConfig
+) throws -> ProductTournamentEvidenceScope {
+  let experimentID = config.experiments[0].id
+  let contenderIndex = try #require(
+    config.tournamentContenders.firstIndex { $0.experimentID == experimentID })
+  let tournamentIndex = try #require(
+    config.tournaments.firstIndex {
+      $0.id == config.tournamentContenders[contenderIndex].tournamentID
+    }
+  )
+  let planRoundIndex = try #require(
+    config.tournamentRounds.firstIndex {
+      $0.tournamentID == config.tournaments[tournamentIndex].id && $0.kind == .productPlans
+    })
+  let feasibilityRoundIndex = try #require(
+    config.tournamentRounds.firstIndex {
+      $0.tournamentID == config.tournaments[tournamentIndex].id && $0.kind == .coreTechnology
+    })
+  let contenderID = config.tournamentContenders[contenderIndex].id
+
+  config.tournamentContenders[contenderIndex].status = .narrowed
+  config.tournamentRounds[planRoundIndex].status = .completed
+  config.tournamentRounds[feasibilityRoundIndex].status = .active
+  config.tournamentRounds[feasibilityRoundIndex].contenderIDs = [contenderID]
+  config.tournaments[tournamentIndex].currentRoundID =
+    config.tournamentRounds[feasibilityRoundIndex].id
+
+  return ProductTournamentEvidenceScope(
+    tournamentID: config.tournaments[tournamentIndex].id,
+    roundID: config.tournamentRounds[feasibilityRoundIndex].id,
+    contenderID: contenderID
   )
 }
 

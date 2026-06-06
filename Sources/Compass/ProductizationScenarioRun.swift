@@ -704,8 +704,13 @@ enum ProductizationScenarioCoordinator {
       personaSelector: personaSelector
     ).run(request)
     let endedAt = Date().timeIntervalSince1970
+    let tournamentScope = ProductTournamentEvidenceScopeResolver.scope(
+      experimentID: experimentID,
+      in: config
+    )
     let record = ProductizationEvidenceRecord(
       runResult: result,
+      tournamentScope: tournamentScope,
       id: "\(scenarioID)-\(Int(endedAt))",
       startedAt: startedAt,
       endedAt: endedAt

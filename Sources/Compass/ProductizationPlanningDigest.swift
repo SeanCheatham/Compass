@@ -740,6 +740,15 @@ enum ProductizationPlanningDigestFormatter {
           "mode \(summary.mode.rawValue)",
           "verdict \(summary.verdict.rawValue)",
         ]
+        if let tournamentID = summary.tournamentID {
+          parts.append("tournament \(tournamentID)")
+        }
+        if let roundID = summary.roundID {
+          parts.append("round \(roundID)")
+        }
+        if let contenderID = summary.contenderID {
+          parts.append("contender \(contenderID)")
+        }
         if let decisionIntent = summary.decisionIntent {
           parts.append("target_decision \(decisionIntent.targetDecision.rawValue)")
           parts.append("current_decision \(decisionIntent.currentDecision.rawValue)")

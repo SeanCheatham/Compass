@@ -107,12 +107,15 @@ for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
 Tournament workbench lists pain hypotheses, contenders, rounds, implementation
 tracks, Round 1 plan evaluations, scenario runs, feedback scores, objections,
 missing capabilities, failure kinds, decision history, and copyable Markdown
-summaries. It can also apply the best actionable Round 1 recommendation to
-stored tournament state. Plan and Reflect receive only a compact advisory
-summary: current tournament round, contender plans, Round 1 plan readiness,
-willingness-to-pay signals, Round 2 feasibility handoffs, latest evidence per
-active scenario, repeated objections, low-score clusters, verdict distribution,
-failures, and current alternative comparisons.
+summaries. Later-round scenario evidence is stamped with tournament, round, and
+contender IDs when a narrowed contender is active in Round 2 or Round 3, so
+agentic-user feedback remains comparable across tournament rounds. The workbench
+can also apply the best actionable Round 1 recommendation to stored tournament
+state. Plan and Reflect receive only a compact advisory summary: current
+tournament round, contender plans, Round 1 plan readiness, willingness-to-pay
+signals, Round 2 feasibility handoffs, latest evidence per active scenario,
+repeated objections, low-score clusters, verdict distribution, failures, and
+current alternative comparisons.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 

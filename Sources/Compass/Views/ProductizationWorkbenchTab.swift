@@ -750,6 +750,7 @@ struct ProductizationWorkbenchTab: View {
 
   private func tournamentRoundRow(_ round: ProductTournamentRound) -> some View {
     let planEvaluations = evidenceIndex.planEvaluationSummaries.filter { $0.roundID == round.id }
+    let scenarioRuns = evidenceIndex.summaries.filter { $0.roundID == round.id }
     return VStack(alignment: .leading, spacing: 7) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Text(round.title)
@@ -766,6 +767,8 @@ struct ProductizationWorkbenchTab: View {
       WorkbenchFact(label: "Contenders", value: "\(round.contenderIDs.count)")
       if round.kind == .productPlans {
         WorkbenchFact(label: "Evaluations", value: "\(planEvaluations.count)")
+      } else {
+        WorkbenchFact(label: "Evidence runs", value: "\(scenarioRuns.count)")
       }
       if !round.scenarioCohortIDs.isEmpty {
         WorkbenchFact(label: "Cohorts", value: round.scenarioCohortIDs.joined(separator: ", "))
@@ -1630,6 +1633,12 @@ struct ProductizationWorkbenchTab: View {
                   .font(.caption)
                   .foregroundStyle(.secondary)
                   .lineLimit(1)
+                if let roundID = summary.roundID, let contenderID = summary.contenderID {
+                  Text("Tournament \(roundID) / \(contenderID)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
                 if let decisionIntent = summary.decisionIntent {
                   Text(evidenceIntentSummary(summary, intent: decisionIntent))
                     .font(.caption)
@@ -1674,6 +1683,15 @@ struct ProductizationWorkbenchTab: View {
           WorkbenchFact(label: "Scenario", value: record.scenarioID)
           WorkbenchFact(label: "Persona", value: record.personaID)
           WorkbenchFact(label: "Mode", value: record.mode.rawValue)
+          if let tournamentID = record.tournamentID {
+            WorkbenchFact(label: "Tournament", value: tournamentID)
+          }
+          if let roundID = record.roundID {
+            WorkbenchFact(label: "Round", value: roundID)
+          }
+          if let contenderID = record.contenderID {
+            WorkbenchFact(label: "Contender", value: contenderID)
+          }
           if let decisionIntent = record.decisionIntent {
             WorkbenchFact(label: "Target decision", value: decisionIntent.targetDecision.rawValue)
             WorkbenchFact(label: "Current decision", value: decisionIntent.currentDecision.rawValue)

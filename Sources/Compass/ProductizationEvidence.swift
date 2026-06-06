@@ -747,6 +747,9 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   var experimentID: String
   var solutionID: String
   var painID: String
+  var tournamentID: String?
+  var roundID: String?
+  var contenderID: String?
   var branchName: String
   var commitSha: String
   var scenarioID: String
@@ -780,6 +783,9 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     case experimentID
     case solutionID
     case painID
+    case tournamentID
+    case roundID
+    case contenderID
     case branchName
     case commitSha
     case scenarioID
@@ -817,6 +823,9 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       experimentID: try container.decode(String.self, forKey: .experimentID),
       solutionID: try container.decode(String.self, forKey: .solutionID),
       painID: try container.decode(String.self, forKey: .painID),
+      tournamentID: try container.decodeIfPresent(String.self, forKey: .tournamentID),
+      roundID: try container.decodeIfPresent(String.self, forKey: .roundID),
+      contenderID: try container.decodeIfPresent(String.self, forKey: .contenderID),
       branchName: try container.decode(String.self, forKey: .branchName),
       commitSha: try container.decode(String.self, forKey: .commitSha),
       scenarioID: try container.decode(String.self, forKey: .scenarioID),
@@ -879,6 +888,9 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     experimentID: String,
     solutionID: String,
     painID: String,
+    tournamentID: String? = nil,
+    roundID: String? = nil,
+    contenderID: String? = nil,
     branchName: String,
     commitSha: String,
     scenarioID: String,
@@ -911,6 +923,9 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     self.experimentID = Self.cleanedIdentifier(experimentID, fallback: "experiment")
     self.solutionID = Self.cleanedIdentifier(solutionID, fallback: "solution")
     self.painID = Self.cleanedIdentifier(painID, fallback: "pain")
+    self.tournamentID = Self.optionalIdentifier(tournamentID, fallback: "tournament")
+    self.roundID = Self.optionalIdentifier(roundID, fallback: "round")
+    self.contenderID = Self.optionalIdentifier(contenderID, fallback: "contender")
     self.branchName = StringUtils.boundedText(branchName, limit: 200)
     let boundedCommit = StringUtils.boundedText(commitSha, limit: 80)
     self.commitSha = boundedCommit.isEmpty ? "unknown" : boundedCommit
@@ -951,6 +966,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
 
   init(
     runResult: ProductizationRunResult,
+    tournamentScope: ProductTournamentEvidenceScope? = nil,
     id: String = UUID().uuidString,
     startedAt: Double,
     endedAt: Double
@@ -964,6 +980,9 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       experimentID: runResult.experimentID,
       solutionID: runResult.solutionID,
       painID: runResult.painID,
+      tournamentID: tournamentScope?.tournamentID,
+      roundID: tournamentScope?.roundID,
+      contenderID: tournamentScope?.contenderID,
       branchName: runResult.branchName,
       commitSha: runResult.commitSha,
       scenarioID: runResult.scenarioID,
@@ -1195,6 +1214,12 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     return bounded.isEmpty ? nil : bounded
   }
 
+  static func optionalIdentifier(_ value: String?, fallback: String) -> String? {
+    guard let value else { return nil }
+    let cleaned = cleanedIdentifier(value, fallback: fallback)
+    return cleaned.isEmpty ? nil : cleaned
+  }
+
   private static func derivedScores(
     status: ProductizationRunStatus,
     signals: ProductizationPainReliefSignals?
@@ -1242,6 +1267,9 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
   var experimentID: String
   var solutionID: String
   var painID: String
+  var tournamentID: String?
+  var roundID: String?
+  var contenderID: String?
   var branchName: String
   var commitSha: String
   var scenarioID: String
@@ -1269,6 +1297,9 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     case experimentID
     case solutionID
     case painID
+    case tournamentID
+    case roundID
+    case contenderID
     case branchName
     case commitSha
     case scenarioID
@@ -1298,6 +1329,9 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     experimentID = try container.decode(String.self, forKey: .experimentID)
     solutionID = try container.decode(String.self, forKey: .solutionID)
     painID = try container.decode(String.self, forKey: .painID)
+    tournamentID = try container.decodeIfPresent(String.self, forKey: .tournamentID)
+    roundID = try container.decodeIfPresent(String.self, forKey: .roundID)
+    contenderID = try container.decodeIfPresent(String.self, forKey: .contenderID)
     branchName = try container.decode(String.self, forKey: .branchName)
     commitSha = try container.decode(String.self, forKey: .commitSha)
     scenarioID = try container.decode(String.self, forKey: .scenarioID)
@@ -1339,6 +1373,9 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     experimentID = record.experimentID
     solutionID = record.solutionID
     painID = record.painID
+    tournamentID = record.tournamentID
+    roundID = record.roundID
+    contenderID = record.contenderID
     branchName = record.branchName
     commitSha = record.commitSha
     scenarioID = record.scenarioID
@@ -1978,6 +2015,15 @@ struct ProductizationEvidenceIndex: Codable, Equatable, Sendable {
     round: ProductTournamentRound? = nil
   ) -> [ProductTournamentPlanEvaluationSummary] {
     planEvaluationSummaries.filter { summary in
+      summary.tournamentID == tournament.id && (round == nil || summary.roundID == round?.id)
+    }
+  }
+
+  func evidenceSummaries(
+    for tournament: ProductTournament,
+    round: ProductTournamentRound? = nil
+  ) -> [ProductizationEvidenceSummary] {
+    summaries.filter { summary in
       summary.tournamentID == tournament.id && (round == nil || summary.roundID == round?.id)
     }
   }
@@ -2744,6 +2790,9 @@ enum ProductizationEvidenceMarkdownExporter {
       "- Experiment: \(record.experimentID)",
       "- Solution: \(record.solutionID)",
       "- Pain: \(record.painID)",
+      record.tournamentID.map { "- Tournament: \($0)" },
+      record.roundID.map { "- Tournament Round: \($0)" },
+      record.contenderID.map { "- Contender: \($0)" },
       "- Branch: \(record.branchName)",
       "- Commit: \(record.commitSha)",
       "- Scenario: \(record.scenarioID)",
