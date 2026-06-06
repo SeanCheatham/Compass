@@ -72,7 +72,7 @@ enum ProductTournamentFeasibilityAdvisor {
     return contenderIDs.compactMap { contenderID in
       guard
         let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
-        contender.status == .narrowed,
+        contender.status == .narrowed || contender.status == .needsRevision,
         let solution = config.solutionHypotheses.first(where: { $0.id == contender.solutionID }),
         let experimentID = contender.experimentID,
         let experiment = config.experiments.first(where: { $0.id == experimentID })

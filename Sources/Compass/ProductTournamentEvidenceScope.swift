@@ -75,9 +75,9 @@ enum ProductTournamentEvidenceScopeResolver {
 extension ProductTournamentContender {
   fileprivate var isGeneratedProductEvidenceCandidate: Bool {
     switch status {
-    case .narrowed, .winner:
+    case .narrowed, .needsRevision, .winner:
       return true
-    case .competing, .needsRevision, .eliminated, .archived:
+    case .competing, .eliminated, .archived:
       return false
     }
   }

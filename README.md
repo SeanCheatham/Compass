@@ -74,7 +74,10 @@ and advances them through rounds:
   proof that demonstrates the hard part can work. After Round 1 advances a
   contender, Compass emits a Round 2 feasibility handoff that names the narrowed
   contender, implementation track, branch/worktree, plan-readiness evidence, and
-  acceptance signals for the next build slice.
+  acceptance signals for the next build slice. Scoped Round 2 scenario evidence
+  then drives the next tournament transition: advance the contender to Round 3,
+  mark the core technology for revision, or eliminate the contender before
+  adding prototype fidelity.
 - **Round 3: prototype.** Agentic users exercise low-medium fidelity product
   versions and evaluate workflow improvement, switching readiness, continued-use
   pull, and price or sponsorship intent.
@@ -110,12 +113,12 @@ missing capabilities, failure kinds, decision history, and copyable Markdown
 summaries. Later-round scenario evidence is stamped with tournament, round, and
 contender IDs when a narrowed contender is active in Round 2 or Round 3, so
 agentic-user feedback remains comparable across tournament rounds. The workbench
-can also apply the best actionable Round 1 recommendation to stored tournament
-state. Plan and Reflect receive only a compact advisory summary: current
-tournament round, contender plans, Round 1 plan readiness, willingness-to-pay
-signals, Round 2 feasibility handoffs, latest evidence per active scenario,
-repeated objections, low-score clusters, verdict distribution, failures, and
-current alternative comparisons.
+can apply the best actionable Round 1 and Round 2 recommendations to stored
+tournament state. Plan and Reflect receive only a compact advisory summary:
+current tournament round, contender plans, Round 1 plan readiness,
+willingness-to-pay signals, Round 2 feasibility handoffs and evidence
+transitions, latest evidence per active scenario, repeated objections, low-score
+clusters, verdict distribution, failures, and current alternative comparisons.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 

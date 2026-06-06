@@ -22,6 +22,7 @@ enum ProductizationPlanningDigestFormatter {
     lines += painLines(config: config, maxPainHypotheses: maxPainHypotheses)
     lines += tournamentLines(config: config, evidenceIndex: evidenceIndex)
     lines += feasibilityHandoffLines(config: config, evidenceIndex: evidenceIndex)
+    lines += roundEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += solutionLines(config: config, maxSolutionHypotheses: maxSolutionHypotheses)
     lines += experimentLines(config: config, maxExperiments: maxExperiments)
     lines += evidenceSignalLines(
@@ -213,6 +214,19 @@ enum ProductizationPlanningDigestFormatter {
     guard !handoffs.isEmpty else { return [] }
     return ["Round 2 feasibility handoff:"]
       + handoffs.prefix(3).map { handoff in bounded(handoff.digestLine, 620) }
+  }
+
+  private static func roundEvidenceTransitionLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    let proposals = ProductTournamentRoundEvidenceTransitioner.proposals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    guard !proposals.isEmpty else { return [] }
+    return ["Round 2 evidence transition:"]
+      + proposals.prefix(3).map { proposal in bounded(proposal.digestLine, 620) }
   }
 
   private static func experimentLines(

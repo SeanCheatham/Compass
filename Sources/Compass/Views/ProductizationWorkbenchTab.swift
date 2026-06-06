@@ -28,11 +28,13 @@ struct ProductizationWorkbenchTab: View {
   @State private var isRunningScenario = false
   @State private var isRunningPlanEvaluation = false
   @State private var isApplyingPlanTransition = false
+  @State private var isApplyingRoundEvidenceTransition = false
   @State private var isRunningFactoryStep = false
   @State private var isRunningFactoryCycle = false
   @State private var scenarioRunMessage: String?
   @State private var planEvaluationMessage: String?
   @State private var planTransitionMessage: String?
+  @State private var roundEvidenceTransitionMessage: String?
   @State private var contractAvailable: Bool?
 
   private var config: ProductizationConfig { project.productizationConfig }
@@ -83,11 +85,36 @@ struct ProductizationWorkbenchTab: View {
       .first
   }
 
+  private var activeTournamentForRoundEvidence: ProductTournament? {
+    tournamentsForBoard.first { $0.status == .active || $0.status == .drafting }
+  }
+
+  private var activeCoreTechnologyRoundForEvidence: ProductTournamentRound? {
+    guard let tournament = activeTournamentForRoundEvidence else { return nil }
+    if let currentRoundID = tournament.currentRoundID,
+      let current = config.tournamentRounds.first(where: { $0.id == currentRoundID }),
+      current.kind == .coreTechnology,
+      current.status == .active
+    {
+      return current
+    }
+    return config.tournamentRounds
+      .filter {
+        $0.tournamentID == tournament.id && $0.kind == .coreTechnology && $0.status == .active
+      }
+      .sorted { lhs, rhs in
+        if lhs.ordinal == rhs.ordinal { return lhs.title < rhs.title }
+        return lhs.ordinal < rhs.ordinal
+      }
+      .first
+  }
+
   private var planEvaluationCanRun: Bool {
     activeTournamentForPlanEvaluation != nil
       && activePlanRoundForEvaluation != nil
       && !isRunningPlanEvaluation
       && !isApplyingPlanTransition
+      && !isApplyingRoundEvidenceTransition
       && !isRunningFactoryStep
       && !isRunningFactoryCycle
       && !isRunningScenario
@@ -104,6 +131,26 @@ struct ProductizationWorkbenchTab: View {
 
   private var planTransitionCanApply: Bool {
     planTransitionProposal != nil
+      && !isApplyingPlanTransition
+      && !isApplyingRoundEvidenceTransition
+      && !isRunningPlanEvaluation
+      && !isRunningFactoryStep
+      && !isRunningFactoryCycle
+      && !isRunningScenario
+  }
+
+  private var roundEvidenceTransitionProposal: ProductTournamentRoundEvidenceTransitionProposal? {
+    ProductTournamentRoundEvidenceTransitioner.bestProposal(
+      tournamentID: activeTournamentForRoundEvidence?.id,
+      roundID: activeCoreTechnologyRoundForEvidence?.id,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
+  private var roundEvidenceTransitionCanApply: Bool {
+    roundEvidenceTransitionProposal != nil
+      && !isApplyingRoundEvidenceTransition
       && !isApplyingPlanTransition
       && !isRunningPlanEvaluation
       && !isRunningFactoryStep
@@ -561,6 +608,29 @@ struct ProductizationWorkbenchTab: View {
 
         WorkbenchSection("Round 2 Feasibility", systemImage: "wrench.and.screwdriver") {
           VStack(alignment: .leading, spacing: 8) {
+            HStack {
+              Button {
+                Task { await applyRoundEvidenceTransition() }
+              } label: {
+                Label(
+                  isApplyingRoundEvidenceTransition ? "Applying" : "Apply Round 2",
+                  systemImage: "arrow.turn.down.right"
+                )
+              }
+              .buttonStyle(.bordered)
+              .disabled(!roundEvidenceTransitionCanApply)
+              .help(
+                roundEvidenceTransitionProposal?.detail
+                  ?? "No actionable Round 2 evidence recommendation yet."
+              )
+
+              if let roundEvidenceTransitionMessage {
+                Text(roundEvidenceTransitionMessage)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+              }
+            }
             if feasibilityHandoffs.isEmpty {
               WorkbenchEmptyLine("No narrowed contender is active in Round 2 yet.")
             } else {
@@ -2609,6 +2679,23 @@ struct ProductizationWorkbenchTab: View {
       planTransitionMessage = outcome.userMessage
     } else {
       planTransitionMessage = project.errorMessage
+    }
+  }
+
+  private func applyRoundEvidenceTransition() async {
+    guard let tournament = activeTournamentForRoundEvidence,
+      let round = activeCoreTechnologyRoundForEvidence
+    else { return }
+    isApplyingRoundEvidenceTransition = true
+    defer { isApplyingRoundEvidenceTransition = false }
+    let outcome = await project.applyBestProductTournamentRoundEvidenceTransition(
+      tournamentID: tournament.id,
+      roundID: round.id
+    )
+    if let outcome {
+      roundEvidenceTransitionMessage = outcome.userMessage
+    } else {
+      roundEvidenceTransitionMessage = project.errorMessage
     }
   }
 
