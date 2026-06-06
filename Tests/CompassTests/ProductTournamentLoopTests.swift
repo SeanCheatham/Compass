@@ -4365,6 +4365,38 @@ struct ProductTournamentLoopTests {
     try #require(audit.stopStepTitle == step.title)
   }
 
+  @Test func tournamentAutomationCycleOutcomeCanStampGeneratedRevisionScenarioStepID() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.tournamentExperiments[0].decision = .keepGoing
+    let step = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+    let generatedRevisionStepID =
+      "\(step.experimentID):\(TournamentAutomationStepKind.applyRevision.rawValue):generated-revision-scenario"
+
+    let outcome = TournamentAutomationCycleOutcome(
+      executedSteps: [step],
+      executedStepIDs: [generatedRevisionStepID],
+      messages: ["Applied a generated revision scenario."],
+      maxSteps: 1,
+      stopReason: .reachedStepLimit
+    )
+    let audit = outcome.audit(
+      startedAt: Date(timeIntervalSince1970: 240),
+      endedAt: Date(timeIntervalSince1970: 245)
+    )
+
+    try #require(audit.executedStepIDs == [generatedRevisionStepID])
+    try #require(audit.executedStepCount == 1)
+    try #require(audit.summary.contains("1 step(s)"))
+  }
+
   @Test func tournamentAutomationCycleOutcomeBuildsDurableAudit() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",

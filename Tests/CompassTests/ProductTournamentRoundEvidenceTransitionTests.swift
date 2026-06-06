@@ -212,6 +212,80 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       )
       .first { $0.experimentID == fixture.experiment.id }
     )
+    let revisionDraft = try ProductTournamentScenarioCoordinator.revisionDraft(
+      for: postTransitionRevisionBrief,
+      in: outcome.config,
+      now: Date(timeIntervalSince1970: 2_100)
+    )
+    let revisionScenarioID = try #require(revisionDraft.id)
+    let revisionScenarioConfig = try ProductTournamentScenarioCoordinator.saving(
+      draft: revisionDraft,
+      to: outcome.config,
+      now: Date(timeIntervalSince1970: 2_110)
+    )
+    let revisionStepID =
+      "\(fixture.experiment.id):\(TournamentAutomationStepKind.applyRevision.rawValue):\(revisionScenarioID)"
+    let revisionAudit = TournamentAutomationCycleAudit(
+      id: "tournament-cycle-round-2-proof-gap-revision",
+      startedAt: 2_120,
+      endedAt: 2_130,
+      executedStepIDs: [revisionStepID],
+      experimentIDs: [fixture.experiment.id],
+      messages: [
+        "Applied Round 2 proof-gap revision to scenario \(revisionScenarioID)."
+      ],
+      maxSteps: 3,
+      revisionBriefSummaries: [postTransitionRevisionBrief.auditSummary],
+      stopReason: .reachedStepLimit,
+      stopStepID: revisionStepID,
+      stopStepTitle: postTransitionStep.title,
+      stopDetail: "Contender revision checkpoint recorded.",
+      userMessage: "Applied Round 2 proof-gap revision; validate next."
+    )
+    let revisionAuditedConfig = revisionScenarioConfig.recordingTournamentAutomationCycleAudit(
+      revisionAudit
+    )
+    let revisionAuditedExperiment = try #require(
+      revisionAuditedConfig.tournamentExperiments.first { $0.id == fixture.experiment.id }
+    )
+    let prepareValidationAction = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: revisionAuditedExperiment,
+        config: revisionAuditedConfig,
+        evidenceIndex: index
+      )
+    )
+    let prepareValidationStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: revisionAuditedConfig,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      )
+    )
+    var preparedRevisionConfig = revisionAuditedConfig
+    if let experimentIndex = preparedRevisionConfig.tournamentExperiments.firstIndex(where: {
+      $0.id == fixture.experiment.id
+    }) {
+      preparedRevisionConfig.tournamentExperiments[experimentIndex].baseSha = "base-sha"
+      preparedRevisionConfig.tournamentExperiments[experimentIndex].currentSha = "abc123"
+    }
+    let preparedRevisionExperiment = try #require(
+      preparedRevisionConfig.tournamentExperiments.first { $0.id == fixture.experiment.id }
+    )
+    let validationAction = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: preparedRevisionExperiment,
+        config: preparedRevisionConfig,
+        evidenceIndex: index
+      )
+    )
+    let validationStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: preparedRevisionConfig,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      )
+    )
 
     try #require(proposal.recommendation == .reviseCoreTechnology)
     try #require(preTransitionStep.kind == .applyRoundTransition)
@@ -246,6 +320,29 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(postTransitionStep.action.targetPersonaID == postTransitionRevisionBrief.targetPersonaID)
     try #require(postTransitionStep.action.targetDecision == .narrow)
     try #require(postTransitionExperimentStep.kind == .applyRevision)
+    try #require(postTransitionRevisionBrief.targetScenarioID == nil)
+    try #require(revisionDraft.task.contains("inspectable_source_artifact"))
+    try #require(revisionDraft.successSignal.contains(postTransitionRevisionBrief.proofPlan))
+    try #require(revisionScenarioConfig.scenarios.contains { $0.id == revisionScenarioID })
+    try #require(revisionStepID.contains("apply_revision"))
+    try #require(prepareValidationAction.kind == .prepareWorktree)
+    try #require(prepareValidationAction.title == "Prepare implementation worktree")
+    try #require(prepareValidationAction.detail.contains("Round 2 revision validation scenario needs"))
+    try #require(prepareValidationAction.cohortID == revisionDraft.cohortID)
+    try #require(prepareValidationStep.kind == .prepareWorktree)
+    try #require(prepareValidationStep.canExecute)
+    try #require(validationAction.kind == .rerunCohort)
+    try #require(validationAction.title == "Validate Round 2 proof-gap revision")
+    try #require(validationAction.detail.contains(revisionAudit.id))
+    try #require(validationAction.detail.contains(revisionScenarioID))
+    try #require(validationAction.cohortID == revisionDraft.cohortID)
+    try #require(validationAction.targetScenarioID == revisionScenarioID)
+    try #require(validationAction.targetPersonaID == revisionDraft.segmentID)
+    try #require(validationAction.targetDecision == .narrow)
+    try #require(validationAction.requiredSimulationMode == .personaModel)
+    try #require(validationStep.kind == .runCohort)
+    try #require(validationStep.canExecute)
+    try #require(validationStep.targetScenarioID == revisionScenarioID)
     try #require(updatedTournament.currentRoundID == fixture.coreRound.id)
     try #require(updatedCoreRound.status == .active)
     try #require(updatedContender.status == .needsRevision)

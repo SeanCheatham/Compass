@@ -1950,7 +1950,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
     )
   }
 
-  private static func roundTwoProofGapBrief(
+  static func roundTwoProofGapBrief(
     for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
@@ -3027,6 +3027,8 @@ enum TournamentAutomationCycleStopReason: Equatable, Sendable {
 
 struct TournamentAutomationStepResult: Equatable, Sendable {
   var message: String
+  var executedStepID: String?
+  var targetScenarioID: String?
   var evidenceRunIDs: [String]
   var completedEvidenceRunCount: Int
   var failedEvidenceRunCount: Int
@@ -3034,6 +3036,8 @@ struct TournamentAutomationStepResult: Equatable, Sendable {
 
   init(
     message: String,
+    executedStepID: String? = nil,
+    targetScenarioID: String? = nil,
     evidenceRunIDs: [String] = [],
     completedEvidenceRunCount: Int = 0,
     failedEvidenceRunCount: Int = 0,
@@ -3044,6 +3048,14 @@ struct TournamentAutomationStepResult: Equatable, Sendable {
       fallback: "Tournament automation step completed.",
       limit: 1_200
     )
+    self.executedStepID = ProductTournamentModelText.optionalCleanedText(
+      executedStepID,
+      limit: 240
+    )
+    self.targetScenarioID = ProductTournamentModelText.optionalIdentifier(
+      targetScenarioID,
+      fallback: "scenario"
+    )
     self.evidenceRunIDs = ProductTournamentModelText.cleanedList(evidenceRunIDs, limit: 120)
     self.completedEvidenceRunCount = max(0, completedEvidenceRunCount)
     self.failedEvidenceRunCount = max(0, failedEvidenceRunCount)
@@ -3053,6 +3065,7 @@ struct TournamentAutomationStepResult: Equatable, Sendable {
 
 struct TournamentAutomationCycleOutcome: Equatable, Sendable {
   var executedSteps: [TournamentAutomationStep]
+  var executedStepIDs: [String]
   var messages: [String]
   var maxSteps: Int
   var stopReason: TournamentAutomationCycleStopReason
@@ -3077,6 +3090,7 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
 
   init(
     executedSteps: [TournamentAutomationStep],
+    executedStepIDs: [String] = [],
     messages: [String],
     maxSteps: Int,
     stopReason: TournamentAutomationCycleStopReason,
@@ -3100,6 +3114,10 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
     revisionBriefSummaries: [String] = []
   ) {
     self.executedSteps = executedSteps
+    self.executedStepIDs = ProductTournamentModelText.cleanedList(
+      executedStepIDs.isEmpty ? executedSteps.map(\.id) : executedStepIDs,
+      limit: 260
+    )
     self.messages = ProductTournamentModelText.cleanedList(messages, limit: 500)
     self.maxSteps = max(1, maxSteps)
     self.stopReason = stopReason
@@ -3288,7 +3306,7 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
       id: "tournament-cycle-\(Int(started))-\(Int(ended))-\(executedSteps.count)",
       startedAt: started,
       endedAt: ended,
-      executedStepIDs: executedSteps.map(\.id),
+      executedStepIDs: executedStepIDs,
       experimentIDs: experimentIDs,
       messages: messages,
       maxSteps: maxSteps,
@@ -4523,12 +4541,19 @@ enum TournamentAutomationPlanner {
     isPersonaModelAvailable: Bool
   ) -> TournamentAutomationStep? {
     guard
-      let brief = TournamentAutomationRevisionBriefAdvisor.brief(
+      let brief = TournamentAutomationRevisionBriefAdvisor.roundTwoProofGapBrief(
         for: experiment,
         config: config,
         evidenceIndex: evidenceIndex
-      ),
-      brief.source == .roundTwoProofGap
+      )
+    else { return nil }
+    guard
+      TournamentAutomationCycleLearningAdvisor.appliedRevisionBriefAudit(
+        for: brief,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ) == nil
     else { return nil }
     let action = ProductTournamentNextAction(
       experimentID: experiment.id,
@@ -5227,6 +5252,18 @@ enum ProductTournamentNextActionAdvisor {
         priority: 85
       )
     }
+    if let proofGapRevisionValidationAction = roundTwoProofGapRevisionValidationAction(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return applyingRecentCycleGuards(
+        to: proofGapRevisionValidationAction,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
     if let proofOutcomeSignal = TournamentAutomationTargetedProofOutcomeAdvisor.signal(
       for: experiment,
       config: config,
@@ -5533,8 +5570,6 @@ enum ProductTournamentNextActionAdvisor {
       let cohort = config.scenarioCohorts.first(where: {
         $0.id == cohortID && $0.experimentID == experiment.id
       }),
-      cohort.tags.contains("discover"),
-      cohort.tags.contains("candidate-implementation-track"),
       let readiness = cohortRunReadiness(
         for: action,
         experiment: experiment,
@@ -5545,9 +5580,15 @@ enum ProductTournamentNextActionAdvisor {
       readiness.missingTargetCommitCount > 0,
       targetCommit(for: experiment) == nil
     else { return nil }
+    let isCandidateTrack =
+      cohort.tags.contains("discover") && cohort.tags.contains("candidate-implementation-track")
+    let isRoundTwoProofGapValidation = action.title == "Validate Round 2 proof-gap revision"
+    guard isCandidateTrack || isRoundTwoProofGapValidation else { return nil }
 
     let scenarioText =
-      readiness.missingTargetCommitCount == 1
+      isRoundTwoProofGapValidation
+      ? "Round 2 revision validation scenario needs"
+      : readiness.missingTargetCommitCount == 1
       ? "1 candidate starter scenario needs"
       : "\(readiness.missingTargetCommitCount) candidate starter scenarios need"
     return ProductTournamentNextAction(
@@ -6026,6 +6067,121 @@ enum ProductTournamentNextActionAdvisor {
       targetScenarioID: scenarioID,
       targetDecision: targetDecision
     )
+  }
+
+  private struct RevisionValidationTarget: Equatable, Sendable {
+    var scenarioID: String
+    var cohortID: String?
+    var personaID: String?
+    var personaName: String?
+  }
+
+  private static func roundTwoProofGapRevisionValidationAction(
+    for experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> ProductTournamentNextAction? {
+    guard
+      let brief = TournamentAutomationRevisionBriefAdvisor.roundTwoProofGapBrief(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      let audit = TournamentAutomationCycleLearningAdvisor.appliedRevisionBriefAudit(
+        for: brief,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      let target = revisionValidationTarget(
+        after: audit,
+        brief: brief,
+        experiment: experiment,
+        config: config
+      )
+    else { return nil }
+
+    let targetName = target.personaName ?? "the target simulated user"
+    let targetDecision = brief.targetDecision ?? .narrow
+    guard let cohortID = target.cohortID else {
+      return ProductTournamentNextAction(
+        experimentID: experiment.id,
+        kind: .refineContender,
+        title: "Enable Round 2 proof-gap validation",
+        detail:
+          "Recent tournament automation cycle \(audit.id) applied a Round 2 proof-gap revision to scenario `\(target.scenarioID)`, but no enabled cohort contains that scenario. Enable or add a cohort for the revision scenario before applying the same proof-gap revision again.",
+        priority: min(99, max(brief.priority + 2, 90)),
+        requiredSimulationMode: .personaModel,
+        targetPersonaID: target.personaID,
+        targetPersonaName: target.personaName,
+        targetScenarioID: target.scenarioID,
+        targetDecision: targetDecision
+      )
+    }
+
+    let validationAction = ProductTournamentNextAction(
+      experimentID: experiment.id,
+      kind: .rerunCohort,
+      title: "Validate Round 2 proof-gap revision",
+      detail:
+        "Recent tournament automation cycle \(audit.id) applied a Round 2 proof-gap revision; rerun persona-model scenario `\(target.scenarioID)` for \(targetName) in cohort `\(cohortID)` before applying the same proof-gap revision again. Proof plan: \(brief.proofPlan)",
+      priority: min(99, max(brief.priority + 3, 91)),
+      cohortID: cohortID,
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: target.personaID,
+      targetPersonaName: target.personaName,
+      targetScenarioID: target.scenarioID,
+      targetDecision: targetDecision
+    )
+    return prepareWorktreeActionIfNeeded(
+      replacing: validationAction,
+      experiment: experiment,
+      config: config
+    ) ?? validationAction
+  }
+
+  private static func revisionValidationTarget(
+    after audit: TournamentAutomationCycleAudit,
+    brief: TournamentAutomationRevisionBrief,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig
+  ) -> RevisionValidationTarget? {
+    guard
+      let scenarioID = revisionScenarioID(from: audit, experimentID: experiment.id)
+        ?? brief.targetScenarioID
+    else { return nil }
+    let scenario = config.scenarios.first {
+      $0.id == scenarioID && $0.experimentID == experiment.id
+    }
+    let personaID = scenario?.segmentID ?? brief.targetPersonaID
+    let personaName =
+      personaID.map { segmentName(for: $0, config: config) } ?? brief.targetPersonaName
+    let cohortID =
+      executableCohortID(forScenarioID: scenarioID, experiment: experiment, config: config)
+      ?? brief.targetCohortID
+    return RevisionValidationTarget(
+      scenarioID: scenarioID,
+      cohortID: cohortID,
+      personaID: personaID,
+      personaName: personaName
+    )
+  }
+
+  private static func revisionScenarioID(
+    from audit: TournamentAutomationCycleAudit,
+    experimentID: String
+  ) -> String? {
+    let prefix = "\(experimentID):\(TournamentAutomationStepKind.applyRevision.rawValue):"
+    for stepID in audit.executedStepIDs where stepID.hasPrefix(prefix) {
+      var target = String(stepID.dropFirst(prefix.count))
+      if let decisionRange = target.range(of: ":target_decision:") {
+        target = String(target[..<decisionRange.lowerBound])
+      }
+      if !target.isEmpty && target != "none" {
+        return target
+      }
+    }
+    return nil
   }
 
   private static func revisionFatigueAction(

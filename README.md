@@ -110,10 +110,11 @@ and advances them through rounds:
   revision, Compass queues a proof-gap revision brief that turns the missing
   capability, objection, or readiness gap into implementation, scenario, and
   validation instructions for the next simulated-user pass; Tournament
-  Automation can apply that brief into a concrete revision scenario before
-  rerunning evidence. Advancement requires completed evidence from two personas
-  plus two stored completed-use proofs derived from traces that reach the
-  required product-use action sequence.
+  Automation can apply that brief into a concrete revision scenario, stamp that
+  generated scenario into the cycle audit, and queue a persona-model validation
+  rerun before applying the same proof-gap revision again. Advancement requires
+  completed evidence from two personas plus two stored completed-use proofs
+  derived from traces that reach the required product-use action sequence.
 - **Round 3: product implementation.** Agentic users exercise low-medium
   fidelity product implementations and evaluate workflow improvement, switching
   readiness, continued-use pull, and explicit price or sponsorship intent.

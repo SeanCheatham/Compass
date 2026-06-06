@@ -3030,6 +3030,7 @@ struct ProductTournamentWorkbenchTab: View {
       : .reachedStepLimit
     let outcome = TournamentAutomationCycleOutcome(
       executedSteps: result == nil ? [] : [step],
+      executedStepIDs: result.map { [$0.executedStepID ?? step.id] } ?? [],
       messages: result.map { [$0.message] } ?? [],
       maxSteps: 1,
       stopReason: stopReason,
@@ -3080,6 +3081,7 @@ struct ProductTournamentWorkbenchTab: View {
     var decisionCandidateSummaries: [String] = []
     var evidenceTensionSummaries: [String] = []
     var proofTargetSummaries: [String] = []
+    var executedStepIDs: [String] = []
     var targetedProofOutcomeSummaries = TournamentAutomationTargetedProofOutcomeAdvisor.signals(
       config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
@@ -3189,13 +3191,15 @@ struct ProductTournamentWorkbenchTab: View {
         break
       }
       executedSteps.append(step)
+      executedStepIDs.append(result.executedStepID ?? step.id)
       messages.append(result.message)
       evidenceRunIDs.append(contentsOf: result.evidenceRunIDs)
       completedEvidenceRunCount += result.completedEvidenceRunCount
       failedEvidenceRunCount += result.failedEvidenceRunCount
       skippedScenarioCount += result.skippedScenarioCount
       if let stepRevisionBrief,
-        let scenarioID = step.targetScenarioID ?? stepRevisionBrief.targetScenarioID
+        let scenarioID =
+          result.targetScenarioID ?? step.targetScenarioID ?? stepRevisionBrief.targetScenarioID
       {
         let checkpoint = appliedRevisionAudit(
           for: stepRevisionBrief,
@@ -3232,6 +3236,7 @@ struct ProductTournamentWorkbenchTab: View {
     )
     let outcome = TournamentAutomationCycleOutcome(
       executedSteps: executedSteps,
+      executedStepIDs: executedStepIDs,
       messages: messages,
       maxSteps: maxSteps,
       stopReason: stopReason,
@@ -3515,7 +3520,10 @@ struct ProductTournamentWorkbenchTab: View {
         await loadContractStatus()
         return TournamentAutomationStepResult(
           message:
-            "Applied contender revision for \(step.experimentTitle): \(brief.title) to scenario \(scenarioID)."
+            "Applied contender revision for \(step.experimentTitle): \(brief.title) to scenario \(scenarioID).",
+          executedStepID:
+            "\(step.experimentID):\(TournamentAutomationStepKind.applyRevision.rawValue):\(scenarioID)",
+          targetScenarioID: scenarioID
         )
       } catch {
         project.fail(error)
