@@ -19,7 +19,7 @@ extension Prompts {
     let lessonsDigest = reflectCompactPromptBlock(lessons, maxLines: 8, maxCharacters: 1800)
     let assumptionsDigest = reflectCompactPromptBlock(assumptions, maxLines: 8, maxCharacters: 1800)
     let visionDigest = reflectCompactPromptBlock(vision, maxLines: 10, maxCharacters: 2400)
-    let productizationDigest = ProductizationPlanningDigestFormatter.promptText(
+    let productTournamentDigest = ProductTournamentPlanningDigestFormatter.promptText(
       config: productizationConfig,
       evidenceIndex: productTournamentEvidenceIndex
     )
@@ -148,7 +148,7 @@ extension Prompts {
       \(fencedOrEmpty(visionDigest, empty: "_(no vision set)_"))
 
       ## Product Tournament Context
-      \(productizationDigest)
+      \(productTournamentDigest)
       """
   }
 

@@ -58,7 +58,7 @@ struct ProductTournamentFeasibilityHandoffTests {
         for: implementationTarget,
         in: transition.config
       )
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: transition.config,
       evidenceIndex: index
     )

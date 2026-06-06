@@ -38,7 +38,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       outcome.config.tournamentContenders.first { $0.id == fixture.contender.id })
     let updatedExperiment = try #require(
       outcome.config.experiments.first { $0.id == fixture.experiment.id })
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: fixture.config,
       evidenceIndex: index
     )

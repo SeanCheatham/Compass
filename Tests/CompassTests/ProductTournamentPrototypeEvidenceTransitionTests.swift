@@ -44,7 +44,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       outcome.config.solutionHypotheses.first { $0.id == fixture.contender.solutionID })
     let losingSolution = try #require(
       outcome.config.solutionHypotheses.first { $0.id == fixture.losingContender.solutionID })
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: fixture.config,
       evidenceIndex: index
     )

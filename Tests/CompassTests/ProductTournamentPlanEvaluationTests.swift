@@ -48,7 +48,7 @@ struct ProductTournamentPlanEvaluationTests {
       index.aggregate.planReadinessByContender.contains {
         $0.recommendation == .advanceToFeasibility || $0.recommendation == .gatherEvidence
       })
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: try workspace.readProductTournamentConfig(),
       evidenceIndex: index
     )

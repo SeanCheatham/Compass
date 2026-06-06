@@ -334,7 +334,7 @@ struct ProductTournamentScenarioRunTests {
     let stored = try workspace.readProductTournamentEvidenceRecord(id: outcome.record.id)
     let index = workspace.readProductTournamentEvidenceIndex()
     let summary = try #require(index.summaries.first)
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: try workspace.readProductTournamentConfig(),
       evidenceIndex: index
     )

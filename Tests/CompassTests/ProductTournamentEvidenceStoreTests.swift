@@ -138,7 +138,7 @@ struct ProductTournamentEvidenceStoreTests {
     let summary = try #require(index.summaries.first)
     let outcome = try #require(index.aggregate.decisionIntentOutcomes.first)
     let markdown = ProductTournamentEvidenceMarkdownExporter.markdown(record: record)
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -517,7 +517,7 @@ struct ProductTournamentEvidenceStoreTests {
     )
     let index = ProductTournamentEvidenceIndex.build(records: [record])
 
-    let text = ProductizationPlanningDigestFormatter.promptText(
+    let text = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -594,7 +594,7 @@ struct ProductTournamentEvidenceStoreTests {
         ]
       ),
     ]
-    let text = ProductizationPlanningDigestFormatter.promptText(
+    let text = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: ProductTournamentEvidenceIndex.build(records: records)
     )
@@ -640,7 +640,7 @@ struct ProductTournamentEvidenceStoreTests {
       )
     )
 
-    let text = ProductizationPlanningDigestFormatter.promptText(
+    let text = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: .empty
     )

@@ -226,7 +226,7 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index
     )
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -378,7 +378,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -525,7 +525,7 @@ struct ProductizationLoopTests {
     try #require(blockedStep.action.targetDecision == .promote)
     try #require(blockedStep.blockedReason?.contains(stalledAudit.id) == true)
     try #require(blockedStep.blockedReason?.contains("split-evidence") == true)
-    let stalledDigest = ProductizationPlanningDigestFormatter.promptText(
+    let stalledDigest = ProductTournamentPlanningDigestFormatter.promptText(
       config: stalledConfig,
       evidenceIndex: index
     )
@@ -616,7 +616,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -702,7 +702,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -853,7 +853,7 @@ struct ProductizationLoopTests {
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
-    let matchedDigest = ProductizationPlanningDigestFormatter.promptText(
+    let matchedDigest = ProductTournamentPlanningDigestFormatter.promptText(
       config: matchedConfig,
       evidenceIndex: index
     )
@@ -1103,7 +1103,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -1166,7 +1166,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -1369,7 +1369,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -1534,7 +1534,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -1783,7 +1783,7 @@ struct ProductizationLoopTests {
       config: fatiguedConfig,
       evidenceIndex: secondValidationIndex
     )
-    let fatigueDigest = ProductizationPlanningDigestFormatter.promptText(
+    let fatigueDigest = ProductTournamentPlanningDigestFormatter.promptText(
       config: fatiguedConfig,
       evidenceIndex: secondValidationIndex
     )
@@ -1839,7 +1839,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -1944,7 +1944,7 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index
     )
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -2274,7 +2274,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -2343,7 +2343,7 @@ struct ProductizationLoopTests {
       evidenceIndex: index,
       isPersonaModelAvailable: true
     )
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -2813,7 +2813,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: evidenceIndex
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -3013,7 +3013,7 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: evidenceIndex
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -3185,7 +3185,7 @@ struct ProductizationLoopTests {
     try #require(audit.evidenceRunStepCount == 1)
     try #require(audit.userMessage.contains("targeted proof 1 promote, 0 kill"))
     try #require(audit.summary.contains("targeted proof 1 promote, 0 kill"))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config.recordingFactoryCycleAudit(audit),
       evidenceIndex: index
     )
@@ -3260,7 +3260,7 @@ struct ProductizationLoopTests {
     try #require(audit.summary.contains("continue -> promote"))
     try #require(audit.summary.contains("rationale signals"))
     try #require(audit.summary.contains("decisions 1 (1 promote, 0 kill); evidence 0"))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config.recordingFactoryCycleAudit(audit),
       evidenceIndex: index
     )
@@ -3332,7 +3332,7 @@ struct ProductizationLoopTests {
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
     )
@@ -3519,7 +3519,7 @@ struct ProductizationLoopTests {
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
-    let digest = ProductizationPlanningDigestFormatter.promptText(
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: stalledConfig,
       evidenceIndex: index
     )
@@ -3891,7 +3891,7 @@ struct ProductizationLoopTests {
       ))
 
     try #require(action.kind == .runCohort)
-    try #require(action.title == "Run productization cohort")
+    try #require(action.title == "Run product tournament cohort")
     try #require(action.cohortID == config.scenarioCohorts[0].id)
     try #require(action.detail.contains(config.scenarioCohorts[0].id))
 

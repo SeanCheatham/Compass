@@ -3912,7 +3912,7 @@ enum ProductMarketFitNextActionAdvisor {
         to: ProductMarketFitNextAction(
           experimentID: experiment.id,
           kind: staleCount > 0 ? .rerunCohort : .runCohort,
-          title: staleCount > 0 ? "Rerun current evidence" : "Run productization cohort",
+          title: staleCount > 0 ? "Rerun current evidence" : "Run product tournament cohort",
           detail: staleCount > 0
             ? "\(staleCount) stale run(s) exist for older commits; rerun cohort `\(cohort.id)` against the current experiment commit before deciding."
             : "No current-commit evidence exists yet; run cohort `\(cohort.id)` before changing the product decision.",

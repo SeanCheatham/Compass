@@ -1,6 +1,6 @@
 import Foundation
 
-enum ProductizationPlanningDigestFormatter {
+enum ProductTournamentPlanningDigestFormatter {
   static func promptText(
     config: ProductizationConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
@@ -15,7 +15,7 @@ enum ProductizationPlanningDigestFormatter {
     ]
 
     if config.isEmpty {
-      lines.append("No productization state is configured yet.")
+      lines.append("No product tournament state is configured yet.")
       return boundedLines(lines, maxLines: 36, maxCharacters: 3_800)
     }
 
@@ -341,7 +341,7 @@ enum ProductizationPlanningDigestFormatter {
     let unknowns = config.painHypotheses
       .filter { $0.status == .active || $0.status == .draft }
       .flatMap(\.unknowns)
-      .productizationUniquedPreservingOrder()
+      .productTournamentUniquedPreservingOrder()
       .prefix(6)
     guard !unknowns.isEmpty else { return [] }
     return ["Unresolved product unknowns:"]
@@ -999,7 +999,7 @@ enum ProductizationPlanningDigestFormatter {
 }
 
 extension Array where Element == String {
-  fileprivate func productizationUniquedPreservingOrder() -> [String] {
+  fileprivate func productTournamentUniquedPreservingOrder() -> [String] {
     var seen = Set<String>()
     var out: [String] = []
     for value in self {

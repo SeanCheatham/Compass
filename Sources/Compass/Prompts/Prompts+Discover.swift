@@ -569,7 +569,7 @@ private struct DiscoveryPromptDigest: Encodable {
   var drafts: String
   var lessons: String
   var assumptions: String
-  var productizationDigest: String
+  var productTournamentDigest: String
   var repositoryShape: String
 
   init(context: DiscoveryPromptContext) {
@@ -579,7 +579,7 @@ private struct DiscoveryPromptDigest: Encodable {
     drafts = context.drafts
     lessons = context.lessons
     assumptions = context.assumptions
-    productizationDigest = ProductizationPlanningDigestFormatter.promptText(
+    productTournamentDigest = ProductTournamentPlanningDigestFormatter.promptText(
       config: context.productizationConfig,
       evidenceIndex: context.evidenceIndex
     )
