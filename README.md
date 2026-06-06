@@ -139,7 +139,12 @@ and advances them through rounds:
   proofs, and evidence from at least two personas. When those Round 3 gates are
   not met, Tournament Automation targets the next persona-model cohort toward
   implementation-use proof first, then current-alternative comparison, then
-  explicit willingness-to-pay or sponsorship proof.
+  explicit willingness-to-pay or sponsorship proof. When the proof gates are met
+  but the low-medium fidelity implementation still has weak pay intent, missing
+  capabilities, or mixed pull, Compass queues a Round 3 implementation revision
+  brief instead of selecting a winner; that brief becomes an apply-revision
+  checkpoint with implementation, scenario, and validation instructions for the
+  next scoped simulated-user pass.
   Workbench scenario-run rows and selected-run details expose whether each run
   counts as completed-use proof.
 
@@ -230,10 +235,14 @@ recommendations to stored tournament state, including selecting a winner when
 product implementation evidence clears the winner gate. Non-actionable Round 3
 proof gaps become targeted persona-model reruns instead of generic promotion
 decisions, so missing implementation-use, current-alternative, and pay/sponsor
-proof each point at a runnable scenario when one exists. Cycle audits record
-worktree preparation and automated round transitions separately from tournament
-decision updates and simulated-user evidence runs, and Round 1 plan-proof cycles
-capture starting and ending persona-model/model-free plan evidence counts.
+proof each point at a runnable scenario when one exists; actionable Round 3
+revision recommendations become product implementation revision briefs so a
+checkpointed low-medium fidelity change is applied and validated before another
+winner transition is considered. Cycle audits record worktree preparation,
+applied revision briefs, and automated round transitions separately from
+tournament decision updates and simulated-user evidence runs, and Round 1
+plan-proof cycles capture starting and ending persona-model/model-free plan
+evidence counts.
 Recent worktree-preparation cycles also appear as compact Plan/Reflect context
 rows with current evidence-run counts, so agents can see when a branch was
 prepared before simulated-user evidence arrived. The Workbench mirrors that

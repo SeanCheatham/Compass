@@ -4716,6 +4716,88 @@ struct ProductTournamentLoopTests {
     try #require(savedExperiment.decision == .promote)
   }
 
+  @Test func tournamentAutomationQueuesRoundThreeImplementationRevisionBrief() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let target = try activateRoundThreeProductImplementationTarget(in: &config)
+    let experiment = try #require(
+      config.tournamentExperiments.first { $0.id == target.experimentID })
+    let records = scopedTournamentEvidenceRecords(
+      prefix: "automation-round-3-revision",
+      experiment: experiment,
+      config: config,
+      target: target,
+      count: 3,
+      completedUseProof: true,
+      willingnessToPay: 2,
+      mode: .personaModel
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+
+    let proposal = try #require(
+      ProductTournamentProductImplementationEvidenceTransitioner.proposals(
+        tournamentID: target.tournamentID,
+        roundID: target.roundID,
+        config: config,
+        evidenceIndex: index
+      ).first)
+    let revisionBrief = try #require(
+      TournamentAutomationRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let explicitRevisionBrief = try #require(
+      TournamentAutomationRevisionBriefAdvisor.roundThreeImplementationRevisionBrief(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let step = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
+
+    try #require(proposal.recommendation == .reviseImplementation)
+    try #require(
+      proposal.proofGaps.contains { $0.contains("willingness to pay 2.0/5") })
+    try #require(revisionBrief == explicitRevisionBrief)
+    try #require(revisionBrief.source == .roundThreeImplementationRevision)
+    try #require(revisionBrief.title == "Revise Round 3 product implementation proof gaps")
+    try #require(revisionBrief.implementationChange.contains("low-medium fidelity"))
+    try #require(revisionBrief.implementationChange.contains("willingness to pay"))
+    try #require(revisionBrief.scenarioChange.contains("Round 3 validation"))
+    try #require(revisionBrief.proofPlan == proposal.nextValidationTarget)
+    try #require(revisionBrief.targetDecision == .narrow)
+    try #require(revisionBrief.targetPersonaID != nil)
+    try #require(revisionBrief.targetScenarioID != nil)
+    try #require(revisionBrief.auditSummary.contains("source round_3_implementation_revision"))
+    try #require(step.kind == .applyRevision)
+    try #require(step.canExecute)
+    try #require(step.action.kind == .refineContender)
+    try #require(step.action.title == revisionBrief.title)
+    try #require(step.action.detail.contains("Proof"))
+    try #require(step.action.targetPersonaID == revisionBrief.targetPersonaID)
+    try #require(step.action.targetScenarioID == revisionBrief.targetScenarioID)
+    try #require(step.action.targetDecision == .narrow)
+    try #require(step.title != "Apply Round 3 transition")
+    try #require(digest.contains("Tournament automation revision briefs"))
+    try #require(digest.contains("source round_3_implementation_revision"))
+    try #require(digest.contains("low-medium fidelity"))
+  }
+
   @Test func tournamentNextActionTargetsRoundThreePayProofBeforeGenericPromotion() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",

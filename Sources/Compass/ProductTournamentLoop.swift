@@ -1705,6 +1705,7 @@ enum TournamentAutomationRevisionBriefSource: String, Equatable, Sendable {
   case personaModelRationale = "persona_model_rationale"
   case targetedProofOutcome = "targeted_proof_outcome"
   case roundTwoProofGap = "round_2_proof_gap"
+  case roundThreeImplementationRevision = "round_3_implementation_revision"
 }
 
 struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
@@ -1872,6 +1873,13 @@ enum TournamentAutomationRevisionBriefAdvisor {
     ) {
       return proofGapBrief
     }
+    if let implementationRevisionBrief = roundThreeImplementationRevisionBrief(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return implementationRevisionBrief
+    }
     guard
       let signal = TournamentAutomationRationaleSignalAdvisor.signal(
         for: experiment,
@@ -1994,6 +2002,50 @@ enum TournamentAutomationRevisionBriefAdvisor {
     )
   }
 
+  static func roundThreeImplementationRevisionBrief(
+    for experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> TournamentAutomationRevisionBrief? {
+    guard
+      let proposal = ProductTournamentProductImplementationEvidenceTransitioner.proposals(
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      .first(where: {
+        $0.recommendation == .reviseImplementation
+          && contender($0.contenderID, matches: experiment, in: config)
+      })
+    else { return nil }
+
+    let target = roundThreeImplementationRevisionTarget(
+      for: proposal,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    let gaps = proofGapSummary(for: proposal)
+    return TournamentAutomationRevisionBrief(
+      experimentID: experiment.id,
+      source: .roundThreeImplementationRevision,
+      title: "Revise Round 3 product implementation proof gaps",
+      priority: max(proposal.priority, 88),
+      triggerSummary:
+        "Round 3 product implementation evidence recommends revising contender `\(proposal.contenderID)`: \(gaps).",
+      implementationChange:
+        "Revise the low-medium fidelity product implementation against \(gaps) before selecting a tournament winner.",
+      scenarioChange:
+        target.scenarioChange
+          ?? "Retarget scoped Round 3 scenarios so simulated users must exercise the revised product implementation, compare against the current alternative, and make an explicit willingness-to-pay or sponsorship judgment.",
+      proofPlan: proposal.nextValidationTarget,
+      targetPersonaID: target.personaID,
+      targetPersonaName: target.personaName,
+      targetScenarioID: target.scenarioID,
+      targetCohortID: target.cohortID,
+      targetDecision: .narrow
+    )
+  }
+
   private struct RevisionPlan: Equatable, Sendable {
     var title: String
     var implementationChange: String
@@ -2002,6 +2054,14 @@ enum TournamentAutomationRevisionBriefAdvisor {
   }
 
   private struct RoundTwoProofGapTarget: Equatable, Sendable {
+    var personaID: String?
+    var personaName: String?
+    var scenarioID: String?
+    var cohortID: String?
+    var scenarioChange: String?
+  }
+
+  private struct RoundThreeImplementationRevisionTarget: Equatable, Sendable {
     var personaID: String?
     var personaName: String?
     var scenarioID: String?
@@ -2085,8 +2145,108 @@ enum TournamentAutomationRevisionBriefAdvisor {
     return score
   }
 
+  private static func roundThreeImplementationRevisionTarget(
+    for proposal: ProductTournamentProductImplementationEvidenceTransitionProposal,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> RoundThreeImplementationRevisionTarget {
+    let scopedSummaries = evidenceIndex.summaries(for: experiment)
+      .filter {
+        $0.tournamentID == proposal.tournamentID
+          && $0.roundID == proposal.roundID
+          && $0.contenderID == proposal.contenderID
+          && $0.isCompleted
+      }
+      .sorted(by: roundThreeImplementationRevisionSummarySort)
+    guard let summary = scopedSummaries.first else {
+      return RoundThreeImplementationRevisionTarget()
+    }
+    let scenarioByID = config.scenarios.first {
+      $0.id == summary.scenarioID && $0.experimentID == experiment.id
+    }
+    let scenario =
+      scenarioByID
+      ?? config.scenarios.first {
+        $0.experimentID == experiment.id && $0.segmentID == summary.personaID
+      }
+    let rawPersonaID =
+      summary.personaID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? scenario?.segmentID
+      : summary.personaID
+    let personaID = rawPersonaID.flatMap { candidateID in
+      config.userSegments.contains { $0.id == candidateID } ? candidateID : nil
+    }
+    let personaName = personaID.map { segmentName(for: $0, config: config) }
+    let cohortID = scenario.flatMap {
+      executableCohortID(
+        forScenarioID: $0.id,
+        experiment: experiment,
+        config: config
+      )
+    }
+    let targetName = personaName ?? "the target simulated user"
+    let scenarioChange =
+      "Retarget scoped Round 3 validation for \(targetName) so the persona must exercise the revised low-medium fidelity implementation, compare it against the current alternative, and give explicit willingness-to-pay or sponsorship intent."
+    return RoundThreeImplementationRevisionTarget(
+      personaID: personaID,
+      personaName: personaName,
+      scenarioID: scenario?.id,
+      cohortID: cohortID,
+      scenarioChange: scenarioChange
+    )
+  }
+
+  private static func roundThreeImplementationRevisionSummarySort(
+    lhs: ProductTournamentEvidenceSummary,
+    rhs: ProductTournamentEvidenceSummary
+  ) -> Bool {
+    let lhsScore = roundThreeImplementationRevisionSummaryPriority(lhs)
+    let rhsScore = roundThreeImplementationRevisionSummaryPriority(rhs)
+    if lhsScore == rhsScore {
+      if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
+      return lhs.endedAt > rhs.endedAt
+    }
+    return lhsScore > rhsScore
+  }
+
+  private static func roundThreeImplementationRevisionSummaryPriority(
+    _ summary: ProductTournamentEvidenceSummary
+  ) -> Int {
+    var score = 0
+    if !summary.missingCapabilities.isEmpty { score += 8 }
+    if hasRoundThreePayConcern(summary) { score += 7 }
+    if !summary.objections.isEmpty { score += 6 }
+    if !summary.completedUseProof { score += 5 }
+    switch summary.verdict {
+    case .rejected: score += 5
+    case .weak: score += 4
+    case .unclear: score += 3
+    case .promising: score += 1
+    case .strongPull: break
+    }
+    return score
+  }
+
+  private static func hasRoundThreePayConcern(
+    _ summary: ProductTournamentEvidenceSummary
+  ) -> Bool {
+    let willingnessToPay = summary.scores.willingnessToPay ?? summary.willingnessToPayScore
+    return willingnessToPay.map { $0 < 4 } ?? false
+  }
+
   private static func proofGapSummary(
     for proposal: ProductTournamentRoundEvidenceTransitionProposal
+  ) -> String {
+    let gaps =
+      proposal.proofGaps.isEmpty
+      ? [proposal.detail]
+      : Array(proposal.proofGaps.prefix(4))
+    return StringUtils.boundedText(gaps.joined(separator: "; "), limit: 260)
+  }
+
+  private static func proofGapSummary(
+    for proposal: ProductTournamentProductImplementationEvidenceTransitionProposal
   ) -> String {
     let gaps =
       proposal.proofGaps.isEmpty
@@ -4425,7 +4585,11 @@ enum TournamentAutomationPlanner {
       config: config,
       evidenceIndex: evidenceIndex
     )
-    .first(where: { $0.isActionable && contender($0.contenderID, matches: experiment, in: config) })
+    .first(where: {
+      $0.isActionable
+        && contender($0.contenderID, matches: experiment, in: config)
+        && !isRoundThreeImplementationRevision($0, for: experiment, in: config)
+    })
     {
       return transitionStep(
         experiment: experiment,
@@ -4454,6 +4618,15 @@ enum TournamentAutomationPlanner {
         && $0.experimentID == experiment.id
         && $0.status == .needsRevision
     }
+  }
+
+  private static func isRoundThreeImplementationRevision(
+    _ proposal: ProductTournamentProductImplementationEvidenceTransitionProposal,
+    for experiment: ProductTournamentExperiment,
+    in config: ProductTournamentConfig
+  ) -> Bool {
+    proposal.recommendation == .reviseImplementation
+      && contender(proposal.contenderID, matches: experiment, in: config)
   }
 
   private static func transitionStep(
@@ -4540,13 +4713,18 @@ enum TournamentAutomationPlanner {
     evidenceIndex: ProductTournamentEvidenceIndex,
     isPersonaModelAvailable: Bool
   ) -> TournamentAutomationStep? {
-    guard
-      let brief = TournamentAutomationRevisionBriefAdvisor.roundTwoProofGapBrief(
+    let brief =
+      TournamentAutomationRevisionBriefAdvisor.roundTwoProofGapBrief(
         for: experiment,
         config: config,
         evidenceIndex: evidenceIndex
       )
-    else { return nil }
+      ?? TournamentAutomationRevisionBriefAdvisor.roundThreeImplementationRevisionBrief(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    guard let brief else { return nil }
     guard
       TournamentAutomationCycleLearningAdvisor.appliedRevisionBriefAudit(
         for: brief,
