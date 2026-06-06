@@ -3213,6 +3213,24 @@ struct ProductTournamentWorkbenchTab: View {
         )
       }
       return nil
+    case .applyRoundTransition:
+      do {
+        guard let workspace = project.workspace else {
+          project.fail(AppModelError.noRepositorySelected)
+          return nil
+        }
+        let outcome = try TournamentAutomationRoundTransitionStepExecutor.run(
+          step,
+          in: workspace
+        )
+        project.productTournamentConfig = outcome.config
+        project.productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
+        project.log(outcome.userMessage, level: .success)
+        return TournamentAutomationStepResult(message: outcome.userMessage)
+      } catch {
+        project.fail(error)
+        return nil
+      }
     case .runPlanProof:
       do {
         guard let workspace = project.workspace else {

@@ -182,8 +182,10 @@ the tournament advances to Round 2 while recent automation deltas remain in
 context as history.
 Later-round scenario evidence is stamped with tournament, round, and contender
 IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
-feedback remains comparable across tournament rounds. The workbench can apply the
-best actionable Round 1 and Round 2 recommendations to stored tournament state.
+feedback remains comparable across tournament rounds. The workbench and
+Tournament Automation can apply the best actionable Round 1, Round 2, and Round 3
+recommendations to stored tournament state, including selecting a winner when
+prototype evidence clears the winner gate.
 Only the proof overview for the active tournament round is shown at a time:
 Round 1 plan proof, Round 2 core-technology proof, or Round 3 prototype winner
 proof.

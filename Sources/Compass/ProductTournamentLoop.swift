@@ -222,6 +222,7 @@ struct ProductTournamentDecisionProposal: Equatable, Sendable {
 
 enum ProductTournamentNextActionKind: String, Equatable, Sendable {
   case applyDecision = "apply_decision"
+  case applyRoundTransition = "apply_round_transition"
   case runPlanProof = "run_plan_proof"
   case runCohort = "run_cohort"
   case rerunCohort = "rerun_cohort"
@@ -2526,7 +2527,7 @@ enum TournamentAutomationExperimentRanker {
       break
     }
     switch nextActionKind {
-    case .applyDecision:
+    case .applyDecision, .applyRoundTransition:
       switch readiness?.recommendation {
       case .promote: return .lift
       case .kill: return .cut
@@ -2563,6 +2564,7 @@ enum TournamentAutomationExperimentRanker {
 
 enum TournamentAutomationStepKind: String, Equatable, Sendable {
   case applyDecision = "apply_decision"
+  case applyRoundTransition = "apply_round_transition"
   case runPlanProof = "run_plan_proof"
   case runCohort = "run_cohort"
   case applyRevision = "apply_revision"
@@ -2607,7 +2609,7 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
     switch kind {
     case .applyRevision:
       return TournamentAutomationStepKind.applyRevision.rawValue
-    case .applyDecision, .runPlanProof, .runCohort, .blocked:
+    case .applyDecision, .applyRoundTransition, .runPlanProof, .runCohort, .blocked:
       return action.kind.rawValue
     }
   }
@@ -2620,6 +2622,8 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
     switch kind {
     case .applyDecision:
       return "Apply tournament decision"
+    case .applyRoundTransition:
+      return action.title
     case .runPlanProof:
       return action.title
     case .runCohort:
@@ -2658,6 +2662,14 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
       self.kind = .applyDecision
       self.canExecute = true
       self.blockedReason = nil
+    case .applyRoundTransition:
+      self.kind = .applyRoundTransition
+      self.canExecute = action.tournamentID != nil && action.roundID != nil
+        && action.contenderID != nil
+      self.blockedReason =
+        self.canExecute
+        ? nil
+        : "Tournament round transition is missing tournament, round, or contender scope."
     case .runPlanProof:
       self.kind = .runPlanProof
       self.canExecute = action.tournamentID != nil && action.roundID != nil
@@ -2881,6 +2893,10 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
     executedSteps.filter { $0.action.kind == .applyDecision }.count
   }
 
+  var appliedRoundTransitionCount: Int {
+    executedSteps.filter { $0.action.kind == .applyRoundTransition }.count
+  }
+
   var promotedDecisionCount: Int {
     executedSteps.filter {
       $0.action.kind == .applyDecision && $0.action.targetDecision == .promote
@@ -3037,7 +3053,8 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
 
   private var outcomeMessage: String? {
     guard
-      appliedDecisionCount > 0 || evidenceRunStepCount > 0 || hasEvidenceRunOutcomes
+      appliedDecisionCount > 0 || appliedRoundTransitionCount > 0 || evidenceRunStepCount > 0
+        || hasEvidenceRunOutcomes
     else { return nil }
     let evidenceOutcome =
       hasEvidenceRunOutcomes
@@ -3049,7 +3066,7 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
       ? ", targeted proof \(targetedPromoteProofCount) promote, \(targetedKillProofCount) kill"
       : ""
     return
-      "Cycle outcomes: \(appliedDecisionCount) tournament decision(s) applied (\(promotedDecisionCount) promote, \(killedDecisionCount) kill), \(evidenceRunStepCount) evidence step(s)\(targetedProof)\(evidenceOutcome)."
+      "Cycle outcomes: \(appliedDecisionCount) tournament decision(s) applied (\(promotedDecisionCount) promote, \(killedDecisionCount) kill), \(appliedRoundTransitionCount) round transition(s) applied, \(evidenceRunStepCount) evidence step(s)\(targetedProof)\(evidenceOutcome)."
   }
 
   private var hasEvidenceRunOutcomes: Bool {
@@ -3925,10 +3942,23 @@ enum TournamentAutomationPlanner {
     evidenceIndex: ProductTournamentEvidenceIndex,
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> [TournamentAutomationStep] {
-    TournamentAutomationExperimentRanker.rankedExperiments(
+    let plannedSteps = TournamentAutomationExperimentRanker.rankedExperiments(
       config: config,
       evidenceIndex: evidenceIndex
     ).compactMap { experiment in
+      if let transitionStep = roundTransitionStep(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      ) {
+        return applyingRecentCycleFailureBlock(
+          to: transitionStep,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
+      }
       if let planProofStep = planProofStep(
         for: experiment,
         config: config,
@@ -3979,6 +4009,114 @@ enum TournamentAutomationPlanner {
         config: config,
         evidenceIndex: evidenceIndex
       )
+    }
+    return plannedSteps.sorted { lhs, rhs in
+      if lhs.canExecute != rhs.canExecute { return lhs.canExecute && !rhs.canExecute }
+      if lhs.action.priority == rhs.action.priority {
+        if lhs.experimentID == rhs.experimentID { return lhs.id < rhs.id }
+        return lhs.experimentID < rhs.experimentID
+      }
+      return lhs.action.priority > rhs.action.priority
+    }
+  }
+
+  private static func roundTransitionStep(
+    for experiment: ProductExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
+  ) -> TournamentAutomationStep? {
+    if let proposal = ProductTournamentPlanTransitioner.proposals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    .first(where: { $0.isActionable && contender($0.contenderID, matches: experiment, in: config) }) {
+      return transitionStep(
+        experiment: experiment,
+        title: "Apply Round 1 transition",
+        detail:
+          "\(proposal.title): \(proposal.detail)",
+        priority: proposal.priority,
+        tournamentID: proposal.tournamentID,
+        roundID: proposal.roundID,
+        contenderID: proposal.contenderID,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      )
+    }
+
+    if let proposal = ProductTournamentRoundEvidenceTransitioner.proposals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    .first(where: { $0.isActionable && contender($0.contenderID, matches: experiment, in: config) }) {
+      return transitionStep(
+        experiment: experiment,
+        title: "Apply Round 2 transition",
+        detail:
+          "\(proposal.title): \(proposal.detail)",
+        priority: proposal.priority,
+        tournamentID: proposal.tournamentID,
+        roundID: proposal.roundID,
+        contenderID: proposal.contenderID,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      )
+    }
+
+    if let proposal = ProductTournamentPrototypeEvidenceTransitioner.proposals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    .first(where: { $0.isActionable && contender($0.contenderID, matches: experiment, in: config) }) {
+      return transitionStep(
+        experiment: experiment,
+        title: "Apply Round 3 transition",
+        detail:
+          "\(proposal.title): \(proposal.detail)",
+        priority: proposal.priority,
+        tournamentID: proposal.tournamentID,
+        roundID: proposal.roundID,
+        contenderID: proposal.contenderID,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      )
+    }
+
+    return nil
+  }
+
+  private static func transitionStep(
+    experiment: ProductExperiment,
+    title: String,
+    detail: String,
+    priority: Int,
+    tournamentID: String,
+    roundID: String,
+    contenderID: String,
+    isPersonaModelAvailable: Bool
+  ) -> TournamentAutomationStep {
+    TournamentAutomationStep(
+      experiment: experiment,
+      action: ProductTournamentNextAction(
+        experimentID: experiment.id,
+        kind: .applyRoundTransition,
+        title: title,
+        detail: detail,
+        priority: priority,
+        tournamentID: tournamentID,
+        roundID: roundID,
+        contenderID: contenderID
+      ),
+      cohortReadiness: nil,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    )
+  }
+
+  private static func contender(
+    _ contenderID: String,
+    matches experiment: ProductExperiment,
+    in config: ProductTournamentConfig
+  ) -> Bool {
+    config.tournamentContenders.contains {
+      $0.id == contenderID && $0.experimentID == experiment.id
     }
   }
 
@@ -4097,7 +4235,9 @@ enum TournamentAutomationPlanner {
     experimentID: String,
     config: ProductTournamentConfig
   ) -> Bool {
-    guard action.kind != .applyDecision else { return false }
+    guard action.kind != .applyDecision && action.kind != .applyRoundTransition else {
+      return false
+    }
     return ProductTournamentRoundImplementationTargetResolver.blocksEvidenceLaunch(
       experimentID: experimentID,
       in: config
@@ -4245,6 +4385,208 @@ enum TournamentAutomationPlanProofStepError: LocalizedError, Equatable {
     case .missingScope(let id):
       return "Tournament automation plan-proof step \(id) is missing tournament, round, or contender scope."
     }
+  }
+}
+
+enum TournamentAutomationRoundTransitionStepError: LocalizedError, Equatable {
+  case invalidStep(String)
+  case missingScope(String)
+  case unknownRound(String)
+  case unsupportedRound(String, ProductTournamentRoundKind)
+  case missingProposal(String, String)
+
+  var errorDescription: String? {
+    switch self {
+    case .invalidStep(let id):
+      return "Tournament automation step \(id) is not a round-transition step."
+    case .missingScope(let id):
+      return "Tournament automation round-transition step \(id) is missing tournament, round, or contender scope."
+    case .unknownRound(let id):
+      return "Product tournament round \(id) was not found."
+    case .unsupportedRound(let id, let kind):
+      return "Product tournament round \(id) has unsupported transition kind \(kind.rawValue)."
+    case .missingProposal(let contenderID, let roundID):
+      return "No actionable tournament transition exists for contender \(contenderID) in round \(roundID)."
+    }
+  }
+}
+
+struct TournamentAutomationRoundTransitionStepOutcome: Equatable, Sendable {
+  var userMessage: String
+  var config: ProductTournamentConfig
+  var tournamentID: String
+  var roundID: String
+  var contenderID: String
+  var roundKind: ProductTournamentRoundKind
+  var toRoundID: String?
+
+  init(
+    userMessage: String,
+    config: ProductTournamentConfig,
+    tournamentID: String,
+    roundID: String,
+    contenderID: String,
+    roundKind: ProductTournamentRoundKind,
+    toRoundID: String? = nil
+  ) {
+    self.userMessage = ProductTournamentModelText.cleanedText(
+      userMessage,
+      fallback: "Applied tournament round transition.",
+      limit: 1_200
+    )
+    self.config = config
+    self.tournamentID = tournamentID
+    self.roundID = roundID
+    self.contenderID = contenderID
+    self.roundKind = roundKind
+    self.toRoundID = ProductTournamentModelText.optionalIdentifier(toRoundID, fallback: "round")
+  }
+}
+
+enum TournamentAutomationRoundTransitionStepExecutor {
+  static func run(
+    _ step: TournamentAutomationStep,
+    in workspace: CompassWorkspace,
+    now: Date = Date()
+  ) throws -> TournamentAutomationRoundTransitionStepOutcome {
+    guard step.kind == .applyRoundTransition,
+      step.action.kind == .applyRoundTransition
+    else {
+      throw TournamentAutomationRoundTransitionStepError.invalidStep(step.id)
+    }
+    guard
+      let tournamentID = step.tournamentID,
+      let roundID = step.roundID,
+      let contenderID = step.contenderID
+    else {
+      throw TournamentAutomationRoundTransitionStepError.missingScope(step.id)
+    }
+
+    let config = try workspace.readProductTournamentConfig()
+    let evidenceIndex = workspace.readProductTournamentEvidenceIndex()
+    guard let round = config.tournamentRounds.first(where: { $0.id == roundID }) else {
+      throw TournamentAutomationRoundTransitionStepError.unknownRound(roundID)
+    }
+
+    let result: (message: String, config: ProductTournamentConfig, toRoundID: String?)
+    switch round.kind {
+    case .productPlans:
+      let proposal = try planProposal(
+        tournamentID: tournamentID,
+        roundID: roundID,
+        contenderID: contenderID,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      let outcome = try ProductTournamentPlanTransitioner.apply(
+        proposal: proposal,
+        to: config,
+        now: now
+      )
+      result = (outcome.userMessage, outcome.config, outcome.toRoundID)
+    case .coreTechnology:
+      let proposal = try roundTwoProposal(
+        tournamentID: tournamentID,
+        roundID: roundID,
+        contenderID: contenderID,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      let outcome = try ProductTournamentRoundEvidenceTransitioner.apply(
+        proposal: proposal,
+        to: config,
+        now: now
+      )
+      result = (outcome.userMessage, outcome.config, outcome.toRoundID)
+    case .prototype:
+      let proposal = try roundThreeProposal(
+        tournamentID: tournamentID,
+        roundID: roundID,
+        contenderID: contenderID,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      let outcome = try ProductTournamentPrototypeEvidenceTransitioner.apply(
+        proposal: proposal,
+        to: config,
+        now: now
+      )
+      result = (outcome.userMessage, outcome.config, outcome.toRoundID)
+    }
+
+    try workspace.writeProductTournamentConfig(result.config)
+    return TournamentAutomationRoundTransitionStepOutcome(
+      userMessage: result.message,
+      config: result.config,
+      tournamentID: tournamentID,
+      roundID: roundID,
+      contenderID: contenderID,
+      roundKind: round.kind,
+      toRoundID: result.toRoundID
+    )
+  }
+
+  private static func planProposal(
+    tournamentID: String,
+    roundID: String,
+    contenderID: String,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) throws -> ProductTournamentPlanTransitionProposal {
+    guard
+      let proposal = ProductTournamentPlanTransitioner.proposals(
+        tournamentID: tournamentID,
+        roundID: roundID,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      .first(where: { $0.contenderID == contenderID && $0.isActionable })
+    else {
+      throw TournamentAutomationRoundTransitionStepError.missingProposal(contenderID, roundID)
+    }
+    return proposal
+  }
+
+  private static func roundTwoProposal(
+    tournamentID: String,
+    roundID: String,
+    contenderID: String,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) throws -> ProductTournamentRoundEvidenceTransitionProposal {
+    guard
+      let proposal = ProductTournamentRoundEvidenceTransitioner.proposals(
+        tournamentID: tournamentID,
+        roundID: roundID,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      .first(where: { $0.contenderID == contenderID && $0.isActionable })
+    else {
+      throw TournamentAutomationRoundTransitionStepError.missingProposal(contenderID, roundID)
+    }
+    return proposal
+  }
+
+  private static func roundThreeProposal(
+    tournamentID: String,
+    roundID: String,
+    contenderID: String,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) throws -> ProductTournamentPrototypeEvidenceTransitionProposal {
+    guard
+      let proposal = ProductTournamentPrototypeEvidenceTransitioner.proposals(
+        tournamentID: tournamentID,
+        roundID: roundID,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      .first(where: { $0.contenderID == contenderID && $0.isActionable })
+    else {
+      throw TournamentAutomationRoundTransitionStepError.missingProposal(contenderID, roundID)
+    }
+    return proposal
   }
 }
 
@@ -4663,7 +5005,8 @@ enum ProductTournamentNextActionAdvisor {
     switch signal.actionKind {
     case .runCohort, .rerunCohort:
       runnableCohortID = signal.targetCohortID
-    case .applyDecision, .runPlanProof, .repairFailures, .refineContender, .reviewDecision:
+    case .applyDecision, .applyRoundTransition, .runPlanProof, .repairFailures, .refineContender,
+      .reviewDecision:
       runnableCohortID = nil
     }
     return ProductTournamentNextAction(

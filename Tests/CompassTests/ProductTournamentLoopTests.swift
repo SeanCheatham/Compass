@@ -4081,6 +4081,176 @@ struct ProductTournamentLoopTests {
     try #require(decision.afterSha == experiment.currentSha)
   }
 
+  @Test func tournamentAutomationAppliesRoundOnePlanTransition() throws {
+    let config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    let tournament = try #require(config.tournaments.first)
+    let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+
+    let workspace = CompassWorkspace(repoURL: try makeTempDir())
+    defer { try? FileManager.default.removeItem(at: workspace.repoURL) }
+    try workspace.initialize()
+    try workspace.writeProductTournamentConfig(config)
+    let planProofStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+    let contenderID = try #require(planProofStep.contenderID)
+    let contender = try #require(config.tournamentContenders.first { $0.id == contenderID })
+    let experiment = try #require(config.experiments.first { $0.id == contender.experimentID })
+    _ = try TournamentAutomationPlanProofStepExecutor.run(
+      planProofStep,
+      in: workspace,
+      now: Date(timeIntervalSince1970: 40)
+    )
+    let index = workspace.readProductTournamentEvidenceIndex()
+    let step = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(step.kind == .applyRoundTransition)
+    try #require(step.action.kind == .applyRoundTransition)
+    try #require(step.title == "Apply Round 1 transition")
+    try #require(step.experimentID == experiment.id)
+    try #require(step.tournamentID == tournament.id)
+    try #require(step.roundID == planRound.id)
+    try #require(step.contenderID == contender.id)
+
+    let outcome = try TournamentAutomationRoundTransitionStepExecutor.run(
+      step,
+      in: workspace,
+      now: Date(timeIntervalSince1970: 50)
+    )
+    let saved = try workspace.readProductTournamentConfig()
+    let toRoundID = try #require(outcome.toRoundID)
+    let activeRound = try #require(
+      saved.tournamentRounds.first { $0.id == toRoundID })
+
+    try #require(outcome.roundKind == .productPlans)
+    try #require(outcome.userMessage.contains("Round 2"))
+    try #require(activeRound.kind == .coreTechnology)
+    try #require(activeRound.status == .active)
+    try #require(saved.tournaments[0].currentRoundID == activeRound.id)
+  }
+
+  @Test func tournamentAutomationAppliesRoundTwoEvidenceTransition() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    let target = try activateRoundTwoImplementationTarget(in: &config)
+    let experiment = try #require(config.experiments.first { $0.id == target.experimentID })
+    let records = scopedTournamentEvidenceRecords(
+      prefix: "automation-round-2",
+      experiment: experiment,
+      config: config,
+      target: target,
+      count: 2,
+      completedUseProof: true
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+    let step = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(step.kind == .applyRoundTransition)
+    try #require(step.action.kind == .applyRoundTransition)
+    try #require(step.title == "Apply Round 2 transition")
+    try #require(step.experimentID == experiment.id)
+    try #require(step.tournamentID == target.tournamentID)
+    try #require(step.roundID == target.roundID)
+    try #require(step.contenderID == target.contenderID)
+
+    let workspace = CompassWorkspace(repoURL: try makeTempDir())
+    defer { try? FileManager.default.removeItem(at: workspace.repoURL) }
+    try workspace.initialize()
+    try workspace.writeProductTournamentConfig(config)
+    for record in records {
+      _ = try workspace.writeProductTournamentEvidenceRecord(record)
+    }
+    let outcome = try TournamentAutomationRoundTransitionStepExecutor.run(
+      step,
+      in: workspace,
+      now: Date(timeIntervalSince1970: 60)
+    )
+    let saved = try workspace.readProductTournamentConfig()
+    let toRoundID = try #require(outcome.toRoundID)
+    let activeRound = try #require(
+      saved.tournamentRounds.first { $0.id == toRoundID })
+
+    try #require(outcome.roundKind == .coreTechnology)
+    try #require(outcome.userMessage.contains("Round 3"))
+    try #require(activeRound.kind == .prototype)
+    try #require(activeRound.status == .active)
+    try #require(saved.tournaments[0].currentRoundID == activeRound.id)
+  }
+
+  @Test func tournamentAutomationAppliesRoundThreeWinnerTransition() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    let target = try activateRoundThreePrototypeTarget(in: &config)
+    let experiment = try #require(config.experiments.first { $0.id == target.experimentID })
+    let records = scopedTournamentEvidenceRecords(
+      prefix: "automation-round-3",
+      experiment: experiment,
+      config: config,
+      target: target,
+      count: 3,
+      completedUseProof: true,
+      willingnessToPay: 5
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+    let step = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(step.kind == .applyRoundTransition)
+    try #require(step.action.kind == .applyRoundTransition)
+    try #require(step.title == "Apply Round 3 transition")
+    try #require(step.experimentID == experiment.id)
+    try #require(step.tournamentID == target.tournamentID)
+    try #require(step.roundID == target.roundID)
+    try #require(step.contenderID == target.contenderID)
+
+    let workspace = CompassWorkspace(repoURL: try makeTempDir())
+    defer { try? FileManager.default.removeItem(at: workspace.repoURL) }
+    try workspace.initialize()
+    try workspace.writeProductTournamentConfig(config)
+    for record in records {
+      _ = try workspace.writeProductTournamentEvidenceRecord(record)
+    }
+    let outcome = try TournamentAutomationRoundTransitionStepExecutor.run(
+      step,
+      in: workspace,
+      now: Date(timeIntervalSince1970: 70)
+    )
+    let saved = try workspace.readProductTournamentConfig()
+    let savedTournament = try #require(saved.tournaments.first { $0.id == target.tournamentID })
+    let savedContender = try #require(
+      saved.tournamentContenders.first { $0.id == target.contenderID })
+    let savedExperiment = try #require(saved.experiments.first { $0.id == target.experimentID })
+
+    try #require(outcome.roundKind == .prototype)
+    try #require(outcome.userMessage.contains("winner"))
+    try #require(savedTournament.status == .completed)
+    try #require(savedContender.status == .winner)
+    try #require(savedExperiment.decision == .promote)
+  }
+
   @Test func tournamentDecisionAdvisorDoesNotPromoteFromStaleEvidence() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
@@ -4362,6 +4532,32 @@ private func activateRoundTwoImplementationTarget(
   )
 }
 
+private func activateRoundThreePrototypeTarget(
+  in config: inout ProductTournamentConfig
+) throws -> ProductTournamentRoundImplementationTarget {
+  let roundTwoTarget = try activateRoundTwoImplementationTarget(in: &config)
+  let prototypeRoundIndex = try #require(
+    config.tournamentRounds.firstIndex {
+      $0.tournamentID == roundTwoTarget.tournamentID && $0.kind == .prototype
+    })
+  let coreRoundIndex = try #require(
+    config.tournamentRounds.firstIndex { $0.id == roundTwoTarget.roundID })
+  let tournamentIndex = try #require(
+    config.tournaments.firstIndex { $0.id == roundTwoTarget.tournamentID })
+
+  config.tournamentRounds[coreRoundIndex].status = .completed
+  config.tournamentRounds[prototypeRoundIndex].status = .active
+  config.tournamentRounds[prototypeRoundIndex].contenderIDs = [roundTwoTarget.contenderID]
+  config.tournaments[tournamentIndex].currentRoundID = config.tournamentRounds[prototypeRoundIndex].id
+
+  return ProductTournamentRoundImplementationTarget(
+    tournamentID: roundTwoTarget.tournamentID,
+    roundID: config.tournamentRounds[prototypeRoundIndex].id,
+    contenderID: roundTwoTarget.contenderID,
+    experimentID: roundTwoTarget.experimentID
+  )
+}
+
 private func completePlanOnlyRound(in config: inout ProductTournamentConfig) throws {
   let tournamentIndex = try #require(config.tournaments.indices.first)
   let tournamentID = config.tournaments[tournamentIndex].id
@@ -4483,6 +4679,49 @@ private func makeRolloutEvidenceIndex(config: ProductTournamentConfig) -> Produc
   return ProductTournamentEvidenceIndex.build(records: [record])
 }
 
+private func scopedTournamentEvidenceRecords(
+  prefix: String,
+  experiment: ProductExperiment,
+  config: ProductTournamentConfig,
+  target: ProductTournamentRoundImplementationTarget,
+  count: Int,
+  completedUseProof: Bool,
+  willingnessToPay: Int? = nil
+) -> [ProductTournamentEvidenceRecord] {
+  let scores = ProductTournamentEvidenceScores(
+    painRecognition: 5,
+    workflowImprovement: 5,
+    alternativeAdvantage: 5,
+    switchingReadiness: 5,
+    continuedUsePull: 5,
+    willingnessToPay: willingnessToPay
+  )
+  let segments = Array(config.userSegments)
+  return (0..<count).map { index in
+    let segment = segments[index % max(1, segments.count)]
+    return makeDecisionAdvisorRecord(
+      id: "\(prefix)-\(index)",
+      experiment: experiment,
+      config: config,
+      personaID: segment.id,
+      endedAt: Double(200 + index),
+      verdict: .strongPull,
+      scores: scores,
+      currentAlternativeComparison: "The contender beat the current spreadsheet workflow.",
+      tournamentID: target.tournamentID,
+      roundID: target.roundID,
+      contenderID: target.contenderID,
+      completedUseProof: completedUseProof,
+      willingnessToPayScore: willingnessToPay,
+      sponsorshipIntent: willingnessToPay.map {
+        $0 >= 4
+          ? "The simulated user would pay for or sponsor this product."
+          : "The simulated user is not ready to sponsor this product."
+      } ?? ""
+    )
+  }
+}
+
 private func makeTournamentPromotionEvidenceIndex(
   experiment: ProductExperiment? = nil,
   config: ProductTournamentConfig,
@@ -4557,7 +4796,13 @@ private func makeDecisionAdvisorRecord(
   currentAlternativeComparison: String = "Compared against the current workflow.",
   scenarioID: String? = nil,
   personaActionRationales: [String] = [],
-  decisionIntent: ProductTournamentSimulationDecisionIntent? = nil
+  decisionIntent: ProductTournamentSimulationDecisionIntent? = nil,
+  tournamentID: String? = nil,
+  roundID: String? = nil,
+  contenderID: String? = nil,
+  completedUseProof: Bool = false,
+  willingnessToPayScore: Int? = nil,
+  sponsorshipIntent: String = ""
 ) -> ProductTournamentEvidenceRecord {
   let hypothesis = config.productHypotheses.first { $0.id == experiment.productHypothesisID }
   return ProductTournamentEvidenceRecord(
@@ -4565,6 +4810,9 @@ private func makeDecisionAdvisorRecord(
     experimentID: experiment.id,
     productHypothesisID: experiment.productHypothesisID,
     painID: hypothesis?.painID ?? config.painHypotheses.first?.id ?? "pain",
+    tournamentID: tournamentID,
+    roundID: roundID,
+    contenderID: contenderID,
     branchName: experiment.branchName,
     commitSha: experiment.currentSha ?? experiment.baseSha ?? "head-sha",
     scenarioID: scenarioID ?? "\(experiment.id)-scenario",
@@ -4575,11 +4823,14 @@ private func makeDecisionAdvisorRecord(
     startedAt: endedAt - 10,
     endedAt: endedAt,
     traceHash: "trace-\(id)",
+    completedUseProof: completedUseProof,
     model: mode == .modelFree ? "model-free" : "gpt-test",
     scores: scores,
     objections: objections,
     missingCapabilities: missingCapabilities,
     currentAlternativeComparison: currentAlternativeComparison,
+    willingnessToPayScore: willingnessToPayScore,
+    sponsorshipIntent: sponsorshipIntent,
     personaActionRationales: personaActionRationales,
     verdict: verdict,
     summary: "Evidence summary for \(id)."
