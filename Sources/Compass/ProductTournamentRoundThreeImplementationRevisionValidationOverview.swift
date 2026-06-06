@@ -104,6 +104,10 @@ struct ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem:
     "round-3-implementation-validation-\(id)"
   }
 
+  var runNextStepAccessibilityID: String {
+    "\(workbenchAccessibilityID)-run-next-step"
+  }
+
   var helpSummary: String {
     [
       contenderTitle,

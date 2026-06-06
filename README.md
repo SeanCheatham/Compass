@@ -154,7 +154,7 @@ and advances them through rounds:
   validation overview for pending/partial/persisted/eliminated/resolved
   outcomes, row-level next automation steps including implementation-worktree
   preparation when validation targets lack commits, target-commit preparation
-  detail in row help, and Tournament Automation facts.
+  detail in row help, stable row/run controls, and Tournament Automation facts.
   Workbench scenario-run rows and selected-run details expose whether each run
   counts as completed-use proof.
 

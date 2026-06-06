@@ -1485,6 +1485,7 @@ struct ProductTournamentWorkbenchTab: View {
         }
         .buttonStyle(.bordered)
         .disabled(isRunningTournamentStep || !nextStep.canExecute)
+        .accessibilityIdentifier(item.runNextStepAccessibilityID)
         .help(nextStep.canExecute ? item.nextStepDetail : nextStep.blockedReason ?? item.nextStepDetail)
       }
     }

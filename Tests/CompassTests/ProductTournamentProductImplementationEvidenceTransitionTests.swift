@@ -646,6 +646,53 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(validationItem.helpSummary.contains("target commit"))
   }
 
+  @Test @MainActor
+  func roundThreeImplementationRevisionValidationPrepareStateRendersInWorkbench()
+    async throws
+  {
+    let validationFixture = try roundThreeRevisionValidationFixture(
+      hasPreparedValidationTarget: false
+    )
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try initGitRepo(at: root)
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    try workspace.writeProductTournamentConfig(validationFixture.config)
+    for record in validationFixture.preRevisionRecords {
+      _ = try workspace.writeProductTournamentEvidenceRecord(record)
+    }
+
+    let project = CompassProject(repoURL: root)
+    await project.refresh()
+    let workbenchBody = String(reflecting: ProductTournamentWorkbenchTab(project: project).body)
+    let validationItem = try #require(
+      ProductTournamentRoundThreeImplementationRevisionValidationOverview.items(
+        config: project.productTournamentConfig,
+        evidenceIndex: project.productTournamentEvidenceIndex,
+        isPersonaModelAvailable: true
+      ).first
+    )
+    let includesValidationSection = workbenchBody.contains("Implementation Revision Validation")
+    let includesValidationRows =
+      workbenchBody.contains("ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem")
+    let includesPrepareAction = workbenchBody.contains("Prepare implementation worktree")
+    let includesTargetCommitReason =
+      workbenchBody.contains("Round 3 implementation revision validation scenario needs")
+        && workbenchBody.contains("target commit")
+    let exposesRunControlID =
+      validationItem.runNextStepAccessibilityID
+        == "\(validationItem.workbenchAccessibilityID)-run-next-step"
+
+    try #require(validationItem.outcome == .pendingValidation)
+    try #require(validationItem.nextStep?.kind == .prepareWorktree)
+    try #require(exposesRunControlID)
+    try #require(includesValidationSection)
+    try #require(includesValidationRows)
+    try #require(includesPrepareAction)
+    try #require(includesTargetCommitReason)
+  }
+
   @Test func twoStrongProductImplementationRunsOnlyGatherMoreEvidence() throws {
     let fixture = try roundThreeFixture()
     let records = productImplementationEvidenceRecords(
