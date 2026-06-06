@@ -1,7 +1,7 @@
 import Foundation
 
 struct ProductTournamentConfig: Codable, Equatable, Sendable {
-  static let supportedSchemaVersion = 4
+  static let supportedSchemaVersion = 5
 
   var schemaVersion: Int
   var rawPain: String
@@ -200,8 +200,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let planRoundID = "\(slug)-round-1-plans"
     let feasibilityRoundID = "\(slug)-round-2-feasibility"
     let productImplementationRoundID = "\(slug)-round-3-product-implementation"
-    let workflowExperimentID = "\(slug)-workflow-prototype"
-    let proofExperimentID = "\(slug)-proof-prototype"
+    let workflowExperimentID = "\(slug)-workflow-implementation"
+    let proofExperimentID = "\(slug)-proof-implementation"
     let workflowOperatorScenarioID = "\(workflowExperimentID)-operator-starter-scenario"
     let workflowBuyerScenarioID = "\(workflowExperimentID)-buyer-starter-scenario"
     let proofOperatorScenarioID = "\(proofExperimentID)-operator-starter-scenario"
@@ -218,7 +218,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         "The user keeps relying on the current workaround and absorbs the coordination, delay, or rework cost.",
       successSignals: [
         "A target user can name the pain in their own current workflow.",
-        "A prototype reduces a concrete step, delay, uncertainty, or handoff cost.",
+        "A product implementation reduces a concrete step, delay, uncertainty, or handoff cost.",
         "Evidence compares the product contender against the user's actual alternative.",
       ],
       unknowns: [
@@ -322,7 +322,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         context: "Looks for evidence that the pain is worth product investment.",
         goals: [
           "Understand the cost of the pain.",
-          "See a credible path from prototype to adoption.",
+          "See a credible path from implementation to adoption.",
         ],
         constraints: [
           "Needs ROI or risk reduction before promoting the contender."
@@ -346,17 +346,17 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         title: "\(title) workflow clarifier",
         promise: "Make the painful workflow visible, guided, and easier to complete.",
         contenderPlan:
-          "A small desktop prototype can reduce confusion by turning the current workaround into explicit steps.",
+          "A small desktop implementation can reduce confusion by turning the current workaround into explicit steps.",
         targetSegmentIDs: [operatorSegmentID],
         differentiator:
           "Starts from the user's current workflow instead of asking them to adopt a generic planning surface.",
         whyThisCouldWin:
-          "The operator may switch if the prototype makes the next action clearer than the manual workaround.",
+          "The operator may switch if the implementation makes the next action clearer than the manual workaround.",
         whyThisMightFail:
-          "The pain may be too context-specific for a lightweight prototype to prove relief.",
+          "The pain may be too context-specific for a lightweight implementation to prove relief.",
         requiredProof: [
           "Persona evidence shows clearer next actions than the current workaround.",
-          "The prototype supports at least one real workflow moment end-to-end.",
+          "The implementation supports at least one real workflow moment end-to-end.",
         ],
         status: .active
       ),
@@ -366,7 +366,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         title: "\(title) proof assistant",
         promise: "Help the user compare options and produce evidence for a tournament decision.",
         contenderPlan:
-          "A prototype that captures assumptions, alternatives, and proof can make product investment decisions sharper.",
+          "A product implementation that captures assumptions, alternatives, and proof can make product investment decisions sharper.",
         targetSegmentIDs: [operatorSegmentID, buyerSegmentID],
         differentiator:
           "Frames the output as pain-relief evidence rather than a polished app concept.",
@@ -386,12 +386,12 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ProductTournamentExperiment(
         id: workflowExperimentID,
         contenderPlanID: workflowContenderPlanID,
-        title: "\(title) workflow prototype",
-        branchName: "codex/\(slug)-workflow-prototype",
+        title: "\(title) workflow implementation",
+        branchName: "codex/\(slug)-workflow-implementation",
         worktreeID: "\(slug)-workflow-worktree",
         baseSha: nil,
         currentSha: nil,
-        prototypeScope:
+        implementationScope:
           "Build the smallest Rust desktop workflow that proves one pain-relief moment.",
         scenarioCohortIDs: ["\(workflowExperimentID)-starter-cohort"],
         evidenceSummary: "No evidence recorded yet.",
@@ -401,12 +401,12 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ProductTournamentExperiment(
         id: proofExperimentID,
         contenderPlanID: proofContenderPlanID,
-        title: "\(title) proof prototype",
-        branchName: "codex/\(slug)-proof-prototype",
+        title: "\(title) proof implementation",
+        branchName: "codex/\(slug)-proof-implementation",
         worktreeID: "\(slug)-proof-worktree",
         baseSha: nil,
         currentSha: nil,
-        prototypeScope:
+        implementationScope:
           "Build the smallest Rust desktop workflow that captures alternatives, assumptions, and a decision trail.",
         scenarioCohortIDs: ["\(proofExperimentID)-starter-cohort"],
         evidenceSummary: "No evidence recorded yet.",
@@ -424,7 +424,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         alternativeID: manualAlternativeID,
         title: "\(title) workflow proof",
         task:
-          "Try the prototype against the current manual workflow and decide whether it makes the next action clearer.",
+          "Try the implementation against the current manual workflow and decide whether it makes the next action clearer.",
         successSignal:
           "The operator can complete one workflow moment with less ambiguity than the manual workaround.",
         targetCommitSha: nil,
@@ -441,7 +441,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         alternativeID: doNothingAlternativeID,
         title: "\(title) workflow sponsor proof",
         task:
-          "Review the workflow prototype as the sponsor and decide whether the evidence justifies more product investment.",
+          "Review the workflow implementation as the sponsor and decide whether the evidence justifies more product investment.",
         successSignal:
           "The buyer can explain whether the workflow relief is valuable enough to sponsor.",
         targetCommitSha: nil,
@@ -475,7 +475,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         alternativeID: doNothingAlternativeID,
         title: "\(title) decision proof",
         task:
-          "Use the prototype to compare the product contender against doing nothing and decide whether evidence is strong enough to continue.",
+          "Use the implementation to compare the product contender against doing nothing and decide whether evidence is strong enough to continue.",
         successSignal:
           "The buyer can explain the decision criteria and the next tournament decision with reusable evidence.",
         targetCommitSha: nil,
@@ -833,7 +833,7 @@ struct ProductTournamentContenderPlan: Codable, Equatable, Identifiable, Sendabl
     self.promise = ProductTournamentModelText.cleanedText(
       promise, fallback: "Relieve the target pain", limit: 500)
     self.contenderPlan = ProductTournamentModelText.cleanedText(
-      contenderPlan, fallback: "A prototype can prove pain relief", limit: 700)
+      contenderPlan, fallback: "A product implementation can prove pain relief", limit: 700)
     self.targetSegmentIDs =
       ProductTournamentModelText.cleanedList(targetSegmentIDs, limit: 120)
       .map { ProductTournamentModelText.identifier($0, fallback: "segment") }
@@ -864,7 +864,7 @@ struct ProductTournamentExperiment: Codable, Equatable, Identifiable, Sendable {
   var worktreeID: String
   var baseSha: String?
   var currentSha: String?
-  var prototypeScope: String
+  var implementationScope: String
   var scenarioCohortIDs: [String]
   var evidenceSummary: String
   var decision: ProductTournamentExperimentDecision
@@ -879,7 +879,7 @@ struct ProductTournamentExperiment: Codable, Equatable, Identifiable, Sendable {
     worktreeID: String,
     baseSha: String?,
     currentSha: String?,
-    prototypeScope: String,
+    implementationScope: String,
     scenarioCohortIDs: [String] = [],
     evidenceSummary: String,
     decision: ProductTournamentExperimentDecision,
@@ -895,8 +895,8 @@ struct ProductTournamentExperiment: Codable, Equatable, Identifiable, Sendable {
     self.worktreeID = ProductTournamentModelText.identifier(worktreeID, fallback: "worktree")
     self.baseSha = ProductTournamentModelText.optionalCleanedText(baseSha, limit: 80)
     self.currentSha = ProductTournamentModelText.optionalCleanedText(currentSha, limit: 80)
-    self.prototypeScope = ProductTournamentModelText.cleanedText(
-      prototypeScope, fallback: "Smallest prototype needed for evidence", limit: 800)
+    self.implementationScope = ProductTournamentModelText.cleanedText(
+      implementationScope, fallback: "Smallest product implementation needed for evidence", limit: 800)
     self.scenarioCohortIDs =
       ProductTournamentModelText.cleanedList(scenarioCohortIDs, limit: 120)
       .map { ProductTournamentModelText.identifier($0, fallback: "cohort") }

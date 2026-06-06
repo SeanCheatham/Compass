@@ -121,7 +121,7 @@ struct ProductTournamentLoopTests {
       worktreeID: "reporting-weak-contender",
       baseSha: "base-sha",
       currentSha: "weak-sha",
-      prototypeScope: "Try a product shape that may not beat the current workflow.",
+      implementationScope: "Try a product shape that may not beat the current workflow.",
       evidenceSummary: "No evidence recorded yet.",
       decision: .keepGoing,
       createdAt: 10

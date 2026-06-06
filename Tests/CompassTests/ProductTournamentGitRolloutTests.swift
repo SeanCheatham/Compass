@@ -15,7 +15,7 @@ struct ProductTournamentGitRolloutTests {
     let branchName = "compass/exp/fast-forward"
     let experimentSha = try await createExperimentBranch(
       branchName,
-      fileName: "prototype.txt",
+      fileName: "implementation.txt",
       contents: "experiment\n",
       at: root
     )
@@ -113,7 +113,7 @@ struct ProductTournamentGitRolloutTests {
     let branchName = "compass/exp/stale"
     let recordedExperimentSha = try await createExperimentBranch(
       branchName,
-      fileName: "prototype.txt",
+      fileName: "implementation.txt",
       contents: "recorded\n",
       at: root
     )
@@ -282,7 +282,7 @@ private func makeGitRolloutConfig(
     worktreeID: "\(experimentID)-worktree",
     baseSha: baseSha,
     currentSha: currentSha,
-    prototypeScope: "Rollout branch mechanics.",
+    implementationScope: "Rollout branch mechanics.",
     evidenceSummary: "Ready for git rollout.",
     decision: decision,
     createdAt: 1

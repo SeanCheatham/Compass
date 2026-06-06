@@ -65,7 +65,7 @@ struct ProductTournamentExperimentWorktreeTests {
       worktreeID: "bad-worktree",
       baseSha: nil,
       currentSha: nil,
-      prototypeScope: "Invalid branch test",
+      implementationScope: "Invalid branch test",
       evidenceSummary: "No evidence.",
       decision: .notRun,
       createdAt: 1
@@ -225,12 +225,12 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
   let first = ProductTournamentExperiment(
     id: "experiment-command-board",
     contenderPlanID: contenderPlan.id,
-    title: "Command board prototype",
+    title: "Command board implementation",
     branchName: "compass/exp/command-board",
     worktreeID: "command-board-worktree",
     baseSha: nil,
     currentSha: nil,
-    prototypeScope: "Owner queue and update composer.",
+    implementationScope: "Owner queue and update composer.",
     evidenceSummary: "No evidence.",
     decision: .notRun,
     createdAt: 1
@@ -238,12 +238,12 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
   let second = ProductTournamentExperiment(
     id: "experiment-timeline",
     contenderPlanID: contenderPlan.id,
-    title: "Timeline prototype",
+    title: "Timeline implementation",
     branchName: "compass/exp/timeline",
     worktreeID: "timeline-worktree",
     baseSha: nil,
     currentSha: nil,
-    prototypeScope: "Decision timeline.",
+    implementationScope: "Decision timeline.",
     evidenceSummary: "No evidence.",
     decision: .notRun,
     createdAt: 1

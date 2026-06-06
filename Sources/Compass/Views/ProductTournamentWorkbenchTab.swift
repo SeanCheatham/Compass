@@ -1373,7 +1373,7 @@ struct ProductTournamentWorkbenchTab: View {
             .foregroundStyle(.secondary)
             .lineLimit(2)
           WorkbenchFact(label: "Track", value: item.experimentID)
-          WorkbenchFact(label: "Implementation", value: item.prototypeScope)
+          WorkbenchFact(label: "Implementation", value: item.implementationScope)
           WorkbenchFact(label: "Alternative proof", value: "\(item.currentAlternativeProofCount)")
           Text(item.displayDetail)
             .font(.caption)
@@ -1426,7 +1426,7 @@ struct ProductTournamentWorkbenchTab: View {
               : "evidence locked to \(roundTwoTargetExperimentTitle(roundTwoTarget))"
           )
         }
-        Text(experiment.prototypeScope)
+        Text(experiment.implementationScope)
           .font(.caption)
           .foregroundStyle(.secondary)
           .lineLimit(2)

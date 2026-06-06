@@ -85,7 +85,7 @@ struct ProductTournamentConfigTests {
     let workspace = CompassWorkspace(repoURL: root)
     let payload = """
       {
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "rawPain": "Pain",
         "painHypotheses": [],
         "userSegments": [],
@@ -186,7 +186,7 @@ struct ProductTournamentConfigTests {
       now: Date(timeIntervalSince1970: 1_700_000_000)
     )
 
-    try #require(config.schemaVersion == 4)
+    try #require(config.schemaVersion == 5)
     try #require(config.rawPain.contains("Finance operators"))
     try #require(config.painHypotheses.count == 1)
     try #require(config.userSegments.count == 2)
@@ -340,12 +340,12 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
   let experiment = ProductTournamentExperiment(
     id: "experiment-handoff-desk",
     contenderPlanID: contenderPlan.id,
-    title: "Handoff Desk prototype",
+    title: "Handoff Desk implementation",
     branchName: "codex/handoff-desk",
     worktreeID: "handoff-desk-worktree",
     baseSha: "abc",
     currentSha: "def",
-    prototypeScope: "Decision board with owner queue.",
+    implementationScope: "Decision board with owner queue.",
     scenarioCohortIDs: ["cohort-handoff"],
     evidenceSummary: "No evidence yet.",
     decision: .keepGoing,

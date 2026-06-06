@@ -777,7 +777,7 @@ struct ProductTournamentEvidenceStoreTests {
       commitSha: "head-sha",
       objections: ["Spreadsheet is already trusted"],
       missingCapabilities: ["csv_import"],
-      comparison: "The prototype beats the spreadsheet for review speed.",
+      comparison: "The implementation beats the spreadsheet for review speed.",
       completedUseProof: true
     )
     _ = try workspace.writeProductTournamentEvidenceRecord(

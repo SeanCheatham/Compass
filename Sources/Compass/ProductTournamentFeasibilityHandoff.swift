@@ -178,7 +178,7 @@ enum ProductTournamentFeasibilityAdvisor {
   ) -> String {
     let proof = contenderPlan.requiredProof.first ?? round.evaluationFocus.first ?? round.goal
     return StringUtils.boundedText(
-      "Build only \(experiment.title) for \(contender.title): \(experiment.prototypeScope). Prove \(proof) before adding Round 3 fidelity.",
+      "Build only \(experiment.title) for \(contender.title): \(experiment.implementationScope). Prove \(proof) before adding Round 3 fidelity.",
       limit: 360
     )
   }

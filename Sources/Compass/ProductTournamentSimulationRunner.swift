@@ -112,7 +112,7 @@ struct ProductTournamentSimulationRequest {
         id: experiment.id,
         branchName: experiment.branchName,
         successSignal: scenarioSuccessSignal.isEmpty
-          ? (contenderPlan.requiredProof.first ?? experiment.prototypeScope)
+          ? (contenderPlan.requiredProof.first ?? experiment.implementationScope)
           : scenarioSuccessSignal
       ),
       scenario: ProductTournamentExperienceScenario(
@@ -126,7 +126,7 @@ struct ProductTournamentSimulationRequest {
         task: [
           scenarioTask,
           scenarioSuccessSignal.isEmpty ? "" : "Success signal: \(scenarioSuccessSignal)",
-          experiment.prototypeScope,
+          experiment.implementationScope,
           "Desired pain relief: \(contenderPlan.promise)",
           "Decision criteria: \(segment.decisionCriteria.joined(separator: "; "))",
         ].filter { !$0.isEmpty }.joined(separator: ". ")
@@ -202,7 +202,7 @@ struct ProductTournamentSimulationDecisionIntent: Codable, Equatable, Sendable {
         "Stress-test continuing. Look for the next proof that would make the tournament continue, narrow, pivot, kill, or promote with less uncertainty."
     case .notRun:
       return
-        "Stress-test first evidence. Verify whether the pain, workflow, and current alternative are real before treating the prototype as a product contender."
+        "Stress-test first evidence. Verify whether the pain, workflow, and current alternative are real before treating the implementation as a product contender."
     }
   }
 
@@ -535,7 +535,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
       Alternatives: \(bounded(alternatives, 500)).
       Contender: \(bounded(request.contender.title, 160)); \(bounded(request.contender.valueProposition, 500)).
       Required proof: \(bounded(requiredProof, 500)).
-      Implementation scope: \(bounded(request.experiment.prototypeScope, 500)).
+      Implementation scope: \(bounded(request.experiment.implementationScope, 500)).
       \(bounded(decisionIntent, 700)).
       Scenario task: \(bounded(request.scenarioTask, 500)).
       Scenario success signal: \(bounded(request.scenarioSuccessSignal, 400)).

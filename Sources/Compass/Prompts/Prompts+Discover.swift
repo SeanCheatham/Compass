@@ -468,7 +468,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
 
 struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
   var contenderID: String
-  var prototypeName: String
+  var implementationName: String
   var branchSlug: String
   var smallestWorkflowToProve: String
   var targetScenarioCohort: String
@@ -477,7 +477,7 @@ struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
 
   enum CodingKeys: String, CodingKey {
     case contenderID
-    case prototypeName
+    case implementationName
     case branchSlug
     case smallestWorkflowToProve
     case targetScenarioCohort
@@ -487,11 +487,12 @@ struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
 
   private enum LegacyCodingKeys: String, CodingKey {
     case contenderPlanID
+    case prototypeName
   }
 
   init(
     contenderID: String,
-    prototypeName: String,
+    implementationName: String,
     branchSlug: String,
     smallestWorkflowToProve: String,
     targetScenarioCohort: String,
@@ -502,7 +503,7 @@ struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
       contenderID,
       fallback: "contender"
     )
-    self.prototypeName = StringUtils.boundedText(prototypeName, limit: 160)
+    self.implementationName = StringUtils.boundedText(implementationName, limit: 160)
     self.branchSlug = StringUtils.boundedText(branchSlug, limit: 120)
     self.smallestWorkflowToProve = StringUtils.boundedText(smallestWorkflowToProve, limit: 500)
     self.targetScenarioCohort = StringUtils.boundedText(targetScenarioCohort, limit: 240)
@@ -517,11 +518,16 @@ struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
         "Use contenderID instead of contenderPlanID for candidateTournamentExperiments."
       )
     }
+    if legacyContainer.contains(.prototypeName) {
+      throw DiscoverPromptValidationError.invalidJSON(
+        "Use implementationName instead of prototypeName for candidateTournamentExperiments."
+      )
+    }
 
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.init(
       contenderID: try container.decode(String.self, forKey: .contenderID),
-      prototypeName: try container.decode(String.self, forKey: .prototypeName),
+      implementationName: try container.decode(String.self, forKey: .implementationName),
       branchSlug: try container.decode(String.self, forKey: .branchSlug),
       smallestWorkflowToProve: try container.decode(
         String.self,
@@ -536,7 +542,7 @@ struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
   var cleaned: DiscoveryCandidateTournamentExperiment {
     DiscoveryCandidateTournamentExperiment(
       contenderID: contenderID,
-      prototypeName: prototypeName,
+      implementationName: implementationName,
       branchSlug: branchSlug,
       smallestWorkflowToProve: smallestWorkflowToProve,
       targetScenarioCohort: targetScenarioCohort,

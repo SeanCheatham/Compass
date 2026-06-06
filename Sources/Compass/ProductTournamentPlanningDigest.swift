@@ -327,7 +327,7 @@ enum ProductTournamentPlanningDigestFormatter {
         ? "no evidence recorded"
         : bounded(experiment.evidenceSummary, 120)
       lines.append(
-        "- \(bounded(experiment.title, 120)) [\(experiment.decision.rawValue)]: contender_plan \(experiment.contenderPlanID), branch \(bounded(experiment.branchName, 140)), sha \(sha); scope \(bounded(experiment.prototypeScope, 140)); evidence \(evidenceSummary)."
+        "- \(bounded(experiment.title, 120)) [\(experiment.decision.rawValue)]: contender_plan \(experiment.contenderPlanID), branch \(bounded(experiment.branchName, 140)), sha \(sha); scope \(bounded(experiment.implementationScope, 140)); evidence \(evidenceSummary)."
       )
     }
     if experiments.count > maxExperiments {

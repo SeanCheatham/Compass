@@ -9,7 +9,7 @@ struct DiscoverPromptContractTests {
       rawPain: "Support leads lose escalation decisions across chat and tickets.",
       vision: "Help support teams preserve customer promise context.",
       drafts: "Explore the current workflow before building.",
-      lessons: "Keep generated prototypes Rust-only.",
+      lessons: "Keep generated implementations Rust-only.",
       assumptions: "Assumption: buyers care about escalation latency.",
       productTournamentConfig: ProductTournamentConfig.seedDefaults(
         projectTitle: "Escalation Desk",
@@ -26,7 +26,9 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains("Name the user segment before naming the app"))
     try #require(prompt.contains("Round 1 compares product"))
     try #require(prompt.contains("candidateTournamentExperiments"))
+    try #require(prompt.contains("implementationName"))
     try #require(!prompt.contains("candidateExperiments"))
+    try #require(!prompt.contains("prototypeName"))
     try #require(prompt.contains("tournamentExperiments"))
     try #require(prompt.contains("contenderPlans"))
     try #require(prompt.contains("contenderPlanID"))
@@ -94,6 +96,18 @@ struct DiscoverPromptContractTests {
     }
   }
 
+  @Test func discoverResponseRejectsCandidatePrototypeNameKey() throws {
+    let invalidJSON = try discoverJSONWithCandidatePrototypeName(makeDiscoverOutput())
+
+    #expect(
+      throws: DiscoverPromptValidationError.invalidJSON(
+        "Use implementationName instead of prototypeName for candidateTournamentExperiments."
+      )
+    ) {
+      _ = try Prompts.decodeDiscoverResponse(invalidJSON)
+    }
+  }
+
   @Test func discoverResponseRejectsUnsupportedStateEditKey() throws {
     let invalidJSON = try discoverJSONWithUnsupportedStateEditKey(makeDiscoverOutput())
 
@@ -122,7 +136,7 @@ struct DiscoverPromptContractTests {
       painID: "missing-pain",
       title: "Bad contender plan",
       promise: "Help somehow",
-      contenderPlan: "Prototype something",
+      contenderPlan: "Implement something",
       targetSegmentIDs: [],
       differentiator: "Unknown",
       whyThisCouldWin: "Unknown",
@@ -145,7 +159,7 @@ struct DiscoverPromptContractTests {
     var output = makeDiscoverOutput()
     output.candidateTournamentExperiments[0] = DiscoveryCandidateTournamentExperiment(
       contenderID: "contender-command-board",
-      prototypeName: "Incident Command Board",
+      implementationName: "Incident Command Board",
       branchSlug: "bad slug",
       smallestWorkflowToProve: "Draft a customer update",
       targetScenarioCohort: "Incident lead cohort",
@@ -162,7 +176,7 @@ struct DiscoverPromptContractTests {
     var output = makeDiscoverOutput()
     output.candidateTournamentExperiments[0] = DiscoveryCandidateTournamentExperiment(
       contenderID: "missing-contender",
-      prototypeName: "Incident Command Board",
+      implementationName: "Incident Command Board",
       branchSlug: "incident-command-board",
       smallestWorkflowToProve: "Draft a customer update",
       targetScenarioCohort: "Incident lead cohort",
@@ -182,11 +196,11 @@ struct DiscoverPromptContractTests {
   @Test func discoverValidationRejectsOpenQuestionsAsNextSteps() throws {
     var output = makeDiscoverOutput()
     output.candidateTournamentExperiments = []
-    output.openQuestions = ["Build the prototype next"]
+    output.openQuestions = ["Build the implementation next"]
 
     #expect(
       throws: DiscoverPromptValidationError.openQuestionsUsedInsteadOfActionableNextSteps(
-        "Build the prototype next"
+        "Build the implementation next"
       )
     ) {
       _ = try Prompts.decodeDiscoverResponse(try encodeDiscoverJSON(output))
@@ -290,12 +304,12 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
   let experiment = ProductTournamentExperiment(
     id: "experiment-command-board",
     contenderPlanID: commandBoard.id,
-    title: "Incident command board prototype",
+    title: "Incident command board implementation",
     branchName: "codex/incident-command-board",
     worktreeID: "incident-command-board-worktree",
     baseSha: nil,
     currentSha: nil,
-    prototypeScope: "Board with owner queue and update composer.",
+    implementationScope: "Board with owner queue and update composer.",
     scenarioCohortIDs: ["cohort-incident-lead"],
     evidenceSummary: "No evidence yet.",
     decision: .notRun,
@@ -416,7 +430,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     candidateTournamentExperiments: [
       DiscoveryCandidateTournamentExperiment(
         contenderID: commandBoardContender.id,
-        prototypeName: "Incident Command Board",
+        implementationName: "Incident Command Board",
         branchSlug: "incident-command-board",
         smallestWorkflowToProve: "Draft a customer update from owner and decision context.",
         targetScenarioCohort: "Incident lead cohort",
@@ -431,7 +445,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
         text: "Incident leads value customer update clarity over a generic timeline.",
         rationale: "The raw pain centers on customer-facing decisions.",
         evidence: ["User pain statement"],
-        impact: "Prioritizes update composer prototype scope.",
+        impact: "Prioritizes update composer implementation scope.",
         invalidation: "If leads mainly need after-action audit, timeline may be stronger.",
         scope: .project
       )
@@ -454,6 +468,18 @@ private func discoverJSONWithCandidateContenderPlanReference(_ output: DiscoverP
   var candidates = try #require(object["candidateTournamentExperiments"] as? [[String: Any]])
   var firstCandidate = try #require(candidates.first)
   firstCandidate["contenderPlanID"] = firstCandidate.removeValue(forKey: "contenderID")
+  candidates[0] = firstCandidate
+  object["candidateTournamentExperiments"] = candidates
+  let invalidData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+  return String(decoding: invalidData, as: UTF8.self)
+}
+
+private func discoverJSONWithCandidatePrototypeName(_ output: DiscoverPromptOutput) throws -> String {
+  let data = Data(try encodeDiscoverJSON(output).utf8)
+  var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+  var candidates = try #require(object["candidateTournamentExperiments"] as? [[String: Any]])
+  var firstCandidate = try #require(candidates.first)
+  firstCandidate["prototypeName"] = firstCandidate.removeValue(forKey: "implementationName")
   candidates[0] = firstCandidate
   object["candidateTournamentExperiments"] = candidates
   let invalidData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])

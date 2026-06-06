@@ -197,8 +197,8 @@ extension Prompts {
         prefer an increment that improves the deterministic experience contract,
         creates a better scenario, or makes simulation easier to run. Do not
         blindly optimize for simulated praise.
-      - If weak evidence comes from a shallow prototype, plan a sharper
-        contender or prototype slice before declaring the pain invalid.
+      - If weak evidence comes from a shallow implementation, plan a sharper
+        contender or implementation slice before declaring the pain invalid.
       - If drafts are empty, choose a useful candidate that matches the focus, or
         originate a new candidate from the repo, lessons, completed history, and
         strategic context.

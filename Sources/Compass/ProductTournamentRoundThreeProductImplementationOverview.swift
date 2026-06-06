@@ -12,7 +12,7 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
   var experimentTitle: String
   var branchName: String
   var worktreeID: String
-  var prototypeScope: String
+  var implementationScope: String
   var recommendation: ProductTournamentProductImplementationEvidenceRecommendation
   var readinessScore: Double
   var averageScore: Double
@@ -36,7 +36,7 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
     return
-      "- round_3_product_implementation_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), branch \(branchName), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), implementation_use_proofs \(implementationUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: implementation_scope \(Self.bounded(prototypeScope, limit: 220)); next \(Self.bounded(detail, limit: 220))."
+      "- round_3_product_implementation_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), branch \(branchName), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), implementation_use_proofs \(implementationUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: implementation_scope \(Self.bounded(implementationScope, limit: 220)); next \(Self.bounded(detail, limit: 220))."
   }
 
   var displaySubtitle: String {
@@ -44,7 +44,7 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
   }
 
   var displayDetail: String {
-    "\(detail) Product implementation: \(prototypeScope)"
+    "\(detail) Product implementation: \(implementationScope)"
   }
 
   var displaySystemImage: String {
@@ -73,7 +73,7 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
       "Branch \(branchName)",
       "Worktree \(worktreeID)",
       displaySubtitle,
-      "Implementation scope: \(prototypeScope)",
+      "Implementation scope: \(implementationScope)",
     ]
     if !evidenceRunIDs.isEmpty {
       parts.append("Evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))")
@@ -122,7 +122,7 @@ enum ProductTournamentRoundThreeProductImplementationOverview {
         experimentTitle: experiment.title,
         branchName: experiment.branchName,
         worktreeID: experiment.worktreeID,
-        prototypeScope: experiment.prototypeScope,
+        implementationScope: experiment.implementationScope,
         recommendation: proposal.recommendation,
         readinessScore: proposal.readinessScore,
         averageScore: proposal.averageScore,
