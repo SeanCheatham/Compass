@@ -23,7 +23,9 @@ struct CompassWorkspace {
   var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
   var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
   var productizationConfigURL: URL { compassURL.appending(path: "productization.json") }
-  var productizationURL: URL { compassURL.appending(path: "productization", directoryHint: .isDirectory) }
+  var productizationURL: URL {
+    compassURL.appending(path: "productization", directoryHint: .isDirectory)
+  }
   var productizationEvidenceStore: ProductizationEvidenceStore {
     ProductizationEvidenceStore(workspace: self)
   }
@@ -256,7 +258,8 @@ struct CompassWorkspace {
 
   func writeProductizationConfig(_ config: ProductizationConfig) throws {
     try FileManager.default.createDirectory(at: compassURL, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: productizationURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: productizationURL, withIntermediateDirectories: true)
     try Self.encodeProductizationConfig(config).write(
       to: productizationConfigURL,
       atomically: true,
@@ -283,6 +286,12 @@ struct CompassWorkspace {
     try productizationEvidenceStore.readRecord(id: id)
   }
 
+  func readProductTournamentPlanEvaluationRecord(
+    id: String
+  ) throws -> ProductTournamentPlanEvaluationRecord {
+    try productizationEvidenceStore.readPlanEvaluationRecord(id: id)
+  }
+
   @discardableResult
   func writeProductizationEvidenceRecord(
     _ record: ProductizationEvidenceRecord,
@@ -296,6 +305,17 @@ struct CompassWorkspace {
       traceJSON: traceJSON,
       feedbackJSON: feedbackJSON,
       transcriptJSONL: transcriptJSONL,
+      summaryMarkdown: summaryMarkdown
+    )
+  }
+
+  @discardableResult
+  func writeProductTournamentPlanEvaluationRecord(
+    _ record: ProductTournamentPlanEvaluationRecord,
+    summaryMarkdown: String? = nil
+  ) throws -> ProductTournamentPlanEvaluationRecord {
+    try productizationEvidenceStore.writePlanEvaluationRecord(
+      record,
       summaryMarkdown: summaryMarkdown
     )
   }

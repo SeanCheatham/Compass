@@ -65,9 +65,9 @@ Compass frames product discovery as a tournament. A tournament starts from a
 durable user pain, creates several competing product contenders for that pain,
 and advances them through rounds:
 
-- **Round 1: product plans.** No product exists yet. Simulated users inspect the
-  plans, compare them with the current alternative, and judge pain recognition,
-  sponsorship, and willingness to pay.
+- **Round 1: product plans.** No product exists yet. Model-free simulated users
+  inspect the plans, compare them with the current alternative, and judge pain
+  recognition, sponsorship, and willingness to pay.
 - **Round 2: core technology.** Surviving contenders get the smallest technical
   proof that demonstrates the hard part can work.
 - **Round 3: prototype.** Agentic users exercise low-medium fidelity product
@@ -98,14 +98,16 @@ Tournament state and evidence currently use the existing productization storage
 namespace: `.compass/productization.json` for pain hypotheses, tournaments,
 contenders, rounds, solution bets, experiment branches, scenarios, and decisions;
 `.compass/productization/` for `evidence-index.json` and separate run artifacts
-for traces, feedback, transcripts, and Markdown summaries. The Tournament
-workbench lists pain hypotheses, contenders, rounds, implementation tracks,
-scenario runs, feedback scores, objections, missing capabilities, failure kinds,
-decision history, and copyable Markdown summaries. Plan and Reflect receive only
-a compact advisory summary: current tournament round, contender plans, latest
-evidence per active scenario, repeated objections, low-score clusters, verdict
-distribution, failures, and current alternative comparisons. Raw transcripts
-stay out of prompt context unless a human inspects them in the app.
+for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
+Tournament workbench lists pain hypotheses, contenders, rounds, implementation
+tracks, Round 1 plan evaluations, scenario runs, feedback scores, objections,
+missing capabilities, failure kinds, decision history, and copyable Markdown
+summaries. Plan and Reflect receive only a compact advisory summary: current
+tournament round, contender plans, Round 1 plan readiness, willingness-to-pay
+signals, latest evidence per active scenario, repeated objections, low-score
+clusters, verdict distribution, failures, and current alternative comparisons.
+Raw transcripts stay out of prompt context unless a human inspects them in the
+app.
 
 Interpret subjective feedback carefully. Repeated objections across personas or
 tasks can justify product work; a single persona-specific complaint should be

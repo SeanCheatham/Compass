@@ -39,6 +39,66 @@ struct ProductizationEvidenceStoreTests {
       summaries.first?.personaActionRationales.first?.contains("inspect_pain") == true)
   }
 
+  @Test func storeWritesPlanEvaluationArtifactsAndIndex() throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+
+    let record = ProductTournamentPlanEvaluationRecord(
+      id: "plan-eval-one",
+      tournamentID: "tournament-reporting",
+      roundID: "round-reporting-plans",
+      contenderID: "contender-reporting-desk",
+      solutionID: "solution-reporting-desk",
+      experimentID: "experiment-reporting-desk",
+      painID: "pain-reporting",
+      personaID: "segment-operator",
+      personaName: "Operations lead",
+      currentWorkflowID: "workflow-spreadsheet",
+      alternativeID: "alternative-spreadsheet",
+      startedAt: 10,
+      endedAt: 11,
+      scores: ProductizationEvidenceScores(
+        painRecognition: 4,
+        workflowImprovement: 4,
+        alternativeAdvantage: 3,
+        switchingReadiness: 3,
+        continuedUsePull: 4
+      ),
+      willingnessToPayScore: 4,
+      estimatedMonthlyPriceCents: 9900,
+      objections: ["Spreadsheet is already familiar"],
+      currentAlternativeComparison: "The plan is clearer than the spreadsheet for review.",
+      verdict: .promising,
+      summary: "The plan earned buyer interest.",
+      rationale: ["Plan-only simulated user evaluation."],
+      planStrengths: ["Clear workflow relief"],
+      planRisks: ["Needs feasibility proof"],
+      promptVersions: ["test.plan"]
+    )
+
+    let stored = try workspace.writeProductTournamentPlanEvaluationRecord(record)
+
+    try #require(
+      stored.summaryArtifactPath
+        == "productization/plan-evaluations/plan-eval-one/summary.md")
+    let read = try workspace.readProductTournamentPlanEvaluationRecord(id: "plan-eval-one")
+    try #require(read == stored)
+    let index = workspace.readProductizationEvidenceIndex()
+    try #require(index.summaries.isEmpty)
+    try #require(index.planEvaluationSummaries.map(\.evaluationID) == ["plan-eval-one"])
+    try #require(
+      index.aggregate.latestPlanEvaluationByContender["contender-reporting-desk"] == "plan-eval-one"
+    )
+    let readiness = try #require(index.aggregate.planReadinessByContender.first)
+    try #require(readiness.contenderID == "contender-reporting-desk")
+    try #require(readiness.averageWillingnessToPayScore == 4)
+    let markdown = ProductizationEvidenceMarkdownExporter.markdown(planEvaluation: stored)
+    try #require(markdown.contains("Willingness To Pay: 4/5"))
+    try #require(markdown.contains("$99/month"))
+  }
+
   @Test func storePreservesDecisionIntentAcrossRecordIndexMarkdownAndDigest() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",
@@ -203,7 +263,9 @@ struct ProductizationEvidenceStoreTests {
     try #require(index.aggregate.missingCapabilityFrequency.first?.capabilityID == "import_csv")
     try #require(index.aggregate.verdictCounts["promising"] == 1)
     try #require(index.aggregate.failuresByKind["appCommandFailed"] == 1)
-    try #require(index.aggregate.personaRationaleSignals.first?.rationale == "needed csv proof before switching.")
+    try #require(
+      index.aggregate.personaRationaleSignals.first?.rationale
+        == "needed csv proof before switching.")
     try #require(index.aggregate.personaRationaleSignals.first?.count == 2)
     try #require(index.aggregate.personaRationaleSignals.first?.runIDs.contains("first") == true)
     try #require(index.aggregate.personaRationaleSignals.first?.runIDs.contains("second") == true)
@@ -411,7 +473,9 @@ struct ProductizationEvidenceStoreTests {
         endedAt: 45,
         executedStepIDs: ["step-run-cohort"],
         experimentIDs: [config.experiments[0].id],
-        messages: ["Model-free cohort ran 1 scenario(s): 0 completed, 1 needing review, 0 skipped."],
+        messages: [
+          "Model-free cohort ran 1 scenario(s): 0 completed, 1 needing review, 0 skipped."
+        ],
         maxSteps: 3,
         evidenceRunStepCount: 1,
         evidenceRunIDs: ["digest-run"],

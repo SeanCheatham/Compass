@@ -20,9 +20,14 @@ enum ProductizationPlanningDigestFormatter {
     }
 
     lines += painLines(config: config, maxPainHypotheses: maxPainHypotheses)
-    lines += tournamentLines(config: config)
+    lines += tournamentLines(config: config, evidenceIndex: evidenceIndex)
     lines += solutionLines(config: config, maxSolutionHypotheses: maxSolutionHypotheses)
     lines += experimentLines(config: config, maxExperiments: maxExperiments)
+    lines += evidenceSignalLines(
+      config: config,
+      index: evidenceIndex,
+      maxEvidenceSignals: maxEvidenceSignals
+    )
     lines += decisionLines(config: config, maxDecisions: maxDecisions)
     lines += unknownLines(config: config)
     lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
@@ -35,13 +40,8 @@ enum ProductizationPlanningDigestFormatter {
     lines += autopilotLines(config: config, evidenceIndex: evidenceIndex)
     lines += factoryCycleAuditLines(config: config)
     lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
-    lines += evidenceSignalLines(
-      config: config,
-      index: evidenceIndex,
-      maxEvidenceSignals: maxEvidenceSignals
-    )
 
-    return boundedLines(lines, maxLines: 64, maxCharacters: 6_800)
+    return boundedLines(lines, maxLines: 64, maxCharacters: 8_200)
   }
 
   private static func painLines(
@@ -77,7 +77,10 @@ enum ProductizationPlanningDigestFormatter {
     return lines
   }
 
-  private static func tournamentLines(config: ProductizationConfig) -> [String] {
+  private static func tournamentLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
     let tournaments = config.tournaments
       .filter { $0.status == .active || $0.status == .drafting }
       .sorted { lhs, rhs in
@@ -100,10 +103,10 @@ enum ProductizationPlanningDigestFormatter {
         }
       let currentRoundLabel =
         currentRound.map {
-          "current round \($0.ordinal) \($0.kind.rawValue)"
+          "round \($0.ordinal) \($0.kind.rawValue)"
         } ?? "no current round"
       lines.append(
-        "- \(bounded(tournament.title, 160)) [\(tournament.status.rawValue), pain \(tournament.painID), \(currentRoundLabel)]: \(bounded(tournament.premise, 220))."
+        "- \(bounded(tournament.title, 120)) [\(tournament.status.rawValue), pain \(tournament.painID), \(currentRoundLabel)]: \(bounded(tournament.premise, 160))."
       )
 
       let contenders = tournament.contenderIDs.compactMap { contenderID in
@@ -115,8 +118,15 @@ enum ProductizationPlanningDigestFormatter {
           contender.targetSegmentIDs.isEmpty
           ? "no target segment"
           : contender.targetSegmentIDs.joined(separator: ", ")
+        let planReadiness = evidenceIndex.aggregate.planReadinessByContender.first {
+          $0.contenderID == contender.id
+        }
+        let planEvidence =
+          planReadiness.map {
+            "plan_readiness \($0.scoreLabel)/100, recommendation \($0.recommendation.rawValue), willingness_to_pay \(bounded(formatScore($0.averageWillingnessToPayScore), 20))/5"
+          } ?? "no plan evidence"
         lines.append(
-          "- Contender \(contender.id) [\(contender.status.rawValue), solution \(contender.solutionID), experiment \(experiment), segments \(segments)]: \(bounded(contender.valueProposition, 180)); risk: \(bounded(contender.primaryRisk, 160))."
+          "- Contender \(contender.id) [\(contender.status.rawValue), sol \(contender.solutionID), exp \(experiment), seg \(segments), \(planEvidence)]: \(bounded(contender.valueProposition, 100)); risk \(bounded(contender.primaryRisk, 60))."
         )
       }
 
@@ -127,15 +137,23 @@ enum ProductizationPlanningDigestFormatter {
         if lhs.ordinal == rhs.ordinal { return lhs.id < rhs.id }
         return lhs.ordinal < rhs.ordinal
       }
-      for round in rounds.prefix(4) {
-        let productRequirement =
-          round.requiresBuiltProduct ? "built product required" : "no built product"
+      if !rounds.isEmpty {
+        let roundSummary = rounds.prefix(4)
+          .map { round in
+            let productRequirement = round.requiresBuiltProduct ? "product required" : "no product"
+            return
+              "R\(round.ordinal) \(round.kind.rawValue) \(round.status.rawValue)/\(productRequirement)"
+          }
+          .joined(separator: "; ")
+        lines.append("- Rounds: \(bounded(roundSummary, 280)).")
+      }
+      if let currentRound {
         let focus =
-          round.evaluationFocus.isEmpty
+          currentRound.evaluationFocus.isEmpty
           ? "no evaluation focus"
-          : round.evaluationFocus.prefix(4).joined(separator: "; ")
+          : currentRound.evaluationFocus.prefix(4).joined(separator: "; ")
         lines.append(
-          "- Round \(round.ordinal) \(round.kind.rawValue) [\(round.status.rawValue), \(productRequirement)]: \(bounded(round.goal, 200)); focus: \(bounded(focus, 200))."
+          "- Current round goal: \(bounded(currentRound.goal, 160)); focus \(bounded(focus, 160))."
         )
       }
     }
@@ -168,13 +186,13 @@ enum ProductizationPlanningDigestFormatter {
         solution.targetSegmentIDs.isEmpty
         ? "no target segment"
         : solution.targetSegmentIDs.joined(separator: ", ")
+      let proof =
+        solution.requiredProof.isEmpty
+        ? "no required proof"
+        : bounded(solution.requiredProof.joined(separator: "; "), 160)
       lines.append(
-        "- \(bounded(solution.title, 160)) [\(solution.status.rawValue), pain \(solution.painID), segments \(segments)]: \(bounded(solution.promise, 220))."
+        "- \(bounded(solution.title, 120)) [\(solution.status.rawValue), pain \(solution.painID), segments \(segments)]: \(bounded(solution.promise, 150)); proof \(proof)."
       )
-      if !solution.requiredProof.isEmpty {
-        lines.append(
-          "- Required proof: \(bounded(solution.requiredProof.joined(separator: "; "), 240)).")
-      }
     }
     if solutions.count > maxSolutionHypotheses {
       lines.append(
@@ -201,13 +219,13 @@ enum ProductizationPlanningDigestFormatter {
     var lines = ["Experiments and branches:"]
     for experiment in experiments.prefix(maxExperiments) {
       let sha = experiment.currentSha ?? experiment.baseSha ?? "not-created"
+      let evidenceSummary =
+        experiment.evidenceSummary.isEmpty
+        ? "no evidence recorded"
+        : bounded(experiment.evidenceSummary, 120)
       lines.append(
-        "- \(bounded(experiment.title, 160)) [\(experiment.decision.rawValue)]: solution \(experiment.solutionID), branch \(bounded(experiment.branchName, 160)), worktree \(experiment.worktreeID), sha \(sha)."
+        "- \(bounded(experiment.title, 120)) [\(experiment.decision.rawValue)]: solution \(experiment.solutionID), branch \(bounded(experiment.branchName, 140)), sha \(sha); scope \(bounded(experiment.prototypeScope, 140)); evidence \(evidenceSummary)."
       )
-      lines.append("- Scope: \(bounded(experiment.prototypeScope, 220)).")
-      if !experiment.evidenceSummary.isEmpty {
-        lines.append("- Evidence summary: \(bounded(experiment.evidenceSummary, 220)).")
-      }
     }
     if experiments.count > maxExperiments {
       lines.append("- \(experiments.count - maxExperiments) more experiment(s) omitted.")
@@ -876,6 +894,10 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func bounded(_ value: String, _ limit: Int) -> String {
     StringUtils.boundedText(value, limit: limit)
+  }
+
+  private static func formatScore(_ value: Double) -> String {
+    value == 0 ? "0" : String(format: "%.1f", value)
   }
 }
 

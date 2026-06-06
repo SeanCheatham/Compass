@@ -555,7 +555,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       }
     } else if aiUserDistinctPersonaCount < 2 && !completed.isEmpty {
       if isStopGate {
-        lines.append("Stopping a bet requires AI-user rejection evidence across at least 2 personas.")
+        lines.append(
+          "Stopping a bet requires AI-user rejection evidence across at least 2 personas.")
       } else {
         lines.append("Decisive PMF decisions require AI-user evidence across at least 2 personas.")
       }
@@ -1031,7 +1032,8 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     guard status == .completed else {
       return ProductizationDecisionIntentEvaluation(
         outcome: .inconclusive,
-        rationale: "Run ended with status \(status.rawValue), so it did not answer the targeted \(intent.targetDecision.rawValue) decision."
+        rationale:
+          "Run ended with status \(status.rawValue), so it did not answer the targeted \(intent.targetDecision.rawValue) decision."
       )
     }
 
@@ -1148,7 +1150,8 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     case .notRun:
       return ProductizationDecisionIntentEvaluation(
         outcome: .supportsTarget,
-        rationale: "The first targeted evidence run completed and moved the bet out of not-run state."
+        rationale:
+          "The first targeted evidence run completed and moved the bet out of not-run state."
       )
     }
 
@@ -1312,9 +1315,11 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     startedAt = try container.decode(Double.self, forKey: .startedAt)
     endedAt = try container.decode(Double.self, forKey: .endedAt)
     model = try container.decodeIfPresent(String.self, forKey: .model) ?? ""
-    verdict = try container.decodeIfPresent(ProductizationEvidenceVerdict.self, forKey: .verdict)
+    verdict =
+      try container.decodeIfPresent(ProductizationEvidenceVerdict.self, forKey: .verdict)
       ?? .unclear
-    scores = try container.decodeIfPresent(ProductizationEvidenceScores.self, forKey: .scores)
+    scores =
+      try container.decodeIfPresent(ProductizationEvidenceScores.self, forKey: .scores)
       ?? ProductizationEvidenceScores()
     objections = try container.decodeIfPresent([String].self, forKey: .objections) ?? []
     missingCapabilities =
@@ -1361,6 +1366,526 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
   }
 }
 
+enum ProductTournamentPlanRecommendation: String, Codable, CaseIterable, Equatable, Sendable {
+  case gatherEvidence = "gather_evidence"
+  case advanceToFeasibility = "advance_to_feasibility"
+  case revisePlan = "revise_plan"
+  case eliminate
+
+  var title: String {
+    switch self {
+    case .gatherEvidence: return "Gather Evidence"
+    case .advanceToFeasibility: return "Advance"
+    case .revisePlan: return "Revise"
+    case .eliminate: return "Eliminate"
+    }
+  }
+}
+
+struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendable {
+  var id: String { contenderID }
+
+  var contenderID: String
+  var tournamentID: String
+  var roundID: String
+  var evaluationCount: Int
+  var completedEvaluationCount: Int
+  var distinctPersonaCount: Int
+  var latestEvaluationID: String?
+  var readinessScore: Double
+  var averageScore: Double
+  var averageWillingnessToPayScore: Double
+  var estimatedMonthlyPriceCents: Int?
+  var strongestVerdict: ProductizationEvidenceVerdict
+  var weakestVerdict: ProductizationEvidenceVerdict
+  var recommendation: ProductTournamentPlanRecommendation
+  var rationale: [String]
+  var evaluationIDs: [String]
+
+  var scoreLabel: String {
+    "\(Int(readinessScore.rounded()))"
+  }
+
+  init(
+    contenderID: String,
+    tournamentID: String,
+    roundID: String,
+    evaluationCount: Int,
+    completedEvaluationCount: Int,
+    distinctPersonaCount: Int,
+    latestEvaluationID: String?,
+    readinessScore: Double,
+    averageScore: Double,
+    averageWillingnessToPayScore: Double,
+    estimatedMonthlyPriceCents: Int?,
+    strongestVerdict: ProductizationEvidenceVerdict,
+    weakestVerdict: ProductizationEvidenceVerdict,
+    recommendation: ProductTournamentPlanRecommendation,
+    rationale: [String],
+    evaluationIDs: [String]
+  ) {
+    self.contenderID = ProductizationEvidenceRecord.cleanedIdentifier(
+      contenderID,
+      fallback: "contender"
+    )
+    self.tournamentID = ProductizationEvidenceRecord.cleanedIdentifier(
+      tournamentID,
+      fallback: "tournament"
+    )
+    self.roundID = ProductizationEvidenceRecord.cleanedIdentifier(roundID, fallback: "round")
+    self.evaluationCount = max(0, evaluationCount)
+    self.completedEvaluationCount = max(0, completedEvaluationCount)
+    self.distinctPersonaCount = max(0, distinctPersonaCount)
+    self.latestEvaluationID = ProductizationEvidenceRecord.optionalBounded(
+      latestEvaluationID,
+      limit: 96
+    )
+    self.readinessScore = Self.roundedScore(readinessScore, upperBound: 100)
+    self.averageScore = Self.roundedScore(averageScore, upperBound: 5)
+    self.averageWillingnessToPayScore = Self.roundedScore(
+      averageWillingnessToPayScore,
+      upperBound: 5
+    )
+    self.estimatedMonthlyPriceCents = estimatedMonthlyPriceCents.map { max(0, $0) }
+    self.strongestVerdict = strongestVerdict
+    self.weakestVerdict = weakestVerdict
+    self.recommendation = recommendation
+    self.rationale = ProductizationEvidenceRecord.cleanedList(rationale, limit: 260)
+    self.evaluationIDs = ProductizationEvidenceRecord.cleanedList(evaluationIDs, limit: 96)
+  }
+
+  init(summaries rawSummaries: [ProductTournamentPlanEvaluationSummary]) {
+    let summaries = rawSummaries.sorted { lhs, rhs in
+      if lhs.endedAt == rhs.endedAt { return lhs.evaluationID < rhs.evaluationID }
+      return lhs.endedAt > rhs.endedAt
+    }
+    let completed = summaries.filter(\.isCompleted)
+    let personaCount = Set(completed.map(\.personaID).filter { !$0.isEmpty }).count
+    let scoreValues = completed.flatMap { summary in
+      [
+        summary.scores.painRecognition,
+        summary.scores.workflowImprovement,
+        summary.scores.alternativeAdvantage,
+        summary.scores.switchingReadiness,
+        summary.scores.continuedUsePull,
+      ].compactMap { $0 }.map(Double.init)
+    }
+    let averageScore = Self.average(scoreValues)
+    let willingnessValues = completed.compactMap(\.willingnessToPayScore).map(Double.init)
+    let averageWillingness = Self.average(willingnessValues)
+    let readinessScore = Self.readinessScore(
+      completed: completed,
+      averageScore: averageScore,
+      averageWillingnessToPayScore: averageWillingness,
+      distinctPersonaCount: personaCount
+    )
+    let strongest =
+      summaries.map(\.verdict).max(by: { Self.verdictRank($0) < Self.verdictRank($1) })
+      ?? .unclear
+    let weakest =
+      summaries.map(\.verdict).min(by: { Self.verdictRank($0) < Self.verdictRank($1) })
+      ?? .unclear
+    let recommendation = Self.recommendation(
+      completed: completed,
+      readinessScore: readinessScore,
+      averageScore: averageScore,
+      averageWillingnessToPayScore: averageWillingness,
+      distinctPersonaCount: personaCount
+    )
+
+    self.init(
+      contenderID: summaries.first?.contenderID ?? "contender",
+      tournamentID: summaries.first?.tournamentID ?? "tournament",
+      roundID: summaries.first?.roundID ?? "round",
+      evaluationCount: summaries.count,
+      completedEvaluationCount: completed.count,
+      distinctPersonaCount: personaCount,
+      latestEvaluationID: summaries.first?.evaluationID,
+      readinessScore: readinessScore,
+      averageScore: averageScore,
+      averageWillingnessToPayScore: averageWillingness,
+      estimatedMonthlyPriceCents: Self.estimatedMonthlyPriceCents(completed),
+      strongestVerdict: strongest,
+      weakestVerdict: weakest,
+      recommendation: recommendation,
+      rationale: Self.rationale(
+        completed: completed,
+        readinessScore: readinessScore,
+        averageScore: averageScore,
+        averageWillingnessToPayScore: averageWillingness,
+        distinctPersonaCount: personaCount,
+        recommendation: recommendation
+      ),
+      evaluationIDs: summaries.prefix(8).map(\.evaluationID)
+    )
+  }
+
+  private static func readinessScore(
+    completed: [ProductTournamentPlanEvaluationSummary],
+    averageScore: Double,
+    averageWillingnessToPayScore: Double,
+    distinctPersonaCount: Int
+  ) -> Double {
+    var score = 0.0
+    switch completed.count {
+    case 3...: score += 18
+    case 2: score += 12
+    case 1: score += 7
+    default: break
+    }
+    switch distinctPersonaCount {
+    case 3...: score += 14
+    case 2: score += 10
+    case 1: score += 4
+    default: break
+    }
+    if averageScore > 0 {
+      score += max(0, min(34, ((averageScore - 1) / 4) * 34))
+    }
+    if averageWillingnessToPayScore > 0 {
+      score += max(0, min(22, ((averageWillingnessToPayScore - 1) / 4) * 22))
+    }
+    score += Self.average(completed.map { Self.verdictContribution($0.verdict) })
+    score -= Double(min(14, Self.repeatedObjectionCount(in: completed) * 4))
+    score -= Double(min(12, completed.flatMap(\.missingCapabilities).count * 3))
+    return Self.roundedScore(score, upperBound: 100)
+  }
+
+  private static func recommendation(
+    completed: [ProductTournamentPlanEvaluationSummary],
+    readinessScore: Double,
+    averageScore: Double,
+    averageWillingnessToPayScore: Double,
+    distinctPersonaCount: Int
+  ) -> ProductTournamentPlanRecommendation {
+    guard !completed.isEmpty else { return .gatherEvidence }
+    let weakCount = completed.filter { $0.verdict == .weak || $0.verdict == .rejected }.count
+    let strongCount = completed.filter { $0.verdict == .strongPull || $0.verdict == .promising }
+      .count
+    if completed.count >= 2
+      && (readinessScore <= 30 || averageScore > 0 && averageScore <= 2.2 || weakCount >= 2)
+    {
+      return .eliminate
+    }
+    if completed.count >= 2
+      && distinctPersonaCount >= 2
+      && readinessScore >= 66
+      && averageWillingnessToPayScore >= 3.2
+      && strongCount >= 2
+    {
+      return .advanceToFeasibility
+    }
+    if completed.count < 2 || distinctPersonaCount < 2 {
+      return .gatherEvidence
+    }
+    return .revisePlan
+  }
+
+  private static func rationale(
+    completed: [ProductTournamentPlanEvaluationSummary],
+    readinessScore: Double,
+    averageScore: Double,
+    averageWillingnessToPayScore: Double,
+    distinctPersonaCount: Int,
+    recommendation: ProductTournamentPlanRecommendation
+  ) -> [String] {
+    var lines = [
+      "\(completed.count) completed plan evaluation(s) across \(distinctPersonaCount) persona(s)."
+    ]
+    if averageScore > 0 {
+      lines.append(
+        "Average plan score \(Self.format(averageScore))/5; readiness \(Self.format(readinessScore))/100."
+      )
+    }
+    if averageWillingnessToPayScore > 0 {
+      lines.append("Average willingness to pay \(Self.format(averageWillingnessToPayScore))/5.")
+    }
+    let repeated = Self.repeatedObjections(in: completed)
+    if !repeated.isEmpty {
+      lines.append("Repeated objections: \(repeated.prefix(3).joined(separator: "; ")).")
+    }
+    switch recommendation {
+    case .advanceToFeasibility:
+      lines.append("Plan evidence is strong enough to consider Round 2 feasibility work.")
+    case .eliminate:
+      lines.append("Plan evidence is weak enough to eliminate or substantially reframe.")
+    case .revisePlan:
+      lines.append("Plan evidence points to revisions before implementation.")
+    case .gatherEvidence:
+      lines.append("Run more plan evaluations before advancing or eliminating.")
+    }
+    return lines
+  }
+
+  private static func estimatedMonthlyPriceCents(
+    _ summaries: [ProductTournamentPlanEvaluationSummary]
+  ) -> Int? {
+    let prices = summaries.compactMap(\.estimatedMonthlyPriceCents).filter { $0 > 0 }
+    guard !prices.isEmpty else { return nil }
+    return prices.reduce(0, +) / prices.count
+  }
+
+  private static func repeatedObjectionCount(
+    in summaries: [ProductTournamentPlanEvaluationSummary]
+  ) -> Int {
+    repeatedObjections(in: summaries).count
+  }
+
+  private static func repeatedObjections(
+    in summaries: [ProductTournamentPlanEvaluationSummary]
+  ) -> [String] {
+    let counts = Dictionary(
+      grouping: summaries.flatMap(\.objections).map(\.normalizedProductizationEvidenceText),
+      by: { $0 }
+    ).mapValues(\.count)
+    return
+      counts
+      .filter { !$0.key.isEmpty && $0.value > 1 }
+      .sorted { lhs, rhs in
+        if lhs.value == rhs.value { return lhs.key < rhs.key }
+        return lhs.value > rhs.value
+      }
+      .map { "\($0.key) (\($0.value)x)" }
+  }
+
+  private static func verdictRank(_ verdict: ProductizationEvidenceVerdict) -> Int {
+    switch verdict {
+    case .rejected: return 0
+    case .weak: return 1
+    case .unclear: return 2
+    case .promising: return 3
+    case .strongPull: return 4
+    }
+  }
+
+  private static func verdictContribution(_ verdict: ProductizationEvidenceVerdict) -> Double {
+    switch verdict {
+    case .strongPull: return 12
+    case .promising: return 8
+    case .unclear: return 0
+    case .weak: return -8
+    case .rejected: return -14
+    }
+  }
+
+  private static func roundedScore(_ value: Double, upperBound: Double) -> Double {
+    let clamped = min(upperBound, max(0, value))
+    return (clamped * 10).rounded() / 10
+  }
+
+  private static func average(_ values: [Double]) -> Double {
+    guard !values.isEmpty else { return 0 }
+    return values.reduce(0, +) / Double(values.count)
+  }
+
+  private static func format(_ value: Double) -> String {
+    String(format: "%.1f", value)
+  }
+}
+
+struct ProductTournamentPlanEvaluationRecord: Codable, Equatable, Identifiable, Sendable {
+  static let supportedSchemaVersion = 1
+
+  var id: String
+  var schemaVersion: Int
+  var projectID: String?
+  var tournamentID: String
+  var roundID: String
+  var contenderID: String
+  var solutionID: String
+  var experimentID: String?
+  var painID: String
+  var personaID: String
+  var personaName: String
+  var currentWorkflowID: String?
+  var alternativeID: String?
+  var mode: ProductizationSimulationMode
+  var status: ProductizationRunStatus
+  var startedAt: Double
+  var endedAt: Double
+  var model: String
+  var scores: ProductizationEvidenceScores
+  var willingnessToPayScore: Int?
+  var estimatedMonthlyPriceCents: Int?
+  var objections: [String]
+  var missingCapabilities: [String]
+  var currentAlternativeComparison: String
+  var verdict: ProductizationEvidenceVerdict
+  var summary: String
+  var rationale: [String]
+  var planStrengths: [String]
+  var planRisks: [String]
+  var promptVersions: [String]
+  var summaryArtifactPath: String?
+  var failure: ProductizationRunFailure?
+
+  init(
+    id: String,
+    schemaVersion: Int = Self.supportedSchemaVersion,
+    projectID: String? = nil,
+    tournamentID: String,
+    roundID: String,
+    contenderID: String,
+    solutionID: String,
+    experimentID: String? = nil,
+    painID: String,
+    personaID: String,
+    personaName: String,
+    currentWorkflowID: String? = nil,
+    alternativeID: String? = nil,
+    mode: ProductizationSimulationMode = .modelFree,
+    status: ProductizationRunStatus = .completed,
+    startedAt: Double,
+    endedAt: Double,
+    model: String = "model-free-plan-evaluator",
+    scores: ProductizationEvidenceScores,
+    willingnessToPayScore: Int?,
+    estimatedMonthlyPriceCents: Int?,
+    objections: [String] = [],
+    missingCapabilities: [String] = [],
+    currentAlternativeComparison: String,
+    verdict: ProductizationEvidenceVerdict,
+    summary: String,
+    rationale: [String] = [],
+    planStrengths: [String] = [],
+    planRisks: [String] = [],
+    promptVersions: [String] = [],
+    summaryArtifactPath: String? = nil,
+    failure: ProductizationRunFailure? = nil
+  ) {
+    self.id = ProductizationEvidenceRecord.cleanedIdentifier(
+      id,
+      fallback: "plan-evaluation"
+    )
+    self.schemaVersion = schemaVersion
+    self.projectID = ProductizationEvidenceRecord.optionalBounded(projectID, limit: 80)
+    self.tournamentID = ProductizationEvidenceRecord.cleanedIdentifier(
+      tournamentID,
+      fallback: "tournament"
+    )
+    self.roundID = ProductizationEvidenceRecord.cleanedIdentifier(roundID, fallback: "round")
+    self.contenderID = ProductizationEvidenceRecord.cleanedIdentifier(
+      contenderID,
+      fallback: "contender"
+    )
+    self.solutionID = ProductizationEvidenceRecord.cleanedIdentifier(
+      solutionID,
+      fallback: "solution"
+    )
+    self.experimentID = ProductizationEvidenceRecord.optionalBounded(experimentID, limit: 96)
+    self.painID = ProductizationEvidenceRecord.cleanedIdentifier(painID, fallback: "pain")
+    self.personaID = ProductizationEvidenceRecord.cleanedIdentifier(
+      personaID,
+      fallback: "persona"
+    )
+    self.personaName = StringUtils.boundedText(personaName, limit: 160)
+    self.currentWorkflowID = ProductizationEvidenceRecord.optionalBounded(
+      currentWorkflowID,
+      limit: 96
+    )
+    self.alternativeID = ProductizationEvidenceRecord.optionalBounded(
+      alternativeID,
+      limit: 96
+    )
+    self.mode = mode
+    self.status = status
+    self.startedAt = startedAt
+    self.endedAt = max(startedAt, endedAt)
+    self.model = StringUtils.boundedText(model, limit: 160)
+    self.scores = scores
+    self.willingnessToPayScore = Self.clampedScore(willingnessToPayScore)
+    self.estimatedMonthlyPriceCents = estimatedMonthlyPriceCents.map { max(0, $0) }
+    self.objections = ProductizationEvidenceRecord.cleanedList(objections, limit: 500)
+    self.missingCapabilities = ProductizationEvidenceRecord.cleanedList(
+      missingCapabilities,
+      limit: 160
+    )
+    self.currentAlternativeComparison = StringUtils.boundedText(
+      currentAlternativeComparison,
+      limit: 1_000
+    )
+    self.verdict = verdict
+    self.summary = StringUtils.boundedText(summary, limit: 1_500)
+    self.rationale = ProductizationEvidenceRecord.cleanedList(rationale, limit: 360)
+    self.planStrengths = ProductizationEvidenceRecord.cleanedList(planStrengths, limit: 240)
+    self.planRisks = ProductizationEvidenceRecord.cleanedList(planRisks, limit: 240)
+    self.promptVersions = ProductizationEvidenceRecord.cleanedList(promptVersions, limit: 160)
+    self.summaryArtifactPath = ProductizationEvidenceRecord.optionalBounded(
+      summaryArtifactPath,
+      limit: 500
+    )
+    self.failure = failure
+  }
+
+  var summaryRecord: ProductTournamentPlanEvaluationSummary {
+    ProductTournamentPlanEvaluationSummary(record: self)
+  }
+
+  private static func clampedScore(_ value: Int?) -> Int? {
+    value.map { min(5, max(1, $0)) }
+  }
+}
+
+struct ProductTournamentPlanEvaluationSummary: Codable, Equatable, Identifiable, Sendable {
+  var id: String
+  var evaluationID: String
+  var tournamentID: String
+  var roundID: String
+  var contenderID: String
+  var solutionID: String
+  var experimentID: String?
+  var painID: String
+  var personaID: String
+  var personaName: String
+  var mode: ProductizationSimulationMode
+  var status: ProductizationRunStatus
+  var startedAt: Double
+  var endedAt: Double
+  var model: String
+  var verdict: ProductizationEvidenceVerdict
+  var scores: ProductizationEvidenceScores
+  var willingnessToPayScore: Int?
+  var estimatedMonthlyPriceCents: Int?
+  var objections: [String]
+  var missingCapabilities: [String]
+  var currentAlternativeComparison: String
+  var rationale: [String]
+  var summary: String
+  var failureKind: String?
+
+  init(record: ProductTournamentPlanEvaluationRecord) {
+    id = record.id
+    evaluationID = record.id
+    tournamentID = record.tournamentID
+    roundID = record.roundID
+    contenderID = record.contenderID
+    solutionID = record.solutionID
+    experimentID = record.experimentID
+    painID = record.painID
+    personaID = record.personaID
+    personaName = record.personaName
+    mode = record.mode
+    status = record.status
+    startedAt = record.startedAt
+    endedAt = record.endedAt
+    model = record.model
+    verdict = record.verdict
+    scores = record.scores
+    willingnessToPayScore = record.willingnessToPayScore
+    estimatedMonthlyPriceCents = record.estimatedMonthlyPriceCents
+    objections = record.objections
+    missingCapabilities = record.missingCapabilities
+    currentAlternativeComparison = record.currentAlternativeComparison
+    rationale = record.rationale
+    summary = record.summary
+    failureKind = record.failure?.status.rawValue
+  }
+
+  var isCompleted: Bool {
+    status == .completed
+  }
+}
+
 struct ProductizationEvidenceIndex: Codable, Equatable, Sendable {
   static let supportedSchemaVersion = 1
   static let empty = ProductizationEvidenceIndex()
@@ -1368,6 +1893,7 @@ struct ProductizationEvidenceIndex: Codable, Equatable, Sendable {
   var schemaVersion: Int
   var updatedAt: Double
   var summaries: [ProductizationEvidenceSummary]
+  var planEvaluationSummaries: [ProductTournamentPlanEvaluationSummary]
   var aggregate: ProductizationEvidenceAggregateSummary
   var malformedRecordCount: Int
 
@@ -1375,6 +1901,7 @@ struct ProductizationEvidenceIndex: Codable, Equatable, Sendable {
     schemaVersion: Int = Self.supportedSchemaVersion,
     updatedAt: Double = 0,
     summaries: [ProductizationEvidenceSummary] = [],
+    planEvaluationSummaries: [ProductTournamentPlanEvaluationSummary] = [],
     aggregate: ProductizationEvidenceAggregateSummary = .empty,
     malformedRecordCount: Int = 0
   ) {
@@ -1384,22 +1911,75 @@ struct ProductizationEvidenceIndex: Codable, Equatable, Sendable {
       if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
       return lhs.endedAt > rhs.endedAt
     }
+    self.planEvaluationSummaries = planEvaluationSummaries.sorted { lhs, rhs in
+      if lhs.endedAt == rhs.endedAt { return lhs.evaluationID < rhs.evaluationID }
+      return lhs.endedAt > rhs.endedAt
+    }
     self.aggregate = aggregate
     self.malformedRecordCount = malformedRecordCount
   }
 
+  private enum CodingKeys: String, CodingKey {
+    case schemaVersion
+    case updatedAt
+    case summaries
+    case planEvaluationSummaries
+    case aggregate
+    case malformedRecordCount
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      schemaVersion: try container.decodeIfPresent(Int.self, forKey: .schemaVersion)
+        ?? Self.supportedSchemaVersion,
+      updatedAt: try container.decodeIfPresent(Double.self, forKey: .updatedAt) ?? 0,
+      summaries: try container.decodeIfPresent(
+        [ProductizationEvidenceSummary].self,
+        forKey: .summaries
+      ) ?? [],
+      planEvaluationSummaries: try container.decodeIfPresent(
+        [ProductTournamentPlanEvaluationSummary].self,
+        forKey: .planEvaluationSummaries
+      ) ?? [],
+      aggregate: try container.decodeIfPresent(
+        ProductizationEvidenceAggregateSummary.self,
+        forKey: .aggregate
+      ) ?? .empty,
+      malformedRecordCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .malformedRecordCount
+      ) ?? 0
+    )
+  }
+
   static func build(
     records: [ProductizationEvidenceRecord],
+    planEvaluationRecords: [ProductTournamentPlanEvaluationRecord] = [],
     malformedRecordCount: Int = 0,
     now: Date = Date()
   ) -> ProductizationEvidenceIndex {
     let summaries = records.map(\.summaryRecord)
+    let planEvaluationSummaries = planEvaluationRecords.map(\.summaryRecord)
     return ProductizationEvidenceIndex(
       updatedAt: now.timeIntervalSince1970,
       summaries: summaries,
-      aggregate: ProductizationEvidenceAggregateSummary(summaries: summaries),
+      planEvaluationSummaries: planEvaluationSummaries,
+      aggregate: ProductizationEvidenceAggregateSummary(
+        summaries: summaries,
+        planEvaluationSummaries: planEvaluationSummaries
+      ),
       malformedRecordCount: malformedRecordCount
     )
+  }
+
+  func planEvaluations(
+    for tournament: ProductTournament,
+    round: ProductTournamentRound? = nil
+  ) -> [ProductTournamentPlanEvaluationSummary] {
+    planEvaluationSummaries.filter { summary in
+      summary.tournamentID == tournament.id && (round == nil || summary.roundID == round?.id)
+    }
   }
 
   func targetCommit(for experiment: ProductExperiment) -> String? {
@@ -1437,6 +2017,8 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
   static let empty = ProductizationEvidenceAggregateSummary(
     latestRunByExperiment: [:],
     pmfReadinessByExperiment: [],
+    latestPlanEvaluationByContender: [:],
+    planReadinessByContender: [],
     repeatedObjections: [],
     lowScoreClusters: [],
     missingCapabilityFrequency: [],
@@ -1448,6 +2030,8 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
 
   var latestRunByExperiment: [String: String]
   var pmfReadinessByExperiment: [ProductMarketFitReadiness]
+  var latestPlanEvaluationByContender: [String: String]
+  var planReadinessByContender: [ProductTournamentPlanReadiness]
   var repeatedObjections: [ProductizationRepeatedObjection]
   var lowScoreClusters: [ProductizationScoreCluster]
   var missingCapabilityFrequency: [ProductizationMissingCapabilityCount]
@@ -1460,6 +2044,8 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
   enum CodingKeys: String, CodingKey {
     case latestRunByExperiment
     case pmfReadinessByExperiment
+    case latestPlanEvaluationByContender
+    case planReadinessByContender
     case repeatedObjections
     case lowScoreClusters
     case missingCapabilityFrequency
@@ -1473,6 +2059,8 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
   init(
     latestRunByExperiment: [String: String],
     pmfReadinessByExperiment: [ProductMarketFitReadiness] = [],
+    latestPlanEvaluationByContender: [String: String] = [:],
+    planReadinessByContender: [ProductTournamentPlanReadiness] = [],
     repeatedObjections: [ProductizationRepeatedObjection],
     lowScoreClusters: [ProductizationScoreCluster],
     missingCapabilityFrequency: [ProductizationMissingCapabilityCount],
@@ -1484,6 +2072,8 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
   ) {
     self.latestRunByExperiment = latestRunByExperiment
     self.pmfReadinessByExperiment = pmfReadinessByExperiment
+    self.latestPlanEvaluationByContender = latestPlanEvaluationByContender
+    self.planReadinessByContender = planReadinessByContender
     self.repeatedObjections = repeatedObjections
     self.lowScoreClusters = lowScoreClusters
     self.missingCapabilityFrequency = missingCapabilityFrequency
@@ -1504,6 +2094,14 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
       pmfReadinessByExperiment: try container.decodeIfPresent(
         [ProductMarketFitReadiness].self,
         forKey: .pmfReadinessByExperiment
+      ) ?? [],
+      latestPlanEvaluationByContender: try container.decodeIfPresent(
+        [String: String].self,
+        forKey: .latestPlanEvaluationByContender
+      ) ?? [:],
+      planReadinessByContender: try container.decodeIfPresent(
+        [ProductTournamentPlanReadiness].self,
+        forKey: .planReadinessByContender
       ) ?? [],
       repeatedObjections: try container.decodeIfPresent(
         [ProductizationRepeatedObjection].self,
@@ -1540,7 +2138,10 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
     )
   }
 
-  init(summaries: [ProductizationEvidenceSummary]) {
+  init(
+    summaries: [ProductizationEvidenceSummary],
+    planEvaluationSummaries: [ProductTournamentPlanEvaluationSummary] = []
+  ) {
     var latest: [String: ProductizationEvidenceSummary] = [:]
     for summary in summaries {
       if let current = latest[summary.experimentID] {
@@ -1563,8 +2164,31 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
         return lhs.readinessScore > rhs.readinessScore
       }
 
+    var latestPlanEvaluation: [String: ProductTournamentPlanEvaluationSummary] = [:]
+    for summary in planEvaluationSummaries {
+      if let current = latestPlanEvaluation[summary.contenderID] {
+        if summary.endedAt > current.endedAt
+          || (summary.endedAt == current.endedAt && summary.evaluationID < current.evaluationID)
+        {
+          latestPlanEvaluation[summary.contenderID] = summary
+        }
+      } else {
+        latestPlanEvaluation[summary.contenderID] = summary
+      }
+    }
+    latestPlanEvaluationByContender = latestPlanEvaluation.mapValues(\.evaluationID)
+    planReadinessByContender = Dictionary(grouping: planEvaluationSummaries, by: \.contenderID)
+      .map { _, group in ProductTournamentPlanReadiness(summaries: group) }
+      .sorted { lhs, rhs in
+        if lhs.readinessScore == rhs.readinessScore {
+          return lhs.contenderID < rhs.contenderID
+        }
+        return lhs.readinessScore > rhs.readinessScore
+      }
+
     let objectionCounts = Dictionary(
-      grouping: summaries.flatMap(\.objections).map(\.normalizedProductizationEvidenceText),
+      grouping: (summaries.flatMap(\.objections) + planEvaluationSummaries.flatMap(\.objections))
+        .map(\.normalizedProductizationEvidenceText),
       by: { $0 }
     ).mapValues(\.count)
     repeatedObjections =
@@ -1577,8 +2201,9 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
       }
 
     let missingCounts = Dictionary(
-      grouping: summaries.flatMap(\.missingCapabilities).map(
-        \.normalizedProductizationEvidenceText),
+      grouping: (summaries.flatMap(\.missingCapabilities)
+        + planEvaluationSummaries.flatMap(\.missingCapabilities)).map(
+          \.normalizedProductizationEvidenceText),
       by: { $0 }
     ).mapValues(\.count)
     missingCapabilityFrequency =
@@ -1590,14 +2215,22 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
         return lhs.count > rhs.count
       }
 
-    verdictCounts = Dictionary(grouping: summaries.map { $0.verdict.rawValue }, by: { $0 })
-      .mapValues(\.count)
+    verdictCounts = Dictionary(
+      grouping: (summaries.map(\.verdict.rawValue) + planEvaluationSummaries.map(\.verdict.rawValue)),
+      by: { $0 }
+    )
+    .mapValues(\.count)
 
     failuresByKind = Dictionary(
-      grouping: summaries.compactMap { summary -> String? in
-        guard !summary.isCompleted else { return nil }
-        return summary.failureKind ?? summary.status.rawValue
-      },
+      grouping:
+        summaries.compactMap { summary -> String? in
+          guard !summary.isCompleted else { return nil }
+          return summary.failureKind ?? summary.status.rawValue
+        }
+        + planEvaluationSummaries.compactMap { summary -> String? in
+          guard !summary.isCompleted else { return nil }
+          return summary.failureKind ?? summary.status.rawValue
+        },
       by: { $0 }
     ).mapValues(\.count)
 
@@ -1639,11 +2272,8 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
       return lhs.minimumScore < rhs.minimumScore
     }
 
-    currentAlternativeComparisons =
-      summaries
-      .filter { !$0.currentAlternativeComparison.isEmpty }
-      .prefix(12)
-      .map {
+    currentAlternativeComparisons = Array(
+      (summaries.map {
         ProductizationAlternativeComparisonSummary(
           runID: $0.runID,
           experimentID: $0.experimentID,
@@ -1651,6 +2281,17 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
           verdict: $0.verdict
         )
       }
+        + planEvaluationSummaries.map {
+          ProductizationAlternativeComparisonSummary(
+            runID: $0.evaluationID,
+            experimentID: $0.experimentID ?? $0.contenderID,
+            comparison: $0.currentAlternativeComparison,
+            verdict: $0.verdict
+          )
+        })
+        .filter { !$0.comparison.isEmpty }
+        .prefix(12)
+    )
 
     let outcomeGroups = Dictionary(
       grouping: summaries.compactMap(ProductizationDecisionIntentOutcomeSource.init),
@@ -1839,6 +2480,9 @@ struct ProductizationEvidenceStore {
   }
 
   var runsURL: URL { productizationURL.appending(path: "runs", directoryHint: .isDirectory) }
+  var planEvaluationsURL: URL {
+    productizationURL.appending(path: "plan-evaluations", directoryHint: .isDirectory)
+  }
   var indexURL: URL { productizationURL.appending(path: "evidence-index.json") }
 
   func readIndex() throws -> ProductizationEvidenceIndex {
@@ -1853,6 +2497,11 @@ struct ProductizationEvidenceStore {
   func readRecord(id: String) throws -> ProductizationEvidenceRecord {
     let data = try Data(contentsOf: recordURL(id: id))
     return try JSONDecoder().decode(ProductizationEvidenceRecord.self, from: data)
+  }
+
+  func readPlanEvaluationRecord(id: String) throws -> ProductTournamentPlanEvaluationRecord {
+    let data = try Data(contentsOf: planEvaluationRecordURL(id: id))
+    return try JSONDecoder().decode(ProductTournamentPlanEvaluationRecord.self, from: data)
   }
 
   @discardableResult
@@ -1910,13 +2559,46 @@ struct ProductizationEvidenceStore {
   }
 
   @discardableResult
+  func writePlanEvaluationRecord(
+    _ record: ProductTournamentPlanEvaluationRecord,
+    summaryMarkdown: String? = nil,
+    now: Date = Date()
+  ) throws -> ProductTournamentPlanEvaluationRecord {
+    let safeID = Self.safeRunID(record.id)
+    let evaluationURL = planEvaluationsURL.appending(path: safeID, directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: evaluationURL, withIntermediateDirectories: true)
+
+    var stored = record
+    let summary =
+      summaryMarkdown ?? ProductizationEvidenceMarkdownExporter.markdown(planEvaluation: stored)
+    if !summary.isEmpty {
+      stored.summaryArtifactPath = try writeArtifact(
+        runURL: evaluationURL,
+        relativePath: "productization/plan-evaluations/\(safeID)/summary.md",
+        fileName: "summary.md",
+        contents: summary
+      )
+    }
+
+    let data = try Self.encoder().encode(stored)
+    try data.write(to: planEvaluationRecordURL(id: stored.id), options: .atomic)
+    _ = try rebuildIndex(now: now)
+    return stored
+  }
+
+  @discardableResult
   func rebuildIndex(now: Date = Date()) throws -> ProductizationEvidenceIndex {
     try FileManager.default.createDirectory(at: runsURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: planEvaluationsURL,
+      withIntermediateDirectories: true
+    )
     let urls = try FileManager.default.contentsOfDirectory(
       at: runsURL,
       includingPropertiesForKeys: nil
     )
     var records: [ProductizationEvidenceRecord] = []
+    var planEvaluations: [ProductTournamentPlanEvaluationRecord] = []
     var malformed = 0
     for url in urls {
       var isDirectory: ObjCBool = false
@@ -1933,8 +2615,28 @@ struct ProductizationEvidenceStore {
         malformed += 1
       }
     }
+    let planEvaluationURLs = try FileManager.default.contentsOfDirectory(
+      at: planEvaluationsURL,
+      includingPropertiesForKeys: nil
+    )
+    for url in planEvaluationURLs {
+      var isDirectory: ObjCBool = false
+      guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+        isDirectory.boolValue
+      else { continue }
+      do {
+        planEvaluations.append(
+          try JSONDecoder().decode(
+            ProductTournamentPlanEvaluationRecord.self,
+            from: Data(contentsOf: url.appending(path: "record.json"))
+          ))
+      } catch {
+        malformed += 1
+      }
+    }
     let index = ProductizationEvidenceIndex.build(
       records: records,
+      planEvaluationRecords: planEvaluations,
       malformedRecordCount: malformed,
       now: now
     )
@@ -1947,6 +2649,12 @@ struct ProductizationEvidenceStore {
 
   func recordURL(id: String) -> URL {
     runsURL
+      .appending(path: Self.safeRunID(id), directoryHint: .isDirectory)
+      .appending(path: "record.json")
+  }
+
+  func planEvaluationRecordURL(id: String) -> URL {
+    planEvaluationsURL
       .appending(path: Self.safeRunID(id), directoryHint: .isDirectory)
       .appending(path: "record.json")
   }
@@ -1974,6 +2682,61 @@ struct ProductizationEvidenceStore {
 }
 
 enum ProductizationEvidenceMarkdownExporter {
+  static func markdown(planEvaluation record: ProductTournamentPlanEvaluationRecord) -> String {
+    var lines = [
+      "# Product Tournament Plan Evaluation \(record.id)",
+      "",
+      "- Tournament: \(record.tournamentID)",
+      "- Round: \(record.roundID)",
+      "- Contender: \(record.contenderID)",
+      "- Solution: \(record.solutionID)",
+      record.experimentID.map { "- Implementation Track: \($0)" },
+      "- Pain: \(record.painID)",
+      "- Persona: \(record.personaName) (`\(record.personaID)`)",
+      "- Mode: \(record.mode.rawValue)",
+      "- Status: \(record.status.rawValue)",
+      "- Verdict: \(record.verdict.rawValue)",
+      record.willingnessToPayScore.map { "- Willingness To Pay: \($0)/5" },
+      record.estimatedMonthlyPriceCents.map {
+        "- Estimated Monthly Price: \(Self.priceLabel(cents: $0))"
+      },
+      "",
+      "## Summary",
+      "",
+      record.summary,
+      "",
+      "## Current Alternative",
+      "",
+      record.currentAlternativeComparison.isEmpty
+        ? "No current-alternative comparison recorded."
+        : record.currentAlternativeComparison,
+    ].compactMap { $0 }
+    if !record.planStrengths.isEmpty {
+      lines += ["", "## Plan Strengths", ""]
+      lines += record.planStrengths.map { "- \($0)" }
+    }
+    if !record.planRisks.isEmpty {
+      lines += ["", "## Plan Risks", ""]
+      lines += record.planRisks.map { "- \($0)" }
+    }
+    if !record.objections.isEmpty {
+      lines += ["", "## Objections", ""]
+      lines += record.objections.map { "- \($0)" }
+    }
+    if !record.missingCapabilities.isEmpty {
+      lines += ["", "## Missing Capabilities", ""]
+      lines += record.missingCapabilities.map { "- \($0)" }
+    }
+    if !record.rationale.isEmpty {
+      lines += ["", "## Simulated-User Rationale", ""]
+      lines += record.rationale.map { "- \($0)" }
+    }
+    if let failure = record.failure {
+      lines += ["", "## Failure", "", "\(failure.status.rawValue): \(failure.message)"]
+    }
+    return lines.joined(separator: "\n")
+  }
+
   static func markdown(record: ProductizationEvidenceRecord) -> String {
     var lines = [
       "# Productization Evidence \(record.id)",
@@ -2044,6 +2807,11 @@ enum ProductizationEvidenceMarkdownExporter {
     let rationale = StringUtils.boundedText(evaluation.rationale, limit: 220)
     guard !rationale.isEmpty else { return evaluation.outcome.rawValue }
     return "\(evaluation.outcome.rawValue); \(rationale)"
+  }
+
+  private static func priceLabel(cents: Int) -> String {
+    let dollars = Double(max(0, cents)) / 100
+    return String(format: "$%.0f/month", dollars)
   }
 }
 

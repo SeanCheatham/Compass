@@ -26,9 +26,11 @@ struct ProductizationWorkbenchTab: View {
   @State private var scenarioEnabled = true
   @State private var isSavingScenario = false
   @State private var isRunningScenario = false
+  @State private var isRunningPlanEvaluation = false
   @State private var isRunningFactoryStep = false
   @State private var isRunningFactoryCycle = false
   @State private var scenarioRunMessage: String?
+  @State private var planEvaluationMessage: String?
   @State private var contractAvailable: Bool?
 
   private var config: ProductizationConfig { project.productizationConfig }
@@ -53,6 +55,36 @@ struct ProductizationWorkbenchTab: View {
       if lhs.ordinal == rhs.ordinal { return lhs.title < rhs.title }
       return lhs.ordinal < rhs.ordinal
     }
+  }
+
+  private var activeTournamentForPlanEvaluation: ProductTournament? {
+    tournamentsForBoard.first { $0.status == .active || $0.status == .drafting }
+  }
+
+  private var activePlanRoundForEvaluation: ProductTournamentRound? {
+    guard let tournament = activeTournamentForPlanEvaluation else { return nil }
+    if let currentRoundID = tournament.currentRoundID,
+      let current = config.tournamentRounds.first(where: { $0.id == currentRoundID }),
+      current.kind == .productPlans
+    {
+      return current
+    }
+    return config.tournamentRounds
+      .filter { $0.tournamentID == tournament.id && $0.kind == .productPlans }
+      .sorted { lhs, rhs in
+        if lhs.ordinal == rhs.ordinal { return lhs.title < rhs.title }
+        return lhs.ordinal < rhs.ordinal
+      }
+      .first
+  }
+
+  private var planEvaluationCanRun: Bool {
+    activeTournamentForPlanEvaluation != nil
+      && activePlanRoundForEvaluation != nil
+      && !isRunningPlanEvaluation
+      && !isRunningFactoryStep
+      && !isRunningFactoryCycle
+      && !isRunningScenario
   }
 
   private var selectedExperiment: ProductExperiment? {
@@ -448,6 +480,26 @@ struct ProductizationWorkbenchTab: View {
 
         WorkbenchSection("Rounds", systemImage: "list.number") {
           VStack(alignment: .leading, spacing: 8) {
+            HStack {
+              Button {
+                Task { await runPlanEvaluationRound() }
+              } label: {
+                Label(
+                  isRunningPlanEvaluation ? "Running Round 1" : "Run Round 1",
+                  systemImage: "person.2.wave.2"
+                )
+              }
+              .buttonStyle(.bordered)
+              .disabled(!planEvaluationCanRun)
+              .help("Run model-free simulated-user evaluation for the plan-only round.")
+
+              if let planEvaluationMessage {
+                Text(planEvaluationMessage)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+              }
+            }
             if tournamentRoundsForBoard.isEmpty {
               WorkbenchEmptyLine("No tournament rounds yet.")
             } else {
@@ -578,6 +630,9 @@ struct ProductizationWorkbenchTab: View {
     let experiment = contender.experimentID.flatMap { experimentID in
       config.experiments.first { $0.id == experimentID }
     }
+    let planReadiness = evidenceIndex.aggregate.planReadinessByContender.first {
+      $0.contenderID == contender.id
+    }
     return Button {
       if let experimentID = contender.experimentID {
         selectedExperimentID = experimentID
@@ -595,6 +650,18 @@ struct ProductizationWorkbenchTab: View {
         WorkbenchFact(label: "Track", value: contender.experimentID ?? "plan only")
         if let experiment {
           WorkbenchFact(label: "Decision", value: experiment.decision.rawValue)
+        }
+        if let planReadiness {
+          WorkbenchFact(
+            label: "Plan",
+            value:
+              "\(planReadiness.scoreLabel)/100, \(planReadiness.recommendation.title), pay \(scoreLabel(planReadiness.averageWillingnessToPayScore))/5"
+          )
+          if let price = planReadiness.estimatedMonthlyPriceCents {
+            WorkbenchFact(label: "Price", value: priceLabel(cents: price))
+          }
+        } else {
+          WorkbenchFact(label: "Plan", value: "not evaluated")
         }
         WorkbenchFact(
           label: "Segments",
@@ -621,7 +688,8 @@ struct ProductizationWorkbenchTab: View {
   }
 
   private func tournamentRoundRow(_ round: ProductTournamentRound) -> some View {
-    VStack(alignment: .leading, spacing: 7) {
+    let planEvaluations = evidenceIndex.planEvaluationSummaries.filter { $0.roundID == round.id }
+    return VStack(alignment: .leading, spacing: 7) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Text(round.title)
           .font(.callout.weight(.semibold))
@@ -635,6 +703,9 @@ struct ProductizationWorkbenchTab: View {
         value: round.requiresBuiltProduct ? "built product required" : "plan-only review"
       )
       WorkbenchFact(label: "Contenders", value: "\(round.contenderIDs.count)")
+      if round.kind == .productPlans {
+        WorkbenchFact(label: "Evaluations", value: "\(planEvaluations.count)")
+      }
       if !round.scenarioCohortIDs.isEmpty {
         WorkbenchFact(label: "Cohorts", value: round.scenarioCohortIDs.joined(separator: ", "))
       }
@@ -2389,6 +2460,23 @@ struct ProductizationWorkbenchTab: View {
     await loadContractStatus()
   }
 
+  private func runPlanEvaluationRound() async {
+    guard let tournament = activeTournamentForPlanEvaluation,
+      let round = activePlanRoundForEvaluation
+    else { return }
+    isRunningPlanEvaluation = true
+    defer { isRunningPlanEvaluation = false }
+    let outcome = await project.runProductTournamentPlanRoundModelFree(
+      tournamentID: tournament.id,
+      roundID: round.id
+    )
+    if let outcome {
+      planEvaluationMessage = outcome.userMessage
+    } else {
+      planEvaluationMessage = project.errorMessage
+    }
+  }
+
   private func loadContractStatus() async {
     guard let experiment = selectedExperiment else {
       contractAvailable = nil
@@ -2401,6 +2489,14 @@ struct ProductizationWorkbenchTab: View {
 
   private func score(_ value: Int?) -> String {
     value.map(String.init) ?? "n/a"
+  }
+
+  private func scoreLabel(_ value: Double) -> String {
+    value == 0 ? "0" : String(format: "%.1f", value)
+  }
+
+  private func priceLabel(cents: Int) -> String {
+    String(format: "$%.0f/month", Double(max(0, cents)) / 100)
   }
 
   private func evidenceIntentSummary(
