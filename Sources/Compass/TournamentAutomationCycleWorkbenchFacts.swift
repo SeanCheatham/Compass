@@ -23,22 +23,45 @@ struct TournamentAutomationActedPressureGroupOutcome: Equatable, Sendable {
     state == .stalled && currentGroup == "Proof runs"
   }
 
+  var isStillProofRun: Bool {
+    state == .still && currentGroup == "Proof runs"
+  }
+
   static func stalledProofRun(
     auditID: String,
     actedSummary: String
+  ) -> TournamentAutomationActedPressureGroupOutcome? {
+    proofRun(auditID: auditID, actedSummary: actedSummary, state: .stalled)
+  }
+
+  static func stillProofRun(
+    auditID: String,
+    actedSummary: String
+  ) -> TournamentAutomationActedPressureGroupOutcome? {
+    proofRun(auditID: auditID, actedSummary: actedSummary, state: .still)
+  }
+
+  private static func proofRun(
+    auditID: String,
+    actedSummary: String,
+    state: State
   ) -> TournamentAutomationActedPressureGroupOutcome? {
     let fields = parsedFields(in: actedSummary)
     guard fields.group == "Proof runs" else { return nil }
     let status = fields.status ?? "More proof"
     let next = fields.next.map { "next \($0)" } ?? "next proof target unchanged"
+    let prefix =
+      state == .stalled
+      ? "stalled in Proof runs"
+      : "still Proof runs"
     return TournamentAutomationActedPressureGroupOutcome(
       auditID: auditID,
       anchor: fields.anchor,
       sourceGroup: fields.group,
       currentGroup: fields.group,
       contender: fields.contender,
-      state: .stalled,
-      summary: "stalled in Proof runs; \(status); \(next)"
+      state: state,
+      summary: "\(prefix); \(status); \(next)"
     )
   }
 

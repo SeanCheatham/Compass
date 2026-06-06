@@ -4117,6 +4117,54 @@ enum TournamentAutomationCycleLearningAdvisor {
       .first
   }
 
+  static func repeatedActedPressureGroupAudit(
+    for action: ProductTournamentNextAction,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> (
+    audit: TournamentAutomationCycleAudit,
+    outcome: TournamentAutomationActedPressureGroupOutcome
+  )? {
+    guard isProofRunAction(action) else { return nil }
+    let matches =
+      config.tournamentAutomationCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(8)
+      .compactMap { audit -> (
+        audit: TournamentAutomationCycleAudit,
+        outcome: TournamentAutomationActedPressureGroupOutcome
+      )? in
+        guard audit.stopReason != .executionFailed,
+          audit.experimentIDs.contains(experiment.id),
+          audit.completedEvidenceRunCount > 0 || audit.evidenceRunStepCount > 0,
+          audit.proofDebtDelta.map({ $0 >= 0 }) ?? true,
+          !audit.actedProofPressureGroupSummaries.isEmpty
+        else { return nil }
+        let outcomes = audit.actedProofPressureGroupSummaries.compactMap {
+          TournamentAutomationActedPressureGroupOutcome.stillProofRun(
+            auditID: audit.id,
+            actedSummary: $0
+          )
+        }
+        guard
+          let outcome = outcomes.first(where: {
+            $0.isStillProofRun
+              && actedPressureGroupOutcome($0, matches: action, experiment: experiment)
+          })
+        else { return nil }
+        return (audit: audit, outcome: outcome)
+      }
+    guard matches.count >= 2,
+      let latestMatch = matches.first,
+      !hasCompletedEvidence(after: latestMatch.audit, for: experiment, evidenceIndex: evidenceIndex)
+    else { return nil }
+    return latestMatch
+  }
+
   static func stalledEvidenceTensionAudit(
     for action: ProductTournamentNextAction,
     experiment: ProductTournamentExperiment,
@@ -5188,6 +5236,21 @@ enum TournamentAutomationPlanner {
       blocked.canExecute = false
       blocked.blockedReason =
         "Recent tournament automation cycle \(stalledActedGroup.audit.id) already acted on this proof-pressure group and the proof run stalled; revise the product implementation, scenario, current-alternative proof, or choose a different proof bucket before retrying. \(stalledActedGroup.outcome.summary)"
+      return blocked
+    }
+    if step.canExecute,
+      let repeatedActedGroup = TournamentAutomationCycleLearningAdvisor
+        .repeatedActedPressureGroupAudit(
+          for: step.action,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
+    {
+      var blocked = step
+      blocked.canExecute = false
+      blocked.blockedReason =
+        "Recent tournament automation cycle \(repeatedActedGroup.audit.id) acted on this proof-pressure group and the group is still present after repeated attempts; revise the product implementation, scenario, current-alternative proof, or choose a different proof bucket before retrying. \(repeatedActedGroup.outcome.summary)"
       return blocked
     }
     guard step.canExecute,
@@ -6828,6 +6891,20 @@ enum ProductTournamentNextActionAdvisor {
         experiment: experiment
       )
     }
+    if let repeatedActedGroup = TournamentAutomationCycleLearningAdvisor
+      .repeatedActedPressureGroupAudit(
+        for: action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    {
+      return repeatedActedPressureGroupRetargetAction(
+        after: repeatedActedGroup,
+        replacing: action,
+        experiment: experiment
+      )
+    }
     guard
       let audit = TournamentAutomationCycleLearningAdvisor.stalledProofDebtAudit(
         for: action,
@@ -6863,6 +6940,20 @@ enum ProductTournamentNextActionAdvisor {
           experiment: experiment
         )
       }
+      if let repeatedActedGroup = TournamentAutomationCycleLearningAdvisor
+        .repeatedActedPressureGroupAudit(
+          for: failureGuardedRetarget,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
+      {
+        return repeatedActedPressureGroupRetargetAction(
+          after: repeatedActedGroup,
+          replacing: failureGuardedRetarget,
+          experiment: experiment
+        )
+      }
       return failureGuardedRetarget
     }
     return ProductTournamentNextAction(
@@ -6890,6 +6981,29 @@ enum ProductTournamentNextActionAdvisor {
       detail:
         "Recent tournament automation cycle \(stalledActedGroup.audit.id) acted on a proof-pressure group and the same proof run stalled (\(stalledActedGroup.outcome.summary)); revise the product implementation, scenario, current-alternative proof, or choose a different proof bucket before retrying.",
       priority: min(98, max(action.priority + 2, 88)),
+      requiredSimulationMode: action.requiredSimulationMode,
+      targetPersonaID: action.targetPersonaID,
+      targetPersonaName: action.targetPersonaName,
+      targetScenarioID: action.targetScenarioID,
+      targetDecision: action.targetDecision
+    )
+  }
+
+  private static func repeatedActedPressureGroupRetargetAction(
+    after repeatedActedGroup: (
+      audit: TournamentAutomationCycleAudit,
+      outcome: TournamentAutomationActedPressureGroupOutcome
+    ),
+    replacing action: ProductTournamentNextAction,
+    experiment: ProductTournamentExperiment
+  ) -> ProductTournamentNextAction {
+    ProductTournamentNextAction(
+      experimentID: experiment.id,
+      kind: .refineContender,
+      title: "Retarget repeated proof group",
+      detail:
+        "Recent tournament automation cycle \(repeatedActedGroup.audit.id) acted on a proof-pressure group that is still present after repeated attempts (\(repeatedActedGroup.outcome.summary)); revise the product implementation, scenario, current-alternative proof, or choose a different proof bucket before retrying.",
+      priority: min(97, max(action.priority + 1, 87)),
       requiredSimulationMode: action.requiredSimulationMode,
       targetPersonaID: action.targetPersonaID,
       targetPersonaName: action.targetPersonaName,
