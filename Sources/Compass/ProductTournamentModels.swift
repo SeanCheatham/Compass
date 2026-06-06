@@ -16,7 +16,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
   var tournamentRounds: [ProductTournamentRound]
   var scenarios: [ProductScenario]
   var scenarioCohorts: [ProductScenarioCohort]
-  var decisions: [ProductDecision]
+  var decisions: [ProductTournamentDecision]
   var tournamentAutomationCycleAudits: [TournamentAutomationCycleAudit]
 
   static let empty = ProductTournamentConfig(
@@ -68,7 +68,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     tournamentRounds: [ProductTournamentRound] = [],
     scenarios: [ProductScenario] = [],
     scenarioCohorts: [ProductScenarioCohort] = [],
-    decisions: [ProductDecision] = [],
+    decisions: [ProductTournamentDecision] = [],
     tournamentAutomationCycleAudits: [TournamentAutomationCycleAudit] = []
   ) {
     self.schemaVersion = schemaVersion
@@ -123,7 +123,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       scenarios: try container.decodeIfPresent([ProductScenario].self, forKey: .scenarios) ?? [],
       scenarioCohorts: try container.decodeIfPresent(
         [ProductScenarioCohort].self, forKey: .scenarioCohorts) ?? [],
-      decisions: try container.decodeIfPresent([ProductDecision].self, forKey: .decisions) ?? [],
+      decisions: try container.decodeIfPresent([ProductTournamentDecision].self, forKey: .decisions)
+        ?? [],
       tournamentAutomationCycleAudits: try container.decodeIfPresent(
         [TournamentAutomationCycleAudit].self,
         forKey: .tournamentAutomationCycleAudits
@@ -1230,7 +1231,7 @@ struct ProductScenarioCohort: Codable, Equatable, Identifiable, Sendable {
   }
 }
 
-struct ProductDecision: Codable, Equatable, Identifiable, Sendable {
+struct ProductTournamentDecision: Codable, Equatable, Identifiable, Sendable {
   var id: String
   var experimentID: String
   var decision: ProductExperimentDecision

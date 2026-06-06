@@ -197,7 +197,7 @@ enum ProductExperimentRolloutWorkflow {
     }
 
     next.decisions.append(
-      ProductDecision(
+      ProductTournamentDecision(
         id: "\(experiment.id)-\(target.rawValue)-\(Int(timestamp))-\(next.decisions.count + 1)",
         experimentID: experiment.id,
         decision: target,
@@ -510,7 +510,7 @@ enum ProductExperimentGitRolloutWorkflow {
       }
     }
     next.decisions.append(
-      ProductDecision(
+      ProductTournamentDecision(
         id: "\(experiment.id)-\(target.rawValue)-\(Int(timestamp))-\(next.decisions.count + 1)",
         experimentID: experiment.id,
         decision: target,

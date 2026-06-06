@@ -326,7 +326,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
   var tournamentContenders: [ProductTournamentContender]
   var tournamentRounds: [ProductTournamentRound]
   var scenarioCohorts: [ProductScenarioCohort]
-  var decisions: [ProductDecision]
+  var decisions: [ProductTournamentDecision]
 
   enum CodingKeys: String, CodingKey {
     case rawPain
@@ -355,7 +355,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     tournamentContenders: [ProductTournamentContender] = [],
     tournamentRounds: [ProductTournamentRound] = [],
     scenarioCohorts: [ProductScenarioCohort] = [],
-    decisions: [ProductDecision] = []
+    decisions: [ProductTournamentDecision] = []
   ) {
     self.rawPain = ProductTournamentModelText.optionalCleanedText(rawPain, limit: 4_000)
     self.painHypotheses = painHypotheses
@@ -397,7 +397,10 @@ struct DiscoveryStateEdits: Codable, Equatable {
       ) ?? [],
       scenarioCohorts: try container.decodeIfPresent(
         [ProductScenarioCohort].self, forKey: .scenarioCohorts) ?? [],
-      decisions: try container.decodeIfPresent([ProductDecision].self, forKey: .decisions) ?? []
+      decisions: try container.decodeIfPresent(
+        [ProductTournamentDecision].self,
+        forKey: .decisions
+      ) ?? []
     )
   }
 

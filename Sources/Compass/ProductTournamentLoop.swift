@@ -6066,7 +6066,7 @@ enum ProductTournamentReflectDecisionApplier {
 
       decisionSequence += 1
       next.decisions.append(
-        ProductDecision(
+        ProductTournamentDecision(
           id:
             "\(update.experimentID)-\(update.decision.rawValue)-\(Int(timestamp))-\(decisionSequence)",
           experimentID: update.experimentID,

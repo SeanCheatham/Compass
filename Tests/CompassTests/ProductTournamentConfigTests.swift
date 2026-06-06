@@ -333,7 +333,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     scenarioIDs: ["scenario-lead"],
     tags: ["focused"]
   )
-  let decision = ProductDecision(
+  let decision = ProductTournamentDecision(
     id: "decision-handoff",
     experimentID: experiment.id,
     decision: .keepGoing,
