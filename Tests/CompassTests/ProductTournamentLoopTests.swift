@@ -3510,6 +3510,12 @@ struct ProductTournamentLoopTests {
         currentStep: nextStep,
         isPersonaModelAvailable: true
       ))
+    let revisionBrief = try #require(
+      TournamentAutomationRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
     let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: evidenceIndex
@@ -3525,6 +3531,17 @@ struct ProductTournamentLoopTests {
     try #require(retarget.targetScenarioID == targetScenarioID)
     try #require(nextStep.action.title == "Retarget stalled proof group")
     try #require(nextStep.action.kind == .refineContender)
+    try #require(nextStep.kind == .applyRevision)
+    try #require(nextStep.canExecute)
+    try #require(revisionBrief.source == .actedProofGroup)
+    try #require(revisionBrief.title == "Retarget contender revision for stalled proof group")
+    try #require(revisionBrief.triggerSummary.contains("tournament-cycle-stalled-acted-group"))
+    try #require(revisionBrief.triggerSummary.contains("stalled in Proof runs"))
+    try #require(revisionBrief.implementationChange.contains("stalled proof run"))
+    try #require(revisionBrief.scenarioChange.contains("proof bucket"))
+    try #require(revisionBrief.proofPlan.contains("stalled proof pressure"))
+    try #require(revisionBrief.targetScenarioID == targetScenarioID)
+    try #require(revisionBrief.auditSummary.contains("source acted_proof_group"))
     try #require(
       facts.latestActedPressureGroupLearningSummary
         == "stalled Proof runs; next Retarget stalled proof group")
@@ -3537,6 +3554,9 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("acted group learning"))
     try #require(digest.contains("stalled Proof runs"))
     try #require(digest.contains("Retarget stalled proof group"))
+    try #require(digest.contains("Tournament automation revision briefs"))
+    try #require(digest.contains("source acted_proof_group"))
+    try #require(digest.contains("Retarget contender revision for stalled proof group"))
   }
 
   @MainActor @Test func tournamentAutomationRetargetsRepeatedStillActedProofGroup() async throws {
@@ -3680,6 +3700,12 @@ struct ProductTournamentLoopTests {
         currentStep: nextStep,
         isPersonaModelAvailable: true
       ))
+    let revisionBrief = try #require(
+      TournamentAutomationRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
     let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: evidenceIndex
@@ -3696,6 +3722,17 @@ struct ProductTournamentLoopTests {
     try #require(retarget.targetScenarioID == targetScenarioID)
     try #require(nextStep.action.title == "Retarget repeated proof group")
     try #require(nextStep.action.kind == .refineContender)
+    try #require(nextStep.kind == .applyRevision)
+    try #require(nextStep.canExecute)
+    try #require(revisionBrief.source == .actedProofGroup)
+    try #require(revisionBrief.title == "Retarget contender revision for repeated proof group")
+    try #require(revisionBrief.triggerSummary.contains("tournament-cycle-still-acted-group-b"))
+    try #require(revisionBrief.triggerSummary.contains("still Proof runs"))
+    try #require(revisionBrief.implementationChange.contains("repeated still-present"))
+    try #require(revisionBrief.scenarioChange.contains("repeated attempts"))
+    try #require(revisionBrief.proofPlan.contains("repeated attempts"))
+    try #require(revisionBrief.targetScenarioID == targetScenarioID)
+    try #require(revisionBrief.auditSummary.contains("source acted_proof_group"))
     try #require(
       facts.latestActedPressureGroupLearningSummary
         == "repeated still-present Proof runs; 2 recent attempts; next Retarget repeated proof group"
@@ -3712,6 +3749,9 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("acted group learning"))
     try #require(digest.contains("repeated still-present Proof runs"))
     try #require(digest.contains("Retarget repeated proof group"))
+    try #require(digest.contains("Tournament automation revision briefs"))
+    try #require(digest.contains("source acted_proof_group"))
+    try #require(digest.contains("Retarget contender revision for repeated proof group"))
     try #require(workbenchBody.contains("Group Learning"))
     try #require(workbenchBody.contains("repeated still-present Proof runs"))
   }

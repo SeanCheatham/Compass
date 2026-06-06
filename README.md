@@ -158,11 +158,13 @@ and advances them through rounds:
   Plan/Reflect, shows the latest acted group in Tournament Automation facts with
   whether that anchored row moved, cleared, or stayed in the current proof
   scoreboard, adds a Group Learning fact plus matching Plan/Reflect prompt line
-  when that acted group drives retargeting, repeats that acted-outcome signal in
-  Plan/Reflect prompt context, feeds stalled or repeatedly still-present
-  proof-run group outcomes back into the next-action guard so the planner
-  retargets the scenario, product revision, current-alternative proof, or proof
-  bucket before repeating the same run, and sorts
+  when that acted group drives retargeting, turns stalled or repeatedly
+  still-present proof-group learning into an `acted_proof_group` contender
+  revision brief, repeats that acted-outcome signal in Plan/Reflect prompt
+  context, feeds stalled or repeatedly still-present proof-run group outcomes
+  back into the next-action guard so the planner retargets the scenario,
+  product revision, current-alternative proof, or proof bucket before repeating
+  the same run, and sorts
   transition/decision/revision/worktree-ready contenders above ordinary proof
   gathering so operators can see when a contender has moved out of evidence
   collection before opening the detail. After a proof action

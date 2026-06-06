@@ -1703,6 +1703,7 @@ enum TournamentAutomationRationaleSignalAdvisor {
 
 enum TournamentAutomationRevisionBriefSource: String, Equatable, Sendable {
   case personaModelRationale = "persona_model_rationale"
+  case actedProofGroup = "acted_proof_group"
   case targetedProofOutcome = "targeted_proof_outcome"
   case roundTwoProofGap = "round_2_proof_gap"
   case roundThreeImplementationRevision = "round_3_implementation_revision"
@@ -1880,6 +1881,13 @@ enum TournamentAutomationRevisionBriefAdvisor {
     ) {
       return implementationRevisionBrief
     }
+    if let actedProofGroupBrief = actedProofGroupBrief(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return actedProofGroupBrief
+    }
     guard
       let signal = TournamentAutomationRationaleSignalAdvisor.signal(
         for: experiment,
@@ -1955,6 +1963,104 @@ enum TournamentAutomationRevisionBriefAdvisor {
       targetCohortID: signal.targetCohortID,
       targetDecision: action?.targetDecision ?? signal.recommendedDecision
         ?? signal.targetDecision
+    )
+  }
+
+  private static func actedProofGroupBrief(
+    for experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> TournamentAutomationRevisionBrief? {
+    guard
+      let action = ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      action.kind == .refineContender
+    else { return nil }
+    if action.title == "Retarget stalled proof group",
+      let stalledGroup = TournamentAutomationCycleLearningAdvisor
+        .stalledActedPressureGroupAudit(
+          for: action,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex,
+          allowRetargetAction: true
+        )
+    {
+      return actedProofGroupBrief(
+        after: stalledGroup,
+        replacing: action,
+        experiment: experiment,
+        config: config,
+        isRepeated: false
+      )
+    }
+    if action.title == "Retarget repeated proof group",
+      let repeatedGroup = TournamentAutomationCycleLearningAdvisor
+        .repeatedActedPressureGroupAudit(
+          for: action,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex,
+          allowRetargetAction: true
+        )
+    {
+      return actedProofGroupBrief(
+        after: repeatedGroup,
+        replacing: action,
+        experiment: experiment,
+        config: config,
+        isRepeated: true
+      )
+    }
+    return nil
+  }
+
+  private static func actedProofGroupBrief(
+    after actedGroup: (
+      audit: TournamentAutomationCycleAudit,
+      outcome: TournamentAutomationActedPressureGroupOutcome
+    ),
+    replacing action: ProductTournamentNextAction,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    isRepeated: Bool
+  ) -> TournamentAutomationRevisionBrief {
+    let target = actedProofGroupTarget(for: action, experiment: experiment, config: config)
+    let targetName = target.personaName ?? "the target simulated user"
+    let title =
+      isRepeated
+      ? "Retarget contender revision for repeated proof group"
+      : "Retarget contender revision for stalled proof group"
+    let implementationChange =
+      isRepeated
+      ? "Treat the repeated still-present proof pressure as product evidence: narrow or change the product implementation, scenario, current-alternative proof, or proof bucket instead of rerunning the same flow."
+      : "Change the product implementation or proof surface so the stalled proof run has a different observable outcome before the same persona-model bucket is retried."
+    let scenarioChange =
+      isRepeated
+      ? "Retarget \(targetName)'s scenario to confront why this proof group remains present after repeated attempts, including current-alternative switching objections and any unresolved willingness-to-pay or sponsor concern."
+      : "Retarget \(targetName)'s scenario to force the unresolved proof bucket to test a changed workflow, current-alternative comparison, or narrower product promise."
+    let proofPlan =
+      isRepeated
+      ? "Rerun targeted persona-model proof and compare the revised flow against the repeated attempts, requiring the simulated user to say whether the proof pressure cleared, moved, or still blocks willingness to continue or pay."
+      : "Rerun the targeted persona-model proof group and require the simulated user to say whether the stalled proof pressure cleared, moved, or still blocks willingness to continue or pay."
+    return TournamentAutomationRevisionBrief(
+      experimentID: experiment.id,
+      source: .actedProofGroup,
+      title: title,
+      priority: action.priority,
+      triggerSummary:
+        "Acted proof-pressure group \(isRepeated ? "remained after repeated attempts" : "stalled") in cycle `\(actedGroup.audit.id)`: \(actedGroup.outcome.summary).",
+      implementationChange: implementationChange,
+      scenarioChange: scenarioChange,
+      proofPlan: proofPlan,
+      targetPersonaID: target.personaID,
+      targetPersonaName: target.personaName,
+      targetScenarioID: target.scenarioID,
+      targetCohortID: target.cohortID,
+      targetDecision: action.targetDecision
     )
   }
 
@@ -2067,6 +2173,39 @@ enum TournamentAutomationRevisionBriefAdvisor {
     var scenarioID: String?
     var cohortID: String?
     var scenarioChange: String?
+  }
+
+  private struct ActedProofGroupTarget: Equatable, Sendable {
+    var personaID: String?
+    var personaName: String?
+    var scenarioID: String?
+    var cohortID: String?
+  }
+
+  private static func actedProofGroupTarget(
+    for action: ProductTournamentNextAction,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig
+  ) -> ActedProofGroupTarget {
+    let scenario = action.targetScenarioID.flatMap { scenarioID in
+      config.scenarios.first {
+        $0.id == scenarioID && $0.experimentID == experiment.id
+      }
+    }
+    let personaID = action.targetPersonaID ?? scenario?.segmentID
+    let personaName =
+      action.targetPersonaName ?? personaID.map { segmentName(for: $0, config: config) }
+    let cohortID =
+      action.cohortID
+      ?? action.targetScenarioID.flatMap {
+        executableCohortID(forScenarioID: $0, experiment: experiment, config: config)
+      }
+    return ActedProofGroupTarget(
+      personaID: personaID,
+      personaName: personaName,
+      scenarioID: action.targetScenarioID,
+      cohortID: cohortID
+    )
   }
 
   private static func roundTwoProofGapTarget(
@@ -4079,12 +4218,15 @@ enum TournamentAutomationCycleLearningAdvisor {
     for action: ProductTournamentNextAction,
     experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
-    evidenceIndex: ProductTournamentEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    allowRetargetAction: Bool = false
   ) -> (
     audit: TournamentAutomationCycleAudit,
     outcome: TournamentAutomationActedPressureGroupOutcome
   )? {
-    guard isProofRunAction(action) else { return nil }
+    guard isProofRunAction(action)
+      || (allowRetargetAction && isStalledActedPressureGroupRetargetAction(action))
+    else { return nil }
     return config.tournamentAutomationCycleAudits
       .sorted { lhs, rhs in
         if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
@@ -4121,12 +4263,15 @@ enum TournamentAutomationCycleLearningAdvisor {
     for action: ProductTournamentNextAction,
     experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
-    evidenceIndex: ProductTournamentEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    allowRetargetAction: Bool = false
   ) -> (
     audit: TournamentAutomationCycleAudit,
     outcome: TournamentAutomationActedPressureGroupOutcome
   )? {
-    guard isProofRunAction(action) else { return nil }
+    guard isProofRunAction(action)
+      || (allowRetargetAction && isRepeatedActedPressureGroupRetargetAction(action))
+    else { return nil }
     let matches =
       config.tournamentAutomationCycleAudits
       .sorted { lhs, rhs in
@@ -4451,6 +4596,18 @@ enum TournamentAutomationCycleLearningAdvisor {
     action.kind == .runCohort
       || action.kind == .rerunCohort
       || action.kind == .runPlanProof
+  }
+
+  private static func isStalledActedPressureGroupRetargetAction(
+    _ action: ProductTournamentNextAction
+  ) -> Bool {
+    action.kind == .refineContender && action.title == "Retarget stalled proof group"
+  }
+
+  private static func isRepeatedActedPressureGroupRetargetAction(
+    _ action: ProductTournamentNextAction
+  ) -> Bool {
+    action.kind == .refineContender && action.title == "Retarget repeated proof group"
   }
 
   private static func isTargetedEvidenceTensionAction(
