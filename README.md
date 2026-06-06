@@ -215,7 +215,9 @@ rows with current evidence-run counts, so agents can see when a branch was
 prepared before simulated-user evidence arrived. The Workbench mirrors that
 distinction with separate last-preparation and last-evidence automation facts,
 so operators can see prepared implementation branches that still lack
-simulated-user use.
+simulated-user use. When the current queue is the first runnable simulated-user
+cohort after that preparation, the Workbench also labels the post-prep evidence
+step explicitly.
 Only the proof overview for the active tournament round is shown at a time:
 Round 1 plan proof, Round 2 core-technology proof, or Round 3 product
 implementation winner proof.

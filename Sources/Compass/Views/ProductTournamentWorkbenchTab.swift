@@ -523,7 +523,8 @@ struct ProductTournamentWorkbenchTab: View {
   private var latestTournamentAutomationCycleFacts: TournamentAutomationCycleWorkbenchFacts? {
     TournamentAutomationCycleWorkbenchFacts.latest(
       config: config,
-      evidenceIndex: evidenceIndex
+      evidenceIndex: evidenceIndex,
+      currentStep: tournamentAutomationStep
     )
   }
 
@@ -1786,6 +1787,15 @@ struct ProductTournamentWorkbenchTab: View {
               latestTournamentAutomationCycleFacts.latestEvidenceHelp
                 ?? "No tournament evidence run has been recorded in recent cycle audits."
             )
+            if let postPreparationEvidenceSummary =
+              latestTournamentAutomationCycleFacts.postPreparationEvidenceSummary
+            {
+              WorkbenchFact(label: "Post Prep", value: postPreparationEvidenceSummary)
+                .help(
+                  latestTournamentAutomationCycleFacts.postPreparationEvidenceHelp
+                    ?? postPreparationEvidenceSummary
+                )
+            }
           }
           Text(step.detail)
             .font(.caption)

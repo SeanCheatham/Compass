@@ -5,10 +5,13 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   var latestPreparationHelp: String?
   var latestEvidenceSummary: String
   var latestEvidenceHelp: String?
+  var postPreparationEvidenceSummary: String?
+  var postPreparationEvidenceHelp: String?
 
   static func latest(
     config: ProductTournamentConfig,
-    evidenceIndex: ProductTournamentEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    currentStep: TournamentAutomationStep? = nil
   ) -> TournamentAutomationCycleWorkbenchFacts? {
     let audits = sortedAudits(in: config)
     guard let latestAudit = audits.first else { return nil }
@@ -41,6 +44,12 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       latestPreparationSummary = nil
       latestPreparationHelp = nil
     }
+    let postPreparationEvidence = makePostPreparationEvidenceCue(
+      for: currentStep,
+      preparationAudit: preparationAudit,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
 
     return TournamentAutomationCycleWorkbenchFacts(
       latestCycleSummary: latestAudit.summary,
@@ -48,7 +57,9 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       latestPreparationSummary: latestPreparationSummary,
       latestPreparationHelp: latestPreparationHelp,
       latestEvidenceSummary: evidenceAudit.map(makeEvidenceSummary(for:)) ?? "none recorded",
-      latestEvidenceHelp: evidenceAudit.map(helpSummary(for:))
+      latestEvidenceHelp: evidenceAudit.map(helpSummary(for:)),
+      postPreparationEvidenceSummary: postPreparationEvidence?.summary,
+      postPreparationEvidenceHelp: postPreparationEvidence?.help
     )
   }
 
@@ -105,6 +116,42 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       : ""
     return
       "\(audit.evidenceRunStepCount) evidence step(s), \(audit.completedEvidenceRunCount) completed, \(audit.failedEvidenceRunCount) needing review, \(audit.skippedScenarioCount) skipped\(runIDs)\(moreRuns)"
+  }
+
+  private static func makePostPreparationEvidenceCue(
+    for step: TournamentAutomationStep?,
+    preparationAudit: TournamentAutomationCycleAudit?,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> (summary: String, help: String)? {
+    guard
+      let step,
+      let preparationAudit,
+      step.canExecute,
+      step.kind == .runCohort,
+      preparationAudit.experimentIDs.contains(step.experimentID),
+      currentEvidenceRunCount(
+        for: preparationAudit,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ) == 0,
+      let cohortID = step.cohortID
+    else { return nil }
+
+    let enabledScenarioText =
+      step.cohortReadiness.map { "\($0.enabledScenarioCount) enabled scenario(s)" }
+        ?? "enabled scenarios"
+    let mode = (step.action.requiredSimulationMode ?? .modelFree)
+      .tournamentAutomationLabel
+      .lowercased()
+    let target = step.action.targetPersonaName.map { "; target \(bounded($0, limit: 120))" } ?? ""
+    let summary =
+      "first \(mode) simulated-user cohort `\(bounded(cohortID, limit: 120))`; \(enabledScenarioText)\(target)"
+    let help = bounded(
+      "Latest preparation audit \(preparationAudit.id) has 0 current evidence runs for \(step.experimentID); current queue is \(step.queueTitle). \(step.detail)",
+      limit: 500
+    )
+    return (summary, help)
   }
 
   private static func helpSummary(for audit: TournamentAutomationCycleAudit) -> String {

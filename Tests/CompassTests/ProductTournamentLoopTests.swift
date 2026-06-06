@@ -3721,13 +3721,28 @@ struct ProductTournamentLoopTests {
       stopDetail: "Prepared branch before simulated-user evidence.",
       userMessage: "Tournament automation cycle ran 1 step(s)."
     )
-    let preparedConfig = config.recordingTournamentAutomationCycleAudit(prepareAudit)
-    let preparedFacts = try #require(
-      TournamentAutomationCycleWorkbenchFacts.latest(
+    var preparedState = config
+    preparedState.tournamentExperiments[0].currentSha = "head-sha"
+    for index in preparedState.scenarios.indices
+      where preparedState.scenarios[index].experimentID == experiment.id
+    {
+      preparedState.scenarios[index].targetCommitSha = "head-sha"
+    }
+    let preparedConfig = preparedState.recordingTournamentAutomationCycleAudit(prepareAudit)
+    let queuedEvidenceStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: preparedConfig,
         evidenceIndex: .empty
       ))
+    let preparedFacts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: preparedConfig,
+        evidenceIndex: .empty,
+        currentStep: queuedEvidenceStep
+      ))
 
+    try #require(queuedEvidenceStep.kind == .runCohort)
+    let queuedCohortID = try #require(queuedEvidenceStep.cohortID)
     try #require(preparedFacts.latestCycleSummary.contains("worktree prep 1 step(s)"))
     try #require(
       preparedFacts.latestPreparationSummary
@@ -3736,6 +3751,12 @@ struct ProductTournamentLoopTests {
     try #require(
       preparedFacts.latestPreparationHelp?.contains(
         "Prepared branch before simulated-user evidence.") == true)
+    try #require(
+      preparedFacts.postPreparationEvidenceSummary
+        == "first model-free simulated-user cohort `\(queuedCohortID)`; 2 enabled scenario(s)")
+    try #require(
+      preparedFacts.postPreparationEvidenceHelp?.contains(
+        "current queue is Run evidence cohort") == true)
 
     let evidenceAudit = TournamentAutomationCycleAudit(
       id: "tournament-cycle-evidence",
@@ -3754,11 +3775,12 @@ struct ProductTournamentLoopTests {
       stopDetail: "No executable tournament automation step remains.",
       userMessage: "Tournament automation cycle ran 1 step(s)."
     )
-    let evidenceIndex = makeTournamentPromotionEvidenceIndex(config: config)
+    let evidenceIndex = makeTournamentPromotionEvidenceIndex(config: preparedState)
     let evidenceFacts = try #require(
       TournamentAutomationCycleWorkbenchFacts.latest(
         config: preparedConfig.recordingTournamentAutomationCycleAudit(evidenceAudit),
-        evidenceIndex: evidenceIndex
+        evidenceIndex: evidenceIndex,
+        currentStep: queuedEvidenceStep
       ))
 
     try #require(evidenceFacts.latestCycleSummary.contains("evidence 1 step(s)"))
@@ -3771,6 +3793,7 @@ struct ProductTournamentLoopTests {
     try #require(
       evidenceFacts.latestEvidenceHelp?.contains(
         "No executable tournament automation step remains.") == true)
+    try #require(evidenceFacts.postPreparationEvidenceSummary == nil)
   }
 
   @Test func tournamentAutomationCycleOutcomeCountsLiftAndCutDecisions() throws {
