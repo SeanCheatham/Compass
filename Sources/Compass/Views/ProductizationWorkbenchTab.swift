@@ -1514,13 +1514,14 @@ struct ProductizationWorkbenchTab: View {
           if let contractAvailable {
             Label(
               contractAvailable
-                ? "Productization contract available" : "Productization contract missing",
+                ? "Tournament experience contract available"
+                : "Tournament experience contract missing",
               systemImage: contractAvailable ? "checkmark.circle" : "exclamationmark.triangle"
             )
             .font(.caption)
             .foregroundStyle(contractAvailable ? Color.secondary : Color.orange)
           } else {
-            WorkbenchEmptyLine("Checking productization contract...")
+            WorkbenchEmptyLine("Checking tournament experience contract...")
           }
           if let scenarioRunMessage {
             Text(scenarioRunMessage)
@@ -3427,6 +3428,6 @@ private struct ProductizationEvidenceCopyButton: View {
       Label(copied ? "Copied" : "Copy Summary", systemImage: copied ? "checkmark" : "doc.on.doc")
     }
     .buttonStyle(.bordered)
-    .help("Copy productization evidence summary")
+    .help("Copy tournament evidence summary")
   }
 }

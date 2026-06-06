@@ -817,7 +817,7 @@ struct ProductizationEvidenceStoreTests {
     try #require(
       try project.readProductTournamentPlanEvaluationRecord(id: "smoke-plan-eval")
         == storedPlanEvaluation)
-    _ = ProductizationWorkbenchTab(project: project).body
+    let workbenchBody = String(reflecting: ProductizationWorkbenchTab(project: project).body)
 
     let prompt = try Prompts.planPrompt(
       state: .empty,
@@ -831,6 +831,8 @@ struct ProductizationEvidenceStoreTests {
       productizationEvidenceIndex: project.productizationEvidenceIndex
     )
 
+    try #require(workbenchBody.contains("Checking tournament experience contract"))
+    try #require(!workbenchBody.contains("Checking productization contract"))
     try #require(prompt.contains("smoke-run"))
     try #require(prompt.contains(config.experiments[0].branchName))
     try #require(prompt.contains("csv_import"))

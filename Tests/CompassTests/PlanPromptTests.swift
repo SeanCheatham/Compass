@@ -312,6 +312,10 @@ struct PlanPromptTests {
     try #require(prompt.contains("\"openQuestions\": []"))
     try #require(prompt.contains("copy the full current immediate"))
     try #require(prompt.contains("Do not include completed"))
+    try #require(prompt.contains("product tournament evidence"))
+    try #require(prompt.contains("update tournament state"))
+    try #require(!prompt.contains("productization evidence"))
+    try #require(!prompt.contains("update productization state"))
   }
 
   /// The focus block is what biases the planner away from compounding

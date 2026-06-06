@@ -231,7 +231,7 @@ enum ProductExperimentRolloutWorkflow {
     case .promoteOrConfirm:
       if experiment.decision == .promote {
         return
-          "Promoted \(experiment.title) from branch \(experiment.branchName) after productization evidence and Verify supported the product direction."
+          "Promoted \(experiment.title) from branch \(experiment.branchName) after product tournament evidence and Verify supported the product direction."
       }
       return
         "Marked \(experiment.title) promotion-ready; verify the branch, inspect evidence, and confirm before merging product direction."

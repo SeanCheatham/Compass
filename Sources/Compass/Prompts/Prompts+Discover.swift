@@ -35,7 +35,7 @@ extension Prompts {
       - `candidateExperiments` are implementation tracks for tournament
         contenders after the plan-only round; do not treat them as Round 1.
       - `solutionHypothesisID` must reference a solution in `stateEdits` or
-        current productization state.
+        current tournament state.
       - `branchSlug` must be a single safe git-ref component such as
         `runbook-desk-triage-board`; do not include `refs/`, spaces, or shell
         punctuation.

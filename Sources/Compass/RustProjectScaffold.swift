@@ -201,7 +201,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     use the semantic JSON as the replay/assertion target and the screenshot as
     human-facing rendering proof.
 
-    ## Deterministic Productization Experience Contract
+    ## Deterministic Product Tournament Experience Contract
 
     Product experiments use `run_productization_experience(ProductizationExperienceInput) ->
     ProductizationExperienceTrace` as a semantic app journey. The input carries
@@ -212,13 +212,13 @@ struct RustProjectScaffold: Equatable, Sendable {
     latest `allowedNextActions`; screenshots are optional supporting proof, not
     the assertion surface.
 
-    Productization evidence is product pressure, not a release gate. Use
+    Product Tournament evidence is product pressure, not a release gate. Use
     `productization-smoke` to prove this generated app can replay a deterministic
     model-free product journey, then use a live persona model only for manual
     product review. Treat repeated objections and low scores as signals to
     investigate, not as automatic proof that the product is good or bad.
 
-    Manual productization simulation checklist:
+    Manual product tournament simulation checklist:
     - Confirm `app-cli productization-experience-schema` prints the expected contract.
     - Run `xtask productization-smoke` before involving a live model.
     - For live review, verify persona actions come only from `allowedNextActions`.

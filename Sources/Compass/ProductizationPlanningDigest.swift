@@ -790,7 +790,7 @@ enum ProductizationPlanningDigestFormatter {
       .reduce(0, +)
     if staleCount > 0 {
       lines.append(
-        "Stale productization evidence ignored for current PMF decisions: \(staleCount) run(s) from older experiment commits."
+        "Stale product tournament evidence ignored for current PMF decisions: \(staleCount) run(s) from older experiment commits."
       )
     }
 

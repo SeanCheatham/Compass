@@ -51,9 +51,9 @@ extension Prompts {
       - `lessonEdits`: exact find/replace edits against the lessons content
         shown below, or `[]` when nothing durable should be recorded.
       - `productDecisionUpdates`: experiment decision updates justified by
-        productization evidence, or `[]` when no experiment decision should
-        change. Reflect may update productization state through this field but
-        must not mutate code.
+        product tournament evidence, or `[]` when no experiment decision should
+        change. Reflect may update tournament state through this field but must
+        not mutate code.
 
       Copy this shape when no planning update is needed:
       {

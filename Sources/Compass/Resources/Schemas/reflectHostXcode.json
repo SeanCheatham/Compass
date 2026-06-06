@@ -35,7 +35,7 @@
     "productDecisionUpdates": {
       "type": "array",
       "maxItems": 4,
-      "description": "Product experiment decision updates justified by productization evidence. Use [] when no experiment decision should change.",
+      "description": "Product experiment decision updates justified by product tournament evidence. Use [] when no experiment decision should change.",
       "items": { "$ref": "#/$defs/productDecisionUpdate" }
     }
   },

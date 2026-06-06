@@ -26,6 +26,8 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains("Name the user segment before naming the app"))
     try #require(prompt.contains("Round 1 compares product"))
     try #require(prompt.contains("candidateExperiments"))
+    try #require(prompt.contains("current tournament state"))
+    try #require(!prompt.contains("current productization state"))
     try #require(prompt.contains("Support leads lose escalation decisions"))
     try #require(prompt.contains("Rust desktop"))
   }
