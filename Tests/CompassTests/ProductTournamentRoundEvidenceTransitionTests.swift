@@ -162,6 +162,13 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       config: fixture.config,
       evidenceIndex: index
     )
+    let preTransitionStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: fixture.config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      )
+    )
 
     let outcome = try ProductTournamentRoundEvidenceTransitioner.applyBestProposal(
       tournamentID: fixture.tournament.id,
@@ -190,8 +197,25 @@ struct ProductTournamentRoundEvidenceTransitionTests {
         evidenceIndex: index
       )
     )
+    let postTransitionStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: outcome.config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      )
+    )
+    let postTransitionExperimentStep = try #require(
+      TournamentAutomationPlanner.steps(
+        config: outcome.config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      )
+      .first { $0.experimentID == fixture.experiment.id }
+    )
 
     try #require(proposal.recommendation == .reviseCoreTechnology)
+    try #require(preTransitionStep.kind == .applyRoundTransition)
+    try #require(preTransitionStep.title == "Apply Round 2 transition")
     try #require(outcome.proposal.recommendation == .reviseCoreTechnology)
     try #require(outcome.proposal.proofGaps.contains { $0.contains("inspectable_source_artifact") })
     try #require(outcome.proposal.proofGaps.contains { $0.contains("readiness") })
@@ -214,6 +238,14 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(digest.contains("inspectable_source_artifact"))
     try #require(postTransitionRevisionBrief.source == .roundTwoProofGap)
     try #require(postTransitionRevisionBrief.proofPlan == proposal.nextValidationTarget)
+    try #require(postTransitionStep.kind == .applyRevision)
+    try #require(postTransitionStep.canExecute)
+    try #require(postTransitionStep.id.contains("apply_revision"))
+    try #require(postTransitionStep.action.title == postTransitionRevisionBrief.title)
+    try #require(postTransitionStep.action.detail.contains("Proof"))
+    try #require(postTransitionStep.action.targetPersonaID == postTransitionRevisionBrief.targetPersonaID)
+    try #require(postTransitionStep.action.targetDecision == .narrow)
+    try #require(postTransitionExperimentStep.kind == .applyRevision)
     try #require(updatedTournament.currentRoundID == fixture.coreRound.id)
     try #require(updatedCoreRound.status == .active)
     try #require(updatedContender.status == .needsRevision)

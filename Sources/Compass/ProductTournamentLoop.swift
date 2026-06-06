@@ -4283,6 +4283,25 @@ enum TournamentAutomationPlanner {
       if let planProofStep {
         return planProofStep
       }
+      if let revisionStep = revisionBriefStep(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      ) {
+        let failureGuarded = applyingRecentCycleFailureBlock(
+          to: revisionStep,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
+        return applyingRecentCycleLearningBlock(
+          to: failureGuarded,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
+      }
       guard
         let action = ProductTournamentNextActionAdvisor.nextAction(
           for: experiment,
@@ -4365,7 +4384,11 @@ enum TournamentAutomationPlanner {
       config: config,
       evidenceIndex: evidenceIndex
     )
-    .first(where: { $0.isActionable && contender($0.contenderID, matches: experiment, in: config) })
+    .first(where: {
+      $0.isActionable
+        && contender($0.contenderID, matches: experiment, in: config)
+        && !isRedundantRoundTwoRevision($0, for: experiment, in: config)
+    })
     {
       return transitionStep(
         experiment: experiment,
@@ -4400,6 +4423,19 @@ enum TournamentAutomationPlanner {
     }
 
     return nil
+  }
+
+  private static func isRedundantRoundTwoRevision(
+    _ proposal: ProductTournamentRoundEvidenceTransitionProposal,
+    for experiment: ProductTournamentExperiment,
+    in config: ProductTournamentConfig
+  ) -> Bool {
+    guard proposal.recommendation == .reviseCoreTechnology else { return false }
+    return config.tournamentContenders.contains {
+      $0.id == proposal.contenderID
+        && $0.experimentID == experiment.id
+        && $0.status == .needsRevision
+    }
   }
 
   private static func transitionStep(
@@ -4478,6 +4514,45 @@ enum TournamentAutomationPlanner {
       cohortReadiness: nil,
       isPersonaModelAvailable: isPersonaModelAvailable
     )
+  }
+
+  private static func revisionBriefStep(
+    for experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    isPersonaModelAvailable: Bool
+  ) -> TournamentAutomationStep? {
+    guard
+      let brief = TournamentAutomationRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      brief.source == .roundTwoProofGap
+    else { return nil }
+    let action = ProductTournamentNextAction(
+      experimentID: experiment.id,
+      kind: .refineContender,
+      title: brief.title,
+      detail:
+        "Proof: \(brief.proofPlan) Implementation: \(brief.implementationChange) Scenario: \(brief.scenarioChange) Trigger: \(brief.triggerSummary)",
+      priority: brief.priority,
+      cohortID: brief.targetCohortID,
+      targetPersonaID: brief.targetPersonaID,
+      targetPersonaName: brief.targetPersonaName,
+      targetScenarioID: brief.targetScenarioID,
+      targetDecision: brief.targetDecision
+    )
+    var step = TournamentAutomationStep(
+      experiment: experiment,
+      action: action,
+      cohortReadiness: nil,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    )
+    step.kind = .applyRevision
+    step.canExecute = true
+    step.blockedReason = nil
+    return step
   }
 
   static func nextExecutableStep(
