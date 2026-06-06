@@ -2560,7 +2560,7 @@ struct ProductTournamentWorkbenchTab: View {
           return lhs.decidedAt > rhs.decidedAt
         }
         if decisions.isEmpty {
-          WorkbenchEmptyLine("No product decisions recorded yet.")
+          WorkbenchEmptyLine("No tournament decisions recorded yet.")
         } else {
           ForEach(decisions.prefix(8)) { decision in
             VStack(alignment: .leading, spacing: 5) {

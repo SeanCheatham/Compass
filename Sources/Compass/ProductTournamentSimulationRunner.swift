@@ -506,8 +506,8 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
       request.decisionIntent.map { intent in
         let focus = intent.scorecardFocus.joined(separator: ", ")
         return
-          "Product decision intent: current `\(intent.currentDecision.rawValue)`, target `\(intent.targetDecision.rawValue)`. \(intent.directive) Scorecard focus: \(focus)."
-      } ?? "Product decision intent: discover the next tournament decision."
+          "Tournament decision intent: current `\(intent.currentDecision.rawValue)`, target `\(intent.targetDecision.rawValue)`. \(intent.directive) Scorecard focus: \(focus)."
+      } ?? "Tournament decision intent: discover the next tournament decision."
     return """
       \(title)
 

@@ -96,6 +96,13 @@ struct ProductTournamentLoopTests {
     try #require(savedDecision.decision == .keepGoing)
     try #require(savedDecision.evidenceRunIDs == ["run-one"])
     try #require(savedDecision.decidedBy == "Reflect")
+
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: next,
+      evidenceIndex: .empty
+    )
+    try #require(digest.contains("Latest tournament decisions:"))
+    try #require(!digest.contains("Latest product decisions:"))
   }
 
   @Test func tournamentDecisionAdvisorProposesValidatedProductTransitions() throws {

@@ -4693,7 +4693,7 @@ enum ProductTournamentNextActionAdvisor {
           title: staleCount > 0 ? "Rerun current evidence" : "Run product tournament cohort",
           detail: staleCount > 0
             ? "\(staleCount) stale run(s) exist for older commits; rerun cohort `\(cohort.id)` against the current experiment commit before deciding."
-            : "No current-commit evidence exists yet; run cohort `\(cohort.id)` before changing the product decision.",
+            : "No current-commit evidence exists yet; run cohort `\(cohort.id)` before changing the tournament decision.",
           priority: staleCount > 0 ? 95 : 90,
           cohortID: cohort.id
         ),
@@ -4977,9 +4977,9 @@ enum ProductTournamentNextActionAdvisor {
           kind: cohort == nil ? .refineContender : .runCohort,
           title: "Run another evidence cohort",
           detail: cohort.map {
-            "Current tournament readiness is \(readiness.scoreLabel)/100; run cohort `\($0.id)` or add a scenario variant before changing the product decision."
+            "Current tournament readiness is \(readiness.scoreLabel)/100; run cohort `\($0.id)` or add a scenario variant before changing the tournament decision."
           }
-            ?? "Current tournament readiness is \(readiness.scoreLabel)/100; define another enabled scenario cohort before changing the product decision.",
+            ?? "Current tournament readiness is \(readiness.scoreLabel)/100; define another enabled scenario cohort before changing the tournament decision.",
           priority: 70,
           cohortID: cohort?.id
         ),

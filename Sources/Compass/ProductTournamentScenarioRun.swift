@@ -64,7 +64,7 @@ struct ProductScenarioDraft: Equatable, Sendable {
     )
     self.successSignal = ProductTournamentModelText.cleanedText(
       successSignal,
-      fallback: "The scenario produces evidence for the next product decision.",
+      fallback: "The scenario produces evidence for the next tournament decision.",
       limit: 500
     )
     self.targetCommitSha = ProductTournamentModelText.optionalCleanedText(

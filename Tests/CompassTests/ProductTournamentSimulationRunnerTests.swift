@@ -234,7 +234,7 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(stream.prompts[0].contains("Prototype scope"))
     try #require(stream.prompts[0].contains("Scenario task"))
     try #require(stream.prompts[0].contains("Scenario success signal"))
-    try #require(stream.prompts[0].contains("Product decision intent"))
+    try #require(stream.prompts[0].contains("Tournament decision intent"))
     try #require(stream.prompts[0].contains("target `promote`"))
     try #require(stream.prompts[0].contains("Stress-test promotion"))
     try #require(stream.prompts[0].contains("alternative advantage"))

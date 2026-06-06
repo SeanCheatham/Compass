@@ -594,7 +594,7 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     case .keepGoing:
       lines.append("Signals are positive but need more proof before promotion.")
     case .gatherEvidence:
-      lines.append("Run more scenarios before changing the product decision.")
+      lines.append("Run more scenarios before changing the tournament decision.")
     }
     return lines
   }

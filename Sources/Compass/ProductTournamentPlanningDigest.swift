@@ -348,7 +348,7 @@ enum ProductTournamentPlanningDigestFormatter {
       .prefix(maxDecisions)
     guard !decisions.isEmpty else { return [] }
 
-    return ["Latest product decisions:"]
+    return ["Latest tournament decisions:"]
       + decisions.map { decision in
         let evidence =
           decision.evidenceRunIDs.isEmpty

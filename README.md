@@ -186,7 +186,7 @@ feedback remains comparable across tournament rounds. The workbench and
 Tournament Automation can apply the best actionable Round 1, Round 2, and Round 3
 recommendations to stored tournament state, including selecting a winner when
 prototype evidence clears the winner gate. Cycle audits record those automated
-round transitions separately from product decision updates and evidence runs.
+round transitions separately from tournament decision updates and evidence runs.
 Only the proof overview for the active tournament round is shown at a time:
 Round 1 plan proof, Round 2 core-technology proof, or Round 3 prototype winner
 proof.

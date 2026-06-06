@@ -216,7 +216,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       unknowns: [
         "Which user segment feels this pain most acutely?",
         "What current alternative wins today, and why?",
-        "Which smallest workflow proof would change the next product decision?",
+        "Which smallest workflow proof would change the next tournament decision?",
       ],
       status: .active,
       createdAt: timestamp
@@ -356,7 +356,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         id: proofHypothesisID,
         painID: painID,
         title: "\(title) proof assistant",
-        promise: "Help the user compare options and produce evidence for a product decision.",
+        promise: "Help the user compare options and produce evidence for a tournament decision.",
         contenderPlan:
           "A prototype that captures assumptions, alternatives, and proof can make product investment decisions sharper.",
         targetSegmentIDs: [operatorSegmentID, buyerSegmentID],
@@ -469,7 +469,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         task:
           "Use the prototype to compare the product contender against doing nothing and decide whether evidence is strong enough to continue.",
         successSignal:
-          "The buyer can explain the decision criteria and the next product decision with reusable evidence.",
+          "The buyer can explain the decision criteria and the next tournament decision with reusable evidence.",
         targetCommitSha: nil,
         maxTurns: 8,
         appCommandTimeoutSeconds: 120,
@@ -1187,7 +1187,7 @@ struct ProductScenario: Codable, Equatable, Identifiable, Sendable {
     )
     self.successSignal = ProductTournamentModelText.cleanedText(
       successSignal,
-      fallback: "The scenario produces evidence for the next product decision.",
+      fallback: "The scenario produces evidence for the next tournament decision.",
       limit: 500
     )
     self.targetCommitSha = ProductTournamentModelText.optionalCleanedText(
@@ -1258,7 +1258,7 @@ struct ProductDecision: Codable, Equatable, Identifiable, Sendable {
     self.experimentID = ProductTournamentModelText.identifier(experimentID, fallback: "experiment")
     self.decision = decision
     self.summary = ProductTournamentModelText.cleanedText(
-      summary, fallback: "Product decision recorded.", limit: 1_000)
+      summary, fallback: "Tournament decision recorded.", limit: 1_000)
     self.evidenceRunIDs =
       ProductTournamentModelText.cleanedList(evidenceRunIDs, limit: 120)
       .map { ProductTournamentModelText.identifier($0, fallback: "evidence-run") }
