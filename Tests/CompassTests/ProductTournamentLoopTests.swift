@@ -3591,6 +3591,56 @@ struct ProductTournamentLoopTests {
         evidenceIndex: validationIndex,
         isPersonaModelAvailable: true
       ))
+    let validationAudit = TournamentAutomationCycleAudit(
+      id: "acted-revision-validation-audit",
+      startedAt: 180,
+      endedAt: 190,
+      executedStepIDs: [validationStep.id],
+      experimentIDs: [experiment.id],
+      messages: ["Acted proof-group revision validation ran."],
+      maxSteps: 1,
+      evidenceRunStepCount: 1,
+      evidenceRunIDs: [validationRecord.id],
+      completedEvidenceRunCount: 1,
+      failedEvidenceRunCount: 0,
+      skippedScenarioCount: 0,
+      stopReason: .reachedStepLimit,
+      stopStepID: validationStep.id,
+      stopStepTitle: validationStep.title,
+      stopDetail: "Acted proof-group revision validation completed.",
+      userMessage: "Acted proof-group validation completed."
+    )
+    let validationConfig = postRevisionConfig.recordingTournamentAutomationCycleAudit(
+      validationAudit)
+    let validationScoreboardRows = TournamentAutomationProofTargetScoreboard.items(
+      config: validationConfig,
+      evidenceIndex: validationIndex,
+      limit: Int.max,
+      isPersonaModelAvailable: true
+    )
+    .flatMap(\.rows)
+    let validationRunContext = try #require(
+      TournamentAutomationCycleWorkbenchFacts.actedRevisionValidationRunContext(
+        config: validationConfig,
+        evidenceIndex: validationIndex,
+        scoreboardItems: TournamentAutomationProofTargetScoreboard.items(
+          config: validationConfig,
+          evidenceIndex: validationIndex,
+          limit: Int.max,
+          isPersonaModelAvailable: true
+        ),
+        isPersonaModelAvailable: true
+      ))
+    let validationScoreboardRow = try #require(
+      validationScoreboardRows.first { validationRunContext.matches($0) })
+    let validationFocus = try #require(
+      TournamentAutomationProofTargetScoreboard.focus(
+        after: validationAudit,
+        config: validationConfig,
+        evidenceIndex: validationIndex,
+        preferredStep: validationStep,
+        isPersonaModelAvailable: true
+      ))
 
     try #require(stalledGroup.audit.id == "tournament-cycle-stalled-acted-group")
     try #require(stalledGroup.outcome.isStalledProofRun)
@@ -3685,6 +3735,19 @@ struct ProductTournamentLoopTests {
     try #require(
       validationFacts.latestActedRevisionValidationRunHelp?
         .contains("acted-revision-validation") == true)
+    try #require(validationRunContext.matches(validationScoreboardRow))
+    try #require(validationRunContext.matches(validationRecord))
+    try #require(validationRunContext.latestEvidenceRunID == validationRecord.id)
+    try #require(
+      TournamentAutomationProofTargetScoreboard.firstKnownEvidenceRunID(
+        for: validationScoreboardRow,
+        config: validationConfig,
+        evidenceIndex: validationIndex,
+        isPersonaModelAvailable: true
+      ) == validationRecord.id)
+    try #require(validationFocus.auditID == validationAudit.id)
+    try #require(validationFocus.row.selectionID == validationScoreboardRow.selectionID)
+    try #require(validationFocus.evidenceRunID == validationRecord.id)
     try #require(workbenchRevisionBrief.validationContextSummary == "Direct proof stall")
     try #require(
       workbenchRevisionBrief.validationContextDetail == revisionBrief.validationContextDetail)
@@ -3914,6 +3977,56 @@ struct ProductTournamentLoopTests {
         evidenceIndex: validationIndex,
         isPersonaModelAvailable: true
       ))
+    let validationAudit = TournamentAutomationCycleAudit(
+      id: "repeated-acted-revision-validation-audit",
+      startedAt: 190,
+      endedAt: 200,
+      executedStepIDs: [validationStep.id],
+      experimentIDs: [experiment.id],
+      messages: ["Repeated acted proof-group revision validation ran."],
+      maxSteps: 1,
+      evidenceRunStepCount: 1,
+      evidenceRunIDs: [validationRecord.id],
+      completedEvidenceRunCount: 1,
+      failedEvidenceRunCount: 0,
+      skippedScenarioCount: 0,
+      stopReason: .reachedStepLimit,
+      stopStepID: validationStep.id,
+      stopStepTitle: validationStep.title,
+      stopDetail: "Repeated acted proof-group revision validation completed.",
+      userMessage: "Repeated acted proof-group validation completed."
+    )
+    let validationConfig = postRevisionConfig.recordingTournamentAutomationCycleAudit(
+      validationAudit)
+    let validationScoreboardRows = TournamentAutomationProofTargetScoreboard.items(
+      config: validationConfig,
+      evidenceIndex: validationIndex,
+      limit: Int.max,
+      isPersonaModelAvailable: true
+    )
+    .flatMap(\.rows)
+    let validationRunContext = try #require(
+      TournamentAutomationCycleWorkbenchFacts.actedRevisionValidationRunContext(
+        config: validationConfig,
+        evidenceIndex: validationIndex,
+        scoreboardItems: TournamentAutomationProofTargetScoreboard.items(
+          config: validationConfig,
+          evidenceIndex: validationIndex,
+          limit: Int.max,
+          isPersonaModelAvailable: true
+        ),
+        isPersonaModelAvailable: true
+      ))
+    let validationScoreboardRow = try #require(
+      validationScoreboardRows.first { validationRunContext.matches($0) })
+    let validationFocus = try #require(
+      TournamentAutomationProofTargetScoreboard.focus(
+        after: validationAudit,
+        config: validationConfig,
+        evidenceIndex: validationIndex,
+        preferredStep: validationStep,
+        isPersonaModelAvailable: true
+      ))
 
     try #require(repeatedGroup.audit.id == "tournament-cycle-still-acted-group-b")
     try #require(repeatedGroup.outcome.isStillProofRun)
@@ -4015,6 +4128,19 @@ struct ProductTournamentLoopTests {
     try #require(
       validationFacts.latestActedRevisionValidationRunHelp?
         .contains("repeated-acted-revision-validation") == true)
+    try #require(validationRunContext.matches(validationScoreboardRow))
+    try #require(validationRunContext.matches(validationRecord))
+    try #require(validationRunContext.latestEvidenceRunID == validationRecord.id)
+    try #require(
+      TournamentAutomationProofTargetScoreboard.firstKnownEvidenceRunID(
+        for: validationScoreboardRow,
+        config: validationConfig,
+        evidenceIndex: validationIndex,
+        isPersonaModelAvailable: true
+      ) == validationRecord.id)
+    try #require(validationFocus.auditID == validationAudit.id)
+    try #require(validationFocus.row.selectionID == validationScoreboardRow.selectionID)
+    try #require(validationFocus.evidenceRunID == validationRecord.id)
     try #require(
       workbenchRevisionBrief.validationContextSummary == revisionBrief.validationContextSummary)
     try #require(

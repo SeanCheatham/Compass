@@ -556,6 +556,39 @@ struct ProductTournamentWorkbenchTab: View {
       .first { $0.selectionID == selectedProofScoreboardRowID }
   }
 
+  private var actedRevisionValidationRunContext:
+    TournamentAutomationActedRevisionValidationRunContext?
+  {
+    TournamentAutomationCycleWorkbenchFacts.actedRevisionValidationRunContext(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      currentStep: tournamentAutomationStep,
+      scoreboardItems: tournamentAutomationProofTargetScoreboard
+    )
+  }
+
+  private var selectedProofActedRevisionValidationRunContext:
+    TournamentAutomationActedRevisionValidationRunContext?
+  {
+    guard
+      let row = selectedProofScoreboardRow,
+      let context = actedRevisionValidationRunContext,
+      context.matches(row)
+    else { return nil }
+    return context
+  }
+
+  private var selectedRunActedRevisionValidationRunContext:
+    TournamentAutomationActedRevisionValidationRunContext?
+  {
+    guard
+      let record = selectedRecord,
+      let context = actedRevisionValidationRunContext,
+      context.matches(record)
+    else { return nil }
+    return context
+  }
+
   private func isSelectedProofScoreboardGroup(
     _ group: TournamentAutomationProofTargetScoreboardReadinessGroup
   ) -> Bool {
@@ -2264,6 +2297,10 @@ struct ProductTournamentWorkbenchTab: View {
           WorkbenchFact(label: "Last / Next", value: row.runPairSummary)
           WorkbenchFact(label: "Latest delta", value: row.latestDebtMovementSummary)
             .help(row.helpSummary)
+          if let revisionCheck = selectedProofActedRevisionValidationRunContext {
+            WorkbenchFact(label: "Revision Check", value: revisionCheck.summary)
+              .help(revisionCheck.help)
+          }
           selectedProofMovementStrip(for: row)
           if let latestDebtMovement = row.latestDebtMovement {
             WorkbenchFact(label: "Audit", value: latestDebtMovement.auditID)
@@ -3144,6 +3181,10 @@ struct ProductTournamentWorkbenchTab: View {
               value: decisionIntentEvaluation.outcome.rawValue
             )
             WorkbenchFact(label: "Intent rationale", value: decisionIntentEvaluation.rationale)
+          }
+          if let revisionCheck = selectedRunActedRevisionValidationRunContext {
+            WorkbenchFact(label: "Revision Check", value: revisionCheck.summary)
+              .help(revisionCheck.help)
           }
           if let willingnessToPayScore = record.willingnessToPayScore {
             WorkbenchFact(label: "Willingness to pay", value: "\(willingnessToPayScore)/5")
@@ -4293,6 +4334,7 @@ struct ProductTournamentWorkbenchTab: View {
 
     if let evidenceRunID = TournamentAutomationProofTargetScoreboard.firstKnownEvidenceRunID(
       for: row,
+      config: config,
       evidenceIndex: evidenceIndex
     ) {
       selectedRunID = evidenceRunID

@@ -93,6 +93,40 @@ struct TournamentAutomationActedPressureGroupOutcome: Equatable, Sendable {
   }
 }
 
+struct TournamentAutomationActedRevisionValidationRunContext: Equatable, Sendable {
+  var revisionAuditID: String
+  var experimentID: String
+  var scenarioID: String?
+  var validationLabel: String
+  var summary: String
+  var help: String
+  var latestEvidenceRunID: String?
+  var outcomeSummary: String?
+
+  var isComplete: Bool {
+    latestEvidenceRunID != nil
+  }
+
+  func matches(_ row: TournamentAutomationProofTargetScoreboardRow) -> Bool {
+    guard row.experimentID == experimentID else { return false }
+    if let scenarioID {
+      return row.targetScenarioID == scenarioID || row.targetScenarioID == nil
+    }
+    return true
+  }
+
+  func matches(_ record: ProductTournamentEvidenceRecord) -> Bool {
+    guard record.experimentID == experimentID else { return false }
+    if let latestEvidenceRunID, record.id != latestEvidenceRunID {
+      return false
+    }
+    if let scenarioID, record.scenarioID != scenarioID {
+      return false
+    }
+    return true
+  }
+}
+
 struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   var latestCycleSummary: String
   var latestCycleHelp: String
@@ -153,16 +187,14 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
         limit: Int.max,
         isPersonaModelAvailable: isPersonaModelAvailable
       )
-    let actedRevisionValidationRun = actedRevisionValidation.flatMap {
-      makeActedRevisionValidationRunContext(
-        for: $0,
-        actedPressureGroupAudit: actedPressureGroupAudit,
-        scoreboardItems: proofScoreboardItems,
-        config: config,
-        evidenceIndex: evidenceIndex,
-        currentStep: currentStep
-      )
-    }
+    let actedRevisionValidationRun = actedRevisionValidationRunContext(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      currentStep: currentStep,
+      scoreboardItems: proofScoreboardItems,
+      actedRevisionValidation: actedRevisionValidation,
+      actedPressureGroupAudit: actedPressureGroupAudit
+    )
 
     let latestPreparationSummary: String?
     let latestPreparationHelp: String?
@@ -290,6 +322,39 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       config: config,
       evidenceIndex: evidenceIndex
     )?.summary
+  }
+
+  static func actedRevisionValidationRunContext(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    currentStep: TournamentAutomationStep? = nil,
+    scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]? = nil,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
+  ) -> TournamentAutomationActedRevisionValidationRunContext? {
+    let audits = sortedAudits(in: config)
+    let actedRevisionValidation = audits.compactMap(makeActedRevisionValidationContext).first
+    let actedPressureGroupAudit = audits.first { !$0.actedProofPressureGroupSummaries.isEmpty }
+    let resolvedScoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
+    if let scoreboardItems {
+      resolvedScoreboardItems = scoreboardItems
+    } else if actedPressureGroupAudit == nil {
+      resolvedScoreboardItems = []
+    } else {
+      resolvedScoreboardItems = TournamentAutomationProofTargetScoreboard.items(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        limit: Int.max,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      )
+    }
+    return actedRevisionValidationRunContext(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      currentStep: currentStep,
+      scoreboardItems: resolvedScoreboardItems,
+      actedRevisionValidation: actedRevisionValidation,
+      actedPressureGroupAudit: actedPressureGroupAudit
+    )
   }
 
   private static func sortedAudits(
@@ -481,6 +546,26 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
     )
   }
 
+  private static func actedRevisionValidationRunContext(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    currentStep: TournamentAutomationStep?,
+    scoreboardItems: [TournamentAutomationProofTargetScoreboardItem],
+    actedRevisionValidation: AppliedActedRevisionValidationContext?,
+    actedPressureGroupAudit: TournamentAutomationCycleAudit?
+  ) -> TournamentAutomationActedRevisionValidationRunContext? {
+    actedRevisionValidation.flatMap {
+      makeActedRevisionValidationRunContext(
+        for: $0,
+        actedPressureGroupAudit: actedPressureGroupAudit,
+        scoreboardItems: scoreboardItems,
+        config: config,
+        evidenceIndex: evidenceIndex,
+        currentStep: currentStep
+      )
+    }
+  }
+
   private static func makeActedRevisionValidationRunContext(
     for validation: AppliedActedRevisionValidationContext,
     actedPressureGroupAudit: TournamentAutomationCycleAudit?,
@@ -488,7 +573,7 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     currentStep: TournamentAutomationStep?
-  ) -> (summary: String, help: String)? {
+  ) -> TournamentAutomationActedRevisionValidationRunContext? {
     guard
       let experimentID = validation.revision.experimentID,
       let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
@@ -516,7 +601,11 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
         currentStep: currentStep,
         scenarioID: scenarioID
       )
-      return (
+      return TournamentAutomationActedRevisionValidationRunContext(
+        revisionAuditID: validation.audit.id,
+        experimentID: experimentID,
+        scenarioID: scenarioID,
+        validationLabel: validationLabel,
         summary: bounded(
           "\(validationLabel); pending; 0 validation run(s)\(scenario); \(nextCue.summary)",
           limit: 260
@@ -524,7 +613,9 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
         help: bounded(
           "audit \(validation.audit.id); validation \(validationLabel)\(scenario); no completed persona-model validation run after the acted revision. \(nextCue.help)\(outcomeSummary)",
           limit: 500
-        )
+        ),
+        latestEvidenceRunID: nil,
+        outcomeSummary: outcome?.summary
       )
     }
     let latestRun = validationRuns[0]
@@ -533,7 +624,11 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       validationRuns.count > 3
       ? ", +\(validationRuns.count - 3) more"
       : ""
-    return (
+    return TournamentAutomationActedRevisionValidationRunContext(
+      revisionAuditID: validation.audit.id,
+      experimentID: experimentID,
+      scenarioID: scenarioID,
+      validationLabel: validationLabel,
       summary: bounded(
         "\(validationLabel); \(validationRuns.count) validation run(s); latest \(latestRun.verdict.rawValue)\(scenario)\(outcomeSummary)",
         limit: 260
@@ -541,7 +636,9 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       help: bounded(
         "audit \(validation.audit.id); validation \(validationLabel)\(scenario); completed persona-model validation runs \(validationRuns.count); runs \(runIDs)\(moreRuns); latest \(latestRun.runID) ended \(latestRun.endedAt) with verdict \(latestRun.verdict.rawValue)\(outcomeSummary)",
         limit: 500
-      )
+      ),
+      latestEvidenceRunID: latestRun.runID,
+      outcomeSummary: outcome?.summary
     )
   }
 

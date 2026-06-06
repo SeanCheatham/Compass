@@ -167,7 +167,9 @@ and advances them through rounds:
   surfaces the latest completed acted revision validation in Tournament
   Automation facts, queues a source-aware validation rerun after that acted
   revision is applied, and shows pending/completed validation-run status with
-  the current cleared/moved/still proof-pressure outcome,
+  the current cleared/moved/still proof-pressure outcome in Tournament
+  Automation facts, selected proof-target detail, and selected evidence-run
+  detail,
   repeats that acted-outcome signal in Plan/Reflect prompt context, feeds
   stalled or repeatedly still-present proof-run group outcomes back into
   the next-action guard so the planner retargets the scenario, product

@@ -927,6 +927,15 @@ enum TournamentAutomationProofTargetScoreboard {
     preferredStep: TournamentAutomationStep? = nil,
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> TournamentAutomationProofTargetFocus? {
+    if let validationFocus = actedRevisionValidationFocus(
+      after: audit,
+      config: config,
+      evidenceIndex: evidenceIndex,
+      preferredStep: preferredStep,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    ) {
+      return validationFocus
+    }
     guard
       let row = rowMatchingLatestAudit(
         audit,
@@ -988,6 +997,27 @@ enum TournamentAutomationProofTargetScoreboard {
 
   static func firstKnownEvidenceRunID(
     for row: TournamentAutomationProofTargetScoreboardRow,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
+  ) -> String? {
+    if let context = TournamentAutomationCycleWorkbenchFacts.actedRevisionValidationRunContext(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      scoreboardItems: [],
+      isPersonaModelAvailable: isPersonaModelAvailable
+    ),
+      context.matches(row),
+      let evidenceRunID = context.latestEvidenceRunID,
+      firstKnownEvidenceRunID(in: [evidenceRunID], row: row, evidenceIndex: evidenceIndex) != nil
+    {
+      return evidenceRunID
+    }
+    return firstKnownEvidenceRunID(for: row, evidenceIndex: evidenceIndex)
+  }
+
+  static func firstKnownEvidenceRunID(
+    for row: TournamentAutomationProofTargetScoreboardRow,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> String? {
     firstKnownEvidenceRunID(
@@ -1006,6 +1036,63 @@ enum TournamentAutomationProofTargetScoreboard {
       row: row,
       evidenceIndex: evidenceIndex
     )
+  }
+
+  private static func actedRevisionValidationFocus(
+    after audit: TournamentAutomationCycleAudit,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    preferredStep: TournamentAutomationStep?,
+    isPersonaModelAvailable: Bool
+  ) -> TournamentAutomationProofTargetFocus? {
+    guard
+      let context = TournamentAutomationCycleWorkbenchFacts.actedRevisionValidationRunContext(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        currentStep: preferredStep,
+        scoreboardItems: [],
+        isPersonaModelAvailable: isPersonaModelAvailable
+      ),
+      let evidenceRunID = context.latestEvidenceRunID,
+      audit.evidenceRunIDs.contains(evidenceRunID),
+      let row = rowMatchingActedRevisionValidation(
+        context,
+        config: config,
+        evidenceIndex: evidenceIndex,
+        preferredStep: preferredStep,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      )
+    else { return nil }
+    return TournamentAutomationProofTargetFocus(
+      row: row,
+      auditID: audit.id,
+      evidenceRunID: evidenceRunID,
+      planEvaluationID: nil
+    )
+  }
+
+  private static func rowMatchingActedRevisionValidation(
+    _ context: TournamentAutomationActedRevisionValidationRunContext,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    preferredStep: TournamentAutomationStep?,
+    isPersonaModelAvailable: Bool
+  ) -> TournamentAutomationProofTargetScoreboardRow? {
+    let rows = items(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      limit: Int.max,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    )
+    .flatMap(\.rows)
+    let candidates = rows.filter { context.matches($0) }
+    guard !candidates.isEmpty else { return nil }
+    if let preferredStep,
+      let preferred = candidates.first(where: { scoreboardRow($0, matches: preferredStep) })
+    {
+      return preferred
+    }
+    return candidates.first
   }
 
   private struct ScopeKey: Hashable {
