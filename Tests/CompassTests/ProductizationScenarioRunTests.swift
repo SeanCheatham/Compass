@@ -181,6 +181,98 @@ struct ProductizationScenarioRunTests {
     try #require(personaRequest.mode == .personaModel)
   }
 
+  @Test func requestConstructionRejectsScenarioFromDifferentExperiment() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let head = try await setupScenarioRepo(at: root)
+    let config = try makeScenarioRunConfig(commitSha: head)
+    try #require(config.experiments.indices.contains(1))
+    let selectedExperimentID = config.experiments[1].id
+    let scenario = config.scenarios[0]
+
+    do {
+      _ = try await ProductizationScenarioCoordinator.request(
+        experimentID: selectedExperimentID,
+        scenarioID: scenario.id,
+        in: config,
+        projectTitle: "Scenario Helper",
+        generatedAppWorkingDirectory: root
+      )
+      #expect(Bool(false), "Expected scenario experiment mismatch error.")
+    } catch let error as ProductizationScenarioRunError {
+      guard
+        case .scenarioExperimentMismatch(
+          let scenarioID,
+          let selectedExperiment,
+          let scenarioExperiment
+        ) = error
+      else {
+        #expect(Bool(false), "Expected scenario experiment mismatch, got \(error).")
+        return
+      }
+      try #require(scenarioID == scenario.id)
+      try #require(selectedExperiment == selectedExperimentID)
+      try #require(scenarioExperiment == scenario.experimentID)
+      try #require(error.localizedDescription.contains("same experiment"))
+    }
+  }
+
+  @Test func requestConstructionRejectsNonTargetRoundTwoExperiment() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let head = try await setupScenarioRepo(at: root)
+    var config = try makeScenarioRunConfig(commitSha: head)
+    try #require(config.experiments.indices.contains(1))
+    let selectedExperimentID = config.experiments[1].id
+    config.experiments[1].currentSha = head
+    let secondDraft = ProductizationScenarioCoordinator.defaultDraft(
+      for: config.experiments[1],
+      in: config,
+      now: Date(timeIntervalSince1970: 30)
+    )
+    config = try ProductizationScenarioCoordinator.saving(
+      draft: secondDraft,
+      to: config,
+      now: Date(timeIntervalSince1970: 40)
+    )
+    let selectedScenario = try #require(
+      config.scenarios.first { $0.experimentID == selectedExperimentID }
+    )
+    let targetScope = try activateRoundTwoTournamentScope(in: &config)
+    let expectedExperimentID = config.experiments[0].id
+
+    do {
+      _ = try await ProductizationScenarioCoordinator.request(
+        experimentID: selectedExperimentID,
+        scenarioID: selectedScenario.id,
+        in: config,
+        projectTitle: "Scenario Helper",
+        generatedAppWorkingDirectory: root
+      )
+      #expect(Bool(false), "Expected Round 2 implementation target mismatch error.")
+    } catch let error as ProductizationScenarioRunError {
+      guard
+        case .roundTwoImplementationTargetMismatch(
+          let selectedExperiment,
+          let expectedExperiment,
+          let tournamentID,
+          let roundID,
+          let contenderID
+        ) = error
+      else {
+        #expect(Bool(false), "Expected Round 2 implementation target mismatch, got \(error).")
+        return
+      }
+      try #require(selectedExperiment == selectedExperimentID)
+      try #require(expectedExperiment == expectedExperimentID)
+      try #require(tournamentID == targetScope.tournamentID)
+      try #require(roundID == targetScope.roundID)
+      try #require(contenderID == targetScope.contenderID)
+      try #require(error.localizedDescription.contains("Round 2 implementation target"))
+      try #require(error.localizedDescription.contains("competing contender"))
+    }
+  }
+
   @Test func modelFreeRunWritesEvidenceAndRefreshableIndex() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }

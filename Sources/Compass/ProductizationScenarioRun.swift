@@ -152,6 +152,18 @@ enum ProductizationScenarioRunError: LocalizedError, Equatable {
   case unknownSegment(String)
   case unknownWorkflow(String)
   case unknownAlternative(String)
+  case scenarioExperimentMismatch(
+    scenarioID: String,
+    selectedExperimentID: String,
+    scenarioExperimentID: String
+  )
+  case roundTwoImplementationTargetMismatch(
+    selectedExperimentID: String,
+    expectedExperimentID: String,
+    tournamentID: String,
+    roundID: String,
+    contenderID: String
+  )
   case missingExperimentCommit(String)
   case staleScenarioCommit(scenarioID: String, expected: String, actual: String)
   case staleWorkingTree(url: URL, expected: String, actual: String)
@@ -174,6 +186,22 @@ enum ProductizationScenarioRunError: LocalizedError, Equatable {
       return "Current workflow \(id) was not found in productization state."
     case .unknownAlternative(let id):
       return "Current alternative \(id) was not found in productization state."
+    case .scenarioExperimentMismatch(
+      let scenarioID,
+      let selectedExperimentID,
+      let scenarioExperimentID
+    ):
+      return
+        "Scenario \(scenarioID) belongs to experiment \(scenarioExperimentID), but the run selected experiment \(selectedExperimentID). Select a scenario from the same experiment before collecting evidence."
+    case .roundTwoImplementationTargetMismatch(
+      let selectedExperimentID,
+      let expectedExperimentID,
+      let tournamentID,
+      let roundID,
+      let contenderID
+    ):
+      return
+        "Round 2 implementation target for tournament \(tournamentID) round \(roundID) is experiment \(expectedExperimentID) / contender \(contenderID). Experiment \(selectedExperimentID) would build a competing contender; run the selected target or transition the tournament first."
     case .missingExperimentCommit(let id):
       return "Product experiment \(id) has no commit to run."
     case .staleScenarioCommit(let scenarioID, let expected, let actual):
@@ -405,6 +433,17 @@ enum ProductizationScenarioCoordinator {
     guard let scenario = config.scenarios.first(where: { $0.id == scenarioID }) else {
       throw ProductizationScenarioRunError.unknownScenario(scenarioID)
     }
+    guard scenario.experimentID == experiment.id else {
+      throw ProductizationScenarioRunError.scenarioExperimentMismatch(
+        scenarioID: scenario.id,
+        selectedExperimentID: experiment.id,
+        scenarioExperimentID: scenario.experimentID
+      )
+    }
+    try validateRoundTwoImplementationTarget(
+      experimentID: experiment.id,
+      in: config
+    )
     guard let solution = config.solutionHypotheses.first(where: { $0.id == experiment.solutionID })
     else {
       throw ProductizationScenarioRunError.unknownSolution(experiment.solutionID)
@@ -744,6 +783,91 @@ enum ProductizationScenarioCoordinator {
     return config.alternatives.filter { $0.painID == painID }
   }
 
+  private static func validateRoundTwoImplementationTarget(
+    experimentID: String,
+    in config: ProductizationConfig
+  ) throws {
+    guard
+      let target = roundTwoImplementationTarget(
+        forExperimentInTargetTournament: experimentID,
+        in: config
+      ),
+      target.experimentID != experimentID
+    else { return }
+
+    throw ProductizationScenarioRunError.roundTwoImplementationTargetMismatch(
+      selectedExperimentID: experimentID,
+      expectedExperimentID: target.experimentID,
+      tournamentID: target.tournamentID,
+      roundID: target.roundID,
+      contenderID: target.contenderID
+    )
+  }
+
+  private static func roundTwoImplementationTarget(
+    forExperimentInTargetTournament experimentID: String,
+    in config: ProductizationConfig
+  ) -> ProductTournamentRoundImplementationTarget? {
+    guard
+      let contender = config.tournamentContenders.first(where: {
+        $0.experimentID == experimentID
+      }),
+      let tournament = config.tournaments.first(where: {
+        $0.id == contender.tournamentID && ($0.status == .active || $0.status == .drafting)
+      }),
+      let round = activeCoreTechnologyRound(for: tournament, in: config)
+    else { return nil }
+
+    let candidateIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
+    let candidates = candidateIDs.compactMap { contenderID in
+      config.tournamentContenders.first {
+        $0.id == contenderID
+          && $0.tournamentID == tournament.id
+          && $0.isRoundTwoImplementationCandidate
+          && $0.experimentID != nil
+      }
+    }
+    guard candidates.count == 1, let target = candidates.first,
+      let targetExperimentID = target.experimentID
+    else {
+      return nil
+    }
+
+    return ProductTournamentRoundImplementationTarget(
+      tournamentID: tournament.id,
+      roundID: round.id,
+      contenderID: target.id,
+      experimentID: targetExperimentID
+    )
+  }
+
+  private static func activeCoreTechnologyRound(
+    for tournament: ProductTournament,
+    in config: ProductizationConfig
+  ) -> ProductTournamentRound? {
+    let currentRound = tournament.currentRoundID.flatMap { roundID in
+      config.tournamentRounds.first { $0.id == roundID && $0.tournamentID == tournament.id }
+    }
+    if let currentRound,
+      currentRound.kind == .coreTechnology,
+      currentRound.status == .active
+    {
+      return currentRound
+    }
+    guard tournament.currentRoundID == nil else { return nil }
+    return config.tournamentRounds
+      .filter {
+        $0.tournamentID == tournament.id
+          && $0.kind == .coreTechnology
+          && $0.status == .active
+      }
+      .sorted {
+        if $0.ordinal == $1.ordinal { return $0.id < $1.id }
+        return $0.ordinal < $1.ordinal
+      }
+      .first
+  }
+
   private static func targetCommit(
     for scenario: ProductScenario,
     experiment: ProductExperiment
@@ -773,6 +897,24 @@ enum ProductizationScenarioCoordinator {
     return try transcript.map {
       String(decoding: try encoder.encode($0), as: UTF8.self)
     }.joined(separator: "\n")
+  }
+}
+
+private struct ProductTournamentRoundImplementationTarget: Equatable, Sendable {
+  var tournamentID: String
+  var roundID: String
+  var contenderID: String
+  var experimentID: String
+}
+
+extension ProductTournamentContender {
+  fileprivate var isRoundTwoImplementationCandidate: Bool {
+    switch status {
+    case .narrowed, .needsRevision:
+      return true
+    case .competing, .winner, .eliminated, .archived:
+      return false
+    }
   }
 }
 

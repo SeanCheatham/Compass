@@ -77,10 +77,12 @@ and advances them through rounds:
   acceptance signals for the next build slice. Productization Context also turns
   that handoff into a single Plan-facing implementation target, so the next
   Immediate handoff builds only the selected contender's core-technology proof on
-  its experiment branch/worktree. Scoped Round 2 scenario evidence then drives the
-  next tournament transition: advance the contender to Round 3, mark the core
-  technology for revision, or eliminate the contender before adding prototype
-  fidelity.
+  its experiment branch/worktree. Scenario evidence launches validate that target
+  before running, blocking accidental evidence collection against sibling
+  contenders once Round 2 has narrowed to one implementation track. Scoped Round
+  2 scenario evidence then drives the next tournament transition: advance the
+  contender to Round 3, mark the core technology for revision, or eliminate the
+  contender before adding prototype fidelity.
 - **Round 3: prototype.** Agentic users exercise low-medium fidelity product
   versions and evaluate workflow improvement, switching readiness, continued-use
   pull, and explicit price or sponsorship intent. Scoped prototype evidence can
