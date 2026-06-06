@@ -587,28 +587,28 @@ struct RustProjectScaffold: Equatable, Sendable {
     #[serde(rename_all = "camelCase")]
     pub struct ProductTournamentExperienceInput {
         pub schema_version: u8,
-        pub pain: ProductizationPain,
-        pub solution: ProductizationSolution,
-        pub experiment: ProductizationExperiment,
-        pub scenario: ProductizationScenario,
-        pub current_workflow: ProductizationCurrentWorkflow,
+        pub pain: ProductTournamentPain,
+        pub solution: ProductTournamentSolution,
+        pub experiment: ProductTournamentExperiment,
+        pub scenario: ProductTournamentScenario,
+        pub current_workflow: ProductTournamentCurrentWorkflow,
         #[serde(default)]
-        pub alternatives: Vec<ProductizationAlternative>,
+        pub alternatives: Vec<ProductTournamentAlternative>,
         #[serde(default)]
-        pub decision_intent: Option<ProductizationDecisionIntent>,
+        pub decision_intent: Option<ProductTournamentDecisionIntent>,
         #[serde(default)]
         pub actions: Vec<ProductTournamentExperienceAction>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct ProductizationPain {
+    pub struct ProductTournamentPain {
         pub id: String,
         pub summary: String,
         pub impact: String,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct ProductizationSolution {
+    pub struct ProductTournamentSolution {
         pub id: String,
         pub title: String,
         pub promise: String,
@@ -616,7 +616,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct ProductizationExperiment {
+    pub struct ProductTournamentExperiment {
         pub id: String,
         pub branch_name: String,
         pub success_signal: String,
@@ -624,7 +624,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct ProductizationScenario {
+    pub struct ProductTournamentScenario {
         pub seed: String,
         pub persona_summary: String,
         pub task: String,
@@ -632,14 +632,14 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct ProductizationCurrentWorkflow {
+    pub struct ProductTournamentCurrentWorkflow {
         pub summary: String,
         pub friction_points: Vec<String>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct ProductizationAlternative {
+    pub struct ProductTournamentAlternative {
         pub id: String,
         pub name: String,
         pub description: String,
@@ -648,7 +648,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct ProductizationDecisionIntent {
+    pub struct ProductTournamentDecisionIntent {
         pub current_decision: String,
         pub target_decision: String,
         pub directive: String,
@@ -861,30 +861,30 @@ struct RustProjectScaffold: Equatable, Sendable {
         fn default() -> Self {
             Self {
                 schema_version: 1,
-                pain: ProductizationPain {
+                pain: ProductTournamentPain {
                     id: "pain-reporting".to_owned(),
                     summary: "Weekly reporting takes too long".to_owned(),
                     impact: "Managers lose visibility and operators spend Friday chasing updates"
                         .to_owned(),
                 },
-                solution: ProductizationSolution {
+                solution: ProductTournamentSolution {
                     id: "solution-compass".to_owned(),
                     title: "Compass workflow helper".to_owned(),
                     promise: "Turn scattered updates into a reviewed weekly report".to_owned(),
                 },
-                experiment: ProductizationExperiment {
+                experiment: ProductTournamentExperiment {
                     id: "experiment-reporting".to_owned(),
                     branch_name: "product-tournament/reporting".to_owned(),
                     success_signal:
                         "Persona completes a report draft and sees why it beats the current workflow"
                             .to_owned(),
                 },
-                scenario: ProductizationScenario {
+                scenario: ProductTournamentScenario {
                     seed: "demo".to_owned(),
                     persona_summary: "Operations lead evaluating a workflow tool".to_owned(),
                     task: "Reduce weekly reporting work".to_owned(),
                 },
-                current_workflow: ProductizationCurrentWorkflow {
+                current_workflow: ProductTournamentCurrentWorkflow {
                     summary:
                         "Collect updates manually, paste them into a spreadsheet, and chase missing details"
                             .to_owned(),
@@ -893,13 +893,13 @@ struct RustProjectScaffold: Equatable, Sendable {
                         "late follow ups".to_owned(),
                     ],
                 },
-                alternatives: vec![ProductizationAlternative {
+                alternatives: vec![ProductTournamentAlternative {
                     id: "spreadsheet".to_owned(),
                     name: "Shared spreadsheet".to_owned(),
                     description: "A manual tracker with copied status updates.".to_owned(),
                     switching_objection: "The team already knows the spreadsheet.".to_owned(),
                 }],
-                decision_intent: Some(ProductizationDecisionIntent {
+                decision_intent: Some(ProductTournamentDecisionIntent {
                     current_decision: "continue".to_owned(),
                     target_decision: "promote".to_owned(),
                     directive: "Stress-test promotion against the current alternative.".to_owned(),
@@ -1137,7 +1137,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 );
                 vec![format!("turn:{index}:abandon_task")]
             }
-            _ => unreachable!("caller validates allowed productization actions"),
+            _ => unreachable!("caller validates allowed product tournament actions"),
         }
     }
 
@@ -1738,11 +1738,11 @@ struct RustProjectScaffold: Equatable, Sendable {
     """
     use app_core::{
         run_gui_replay, run_product_tournament_experience, run_simulation, DemoState, GuiReplayAction,
-        GuiReplayStep, GuiReplayTrace, ProductTournamentExperienceAction,
+        GuiReplayStep, GuiReplayTrace, ProductTournamentAlternative, ProductTournamentCurrentWorkflow,
+        ProductTournamentDecisionIntent, ProductTournamentExperienceAction,
         ProductTournamentExperienceInput, ProductTournamentExperienceTerminalStatus,
-        ProductizationAlternative, ProductizationCurrentWorkflow, ProductizationDecisionIntent,
-        ProductizationExperiment, ProductizationPain, ProductizationScenario, ProductizationSolution,
-        SimulationAction, SimulationInput,
+        ProductTournamentExperiment, ProductTournamentPain, ProductTournamentScenario,
+        ProductTournamentSolution, SimulationAction, SimulationInput,
     };
     use serde_json::json;
 
@@ -1806,37 +1806,37 @@ struct RustProjectScaffold: Equatable, Sendable {
     fn product_tournament_experience_fixture_replays_allowed_actions_deterministically() {
         let input = ProductTournamentExperienceInput {
             schema_version: 1,
-            pain: ProductizationPain {
+            pain: ProductTournamentPain {
                 id: "pain-reporting".to_owned(),
                 summary: "Weekly reporting takes too long".to_owned(),
                 impact: "Managers lack timely visibility".to_owned(),
             },
-            solution: ProductizationSolution {
+            solution: ProductTournamentSolution {
                 id: "solution-reporting".to_owned(),
                 title: "Reporting helper".to_owned(),
                 promise: "Generate a reviewed weekly report from scattered updates".to_owned(),
             },
-            experiment: ProductizationExperiment {
+            experiment: ProductTournamentExperiment {
                 id: "experiment-reporting".to_owned(),
                 branch_name: "product-tournament/reporting".to_owned(),
                 success_signal: "Persona completes a report draft".to_owned(),
             },
-            scenario: ProductizationScenario {
-                seed: "productization-case".to_owned(),
+            scenario: ProductTournamentScenario {
+                seed: "product-tournament-case".to_owned(),
                 persona_summary: "Operations lead evaluating reporting workflow".to_owned(),
                 task: "Try the core workflow".to_owned(),
             },
-            current_workflow: ProductizationCurrentWorkflow {
+            current_workflow: ProductTournamentCurrentWorkflow {
                 summary: "Manual spreadsheet and follow-up messages".to_owned(),
                 friction_points: vec!["copy paste".to_owned(), "late follow ups".to_owned()],
             },
-            alternatives: vec![ProductizationAlternative {
+            alternatives: vec![ProductTournamentAlternative {
                 id: "spreadsheet".to_owned(),
                 name: "Shared spreadsheet".to_owned(),
                 description: "Existing reporting tracker".to_owned(),
                 switching_objection: "The team already knows it".to_owned(),
             }],
-            decision_intent: Some(ProductizationDecisionIntent {
+            decision_intent: Some(ProductTournamentDecisionIntent {
                 current_decision: "continue".to_owned(),
                 target_decision: "promote".to_owned(),
                 directive: "Stress-test promotion against the current alternative.".to_owned(),

@@ -98,14 +98,26 @@ struct RustProjectScaffoldTests {
     try #require(core.contains("pub fn run_gui_replay"))
     try #require(core.contains("pub fn gui_semantic_snapshot"))
     try #require(core.contains("pub struct ProductTournamentExperienceInput"))
-    try #require(core.contains("pub struct ProductizationPain"))
-    try #require(core.contains("pub struct ProductizationSolution"))
-    try #require(core.contains("pub struct ProductizationExperiment"))
-    try #require(core.contains("pub struct ProductizationCurrentWorkflow"))
-    try #require(core.contains("pub struct ProductizationAlternative"))
-    try #require(core.contains("pub struct ProductizationDecisionIntent"))
-    try #require(core.contains("pub decision_intent: Option<ProductizationDecisionIntent>"))
-    try #require(tests.contains("ProductizationDecisionIntent"))
+    try #require(core.contains("pub struct ProductTournamentPain"))
+    try #require(core.contains("pub struct ProductTournamentSolution"))
+    try #require(core.contains("pub struct ProductTournamentExperiment"))
+    try #require(core.contains("pub struct ProductTournamentCurrentWorkflow"))
+    try #require(core.contains("pub struct ProductTournamentAlternative"))
+    try #require(core.contains("pub struct ProductTournamentDecisionIntent"))
+    try #require(core.contains("pub decision_intent: Option<ProductTournamentDecisionIntent>"))
+    try #require(tests.contains("ProductTournamentDecisionIntent"))
+    for oldPayloadName in [
+      "ProductizationPain",
+      "ProductizationSolution",
+      "ProductizationExperiment",
+      "ProductizationScenario",
+      "ProductizationCurrentWorkflow",
+      "ProductizationAlternative",
+      "ProductizationDecisionIntent",
+    ] {
+      try #require(!core.contains(oldPayloadName))
+      try #require(!tests.contains(oldPayloadName))
+    }
     try #require(core.contains("Decision intent:"))
     try #require(core.contains("decision intent: {decision_intent}"))
     try #require(core.contains("pub struct ProductTournamentExperienceState"))
