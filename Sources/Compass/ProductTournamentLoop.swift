@@ -693,7 +693,8 @@ enum TournamentAutomationEvidenceTensionAdvisor {
       .first?.id
   }
 
-  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String {
+  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String
+  {
     let trimmed = segmentID.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return segmentID }
     let name = config.userSegments.first { $0.id == trimmed }?.name ?? trimmed
@@ -1489,7 +1490,8 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
       .first?.id
   }
 
-  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String {
+  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String
+  {
     let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
     return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
   }
@@ -1691,7 +1693,8 @@ enum TournamentAutomationRationaleSignalAdvisor {
       .first?.id
   }
 
-  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String {
+  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String
+  {
     let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
     return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
   }
@@ -1796,7 +1799,7 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
     self.priority = max(0, priority)
     self.triggerSummary = ProductTournamentModelText.cleanedText(
       triggerSummary,
-      fallback: "AI-user evidence found a product revision trigger.",
+      fallback: "AI-user evidence found a contender revision trigger.",
       limit: 320
     )
     self.prototypeChange = ProductTournamentModelText.cleanedText(
@@ -1958,7 +1961,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
     if containsAny(rationale, ["csv", "import", "spreadsheet"]) {
       return RevisionPlan(
         title: isRetargeted
-          ? "Retarget product revision for AI-user rationale"
+          ? "Retarget contender revision for AI-user rationale"
           : "Revise prototype for AI-user rationale",
         prototypeChange:
           "\(retargetPrefix)add a visible import or spreadsheet handoff path that proves the prototype can absorb real current-workflow data.",
@@ -1971,7 +1974,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
     if containsAny(rationale, ["roi", "cost", "risk", "budget", "sponsor"]) {
       return RevisionPlan(
         title: isRetargeted
-          ? "Retarget product revision for AI-user rationale"
+          ? "Retarget contender revision for AI-user rationale"
           : "Revise prototype for AI-user rationale",
         prototypeChange:
           "\(retargetPrefix)add sponsor-facing proof of cost, risk reduction, or decision confidence directly in the prototype flow.",
@@ -1984,7 +1987,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
     if containsAny(rationale, ["trust", "proof", "evidence", "confidence"]) {
       return RevisionPlan(
         title: isRetargeted
-          ? "Retarget product revision for AI-user rationale"
+          ? "Retarget contender revision for AI-user rationale"
           : "Revise prototype for AI-user rationale",
         prototypeChange:
           "\(retargetPrefix)make the proof artifact inspectable: show source context, decision criteria, and why the prototype beats the current workflow.",
@@ -1997,7 +2000,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
     if containsAny(rationale, ["switch", "switching", "manual", "alternative"]) {
       return RevisionPlan(
         title: isRetargeted
-          ? "Retarget product revision for AI-user rationale"
+          ? "Retarget contender revision for AI-user rationale"
           : "Revise prototype for AI-user rationale",
         prototypeChange:
           "\(retargetPrefix)reduce switching friction by making the first successful workflow moment obvious and reversible.",
@@ -2010,7 +2013,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
     if containsAny(rationale, ["unclear", "confusing", "missing", "cannot", "can't"]) {
       return RevisionPlan(
         title: isRetargeted
-          ? "Retarget product revision for AI-user rationale"
+          ? "Retarget contender revision for AI-user rationale"
           : "Revise prototype for AI-user rationale",
         prototypeChange:
           "\(retargetPrefix)remove ambiguity in the next action and expose the missing capability where the AI user got stuck.",
@@ -2022,7 +2025,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
     }
     return RevisionPlan(
       title: isRetargeted
-        ? "Retarget product revision for AI-user rationale"
+        ? "Retarget contender revision for AI-user rationale"
         : "Revise prototype for AI-user rationale",
       prototypeChange:
         "\(retargetPrefix)turn the repeated rationale into a visible product affordance, not just a better explanation.",
@@ -2307,7 +2310,8 @@ enum TournamentAutomationProofTargetAdvisor {
     isPersonaModelAvailable: Bool
   ) -> TournamentAutomationProofTarget? {
     guard
-      let contender = config.tournamentContenders.first(where: { $0.experimentID == experiment.id }),
+      let contender = config.tournamentContenders.first(where: { $0.experimentID == experiment.id }
+      ),
       isPlanProofEligible(contender.status),
       let planScope = activePlanRound(for: contender, config: config)
     else { return nil }
@@ -2509,7 +2513,8 @@ enum TournamentAutomationExperimentRanker {
       planProofTarget?.contenderID == nil ? nil : .runPlanProof
     let effectiveNextActionKind = planProofNextActionKind ?? nextAction?.kind
     let effectiveNextActionTitle = planProofTarget?.nextActionTitle ?? nextAction?.title
-    let effectiveNextActionPriority = planProofTarget?.nextActionPriority ?? nextAction?.priority ?? 0
+    let effectiveNextActionPriority =
+      planProofTarget?.nextActionPriority ?? nextAction?.priority ?? 0
     return TournamentAutomationExperimentSignal(
       experimentID: experiment.id,
       readinessScore: readiness.map { Int($0.readinessScore.rounded()) },
@@ -2662,7 +2667,7 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
     case .runCohort:
       return action.kind == .rerunCohort ? "Rerun evidence cohort" : "Run evidence cohort"
     case .applyRevision:
-      return "Apply product revision"
+      return "Apply contender revision"
     case .blocked:
       return action.title
     }
@@ -2697,7 +2702,8 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
       self.blockedReason = nil
     case .applyRoundTransition:
       self.kind = .applyRoundTransition
-      self.canExecute = action.tournamentID != nil && action.roundID != nil
+      self.canExecute =
+        action.tournamentID != nil && action.roundID != nil
         && action.contenderID != nil
       self.blockedReason =
         self.canExecute
@@ -2709,7 +2715,8 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
         for: action,
         isPersonaModelAvailable: isPersonaModelAvailable
       )
-      self.canExecute = action.tournamentID != nil && action.roundID != nil
+      self.canExecute =
+        action.tournamentID != nil && action.roundID != nil
         && action.contenderID != nil && modeBlockedReason == nil
       self.blockedReason =
         self.canExecute
@@ -3169,7 +3176,7 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
   private var revisionBriefMessage: String? {
     guard !revisionBriefSummaries.isEmpty else { return nil }
     let briefs = revisionBriefSummaries.prefix(3).joined(separator: " | ")
-    return "Product revisions: \(StringUtils.boundedText(briefs, limit: 420))."
+    return "Contender revisions: \(StringUtils.boundedText(briefs, limit: 420))."
   }
 
   private var proofDebtMessage: String? {
@@ -3598,7 +3605,8 @@ enum TournamentAutomationCycleLearningAdvisor {
         config: config,
         evidenceIndex: evidenceIndex
       ),
-      currentSignal.title == action.title || action.title == "Validate targeted tournament proof revision"
+      currentSignal.title == action.title
+        || action.title == "Validate targeted tournament proof revision"
     else { return nil }
     let stepIDs = targetedScenarioStepIDs(for: action)
     return config.tournamentAutomationCycleAudits
@@ -3917,7 +3925,8 @@ enum TournamentAutomationCycleLearningAdvisor {
     signal: TournamentAutomationTargetedProofOutcomeSignal
   ) -> Bool {
     audit.targetedProofOutcomeSummaries.contains { summary in
-      let labelMatches = summary.localizedCaseInsensitiveContains("targeted tournament proof outcome")
+      let labelMatches = summary.localizedCaseInsensitiveContains(
+        "targeted tournament proof outcome")
       let targetDecisionMatches = summary.contains(
         "target_decision \(signal.targetDecision.rawValue)"
       )
@@ -4127,7 +4136,8 @@ enum TournamentAutomationPlanner {
       config: config,
       evidenceIndex: evidenceIndex
     )
-    .first(where: { $0.isActionable && contender($0.contenderID, matches: experiment, in: config) }) {
+    .first(where: { $0.isActionable && contender($0.contenderID, matches: experiment, in: config) })
+    {
       return transitionStep(
         experiment: experiment,
         title: "Apply Round 1 transition",
@@ -4145,7 +4155,8 @@ enum TournamentAutomationPlanner {
       config: config,
       evidenceIndex: evidenceIndex
     )
-    .first(where: { $0.isActionable && contender($0.contenderID, matches: experiment, in: config) }) {
+    .first(where: { $0.isActionable && contender($0.contenderID, matches: experiment, in: config) })
+    {
       return transitionStep(
         experiment: experiment,
         title: "Apply Round 2 transition",
@@ -4163,7 +4174,8 @@ enum TournamentAutomationPlanner {
       config: config,
       evidenceIndex: evidenceIndex
     )
-    .first(where: { $0.isActionable && contender($0.contenderID, matches: experiment, in: config) }) {
+    .first(where: { $0.isActionable && contender($0.contenderID, matches: experiment, in: config) })
+    {
       return transitionStep(
         experiment: experiment,
         title: "Apply Round 3 transition",
@@ -4368,7 +4380,7 @@ enum TournamentAutomationPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent tournament automation cycle \(audit.id) already applied this product revision; run fresh targeted AI-user evidence or change the prototype before applying it again."
+        "Recent tournament automation cycle \(audit.id) already applied this contender revision; run fresh targeted AI-user evidence or change the prototype before applying it again."
       return blocked
     }
     if step.canExecute,
@@ -4485,7 +4497,8 @@ enum TournamentAutomationPlanProofStepError: LocalizedError, Equatable {
     case .invalidStep(let id):
       return "Tournament automation step \(id) is not a Round 1 plan-proof step."
     case .missingScope(let id):
-      return "Tournament automation plan-proof step \(id) is missing tournament, round, or contender scope."
+      return
+        "Tournament automation plan-proof step \(id) is missing tournament, round, or contender scope."
     case .personaModelRequiresAsync(let id):
       return "Tournament automation plan-proof step \(id) requires persona-model evaluation."
     }
@@ -4504,13 +4517,15 @@ enum TournamentAutomationRoundTransitionStepError: LocalizedError, Equatable {
     case .invalidStep(let id):
       return "Tournament automation step \(id) is not a round-transition step."
     case .missingScope(let id):
-      return "Tournament automation round-transition step \(id) is missing tournament, round, or contender scope."
+      return
+        "Tournament automation round-transition step \(id) is missing tournament, round, or contender scope."
     case .unknownRound(let id):
       return "Product tournament round \(id) was not found."
     case .unsupportedRound(let id, let kind):
       return "Product tournament round \(id) has unsupported transition kind \(kind.rawValue)."
     case .missingProposal(let contenderID, let roundID):
-      return "No actionable tournament transition exists for contender \(contenderID) in round \(roundID)."
+      return
+        "No actionable tournament transition exists for contender \(contenderID) in round \(roundID)."
     }
   }
 }
@@ -4772,7 +4787,8 @@ enum ProductTournamentDecisionAdvisorError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .noProposal(let experimentID):
-      return "No tournament decision recommendation is available for tournament experiment \(experimentID)."
+      return
+        "No tournament decision recommendation is available for tournament experiment \(experimentID)."
     }
   }
 }
@@ -5045,7 +5061,8 @@ enum ProductTournamentNextActionAdvisor {
       let shouldRunTarget =
         canRunTarget
         && (readiness.recommendation == .gatherEvidence || readiness.recommendation == .keepGoing)
-      let actionKind: ProductTournamentNextActionKind = shouldRunTarget ? .runCohort : .refineContender
+      let actionKind: ProductTournamentNextActionKind =
+        shouldRunTarget ? .runCohort : .refineContender
       let targetDetail: String
       if shouldRunTarget, let cohortID = rationaleSignal.targetCohortID,
         let scenarioID = rationaleSignal.targetScenarioID,
@@ -5381,7 +5398,8 @@ enum ProductTournamentNextActionAdvisor {
     return orderedUnique(segmentIDs)
   }
 
-  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String {
+  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String
+  {
     let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
     return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
   }
@@ -5619,10 +5637,10 @@ enum ProductTournamentNextActionAdvisor {
     )
     let targetDetail =
       targetDecision.map {
-        "Review whether to mark the contender \($0.rawValue) before more product revisions."
-      } ?? "Review whether to narrow, pivot, or kill before more product revisions."
+        "Review whether to mark the contender \($0.rawValue) before more contender revisions."
+      } ?? "Review whether to narrow, pivot, or kill before more contender revisions."
     let detail = [
-      "Recent tournament automation cycle \(audit.id) repeated a product revision validation.",
+      "Recent tournament automation cycle \(audit.id) repeated a contender revision validation.",
       "The same AI-user rationale still survived (\(audit.summary)).",
       targetDetail,
     ].joined(separator: " ")
@@ -5681,9 +5699,9 @@ enum ProductTournamentNextActionAdvisor {
     return ProductTournamentNextAction(
       experimentID: experiment.id,
       kind: .rerunCohort,
-      title: "Validate product revision",
+      title: "Validate contender revision",
       detail:
-        "Recent tournament automation cycle \(revisionAudit.id) applied a product revision after stalled rationale audit \(stalledAudit.id); rerun the targeted persona-model scenario for \(targetName) before revising again.",
+        "Recent tournament automation cycle \(revisionAudit.id) applied a contender revision after stalled rationale audit \(stalledAudit.id); rerun the targeted persona-model scenario for \(targetName) before revising again.",
       priority: min(99, max(action.priority + 3, 90)),
       cohortID: cohortID,
       requiredSimulationMode: .personaModel,
@@ -6044,7 +6062,9 @@ enum ProductTournamentReflectDecisionApplier {
 
     for update in updates {
       guard
-        let experimentIndex = next.tournamentExperiments.firstIndex(where: { $0.id == update.experimentID })
+        let experimentIndex = next.tournamentExperiments.firstIndex(where: {
+          $0.id == update.experimentID
+        })
       else {
         throw ProductTournamentDecisionTransitionError.unknownExperiment(update.experimentID)
       }

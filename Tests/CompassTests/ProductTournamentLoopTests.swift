@@ -1983,7 +1983,7 @@ struct ProductTournamentLoopTests {
     try #require(revisionStep.canExecute)
     try #require(revisionStep.id.contains("apply_revision"))
     try #require(revisionStep.targetScenarioID == buyerScenario.id)
-    try #require(revisionBrief.title == "Retarget product revision for AI-user rationale")
+    try #require(revisionBrief.title == "Retarget contender revision for AI-user rationale")
     try #require(revisionBrief.prototypeChange.contains("same rationale survived"))
     try #require(revisionBrief.proofPlan.contains("current alternative"))
     let revisionAudit = TournamentAutomationCycleAudit(
@@ -1992,14 +1992,14 @@ struct ProductTournamentLoopTests {
       endedAt: 380,
       executedStepIDs: [revisionStep.id],
       experimentIDs: [experiment.id],
-      messages: ["Applied product revision for \(experiment.title)."],
+      messages: ["Applied contender revision for \(experiment.title)."],
       maxSteps: 3,
       revisionBriefSummaries: [revisionBrief.auditSummary],
       stopReason: .repeatedStep,
       stopStepID: revisionStep.id,
       stopStepTitle: revisionStep.title,
-      stopDetail: "Stopped before repeating Apply product revision.",
-      userMessage: "Tournament automation cycle ran 1 step(s). Product revision applied."
+      stopDetail: "Stopped before repeating Apply contender revision.",
+      userMessage: "Tournament automation cycle ran 1 step(s). Contender revision applied."
     )
     let revisedConfig = config.recordingTournamentAutomationCycleAudit(revisionAudit)
     let appliedAudit = try #require(
@@ -2024,7 +2024,7 @@ struct ProductTournamentLoopTests {
 
     try #require(appliedAudit.id == revisionAudit.id)
     try #require(validationAction.kind == .rerunCohort)
-    try #require(validationAction.title == "Validate product revision")
+    try #require(validationAction.title == "Validate contender revision")
     try #require(validationAction.detail.contains(revisionAudit.id))
     try #require(validationAction.detail.contains("rerun the targeted persona-model scenario"))
     try #require(validationAction.targetPersonaID == buyer.id)
@@ -2079,7 +2079,7 @@ struct ProductTournamentLoopTests {
       stopReason: .noExecutableStep,
       stopDetail: "Stopped because no executable tournament automation step remains.",
       userMessage:
-        "Tournament automation cycle ran 1 step(s). Product revision validation still showed the rationale."
+        "Tournament automation cycle ran 1 step(s). Contender revision validation still showed the rationale."
     )
     let validationConfig = revisedConfig.recordingTournamentAutomationCycleAudit(validationAudit)
     let postValidationAction = try #require(
@@ -2113,14 +2113,14 @@ struct ProductTournamentLoopTests {
       endedAt: 430,
       executedStepIDs: [postValidationStep.id],
       experimentIDs: [experiment.id],
-      messages: ["Applied second product revision for \(experiment.title)."],
+      messages: ["Applied second contender revision for \(experiment.title)."],
       maxSteps: 3,
       revisionBriefSummaries: [secondRevisionBrief.auditSummary],
       stopReason: .repeatedStep,
       stopStepID: postValidationStep.id,
       stopStepTitle: postValidationStep.title,
-      stopDetail: "Stopped before repeating Apply product revision.",
-      userMessage: "Tournament automation cycle ran 1 step(s). Second product revision applied."
+      stopDetail: "Stopped before repeating Apply contender revision.",
+      userMessage: "Tournament automation cycle ran 1 step(s). Second contender revision applied."
     )
     let secondRevisedConfig = validationConfig.recordingTournamentAutomationCycleAudit(
       secondRevisionAudit)
@@ -2138,7 +2138,7 @@ struct ProductTournamentLoopTests {
       ))
 
     try #require(secondValidationAction.kind == .rerunCohort)
-    try #require(secondValidationAction.title == "Validate product revision")
+    try #require(secondValidationAction.title == "Validate contender revision")
     try #require(secondValidationAction.detail.contains(secondRevisionAudit.id))
     try #require(secondValidationStep.kind == .runCohort)
     try #require(secondValidationStep.canExecute)
@@ -2184,7 +2184,7 @@ struct ProductTournamentLoopTests {
       stopReason: .noExecutableStep,
       stopDetail: "Stopped because no executable tournament automation step remains.",
       userMessage:
-        "Tournament automation cycle ran 1 step(s). Second product revision validation still showed the rationale."
+        "Tournament automation cycle ran 1 step(s). Second contender revision validation still showed the rationale."
     )
     let fatiguedConfig = secondRevisedConfig.recordingTournamentAutomationCycleAudit(
       secondValidationAudit)
@@ -2235,7 +2235,7 @@ struct ProductTournamentLoopTests {
     try #require(fatigueDigest.contains("Review revision fatigue"))
     try #require(fatigueDigest.contains("target_decision narrow"))
     try #require(digest.contains("Retarget AI-user rationale signal"))
-    try #require(digest.contains("Retarget product revision for AI-user rationale"))
+    try #require(digest.contains("Retarget contender revision for AI-user rationale"))
     try #require(digest.contains("tournament-cycle-stalled-rationale"))
     try #require(digest.contains("rationale signals"))
   }
@@ -3783,7 +3783,7 @@ struct ProductTournamentLoopTests {
     try #require(legacyAudit.endingModelFreePlanEvaluationCount == nil)
   }
 
-  @Test func targetedProofOutcomeContradictionQueuesProductRevision() throws {
+  @Test func targetedProofOutcomeContradictionQueuesContenderRevision() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -4122,7 +4122,7 @@ struct ProductTournamentLoopTests {
       stopReason: .reachedStepLimit,
       stopStepID: revisionStep.id,
       stopStepTitle: revisionStep.title,
-      stopDetail: "Product revision checkpoint recorded.",
+      stopDetail: "Contender revision checkpoint recorded.",
       userMessage: "Applied targeted proof revision; validate next."
     )
     let revisedConfig = config.recordingTournamentAutomationCycleAudit(revisionAudit)
@@ -4239,7 +4239,7 @@ struct ProductTournamentLoopTests {
       proofTargetSummaries: [proofTargetSummary],
       targetedProofOutcomeSummaries: [targetedProofOutcomeSummary],
       revisionBriefSummaries: [
-        "\(step.experimentID): Retarget product revision for AI-user rationale; source ai_user_rationale; priority 88; target Budget owner"
+        "\(step.experimentID): Retarget contender revision for AI-user rationale; source ai_user_rationale; priority 88; target Budget owner"
       ]
     )
 
@@ -4277,14 +4277,14 @@ struct ProductTournamentLoopTests {
     try #require(audit.targetedProofOutcomeSummaries[0].contains("outcome contradicts_target"))
     try #require(audit.targetedProofOutcomeSummaries[0].contains("recommended_decision promote"))
     try #require(audit.revisionBriefSummaries.count == 1)
-    try #require(audit.revisionBriefSummaries[0].contains("Retarget product revision"))
+    try #require(audit.revisionBriefSummaries[0].contains("Retarget contender revision"))
     try #require(audit.stopReason == .noExecutableStep)
     try #require(audit.userMessage.contains("Tournament automation cycle ran 1 step(s)."))
     try #require(audit.userMessage.contains("evidence runs 1 completed, 0 needing review"))
     try #require(audit.userMessage.contains("Evidence tensions:"))
     try #require(audit.userMessage.contains("Proof targets:"))
     try #require(audit.userMessage.contains("Targeted proof outcomes:"))
-    try #require(audit.userMessage.contains("Product revisions:"))
+    try #require(audit.userMessage.contains("Contender revisions:"))
     try #require(audit.userMessage.contains("Proof debt improved by 2"))
     try #require(audit.summary.contains("runs run-one"))
     try #require(audit.summary.contains("proof debt 8 -> 6 (-2)"))
@@ -4297,7 +4297,7 @@ struct ProductTournamentLoopTests {
     try #require(audit.summary.contains("targeted outcomes"))
     try #require(audit.summary.contains("outcome contradicts_target"))
     try #require(audit.summary.contains("revisions"))
-    try #require(audit.summary.contains("Retarget product revision"))
+    try #require(audit.summary.contains("Retarget contender revision"))
     try #require(
       audit.userMessage.contains(
         "Stopped because no executable tournament automation step remains."))

@@ -1037,7 +1037,7 @@ struct ProductTournamentWorkbenchTab: View {
         WorkbenchSection("Revision Briefs", systemImage: "hammer") {
           VStack(alignment: .leading, spacing: 8) {
             if tournamentAutomationRevisionBriefs.isEmpty {
-              WorkbenchEmptyLine("No product revision briefs queued.")
+              WorkbenchEmptyLine("No contender revision briefs queued.")
             } else {
               ForEach(tournamentAutomationRevisionBriefs.prefix(4)) { brief in
                 revisionBriefRow(brief)
@@ -2819,9 +2819,9 @@ struct ProductTournamentWorkbenchTab: View {
         startedAt: startedAt,
         idPrefix: "tournament-cycle-manual-revision",
         targetedProofOutcomeSummaries: targetedProofOutcomeSummaries,
-        stopDetail: "Manual product revision applied; run targeted validation evidence next.",
+        stopDetail: "Manual contender revision applied; run targeted validation evidence next.",
         userMessage:
-          "Applied product revision for \(brief.experimentID). Run targeted validation evidence next."
+          "Applied contender revision for \(brief.experimentID). Run targeted validation evidence next."
       )
       scenarioRunMessage = audit.userMessage
       await project.saveProductTournamentConfig(
@@ -2853,14 +2853,14 @@ struct ProductTournamentWorkbenchTab: View {
       executedStepIDs: [stepID],
       experimentIDs: [brief.experimentID],
       messages: [
-        "Applied product revision \(brief.title) to scenario \(scenarioID)."
+        "Applied contender revision \(brief.title) to scenario \(scenarioID)."
       ],
       maxSteps: 1,
       targetedProofOutcomeSummaries: targetedProofOutcomeSummaries,
       revisionBriefSummaries: [brief.auditSummary],
       stopReason: .reachedStepLimit,
       stopStepID: stepID,
-      stopStepTitle: "Apply product revision",
+      stopStepTitle: "Apply contender revision",
       stopDetail: stopDetail,
       userMessage: userMessage
     )
@@ -3148,9 +3148,9 @@ struct ProductTournamentWorkbenchTab: View {
             )
             .map { [$0.auditSummary] } ?? [],
           stopDetail:
-            "Product revision checkpoint recorded; continue with targeted validation evidence.",
+            "Contender revision checkpoint recorded; continue with targeted validation evidence.",
           userMessage:
-            "Product revision checkpoint recorded for \(stepRevisionBrief.experimentID). Continuing with targeted validation evidence."
+            "Contender revision checkpoint recorded for \(stepRevisionBrief.experimentID). Continuing with targeted validation evidence."
         )
         await project.saveProductTournamentConfig(
           project.productTournamentConfig.recordingTournamentAutomationCycleAudit(checkpoint)
@@ -3436,7 +3436,7 @@ struct ProductTournamentWorkbenchTab: View {
         await loadContractStatus()
         return TournamentAutomationStepResult(
           message:
-            "Applied product revision for \(step.experimentTitle): \(brief.title) to scenario \(scenarioID)."
+            "Applied contender revision for \(step.experimentTitle): \(brief.title) to scenario \(scenarioID)."
         )
       } catch {
         project.fail(error)
