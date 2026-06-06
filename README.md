@@ -81,9 +81,11 @@ and advances them through rounds:
   before running, blocking accidental evidence collection against sibling
   contenders once Round 2 has narrowed to one implementation track; the
   Workbench also preselects that track and visibly locks sibling scenario/cohort
-  run controls. Scoped Round 2 scenario evidence then drives the next tournament
-  transition: advance the contender to Round 3, mark the core technology for
-  revision, or eliminate the contender before adding prototype fidelity.
+  run controls, while product-factory/autopilot planning omits sibling proof
+  targets and evidence steps. Scoped Round 2 scenario evidence then drives the
+  next tournament transition: advance the contender to Round 3, mark the core
+  technology for revision, or eliminate the contender before adding prototype
+  fidelity.
 - **Round 3: prototype.** Agentic users exercise low-medium fidelity product
   versions and evaluate workflow improvement, switching readiness, continued-use
   pull, and explicit price or sponsorship intent. Scoped prototype evidence can

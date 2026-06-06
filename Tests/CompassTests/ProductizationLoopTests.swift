@@ -395,14 +395,16 @@ struct ProductizationLoopTests {
     try #require(tension.targetDecision == .promote)
     try #require(tension.displaySubtitle.contains("decision promote"))
     try #require(tension.auditSummary.contains("target_decision promote"))
-    try #require(ProductMarketFitDecisionAdvisor.proposals(
-      config: config,
-      evidenceIndex: index
-    ).isEmpty)
-    try #require(ProductFactoryDecisionCandidateAdvisor.candidates(
-      config: config,
-      evidenceIndex: index
-    ).isEmpty)
+    try #require(
+      ProductMarketFitDecisionAdvisor.proposals(
+        config: config,
+        evidenceIndex: index
+      ).isEmpty)
+    try #require(
+      ProductFactoryDecisionCandidateAdvisor.candidates(
+        config: config,
+        evidenceIndex: index
+      ).isEmpty)
     try #require(action.kind == .runCohort)
     try #require(action.title == "Resolve split PMF evidence")
     try #require(action.cohortID == config.scenarioCohorts[0].id)
@@ -476,12 +478,13 @@ struct ProductizationLoopTests {
       userMessage: "Factory cycle ran 1 step(s). Evidence tensions remained split."
     )
     let mismatchedDecisionConfig = config.recordingFactoryCycleAudit(mismatchedDecisionAudit)
-    try #require(ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
-      for: action,
-      experiment: experiment,
-      config: mismatchedDecisionConfig,
-      evidenceIndex: index
-    ) == nil)
+    try #require(
+      ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
+        for: action,
+        experiment: experiment,
+        config: mismatchedDecisionConfig,
+        evidenceIndex: index
+      ) == nil)
     let learningAudit = try #require(
       ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
         for: action,
@@ -506,14 +509,17 @@ struct ProductizationLoopTests {
     try #require(stalledAction.kind == .refineBet)
     try #require(stalledAction.title == "Retarget split PMF evidence")
     try #require(stalledAction.detail.contains(stalledAudit.id))
-    try #require(stalledAction.detail.contains("still split") || stalledAction.detail.contains("contradiction"))
+    try #require(
+      stalledAction.detail.contains("still split") || stalledAction.detail.contains("contradiction")
+    )
     try #require(stalledAction.targetScenarioID == buyerScenario.id)
     try #require(stalledAction.targetDecision == .promote)
-    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
-      config: stalledConfig,
-      evidenceIndex: index,
-      isPersonaModelAvailable: true
-    ) == nil)
+    try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: stalledConfig,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ) == nil)
     try #require(!blockedStep.canExecute)
     try #require(blockedStep.action.kind == .refineBet)
     try #require(blockedStep.action.targetDecision == .promote)
@@ -622,10 +628,11 @@ struct ProductizationLoopTests {
     try #require(tension.targetScenarioID == operatorScenario.id)
     try #require(tension.targetDecision == .kill)
     try #require(tension.auditSummary.contains("target_decision kill"))
-    try #require(ProductMarketFitDecisionAdvisor.proposals(
-      config: config,
-      evidenceIndex: index
-    ).isEmpty)
+    try #require(
+      ProductMarketFitDecisionAdvisor.proposals(
+        config: config,
+        evidenceIndex: index
+      ).isEmpty)
     try #require(action.title == "Resolve split PMF evidence")
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetScenarioID == operatorScenario.id)
@@ -689,11 +696,12 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index
     )
-    let proofTarget = try #require(ProductFactoryProofTargetAdvisor.target(
-      for: experiment,
-      config: config,
-      evidenceIndex: index
-    ))
+    let proofTarget = try #require(
+      ProductFactoryProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
@@ -701,13 +709,15 @@ struct ProductizationLoopTests {
 
     try #require(readiness.aiUserCompletedRunCount == 0)
     try #require(readiness.recommendation == .gatherEvidence)
-    try #require(readiness.rationale.contains {
-      $0.contains("stopping requires simulated-user rejection")
-    })
-    try #require(ProductMarketFitDecisionAdvisor.proposals(
-      config: config,
-      evidenceIndex: index
-    ).isEmpty)
+    try #require(
+      readiness.rationale.contains {
+        $0.contains("stopping requires simulated-user rejection")
+      })
+    try #require(
+      ProductMarketFitDecisionAdvisor.proposals(
+        config: config,
+        evidenceIndex: index
+      ).isEmpty)
     try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user rejection check")
     try #require(action.detail.contains("before stopping the experiment"))
@@ -777,11 +787,12 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let proofTarget = try #require(ProductFactoryProofTargetAdvisor.target(
-      for: experiment,
-      config: config,
-      evidenceIndex: index
-    ))
+    let proofTarget = try #require(
+      ProductFactoryProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
     let stepID = ProductFactoryCycleFailureAdvisor.stepID(for: action)
 
     func stalledAudit(id: String, proofTargetSummary: String) -> ProductFactoryCycleAudit {
@@ -824,21 +835,24 @@ struct ProductizationLoopTests {
     let matchedConfig = config.recordingFactoryCycleAudit(
       matchedAudit
     )
-    let matchedConfigTarget = try #require(ProductFactoryProofTargetAdvisor.target(
-      for: experiment,
-      config: matchedConfig,
-      evidenceIndex: index
-    ))
-    let mismatchedStep = try #require(ProductFactoryAutopilotPlanner.nextStep(
-      config: mismatchedConfig,
-      evidenceIndex: index,
-      isPersonaModelAvailable: true
-    ))
-    let matchedStep = try #require(ProductFactoryAutopilotPlanner.nextStep(
-      config: matchedConfig,
-      evidenceIndex: index,
-      isPersonaModelAvailable: true
-    ))
+    let matchedConfigTarget = try #require(
+      ProductFactoryProofTargetAdvisor.target(
+        for: experiment,
+        config: matchedConfig,
+        evidenceIndex: index
+      ))
+    let mismatchedStep = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: mismatchedConfig,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+    let matchedStep = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: matchedConfig,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
     let matchedDigest = ProductizationPlanningDigestFormatter.promptText(
       config: matchedConfig,
       evidenceIndex: index
@@ -859,18 +873,20 @@ struct ProductizationLoopTests {
         matchedAudit.proofTargetSummaries[0].localizedCaseInsensitiveContains(targetPersonaName))
     }
     try #require(mismatchedSummary.contains("target_decision promote"))
-    try #require(ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
-      for: action,
-      experiment: experiment,
-      config: mismatchedConfig,
-      evidenceIndex: index
-    ) == nil)
-    try #require(ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
-      for: action,
-      experiment: experiment,
-      config: matchedConfig,
-      evidenceIndex: index
-    )?.id == "factory-cycle-matching-decision-target")
+    try #require(
+      ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
+        for: action,
+        experiment: experiment,
+        config: mismatchedConfig,
+        evidenceIndex: index
+      ) == nil)
+    try #require(
+      ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
+        for: action,
+        experiment: experiment,
+        config: matchedConfig,
+        evidenceIndex: index
+      )?.id == "factory-cycle-matching-decision-target")
     try #require(matchedDigest.contains("target_decision kill"))
     try #require(matchedDigest.contains(targetScenarioID))
     try #require(mismatchedStep.canExecute)
@@ -937,18 +953,20 @@ struct ProductizationLoopTests {
     try #require(promoteStepID.contains("target_decision:promote"))
     try #require(killStepID.contains("target_decision:kill"))
     try #require(promoteStepID != killStepID)
-    try #require(ProductFactoryCycleFailureAdvisor.blockingAudit(
-      forStepID: promoteStepID,
-      experiment: experiment,
-      config: config,
-      evidenceIndex: .empty
-    )?.id == "factory-cycle-promote-proof-failed")
-    try #require(ProductFactoryCycleFailureAdvisor.blockingAudit(
-      forStepID: killStepID,
-      experiment: experiment,
-      config: config,
-      evidenceIndex: .empty
-    ) == nil)
+    try #require(
+      ProductFactoryCycleFailureAdvisor.blockingAudit(
+        forStepID: promoteStepID,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: .empty
+      )?.id == "factory-cycle-promote-proof-failed")
+    try #require(
+      ProductFactoryCycleFailureAdvisor.blockingAudit(
+        forStepID: killStepID,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: .empty
+      ) == nil)
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforeKill() throws {
@@ -1007,13 +1025,15 @@ struct ProductizationLoopTests {
     try #require(readiness.aiUserCompletedRunCount == 1)
     try #require(readiness.aiUserDistinctPersonaCount == 1)
     try #require(readiness.recommendation == .gatherEvidence)
-    try #require(readiness.rationale.contains {
-      $0.contains("AI-user rejection evidence across at least 2 personas")
-    })
-    try #require(ProductMarketFitDecisionAdvisor.proposals(
-      config: config,
-      evidenceIndex: index
-    ).isEmpty)
+    try #require(
+      readiness.rationale.contains {
+        $0.contains("AI-user rejection evidence across at least 2 personas")
+      })
+    try #require(
+      ProductMarketFitDecisionAdvisor.proposals(
+        config: config,
+        evidenceIndex: index
+      ).isEmpty)
     try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user rejection check")
     try #require(action.detail.contains("requires at least 2"))
@@ -1077,11 +1097,12 @@ struct ProductizationLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let proofTarget = try #require(ProductFactoryProofTargetAdvisor.target(
-      for: experiment,
-      config: config,
-      evidenceIndex: index
-    ))
+    let proofTarget = try #require(
+      ProductFactoryProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
@@ -1091,13 +1112,15 @@ struct ProductizationLoopTests {
     try #require(readiness.aiUserDistinctPersonaCount == 2)
     try #require(readiness.aiUserCurrentAlternativePersonaCount == 0)
     try #require(readiness.recommendation == .gatherEvidence)
-    try #require(readiness.rationale.contains {
-      $0.contains("current-alternative rejection proof")
-    })
-    try #require(ProductMarketFitDecisionAdvisor.proposals(
-      config: config,
-      evidenceIndex: index
-    ).isEmpty)
+    try #require(
+      readiness.rationale.contains {
+        $0.contains("current-alternative rejection proof")
+      })
+    try #require(
+      ProductMarketFitDecisionAdvisor.proposals(
+        config: config,
+        evidenceIndex: index
+      ).isEmpty)
     try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user alternative rejection check")
     try #require(action.detail.contains("current-alternative proof"))
@@ -1137,11 +1160,12 @@ struct ProductizationLoopTests {
       config: config,
       evidenceIndex: index
     )
-    let proofTarget = try #require(ProductFactoryProofTargetAdvisor.target(
-      for: experiment,
-      config: config,
-      evidenceIndex: index
-    ))
+    let proofTarget = try #require(
+      ProductFactoryProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
@@ -1151,10 +1175,11 @@ struct ProductizationLoopTests {
     try #require(readiness.modelFreeCompletedRunCount == 3)
     try #require(readiness.recommendation == .keepGoing)
     try #require(readiness.rationale.contains { $0.contains("No AI-user evidence") })
-    try #require(ProductMarketFitDecisionAdvisor.proposals(
-      config: config,
-      evidenceIndex: index
-    ).isEmpty)
+    try #require(
+      ProductMarketFitDecisionAdvisor.proposals(
+        config: config,
+        evidenceIndex: index
+      ).isEmpty)
     try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user validation cohort")
     try #require(action.detail.contains("persona-model scenario"))
@@ -1200,10 +1225,11 @@ struct ProductizationLoopTests {
     try #require(readiness.aiUserDistinctPersonaCount == 1)
     try #require(readiness.recommendation == .keepGoing)
     try #require(readiness.rationale.contains { $0.contains("at least 2 personas") })
-    try #require(ProductMarketFitDecisionAdvisor.proposals(
-      config: config,
-      evidenceIndex: index
-    ).isEmpty)
+    try #require(
+      ProductMarketFitDecisionAdvisor.proposals(
+        config: config,
+        evidenceIndex: index
+      ).isEmpty)
     try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user validation cohort")
     try #require(action.detail.contains("requires at least 2"))
@@ -1243,10 +1269,11 @@ struct ProductizationLoopTests {
     try #require(readiness.aiUserCurrentAlternativePersonaCount == 0)
     try #require(readiness.recommendation == .keepGoing)
     try #require(readiness.rationale.contains { $0.contains("current-alternative proof") })
-    try #require(ProductMarketFitDecisionAdvisor.proposals(
-      config: config,
-      evidenceIndex: index
-    ).isEmpty)
+    try #require(
+      ProductMarketFitDecisionAdvisor.proposals(
+        config: config,
+        evidenceIndex: index
+      ).isEmpty)
     try #require(action.kind == .runCohort)
     try #require(action.title == "Run AI-user alternative challenge")
     try #require(action.detail.contains("current-alternative proof"))
@@ -1519,11 +1546,12 @@ struct ProductizationLoopTests {
     try #require(retarget.detail.contains("same AI-user rationale target"))
     try #require(retarget.targetPersonaID == buyer.id)
     try #require(retarget.targetScenarioID == buyerScenario.id)
-    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
-      config: config,
-      evidenceIndex: index,
-      isPersonaModelAvailable: true
-    )?.kind == .applyRevision)
+    try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      )?.kind == .applyRevision)
     try #require(revisionStep.kind == .applyRevision)
     try #require(revisionStep.canExecute)
     try #require(revisionStep.id.contains("apply_revision"))
@@ -1574,11 +1602,12 @@ struct ProductizationLoopTests {
     try #require(validationAction.detail.contains("rerun the targeted persona-model scenario"))
     try #require(validationAction.targetPersonaID == buyer.id)
     try #require(validationAction.targetScenarioID == buyerScenario.id)
-    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
-      config: revisedConfig,
-      evidenceIndex: index,
-      isPersonaModelAvailable: true
-    )?.kind == .runCohort)
+    try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: revisedConfig,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      )?.kind == .runCohort)
     try #require(validationStep.kind == .runCohort)
     try #require(validationStep.canExecute)
     try #require(validationStep.targetScenarioID == buyerScenario.id)
@@ -1622,7 +1651,8 @@ struct ProductizationLoopTests {
       personaRationaleSignalSummaries: [validationSignal.auditSummary],
       stopReason: .noExecutableStep,
       stopDetail: "Stopped because no executable product-factory step remains.",
-      userMessage: "Factory cycle ran 1 step(s). Product revision validation still showed the rationale."
+      userMessage:
+        "Factory cycle ran 1 step(s). Product revision validation still showed the rationale."
     )
     let validationConfig = revisedConfig.recordingFactoryCycleAudit(validationAudit)
     let postValidationAction = try #require(
@@ -1768,7 +1798,8 @@ struct ProductizationLoopTests {
     try #require(fatigueStep.kind == .blocked)
     try #require(!fatigueStep.canExecute)
     try #require(fatigueStep.action.targetDecision == .narrow)
-    try #require(fatigueStep.blockedReason == "Review the decision path before autopilot changes state.")
+    try #require(
+      fatigueStep.blockedReason == "Review the decision path before autopilot changes state.")
     try #require(fatigueSignal.pressure == .reshape)
     try #require(fatigueSignal.targetDecision == .narrow)
     try #require(fatigueDigest.contains("Review revision fatigue"))
@@ -1816,11 +1847,12 @@ struct ProductizationLoopTests {
     try #require(signal.count == 3)
     try #require(action.kind == .applyDecision)
     try #require(action.title == "Apply PMF decision")
-    try #require(ProductFactoryRevisionBriefAdvisor.brief(
-      for: experiment,
-      config: config,
-      evidenceIndex: index
-    ) == nil)
+    try #require(
+      ProductFactoryRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ) == nil)
     try #require(!digest.contains("Product-factory revision briefs"))
   }
 
@@ -2058,8 +2090,7 @@ struct ProductizationLoopTests {
     let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
     config.scenarios.removeAll { $0.experimentID == experiment.id && $0.segmentID == buyer.id }
     for index in config.scenarioCohorts.indices
-      where config.scenarioCohorts[index].experimentID == experiment.id
-    {
+    where config.scenarioCohorts[index].experimentID == experiment.id {
       let cohort = config.scenarioCohorts[index]
       config.scenarioCohorts[index] = ProductScenarioCohort(
         id: cohort.id,
@@ -2176,12 +2207,13 @@ struct ProductizationLoopTests {
     try #require(action.targetPersonaID == buyer.id)
     try #require(action.detail.contains("cohort `\(buyerCohortID)`"))
     try #require(action.requiredSimulationMode == .personaModel)
-    try #require(ProductFactoryCycleLearningAdvisor.stalledProofDebtAudit(
-      for: action,
-      experiment: experiment,
-      config: config,
-      evidenceIndex: index
-    ) == nil)
+    try #require(
+      ProductFactoryCycleLearningAdvisor.stalledProofDebtAudit(
+        for: action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: index
+      ) == nil)
     try #require(step.canExecute)
     try #require(step.cohortID == buyerCohortID)
     try #require(step.targetScenarioID == buyerScenarioID)
@@ -2204,8 +2236,7 @@ struct ProductizationLoopTests {
     let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
     config.scenarios.removeAll { $0.experimentID == experiment.id && $0.segmentID == buyer.id }
     for index in config.scenarioCohorts.indices
-      where config.scenarioCohorts[index].experimentID == experiment.id
-    {
+    where config.scenarioCohorts[index].experimentID == experiment.id {
       let cohort = config.scenarioCohorts[index]
       config.scenarioCohorts[index] = ProductScenarioCohort(
         id: cohort.id,
@@ -2237,11 +2268,12 @@ struct ProductizationLoopTests {
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
-    let proofTarget = try #require(ProductFactoryProofTargetAdvisor.target(
-      for: experiment,
-      config: config,
-      evidenceIndex: index
-    ))
+    let proofTarget = try #require(
+      ProductFactoryProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
@@ -2259,11 +2291,12 @@ struct ProductizationLoopTests {
     try #require(digest.contains("target add or enable AI-user validation proof"))
     try #require(!step.canExecute)
     try #require(step.kind == .blocked)
-    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
-      config: config,
-      evidenceIndex: index,
-      isPersonaModelAvailable: true
-    ) == nil)
+    try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ) == nil)
   }
 
   @Test func productFactoryAutopilotBlocksRequiredAIUserCohortWhenUnavailable() throws {
@@ -2328,6 +2361,92 @@ struct ProductizationLoopTests {
     try #require(available.decisionIntentSummary == "decision target promote")
     try #require(availablePlan.queueSummary.contains("decision target promote"))
     try #require(digest.contains("decision target promote"))
+  }
+
+  @Test func productFactoryProofTargetsFollowRoundTwoImplementationTarget() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    try #require(config.experiments.indices.contains(1))
+    for index in config.experiments.indices.prefix(2) {
+      config.experiments[index].decision = .keepGoing
+      config.experiments[index].baseSha = "base-\(index)"
+      config.experiments[index].currentSha = "head-\(index)"
+    }
+    let implementationTarget = try activateRoundTwoImplementationTarget(in: &config)
+    let targetExperiment = try #require(
+      config.experiments.first { $0.id == implementationTarget.experimentID }
+    )
+    let siblingExperiment = config.experiments[1]
+    let evidenceIndex = makeProofDebtEvidenceIndex(
+      experiments: [targetExperiment, siblingExperiment],
+      config: config
+    )
+
+    let targets = ProductFactoryProofTargetAdvisor.targets(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    let target = try #require(
+      ProductFactoryProofTargetAdvisor.target(
+        for: targetExperiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    )
+
+    try #require(target.experimentID == targetExperiment.id)
+    try #require(targets.map(\.experimentID) == [targetExperiment.id])
+    try #require(
+      ProductFactoryProofTargetAdvisor.target(
+        for: siblingExperiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ) == nil
+    )
+  }
+
+  @Test func productFactoryAutopilotOmitsSiblingEvidenceDuringRoundTwoTarget() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    try #require(config.experiments.indices.contains(1))
+    for index in config.experiments.indices.prefix(2) {
+      config.experiments[index].decision = .keepGoing
+      config.experiments[index].baseSha = "base-\(index)"
+      config.experiments[index].currentSha = "head-\(index)"
+    }
+    let implementationTarget = try activateRoundTwoImplementationTarget(in: &config)
+    let siblingExperiment = config.experiments[1]
+
+    let steps = ProductFactoryAutopilotPlanner.steps(
+      config: config,
+      evidenceIndex: .empty,
+      isPersonaModelAvailable: true
+    )
+    let nextStep = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty,
+        isPersonaModelAvailable: true
+      )
+    )
+    let plan = ProductFactoryAutopilotPlanner.cyclePlan(
+      config: config,
+      evidenceIndex: .empty,
+      isPersonaModelAvailable: true
+    )
+
+    try #require(steps.map(\.experimentID) == [implementationTarget.experimentID])
+    try #require(!steps.contains { $0.experimentID == siblingExperiment.id })
+    try #require(nextStep.experimentID == implementationTarget.experimentID)
+    try #require(nextStep.kind == .runCohort)
+    try #require(plan.executableSteps.map(\.experimentID) == [implementationTarget.experimentID])
+    try #require(plan.blockedSteps.isEmpty)
   }
 
   @Test func productFactoryRankerPrioritizesActionablePMFPressure() throws {
@@ -2520,10 +2639,11 @@ struct ProductizationLoopTests {
       evidenceIndex: .empty
     )
 
-    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
-      config: config,
-      evidenceIndex: .empty
-    ) == nil)
+    try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ) == nil)
     try #require(!step.canExecute)
     try #require(step.action.kind == .repairFailures)
     try #require(action.kind == .repairFailures)
@@ -2647,7 +2767,9 @@ struct ProductizationLoopTests {
         endedAt: 110,
         executedStepIDs: [broadStep.id],
         experimentIDs: [experiment.id],
-        messages: ["Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+        messages: [
+          "Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."
+        ],
         maxSteps: 3,
         evidenceRunStepCount: 1,
         evidenceRunIDs: ["first-pass"],
@@ -2717,11 +2839,12 @@ struct ProductizationLoopTests {
     try #require(proofTarget.targetScenarioID == targetScenarioID)
     try #require(proofTarget.targetPersonaName == "Budget owner")
     try #require(proofTarget.requiredSimulationMode == .personaModel)
-    let executable = try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
-      config: config,
-      evidenceIndex: evidenceIndex,
-      isPersonaModelAvailable: true
-    ))
+    let executable = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: true
+      ))
     try #require(executable.canExecute)
     try #require(step.canExecute)
     try #require(step.kind == .runCohort)
@@ -2779,11 +2902,12 @@ struct ProductizationLoopTests {
       ))
 
     try #require(stalledTargetAudit.id == "factory-cycle-stalled-target")
-    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
-      config: config,
-      evidenceIndex: evidenceIndex,
-      isPersonaModelAvailable: true
-    ) == nil)
+    try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: true
+      ) == nil)
     try #require(!blockedStep.canExecute)
     try #require(blockedStep.targetScenarioID == targetScenarioID)
     try #require(blockedStep.blockedReason?.contains("already attempted this proof target") == true)
@@ -2809,8 +2933,7 @@ struct ProductizationLoopTests {
       $0.experimentID == experiment.id && $0.segmentID != operatorID
     }
     for index in config.scenarioCohorts.indices
-      where config.scenarioCohorts[index].experimentID == experiment.id
-    {
+    where config.scenarioCohorts[index].experimentID == experiment.id {
       let cohort = config.scenarioCohorts[index]
       config.scenarioCohorts[index] = ProductScenarioCohort(
         id: cohort.id,
@@ -2913,10 +3036,11 @@ struct ProductizationLoopTests {
     try #require(proofTarget.targetPersonaName == "Budget owner")
     try #require(proofTarget.targetScenarioID == nil)
     try #require(proofTarget.requiredSimulationMode == .personaModel)
-    try #require(ProductFactoryAutopilotPlanner.nextExecutableStep(
-      config: config,
-      evidenceIndex: evidenceIndex
-    ) == nil)
+    try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: evidenceIndex
+      ) == nil)
     try #require(step.kind == .blocked)
     try #require(step.action.kind == .refineBet)
     try #require(step.action.targetDecision == nil)
@@ -3661,7 +3785,8 @@ struct ProductizationLoopTests {
     try #require(audit.summary.contains("outcome contradicts_target"))
     try #require(audit.summary.contains("revisions"))
     try #require(audit.summary.contains("Retarget product revision"))
-    try #require(audit.userMessage.contains("Stopped because no executable product-factory step remains."))
+    try #require(
+      audit.userMessage.contains("Stopped because no executable product-factory step remains."))
   }
 
   @Test func pmfDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
@@ -3949,6 +4074,81 @@ private func makeRolloutConfig(decision: ProductExperimentDecision) -> Productiz
   config.experiments[0].baseSha = "base-sha"
   config.experiments[0].currentSha = "head-sha"
   return config
+}
+
+private func activateRoundTwoImplementationTarget(
+  in config: inout ProductizationConfig
+) throws -> ProductTournamentRoundImplementationTarget {
+  let experimentID = config.experiments[0].id
+  let contenderIndex = try #require(
+    config.tournamentContenders.firstIndex { $0.experimentID == experimentID })
+  let tournamentIndex = try #require(
+    config.tournaments.firstIndex {
+      $0.id == config.tournamentContenders[contenderIndex].tournamentID
+    }
+  )
+  let planRoundIndex = try #require(
+    config.tournamentRounds.firstIndex {
+      $0.tournamentID == config.tournaments[tournamentIndex].id && $0.kind == .productPlans
+    })
+  let feasibilityRoundIndex = try #require(
+    config.tournamentRounds.firstIndex {
+      $0.tournamentID == config.tournaments[tournamentIndex].id && $0.kind == .coreTechnology
+    })
+  let contenderID = config.tournamentContenders[contenderIndex].id
+
+  config.tournamentContenders[contenderIndex].status = .narrowed
+  config.tournamentRounds[planRoundIndex].status = .completed
+  config.tournamentRounds[feasibilityRoundIndex].status = .active
+  config.tournamentRounds[feasibilityRoundIndex].contenderIDs = [contenderID]
+  config.tournaments[tournamentIndex].currentRoundID =
+    config.tournamentRounds[feasibilityRoundIndex].id
+
+  return ProductTournamentRoundImplementationTarget(
+    tournamentID: config.tournaments[tournamentIndex].id,
+    roundID: config.tournamentRounds[feasibilityRoundIndex].id,
+    contenderID: contenderID,
+    experimentID: experimentID
+  )
+}
+
+private func makeProofDebtEvidenceIndex(
+  experiments: [ProductExperiment],
+  config: ProductizationConfig
+) -> ProductizationEvidenceIndex {
+  let scores = ProductizationEvidenceScores(
+    painRecognition: 5,
+    workflowImprovement: 5,
+    alternativeAdvantage: 5,
+    switchingReadiness: 5,
+    continuedUsePull: 5
+  )
+  let personaIDs = config.userSegments.map(\.id)
+  let firstPersonaID = personaIDs.first ?? "operator"
+  let secondPersonaID = personaIDs.dropFirst().first ?? firstPersonaID
+  let records = experiments.flatMap { experiment in
+    [
+      makeDecisionAdvisorRecord(
+        id: "\(experiment.id)-proof-a",
+        experiment: experiment,
+        config: config,
+        personaID: firstPersonaID,
+        endedAt: 300,
+        verdict: .strongPull,
+        scores: scores
+      ),
+      makeDecisionAdvisorRecord(
+        id: "\(experiment.id)-proof-b",
+        experiment: experiment,
+        config: config,
+        personaID: secondPersonaID,
+        endedAt: 200,
+        verdict: .strongPull,
+        scores: scores
+      ),
+    ]
+  }
+  return ProductizationEvidenceIndex.build(records: records)
 }
 
 private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> ProductizationEvidenceIndex {

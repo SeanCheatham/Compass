@@ -41,6 +41,27 @@ enum ProductTournamentRoundImplementationTargetResolver {
     return roundTwoTarget(tournamentID: contender.tournamentID, in: config)
   }
 
+  static func activeRoundTwoTargetBlockingExperiment(
+    _ experimentID: String,
+    in config: ProductizationConfig
+  ) -> ProductTournamentRoundImplementationTarget? {
+    guard
+      let target = roundTwoTarget(
+        forExperimentInTargetTournament: experimentID,
+        in: config
+      ),
+      target.experimentID != experimentID
+    else { return nil }
+    return target
+  }
+
+  static func blocksEvidenceLaunch(
+    experimentID: String,
+    in config: ProductizationConfig
+  ) -> Bool {
+    activeRoundTwoTargetBlockingExperiment(experimentID, in: config) != nil
+  }
+
   static func roundTwoTarget(
     tournamentID: String,
     in config: ProductizationConfig

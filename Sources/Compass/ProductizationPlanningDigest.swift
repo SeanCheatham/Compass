@@ -25,6 +25,8 @@ enum ProductizationPlanningDigestFormatter {
     lines += feasibilityHandoffLines(config: config, evidenceIndex: evidenceIndex)
     lines += roundEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += prototypeEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
+    lines += factoryCycleAuditLines(config: config)
+    lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
     lines += solutionLines(config: config, maxSolutionHypotheses: maxSolutionHypotheses)
     lines += experimentLines(config: config, maxExperiments: maxExperiments)
     lines += evidenceSignalLines(
@@ -42,10 +44,8 @@ enum ProductizationPlanningDigestFormatter {
     lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += autopilotLines(config: config, evidenceIndex: evidenceIndex)
-    lines += factoryCycleAuditLines(config: config)
-    lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
 
-    return boundedLines(lines, maxLines: 64, maxCharacters: 8_200)
+    return boundedLines(lines, maxLines: 80, maxCharacters: 12_000)
   }
 
   private static func painLines(

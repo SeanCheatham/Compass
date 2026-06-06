@@ -642,7 +642,8 @@ enum ProductFactoryEvidenceTensionAdvisor {
           $0.id == scenarioID && $0.experimentID == experiment.id
         })
       else { continue }
-      let personaID = summary.personaID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      let personaID =
+        summary.personaID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         ? scenario.segmentID
         : summary.personaID
       return EvidenceTensionTarget(
@@ -659,9 +660,11 @@ enum ProductFactoryEvidenceTensionAdvisor {
       )
     }
 
-    guard let summary = negative.first(where: {
-      !$0.personaID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }) else { return nil }
+    guard
+      let summary = negative.first(where: {
+        !$0.personaID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      })
+    else { return nil }
     return EvidenceTensionTarget(
       personaID: summary.personaID,
       personaName: segmentName(for: summary.personaID, config: config),
@@ -1363,7 +1366,8 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
         outcome: .supportsTarget,
         recommendedDecision: allowedDecision(targetDecision, current: experiment.decision),
         actionKind: .refineBet,
-        title: targetDecision == .pivot ? "Apply supported pivot proof" : "Apply supported narrow proof",
+        title: targetDecision == .pivot
+          ? "Apply supported pivot proof" : "Apply supported narrow proof",
         priority: 83,
         count: count,
         runIDs: runIDs,
@@ -1496,9 +1500,11 @@ enum ProductFactoryRationaleSignalAdvisor {
     let summaries = evidenceIndex.summaries(for: experiment)
     guard !summaries.isEmpty else { return nil }
     let aggregate = ProductizationEvidenceAggregateSummary(summaries: summaries)
-    guard let aggregateSignal = aggregate.personaRationaleSignals.first(where: {
-      isActionable($0.rationale)
-    }) else { return nil }
+    guard
+      let aggregateSignal = aggregate.personaRationaleSignals.first(where: {
+        isActionable($0.rationale)
+      })
+    else { return nil }
     let sourceRunIDs = Set(aggregateSignal.runIDs)
     let sourceSummaries = summaries.filter { sourceRunIDs.contains($0.runID) }
     let target = target(for: sourceSummaries, experiment: experiment, config: config)
@@ -1837,11 +1843,13 @@ enum ProductFactoryRevisionBriefAdvisor {
     ) {
       return proofOutcomeBrief
     }
-    guard let signal = ProductFactoryRationaleSignalAdvisor.signal(
-      for: experiment,
-      config: config,
-      evidenceIndex: evidenceIndex
-    ) else { return nil }
+    guard
+      let signal = ProductFactoryRationaleSignalAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    else { return nil }
     let action = ProductMarketFitNextActionAdvisor.nextAction(
       for: experiment,
       config: config,
@@ -1877,11 +1885,13 @@ enum ProductFactoryRevisionBriefAdvisor {
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductFactoryRevisionBrief? {
-    guard let signal = ProductFactoryTargetedProofOutcomeAdvisor.signal(
-      for: experiment,
-      config: config,
-      evidenceIndex: evidenceIndex
-    ) else { return nil }
+    guard
+      let signal = ProductFactoryTargetedProofOutcomeAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    else { return nil }
     let action = ProductMarketFitNextActionAdvisor.nextAction(
       for: experiment,
       config: config,
@@ -1924,7 +1934,8 @@ enum ProductFactoryRevisionBriefAdvisor {
   ) -> RevisionPlan {
     let rationale = signal.rationale.lowercased()
     let targetName = signal.targetPersonaName ?? "the target AI user"
-    let retargetPrefix = isRetargeted
+    let retargetPrefix =
+      isRetargeted
       ? "The same rationale survived a factory cycle; "
       : ""
     if containsAny(rationale, ["csv", "import", "spreadsheet"]) {
@@ -2196,6 +2207,12 @@ enum ProductFactoryProofTargetAdvisor {
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductFactoryProofTarget? {
+    guard
+      !ProductTournamentRoundImplementationTargetResolver.blocksEvidenceLaunch(
+        experimentID: experiment.id,
+        in: config
+      )
+    else { return nil }
     guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment),
       !readiness.proofDebt.isClear
     else { return nil }
@@ -2221,7 +2238,8 @@ enum ProductFactoryProofTargetAdvisor {
       return "repair failed evidence"
     }
     if action?.targetScenarioID != nil {
-      let targetsCurrentAlternative = readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0
+      let targetsCurrentAlternative =
+        readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0
         && action?.title.localizedCaseInsensitiveContains("alternative") == true
       switch action?.targetDecision {
       case .promote:
@@ -2466,13 +2484,15 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
     case .repairFailures:
       self.kind = .blocked
       self.canExecute = false
-      self.blockedReason = action.detail.isEmpty
+      self.blockedReason =
+        action.detail.isEmpty
         ? "Repair failed evidence runs before autopilot can continue."
         : action.detail
     case .refineBet:
       self.kind = .blocked
       self.canExecute = false
-      self.blockedReason = action.detail.isEmpty
+      self.blockedReason =
+        action.detail.isEmpty
         ? "Refine the product bet before autopilot can run more evidence."
         : action.detail
     case .reviewDecision:
@@ -2524,7 +2544,8 @@ struct ProductFactoryAutopilotCyclePlan: Equatable, Sendable {
       }
       return "No product-factory action queued."
     }
-    let queued = executableSteps
+    let queued =
+      executableSteps
       .map { "\($0.experimentTitle): \($0.queueTitle)" }
       .joined(separator: " -> ")
     return capped ? "\(queued) -> plus more queued" : queued
@@ -2701,7 +2722,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     var parts = [
       executedSteps.isEmpty
         ? "Factory cycle ran no steps."
-        : "Factory cycle ran \(executedSteps.count) step(s).",
+        : "Factory cycle ran \(executedSteps.count) step(s)."
     ]
     if let outcomeMessage {
       parts.append(outcomeMessage)
@@ -3567,6 +3588,13 @@ enum ProductFactoryAutopilotPlanner {
           evidenceIndex: evidenceIndex
         )
       else { return nil }
+      guard
+        !shouldOmitForRoundTwoImplementationTarget(
+          action: action,
+          experimentID: experiment.id,
+          config: config
+        )
+      else { return nil }
       let step = ProductFactoryAutopilotStep(
         experiment: experiment,
         action: action,
@@ -3608,7 +3636,7 @@ enum ProductFactoryAutopilotPlanner {
       evidenceIndex: evidenceIndex,
       isPersonaModelAvailable: isPersonaModelAvailable
     )
-      .first { $0.canExecute }
+    .first { $0.canExecute }
   }
 
   static func nextStep(
@@ -3669,6 +3697,18 @@ enum ProductFactoryAutopilotPlanner {
     blocked.blockedReason =
       "Recent factory cycle \(audit.id) failed while running this step; repair the generated app contract, runner, scenario, or cohort before retrying. \(audit.stopDetail)"
     return blocked
+  }
+
+  private static func shouldOmitForRoundTwoImplementationTarget(
+    action: ProductMarketFitNextAction,
+    experimentID: String,
+    config: ProductizationConfig
+  ) -> Bool {
+    guard action.kind != .applyDecision else { return false }
+    return ProductTournamentRoundImplementationTargetResolver.blocksEvidenceLaunch(
+      experimentID: experimentID,
+      in: config
+    )
   }
 
   private static func applyingRecentCycleLearningBlock(
@@ -4074,7 +4114,8 @@ enum ProductMarketFitNextActionAdvisor {
       config: config,
       evidenceIndex: evidenceIndex
     ) {
-      let canRunTarget = rationaleSignal.targetCohortID != nil
+      let canRunTarget =
+        rationaleSignal.targetCohortID != nil
         && rationaleSignal.targetScenarioID != nil
       let shouldRunTarget =
         canRunTarget
@@ -4285,7 +4326,8 @@ enum ProductMarketFitNextActionAdvisor {
           " Target AI-user segment: \(name); add scenario `\(scenarioID)` to cohort `\(selectedCohort.id)` or enable a cohort that includes it."
       }
       if let scenarioID {
-        return " Target AI-user segment: \(name); enable a cohort that includes scenario `\(scenarioID)`."
+        return
+          " Target AI-user segment: \(name); enable a cohort that includes scenario `\(scenarioID)`."
       }
       return " Target AI-user segment: \(name); add an enabled scenario for this segment."
     }
@@ -4298,12 +4340,14 @@ enum ProductMarketFitNextActionAdvisor {
     cohort: ProductScenarioCohort?,
     testedPersonaIDs explicitTestedPersonaIDs: Set<String>? = nil
   ) -> AIUserPersonaTarget? {
-    let testedPersonaIDs = explicitTestedPersonaIDs ?? Set(
-      evidenceIndex.summaries(for: experiment)
-        .filter { $0.isCompleted && $0.mode == .personaModel }
-        .map(\.personaID)
-        .filter { !$0.isEmpty }
-    )
+    let testedPersonaIDs =
+      explicitTestedPersonaIDs
+      ?? Set(
+        evidenceIndex.summaries(for: experiment)
+          .filter { $0.isCompleted && $0.mode == .personaModel }
+          .map(\.personaID)
+          .filter { !$0.isEmpty }
+      )
     guard testedPersonaIDs.count < 2 else { return nil }
     let enabledScenarios = config.scenarios
       .filter { $0.experimentID == experiment.id && $0.enabled }
@@ -4321,9 +4365,11 @@ enum ProductMarketFitNextActionAdvisor {
     }
 
     let candidateSegmentIDs = targetSegmentIDs(for: experiment, config: config)
-    guard let segmentID = candidateSegmentIDs.first(where: { segmentID in
-      !testedPersonaIDs.contains(segmentID)
-    }) else { return nil }
+    guard
+      let segmentID = candidateSegmentIDs.first(where: { segmentID in
+        !testedPersonaIDs.contains(segmentID)
+      })
+    else { return nil }
     let scenario = enabledScenarios.filter { scenario in
       scenario.segmentID == segmentID
     }
@@ -4398,12 +4444,14 @@ enum ProductMarketFitNextActionAdvisor {
     if let solution {
       segmentIDs.append(contentsOf: solution.targetSegmentIDs)
     }
-    segmentIDs.append(contentsOf: config.userSegments
-      .filter { painID == nil || $0.painID == painID }
-      .map(\.id))
-    segmentIDs.append(contentsOf: config.scenarios
-      .filter { $0.experimentID == experiment.id }
-      .map(\.segmentID))
+    segmentIDs.append(
+      contentsOf: config.userSegments
+        .filter { painID == nil || $0.painID == painID }
+        .map(\.id))
+    segmentIDs.append(
+      contentsOf: config.scenarios
+        .filter { $0.experimentID == experiment.id }
+        .map(\.segmentID))
     return orderedUnique(segmentIDs)
   }
 
@@ -4460,7 +4508,8 @@ enum ProductMarketFitNextActionAdvisor {
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductMarketFitNextAction {
-    if let revisionAudit = ProductFactoryCycleLearningAdvisor
+    if let revisionAudit =
+      ProductFactoryCycleLearningAdvisor
       .appliedTargetedProofOutcomeRevisionAudit(
         for: action,
         experiment: experiment,
@@ -4603,16 +4652,18 @@ enum ProductMarketFitNextActionAdvisor {
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductMarketFitNextAction? {
-    guard let signal = ProductFactoryTargetedProofOutcomeAdvisor.signal(
-      for: experiment,
-      config: config,
-      evidenceIndex: evidenceIndex
-    ),
+    guard
+      let signal = ProductFactoryTargetedProofOutcomeAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
       let cohortID = signal.targetCohortID,
       let scenarioID = signal.targetScenarioID
     else { return nil }
     let targetName = signal.targetPersonaName ?? "the target AI user"
-    let targetDecision = action.targetDecision ?? signal.recommendedDecision ?? signal.targetDecision
+    let targetDecision =
+      action.targetDecision ?? signal.recommendedDecision ?? signal.targetDecision
     return ProductMarketFitNextAction(
       experimentID: experiment.id,
       kind: .rerunCohort,
@@ -4727,11 +4778,12 @@ enum ProductMarketFitNextActionAdvisor {
     guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment),
       !readiness.proofDebt.isClear
     else { return nil }
-    let selectedCohort = action.cohortID.flatMap { cohortID in
-      config.scenarioCohorts.first {
-        $0.id == cohortID && $0.experimentID == experiment.id
-      }
-    } ?? runnableCohort(for: experiment, config: config)
+    let selectedCohort =
+      action.cohortID.flatMap { cohortID in
+        config.scenarioCohorts.first {
+          $0.id == cohortID && $0.experimentID == experiment.id
+        }
+      } ?? runnableCohort(for: experiment, config: config)
     if readiness.proofDebt.aiUserPersonaDeficit > 0 {
       return retargetedAIUserProofDebtAction(
         audit: audit,
@@ -4861,9 +4913,10 @@ enum ProductMarketFitNextActionAdvisor {
         && $0.enabled
         && cohortScenarioIDs.contains($0.id)
     }
-    let runnableScenarios = action.targetScenarioID.map { targetScenarioID in
-      enabledScenarios.filter { $0.id == targetScenarioID }
-    } ?? enabledScenarios
+    let runnableScenarios =
+      action.targetScenarioID.map { targetScenarioID in
+        enabledScenarios.filter { $0.id == targetScenarioID }
+      } ?? enabledScenarios
     let missingTargetCommitCount = runnableScenarios.filter {
       targetCommit(for: $0, experiment: experiment) == nil
     }.count
