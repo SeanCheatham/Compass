@@ -388,10 +388,10 @@ struct ProductTournamentEvidenceStoreTests {
 
     try #require(good.recommendation == .promote)
     try #require(good.readinessScore >= 76)
-    try #require(good.aiUserCompletedRunCount == 2)
-    try #require(good.aiUserDistinctPersonaCount == 2)
+    try #require(good.personaModelCompletedRunCount == 2)
+    try #require(good.personaModelDistinctPersonaCount == 2)
     try #require(good.currentAlternativeComparisonCount == 3)
-    try #require(good.aiUserCurrentAlternativePersonaCount == 2)
+    try #require(good.personaModelCurrentAlternativePersonaCount == 2)
     try #require(good.modelFreeCompletedRunCount == 1)
     try #require(good.distinctPersonaCount == 2)
     try #require(good.evidenceRunIDs.first == "strong-a")
@@ -404,16 +404,16 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(good.rationale.contains { $0.contains("Average tournament score") })
 
     try #require(bad.recommendation == .kill)
-    try #require(bad.aiUserCompletedRunCount == 2)
-    try #require(bad.aiUserDistinctPersonaCount == 2)
-    try #require(bad.aiUserCurrentAlternativePersonaCount == 2)
+    try #require(bad.personaModelCompletedRunCount == 2)
+    try #require(bad.personaModelDistinctPersonaCount == 2)
+    try #require(bad.personaModelCurrentAlternativePersonaCount == 2)
     try #require(bad.proofDebt.isClear)
     try #require(bad.readinessScore <= 30)
     try #require(bad.rationale.contains { $0.contains("Repeated objections") })
 
     try #require(narrow.recommendation == .narrow)
-    try #require(narrow.proofDebt.aiUserPersonaDeficit == 2)
-    try #require(narrow.proofDebt.aiUserCurrentAlternativeDeficit == 2)
+    try #require(narrow.proofDebt.personaModelSimulatedUserDeficit == 2)
+    try #require(narrow.proofDebt.personaModelCurrentAlternativeDeficit == 2)
     try #require(narrow.proofDebt.summary.contains("persona-model simulated user"))
     try #require(narrow.rationale.contains { $0.contains("Missing capabilities") })
     try #require(narrow.rationale.contains { $0.contains("Proof debt") })
@@ -578,7 +578,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(!text.contains("transcript.jsonl"))
   }
 
-  @Test func planningDigestIncludesRepeatedAIUserRationaleSignals() throws {
+  @Test func planningDigestIncludesRepeatedPersonaModelRationaleSignals() throws {
     let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",

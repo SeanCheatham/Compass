@@ -95,7 +95,7 @@ struct ProductTournamentScenarioRunTests {
       })
     let brief = TournamentAutomationRevisionBrief(
       experimentID: experiment.id,
-      source: .aiUserRationale,
+      source: .personaModelRationale,
       title: "Revise prototype for simulated-user rationale",
       priority: 86,
       triggerSummary:

@@ -650,7 +650,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("target_decision kill"))
   }
 
-  @Test func tournamentDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {
+  @Test func tournamentDecisionAdvisorRequiresPersonaModelEvidenceBeforeKill() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -717,7 +717,7 @@ struct ProductTournamentLoopTests {
       evidenceIndex: index
     )
 
-    try #require(readiness.aiUserCompletedRunCount == 0)
+    try #require(readiness.personaModelCompletedRunCount == 0)
     try #require(readiness.recommendation == .gatherEvidence)
     try #require(
       readiness.rationale.contains {
@@ -1395,7 +1395,7 @@ struct ProductTournamentLoopTests {
       ) == nil)
   }
 
-  @Test func tournamentDecisionAdvisorRequiresAIUserPersonaBreadthBeforeKill() throws {
+  @Test func tournamentDecisionAdvisorRequiresPersonaModelUserBreadthBeforeKill() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -1448,8 +1448,8 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
 
-    try #require(readiness.aiUserCompletedRunCount == 1)
-    try #require(readiness.aiUserDistinctPersonaCount == 1)
+    try #require(readiness.personaModelCompletedRunCount == 1)
+    try #require(readiness.personaModelDistinctPersonaCount == 1)
     try #require(readiness.recommendation == .gatherEvidence)
     try #require(
       readiness.rationale.contains {
@@ -1534,9 +1534,9 @@ struct ProductTournamentLoopTests {
       evidenceIndex: index
     )
 
-    try #require(readiness.aiUserCompletedRunCount == 2)
-    try #require(readiness.aiUserDistinctPersonaCount == 2)
-    try #require(readiness.aiUserCurrentAlternativePersonaCount == 0)
+    try #require(readiness.personaModelCompletedRunCount == 2)
+    try #require(readiness.personaModelDistinctPersonaCount == 2)
+    try #require(readiness.personaModelCurrentAlternativePersonaCount == 0)
     try #require(readiness.recommendation == .gatherEvidence)
     try #require(
       readiness.rationale.contains {
@@ -1558,7 +1558,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("target run persona-model alternative rejection proof"))
   }
 
-  @Test func tournamentDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {
+  @Test func tournamentDecisionAdvisorRequiresPersonaModelEvidenceBeforePromotion() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -1571,7 +1571,7 @@ struct ProductTournamentLoopTests {
     let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
-      includeAIUserEvidence: false
+      includePersonaModelEvidence: false
     )
 
     let readiness = try #require(index.currentTournamentReadiness(for: experiment))
@@ -1597,7 +1597,7 @@ struct ProductTournamentLoopTests {
       evidenceIndex: index
     )
 
-    try #require(readiness.aiUserCompletedRunCount == 0)
+    try #require(readiness.personaModelCompletedRunCount == 0)
     try #require(readiness.modelFreeCompletedRunCount == 3)
     try #require(readiness.recommendation == .keepGoing)
     try #require(readiness.rationale.contains { $0.contains("No persona-model evidence") })
@@ -1622,7 +1622,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("target_decision promote"))
   }
 
-  @Test func tournamentDecisionAdvisorRequiresAIUserPersonaBreadthBeforePromotion() throws {
+  @Test func tournamentDecisionAdvisorRequiresPersonaModelUserBreadthBeforePromotion() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -1635,8 +1635,8 @@ struct ProductTournamentLoopTests {
     let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
-      includeAIUserEvidence: true,
-      includeAIUserPersonaBreadth: false
+      includePersonaModelEvidence: true,
+      includePersonaModelUserBreadth: false
     )
 
     let readiness = try #require(index.currentTournamentReadiness(for: experiment))
@@ -1647,8 +1647,8 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
 
-    try #require(readiness.aiUserCompletedRunCount == 1)
-    try #require(readiness.aiUserDistinctPersonaCount == 1)
+    try #require(readiness.personaModelCompletedRunCount == 1)
+    try #require(readiness.personaModelDistinctPersonaCount == 1)
     try #require(readiness.recommendation == .keepGoing)
     try #require(readiness.rationale.contains { $0.contains("at least 2 simulated users") })
     try #require(
@@ -1677,8 +1677,8 @@ struct ProductTournamentLoopTests {
     let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
-      includeAIUserEvidence: true,
-      includeAIUserPersonaBreadth: true,
+      includePersonaModelEvidence: true,
+      includePersonaModelUserBreadth: true,
       includeCurrentAlternativeProof: false
     )
 
@@ -1690,9 +1690,9 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
 
-    try #require(readiness.aiUserCompletedRunCount == 2)
-    try #require(readiness.aiUserDistinctPersonaCount == 2)
-    try #require(readiness.aiUserCurrentAlternativePersonaCount == 0)
+    try #require(readiness.personaModelCompletedRunCount == 2)
+    try #require(readiness.personaModelDistinctPersonaCount == 2)
+    try #require(readiness.personaModelCurrentAlternativePersonaCount == 0)
     try #require(readiness.recommendation == .keepGoing)
     try #require(readiness.rationale.contains { $0.contains("current-alternative proof") })
     try #require(
@@ -1708,7 +1708,7 @@ struct ProductTournamentLoopTests {
     try #require(action.targetDecision == .promote)
   }
 
-  @Test func tournamentNextActionRunsTargetedAIUserRationaleSignalProof() throws {
+  @Test func tournamentNextActionRunsTargetedPersonaModelRationaleSignalProof() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -2398,7 +2398,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("target_decision narrow"))
   }
 
-  @Test func tournamentNextActionNamesMissingAIUserSegmentInSuggestedCohort() throws {
+  @Test func tournamentNextActionNamesMissingPersonaModelSegmentInSuggestedCohort() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -2504,7 +2504,7 @@ struct ProductTournamentLoopTests {
     try #require(step.detail.contains("targeting \(buyer.name)"))
   }
 
-  @Test func tournamentNextActionRedirectsMissingAIUserSegmentToRunnableCohort() throws {
+  @Test func tournamentNextActionRedirectsMissingPersonaModelSegmentToRunnableCohort() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -2589,8 +2589,8 @@ struct ProductTournamentLoopTests {
     let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
-      includeAIUserEvidence: true,
-      includeAIUserPersonaBreadth: false
+      includePersonaModelEvidence: true,
+      includePersonaModelUserBreadth: false
     )
     config = config.recordingTournamentAutomationCycleAudit(
       TournamentAutomationCycleAudit(
@@ -2650,7 +2650,7 @@ struct ProductTournamentLoopTests {
     try #require(step.id.contains(buyerScenarioID))
   }
 
-  @Test func tournamentNextActionBlocksAIUserCohortWhenMissingSegmentHasNoScenario() throws {
+  @Test func tournamentNextActionBlocksPersonaModelCohortWhenMissingSegmentHasNoScenario() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -2682,8 +2682,8 @@ struct ProductTournamentLoopTests {
     let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
-      includeAIUserEvidence: true,
-      includeAIUserPersonaBreadth: false
+      includePersonaModelEvidence: true,
+      includePersonaModelUserBreadth: false
     )
 
     let action = try #require(
@@ -2729,7 +2729,7 @@ struct ProductTournamentLoopTests {
       ) == nil)
   }
 
-  @Test func tournamentAutomationBlocksRequiredAIUserCohortWhenUnavailable() throws {
+  @Test func tournamentAutomationBlocksRequiredPersonaModelCohortWhenUnavailable() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -2743,7 +2743,7 @@ struct ProductTournamentLoopTests {
     }
     let index = makeTournamentPromotionEvidenceIndex(
       config: config,
-      includeAIUserEvidence: false
+      includePersonaModelEvidence: false
     )
 
     let blocked = try #require(
@@ -2932,7 +2932,7 @@ struct ProductTournamentLoopTests {
     config.tournamentExperiments[0].currentSha = "head-sha"
     let index = makeTournamentPromotionEvidenceIndex(
       config: config,
-      includeAIUserEvidence: false
+      includePersonaModelEvidence: false
     )
 
     let signal = TournamentAutomationExperimentRanker.signal(
@@ -2944,8 +2944,8 @@ struct ProductTournamentLoopTests {
       index.currentTournamentReadiness(for: config.tournamentExperiments[0]))
 
     try #require(!readiness.proofDebt.isClear)
-    try #require(readiness.proofDebt.aiUserPersonaDeficit == 2)
-    try #require(readiness.proofDebt.aiUserCurrentAlternativeDeficit == 2)
+    try #require(readiness.proofDebt.personaModelSimulatedUserDeficit == 2)
+    try #require(readiness.proofDebt.personaModelCurrentAlternativeDeficit == 2)
     try #require(readiness.rationale.contains { $0.contains("Proof debt") })
     try #require(signal.proofDebtCount == readiness.proofDebt.blockingDebtCount)
     try #require(signal.proofDebtSummary?.contains("persona-model simulated user") == true)
@@ -3002,7 +3002,7 @@ struct ProductTournamentLoopTests {
     try #require(step.cohortReadiness?.canRun == true)
   }
 
-  @Test func tournamentAutomationSelectsAIUserCohortsWhenAvailable() throws {
+  @Test func tournamentAutomationSelectsPersonaModelCohortsWhenAvailable() throws {
     try #require(
       TournamentAutomationPlanner.cohortSimulationMode(isPersonaModelAvailable: true)
         == .personaModel
@@ -3350,7 +3350,7 @@ struct ProductTournamentLoopTests {
     try #require(blockedStep.blockedReason?.contains("change the scenario") == true)
   }
 
-  @Test func tournamentAutomationFallsBackWhenStalledProofDebtHasNoAIUserTarget() throws {
+  @Test func tournamentAutomationFallsBackWhenStalledProofDebtHasNoPersonaModelTarget() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -3583,7 +3583,7 @@ struct ProductTournamentLoopTests {
     config.tournamentExperiments[0].currentSha = "head-sha"
     let index = makeTournamentPromotionEvidenceIndex(
       config: config,
-      includeAIUserEvidence: false
+      includePersonaModelEvidence: false
     )
     let step = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
@@ -4239,7 +4239,7 @@ struct ProductTournamentLoopTests {
       proofTargetSummaries: [proofTargetSummary],
       targetedProofOutcomeSummaries: [targetedProofOutcomeSummary],
       revisionBriefSummaries: [
-        "\(step.experimentID): Retarget contender revision for simulated-user rationale; source ai_user_rationale; priority 88; target Budget owner"
+        "\(step.experimentID): Retarget contender revision for simulated-user rationale; source persona_model_rationale; priority 88; target Budget owner"
       ]
     )
 
@@ -5023,8 +5023,8 @@ private func scopedTournamentEvidenceRecords(
 private func makeTournamentPromotionEvidenceIndex(
   experiment: ProductTournamentExperiment? = nil,
   config: ProductTournamentConfig,
-  includeAIUserEvidence: Bool = true,
-  includeAIUserPersonaBreadth: Bool = true,
+  includePersonaModelEvidence: Bool = true,
+  includePersonaModelUserBreadth: Bool = true,
   includeCurrentAlternativeProof: Bool = true,
   personaActionRationales: [String] = []
 ) -> ProductTournamentEvidenceIndex {
@@ -5046,7 +5046,7 @@ private func makeTournamentPromotionEvidenceIndex(
         experiment: experiment,
         config: config,
         personaID: operatorID,
-        mode: includeAIUserEvidence ? .personaModel : .modelFree,
+        mode: includePersonaModelEvidence ? .personaModel : .modelFree,
         endedAt: 300,
         verdict: .strongPull,
         scores: scores,
@@ -5058,7 +5058,7 @@ private func makeTournamentPromotionEvidenceIndex(
         experiment: experiment,
         config: config,
         personaID: buyerID,
-        mode: includeAIUserEvidence && includeAIUserPersonaBreadth ? .personaModel : .modelFree,
+        mode: includePersonaModelEvidence && includePersonaModelUserBreadth ? .personaModel : .modelFree,
         endedAt: 200,
         verdict: .strongPull,
         scores: scores,

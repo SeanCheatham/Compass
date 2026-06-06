@@ -55,8 +55,8 @@ enum ProductTournamentReadinessRecommendation: String, Codable, CaseIterable, Eq
 struct ProductTournamentProofDebt: Codable, Equatable, Sendable {
   var completedRunDeficit: Int
   var personaDeficit: Int
-  var aiUserPersonaDeficit: Int
-  var aiUserCurrentAlternativeDeficit: Int
+  var personaModelSimulatedUserDeficit: Int
+  var personaModelCurrentAlternativeDeficit: Int
   var failedRunCount: Int
 
   var isClear: Bool {
@@ -64,8 +64,8 @@ struct ProductTournamentProofDebt: Codable, Equatable, Sendable {
   }
 
   var blockingDebtCount: Int {
-    completedRunDeficit + personaDeficit + aiUserPersonaDeficit
-      + aiUserCurrentAlternativeDeficit + (failedRunCount > 0 ? 1 : 0)
+    completedRunDeficit + personaDeficit + personaModelSimulatedUserDeficit
+      + personaModelCurrentAlternativeDeficit + (failedRunCount > 0 ? 1 : 0)
   }
 
   var summary: String {
@@ -82,11 +82,11 @@ struct ProductTournamentProofDebt: Codable, Equatable, Sendable {
     if personaDeficit > 0 {
       labels.append("\(personaDeficit) persona(s)")
     }
-    if aiUserPersonaDeficit > 0 {
-      labels.append("\(aiUserPersonaDeficit) persona-model simulated user(s)")
+    if personaModelSimulatedUserDeficit > 0 {
+      labels.append("\(personaModelSimulatedUserDeficit) persona-model simulated user(s)")
     }
-    if aiUserCurrentAlternativeDeficit > 0 {
-      labels.append("\(aiUserCurrentAlternativeDeficit) persona-model current-alternative proof(s)")
+    if personaModelCurrentAlternativeDeficit > 0 {
+      labels.append("\(personaModelCurrentAlternativeDeficit) persona-model current-alternative proof(s)")
     }
     if failedRunCount > 0 {
       labels.append("\(failedRunCount) failed run(s) to repair")
@@ -97,20 +97,23 @@ struct ProductTournamentProofDebt: Codable, Equatable, Sendable {
   init(
     completedRunCount: Int,
     distinctPersonaCount: Int,
-    aiUserDistinctPersonaCount: Int,
-    aiUserCurrentAlternativePersonaCount: Int,
+    personaModelDistinctPersonaCount: Int,
+    personaModelCurrentAlternativePersonaCount: Int,
     failedRunCount: Int,
     minimumCompletedRuns: Int = 2,
     minimumPersonaCount: Int = 2,
-    minimumAIUserPersonaCount: Int = 2,
-    minimumAIUserCurrentAlternativePersonaCount: Int = 2
+    minimumPersonaModelSimulatedUserCount: Int = 2,
+    minimumPersonaModelCurrentAlternativePersonaCount: Int = 2
   ) {
     self.completedRunDeficit = max(0, minimumCompletedRuns - completedRunCount)
     self.personaDeficit = max(0, minimumPersonaCount - distinctPersonaCount)
-    self.aiUserPersonaDeficit = max(0, minimumAIUserPersonaCount - aiUserDistinctPersonaCount)
-    self.aiUserCurrentAlternativeDeficit = max(
+    self.personaModelSimulatedUserDeficit = max(
       0,
-      minimumAIUserCurrentAlternativePersonaCount - aiUserCurrentAlternativePersonaCount
+      minimumPersonaModelSimulatedUserCount - personaModelDistinctPersonaCount
+    )
+    self.personaModelCurrentAlternativeDeficit = max(
+      0,
+      minimumPersonaModelCurrentAlternativePersonaCount - personaModelCurrentAlternativePersonaCount
     )
     self.failedRunCount = max(0, failedRunCount)
   }
@@ -118,14 +121,14 @@ struct ProductTournamentProofDebt: Codable, Equatable, Sendable {
   init(
     completedRunDeficit: Int,
     personaDeficit: Int,
-    aiUserPersonaDeficit: Int,
-    aiUserCurrentAlternativeDeficit: Int,
+    personaModelSimulatedUserDeficit: Int,
+    personaModelCurrentAlternativeDeficit: Int,
     failedRunCount: Int
   ) {
     self.completedRunDeficit = max(0, completedRunDeficit)
     self.personaDeficit = max(0, personaDeficit)
-    self.aiUserPersonaDeficit = max(0, aiUserPersonaDeficit)
-    self.aiUserCurrentAlternativeDeficit = max(0, aiUserCurrentAlternativeDeficit)
+    self.personaModelSimulatedUserDeficit = max(0, personaModelSimulatedUserDeficit)
+    self.personaModelCurrentAlternativeDeficit = max(0, personaModelCurrentAlternativeDeficit)
     self.failedRunCount = max(0, failedRunCount)
   }
 }
@@ -137,10 +140,10 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
   var runCount: Int
   var completedRunCount: Int
   var failedRunCount: Int
-  var aiUserCompletedRunCount: Int
-  var aiUserDistinctPersonaCount: Int
+  var personaModelCompletedRunCount: Int
+  var personaModelDistinctPersonaCount: Int
   var currentAlternativeComparisonCount: Int
-  var aiUserCurrentAlternativePersonaCount: Int
+  var personaModelCurrentAlternativePersonaCount: Int
   var modelFreeCompletedRunCount: Int
   var distinctPersonaCount: Int
   var latestRunID: String?
@@ -162,10 +165,10 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     case runCount
     case completedRunCount
     case failedRunCount
-    case aiUserCompletedRunCount
-    case aiUserDistinctPersonaCount
+    case personaModelCompletedRunCount
+    case personaModelDistinctPersonaCount
     case currentAlternativeComparisonCount
-    case aiUserCurrentAlternativePersonaCount
+    case personaModelCurrentAlternativePersonaCount
     case modelFreeCompletedRunCount
     case distinctPersonaCount
     case latestRunID
@@ -181,30 +184,30 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    let aiUserCompletedRunCount =
+    let personaModelCompletedRunCount =
       try container.decodeIfPresent(
         Int.self,
-        forKey: .aiUserCompletedRunCount
+        forKey: .personaModelCompletedRunCount
       ) ?? 0
     let distinctPersonaCount =
       try container.decodeIfPresent(
         Int.self,
         forKey: .distinctPersonaCount
       ) ?? 0
-    let aiUserDistinctPersonaCount =
+    let personaModelDistinctPersonaCount =
       try container.decodeIfPresent(
         Int.self,
-        forKey: .aiUserDistinctPersonaCount
-      ) ?? min(aiUserCompletedRunCount, distinctPersonaCount)
+        forKey: .personaModelDistinctPersonaCount
+      ) ?? min(personaModelCompletedRunCount, distinctPersonaCount)
     let currentAlternativeComparisonCount =
       try container.decodeIfPresent(
         Int.self,
         forKey: .currentAlternativeComparisonCount
       ) ?? 0
-    let aiUserCurrentAlternativePersonaCount =
+    let personaModelCurrentAlternativePersonaCount =
       try container.decodeIfPresent(
         Int.self,
-        forKey: .aiUserCurrentAlternativePersonaCount
+        forKey: .personaModelCurrentAlternativePersonaCount
       ) ?? 0
     let completedRunCount = try container.decode(Int.self, forKey: .completedRunCount)
     let failedRunCount = try container.decode(Int.self, forKey: .failedRunCount)
@@ -219,10 +222,10 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
       runCount: try container.decode(Int.self, forKey: .runCount),
       completedRunCount: completedRunCount,
       failedRunCount: failedRunCount,
-      aiUserCompletedRunCount: aiUserCompletedRunCount,
-      aiUserDistinctPersonaCount: aiUserDistinctPersonaCount,
+      personaModelCompletedRunCount: personaModelCompletedRunCount,
+      personaModelDistinctPersonaCount: personaModelDistinctPersonaCount,
       currentAlternativeComparisonCount: currentAlternativeComparisonCount,
-      aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
+      personaModelCurrentAlternativePersonaCount: personaModelCurrentAlternativePersonaCount,
       modelFreeCompletedRunCount: modelFreeCompletedRunCount,
       distinctPersonaCount: distinctPersonaCount,
       latestRunID: try container.decodeIfPresent(String.self, forKey: .latestRunID),
@@ -255,10 +258,10 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     runCount: Int,
     completedRunCount: Int,
     failedRunCount: Int,
-    aiUserCompletedRunCount: Int,
-    aiUserDistinctPersonaCount: Int,
+    personaModelCompletedRunCount: Int,
+    personaModelDistinctPersonaCount: Int,
     currentAlternativeComparisonCount: Int,
-    aiUserCurrentAlternativePersonaCount: Int,
+    personaModelCurrentAlternativePersonaCount: Int,
     modelFreeCompletedRunCount: Int,
     distinctPersonaCount: Int,
     latestRunID: String?,
@@ -278,10 +281,10 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     self.runCount = max(0, runCount)
     self.completedRunCount = max(0, completedRunCount)
     self.failedRunCount = max(0, failedRunCount)
-    self.aiUserCompletedRunCount = max(0, aiUserCompletedRunCount)
-    self.aiUserDistinctPersonaCount = max(0, aiUserDistinctPersonaCount)
+    self.personaModelCompletedRunCount = max(0, personaModelCompletedRunCount)
+    self.personaModelDistinctPersonaCount = max(0, personaModelDistinctPersonaCount)
     self.currentAlternativeComparisonCount = max(0, currentAlternativeComparisonCount)
-    self.aiUserCurrentAlternativePersonaCount = max(0, aiUserCurrentAlternativePersonaCount)
+    self.personaModelCurrentAlternativePersonaCount = max(0, personaModelCurrentAlternativePersonaCount)
     self.modelFreeCompletedRunCount = max(0, modelFreeCompletedRunCount)
     self.distinctPersonaCount = max(0, distinctPersonaCount)
     self.latestRunID = ProductTournamentEvidenceRecord.optionalBounded(latestRunID, limit: 96)
@@ -295,8 +298,8 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
       ?? ProductTournamentProofDebt(
         completedRunCount: self.completedRunCount,
         distinctPersonaCount: self.distinctPersonaCount,
-        aiUserDistinctPersonaCount: self.aiUserDistinctPersonaCount,
-        aiUserCurrentAlternativePersonaCount: self.aiUserCurrentAlternativePersonaCount,
+        personaModelDistinctPersonaCount: self.personaModelDistinctPersonaCount,
+        personaModelCurrentAlternativePersonaCount: self.personaModelCurrentAlternativePersonaCount,
         failedRunCount: self.failedRunCount
       )
     self.rationale = ProductTournamentEvidenceRecord.cleanedList(rationale, limit: 260)
@@ -310,12 +313,12 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     }
     let completed = summaries.filter(\.isCompleted)
     let failedCount = summaries.count - completed.count
-    let aiUserCompleted = completed.filter { $0.mode == .personaModel }
-    let aiUserCompletedCount = aiUserCompleted.count
-    let aiUserPersonaCount = Set(aiUserCompleted.map(\.personaID).filter { !$0.isEmpty }).count
+    let personaModelCompleted = completed.filter { $0.mode == .personaModel }
+    let personaModelCompletedCount = personaModelCompleted.count
+    let personaModelUserCount = Set(personaModelCompleted.map(\.personaID).filter { !$0.isEmpty }).count
     let currentAlternativeProof = completed.filter(Self.hasCurrentAlternativeProof)
-    let aiUserCurrentAlternativePersonaCount = Set(
-      aiUserCompleted.filter(Self.hasCurrentAlternativeProof)
+    let personaModelCurrentAlternativePersonaCount = Set(
+      personaModelCompleted.filter(Self.hasCurrentAlternativeProof)
         .map(\.personaID)
         .filter { !$0.isEmpty }
     ).count
@@ -351,15 +354,15 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
       readinessScore: readinessScore,
       averageScore: averageScore,
       distinctPersonaCount: personaCount,
-      aiUserDistinctPersonaCount: aiUserPersonaCount,
-      aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
+      personaModelDistinctPersonaCount: personaModelUserCount,
+      personaModelCurrentAlternativePersonaCount: personaModelCurrentAlternativePersonaCount,
       failedRunCount: failedCount
     )
     let proofDebt = ProductTournamentProofDebt(
       completedRunCount: completed.count,
       distinctPersonaCount: personaCount,
-      aiUserDistinctPersonaCount: aiUserPersonaCount,
-      aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
+      personaModelDistinctPersonaCount: personaModelUserCount,
+      personaModelCurrentAlternativePersonaCount: personaModelCurrentAlternativePersonaCount,
       failedRunCount: failedCount
     )
 
@@ -368,10 +371,10 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
       runCount: summaries.count,
       completedRunCount: completed.count,
       failedRunCount: failedCount,
-      aiUserCompletedRunCount: aiUserCompletedCount,
-      aiUserDistinctPersonaCount: aiUserPersonaCount,
+      personaModelCompletedRunCount: personaModelCompletedCount,
+      personaModelDistinctPersonaCount: personaModelUserCount,
       currentAlternativeComparisonCount: currentAlternativeProof.count,
-      aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
+      personaModelCurrentAlternativePersonaCount: personaModelCurrentAlternativePersonaCount,
       modelFreeCompletedRunCount: modelFreeCompletedCount,
       distinctPersonaCount: personaCount,
       latestRunID: summaries.first?.runID,
@@ -387,10 +390,10 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
         readinessScore: readinessScore,
         averageScore: averageScore,
         distinctPersonaCount: personaCount,
-        aiUserCompletedRunCount: aiUserCompletedCount,
-        aiUserDistinctPersonaCount: aiUserPersonaCount,
+        personaModelCompletedRunCount: personaModelCompletedCount,
+        personaModelDistinctPersonaCount: personaModelUserCount,
         currentAlternativeComparisonCount: currentAlternativeProof.count,
-        aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
+        personaModelCurrentAlternativePersonaCount: personaModelCurrentAlternativePersonaCount,
         modelFreeCompletedRunCount: modelFreeCompletedCount,
         failedRunCount: failedCount,
         recommendation: recommendation,
@@ -441,8 +444,8 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     readinessScore: Double,
     averageScore: Double,
     distinctPersonaCount: Int,
-    aiUserDistinctPersonaCount: Int,
-    aiUserCurrentAlternativePersonaCount: Int,
+    personaModelDistinctPersonaCount: Int,
+    personaModelCurrentAlternativePersonaCount: Int,
     failedRunCount: Int
   ) -> ProductTournamentReadinessRecommendation {
     guard !completed.isEmpty else { return .gatherEvidence }
@@ -470,7 +473,7 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
       && (readinessScore <= 30 || averageScore > 0 && averageScore <= 2.1
         || rejectedOrWeakCount >= 2)
     {
-      return aiUserDistinctPersonaCount >= 2 && aiUserCurrentAlternativePersonaCount >= 2
+      return personaModelDistinctPersonaCount >= 2 && personaModelCurrentAlternativePersonaCount >= 2
         ? .kill
         : .gatherEvidence
     }
@@ -479,8 +482,8 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     }
     if completed.count >= 3
       && distinctPersonaCount >= 2
-      && aiUserDistinctPersonaCount >= 2
-      && aiUserCurrentAlternativePersonaCount >= 2
+      && personaModelDistinctPersonaCount >= 2
+      && personaModelCurrentAlternativePersonaCount >= 2
       && readinessScore >= 76
       && (willingnessToPay == 0 || willingnessToPay >= 3.2)
       && missingCount == 0
@@ -504,10 +507,10 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     readinessScore: Double,
     averageScore: Double,
     distinctPersonaCount: Int,
-    aiUserCompletedRunCount: Int,
-    aiUserDistinctPersonaCount: Int,
+    personaModelCompletedRunCount: Int,
+    personaModelDistinctPersonaCount: Int,
     currentAlternativeComparisonCount: Int,
-    aiUserCurrentAlternativePersonaCount: Int,
+    personaModelCurrentAlternativePersonaCount: Int,
     modelFreeCompletedRunCount: Int,
     failedRunCount: Int,
     recommendation: ProductTournamentReadinessRecommendation,
@@ -539,10 +542,10 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     }
     let willingnessToPay = dimensionAverage(completed.compactMap(\.scores.willingnessToPay))
     lines.append(
-      "\(aiUserCompletedRunCount) persona-model run(s) across \(aiUserDistinctPersonaCount) simulated user(s), \(modelFreeCompletedRunCount) model-free run(s)."
+      "\(personaModelCompletedRunCount) persona-model run(s) across \(personaModelDistinctPersonaCount) simulated user(s), \(modelFreeCompletedRunCount) model-free run(s)."
     )
     lines.append(
-      "\(currentAlternativeComparisonCount) current-alternative comparison(s), including \(aiUserCurrentAlternativePersonaCount) persona-model simulated user(s)."
+      "\(currentAlternativeComparisonCount) current-alternative comparison(s), including \(personaModelCurrentAlternativePersonaCount) persona-model simulated user(s)."
     )
     if willingnessToPay > 0 {
       lines.append("Average willingness to pay or sponsor \(format(willingnessToPay))/5.")
@@ -552,7 +555,7 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
       && (readinessScore <= 40
         || averageScore > 0 && averageScore <= 2.5
         || summaries.contains { $0.verdict == .rejected })
-    if aiUserCompletedRunCount == 0 && !completed.isEmpty {
+    if personaModelCompletedRunCount == 0 && !completed.isEmpty {
       if isStopGate {
         lines.append(
           "No persona-model evidence has tested this contender yet; stopping requires simulated-user rejection."
@@ -562,7 +565,7 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
           "No persona-model evidence has tested this contender yet; promotion requires simulated-user pull."
         )
       }
-    } else if aiUserDistinctPersonaCount < 2 && !completed.isEmpty {
+    } else if personaModelDistinctPersonaCount < 2 && !completed.isEmpty {
       if isStopGate {
         lines.append(
           "Stopping a contender requires persona-model rejection evidence across at least 2 simulated users."
@@ -573,7 +576,7 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
         )
       }
     }
-    if aiUserCurrentAlternativePersonaCount < 2 && !completed.isEmpty {
+    if personaModelCurrentAlternativePersonaCount < 2 && !completed.isEmpty {
       if isStopGate {
         lines.append(
           "Stopping a contender requires current-alternative rejection proof from at least 2 persona-model simulated users."

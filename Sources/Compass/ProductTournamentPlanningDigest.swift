@@ -981,7 +981,7 @@ enum ProductTournamentPlanningDigestFormatter {
           ? "proof-debt clear"
           : "proof-debt \(bounded(readiness.proofDebt.summary, 180))"
         lines.append(
-          "- \(readiness.experimentID): score \(readiness.scoreLabel)/100; recommend \(readiness.recommendation.rawValue); persona-model \(readiness.aiUserCompletedRunCount) across \(readiness.aiUserDistinctPersonaCount) simulated user(s); alt-proof \(readiness.aiUserCurrentAlternativePersonaCount) persona-model simulated user(s); model-free \(readiness.modelFreeCompletedRunCount); \(proofDebt); \(evidence)\(rationale)."
+          "- \(readiness.experimentID): score \(readiness.scoreLabel)/100; recommend \(readiness.recommendation.rawValue); persona-model \(readiness.personaModelCompletedRunCount) across \(readiness.personaModelDistinctPersonaCount) simulated user(s); alt-proof \(readiness.personaModelCurrentAlternativePersonaCount) persona-model simulated user(s); model-free \(readiness.modelFreeCompletedRunCount); \(proofDebt); \(evidence)\(rationale)."
         )
       }
     }

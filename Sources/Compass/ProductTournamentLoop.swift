@@ -1701,7 +1701,7 @@ enum TournamentAutomationRationaleSignalAdvisor {
 }
 
 enum TournamentAutomationRevisionBriefSource: String, Equatable, Sendable {
-  case aiUserRationale = "ai_user_rationale"
+  case personaModelRationale = "persona_model_rationale"
   case targetedProofOutcome = "targeted_proof_outcome"
 }
 
@@ -1885,7 +1885,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
     )
     return TournamentAutomationRevisionBrief(
       experimentID: experiment.id,
-      source: .aiUserRationale,
+      source: .personaModelRationale,
       title: revision.title,
       priority: action?.priority ?? signal.urgencyScore,
       triggerSummary: signal.summary,
@@ -2419,7 +2419,7 @@ enum TournamentAutomationProofTargetAdvisor {
     }
     if action?.targetScenarioID != nil {
       let targetsCurrentAlternative =
-        readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0
+        readiness.proofDebt.personaModelCurrentAlternativeDeficit > 0
         && action?.title.localizedCaseInsensitiveContains("alternative") == true
       switch action?.targetDecision {
       case .promote:
@@ -2450,7 +2450,7 @@ enum TournamentAutomationProofTargetAdvisor {
     if readiness.proofDebt.completedRunDeficit > 0 || readiness.proofDebt.personaDeficit > 0 {
       return "broaden completed persona coverage"
     }
-    if readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0 {
+    if readiness.proofDebt.personaModelCurrentAlternativeDeficit > 0 {
       return "add persona-model current-alternative proof"
     }
     return "close remaining tournament proof debt"
@@ -3346,8 +3346,8 @@ enum TournamentAutomationProofDebtSnapshotter {
       proofDebt: ProductTournamentProofDebt(
         completedRunCount: 0,
         distinctPersonaCount: 0,
-        aiUserDistinctPersonaCount: 0,
-        aiUserCurrentAlternativePersonaCount: 0,
+        personaModelDistinctPersonaCount: 0,
+        personaModelCurrentAlternativePersonaCount: 0,
         failedRunCount: 0
       )
     )
@@ -4909,24 +4909,24 @@ enum ProductTournamentNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
-    let missingAIUserTarget = missingAIUserPersonaTarget(
+    let missingPersonaModelUserTarget = missingPersonaModelTarget(
       for: experiment,
       config: config,
       evidenceIndex: evidenceIndex,
       cohort: cohort
     )
-    if readiness.aiUserDistinctPersonaCount < 2 && readiness.readinessScore >= 70 {
+    if readiness.personaModelDistinctPersonaCount < 2 && readiness.readinessScore >= 70 {
       return applyingRecentCycleGuards(
-        to: aiUserBreadthAction(
+        to: personaModelBreadthAction(
           experiment: experiment,
           selectedCohort: cohort,
-          target: missingAIUserTarget,
+          target: missingPersonaModelUserTarget,
           title: "Run persona-model validation cohort",
           decisionGate: "promotion",
           gateReason: "promotion requires at least 2",
           targetDecision: .promote,
           priority: 78,
-          observedCount: readiness.aiUserDistinctPersonaCount,
+          observedCount: readiness.personaModelDistinctPersonaCount,
           observedEvidenceLabel: "persona-model simulated user(s)"
         ),
         experiment: experiment,
@@ -4934,18 +4934,18 @@ enum ProductTournamentNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
-    if readiness.aiUserDistinctPersonaCount < 2 && shouldRunAIUserRejectionCheck(readiness) {
+    if readiness.personaModelDistinctPersonaCount < 2 && shouldRunPersonaModelRejectionCheck(readiness) {
       return applyingRecentCycleGuards(
-        to: aiUserBreadthAction(
+        to: personaModelBreadthAction(
           experiment: experiment,
           selectedCohort: cohort,
-          target: missingAIUserTarget,
+          target: missingPersonaModelUserTarget,
           title: "Run persona-model rejection check",
           decisionGate: "stopping the experiment",
           gateReason: "stopping a contender requires at least 2",
           targetDecision: .kill,
           priority: 82,
-          observedCount: readiness.aiUserDistinctPersonaCount,
+          observedCount: readiness.personaModelDistinctPersonaCount,
           observedEvidenceLabel: "persona-model simulated user(s)"
         ),
         experiment: experiment,
@@ -4953,20 +4953,20 @@ enum ProductTournamentNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
-    let currentAlternativePersonaIDs = aiUserCurrentAlternativePersonaIDs(
+    let currentAlternativePersonaIDs = personaModelCurrentAlternativePersonaIDs(
       for: experiment,
       evidenceIndex: evidenceIndex
     )
-    let missingCurrentAlternativeTarget = missingAIUserPersonaTarget(
+    let missingCurrentAlternativeTarget = missingPersonaModelTarget(
       for: experiment,
       config: config,
       evidenceIndex: evidenceIndex,
       cohort: cohort,
       testedPersonaIDs: currentAlternativePersonaIDs
     )
-    if readiness.aiUserCurrentAlternativePersonaCount < 2 && readiness.readinessScore >= 70 {
+    if readiness.personaModelCurrentAlternativePersonaCount < 2 && readiness.readinessScore >= 70 {
       return applyingRecentCycleGuards(
-        to: aiUserBreadthAction(
+        to: personaModelBreadthAction(
           experiment: experiment,
           selectedCohort: cohort,
           target: missingCurrentAlternativeTarget,
@@ -4976,7 +4976,7 @@ enum ProductTournamentNextActionAdvisor {
             "decisive tournament decisions require current-alternative proof from at least 2 persona-model simulated users",
           targetDecision: .promote,
           priority: 77,
-          observedCount: readiness.aiUserCurrentAlternativePersonaCount,
+          observedCount: readiness.personaModelCurrentAlternativePersonaCount,
           observedEvidenceLabel: "persona-model current-alternative simulated user(s)"
         ),
         experiment: experiment,
@@ -4984,11 +4984,11 @@ enum ProductTournamentNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
-    if readiness.aiUserCurrentAlternativePersonaCount < 2
-      && shouldRunAIUserRejectionCheck(readiness)
+    if readiness.personaModelCurrentAlternativePersonaCount < 2
+      && shouldRunPersonaModelRejectionCheck(readiness)
     {
       return applyingRecentCycleGuards(
-        to: aiUserBreadthAction(
+        to: personaModelBreadthAction(
           experiment: experiment,
           selectedCohort: cohort,
           target: missingCurrentAlternativeTarget,
@@ -4998,7 +4998,7 @@ enum ProductTournamentNextActionAdvisor {
             "decisive tournament decisions require current-alternative proof from at least 2 persona-model simulated users",
           targetDecision: .kill,
           priority: 81,
-          observedCount: readiness.aiUserCurrentAlternativePersonaCount,
+          observedCount: readiness.personaModelCurrentAlternativePersonaCount,
           observedEvidenceLabel: "persona-model current-alternative simulated user(s)"
         ),
         experiment: experiment,
@@ -5154,7 +5154,7 @@ enum ProductTournamentNextActionAdvisor {
     }
   }
 
-  private static func shouldRunAIUserRejectionCheck(
+  private static func shouldRunPersonaModelRejectionCheck(
     _ readiness: ProductTournamentReadiness
   ) -> Bool {
     readiness.completedRunCount >= 2
@@ -5202,10 +5202,10 @@ enum ProductTournamentNextActionAdvisor {
     }
   }
 
-  private static func aiUserBreadthAction(
+  private static func personaModelBreadthAction(
     experiment: ProductTournamentExperiment,
     selectedCohort: ProductScenarioCohort?,
-    target: AIUserPersonaTarget?,
+    target: PersonaModelTarget?,
     title: String,
     decisionGate: String,
     gateReason: String,
@@ -5246,7 +5246,7 @@ enum ProductTournamentNextActionAdvisor {
     )
   }
 
-  private struct AIUserPersonaTarget: Equatable, Sendable {
+  private struct PersonaModelTarget: Equatable, Sendable {
     var id: String
     var name: String
     var scenarioID: String?
@@ -5276,13 +5276,13 @@ enum ProductTournamentNextActionAdvisor {
     }
   }
 
-  private static func missingAIUserPersonaTarget(
+  private static func missingPersonaModelTarget(
     for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     cohort: ProductScenarioCohort?,
     testedPersonaIDs explicitTestedPersonaIDs: Set<String>? = nil
-  ) -> AIUserPersonaTarget? {
+  ) -> PersonaModelTarget? {
     let testedPersonaIDs =
       explicitTestedPersonaIDs
       ?? Set(
@@ -5299,7 +5299,7 @@ enum ProductTournamentNextActionAdvisor {
       cohortScenarioIDs.contains(scenario.id) && !testedPersonaIDs.contains(scenario.segmentID)
     }
     if let scenario = untestedCohortScenarios.sorted(by: scenarioSort(config: config)).first {
-      return AIUserPersonaTarget(
+      return PersonaModelTarget(
         id: scenario.segmentID,
         name: segmentName(for: scenario.segmentID, config: config),
         scenarioID: scenario.id,
@@ -5318,7 +5318,7 @@ enum ProductTournamentNextActionAdvisor {
     }
     .sorted(by: scenarioSort(config: config))
     .first
-    return AIUserPersonaTarget(
+    return PersonaModelTarget(
       id: segmentID,
       name: segmentName(for: segmentID, config: config),
       scenarioID: scenario?.id,
@@ -5330,7 +5330,7 @@ enum ProductTournamentNextActionAdvisor {
     )
   }
 
-  private static func aiUserCurrentAlternativePersonaIDs(
+  private static func personaModelCurrentAlternativePersonaIDs(
     for experiment: ProductTournamentExperiment,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> Set<String> {
@@ -5728,55 +5728,55 @@ enum ProductTournamentNextActionAdvisor {
           $0.id == cohortID && $0.experimentID == experiment.id
         }
       } ?? runnableCohort(for: experiment, config: config)
-    if readiness.proofDebt.aiUserPersonaDeficit > 0 {
-      return retargetedAIUserProofDebtAction(
+    if readiness.proofDebt.personaModelSimulatedUserDeficit > 0 {
+      return retargetedPersonaModelProofDebtAction(
         audit: audit,
         replacing: action,
         experiment: experiment,
         readiness: readiness,
         selectedCohort: selectedCohort,
-        target: missingAIUserPersonaTarget(
+        target: missingPersonaModelTarget(
           for: experiment,
           config: config,
           evidenceIndex: evidenceIndex,
           cohort: selectedCohort
         ),
         title: "Retarget persona-model proof debt",
-        proofNeed: "\(readiness.proofDebt.aiUserPersonaDeficit) persona-model simulated user(s)"
+        proofNeed: "\(readiness.proofDebt.personaModelSimulatedUserDeficit) persona-model simulated user(s)"
       )
     }
-    if readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0 {
-      return retargetedAIUserProofDebtAction(
+    if readiness.proofDebt.personaModelCurrentAlternativeDeficit > 0 {
+      return retargetedPersonaModelProofDebtAction(
         audit: audit,
         replacing: action,
         experiment: experiment,
         readiness: readiness,
         selectedCohort: selectedCohort,
-        target: missingAIUserPersonaTarget(
+        target: missingPersonaModelTarget(
           for: experiment,
           config: config,
           evidenceIndex: evidenceIndex,
           cohort: selectedCohort,
-          testedPersonaIDs: aiUserCurrentAlternativePersonaIDs(
+          testedPersonaIDs: personaModelCurrentAlternativePersonaIDs(
             for: experiment,
             evidenceIndex: evidenceIndex
           )
         ),
         title: "Retarget persona-model alternative proof",
         proofNeed:
-          "\(readiness.proofDebt.aiUserCurrentAlternativeDeficit) persona-model current-alternative proof(s)"
+          "\(readiness.proofDebt.personaModelCurrentAlternativeDeficit) persona-model current-alternative proof(s)"
       )
     }
     return nil
   }
 
-  private static func retargetedAIUserProofDebtAction(
+  private static func retargetedPersonaModelProofDebtAction(
     audit: TournamentAutomationCycleAudit,
     replacing action: ProductTournamentNextAction,
     experiment: ProductTournamentExperiment,
     readiness: ProductTournamentReadiness,
     selectedCohort: ProductScenarioCohort?,
-    target: AIUserPersonaTarget?,
+    target: PersonaModelTarget?,
     title: String,
     proofNeed: String
   ) -> ProductTournamentNextAction {
@@ -6038,7 +6038,7 @@ enum ProductTournamentDecisionAdvisor {
       : "evidence \(readiness.evidenceRunIDs.prefix(4).joined(separator: ", "))"
     let rationale = readiness.rationale.prefix(3).joined(separator: " ")
     let proof =
-      "\(readiness.aiUserCompletedRunCount) persona-model run(s) across \(readiness.aiUserDistinctPersonaCount) simulated user(s); current-alternative proof from \(readiness.aiUserCurrentAlternativePersonaCount) persona-model simulated user(s)."
+      "\(readiness.personaModelCompletedRunCount) persona-model run(s) across \(readiness.personaModelDistinctPersonaCount) simulated user(s); current-alternative proof from \(readiness.personaModelCurrentAlternativePersonaCount) persona-model simulated user(s)."
     return StringUtils.boundedText(
       """
       Tournament readiness \(readiness.scoreLabel)/100 recommends \(target.rawValue) for \(experiment.title): \(rationale) \(proof) Supporting \(evidence).
