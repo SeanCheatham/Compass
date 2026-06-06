@@ -7,7 +7,7 @@ enum ProductTournamentSimulationMode: String, Codable, CaseIterable, Equatable, 
   var tournamentAutomationLabel: String {
     switch self {
     case .modelFree: return "Model-free"
-    case .personaModel: return "AI-user"
+    case .personaModel: return "Persona-model"
     }
   }
 }
@@ -83,10 +83,10 @@ struct ProductTournamentProofDebt: Codable, Equatable, Sendable {
       labels.append("\(personaDeficit) persona(s)")
     }
     if aiUserPersonaDeficit > 0 {
-      labels.append("\(aiUserPersonaDeficit) AI-user persona(s)")
+      labels.append("\(aiUserPersonaDeficit) persona-model simulated user(s)")
     }
     if aiUserCurrentAlternativeDeficit > 0 {
-      labels.append("\(aiUserCurrentAlternativeDeficit) AI-user current-alternative proof(s)")
+      labels.append("\(aiUserCurrentAlternativeDeficit) persona-model current-alternative proof(s)")
     }
     if failedRunCount > 0 {
       labels.append("\(failedRunCount) failed run(s) to repair")
@@ -539,10 +539,10 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     }
     let willingnessToPay = dimensionAverage(completed.compactMap(\.scores.willingnessToPay))
     lines.append(
-      "\(aiUserCompletedRunCount) AI-user run(s) across \(aiUserDistinctPersonaCount) persona(s), \(modelFreeCompletedRunCount) model-free run(s)."
+      "\(aiUserCompletedRunCount) persona-model run(s) across \(aiUserDistinctPersonaCount) simulated user(s), \(modelFreeCompletedRunCount) model-free run(s)."
     )
     lines.append(
-      "\(currentAlternativeComparisonCount) current-alternative comparison(s), including \(aiUserCurrentAlternativePersonaCount) AI-user persona(s)."
+      "\(currentAlternativeComparisonCount) current-alternative comparison(s), including \(aiUserCurrentAlternativePersonaCount) persona-model simulated user(s)."
     )
     if willingnessToPay > 0 {
       lines.append("Average willingness to pay or sponsor \(format(willingnessToPay))/5.")
@@ -555,30 +555,32 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     if aiUserCompletedRunCount == 0 && !completed.isEmpty {
       if isStopGate {
         lines.append(
-          "No AI-user evidence has tested this contender yet; stopping requires simulated-user rejection."
+          "No persona-model evidence has tested this contender yet; stopping requires simulated-user rejection."
         )
       } else {
         lines.append(
-          "No AI-user evidence has tested this contender yet; promotion requires simulated-user pull."
+          "No persona-model evidence has tested this contender yet; promotion requires simulated-user pull."
         )
       }
     } else if aiUserDistinctPersonaCount < 2 && !completed.isEmpty {
       if isStopGate {
         lines.append(
-          "Stopping a contender requires AI-user rejection evidence across at least 2 personas.")
+          "Stopping a contender requires persona-model rejection evidence across at least 2 simulated users."
+        )
       } else {
         lines.append(
-          "Decisive tournament decisions require AI-user evidence across at least 2 personas.")
+          "Decisive tournament decisions require persona-model evidence across at least 2 simulated users."
+        )
       }
     }
     if aiUserCurrentAlternativePersonaCount < 2 && !completed.isEmpty {
       if isStopGate {
         lines.append(
-          "Stopping a contender requires current-alternative rejection proof from at least 2 AI-user personas."
+          "Stopping a contender requires current-alternative rejection proof from at least 2 persona-model simulated users."
         )
       } else {
         lines.append(
-          "Decisive tournament decisions require current-alternative proof from at least 2 AI-user personas."
+          "Decisive tournament decisions require current-alternative proof from at least 2 persona-model simulated users."
         )
       }
     }

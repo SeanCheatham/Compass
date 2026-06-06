@@ -1022,10 +1022,10 @@ struct ProductTournamentWorkbenchTab: View {
           }
         }
 
-        WorkbenchSection("AI-User Rationale Signals", systemImage: "person.2.wave.2") {
+        WorkbenchSection("Simulated User Rationale Signals", systemImage: "person.2.wave.2") {
           VStack(alignment: .leading, spacing: 8) {
             if tournamentAutomationRationaleSignals.isEmpty {
-              WorkbenchEmptyLine("No repeated AI-user rationale signals detected.")
+              WorkbenchEmptyLine("No repeated simulated-user rationale signals detected.")
             } else {
               ForEach(tournamentAutomationRationaleSignals.prefix(4)) { signal in
                 rationaleSignalRow(signal)
@@ -1536,8 +1536,8 @@ struct ProductTournamentWorkbenchTab: View {
       VStack(alignment: .leading, spacing: 7) {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
           Text(
-            signal.targetPersonaName.map { "AI-user rationale: \($0)" }
-              ?? "AI-user rationale signal"
+            signal.targetPersonaName.map { "simulated-user rationale: \($0)" }
+              ?? "simulated-user rationale signal"
           )
           .font(.callout.weight(.semibold))
           .lineLimit(2)
@@ -1892,7 +1892,7 @@ struct ProductTournamentWorkbenchTab: View {
               Task { await runScenarioPersonaModel() }
             } label: {
               Label(
-                isRunningScenario ? "Running" : "Run AI User",
+                isRunningScenario ? "Running" : "Run Persona-Model",
                 systemImage: "brain.head.profile"
               )
             }
@@ -1901,7 +1901,7 @@ struct ProductTournamentWorkbenchTab: View {
             .help(
               selectedRoundTwoBlockedMessage
                 ?? (FoundationModelsAvailability.isAvailable
-                  ? "Run with an AI simulated user"
+                  ? "Run with a persona-model simulated user"
                   : ProductTournamentPersonaActionModelError.unavailable.localizedDescription)
             )
           }
@@ -1925,7 +1925,7 @@ struct ProductTournamentWorkbenchTab: View {
               Task { await runScenarioCohortPersonaModel() }
             } label: {
               Label(
-                isRunningScenario ? "Running" : "AI Cohort",
+                isRunningScenario ? "Running" : "Persona-Model Cohort",
                 systemImage: "person.2.wave.2"
               )
             }
@@ -1934,7 +1934,7 @@ struct ProductTournamentWorkbenchTab: View {
             .help(
               selectedRoundTwoBlockedMessage
                 ?? (FoundationModelsAvailability.isAvailable
-                  ? "Run the cohort with AI simulated users"
+                  ? "Run the cohort with persona-model simulated users"
                   : ProductTournamentPersonaActionModelError.unavailable.localizedDescription)
             )
           }
@@ -2116,7 +2116,7 @@ struct ProductTournamentWorkbenchTab: View {
               nextAction.targetPersonaID.map {
                 "\(targetPersonaName) (\($0))"
               } ?? targetPersonaName
-            WorkbenchFact(label: "Target AI-user", value: targetValue)
+            WorkbenchFact(label: "Target simulated user", value: targetValue)
           }
           if let readiness = selectedSuggestedCohortReadiness {
             WorkbenchFact(
@@ -2152,7 +2152,7 @@ struct ProductTournamentWorkbenchTab: View {
               Button {
                 Task { await runSuggestedCohort(mode: .personaModel) }
               } label: {
-                Label("AI Suggested Cohort", systemImage: "person.2.wave.2")
+                Label("Persona-Model Suggested Cohort", systemImage: "person.2.wave.2")
               }
               .buttonStyle(.bordered)
               .disabled(
@@ -2162,7 +2162,7 @@ struct ProductTournamentWorkbenchTab: View {
               .help(
                 selectedRoundTwoBlockedMessage
                   ?? (FoundationModelsAvailability.isAvailable
-                    ? "Run the suggested cohort with AI simulated users."
+                    ? "Run the suggested cohort with persona-model simulated users."
                     : ProductTournamentPersonaActionModelError.unavailable.localizedDescription)
               )
             }
@@ -2174,7 +2174,7 @@ struct ProductTournamentWorkbenchTab: View {
         }
         if let rationale = evidenceIndex.aggregate.personaRationaleSignals.first {
           WorkbenchFact(
-            label: "AI-user rationale",
+            label: "simulated-user rationale",
             value: "\(rationale.rationale) (\(rationale.count)x)"
           )
         }

@@ -943,7 +943,7 @@ enum ProductTournamentPlanningDigestFormatter {
           return "\(bounded(signal.rationale, 140)) (\(signal.count)x\(runs))"
         }
         .joined(separator: "; ")
-      lines.append("AI-user rationale signals: \(signals).")
+      lines.append("simulated-user rationale signals: \(signals).")
     }
 
     if !currentAggregate.decisionIntentOutcomes.isEmpty {
@@ -981,7 +981,7 @@ enum ProductTournamentPlanningDigestFormatter {
           ? "proof-debt clear"
           : "proof-debt \(bounded(readiness.proofDebt.summary, 180))"
         lines.append(
-          "- \(readiness.experimentID): score \(readiness.scoreLabel)/100; recommend \(readiness.recommendation.rawValue); ai-user \(readiness.aiUserCompletedRunCount) across \(readiness.aiUserDistinctPersonaCount) persona(s); alt-proof \(readiness.aiUserCurrentAlternativePersonaCount) AI-user persona(s); model-free \(readiness.modelFreeCompletedRunCount); \(proofDebt); \(evidence)\(rationale)."
+          "- \(readiness.experimentID): score \(readiness.scoreLabel)/100; recommend \(readiness.recommendation.rawValue); persona-model \(readiness.aiUserCompletedRunCount) across \(readiness.aiUserDistinctPersonaCount) simulated user(s); alt-proof \(readiness.aiUserCurrentAlternativePersonaCount) persona-model simulated user(s); model-free \(readiness.modelFreeCompletedRunCount); \(proofDebt); \(evidence)\(rationale)."
         )
       }
     }

@@ -575,7 +575,7 @@ enum TournamentAutomationEvidenceTensionAdvisor {
     guard !positive.isEmpty, !negative.isEmpty else { return nil }
 
     let summary =
-      "Current tournament evidence is split: \(positive.count) pull signal(s) and \(negative.count) rejection signal(s) on the current commit. Run a targeted AI-user comparison or narrow the scenario before applying lift/cut decisions."
+      "Current tournament evidence is split: \(positive.count) pull signal(s) and \(negative.count) rejection signal(s) on the current commit. Run a targeted persona-model comparison or narrow the scenario before applying lift/cut decisions."
     let target = config.flatMap {
       tensionTarget(for: negative, experiment: experiment, config: $0)
     }
@@ -912,7 +912,7 @@ struct TournamentAutomationRationaleSignal: Equatable, Sendable, Identifiable {
 
   var auditSummary: String {
     var parts = [
-      "\(experimentID): resolve AI-user rationale signal",
+      "\(experimentID): resolve simulated-user rationale signal",
       "count \(count)",
     ]
     if !runIDs.isEmpty {
@@ -953,7 +953,7 @@ struct TournamentAutomationRationaleSignal: Equatable, Sendable, Identifiable {
     )
     self.rationale = ProductTournamentModelText.cleanedText(
       rationale,
-      fallback: "Repeated AI-user rationale needs tournament experience proof.",
+      fallback: "Repeated simulated-user rationale needs tournament experience proof.",
       limit: 260
     )
     self.count = max(0, count)
@@ -978,7 +978,7 @@ struct TournamentAutomationRationaleSignal: Equatable, Sendable, Identifiable {
     self.summary = ProductTournamentModelText.cleanedText(
       summary,
       fallback:
-        "Repeated AI-user rationale points to a tournament proof gap; resolve it before lift/cut decisions.",
+        "Repeated simulated-user rationale points to a tournament proof gap; resolve it before lift/cut decisions.",
       limit: 1_000
     )
   }
@@ -1286,7 +1286,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetCohortID: target?.cohortID,
         requiredSimulationMode: .personaModel,
         summary:
-          "Targeted stop proof contradicted killing the contender in \(count) run(s); run a lift-oriented AI-user proof or revise the scenario before cutting."
+          "Targeted stop proof contradicted killing the contender in \(count) run(s); run a lift-oriented persona-model proof or revise the scenario before cutting."
       )
     case .narrow, .pivot:
       let canRun = target?.scenarioID != nil && target?.cohortID != nil
@@ -1425,7 +1425,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
       targetCohortID: target?.cohortID,
       requiredSimulationMode: .personaModel,
       summary:
-        "\(count) targeted \(targetDecision.rawValue) proof run(s) were inconclusive; retarget the scenario or rerun a sharper AI-user proof before deciding."
+        "\(count) targeted \(targetDecision.rawValue) proof run(s) were inconclusive; retarget the scenario or rerun a sharper persona-model proof before deciding."
     )
   }
 
@@ -1536,7 +1536,7 @@ enum TournamentAutomationRationaleSignalAdvisor {
     let rationaleText = aggregateSignal.rationale.trimmingCharacters(in: .whitespacesAndNewlines)
     let rationalePunctuation = rationaleText.hasSuffix(".") ? "" : "."
     let summary =
-      "Repeated AI-user rationale appeared in \(aggregateSignal.count) current run(s): \(rationaleText)\(rationalePunctuation)\(targetLabel) Resolve this reason with prototype, scenario, or current-alternative proof before lift/cut."
+      "Repeated simulated-user rationale appeared in \(aggregateSignal.count) current run(s): \(rationaleText)\(rationalePunctuation)\(targetLabel) Resolve this reason with prototype, scenario, or current-alternative proof before lift/cut."
     return TournamentAutomationRationaleSignal(
       experimentID: experiment.id,
       rationale: aggregateSignal.rationale,
@@ -1799,7 +1799,7 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
     self.priority = max(0, priority)
     self.triggerSummary = ProductTournamentModelText.cleanedText(
       triggerSummary,
-      fallback: "AI-user evidence found a contender revision trigger.",
+      fallback: "persona-model evidence found a contender revision trigger.",
       limit: 320
     )
     self.prototypeChange = ProductTournamentModelText.cleanedText(
@@ -1809,12 +1809,12 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
     )
     self.scenarioChange = ProductTournamentModelText.cleanedText(
       scenarioChange,
-      fallback: "Retarget the scenario so the next AI-user run can test the change.",
+      fallback: "Retarget the scenario so the next persona-model run can test the change.",
       limit: 360
     )
     self.proofPlan = ProductTournamentModelText.cleanedText(
       proofPlan,
-      fallback: "Rerun targeted AI-user proof against the current alternative.",
+      fallback: "Rerun targeted persona-model proof against the current alternative.",
       limit: 360
     )
     self.targetPersonaID = ProductTournamentModelText.optionalIdentifier(
@@ -1875,8 +1875,8 @@ enum TournamentAutomationRevisionBriefAdvisor {
       config: config,
       evidenceIndex: evidenceIndex
     )
-    let isRetargeted = action?.title == "Retarget AI-user rationale signal"
-    guard isRetargeted || action?.title == "Resolve AI-user rationale signal" else {
+    let isRetargeted = action?.title == "Retarget simulated-user rationale signal"
+    guard isRetargeted || action?.title == "Resolve simulated-user rationale signal" else {
       return nil
     }
     let revision = revisionPlan(
@@ -1953,7 +1953,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
     isRetargeted: Bool
   ) -> RevisionPlan {
     let rationale = signal.rationale.lowercased()
-    let targetName = signal.targetPersonaName ?? "the target AI user"
+    let targetName = signal.targetPersonaName ?? "the target simulated user"
     let retargetPrefix =
       isRetargeted
       ? "The same rationale survived a tournament automation cycle; "
@@ -1961,34 +1961,34 @@ enum TournamentAutomationRevisionBriefAdvisor {
     if containsAny(rationale, ["csv", "import", "spreadsheet"]) {
       return RevisionPlan(
         title: isRetargeted
-          ? "Retarget contender revision for AI-user rationale"
-          : "Revise prototype for AI-user rationale",
+          ? "Retarget contender revision for simulated-user rationale"
+          : "Revise prototype for simulated-user rationale",
         prototypeChange:
           "\(retargetPrefix)add a visible import or spreadsheet handoff path that proves the prototype can absorb real current-workflow data.",
         scenarioChange:
           "Ask \(targetName) to bring a realistic spreadsheet, CSV, or manual artifact into the scenario and judge whether the prototype preserves context.",
         proofPlan:
-          "Rerun the targeted AI-user scenario and compare import effort, missing fields, and confidence against the manual spreadsheet alternative."
+          "Rerun the targeted persona-model scenario and compare import effort, missing fields, and confidence against the manual spreadsheet alternative."
       )
     }
     if containsAny(rationale, ["roi", "cost", "risk", "budget", "sponsor"]) {
       return RevisionPlan(
         title: isRetargeted
-          ? "Retarget contender revision for AI-user rationale"
-          : "Revise prototype for AI-user rationale",
+          ? "Retarget contender revision for simulated-user rationale"
+          : "Revise prototype for simulated-user rationale",
         prototypeChange:
           "\(retargetPrefix)add sponsor-facing proof of cost, risk reduction, or decision confidence directly in the prototype flow.",
         scenarioChange:
           "Frame the next scenario around \(targetName)'s investment decision and require an explicit continue, narrow, kill, or promote rationale.",
         proofPlan:
-          "Rerun AI-user sponsor proof and require a current-alternative comparison that names the ROI or risk threshold."
+          "Rerun persona-model sponsor proof and require a current-alternative comparison that names the ROI or risk threshold."
       )
     }
     if containsAny(rationale, ["trust", "proof", "evidence", "confidence"]) {
       return RevisionPlan(
         title: isRetargeted
-          ? "Retarget contender revision for AI-user rationale"
-          : "Revise prototype for AI-user rationale",
+          ? "Retarget contender revision for simulated-user rationale"
+          : "Revise prototype for simulated-user rationale",
         prototypeChange:
           "\(retargetPrefix)make the proof artifact inspectable: show source context, decision criteria, and why the prototype beats the current workflow.",
         scenarioChange:
@@ -2000,46 +2000,46 @@ enum TournamentAutomationRevisionBriefAdvisor {
     if containsAny(rationale, ["switch", "switching", "manual", "alternative"]) {
       return RevisionPlan(
         title: isRetargeted
-          ? "Retarget contender revision for AI-user rationale"
-          : "Revise prototype for AI-user rationale",
+          ? "Retarget contender revision for simulated-user rationale"
+          : "Revise prototype for simulated-user rationale",
         prototypeChange:
           "\(retargetPrefix)reduce switching friction by making the first successful workflow moment obvious and reversible.",
         scenarioChange:
           "Put \(targetName) at the exact switching decision between the prototype and the current manual workflow.",
         proofPlan:
-          "Rerun AI-user proof and compare setup effort, risk, and first-use value against the current alternative."
+          "Rerun persona-model proof and compare setup effort, risk, and first-use value against the current alternative."
       )
     }
     if containsAny(rationale, ["unclear", "confusing", "missing", "cannot", "can't"]) {
       return RevisionPlan(
         title: isRetargeted
-          ? "Retarget contender revision for AI-user rationale"
-          : "Revise prototype for AI-user rationale",
+          ? "Retarget contender revision for simulated-user rationale"
+          : "Revise prototype for simulated-user rationale",
         prototypeChange:
-          "\(retargetPrefix)remove ambiguity in the next action and expose the missing capability where the AI user got stuck.",
+          "\(retargetPrefix)remove ambiguity in the next action and expose the missing capability where the simulated user got stuck.",
         scenarioChange:
           "Rewrite the scenario around the moment \(targetName) could not complete, trust, or interpret the workflow.",
         proofPlan:
-          "Rerun the targeted AI-user scenario and require the user to name the next action without external explanation."
+          "Rerun the targeted persona-model scenario and require the user to name the next action without external explanation."
       )
     }
     return RevisionPlan(
       title: isRetargeted
-        ? "Retarget contender revision for AI-user rationale"
-        : "Revise prototype for AI-user rationale",
+        ? "Retarget contender revision for simulated-user rationale"
+        : "Revise prototype for simulated-user rationale",
       prototypeChange:
         "\(retargetPrefix)turn the repeated rationale into a visible product affordance, not just a better explanation.",
       scenarioChange:
         "Retarget the next scenario so \(targetName) must confront the repeated rationale before giving a tournament verdict.",
       proofPlan:
-        "Rerun targeted AI-user proof and require a current-alternative comparison that says whether the rationale is resolved."
+        "Rerun targeted persona-model proof and require a current-alternative comparison that says whether the rationale is resolved."
     )
   }
 
   private static func revisionPlan(
     for signal: TournamentAutomationTargetedProofOutcomeSignal
   ) -> RevisionPlan {
-    let targetName = signal.targetPersonaName ?? "the target AI user"
+    let targetName = signal.targetPersonaName ?? "the target simulated user"
     switch (signal.targetDecision, signal.outcome) {
     case (.promote, .contradictsTarget), (.promoted, .contradictsTarget):
       return RevisionPlan(
@@ -2049,7 +2049,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
         scenarioChange:
           "Retarget the scenario so \(targetName) must compare the revised prototype against the current alternative before giving a promote, narrow, or kill rationale.",
         proofPlan:
-          "Rerun targeted AI-user promotion proof and require alternative advantage, switching readiness, and continued-use pull to clear the contradiction."
+          "Rerun targeted persona-model promotion proof and require alternative advantage, switching readiness, and continued-use pull to clear the contradiction."
       )
     case (.kill, .contradictsTarget), (.archived, .contradictsTarget):
       return RevisionPlan(
@@ -2059,7 +2059,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
         scenarioChange:
           "Retarget the scenario so \(targetName) tests whether that pull repeats or collapses under realistic switching objections.",
         proofPlan:
-          "Rerun AI-user lift proof before cutting, and require the persona to choose continue, promote, narrow, or kill with reasons."
+          "Rerun persona-model lift proof before cutting, and require the persona to choose continue, promote, narrow, or kill with reasons."
       )
     case (.narrow, .supportsTarget), (.pivot, .supportsTarget):
       return RevisionPlan(
@@ -2069,17 +2069,17 @@ enum TournamentAutomationRevisionBriefAdvisor {
         scenarioChange:
           "Retarget the scenario to the narrower workflow and require \(targetName) to judge whether the narrower promise beats the current alternative.",
         proofPlan:
-          "Rerun targeted AI-user proof for the narrowed contender before considering lift/cut."
+          "Rerun targeted persona-model proof for the narrowed contender before considering lift/cut."
       )
     case (_, .inconclusive):
       return RevisionPlan(
         title: "Sharpen inconclusive tournament proof",
         prototypeChange:
-          "make the decision criteria visible in the prototype so the AI user can judge pain recognition, alternative advantage, switching readiness, and continued-use pull.",
+          "make the decision criteria visible in the prototype so the simulated user can judge pain recognition, alternative advantage, switching readiness, and continued-use pull.",
         scenarioChange:
           "Rewrite the scenario around a single forced tournament decision for \(targetName), with explicit current-alternative comparison.",
         proofPlan:
-          "Rerun targeted AI-user proof and require the result to support or contradict \(signal.targetDecision.rawValue), not remain inconclusive."
+          "Rerun targeted persona-model proof and require the result to support or contradict \(signal.targetDecision.rawValue), not remain inconclusive."
       )
     default:
       return RevisionPlan(
@@ -2089,7 +2089,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
         scenarioChange:
           "Retarget the scenario to the proof outcome and require \(targetName) to explain whether the product contender should continue, narrow, pivot, kill, or promote.",
         proofPlan:
-          "Rerun targeted AI-user proof and compare the new outcome with \(signal.runIDs.prefix(3).joined(separator: ", "))."
+          "Rerun targeted persona-model proof and compare the new outcome with \(signal.runIDs.prefix(3).joined(separator: ", "))."
       )
     }
   }
@@ -2424,34 +2424,34 @@ enum TournamentAutomationProofTargetAdvisor {
       switch action?.targetDecision {
       case .promote:
         return targetsCurrentAlternative
-          ? "run AI-user alternative validation proof"
-          : "run targeted AI-user validation proof"
+          ? "run persona-model alternative validation proof"
+          : "run targeted persona-model validation proof"
       case .kill:
         return targetsCurrentAlternative
-          ? "run AI-user alternative rejection proof"
-          : "run targeted AI-user rejection proof"
+          ? "run persona-model alternative rejection proof"
+          : "run targeted persona-model rejection proof"
       case .notRun, .keepGoing, .narrow, .pivot, .archived, .promoted, nil:
         return targetsCurrentAlternative
-          ? "run targeted AI-user alternative proof"
-          : "run targeted AI-user persona proof"
+          ? "run targeted persona-model alternative proof"
+          : "run targeted persona-model simulated-user proof"
       }
     }
     if action?.requiredSimulationMode == .personaModel {
       switch action?.targetDecision {
       case .promote:
-        return "add or enable AI-user validation proof"
+        return "add or enable persona-model validation proof"
       case .kill:
-        return "add or enable AI-user rejection proof"
+        return "add or enable persona-model rejection proof"
       case .notRun, .keepGoing, .narrow, .pivot, .archived, .promoted, nil:
         break
       }
-      return "add or enable runnable AI-user proof"
+      return "add or enable runnable persona-model proof"
     }
     if readiness.proofDebt.completedRunDeficit > 0 || readiness.proofDebt.personaDeficit > 0 {
       return "broaden completed persona coverage"
     }
     if readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0 {
-      return "add AI-user current-alternative proof"
+      return "add persona-model current-alternative proof"
     }
     return "close remaining tournament proof debt"
   }
@@ -2761,7 +2761,7 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
     guard action.requiredSimulationMode == .personaModel, !isPersonaModelAvailable else {
       return nil
     }
-    return "AI-user validation requires Foundation Models before this step can run."
+    return "persona-model validation requires Foundation Models before this step can run."
   }
 }
 
@@ -3170,7 +3170,7 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
   private var personaRationaleSignalMessage: String? {
     guard !personaRationaleSignalSummaries.isEmpty else { return nil }
     let signals = personaRationaleSignalSummaries.prefix(3).joined(separator: " | ")
-    return "AI-user rationale signals: \(StringUtils.boundedText(signals, limit: 420))."
+    return "simulated-user rationale signals: \(StringUtils.boundedText(signals, limit: 420))."
   }
 
   private var revisionBriefMessage: String? {
@@ -3812,7 +3812,7 @@ enum TournamentAutomationCycleLearningAdvisor {
     _ action: ProductTournamentNextAction
   ) -> Bool {
     (action.kind == .runCohort || action.kind == .rerunCohort)
-      && action.title == "Resolve AI-user rationale signal"
+      && action.title == "Resolve simulated-user rationale signal"
       && action.targetScenarioID != nil
       && action.requiredSimulationMode == .personaModel
   }
@@ -3903,7 +3903,7 @@ enum TournamentAutomationCycleLearningAdvisor {
     audit.personaRationaleSignalSummaries.contains { summary in
       if let signal {
         let labelMatches =
-          summary.localizedCaseInsensitiveContains("resolve AI-user rationale signal")
+          summary.localizedCaseInsensitiveContains("resolve simulated-user rationale signal")
         let rationaleMatches = summary.localizedCaseInsensitiveContains(signal.rationale)
         let personaMatches =
           action.targetPersonaName.map {
@@ -4380,7 +4380,7 @@ enum TournamentAutomationPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent tournament automation cycle \(audit.id) already applied this contender revision; run fresh targeted AI-user evidence or change the prototype before applying it again."
+        "Recent tournament automation cycle \(audit.id) already applied this contender revision; run fresh targeted persona-model evidence or change the prototype before applying it again."
       return blocked
     }
     if step.canExecute,
@@ -4422,7 +4422,7 @@ enum TournamentAutomationPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent tournament automation cycle \(audit.id) already attempted this AI-user rationale signal and the same rationale is still present; revise the prototype, scenario, or current-alternative proof before retrying."
+        "Recent tournament automation cycle \(audit.id) already attempted this simulated-user rationale signal and the same rationale is still present; revise the prototype, scenario, or current-alternative proof before retrying."
       return blocked
     }
     guard step.canExecute,
@@ -4436,7 +4436,7 @@ enum TournamentAutomationPlanner {
     var blocked = step
     blocked.canExecute = false
     blocked.blockedReason =
-      "Recent tournament automation cycle \(audit.id) already attempted this proof target without reducing proof debt; inspect the run evidence, change the scenario or current-alternative proof, or choose a different AI-user target before retrying."
+      "Recent tournament automation cycle \(audit.id) already attempted this proof target without reducing proof debt; inspect the run evidence, change the scenario or current-alternative proof, or choose a different persona-model target before retrying."
     return blocked
   }
 
@@ -4921,13 +4921,13 @@ enum ProductTournamentNextActionAdvisor {
           experiment: experiment,
           selectedCohort: cohort,
           target: missingAIUserTarget,
-          title: "Run AI-user validation cohort",
+          title: "Run persona-model validation cohort",
           decisionGate: "promotion",
           gateReason: "promotion requires at least 2",
           targetDecision: .promote,
           priority: 78,
           observedCount: readiness.aiUserDistinctPersonaCount,
-          observedEvidenceLabel: "AI-user persona(s)"
+          observedEvidenceLabel: "persona-model simulated user(s)"
         ),
         experiment: experiment,
         config: config,
@@ -4940,13 +4940,13 @@ enum ProductTournamentNextActionAdvisor {
           experiment: experiment,
           selectedCohort: cohort,
           target: missingAIUserTarget,
-          title: "Run AI-user rejection check",
+          title: "Run persona-model rejection check",
           decisionGate: "stopping the experiment",
           gateReason: "stopping a contender requires at least 2",
           targetDecision: .kill,
           priority: 82,
           observedCount: readiness.aiUserDistinctPersonaCount,
-          observedEvidenceLabel: "AI-user persona(s)"
+          observedEvidenceLabel: "persona-model simulated user(s)"
         ),
         experiment: experiment,
         config: config,
@@ -4970,14 +4970,14 @@ enum ProductTournamentNextActionAdvisor {
           experiment: experiment,
           selectedCohort: cohort,
           target: missingCurrentAlternativeTarget,
-          title: "Run AI-user alternative challenge",
+          title: "Run persona-model alternative challenge",
           decisionGate: "promotion",
           gateReason:
-            "decisive tournament decisions require current-alternative proof from at least 2 AI-user personas",
+            "decisive tournament decisions require current-alternative proof from at least 2 persona-model simulated users",
           targetDecision: .promote,
           priority: 77,
           observedCount: readiness.aiUserCurrentAlternativePersonaCount,
-          observedEvidenceLabel: "AI-user current-alternative persona(s)"
+          observedEvidenceLabel: "persona-model current-alternative simulated user(s)"
         ),
         experiment: experiment,
         config: config,
@@ -4992,14 +4992,14 @@ enum ProductTournamentNextActionAdvisor {
           experiment: experiment,
           selectedCohort: cohort,
           target: missingCurrentAlternativeTarget,
-          title: "Run AI-user alternative rejection check",
+          title: "Run persona-model alternative rejection check",
           decisionGate: "stopping the experiment",
           gateReason:
-            "decisive tournament decisions require current-alternative proof from at least 2 AI-user personas",
+            "decisive tournament decisions require current-alternative proof from at least 2 persona-model simulated users",
           targetDecision: .kill,
           priority: 81,
           observedCount: readiness.aiUserCurrentAlternativePersonaCount,
-          observedEvidenceLabel: "AI-user current-alternative persona(s)"
+          observedEvidenceLabel: "persona-model current-alternative simulated user(s)"
         ),
         experiment: experiment,
         config: config,
@@ -5019,16 +5019,16 @@ enum ProductTournamentNextActionAdvisor {
         let targetCohortID = tension.targetCohortID
       {
         detail =
-          "\(tension.summary) Rerun rejecting AI-user scenario `\(targetScenarioID)` for \(targetPersonaName) in cohort `\(targetCohortID)` before lift/cut."
+          "\(tension.summary) Rerun rejecting persona-model scenario `\(targetScenarioID)` for \(targetPersonaName) in cohort `\(targetCohortID)` before lift/cut."
       } else if let targetPersonaName = tension.targetPersonaName {
         detail =
-          "\(tension.summary) Add or enable a cohort scenario for \(targetPersonaName), then rerun it in AI-user mode before lift/cut."
+          "\(tension.summary) Add or enable a cohort scenario for \(targetPersonaName), then rerun it in persona-model mode before lift/cut."
       } else if let actionCohortID {
         detail =
-          "\(tension.summary) Run cohort `\(actionCohortID)` in AI-user mode to compare the disagreeing personas before lift/cut."
+          "\(tension.summary) Run cohort `\(actionCohortID)` in persona-model mode to compare the disagreeing personas before lift/cut."
       } else {
         detail =
-          "\(tension.summary) Add an enabled AI-user scenario that directly compares the disagreeing evidence before lift/cut."
+          "\(tension.summary) Add an enabled persona-model scenario that directly compares the disagreeing evidence before lift/cut."
       }
       return applyingRecentCycleGuards(
         to: ProductTournamentNextAction(
@@ -5072,16 +5072,16 @@ enum ProductTournamentNextActionAdvisor {
           "\(rationaleSignal.summary) Rerun persona-model scenario `\(scenarioID)` for \(targetPersonaName) in cohort `\(cohortID)` after this rationale has been addressed."
       } else if let targetPersonaName = rationaleSignal.targetPersonaName {
         targetDetail =
-          "\(rationaleSignal.summary) Update the prototype or scenario for \(targetPersonaName), then rerun AI-user proof before investing further."
+          "\(rationaleSignal.summary) Update the prototype or scenario for \(targetPersonaName), then rerun persona-model proof before investing further."
       } else {
         targetDetail =
-          "\(rationaleSignal.summary) Update the prototype, scenario, or decision criteria, then rerun AI-user proof before investing further."
+          "\(rationaleSignal.summary) Update the prototype, scenario, or decision criteria, then rerun persona-model proof before investing further."
       }
       return applyingRecentCycleGuards(
         to: ProductTournamentNextAction(
           experimentID: experiment.id,
           kind: actionKind,
-          title: "Resolve AI-user rationale signal",
+          title: "Resolve simulated-user rationale signal",
           detail: targetDetail,
           priority: rationaleSignal.urgencyScore,
           cohortID: shouldRunTarget ? rationaleSignal.targetCohortID : nil,
@@ -5219,17 +5219,17 @@ enum ProductTournamentNextActionAdvisor {
     let canRunTarget = executableCohortID != nil && executableScenarioID != nil
     let guidance =
       target?.guidance(selectedCohort: selectedCohort, executableCohortID: executableCohortID)
-      ?? " Target AI-user segment: add an enabled scenario for an untested segment."
+      ?? " Target simulated-user segment: add an enabled scenario for an untested segment."
     let detail: String
     if let executableCohortID, executableScenarioID != nil {
       detail =
         "Current evidence has \(observedCount) \(observedEvidenceLabel), but \(gateReason); run the targeted persona-model scenario in cohort `\(executableCohortID)` before \(decisionGate).\(guidance)"
     } else if let selectedCohort {
       detail =
-        "Current evidence has \(observedCount) \(observedEvidenceLabel), but \(gateReason); cohort `\(selectedCohort.id)` does not cover a runnable AI-user target before \(decisionGate).\(guidance)"
+        "Current evidence has \(observedCount) \(observedEvidenceLabel), but \(gateReason); cohort `\(selectedCohort.id)` does not cover a runnable simulated-user target before \(decisionGate).\(guidance)"
     } else {
       detail =
-        "Current evidence has \(observedCount) \(observedEvidenceLabel), but \(gateReason); define an enabled AI-user scenario cohort before \(decisionGate).\(guidance)"
+        "Current evidence has \(observedCount) \(observedEvidenceLabel), but \(gateReason); define an enabled persona-model scenario cohort before \(decisionGate).\(guidance)"
     }
     return ProductTournamentNextAction(
       experimentID: experiment.id,
@@ -5262,17 +5262,17 @@ enum ProductTournamentNextActionAdvisor {
     ) -> String {
       if let scenarioID, let executableCohortID {
         return
-          " Target AI-user segment: \(name) via scenario `\(scenarioID)` in cohort `\(executableCohortID)`."
+          " Target simulated-user segment: \(name) via scenario `\(scenarioID)` in cohort `\(executableCohortID)`."
       }
       if let scenarioID, let selectedCohort {
         return
-          " Target AI-user segment: \(name); add scenario `\(scenarioID)` to cohort `\(selectedCohort.id)` or enable a cohort that includes it."
+          " Target simulated-user segment: \(name); add scenario `\(scenarioID)` to cohort `\(selectedCohort.id)` or enable a cohort that includes it."
       }
       if let scenarioID {
         return
-          " Target AI-user segment: \(name); enable a cohort that includes scenario `\(scenarioID)`."
+          " Target simulated-user segment: \(name); enable a cohort that includes scenario `\(scenarioID)`."
       }
-      return " Target AI-user segment: \(name); add an enabled scenario for this segment."
+      return " Target simulated-user segment: \(name); add an enabled scenario for this segment."
     }
   }
 
@@ -5546,9 +5546,9 @@ enum ProductTournamentNextActionAdvisor {
       return ProductTournamentNextAction(
         experimentID: experiment.id,
         kind: .refineContender,
-        title: "Retarget AI-user rationale signal",
+        title: "Retarget simulated-user rationale signal",
         detail:
-          "Recent tournament automation cycle \(audit.id) reran the same AI-user rationale target and the rationale is still present (\(audit.summary)); revise the prototype, scenario, current-alternative proof, or decision criteria before retrying.",
+          "Recent tournament automation cycle \(audit.id) reran the same simulated-user rationale target and the rationale is still present (\(audit.summary)); revise the prototype, scenario, current-alternative proof, or decision criteria before retrying.",
         priority: min(98, max(action.priority + 1, 86)),
         requiredSimulationMode: .personaModel,
         targetPersonaID: action.targetPersonaID,
@@ -5605,7 +5605,7 @@ enum ProductTournamentNextActionAdvisor {
       let cohortID = signal.targetCohortID,
       let scenarioID = signal.targetScenarioID
     else { return nil }
-    let targetName = signal.targetPersonaName ?? "the target AI user"
+    let targetName = signal.targetPersonaName ?? "the target simulated user"
     let targetDecision =
       action.targetDecision ?? signal.recommendedDecision ?? signal.targetDecision
     return ProductTournamentNextAction(
@@ -5641,7 +5641,7 @@ enum ProductTournamentNextActionAdvisor {
       } ?? "Review whether to narrow, pivot, or kill before more contender revisions."
     let detail = [
       "Recent tournament automation cycle \(audit.id) repeated a contender revision validation.",
-      "The same AI-user rationale still survived (\(audit.summary)).",
+      "The same simulated-user rationale still survived (\(audit.summary)).",
       targetDetail,
     ].joined(separator: " ")
     return ProductTournamentNextAction(
@@ -5695,7 +5695,7 @@ enum ProductTournamentNextActionAdvisor {
     guard let cohortID = action.cohortID,
       action.targetScenarioID != nil
     else { return nil }
-    let targetName = action.targetPersonaName ?? "the target AI user"
+    let targetName = action.targetPersonaName ?? "the target simulated user"
     return ProductTournamentNextAction(
       experimentID: experiment.id,
       kind: .rerunCohort,
@@ -5741,8 +5741,8 @@ enum ProductTournamentNextActionAdvisor {
           evidenceIndex: evidenceIndex,
           cohort: selectedCohort
         ),
-        title: "Retarget AI-user proof debt",
-        proofNeed: "\(readiness.proofDebt.aiUserPersonaDeficit) AI-user persona(s)"
+        title: "Retarget persona-model proof debt",
+        proofNeed: "\(readiness.proofDebt.aiUserPersonaDeficit) persona-model simulated user(s)"
       )
     }
     if readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0 {
@@ -5762,9 +5762,9 @@ enum ProductTournamentNextActionAdvisor {
             evidenceIndex: evidenceIndex
           )
         ),
-        title: "Retarget AI-user alternative proof",
+        title: "Retarget persona-model alternative proof",
         proofNeed:
-          "\(readiness.proofDebt.aiUserCurrentAlternativeDeficit) AI-user current-alternative proof(s)"
+          "\(readiness.proofDebt.aiUserCurrentAlternativeDeficit) persona-model current-alternative proof(s)"
       )
     }
     return nil
@@ -5785,9 +5785,9 @@ enum ProductTournamentNextActionAdvisor {
     let canRunTarget = executableCohortID != nil && executableScenarioID != nil
     let guidance =
       target?.guidance(selectedCohort: selectedCohort, executableCohortID: executableCohortID)
-      ?? " Target AI-user segment: add an enabled scenario for an untested segment."
+      ?? " Target simulated-user segment: add an enabled scenario for an untested segment."
     let debtSummary = StringUtils.boundedText(readiness.proofDebt.summary, limit: 140)
-    let targetName = target?.name ?? "the missing AI-user segment"
+    let targetName = target?.name ?? "the missing simulated-user segment"
     let targetDecision = action.targetDecision ?? liftCutDecisionHint(for: readiness.recommendation)
     let detail: String
     if canRunTarget {
@@ -5796,10 +5796,10 @@ enum ProductTournamentNextActionAdvisor {
     } else if let selectedCohort {
       let cohortTitle = StringUtils.boundedText(selectedCohort.title, limit: 80)
       detail =
-        "Recent tournament automation cycle \(audit.id) ran broad evidence without reducing proof debt; cohort \(cohortTitle) does not cover a runnable AI-user target for \(proofNeed). \(guidance) Remaining proof debt: \(debtSummary)."
+        "Recent tournament automation cycle \(audit.id) ran broad evidence without reducing proof debt; cohort \(cohortTitle) does not cover a runnable simulated-user target for \(proofNeed). \(guidance) Remaining proof debt: \(debtSummary)."
     } else {
       detail =
-        "Recent tournament automation cycle \(audit.id) ran broad evidence without reducing proof debt; define an enabled AI-user scenario cohort for \(proofNeed).\(guidance) Remaining proof debt: \(debtSummary)."
+        "Recent tournament automation cycle \(audit.id) ran broad evidence without reducing proof debt; define an enabled persona-model scenario cohort for \(proofNeed).\(guidance) Remaining proof debt: \(debtSummary)."
     }
     return ProductTournamentNextAction(
       experimentID: experiment.id,
@@ -6038,7 +6038,7 @@ enum ProductTournamentDecisionAdvisor {
       : "evidence \(readiness.evidenceRunIDs.prefix(4).joined(separator: ", "))"
     let rationale = readiness.rationale.prefix(3).joined(separator: " ")
     let proof =
-      "\(readiness.aiUserCompletedRunCount) AI-user run(s) across \(readiness.aiUserDistinctPersonaCount) persona(s); current-alternative proof from \(readiness.aiUserCurrentAlternativePersonaCount) AI-user persona(s)."
+      "\(readiness.aiUserCompletedRunCount) persona-model run(s) across \(readiness.aiUserDistinctPersonaCount) simulated user(s); current-alternative proof from \(readiness.aiUserCurrentAlternativePersonaCount) persona-model simulated user(s)."
     return StringUtils.boundedText(
       """
       Tournament readiness \(readiness.scoreLabel)/100 recommends \(target.rawValue) for \(experiment.title): \(rationale) \(proof) Supporting \(evidence).

@@ -397,7 +397,10 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(good.evidenceRunIDs.first == "strong-a")
     try #require(good.proofDebt.isClear)
     try #require(good.proofDebt.summary == "proof complete")
-    try #require(good.rationale.contains { $0.contains("2 AI-user run(s) across 2 persona(s)") })
+    try #require(
+      good.rationale.contains {
+        $0.contains("2 persona-model run(s) across 2 simulated user(s)")
+      })
     try #require(good.rationale.contains { $0.contains("Average tournament score") })
 
     try #require(bad.recommendation == .kill)
@@ -411,7 +414,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(narrow.recommendation == .narrow)
     try #require(narrow.proofDebt.aiUserPersonaDeficit == 2)
     try #require(narrow.proofDebt.aiUserCurrentAlternativeDeficit == 2)
-    try #require(narrow.proofDebt.summary.contains("AI-user persona"))
+    try #require(narrow.proofDebt.summary.contains("persona-model simulated user"))
     try #require(narrow.rationale.contains { $0.contains("Missing capabilities") })
     try #require(narrow.rationale.contains { $0.contains("Proof debt") })
   }
@@ -499,14 +502,14 @@ struct ProductTournamentEvidenceStoreTests {
         startingProofDebtCount: 8,
         endingProofDebtCount: 7,
         startingProofDebtSummary:
-          "\(config.tournamentExperiments[0].id): 2 completed run(s), 2 persona(s), 2 AI-user persona(s), 2 AI-user current-alternative proof(s)",
+          "\(config.tournamentExperiments[0].id): 2 completed run(s), 2 persona(s), 2 persona-model simulated user(s), 2 persona-model current-alternative proof(s)",
         endingProofDebtSummary:
-          "\(config.tournamentExperiments[0].id): 1 completed run(s), 2 persona(s), 2 AI-user persona(s), 2 AI-user current-alternative proof(s)",
+          "\(config.tournamentExperiments[0].id): 1 completed run(s), 2 persona(s), 2 persona-model simulated user(s), 2 persona-model current-alternative proof(s)",
         evidenceTensionSummaries: [
           "\(config.tournamentExperiments[0].id): resolve split tournament evidence; score 82/100; strong_pull vs rejected; target Budget owner"
         ],
         proofTargetSummaries: [
-          "\(config.tournamentExperiments[0].id): run targeted AI-user persona proof; target Budget owner; debt 2 AI-user persona(s)"
+          "\(config.tournamentExperiments[0].id): run targeted persona-model simulated-user proof; target Budget owner; debt 2 persona-model simulated user(s)"
         ],
         stopReason: .executionFailed,
         stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
@@ -538,8 +541,8 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(text.contains("Top current-commit evidence signals and objections"))
     try #require(text.contains("Current-commit product tournament readiness"))
     try #require(text.contains("proof-debt"))
-    try #require(text.contains("2 AI-user persona(s)"))
-    try #require(text.contains("ai-user 0"))
+    try #require(text.contains("2 persona-model simulated user(s)"))
+    try #require(text.contains("persona-model 0"))
     try #require(text.contains("model-free 1"))
     try #require(text.contains("Tournament automation step"))
     try #require(text.contains("Tournament automation portfolio pressure"))
@@ -557,7 +560,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(text.contains("resolve split tournament evidence"))
     try #require(text.contains("targets"))
     try #require(text.contains("proof targets"))
-    try #require(text.contains("run targeted AI-user persona proof"))
+    try #require(text.contains("run targeted persona-model simulated-user proof"))
     try #require(text.contains("Budget owner"))
     try #require(text.contains("1 needing review"))
     try #require(text.contains("execution_failed"))
@@ -613,7 +616,7 @@ struct ProductTournamentEvidenceStoreTests {
       evidenceIndex: ProductTournamentEvidenceIndex.build(records: records)
     )
 
-    try #require(text.contains("AI-user rationale signals"))
+    try #require(text.contains("simulated-user rationale signals"))
     try #require(text.contains("needed csv proof before switching"))
     try #require(text.contains("rationale-one"))
     try #require(text.contains("rationale-two"))

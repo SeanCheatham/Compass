@@ -90,7 +90,7 @@ struct ProductTournamentScenarioRunOutcome {
       case .modelFree:
         return "Model-free scenario run completed."
       case .personaModel:
-        return "AI-user scenario run completed."
+        return "Persona-model scenario run completed."
       }
     case .appContractMissing:
       return "Generated app contract is missing for this experiment."
@@ -136,7 +136,7 @@ struct ProductTournamentScenarioCohortRunOutcome {
     case .modelFree:
       label = "Model-free"
     case .personaModel:
-      label = "AI-user"
+      label = "Persona-model"
     }
     return
       "\(label) cohort ran \(outcomes.count) scenario(s): \(completedRunCount) completed, \(failedRunCount) needing review, \(skippedScenarioIDs.count) skipped."
@@ -276,7 +276,7 @@ enum ProductTournamentScenarioCoordinator {
       task:
         "Revise the product contender for \(targetName). Prototype change to inspect: \(brief.prototypeChange) Scenario change: \(brief.scenarioChange) Trigger: \(brief.triggerSummary)",
       successSignal:
-        "The AI user can say whether the revision resolved the original rationale. Proof plan: \(brief.proofPlan)",
+        "The simulated user can say whether the revision resolved the original rationale. Proof plan: \(brief.proofPlan)",
       targetCommitSha: experiment.currentSha ?? experiment.baseSha,
       maxTurns: existingScenario?.maxTurns ?? fallback.maxTurns,
       appCommandTimeoutSeconds: existingScenario?.appCommandTimeoutSeconds

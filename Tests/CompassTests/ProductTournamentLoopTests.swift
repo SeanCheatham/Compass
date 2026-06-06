@@ -450,7 +450,7 @@ struct ProductTournamentLoopTests {
       endedAt: 710,
       executedStepIDs: [TournamentAutomationCycleFailureAdvisor.stepID(for: action)],
       experimentIDs: [experiment.id],
-      messages: ["AI-user target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+      messages: ["persona-model target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
       maxSteps: 3,
       evidenceRunStepCount: 1,
       evidenceRunIDs: ["split-resolution-repeat"],
@@ -469,7 +469,7 @@ struct ProductTournamentLoopTests {
       endedAt: 730,
       executedStepIDs: [TournamentAutomationCycleFailureAdvisor.stepID(for: action)],
       experimentIDs: [experiment.id],
-      messages: ["AI-user target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+      messages: ["persona-model target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
       maxSteps: 3,
       evidenceRunStepCount: 1,
       evidenceRunIDs: ["split-resolution-kill-repeat"],
@@ -729,14 +729,14 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ).isEmpty)
     try #require(action.kind == .runCohort)
-    try #require(action.title == "Run AI-user rejection check")
+    try #require(action.title == "Run persona-model rejection check")
     try #require(action.detail.contains("before stopping the experiment"))
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetDecision == .kill)
     try #require(signal.pressure == .cut)
     try #require(signal.targetDecision == .kill)
-    try #require(proofTarget.label == "run targeted AI-user rejection proof")
-    try #require(proofTarget.displayTitle == "run targeted AI-user rejection proof")
+    try #require(proofTarget.label == "run targeted persona-model rejection proof")
+    try #require(proofTarget.displayTitle == "run targeted persona-model rejection proof")
     try #require(proofTarget.targetDecision == .kill)
     try #require(proofTarget.displaySubtitle.contains("decision kill"))
     try #require(proofTarget.auditSummary.contains("target_decision kill"))
@@ -1228,7 +1228,7 @@ struct ProductTournamentLoopTests {
         endedAt: 510,
         executedStepIDs: [stepID],
         experimentIDs: [experiment.id],
-        messages: ["AI-user rejection target ran 1 scenario(s): 1 completed."],
+        messages: ["persona-model rejection target ran 1 scenario(s): 1 completed."],
         maxSteps: 3,
         evidenceRunStepCount: 1,
         evidenceRunIDs: ["kill-proof-run"],
@@ -1286,7 +1286,7 @@ struct ProductTournamentLoopTests {
 
     try #require(action.targetDecision == .kill)
     let targetScenarioID = try #require(action.targetScenarioID)
-    try #require(action.title == "Run AI-user alternative rejection check")
+    try #require(action.title == "Run persona-model alternative rejection check")
     try #require(matchedAudit.proofDebtDelta == 0)
     try #require(matchedAudit.proofTargetSummaries[0].contains("target_decision kill"))
     try #require(matchedAudit.proofTargetSummaries[0].contains(targetScenarioID))
@@ -1334,7 +1334,7 @@ struct ProductTournamentLoopTests {
     let promoteAction = ProductTournamentNextAction(
       experimentID: experiment.id,
       kind: .runCohort,
-      title: "Run AI-user validation cohort",
+      title: "Run persona-model validation cohort",
       detail: "Run promote proof.",
       priority: 78,
       cohortID: "\(experiment.id)-cohort",
@@ -1347,7 +1347,7 @@ struct ProductTournamentLoopTests {
     let killAction = ProductTournamentNextAction(
       experimentID: experiment.id,
       kind: .runCohort,
-      title: "Run AI-user rejection check",
+      title: "Run persona-model rejection check",
       detail: "Run kill proof.",
       priority: 82,
       cohortID: "\(experiment.id)-cohort",
@@ -1370,7 +1370,7 @@ struct ProductTournamentLoopTests {
         maxSteps: 3,
         stopReason: .executionFailed,
         stopStepID: promoteStepID,
-        stopStepTitle: "Run AI-user validation cohort",
+        stopStepTitle: "Run persona-model validation cohort",
         stopDetail: "Stopped because promote proof failed: runner crashed.",
         userMessage: "Tournament automation cycle ran no steps."
       )
@@ -1453,7 +1453,7 @@ struct ProductTournamentLoopTests {
     try #require(readiness.recommendation == .gatherEvidence)
     try #require(
       readiness.rationale.contains {
-        $0.contains("AI-user rejection evidence across at least 2 personas")
+        $0.contains("persona-model rejection evidence across at least 2 simulated users")
       })
     try #require(
       ProductTournamentDecisionAdvisor.proposals(
@@ -1461,7 +1461,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ).isEmpty)
     try #require(action.kind == .runCohort)
-    try #require(action.title == "Run AI-user rejection check")
+    try #require(action.title == "Run persona-model rejection check")
     try #require(action.detail.contains("requires at least 2"))
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
@@ -1548,14 +1548,14 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ).isEmpty)
     try #require(action.kind == .runCohort)
-    try #require(action.title == "Run AI-user alternative rejection check")
+    try #require(action.title == "Run persona-model alternative rejection check")
     try #require(action.detail.contains("current-alternative proof"))
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetDecision == .kill)
-    try #require(proofTarget.label == "run AI-user alternative rejection proof")
+    try #require(proofTarget.label == "run persona-model alternative rejection proof")
     try #require(proofTarget.targetDecision == .kill)
-    try #require(digest.contains("target run AI-user alternative rejection proof"))
+    try #require(digest.contains("target run persona-model alternative rejection proof"))
   }
 
   @Test func tournamentDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {
@@ -1600,21 +1600,21 @@ struct ProductTournamentLoopTests {
     try #require(readiness.aiUserCompletedRunCount == 0)
     try #require(readiness.modelFreeCompletedRunCount == 3)
     try #require(readiness.recommendation == .keepGoing)
-    try #require(readiness.rationale.contains { $0.contains("No AI-user evidence") })
+    try #require(readiness.rationale.contains { $0.contains("No persona-model evidence") })
     try #require(
       ProductTournamentDecisionAdvisor.proposals(
         config: config,
         evidenceIndex: index
       ).isEmpty)
     try #require(action.kind == .runCohort)
-    try #require(action.title == "Run AI-user validation cohort")
+    try #require(action.title == "Run persona-model validation cohort")
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetDecision == .promote)
     try #require(signal.pressure == .lift)
     try #require(signal.targetDecision == .promote)
-    try #require(proofTarget.label == "run targeted AI-user validation proof")
-    try #require(proofTarget.displayTitle == "run targeted AI-user validation proof")
+    try #require(proofTarget.label == "run targeted persona-model validation proof")
+    try #require(proofTarget.displayTitle == "run targeted persona-model validation proof")
     try #require(proofTarget.targetDecision == .promote)
     try #require(proofTarget.displaySubtitle.contains("decision promote"))
     try #require(proofTarget.auditSummary.contains("target_decision promote"))
@@ -1650,14 +1650,14 @@ struct ProductTournamentLoopTests {
     try #require(readiness.aiUserCompletedRunCount == 1)
     try #require(readiness.aiUserDistinctPersonaCount == 1)
     try #require(readiness.recommendation == .keepGoing)
-    try #require(readiness.rationale.contains { $0.contains("at least 2 personas") })
+    try #require(readiness.rationale.contains { $0.contains("at least 2 simulated users") })
     try #require(
       ProductTournamentDecisionAdvisor.proposals(
         config: config,
         evidenceIndex: index
       ).isEmpty)
     try #require(action.kind == .runCohort)
-    try #require(action.title == "Run AI-user validation cohort")
+    try #require(action.title == "Run persona-model validation cohort")
     try #require(action.detail.contains("requires at least 2"))
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
@@ -1701,7 +1701,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ).isEmpty)
     try #require(action.kind == .runCohort)
-    try #require(action.title == "Run AI-user alternative challenge")
+    try #require(action.title == "Run persona-model alternative challenge")
     try #require(action.detail.contains("current-alternative proof"))
     try #require(action.detail.contains("persona-model scenario"))
     try #require(action.requiredSimulationMode == .personaModel)
@@ -1805,20 +1805,20 @@ struct ProductTournamentLoopTests {
     try #require(signal.targetPersonaID == buyer.id)
     try #require(signal.targetScenarioID == buyerScenario.id)
     try #require(signal.targetCohortID == config.scenarioCohorts[0].id)
-    try #require(signal.auditSummary.contains("resolve AI-user rationale signal"))
+    try #require(signal.auditSummary.contains("resolve simulated-user rationale signal"))
     try #require(signal.auditSummary.contains("target Budget owner"))
     try #require(signal.auditSummary.contains("scenario \(buyerScenario.id)"))
     try #require(signal.auditSummary.contains("runs rationale-buyer"))
     try #require(action.kind == .runCohort)
-    try #require(action.title == "Resolve AI-user rationale signal")
+    try #require(action.title == "Resolve simulated-user rationale signal")
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetPersonaID == buyer.id)
     try #require(action.targetScenarioID == buyerScenario.id)
-    try #require(action.detail.contains("Repeated AI-user rationale"))
+    try #require(action.detail.contains("Repeated simulated-user rationale"))
     try #require(action.detail.contains("before lift/cut"))
     try #require(step.canExecute)
-    try #require(step.action.title == "Resolve AI-user rationale signal")
-    try #require(revisionBrief.title == "Revise prototype for AI-user rationale")
+    try #require(step.action.title == "Resolve simulated-user rationale signal")
+    try #require(revisionBrief.title == "Revise prototype for simulated-user rationale")
     try #require(revisionBrief.targetPersonaID == buyer.id)
     try #require(revisionBrief.targetScenarioID == buyerScenario.id)
     try #require(revisionBrief.prototypeChange.contains("proof artifact"))
@@ -1921,7 +1921,7 @@ struct ProductTournamentLoopTests {
         endedAt: 360,
         executedStepIDs: [step.id],
         experimentIDs: [experiment.id],
-        messages: ["AI-user rationale target ran 1 scenario(s): 1 completed, 0 needing review."],
+        messages: ["simulated-user rationale target ran 1 scenario(s): 1 completed, 0 needing review."],
         maxSteps: 3,
         evidenceRunStepCount: 1,
         evidenceRunIDs: ["rationale-buyer-rerun"],
@@ -1932,7 +1932,7 @@ struct ProductTournamentLoopTests {
         stopReason: .noExecutableStep,
         stopDetail: "Stopped because no executable tournament automation step remains.",
         userMessage:
-          "Tournament automation cycle ran 1 step(s). AI-user rationale signal still present."
+          "Tournament automation cycle ran 1 step(s). simulated-user rationale signal still present."
       )
     )
 
@@ -1968,9 +1968,9 @@ struct ProductTournamentLoopTests {
 
     try #require(audit.id == "tournament-cycle-stalled-rationale")
     try #require(retarget.kind == .refineContender)
-    try #require(retarget.title == "Retarget AI-user rationale signal")
+    try #require(retarget.title == "Retarget simulated-user rationale signal")
     try #require(retarget.detail.contains("tournament-cycle-stalled-rationale"))
-    try #require(retarget.detail.contains("same AI-user rationale target"))
+    try #require(retarget.detail.contains("same simulated-user rationale target"))
     try #require(retarget.targetPersonaID == buyer.id)
     try #require(retarget.targetScenarioID == buyerScenario.id)
     try #require(
@@ -1983,7 +1983,7 @@ struct ProductTournamentLoopTests {
     try #require(revisionStep.canExecute)
     try #require(revisionStep.id.contains("apply_revision"))
     try #require(revisionStep.targetScenarioID == buyerScenario.id)
-    try #require(revisionBrief.title == "Retarget contender revision for AI-user rationale")
+    try #require(revisionBrief.title == "Retarget contender revision for simulated-user rationale")
     try #require(revisionBrief.prototypeChange.contains("same rationale survived"))
     try #require(revisionBrief.proofPlan.contains("current alternative"))
     let revisionAudit = TournamentAutomationCycleAudit(
@@ -2096,7 +2096,7 @@ struct ProductTournamentLoopTests {
       ))
 
     try #require(postValidationAction.kind == .refineContender)
-    try #require(postValidationAction.title == "Retarget AI-user rationale signal")
+    try #require(postValidationAction.title == "Retarget simulated-user rationale signal")
     try #require(postValidationAction.detail.contains(validationAudit.id))
     try #require(postValidationAction.targetScenarioID == buyerScenario.id)
     try #require(postValidationStep.kind == .applyRevision)
@@ -2221,7 +2221,7 @@ struct ProductTournamentLoopTests {
     try #require(fatigueAction.kind == .reviewDecision)
     try #require(fatigueAction.title == "Review revision fatigue")
     try #require(fatigueAction.detail.contains(secondValidationAudit.id))
-    try #require(fatigueAction.detail.contains("same AI-user rationale still survived"))
+    try #require(fatigueAction.detail.contains("same simulated-user rationale still survived"))
     try #require(fatigueAction.targetScenarioID == buyerScenario.id)
     try #require(fatigueAction.targetDecision == .narrow)
     try #require(fatigueStep.kind == .blocked)
@@ -2234,8 +2234,8 @@ struct ProductTournamentLoopTests {
     try #require(fatigueSignal.targetDecision == .narrow)
     try #require(fatigueDigest.contains("Review revision fatigue"))
     try #require(fatigueDigest.contains("target_decision narrow"))
-    try #require(digest.contains("Retarget AI-user rationale signal"))
-    try #require(digest.contains("Retarget contender revision for AI-user rationale"))
+    try #require(digest.contains("Retarget simulated-user rationale signal"))
+    try #require(digest.contains("Retarget contender revision for simulated-user rationale"))
     try #require(digest.contains("tournament-cycle-stalled-rationale"))
     try #require(digest.contains("rationale signals"))
   }
@@ -2383,7 +2383,7 @@ struct ProductTournamentLoopTests {
     try #require(rationaleSignal.targetDecision == .narrow)
     try #require(rationaleSignal.auditSummary.contains("target_decision narrow"))
     try #require(action.kind == .refineContender)
-    try #require(action.title == "Resolve AI-user rationale signal")
+    try #require(action.title == "Resolve simulated-user rationale signal")
     try #require(action.cohortID == nil)
     try #require(action.targetPersonaID == buyer.id)
     try #require(action.targetScenarioID == buyerScenario.id)
@@ -2392,7 +2392,7 @@ struct ProductTournamentLoopTests {
     try #require(action.detail.contains("Update the prototype or scenario"))
     try #require(revisionBrief.targetDecision == .narrow)
     try #require(revisionBrief.auditSummary.contains("target_decision narrow"))
-    try #require(signal.nextActionTitle == "Resolve AI-user rationale signal")
+    try #require(signal.nextActionTitle == "Resolve simulated-user rationale signal")
     try #require(signal.targetDecision == .narrow)
     try #require(signal.pressure == .reshape)
     try #require(digest.contains("target_decision narrow"))
@@ -2411,7 +2411,7 @@ struct ProductTournamentLoopTests {
     let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
     let workflow = try #require(config.currentWorkflows.first)
     let alternative = try #require(config.alternatives.first { $0.kind == .doNothing })
-    let buyerScenarioID = "\(experiment.id)-buyer-ai-user-check"
+    let buyerScenarioID = "\(experiment.id)-buyer-persona-model-check"
     config.scenarios.append(
       ProductScenario(
         id: buyerScenarioID,
@@ -2419,7 +2419,7 @@ struct ProductTournamentLoopTests {
         segmentID: buyer.id,
         currentWorkflowID: workflow.id,
         alternativeID: alternative.id,
-        title: "Buyer AI-user check",
+        title: "Buyer persona-model check",
         task: "Use the prototype to decide whether the evidence is good enough to sponsor.",
         successSignal: "The buyer can make a clear continue or stop decision.",
         targetCommitSha: "head-sha",
@@ -2491,12 +2491,12 @@ struct ProductTournamentLoopTests {
         isPersonaModelAvailable: true
       ))
 
-    try #require(action.title == "Run AI-user validation cohort")
+    try #require(action.title == "Run persona-model validation cohort")
     try #require(action.targetPersonaID == buyer.id)
     try #require(action.targetPersonaName == buyer.name)
     try #require(action.targetScenarioID == buyerScenarioID)
     try #require(action.targetDecision == .promote)
-    try #require(action.detail.contains("Target AI-user segment: \(buyer.name)"))
+    try #require(action.detail.contains("Target simulated-user segment: \(buyer.name)"))
     try #require(action.detail.contains("via scenario `\(buyerScenarioID)`"))
     try #require(step.targetScenarioID == buyerScenarioID)
     try #require(step.cohortReadiness?.enabledScenarioCount == 1)
@@ -2536,7 +2536,7 @@ struct ProductTournamentLoopTests {
     let operatorScenario = try #require(
       config.scenarios.first { $0.experimentID == experiment.id && $0.segmentID != buyer.id }
     )
-    let buyerScenarioID = "\(experiment.id)-buyer-ai-user-check"
+    let buyerScenarioID = "\(experiment.id)-buyer-persona-model-check"
     let overflowOperatorScenarioID = "\(experiment.id)-operator-extra-check"
     config.scenarios.append(
       ProductScenario(
@@ -2559,7 +2559,7 @@ struct ProductTournamentLoopTests {
         segmentID: buyer.id,
         currentWorkflowID: operatorScenario.currentWorkflowID,
         alternativeID: config.alternatives.first { $0.kind == .doNothing }?.id,
-        title: "Buyer AI-user check",
+        title: "Buyer persona-model check",
         task: "Use the prototype to decide whether the evidence is good enough to sponsor.",
         successSignal: "The buyer can make a clear continue or stop decision.",
         targetCommitSha: "head-sha",
@@ -2575,15 +2575,15 @@ struct ProductTournamentLoopTests {
       enabled: selectedCohort.enabled,
       tags: selectedCohort.tags
     )
-    let buyerCohortID = "\(experiment.id)-buyer-ai-user-cohort"
+    let buyerCohortID = "\(experiment.id)-buyer-persona-model-cohort"
     config.scenarioCohorts.append(
       ProductScenarioCohort(
         id: buyerCohortID,
-        title: "Buyer AI-user cohort",
+        title: "Buyer persona-model cohort",
         experimentID: experiment.id,
         scenarioIDs: [buyerScenarioID],
         enabled: true,
-        tags: ["ai-user"]
+        tags: ["persona-model"]
       )
     )
     let index = makeTournamentPromotionEvidenceIndex(
@@ -2594,24 +2594,24 @@ struct ProductTournamentLoopTests {
     )
     config = config.recordingTournamentAutomationCycleAudit(
       TournamentAutomationCycleAudit(
-        id: "tournament-cycle-stalled-broad-ai-user",
+        id: "tournament-cycle-stalled-broad-persona-model",
         startedAt: 340,
         endedAt: 350,
         executedStepIDs: ["\(experiment.id):run_cohort:\(buyerCohortID)"],
         experimentIDs: [experiment.id],
-        messages: ["AI-user cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+        messages: ["persona-model cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
         maxSteps: 3,
         evidenceRunStepCount: 1,
-        evidenceRunIDs: ["broad-ai-user-pass"],
+        evidenceRunIDs: ["broad-persona-model-pass"],
         completedEvidenceRunCount: 1,
         failedEvidenceRunCount: 0,
         skippedScenarioCount: 0,
         startingProofDebtCount: 4,
         endingProofDebtCount: 4,
         startingProofDebtSummary:
-          "\(experiment.id): 3 completed run(s), 2 persona(s), 1 AI-user persona(s), 1 AI-user current-alternative proof(s)",
+          "\(experiment.id): 3 completed run(s), 2 persona(s), 1 persona-model simulated user(s), 1 persona-model current-alternative proof(s)",
         endingProofDebtSummary:
-          "\(experiment.id): 3 completed run(s), 2 persona(s), 1 AI-user persona(s), 1 AI-user current-alternative proof(s)",
+          "\(experiment.id): 3 completed run(s), 2 persona(s), 1 persona-model simulated user(s), 1 persona-model current-alternative proof(s)",
         stopReason: .noExecutableStep,
         stopDetail: "Stopped because no executable tournament automation step remains.",
         userMessage: "Tournament automation cycle ran 1 step(s). Proof debt held steady (4 -> 4)."
@@ -2714,11 +2714,11 @@ struct ProductTournamentLoopTests {
     try #require(action.targetScenarioID == nil)
     try #require(action.targetPersonaID == buyer.id)
     try #require(action.targetDecision == .promote)
-    try #require(action.detail.contains("does not cover a runnable AI-user target"))
+    try #require(action.detail.contains("does not cover a runnable simulated-user target"))
     try #require(action.detail.contains("add an enabled scenario"))
-    try #require(proofTarget.label == "add or enable AI-user validation proof")
+    try #require(proofTarget.label == "add or enable persona-model validation proof")
     try #require(proofTarget.targetDecision == .promote)
-    try #require(digest.contains("target add or enable AI-user validation proof"))
+    try #require(digest.contains("target add or enable persona-model validation proof"))
     try #require(!step.canExecute)
     try #require(step.kind == .blocked)
     try #require(
@@ -2948,7 +2948,7 @@ struct ProductTournamentLoopTests {
     try #require(readiness.proofDebt.aiUserCurrentAlternativeDeficit == 2)
     try #require(readiness.rationale.contains { $0.contains("Proof debt") })
     try #require(signal.proofDebtCount == readiness.proofDebt.blockingDebtCount)
-    try #require(signal.proofDebtSummary?.contains("AI-user persona") == true)
+    try #require(signal.proofDebtSummary?.contains("persona-model simulated user") == true)
     try #require(signal.nextActionKind == .runCohort)
     try #require(signal.pressure == .lift)
     try #require(signal.targetDecision == .promote)
@@ -3012,7 +3012,7 @@ struct ProductTournamentLoopTests {
         == .modelFree
     )
     try #require(
-      ProductTournamentSimulationMode.personaModel.tournamentAutomationLabel == "AI-user")
+      ProductTournamentSimulationMode.personaModel.tournamentAutomationLabel == "Persona-model")
     try #require(
       ProductTournamentSimulationMode.modelFree.tournamentAutomationLabel == "Model-free")
   }
@@ -3215,9 +3215,9 @@ struct ProductTournamentLoopTests {
         startingProofDebtCount: 6,
         endingProofDebtCount: 6,
         startingProofDebtSummary:
-          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 AI-user persona(s), 0 AI-user current-alternative proof(s)",
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 persona-model simulated user(s), 0 persona-model current-alternative proof(s)",
         endingProofDebtSummary:
-          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 AI-user persona(s), 0 AI-user current-alternative proof(s)",
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 persona-model simulated user(s), 0 persona-model current-alternative proof(s)",
         stopReason: .noExecutableStep,
         stopDetail: "Stopped because no executable tournament automation step remains.",
         userMessage: "Tournament automation cycle ran 1 step(s). Proof debt held steady (6 -> 6)."
@@ -3256,7 +3256,7 @@ struct ProductTournamentLoopTests {
 
     try #require(audit.id == "tournament-cycle-stalled-proof")
     try #require(action.kind == .runCohort)
-    try #require(action.title == "Retarget AI-user proof debt")
+    try #require(action.title == "Retarget persona-model proof debt")
     try #require(action.detail.contains("tournament-cycle-stalled-proof"))
     try #require(action.detail.contains("without reducing proof debt"))
     try #require(action.detail.contains("targeted persona-model scenario"))
@@ -3264,13 +3264,13 @@ struct ProductTournamentLoopTests {
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetDecision == nil)
     let targetScenarioID = try #require(action.targetScenarioID)
-    try #require(proofTarget.label == "run targeted AI-user persona proof")
-    try #require(proofTarget.displayTitle == "run targeted AI-user persona proof")
+    try #require(proofTarget.label == "run targeted persona-model simulated-user proof")
+    try #require(proofTarget.displayTitle == "run targeted persona-model simulated-user proof")
     try #require(proofTarget.displaySubtitle.contains("score 48/100"))
     try #require(proofTarget.displaySubtitle.contains("target Budget owner"))
     try #require(proofTarget.displayDetail.contains("Debt:"))
-    try #require(proofTarget.displayDetail.contains("Next: Retarget AI-user proof debt"))
-    try #require(proofTarget.nextActionTitle == "Retarget AI-user proof debt")
+    try #require(proofTarget.displayDetail.contains("Next: Retarget persona-model proof debt"))
+    try #require(proofTarget.nextActionTitle == "Retarget persona-model proof debt")
     try #require(proofTarget.targetDecision == nil)
     try #require(proofTarget.targetScenarioID == targetScenarioID)
     try #require(proofTarget.targetPersonaName == "Budget owner")
@@ -3288,8 +3288,8 @@ struct ProductTournamentLoopTests {
     try #require(step.action.targetDecision == nil)
     try #require(step.targetScenarioID == targetScenarioID)
     try #require(digest.contains("Tournament automation proof targets"))
-    try #require(digest.contains("target run targeted AI-user persona proof"))
-    try #require(digest.contains("Retarget AI-user proof debt"))
+    try #require(digest.contains("target run targeted persona-model simulated-user proof"))
+    try #require(digest.contains("Retarget persona-model proof debt"))
     try #require(digest.contains("tournament-cycle-stalled-proof"))
     try #require(digest.contains("target_scenario \(targetScenarioID)"))
     try #require(digest.contains("target_name Budget owner"))
@@ -3303,19 +3303,19 @@ struct ProductTournamentLoopTests {
         endedAt: 130,
         executedStepIDs: [step.id],
         experimentIDs: [experiment.id],
-        messages: ["AI-user target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+        messages: ["persona-model target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
         maxSteps: 3,
         evidenceRunStepCount: 1,
-        evidenceRunIDs: ["buyer-ai-user-stalled"],
+        evidenceRunIDs: ["buyer-persona-model-stalled"],
         completedEvidenceRunCount: 1,
         failedEvidenceRunCount: 0,
         skippedScenarioCount: 0,
         startingProofDebtCount: 6,
         endingProofDebtCount: 6,
         startingProofDebtSummary:
-          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 AI-user persona(s), 0 AI-user current-alternative proof(s)",
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 persona-model simulated user(s), 0 persona-model current-alternative proof(s)",
         endingProofDebtSummary:
-          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 AI-user persona(s), 0 AI-user current-alternative proof(s)",
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 persona-model simulated user(s), 0 persona-model current-alternative proof(s)",
         proofTargetSummaries: [proofTarget.auditSummary],
         stopReason: .noExecutableStep,
         stopDetail: "Stopped because no executable tournament automation step remains.",
@@ -3385,7 +3385,7 @@ struct ProductTournamentLoopTests {
     let evidenceIndex = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
-          id: "operator-ai-user-pass",
+          id: "operator-persona-model-pass",
           experiment: experiment,
           config: config,
           personaID: operatorID,
@@ -3413,19 +3413,19 @@ struct ProductTournamentLoopTests {
         endedAt: 110,
         executedStepIDs: [broadStep.id],
         experimentIDs: [experiment.id],
-        messages: ["AI-user cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+        messages: ["persona-model cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
         maxSteps: 3,
         evidenceRunStepCount: 1,
-        evidenceRunIDs: ["operator-ai-user-pass"],
+        evidenceRunIDs: ["operator-persona-model-pass"],
         completedEvidenceRunCount: 1,
         failedEvidenceRunCount: 0,
         skippedScenarioCount: 0,
         startingProofDebtCount: 4,
         endingProofDebtCount: 4,
         startingProofDebtSummary:
-          "\(experiment.id): 1 completed run(s), 1 persona(s), 1 AI-user persona(s), 1 AI-user current-alternative proof(s)",
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 1 persona-model simulated user(s), 1 persona-model current-alternative proof(s)",
         endingProofDebtSummary:
-          "\(experiment.id): 1 completed run(s), 1 persona(s), 1 AI-user persona(s), 1 AI-user current-alternative proof(s)",
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 1 persona-model simulated user(s), 1 persona-model current-alternative proof(s)",
         stopReason: .noExecutableStep,
         stopDetail: "Stopped because no executable tournament automation step remains.",
         userMessage: "Tournament automation cycle ran 1 step(s). Proof debt held steady (4 -> 4)."
@@ -3455,18 +3455,18 @@ struct ProductTournamentLoopTests {
     )
 
     try #require(action.kind == .refineContender)
-    try #require(action.title == "Retarget AI-user proof debt")
+    try #require(action.title == "Retarget persona-model proof debt")
     try #require(action.targetPersonaID == buyer.id)
     try #require(action.targetScenarioID == nil)
     try #require(action.targetDecision == nil)
     try #require(action.detail.contains("tournament-cycle-stalled-no-target"))
-    try #require(action.detail.contains("does not cover a runnable AI-user target"))
+    try #require(action.detail.contains("does not cover a runnable simulated-user target"))
     try #require(action.detail.contains("add an enabled scenario"))
-    try #require(proofTarget.label == "add or enable runnable AI-user proof")
-    try #require(proofTarget.displayTitle == "add or enable runnable AI-user proof")
+    try #require(proofTarget.label == "add or enable runnable persona-model proof")
+    try #require(proofTarget.displayTitle == "add or enable runnable persona-model proof")
     try #require(proofTarget.displaySubtitle.contains("target Budget owner"))
     try #require(proofTarget.displayDetail.contains("Persona: Budget owner"))
-    try #require(proofTarget.nextActionTitle == "Retarget AI-user proof debt")
+    try #require(proofTarget.nextActionTitle == "Retarget persona-model proof debt")
     try #require(proofTarget.targetDecision == nil)
     try #require(proofTarget.targetPersonaID == buyer.id)
     try #require(proofTarget.targetPersonaName == "Budget owner")
@@ -3481,7 +3481,7 @@ struct ProductTournamentLoopTests {
     try #require(step.action.kind == .refineContender)
     try #require(step.action.targetDecision == nil)
     try #require(digest.contains("Tournament automation proof targets"))
-    try #require(digest.contains("target add or enable runnable AI-user proof"))
+    try #require(digest.contains("target add or enable runnable persona-model proof"))
     try #require(digest.contains("target_persona \(buyer.id)"))
     try #require(digest.contains("target_name Budget owner"))
     try #require(digest.contains("required_mode persona_model"))
@@ -3594,7 +3594,7 @@ struct ProductTournamentLoopTests {
 
     let outcome = TournamentAutomationCycleOutcome(
       executedSteps: [step],
-      messages: ["AI-user validation cohort ran 1 scenario(s): 1 completed."],
+      messages: ["persona-model validation cohort ran 1 scenario(s): 1 completed."],
       maxSteps: 3,
       stopReason: .noExecutableStep,
       evidenceRunIDs: ["ai-validation-run"],
@@ -3678,7 +3678,7 @@ struct ProductTournamentLoopTests {
       outcome.userMessage.contains("1 tournament decision(s) applied (1 promote, 0 kill)"))
     try #require(outcome.userMessage.contains("Decision candidates:"))
     try #require(outcome.userMessage.contains("continue -> promote"))
-    try #require(outcome.userMessage.contains("AI-user rationale signals:"))
+    try #require(outcome.userMessage.contains("simulated-user rationale signals:"))
     try #require(outcome.userMessage.contains("needed import proof before switching"))
     try #require(audit.appliedDecisionCount == 1)
     try #require(audit.promotedDecisionCount == 1)
@@ -4219,7 +4219,7 @@ struct ProductTournamentLoopTests {
     let tensionSummary =
       "\(step.experimentID): resolve split tournament evidence; score 82/100; strong_pull vs rejected; target_decision promote; target Budget owner; scenario \(longScenarioID); evidence split-a, split-b; Current tournament evidence is split."
     let proofTargetSummary =
-      "\(step.experimentID): run targeted AI-user validation proof; target_decision promote; target Budget owner; scenario \(longScenarioID); debt 2 completed run(s), 2 persona(s), 1 AI-user current-alternative proof(s)"
+      "\(step.experimentID): run targeted persona-model validation proof; target_decision promote; target Budget owner; scenario \(longScenarioID); debt 2 completed run(s), 2 persona(s), 1 persona-model current-alternative proof(s)"
     let targetedProofOutcomeSummary =
       "\(step.experimentID): targeted tournament proof outcome; target_decision kill; outcome contradicts_target; count 2; action run_cohort; recommended_decision promote; target Budget owner; scenario \(longScenarioID); runs stop-a, stop-b"
     let outcome = TournamentAutomationCycleOutcome(
@@ -4239,7 +4239,7 @@ struct ProductTournamentLoopTests {
       proofTargetSummaries: [proofTargetSummary],
       targetedProofOutcomeSummaries: [targetedProofOutcomeSummary],
       revisionBriefSummaries: [
-        "\(step.experimentID): Retarget contender revision for AI-user rationale; source ai_user_rationale; priority 88; target Budget owner"
+        "\(step.experimentID): Retarget contender revision for simulated-user rationale; source ai_user_rationale; priority 88; target Budget owner"
       ]
     )
 
@@ -4268,7 +4268,7 @@ struct ProductTournamentLoopTests {
     try #require(audit.evidenceTensionSummaries[0].contains("target_decision promote"))
     try #require(audit.evidenceTensionSummaries[0].contains(longScenarioID))
     try #require(audit.proofTargetSummaries.count == 1)
-    try #require(audit.proofTargetSummaries[0].contains("targeted AI-user validation proof"))
+    try #require(audit.proofTargetSummaries[0].contains("targeted persona-model validation proof"))
     try #require(audit.proofTargetSummaries[0].contains("target_decision promote"))
     try #require(audit.proofTargetSummaries[0].contains(longScenarioID))
     try #require(audit.targetedProofOutcomeSummaries.count == 1)
@@ -4291,7 +4291,7 @@ struct ProductTournamentLoopTests {
     try #require(audit.summary.contains("tensions"))
     try #require(audit.summary.contains("resolve split tournament evidence"))
     try #require(audit.summary.contains("targets"))
-    try #require(audit.summary.contains("targeted AI-user validation proof"))
+    try #require(audit.summary.contains("targeted persona-model validation proof"))
     try #require(audit.summary.contains("target_decision promote"))
     try #require(audit.summary.contains(longScenarioID))
     try #require(audit.summary.contains("targeted outcomes"))
