@@ -175,11 +175,16 @@ struct ProductTournamentRoundProofOverviewTests {
       topActionRow.workbenchAccessibilityID
         == "proof-target-scoreboard-row-\(topActionRow.selectionID)"
     )
+    try #require(
+      topActionRow.runSelectedStepAccessibilityID
+        == "\(topActionRow.workbenchAccessibilityID)-run-selected-step"
+    )
     try #require(topActionStep.id == plannerStep.id)
     try #require(topActionStep.kind == .runPlanProof)
     try #require(topActionStep.canExecute)
     try #require(item.topActionSummary.contains("Ready: Run Plan Proof"))
     try #require(item.topActionButtonTitle == "Run Top Proof")
+    try #require(topActionRow.selectedActionButtonTitle == "Run Selected Proof")
     try #require(topActionRow.contextSummary.contains("step ready run_plan_proof"))
     try #require(topActionRow.runPairSummary == "No audited proof run yet -> Ready: Run Plan Proof")
     try #require(topActionRow.contextSummary.contains("run_pair last no audited proof run"))

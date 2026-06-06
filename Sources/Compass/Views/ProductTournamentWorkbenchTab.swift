@@ -2114,6 +2114,30 @@ struct ProductTournamentWorkbenchTab: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+          if let nextStep = row.nextStep {
+            let roundTwoBlockedMessage =
+              roundTwoLaunchBlockedMessage(experimentID: nextStep.experimentID)
+            let helpText =
+              roundTwoBlockedMessage
+              ?? (nextStep.canExecute
+                ? row.nextStepDetail
+                : nextStep.blockedReason ?? row.nextStepDetail)
+            let isDisabled =
+              isRunningTournamentStep || isRunningTournamentAutomationCycle || isRunningScenario
+              || !nextStep.canExecute || roundTwoBlockedMessage != nil
+            Button {
+              Task { await runTournamentAutomationStep(nextStep) }
+            } label: {
+              Label(
+                isRunningTournamentStep ? "Running Proof" : row.selectedActionButtonTitle,
+                systemImage: row.nextStepSystemImage
+              )
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isDisabled)
+            .accessibilityIdentifier(row.runSelectedStepAccessibilityID)
+            .help(helpText)
+          }
         }
       }
     }

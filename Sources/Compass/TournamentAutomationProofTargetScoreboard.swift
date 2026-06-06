@@ -195,6 +195,10 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
     "proof-target-scoreboard-row-\(selectionID)"
   }
 
+  var runSelectedStepAccessibilityID: String {
+    "\(workbenchAccessibilityID)-run-selected-step"
+  }
+
   var runPairSummary: String {
     "\(lastRunSummary) -> \(nextStepSummary)"
   }
@@ -262,6 +266,18 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
       return "wand.and.stars"
     case .blocked:
       return "exclamationmark.triangle"
+    }
+  }
+
+  var selectedActionButtonTitle: String {
+    guard let nextStep else { return "No Step" }
+    switch nextStep.kind {
+    case .prepareWorktree:
+      return "Prepare Selected Proof"
+    case .blocked:
+      return "Blocked Proof"
+    case .applyDecision, .applyRoundTransition, .runPlanProof, .runCohort, .applyRevision:
+      return "Run Selected Proof"
     }
   }
 }
