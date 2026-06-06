@@ -112,8 +112,10 @@ and advances them through rounds:
   validation instructions for the next simulated-user pass; Tournament
   Automation can apply that brief into a concrete revision scenario, stamp that
   generated scenario into the cycle audit, and queue a persona-model validation
-  rerun before applying the same proof-gap revision again. Once validation
-  evidence lands, Compass scopes the next Round 2 recommendation to the fresh
+  rerun before applying the same proof-gap revision again. Partial post-revision
+  validation stays on that generated scenario and queues another persona-model
+  rerun until the Round 2 proof threshold is complete. Once validation evidence
+  lands, Compass scopes the next Round 2 recommendation to the fresh
   post-revision runs and adds a proof-gap validation digest line naming the
   audited gaps that resolved, persisted, or justify eliminating the contender;
   the Workbench also shows that validation state in the Round 2 proof row and

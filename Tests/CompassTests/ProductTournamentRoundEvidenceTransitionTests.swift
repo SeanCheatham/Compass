@@ -303,6 +303,42 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       startedAt: 2_140,
       idPrefix: "\(fixture.contender.id)-round-2-validation"
     )
+    let partialValidationRecords = Array(validationRecords.prefix(1))
+    let partialValidationIndex = ProductTournamentEvidenceIndex.build(
+      records: records + partialValidationRecords
+    )
+    let partialValidationProposal = try #require(
+      ProductTournamentRoundEvidenceTransitioner.proposals(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.coreRound.id,
+        config: preparedRevisionConfig,
+        evidenceIndex: partialValidationIndex
+      ).first
+    )
+    let partialValidationResult = try #require(
+      ProductTournamentRoundTwoProofGapValidationAdvisor.results(
+        config: preparedRevisionConfig,
+        evidenceIndex: partialValidationIndex
+      ).first
+    )
+    let partialValidationAction = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: preparedRevisionExperiment,
+        config: preparedRevisionConfig,
+        evidenceIndex: partialValidationIndex
+      )
+    )
+    let partialValidationStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: preparedRevisionConfig,
+        evidenceIndex: partialValidationIndex,
+        isPersonaModelAvailable: true
+      )
+    )
+    let partialValidationDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: preparedRevisionConfig,
+      evidenceIndex: partialValidationIndex
+    )
     let validationIndex = ProductTournamentEvidenceIndex.build(records: records + validationRecords)
     let validationProposal = try #require(
       ProductTournamentRoundEvidenceTransitioner.bestProposal(
@@ -407,6 +443,42 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       pendingValidationResult.persistedProofGaps.contains {
         $0.contains("inspectable_source_artifact")
       })
+    try #require(partialValidationProposal.recommendation == .gatherEvidence)
+    try #require(
+      partialValidationProposal.proofGaps.contains { $0.contains("needs 1 more completed") })
+    try #require(
+      partialValidationProposal.proofGaps.contains { $0.contains("needs 1 more persona") })
+    try #require(
+      partialValidationProposal.proofGaps.contains {
+        $0.contains("needs 1 completed-use trace")
+      })
+    try #require(partialValidationResult.outcome == .partialValidation)
+    try #require(partialValidationResult.recommendation == .gatherEvidence)
+    try #require(partialValidationResult.revisionAuditID == revisionAudit.id)
+    try #require(partialValidationResult.revisionScenarioID == revisionScenarioID)
+    try #require(partialValidationResult.validationRunCount == 1)
+    try #require(partialValidationResult.completedValidationRunCount == 1)
+    try #require(
+      partialValidationResult.resolvedProofGaps.contains {
+        $0.contains("inspectable_source_artifact")
+      })
+    try #require(
+      partialValidationResult.persistedProofGaps.contains {
+        $0.contains("needs 1 more completed")
+      })
+    try #require(partialValidationResult.contextLine.contains("outcome partial_validation"))
+    try #require(partialValidationDigest.contains("outcome partial_validation"))
+    try #require(partialValidationAction.kind == .rerunCohort)
+    try #require(partialValidationAction.title == "Complete Round 2 proof-gap validation")
+    try #require(partialValidationAction.detail.contains(revisionAudit.id))
+    try #require(partialValidationAction.detail.contains(revisionScenarioID))
+    try #require(partialValidationAction.detail.contains("needs 1 more completed"))
+    try #require(partialValidationAction.cohortID == revisionDraft.cohortID)
+    try #require(partialValidationAction.targetScenarioID == revisionScenarioID)
+    try #require(partialValidationAction.requiredSimulationMode == .personaModel)
+    try #require(partialValidationStep.kind == .runCohort)
+    try #require(partialValidationStep.canExecute)
+    try #require(partialValidationStep.targetScenarioID == revisionScenarioID)
     try #require(validationProposal.recommendation == .advanceToProductImplementation)
     try #require(validationProposal.proofGaps.isEmpty)
     try #require(

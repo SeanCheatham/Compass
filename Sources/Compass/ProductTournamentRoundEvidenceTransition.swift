@@ -108,6 +108,7 @@ struct ProductTournamentRoundEvidenceTransitionOutcome: Equatable, Sendable {
 
 enum ProductTournamentRoundTwoProofGapValidationOutcome: String, Codable, Equatable, Sendable {
   case pendingValidation = "pending_validation"
+  case partialValidation = "partial_validation"
   case resolved
   case persisted
   case eliminated
@@ -115,6 +116,7 @@ enum ProductTournamentRoundTwoProofGapValidationOutcome: String, Codable, Equata
   var title: String {
     switch self {
     case .pendingValidation: return "Pending Validation"
+    case .partialValidation: return "Partial Validation"
     case .resolved: return "Resolved"
     case .persisted: return "Persisted"
     case .eliminated: return "Eliminated"
@@ -349,8 +351,10 @@ enum ProductTournamentRoundTwoProofGapValidationAdvisor {
       return .resolved
     case .eliminate:
       return .eliminated
-    case .reviseCoreTechnology, .gatherEvidence:
+    case .reviseCoreTechnology:
       return .persisted
+    case .gatherEvidence:
+      return .partialValidation
     }
   }
 
@@ -364,7 +368,7 @@ enum ProductTournamentRoundTwoProofGapValidationAdvisor {
       return []
     case .pendingValidation:
       return originalProofGaps.isEmpty ? proposalProofGaps : originalProofGaps
-    case .persisted, .eliminated:
+    case .partialValidation, .persisted, .eliminated:
       return proposalProofGaps.isEmpty ? originalProofGaps : proposalProofGaps
     }
   }
@@ -377,7 +381,7 @@ enum ProductTournamentRoundTwoProofGapValidationAdvisor {
     switch outcome {
     case .resolved:
       return originalProofGaps.isEmpty ? ["all audited Round 2 proof gaps"] : originalProofGaps
-    case .persisted:
+    case .partialValidation, .persisted:
       let resolved = originalProofGaps.filter { original in
         !persistedProofGaps.contains { persisted in
           gapsMatch(original, persisted)
