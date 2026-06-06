@@ -7,12 +7,14 @@ struct ProductTournamentSimulationRunnerTests {
   @Test func modelFreeRunnerCompletesFixtureAndValidatesDeterminism() async throws {
     let appRunner = MockProductTournamentExperienceAppRunner()
     let runner = ProductTournamentSimulationRunner(appRunner: appRunner)
+    let request = makeTournamentRequest(maxTurns: 6)
 
-    let result = await runner.run(makeTournamentRequest(maxTurns: 6))
+    let result = await runner.run(request)
 
     try #require(result.status == .completed)
     try #require(result.isSuccess)
     try #require(result.mode == .modelFree)
+    try #require(result.contenderID == request.contender.id)
     try #require(
       result.actions.map(\.id) == [
         "inspect_pain",
@@ -24,6 +26,7 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(result.experienceTraceHash != nil)
     try #require(result.tournamentTrace?.painReliefSignals.currentAlternativeAddressed == true)
     try #require(appRunner.inputs.filter { $0.actions.count == 5 }.count == 3)
+    try #require(appRunner.inputs.last?.contender.id == request.contender.id)
 
     let record = ProductTournamentEvidenceRecord(
       runResult: result,
@@ -31,6 +34,7 @@ struct ProductTournamentSimulationRunnerTests {
       startedAt: 10,
       endedAt: 20
     )
+    try #require(record.contenderID == request.contender.id)
     try #require(record.verdict == .promising)
     try #require(record.scores.painRecognition == 4)
     try #require(record.scores.workflowImprovement == 4)
@@ -150,7 +154,8 @@ struct ProductTournamentSimulationRunnerTests {
         exitCode: 0, stdout: try encodeTrace(defaultTournamentTrace()), stderr: "")
     }
 
-    try #require(await appRunner.productTournamentExperienceContractAvailable(workingDirectory: root))
+    try #require(
+      await appRunner.productTournamentExperienceContractAvailable(workingDirectory: root))
     _ = try await appRunner.runProductTournamentExperience(
       input: makeTournamentRequest().experienceInput(actions: []),
       workingDirectory: root,
@@ -167,7 +172,8 @@ struct ProductTournamentSimulationRunnerTests {
 
   @Test func runnerExecutesGeneratedScaffoldWhenRequested() async throws {
     guard
-      ProcessInfo.processInfo.environment["COMPASS_RUN_GENERATED_RUST_PRODUCT_TOURNAMENT_RUNNER"] == "1"
+      ProcessInfo.processInfo.environment["COMPASS_RUN_GENERATED_RUST_PRODUCT_TOURNAMENT_RUNNER"]
+        == "1"
     else {
       return
     }
@@ -179,7 +185,8 @@ struct ProductTournamentSimulationRunnerTests {
       options: RustProjectScaffold.Options(projectName: "Product Tournament Runner Fixture")
     )
 
-    let runner = ProductTournamentSimulationRunner(appRunner: ProductTournamentExperienceCLIAppRunner())
+    let runner = ProductTournamentSimulationRunner(
+      appRunner: ProductTournamentExperienceCLIAppRunner())
     let result = await runner.run(
       makeTournamentRequest(
         generatedAppWorkingDirectory: root,
@@ -259,7 +266,8 @@ struct ProductTournamentSimulationRunnerTests {
   }
 }
 
-private final class MockProductTournamentExperienceAppRunner: ProductTournamentExperienceAppRunning {
+private final class MockProductTournamentExperienceAppRunner: ProductTournamentExperienceAppRunning
+{
   typealias Handler = (ProductTournamentExperienceInput, Int) async throws -> ProcessResult
 
   var contractAvailable = true
@@ -307,7 +315,9 @@ private final class PersonaTextStream: @unchecked Sendable {
   }
 }
 
-private final class ScriptedProductTournamentPersonaSelector: ProductTournamentPersonaActionSelecting {
+private final class ScriptedProductTournamentPersonaSelector:
+  ProductTournamentPersonaActionSelecting
+{
   var choices: [ProductTournamentPersonaActionChoice]
   var repairs: [ProductTournamentPersonaActionChoice]
   var chooseContexts: [ProductTournamentPersonaActionContext] = []
@@ -343,7 +353,8 @@ private final class ScriptedProductTournamentPersonaSelector: ProductTournamentP
 }
 
 private func makeTournamentRequest(
-  generatedAppWorkingDirectory: URL = URL(fileURLWithPath: "/tmp/product-tournament-runner-fixture"),
+  generatedAppWorkingDirectory: URL = URL(
+    fileURLWithPath: "/tmp/product-tournament-runner-fixture"),
   mode: ProductTournamentSimulationMode = .modelFree,
   targetDecision: ProductTournamentExperimentDecision? = nil,
   maxTurns: Int = 6,
@@ -356,6 +367,7 @@ private func makeTournamentRequest(
   )
   let pain = config.painHypotheses[0]
   let hypothesis = config.productHypotheses[0]
+  let contender = config.tournamentContenders[0]
   var experiment = config.tournamentExperiments[0]
   experiment.currentSha = "abc123"
   if targetDecision != nil {
@@ -369,6 +381,7 @@ private func makeTournamentRequest(
     segment: segment,
     currentWorkflow: workflow,
     alternatives: config.alternatives,
+    contender: contender,
     productHypothesis: hypothesis,
     experiment: experiment,
     scenarioID: "scenario-reporting",
@@ -392,6 +405,7 @@ private func makePersonaActionContext() -> ProductTournamentPersonaActionContext
       segment: request.segment,
       currentWorkflow: request.currentWorkflow,
       alternatives: request.alternatives,
+      contender: request.contender,
       productHypothesis: request.productHypothesis,
       experiment: request.experiment,
       scenarioID: request.scenarioID,
@@ -463,7 +477,7 @@ private func defaultTournamentTrace(
   return ProductTournamentExperienceTrace(
     schemaVersion: 1,
     painID: input.pain.id,
-    productHypothesisID: input.productHypothesis.id,
+    contenderID: input.contender.id,
     experimentID: input.experiment.id,
     initialState: tournamentState(id: "initial"),
     turns: input.actions.enumerated().map { index, action in
@@ -507,7 +521,8 @@ private func tournamentState(id: String) -> ProductTournamentExperienceState {
     headline: "Headline \(id)",
     body: "Body \(id)",
     semanticNodes: [
-      ProductTournamentExperienceNode(id: "screen.headline", role: "heading", text: "Headline \(id)")
+      ProductTournamentExperienceNode(
+        id: "screen.headline", role: "heading", text: "Headline \(id)")
     ],
     observations: ["observation:\(id)"],
     terminal: false
@@ -532,7 +547,8 @@ private func encodeTrace(_ trace: ProductTournamentExperienceTrace) throws -> St
 private func makeTempDir() throws -> URL {
   let url = FileManager.default.temporaryDirectory
     .appending(
-      path: "ProductTournamentSimulationRunnerTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+      path: "ProductTournamentSimulationRunnerTests-\(UUID().uuidString)",
+      directoryHint: .isDirectory)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url.standardizedFileURL
 }

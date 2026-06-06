@@ -148,6 +148,7 @@ enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
   case unknownCohort(String)
   case unknownScenario(String)
   case unknownProductHypothesis(String)
+  case unknownContenderForExperiment(String)
   case unknownPain(String)
   case unknownSegment(String)
   case unknownWorkflow(String)
@@ -178,6 +179,8 @@ enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
       return "Product scenario \(id) was not found in product tournament state."
     case .unknownProductHypothesis(let id):
       return "Product hypothesis \(id) was not found in product tournament state."
+    case .unknownContenderForExperiment(let id):
+      return "No tournament contender was found for experiment \(id)."
     case .unknownPain(let id):
       return "Pain hypothesis \(id) was not found in product tournament state."
     case .unknownSegment(let id):
@@ -220,7 +223,9 @@ enum ProductTournamentScenarioCoordinator {
     in config: ProductTournamentConfig,
     now: Date = Date()
   ) throws -> ProductScenarioDraft {
-    guard let experiment = config.tournamentExperiments.first(where: { $0.id == brief.experimentID }) else {
+    guard
+      let experiment = config.tournamentExperiments.first(where: { $0.id == brief.experimentID })
+    else {
       throw ProductTournamentScenarioRunError.unknownExperiment(brief.experimentID)
     }
     let fallback = defaultDraft(for: experiment, in: config, now: now)
@@ -335,7 +340,8 @@ enum ProductTournamentScenarioCoordinator {
     }?.id
   }
 
-  private static func segmentName(for segmentID: String, in config: ProductTournamentConfig) -> String
+  private static func segmentName(for segmentID: String, in config: ProductTournamentConfig)
+    -> String
   {
     let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
     return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
@@ -347,7 +353,8 @@ enum ProductTournamentScenarioCoordinator {
     now: Date = Date()
   ) throws -> ProductTournamentConfig {
     var next = config
-    guard let experiment = next.tournamentExperiments.first(where: { $0.id == draft.experimentID }) else {
+    guard let experiment = next.tournamentExperiments.first(where: { $0.id == draft.experimentID })
+    else {
       throw ProductTournamentScenarioRunError.unknownExperiment(draft.experimentID)
     }
     guard next.userSegments.contains(where: { $0.id == draft.segmentID }) else {
@@ -427,7 +434,8 @@ enum ProductTournamentScenarioCoordinator {
     mode: ProductTournamentSimulationMode = .modelFree,
     targetDecision: ProductTournamentExperimentDecision? = nil
   ) async throws -> ProductTournamentSimulationRequest {
-    guard let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID }) else {
+    guard let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
+    else {
       throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
     guard let scenario = config.scenarios.first(where: { $0.id == scenarioID }) else {
@@ -444,9 +452,18 @@ enum ProductTournamentScenarioCoordinator {
       experimentID: experiment.id,
       in: config
     )
-    guard let hypothesis = config.productHypotheses.first(where: { $0.id == experiment.productHypothesisID })
+    guard
+      let hypothesis = config.productHypotheses.first(where: {
+        $0.id == experiment.productHypothesisID
+      })
     else {
-      throw ProductTournamentScenarioRunError.unknownProductHypothesis(experiment.productHypothesisID)
+      throw ProductTournamentScenarioRunError.unknownProductHypothesis(
+        experiment.productHypothesisID)
+    }
+    guard
+      let contender = config.tournamentContenders.first(where: { $0.experimentID == experiment.id })
+    else {
+      throw ProductTournamentScenarioRunError.unknownContenderForExperiment(experiment.id)
     }
     guard let pain = config.painHypotheses.first(where: { $0.id == hypothesis.painID }) else {
       throw ProductTournamentScenarioRunError.unknownPain(hypothesis.painID)
@@ -464,7 +481,8 @@ enum ProductTournamentScenarioCoordinator {
     let selectedAlternatives = alternatives(for: scenario, painID: pain.id, in: config)
     let targetCommit = try targetCommit(for: scenario, experiment: experiment)
     if let experimentCommit = experiment.currentSha ?? experiment.baseSha,
-      !ProductTournamentExperimentGit.commitMatches(expected: targetCommit, actual: experimentCommit)
+      !ProductTournamentExperimentGit.commitMatches(
+        expected: targetCommit, actual: experimentCommit)
     {
       throw ProductTournamentScenarioRunError.staleScenarioCommit(
         scenarioID: scenario.id,
@@ -488,6 +506,7 @@ enum ProductTournamentScenarioCoordinator {
       segment: segment,
       currentWorkflow: currentWorkflow,
       alternatives: selectedAlternatives,
+      contender: contender,
       productHypothesis: hypothesis,
       experiment: experiment,
       scenarioID: scenario.id,
@@ -521,7 +540,8 @@ enum ProductTournamentScenarioCoordinator {
     workspace: CompassWorkspace,
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner()
   ) async throws -> Bool {
-    guard let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID }) else {
+    guard let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
+    else {
       throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
     return await appRunner.productTournamentExperienceContractAvailable(
@@ -719,7 +739,9 @@ enum ProductTournamentScenarioCoordinator {
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioRunOutcome {
     var config = try workspace.readProductTournamentConfig()
-    guard let experimentIndex = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID })
+    guard
+      let experimentIndex = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID }
+      )
     else {
       throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
@@ -948,7 +970,9 @@ extension CompassProject {
         return nil
       }
       guard
-        let experiment = productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentID })
+        let experiment = productTournamentConfig.tournamentExperiments.first(where: {
+          $0.id == experimentID
+        })
       else {
         throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
       }
@@ -991,7 +1015,9 @@ extension CompassProject {
         return nil
       }
       guard
-        let experiment = productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentID })
+        let experiment = productTournamentConfig.tournamentExperiments.first(where: {
+          $0.id == experimentID
+        })
       else {
         throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
       }

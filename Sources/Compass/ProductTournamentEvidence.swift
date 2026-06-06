@@ -518,7 +518,8 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     ]
     if averageScore > 0 {
       lines.append(
-        "Average tournament score \(format(averageScore))/5; readiness \(format(readinessScore))/100.")
+        "Average tournament score \(format(averageScore))/5; readiness \(format(readinessScore))/100."
+      )
     } else {
       lines.append(
         "No persona scorecard is available yet; readiness depends on run status and verdicts.")
@@ -558,14 +559,16 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
         )
       } else {
         lines.append(
-          "No AI-user evidence has tested this contender yet; promotion requires simulated-user pull.")
+          "No AI-user evidence has tested this contender yet; promotion requires simulated-user pull."
+        )
       }
     } else if aiUserDistinctPersonaCount < 2 && !completed.isEmpty {
       if isStopGate {
         lines.append(
           "Stopping a contender requires AI-user rejection evidence across at least 2 personas.")
       } else {
-        lines.append("Decisive tournament decisions require AI-user evidence across at least 2 personas.")
+        lines.append(
+          "Decisive tournament decisions require AI-user evidence across at least 2 personas.")
       }
     }
     if aiUserCurrentAlternativePersonaCount < 2 && !completed.isEmpty {
@@ -730,7 +733,9 @@ struct ProductTournamentEvidenceScores: Codable, Equatable, Sendable {
   }
 }
 
-enum ProductTournamentEvidenceDecisionIntentOutcome: String, Codable, CaseIterable, Equatable, Sendable {
+enum ProductTournamentEvidenceDecisionIntentOutcome: String, Codable, CaseIterable, Equatable,
+  Sendable
+{
   case supportsTarget = "supports_target"
   case contradictsTarget = "contradicts_target"
   case inconclusive
@@ -951,7 +956,8 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     self.schemaVersion = schemaVersion
     self.projectID = Self.optionalBounded(projectID, limit: 80)
     self.experimentID = Self.cleanedIdentifier(experimentID, fallback: "experiment")
-    self.productHypothesisID = Self.cleanedIdentifier(productHypothesisID, fallback: "product-hypothesis")
+    self.productHypothesisID = Self.cleanedIdentifier(
+      productHypothesisID, fallback: "product-hypothesis")
     self.painID = Self.cleanedIdentifier(painID, fallback: "pain")
     self.tournamentID = Self.optionalIdentifier(tournamentID, fallback: "tournament")
     self.roundID = Self.optionalIdentifier(roundID, fallback: "round")
@@ -1019,7 +1025,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
       painID: runResult.painID,
       tournamentID: tournamentScope?.tournamentID,
       roundID: tournamentScope?.roundID,
-      contenderID: tournamentScope?.contenderID,
+      contenderID: tournamentScope?.contenderID ?? runResult.contenderID,
       branchName: runResult.branchName,
       commitSha: runResult.commitSha,
       scenarioID: runResult.scenarioID,
@@ -1499,7 +1505,8 @@ struct ProductTournamentEvidenceSummary: Codable, Equatable, Identifiable, Senda
     personaActionRationales =
       try container.decodeIfPresent([String].self, forKey: .personaActionRationales) ?? []
     traceHash = try container.decodeIfPresent(String.self, forKey: .traceHash)
-    completedUseProof = try container.decodeIfPresent(Bool.self, forKey: .completedUseProof)
+    completedUseProof =
+      try container.decodeIfPresent(Bool.self, forKey: .completedUseProof)
       ?? false
     summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? "No summary."
     failureKind = try container.decodeIfPresent(String.self, forKey: .failureKind)
@@ -2529,7 +2536,9 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     return max(0, all.count - summaries(for: experiment).count)
   }
 
-  func currentTournamentReadiness(for experiment: ProductTournamentExperiment) -> ProductTournamentReadiness? {
+  func currentTournamentReadiness(for experiment: ProductTournamentExperiment)
+    -> ProductTournamentReadiness?
+  {
     let currentSummaries = summaries(for: experiment)
     guard !currentSummaries.isEmpty else { return nil }
     return ProductTournamentReadiness(summaries: currentSummaries)
@@ -2732,7 +2741,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     missingCapabilityFrequency =
       missingCounts
       .filter { !$0.key.isEmpty }
-      .map { ProductTournamentEvidenceMissingCapabilityCount(capabilityID: $0.key, count: $0.value) }
+      .map {
+        ProductTournamentEvidenceMissingCapabilityCount(capabilityID: $0.key, count: $0.value)
+      }
       .sorted { lhs, rhs in
         if lhs.count == rhs.count { return lhs.capabilityID < rhs.capabilityID }
         return lhs.count > rhs.count
@@ -3065,7 +3076,8 @@ struct ProductTournamentEvidenceStore {
         contents: transcriptJSONL
       )
     }
-    let summary = summaryMarkdown ?? ProductTournamentEvidenceMarkdownExporter.markdown(record: stored)
+    let summary =
+      summaryMarkdown ?? ProductTournamentEvidenceMarkdownExporter.markdown(record: stored)
     if !summary.isEmpty {
       stored.summaryArtifactPath = try writeArtifact(
         runURL: runURL,

@@ -59,7 +59,8 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains("app-cli gui-replay --input"))
     try #require(readme.contains("Deterministic Product Tournament Experience Contract"))
     try #require(readme.contains("Tournament experiments use"))
-    try #require(readme.contains("run_product_tournament_experience(ProductTournamentExperienceInput) ->"))
+    try #require(
+      readme.contains("run_product_tournament_experience(ProductTournamentExperienceInput) ->"))
     try #require(readme.contains("app-cli product-tournament-experience --input"))
     try #require(readme.contains("provide_requested_input"))
     try #require(readme.contains("Product Tournament evidence is product pressure"))
@@ -105,7 +106,9 @@ struct RustProjectScaffoldTests {
     try #require(core.contains("pub fn gui_semantic_snapshot"))
     try #require(core.contains("pub struct ProductTournamentExperienceInput"))
     try #require(core.contains("pub struct ProductTournamentPain"))
-    try #require(core.contains("pub struct ProductTournamentProductHypothesis"))
+    try #require(core.contains("pub struct ProductTournamentContender"))
+    try #require(!core.contains("ProductTournamentProductHypothesis"))
+    try #require(core.contains("pub contender: ProductTournamentContender"))
     try #require(core.contains("pub struct ProductTournamentExperiment"))
     try #require(core.contains("pub struct ProductTournamentScenario"))
     try #require(core.contains("pub struct ProductTournamentCurrentWorkflow"))
@@ -119,6 +122,9 @@ struct RustProjectScaffoldTests {
     try #require(core.contains("pub struct ProductTournamentExperienceAction"))
     try #require(core.contains("pub struct ProductTournamentExperienceAllowedAction"))
     try #require(core.contains("pub struct ProductTournamentExperienceTrace"))
+    try #require(core.contains(#"#[serde(rename = "contenderID")]"#))
+    try #require(!core.contains(#"#[serde(rename = "productHypothesisID")]"#))
+    try #require(!core.contains("product_hypothesis"))
     try #require(core.contains("pub struct PainReliefSignals"))
     try #require(core.contains("pub fn run_product_tournament_experience"))
     try #require(core.contains("workflow_completed: bool"))
@@ -139,7 +145,8 @@ struct RustProjectScaffoldTests {
     try #require(tests.contains("simulation_fixture_is_a_pure_transition"))
     try #require(tests.contains("gui_replay_fixture_emits_stable_semantic_snapshot"))
     try #require(
-      tests.contains("product_tournament_experience_fixture_replays_allowed_actions_deterministically"))
+      tests.contains(
+        "product_tournament_experience_fixture_replays_allowed_actions_deterministically"))
     try #require(tests.contains("provide_requested_input"))
     try #require(tests.contains("ProductTournamentExperienceTerminalStatus::Completed"))
     try #require(tests.contains("first.allowed_next_actions.is_empty()"))
@@ -207,7 +214,7 @@ struct RustProjectScaffoldTests {
     try #require(xtask.contains("provide_requested_input"))
     try #require(
       xtask.contains(
-        "product tournament trace did not exercise expected product-hypothesis action sequence"))
+        "product tournament trace did not exercise expected contender action sequence"))
     try #require(
       xtask.contains("product tournament trace did not complete the contender workflow"))
     try #require(xtask.contains("product tournament trace changed across identical invocations"))
@@ -215,7 +222,8 @@ struct RustProjectScaffoldTests {
     try #require(xtask.contains("willingnessToPayScore"))
     try #require(
       xtask.contains(
-        "product tournament trace did not earn strong willingness to pay after workflow completion"))
+        "product tournament trace did not earn strong willingness to pay after workflow completion")
+    )
     try #require(xtask.contains("sponsorshipIntent"))
     try #require(!xtask.contains(removedEngineParityCommand))
     try #require(!xtask.contains(removedLegacySmokeCommand))

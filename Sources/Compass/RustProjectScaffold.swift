@@ -208,7 +208,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     Tournament experiments use `run_product_tournament_experience(ProductTournamentExperienceInput) ->
     ProductTournamentExperienceTrace` as a semantic app journey. The input carries
-    the pain, product hypothesis, experiment, current workflow, alternatives, and tournament
+    the pain, contender, experiment, current workflow, alternatives, and tournament
     decision intent being evaluated. The generated app owns the allowed action list for each state,
     and `app-cli product-tournament-experience --input '<json>'` deterministically
     replays a supplied action prefix. Persona agents may choose only from the
@@ -241,7 +241,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     - Run CLI: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "status"]))`
     - Run simulation fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "simulate", "--input", #"{"seed":"demo","ticks":3,"action":"advance"}"#]))`
     - Run GUI replay fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "gui-replay", "--input", #"{"seed":"demo","steps":[{"action":"advance","ticks":2},{"action":"visual_input","value":"space"}]}"#]))`
-    - Run product tournament experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience", "--input", #"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"productHypothesis":{"id":"hypothesis-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_contender_workflow","params":{}},{"id":"provide_requested_input","params":{}}]}"#]))`
+    - Run product tournament experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience", "--input", #"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"contender":{"id":"contender-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_contender_workflow","params":{}},{"id":"provide_requested_input","params":{}}]}"#]))`
     - Print product tournament experience schema: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience-schema"]))`
     - Run desktop: `\(RustVerifyCommands.cargo(RustVerifyCommands.runDesktop))`
     - Fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
@@ -330,7 +330,7 @@ struct RustProjectScaffold: Equatable, Sendable {
       "required": [
         "schemaVersion",
         "pain",
-        "productHypothesis",
+        "contender",
         "experiment",
         "scenario",
         "currentWorkflow",
@@ -348,7 +348,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "impact": { "type": "string" }
           }
         },
-        "productHypothesis": {
+        "contender": {
           "type": "object",
           "required": ["id", "title", "promise"],
           "properties": {
@@ -443,7 +443,7 @@ struct RustProjectScaffold: Equatable, Sendable {
       "required": [
         "schemaVersion",
         "painID",
-        "productHypothesisID",
+        "contenderID",
         "experimentID",
         "initialState",
         "turns",
@@ -455,7 +455,7 @@ struct RustProjectScaffold: Equatable, Sendable {
       "properties": {
         "schemaVersion": { "type": "integer", "const": 1 },
         "painID": { "type": "string" },
-        "productHypothesisID": { "type": "string" },
+        "contenderID": { "type": "string" },
         "experimentID": { "type": "string" },
         "initialState": { "type": "object" },
         "turns": { "type": "array" },
@@ -594,7 +594,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     pub struct ProductTournamentExperienceInput {
         pub schema_version: u8,
         pub pain: ProductTournamentPain,
-        pub product_hypothesis: ProductTournamentProductHypothesis,
+        pub contender: ProductTournamentContender,
         pub experiment: ProductTournamentExperiment,
         pub scenario: ProductTournamentScenario,
         pub current_workflow: ProductTournamentCurrentWorkflow,
@@ -614,7 +614,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct ProductTournamentProductHypothesis {
+    pub struct ProductTournamentContender {
         pub id: String,
         pub title: String,
         pub promise: String,
@@ -726,8 +726,8 @@ struct RustProjectScaffold: Equatable, Sendable {
         pub schema_version: u8,
         #[serde(rename = "painID")]
         pub pain_id: String,
-        #[serde(rename = "productHypothesisID")]
-        pub product_hypothesis_id: String,
+        #[serde(rename = "contenderID")]
+        pub contender_id: String,
         #[serde(rename = "experimentID")]
         pub experiment_id: String,
         pub initial_state: ProductTournamentExperienceState,
@@ -874,8 +874,8 @@ struct RustProjectScaffold: Equatable, Sendable {
                     impact: "Managers lose visibility and operators spend Friday chasing updates"
                         .to_owned(),
                 },
-                product_hypothesis: ProductTournamentProductHypothesis {
-                    id: "hypothesis-compass".to_owned(),
+                contender: ProductTournamentContender {
+                    id: "contender-compass".to_owned(),
                     title: "Compass workflow helper".to_owned(),
                     promise: "Turn scattered updates into a reviewed weekly report".to_owned(),
                 },
@@ -929,7 +929,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             terminal_status: ProductTournamentExperienceTerminalStatus::InProgress,
             event_log: vec![
                 format!("pain:{}", input.pain.id),
-                format!("product_hypothesis:{}", input.product_hypothesis.id),
+                format!("contender:{}", input.contender.id),
                 format!("experiment:{}", input.experiment.id),
                 format!("scenario_seed:{}", input.scenario.seed),
             ],
@@ -978,7 +978,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         ProductTournamentExperienceTrace {
             schema_version: 1,
             pain_id: input.pain.id,
-            product_hypothesis_id: input.product_hypothesis.id,
+            contender_id: input.contender.id,
             experiment_id: input.experiment.id,
             initial_state,
             turns,
@@ -1006,11 +1006,11 @@ struct RustProjectScaffold: Equatable, Sendable {
             "initial",
             "Ready to evaluate pain relief",
             format!(
-                "{} is trying to: {}. Current workflow: {}. Product hypothesis: {}. Decision intent: {}.",
+                "{} is trying to: {}. Current workflow: {}. Contender: {}. Decision intent: {}.",
                 input.scenario.persona_summary,
                 input.scenario.task,
                 input.current_workflow.summary,
-                input.product_hypothesis.promise,
+                input.contender.promise,
                 decision_intent
             ),
             vec![
@@ -1042,7 +1042,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                     vec![
                         "pain named".to_owned(),
                         "impact visible".to_owned(),
-                        "product hypothesis proof still requested".to_owned(),
+                        "contender proof still requested".to_owned(),
                     ],
                     false,
                 );
@@ -1055,7 +1055,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                     "Current alternative compared",
                     format!(
                         "The app compares `{}` with `{}` and invites a switching objection: {}",
-                        input.product_hypothesis.title,
+                        input.contender.title,
                         current_alternative_label(input),
                         current_switching_objection(input)
                     ),
@@ -1092,7 +1092,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                     "Contender workflow started",
                     format!(
                         "The app starts `{}` and asks for one concrete input before it can show pain relief.",
-                        input.product_hypothesis.title
+                        input.contender.title
                     ),
                     vec![
                         "workflow entry accepted".to_owned(),
@@ -1308,7 +1308,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         let current_alternative_comparison = if runtime.current_alternative_addressed {
             format!(
                 "Compared `{}` against `{}`; switching objection: {}",
-                input.product_hypothesis.title,
+                input.contender.title,
                 current_alternative_label(input),
                 current_switching_objection(input)
             )
@@ -1361,19 +1361,19 @@ struct RustProjectScaffold: Equatable, Sendable {
         if score >= 4 {
             format!(
                 "The simulated user would sponsor `{}` because it beat `{}` in the tested workflow.",
-                input.product_hypothesis.title,
+                input.contender.title,
                 current_alternative_label(input)
             )
         } else if score == 3 {
             format!(
                 "The simulated user might sponsor `{}` after one more proof against `{}`.",
-                input.product_hypothesis.title,
+                input.contender.title,
                 current_alternative_label(input)
             )
         } else {
             format!(
                 "The simulated user is not ready to sponsor `{}` from this trace.",
-                input.product_hypothesis.title
+                input.contender.title
             )
         }
     }
@@ -1545,7 +1545,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "required": [
                 "schemaVersion",
                 "pain",
-                "productHypothesis",
+                "contender",
                 "experiment",
                 "scenario",
                 "currentWorkflow",
@@ -1563,7 +1563,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                         "impact": { "type": "string" }
                     }
                 },
-                "productHypothesis": {
+                "contender": {
                     "type": "object",
                     "required": ["id", "title", "promise"],
                     "properties": {
@@ -1679,7 +1679,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "required": [
                 "schemaVersion",
                 "painID",
-                "productHypothesisID",
+                "contenderID",
                 "experimentID",
                 "initialState",
                 "turns",
@@ -1691,7 +1691,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "properties": {
                 "schemaVersion": { "type": "integer", "const": 1 },
                 "painID": { "type": "string" },
-                "productHypothesisID": { "type": "string" },
+                "contenderID": { "type": "string" },
                 "experimentID": { "type": "string" },
                 "initialState": { "type": "object" },
                 "turns": { "type": "array" },
@@ -1751,10 +1751,10 @@ struct RustProjectScaffold: Equatable, Sendable {
     """
     use app_core::{
         run_gui_replay, run_product_tournament_experience, run_simulation, DemoState, GuiReplayAction,
-        GuiReplayStep, GuiReplayTrace, ProductTournamentAlternative, ProductTournamentCurrentWorkflow,
-        ProductTournamentDecisionIntent, ProductTournamentExperienceAction,
-        ProductTournamentExperienceInput, ProductTournamentExperienceTerminalStatus,
-        ProductTournamentExperiment, ProductTournamentPain, ProductTournamentProductHypothesis,
+        GuiReplayStep, GuiReplayTrace, ProductTournamentAlternative, ProductTournamentContender,
+        ProductTournamentCurrentWorkflow, ProductTournamentDecisionIntent,
+        ProductTournamentExperienceAction, ProductTournamentExperienceInput,
+        ProductTournamentExperienceTerminalStatus, ProductTournamentExperiment, ProductTournamentPain,
         ProductTournamentScenario, SimulationAction, SimulationInput,
     };
     use serde_json::json;
@@ -1824,8 +1824,8 @@ struct RustProjectScaffold: Equatable, Sendable {
                 summary: "Weekly reporting takes too long".to_owned(),
                 impact: "Managers lack timely visibility".to_owned(),
             },
-            product_hypothesis: ProductTournamentProductHypothesis {
-                id: "hypothesis-reporting".to_owned(),
+            contender: ProductTournamentContender {
+                id: "contender-reporting".to_owned(),
                 title: "Reporting helper".to_owned(),
                 promise: "Generate a reviewed weekly report from scattered updates".to_owned(),
             },
@@ -2490,7 +2490,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             return Err("product tournament trace did not expose any initial allowed actions".into());
         }
 
-        let input = r#"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"productHypothesis":{"id":"hypothesis-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_contender_workflow","params":{}},{"id":"provide_requested_input","params":{}}]}"#;
+        let input = r#"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"contender":{"id":"contender-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_contender_workflow","params":{}},{"id":"provide_requested_input","params":{}}]}"#;
         let first = run_capture(
             "cargo",
             &[
@@ -2541,7 +2541,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         ];
         if action_ids != expected_action_ids {
             return Err(format!(
-                "product tournament trace did not exercise expected product-hypothesis action sequence: {}",
+                "product tournament trace did not exercise expected contender action sequence: {}",
                 action_ids.join(" -> ")
             )
             .into());

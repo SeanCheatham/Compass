@@ -8,6 +8,7 @@ struct ProductTournamentSimulationRequest {
   var segment: UserSegment
   var currentWorkflow: CurrentWorkflow
   var alternatives: [Alternative]
+  var contender: ProductTournamentContender
   var productHypothesis: ProductHypothesis
   var experiment: ProductTournamentExperiment
   var scenarioID: String
@@ -30,6 +31,7 @@ struct ProductTournamentSimulationRequest {
     segment: UserSegment,
     currentWorkflow: CurrentWorkflow,
     alternatives: [Alternative],
+    contender: ProductTournamentContender,
     productHypothesis: ProductHypothesis,
     experiment: ProductTournamentExperiment,
     scenarioID: String,
@@ -52,6 +54,7 @@ struct ProductTournamentSimulationRequest {
     self.segment = segment
     self.currentWorkflow = currentWorkflow
     self.alternatives = alternatives
+    self.contender = contender
     self.productHypothesis = productHypothesis
     self.experiment = experiment
     self.scenarioID = ProductTournamentModelText.identifier(scenarioID, fallback: "scenario")
@@ -90,7 +93,9 @@ struct ProductTournamentSimulationRequest {
     ProductTournamentExperienceAction(id: "provide_requested_input"),
   ]
 
-  func experienceInput(actions: [ProductTournamentExperienceAction]) -> ProductTournamentExperienceInput {
+  func experienceInput(actions: [ProductTournamentExperienceAction])
+    -> ProductTournamentExperienceInput
+  {
     ProductTournamentExperienceInput(
       schemaVersion: 1,
       pain: ProductTournamentExperiencePain(
@@ -98,10 +103,10 @@ struct ProductTournamentSimulationRequest {
         summary: pain.rawPain,
         impact: pain.costOfInaction
       ),
-      productHypothesis: ProductTournamentExperienceProductHypothesis(
-        id: productHypothesis.id,
-        title: productHypothesis.title,
-        promise: productHypothesis.promise
+      contender: ProductTournamentExperienceContender(
+        id: contender.id,
+        title: contender.title,
+        promise: contender.valueProposition
       ),
       experiment: ProductTournamentExperienceExperiment(
         id: experiment.id,
@@ -225,6 +230,7 @@ struct ProductTournamentRunResult: Codable, Equatable, Sendable {
   var projectID: UUID?
   var projectTitle: String
   var experimentID: String
+  var contenderID: String
   var productHypothesisID: String
   var painID: String
   var branchName: String
@@ -325,6 +331,7 @@ struct ProductTournamentSimulationRequestContext: Equatable, Sendable {
   var segment: UserSegment
   var currentWorkflow: CurrentWorkflow
   var alternatives: [Alternative]
+  var contender: ProductTournamentContender
   var productHypothesis: ProductHypothesis
   var experiment: ProductTournamentExperiment
   var scenarioID: String
@@ -526,7 +533,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
       Current workflow: \(bounded(request.currentWorkflow.title, 160)); \(bounded(request.currentWorkflow.estimatedCost, 240)).
       Current workflow failure modes: \(bounded(workflowFailureModes, 500)).
       Alternatives: \(bounded(alternatives, 500)).
-      Product hypothesis promise: \(bounded(request.productHypothesis.promise, 500)).
+      Contender: \(bounded(request.contender.title, 160)); \(bounded(request.contender.valueProposition, 500)).
       Required proof: \(bounded(requiredProof, 500)).
       Prototype scope: \(bounded(request.experiment.prototypeScope, 500)).
       \(bounded(decisionIntent, 700)).
@@ -1138,6 +1145,7 @@ struct ProductTournamentSimulationRunner {
         segment: request.segment,
         currentWorkflow: request.currentWorkflow,
         alternatives: request.alternatives,
+        contender: request.contender,
         productHypothesis: request.productHypothesis,
         experiment: request.experiment,
         scenarioID: request.scenarioID,
@@ -1194,6 +1202,7 @@ struct ProductTournamentSimulationRunner {
       projectID: request.projectID,
       projectTitle: request.projectTitle,
       experimentID: request.experiment.id,
+      contenderID: request.contender.id,
       productHypothesisID: request.productHypothesis.id,
       painID: request.pain.id,
       branchName: request.experiment.branchName,
@@ -1229,7 +1238,7 @@ private enum ProductTournamentTraceLoadOutcome {
 struct ProductTournamentExperienceInput: Codable, Equatable, Sendable {
   var schemaVersion: Int
   var pain: ProductTournamentExperiencePain
-  var productHypothesis: ProductTournamentExperienceProductHypothesis
+  var contender: ProductTournamentExperienceContender
   var experiment: ProductTournamentExperienceExperiment
   var scenario: ProductTournamentExperienceScenario
   var currentWorkflow: ProductTournamentExperienceCurrentWorkflow
@@ -1244,7 +1253,7 @@ struct ProductTournamentExperiencePain: Codable, Equatable, Sendable {
   var impact: String
 }
 
-struct ProductTournamentExperienceProductHypothesis: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceContender: Codable, Equatable, Sendable {
   var id: String
   var title: String
   var promise: String
@@ -1306,14 +1315,15 @@ struct ProductTournamentExperienceAction: Codable, Equatable, Sendable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     id = try container.decode(String.self, forKey: .id)
     params =
-      try container.decodeIfPresent(ProductTournamentJSONValue.self, forKey: .params) ?? .object([:])
+      try container.decodeIfPresent(ProductTournamentJSONValue.self, forKey: .params)
+      ?? .object([:])
   }
 }
 
 struct ProductTournamentExperienceTrace: Codable, Equatable, Sendable {
   var schemaVersion: Int
   var painID: String
-  var productHypothesisID: String
+  var contenderID: String
   var experimentID: String
   var initialState: ProductTournamentExperienceState
   var turns: [ProductTournamentExperienceTurn]

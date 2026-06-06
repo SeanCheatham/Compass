@@ -158,7 +158,8 @@ struct ProductTournamentScenarioRunTests {
     let input = request.experienceInput(actions: [])
 
     try #require(request.commitSha == head)
-    try #require(request.decisionIntent?.currentDecision == config.tournamentExperiments[0].decision)
+    try #require(
+      request.decisionIntent?.currentDecision == config.tournamentExperiments[0].decision)
     try #require(request.decisionIntent?.targetDecision == .promote)
     try #require(request.maxTurns == scenario.maxTurns)
     try #require(request.appCommandTimeout == scenario.appCommandTimeoutSeconds)
@@ -556,7 +557,8 @@ struct ProductTournamentScenarioRunTests {
     try #require(outcome.record.failure?.status == .appCommandFailed)
     try #require(outcome.userMessage.contains("exited with code 2"))
     try #require(
-      workspace.readProductTournamentEvidenceIndex().aggregate.failuresByKind["appCommandFailed"] == 1)
+      workspace.readProductTournamentEvidenceIndex().aggregate.failuresByKind["appCommandFailed"]
+        == 1)
   }
 }
 
@@ -739,7 +741,7 @@ private func defaultScenarioTrace(
   return ProductTournamentExperienceTrace(
     schemaVersion: 1,
     painID: input.pain.id,
-    productHypothesisID: input.productHypothesis.id,
+    contenderID: input.contender.id,
     experimentID: input.experiment.id,
     initialState: scenarioState(id: "initial"),
     turns: input.actions.enumerated().map { index, action in
@@ -777,7 +779,8 @@ private func scenarioState(id: String) -> ProductTournamentExperienceState {
     headline: "Scenario \(id)",
     body: "Scenario body \(id)",
     semanticNodes: [
-      ProductTournamentExperienceNode(id: "screen.headline", role: "heading", text: "Scenario \(id)")
+      ProductTournamentExperienceNode(
+        id: "screen.headline", role: "heading", text: "Scenario \(id)")
     ],
     observations: ["observation:\(id)"],
     terminal: false
