@@ -17,6 +17,52 @@ struct TournamentAutomationProofTargetDebtMovement: Equatable, Sendable, Identif
     endingProofDebtCount - startingProofDebtCount
   }
 
+  var startCountLabel: String {
+    "\(startingProofDebtCount)"
+  }
+
+  var endCountLabel: String {
+    "\(endingProofDebtCount)"
+  }
+
+  var deltaLabel: String {
+    signedDelta
+  }
+
+  var movementLabel: String {
+    if proofDebtDelta < 0 {
+      return "Cleared \(abs(proofDebtDelta))"
+    }
+    if proofDebtDelta > 0 {
+      return "Added \(proofDebtDelta)"
+    }
+    return "Unchanged"
+  }
+
+  var movementDetail: String {
+    if proofDebtDelta < 0 {
+      return "cleared \(abs(proofDebtDelta)) proof debt"
+    }
+    if proofDebtDelta > 0 {
+      return "added \(proofDebtDelta) proof debt"
+    }
+    return "left proof debt unchanged"
+  }
+
+  var movementSystemImage: String {
+    if proofDebtDelta < 0 {
+      return "arrow.down.circle"
+    }
+    if proofDebtDelta > 0 {
+      return "arrow.up.circle"
+    }
+    return "equal.circle"
+  }
+
+  var resultStripSummary: String {
+    "Proof movement \(startCountLabel) -> \(endCountLabel) (\(deltaLabel)); \(movementDetail)"
+  }
+
   init?(audit: TournamentAutomationCycleAudit) {
     guard
       let startingProofDebtCount = audit.startingProofDebtCount,
@@ -197,6 +243,10 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
 
   var runSelectedStepAccessibilityID: String {
     "\(workbenchAccessibilityID)-run-selected-step"
+  }
+
+  var proofMovementAccessibilityID: String {
+    "\(workbenchAccessibilityID)-proof-movement"
   }
 
   var runPairSummary: String {

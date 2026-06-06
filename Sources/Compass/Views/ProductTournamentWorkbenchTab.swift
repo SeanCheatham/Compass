@@ -2101,6 +2101,7 @@ struct ProductTournamentWorkbenchTab: View {
           WorkbenchFact(label: "Last / Next", value: row.runPairSummary)
           WorkbenchFact(label: "Latest delta", value: row.latestDebtMovementSummary)
             .help(row.helpSummary)
+          selectedProofMovementStrip(for: row)
           if let latestDebtMovement = row.latestDebtMovement {
             WorkbenchFact(label: "Audit", value: latestDebtMovement.auditID)
             if !latestDebtMovement.evidenceRunIDs.isEmpty {
@@ -2140,6 +2141,42 @@ struct ProductTournamentWorkbenchTab: View {
           }
         }
       }
+    }
+  }
+
+  @ViewBuilder
+  private func selectedProofMovementStrip(
+    for row: TournamentAutomationProofTargetScoreboardRow
+  ) -> some View {
+    if let movement = row.latestDebtMovement {
+      VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text("Proof Movement")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          Spacer()
+          WorkbenchStatusPill(text: movement.movementLabel)
+        }
+        HStack(spacing: 6) {
+          WorkbenchMetric(
+            label: "Start",
+            value: movement.startCountLabel,
+            systemImage: "flag"
+          )
+          WorkbenchMetric(
+            label: "End",
+            value: movement.endCountLabel,
+            systemImage: "checkered.flag"
+          )
+          WorkbenchMetric(
+            label: "Delta",
+            value: movement.deltaLabel,
+            systemImage: movement.movementSystemImage
+          )
+        }
+      }
+      .accessibilityIdentifier(row.proofMovementAccessibilityID)
+      .help(movement.resultStripSummary)
     }
   }
 
