@@ -96,7 +96,7 @@ and advances them through rounds:
 
 Simulation is not user research, a sales forecast, or a Verify gate. It is a
 skeptical, repeatable product-pressure loop: a scenario works through the app's
-semantic `ProductizationExperienceTrace`, records structured feedback, and gives
+semantic `ProductTournamentExperienceTrace`, records structured feedback, and gives
 Plan/Reflect bounded evidence about pain recognition, workflow improvement,
 objections, missing capabilities, scores, verdicts, scenario gaps, and the
 decision intent being stress-tested.

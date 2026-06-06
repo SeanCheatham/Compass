@@ -558,14 +558,14 @@ struct ProductizationScenarioRunTests {
 
 private final class MockScenarioExperienceAppRunner: ProductTournamentExperienceAppRunning {
   typealias Handler = (
-    ProductizationExperienceInput,
+    ProductTournamentExperienceInput,
     URL,
     AgentExecutionLaunchPlan,
     TimeInterval?
   ) async throws -> ProcessResult
 
   var contractAvailable: Bool
-  var inputs: [ProductizationExperienceInput] = []
+  var inputs: [ProductTournamentExperienceInput] = []
   private let handler: Handler
 
   init(
@@ -587,7 +587,7 @@ private final class MockScenarioExperienceAppRunner: ProductTournamentExperience
   }
 
   func runProductTournamentExperience(
-    input: ProductizationExperienceInput,
+    input: ProductTournamentExperienceInput,
     workingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,
     timeout: TimeInterval?
@@ -609,7 +609,7 @@ private final class ScriptedScenarioPersonaSelector: ProductizationPersonaAction
   ) async throws -> ProductizationPersonaActionChoice {
     ProductizationPersonaActionChoice(
       promptVersionID: "test.persona_action",
-      action: ProductizationExperienceAction(id: actionIDs.removeFirst()),
+      action: ProductTournamentExperienceAction(id: actionIDs.removeFirst()),
       rationale: "Scripted target user action.",
       rawResponse: #"{"actionID":"scripted"}"#
     )
@@ -620,7 +620,7 @@ private final class ScriptedScenarioPersonaSelector: ProductizationPersonaAction
   ) async throws -> ProductizationPersonaActionChoice {
     ProductizationPersonaActionChoice(
       promptVersionID: "test.persona_repair",
-      action: ProductizationExperienceAction(id: context.allowedActionIDs[0]),
+      action: ProductTournamentExperienceAction(id: context.allowedActionIDs[0]),
       rationale: "Scripted repair action.",
       rawResponse: #"{"actionID":"repair"}"#
     )
@@ -703,11 +703,11 @@ private func setupScenarioRepo(at root: URL) async throws -> String {
 }
 
 private func defaultScenarioTrace(
-  for input: ProductizationExperienceInput
-) -> ProductizationExperienceTrace {
+  for input: ProductTournamentExperienceInput
+) -> ProductTournamentExperienceTrace {
   let lastActionID = input.actions.last?.id
   let allowedIDs: [String]
-  let terminalStatus: ProductizationExperienceTerminalStatus
+  let terminalStatus: ProductTournamentExperienceTerminalStatus
   switch lastActionID {
   case nil:
     allowedIDs = ["inspect_pain", "compare_current_alternative", "start_solution_workflow"]
@@ -732,14 +732,14 @@ private func defaultScenarioTrace(
     terminalStatus = .invalidAction
   }
   let actionIDs = Set(input.actions.map(\.id))
-  return ProductizationExperienceTrace(
+  return ProductTournamentExperienceTrace(
     schemaVersion: 1,
     painID: input.pain.id,
     solutionID: input.solution.id,
     experimentID: input.experiment.id,
     initialState: scenarioState(id: "initial"),
     turns: input.actions.enumerated().map { index, action in
-      ProductizationExperienceTurn(
+      ProductTournamentExperienceTurn(
         index: index,
         action: action,
         state: scenarioState(id: "turn-\(index)-\(action.id)"),
@@ -767,21 +767,21 @@ private func defaultScenarioTrace(
   )
 }
 
-private func scenarioState(id: String) -> ProductizationExperienceState {
-  ProductizationExperienceState(
+private func scenarioState(id: String) -> ProductTournamentExperienceState {
+  ProductTournamentExperienceState(
     id: id,
     headline: "Scenario \(id)",
     body: "Scenario body \(id)",
     semanticNodes: [
-      ProductizationExperienceNode(id: "screen.headline", role: "heading", text: "Scenario \(id)")
+      ProductTournamentExperienceNode(id: "screen.headline", role: "heading", text: "Scenario \(id)")
     ],
     observations: ["observation:\(id)"],
     terminal: false
   )
 }
 
-private func scenarioAllowedAction(_ id: String) -> ProductizationExperienceAllowedAction {
-  ProductizationExperienceAllowedAction(
+private func scenarioAllowedAction(_ id: String) -> ProductTournamentExperienceAllowedAction {
+  ProductTournamentExperienceAllowedAction(
     id: id,
     label: id.replacingOccurrences(of: "_", with: " "),
     description: "Allowed action \(id)",
@@ -789,7 +789,7 @@ private func scenarioAllowedAction(_ id: String) -> ProductizationExperienceAllo
   )
 }
 
-private func encodeScenarioTrace(_ trace: ProductizationExperienceTrace) throws -> String {
+private func encodeScenarioTrace(_ trace: ProductTournamentExperienceTrace) throws -> String {
   let encoder = JSONEncoder()
   encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
   return String(decoding: try encoder.encode(trace), as: UTF8.self)

@@ -74,10 +74,10 @@ struct ProductTournamentSimulationRunnerTests {
     let appRunner = MockProductTournamentExperienceAppRunner()
     let selector = ScriptedProductizationPersonaSelector(
       choices: [
-        .init(action: ProductizationExperienceAction(id: "invent_new_button"))
+        .init(action: ProductTournamentExperienceAction(id: "invent_new_button"))
       ],
       repairs: [
-        .init(action: ProductizationExperienceAction(id: "inspect_pain"))
+        .init(action: ProductTournamentExperienceAction(id: "inspect_pain"))
       ]
     )
     let runner = ProductTournamentSimulationRunner(appRunner: appRunner, personaSelector: selector)
@@ -97,7 +97,7 @@ struct ProductTournamentSimulationRunnerTests {
     let appRunner = MockProductTournamentExperienceAppRunner()
     let selector = ScriptedProductizationPersonaSelector(
       choices: [
-        .init(action: ProductizationExperienceAction(id: "inspect_pain"))
+        .init(action: ProductTournamentExperienceAction(id: "inspect_pain"))
       ]
     )
     let runner = ProductTournamentSimulationRunner(appRunner: appRunner, personaSelector: selector)
@@ -123,8 +123,8 @@ struct ProductTournamentSimulationRunnerTests {
   @Test func personaModelFailsWhenRepairStillInventsAction() async throws {
     let appRunner = MockProductTournamentExperienceAppRunner()
     let selector = ScriptedProductizationPersonaSelector(
-      choices: [.init(action: ProductizationExperienceAction(id: "invent_new_button"))],
-      repairs: [.init(action: ProductizationExperienceAction(id: "still_bad"))]
+      choices: [.init(action: ProductTournamentExperienceAction(id: "invent_new_button"))],
+      repairs: [.init(action: ProductTournamentExperienceAction(id: "still_bad"))]
     )
     let runner = ProductTournamentSimulationRunner(appRunner: appRunner, personaSelector: selector)
 
@@ -246,7 +246,7 @@ struct ProductTournamentSimulationRunnerTests {
       context: ProductizationPersonaActionRepairContext(
         actionContext: context,
         invalidChoice: ProductizationPersonaActionChoice(
-          action: ProductizationExperienceAction(id: "invent_new_button")
+          action: ProductTournamentExperienceAction(id: "invent_new_button")
         ),
         allowedActionIDs: context.allowedActions.map(\.id)
       )
@@ -259,10 +259,10 @@ struct ProductTournamentSimulationRunnerTests {
 }
 
 private final class MockProductTournamentExperienceAppRunner: ProductTournamentExperienceAppRunning {
-  typealias Handler = (ProductizationExperienceInput, Int) async throws -> ProcessResult
+  typealias Handler = (ProductTournamentExperienceInput, Int) async throws -> ProcessResult
 
   var contractAvailable = true
-  var inputs: [ProductizationExperienceInput] = []
+  var inputs: [ProductTournamentExperienceInput] = []
   private let handler: Handler
 
   init(
@@ -282,7 +282,7 @@ private final class MockProductTournamentExperienceAppRunner: ProductTournamentE
   }
 
   func runProductTournamentExperience(
-    input: ProductizationExperienceInput,
+    input: ProductTournamentExperienceInput,
     workingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,
     timeout: TimeInterval?
@@ -326,7 +326,7 @@ private final class ScriptedProductizationPersonaSelector: ProductizationPersona
     chooseContexts.append(context)
     return choices.isEmpty
       ? ProductizationPersonaActionChoice(
-        action: ProductizationExperienceAction(id: "abandon_task"))
+        action: ProductTournamentExperienceAction(id: "abandon_task"))
       : choices.removeFirst()
   }
 
@@ -336,7 +336,7 @@ private final class ScriptedProductizationPersonaSelector: ProductizationPersona
     repairContexts.append(context)
     return repairs.isEmpty
       ? ProductizationPersonaActionChoice(
-        action: ProductizationExperienceAction(id: "abandon_task"))
+        action: ProductTournamentExperienceAction(id: "abandon_task"))
       : repairs.removeFirst()
   }
 }
@@ -408,11 +408,11 @@ private func makePersonaActionContext() -> ProductizationPersonaActionContext {
 }
 
 private func defaultProductizationTrace(
-  for input: ProductizationExperienceInput = makeProductizationRequest().experienceInput(actions: []
+  for input: ProductTournamentExperienceInput = makeProductizationRequest().experienceInput(actions: []
   )
-) -> ProductizationExperienceTrace {
+) -> ProductTournamentExperienceTrace {
   let lastActionID = input.actions.last?.id
-  let terminalStatus: ProductizationExperienceTerminalStatus
+  let terminalStatus: ProductTournamentExperienceTerminalStatus
   let allowedIDs: [String]
 
   switch lastActionID {
@@ -459,14 +459,14 @@ private func defaultProductizationTrace(
   }
 
   let actionIDs = Set(input.actions.map(\.id))
-  return ProductizationExperienceTrace(
+  return ProductTournamentExperienceTrace(
     schemaVersion: 1,
     painID: input.pain.id,
     solutionID: input.solution.id,
     experimentID: input.experiment.id,
     initialState: productizationState(id: "initial"),
     turns: input.actions.enumerated().map { index, action in
-      ProductizationExperienceTurn(
+      ProductTournamentExperienceTurn(
         index: index,
         action: action,
         state: productizationState(id: "turn-\(index)-\(action.id)"),
@@ -500,21 +500,21 @@ private func defaultProductizationTrace(
   )
 }
 
-private func productizationState(id: String) -> ProductizationExperienceState {
-  ProductizationExperienceState(
+private func productizationState(id: String) -> ProductTournamentExperienceState {
+  ProductTournamentExperienceState(
     id: id,
     headline: "Headline \(id)",
     body: "Body \(id)",
     semanticNodes: [
-      ProductizationExperienceNode(id: "screen.headline", role: "heading", text: "Headline \(id)")
+      ProductTournamentExperienceNode(id: "screen.headline", role: "heading", text: "Headline \(id)")
     ],
     observations: ["observation:\(id)"],
     terminal: false
   )
 }
 
-private func productizationAllowedAction(_ id: String) -> ProductizationExperienceAllowedAction {
-  ProductizationExperienceAllowedAction(
+private func productizationAllowedAction(_ id: String) -> ProductTournamentExperienceAllowedAction {
+  ProductTournamentExperienceAllowedAction(
     id: id,
     label: id.replacingOccurrences(of: "_", with: " "),
     description: "Allowed action \(id)",
@@ -522,7 +522,7 @@ private func productizationAllowedAction(_ id: String) -> ProductizationExperien
   )
 }
 
-private func encodeTrace(_ trace: ProductizationExperienceTrace) throws -> String {
+private func encodeTrace(_ trace: ProductTournamentExperienceTrace) throws -> String {
   let encoder = JSONEncoder()
   encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
   return String(decoding: try encoder.encode(trace), as: UTF8.self)

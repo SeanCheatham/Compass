@@ -20,7 +20,7 @@ struct ProductizationSimulationRequest {
   var mode: ProductizationSimulationMode
   var decisionIntent: ProductizationSimulationDecisionIntent?
   var maxTurns: Int
-  var fixtureActions: [ProductizationExperienceAction]
+  var fixtureActions: [ProductTournamentExperienceAction]
   var appCommandTimeout: TimeInterval?
 
   init(
@@ -43,7 +43,7 @@ struct ProductizationSimulationRequest {
     targetDecision: ProductExperimentDecision? = nil,
     decisionIntent: ProductizationSimulationDecisionIntent? = nil,
     maxTurns: Int = 8,
-    fixtureActions: [ProductizationExperienceAction]? = nil,
+    fixtureActions: [ProductTournamentExperienceAction]? = nil,
     appCommandTimeout: TimeInterval? = 120
   ) {
     self.projectID = projectID
@@ -82,35 +82,35 @@ struct ProductizationSimulationRequest {
     self.appCommandTimeout = appCommandTimeout
   }
 
-  static let defaultFixtureActions: [ProductizationExperienceAction] = [
-    ProductizationExperienceAction(id: "inspect_pain"),
-    ProductizationExperienceAction(id: "compare_current_alternative"),
-    ProductizationExperienceAction(id: "reduce_switching_objection"),
-    ProductizationExperienceAction(id: "start_solution_workflow"),
-    ProductizationExperienceAction(id: "provide_requested_input"),
+  static let defaultFixtureActions: [ProductTournamentExperienceAction] = [
+    ProductTournamentExperienceAction(id: "inspect_pain"),
+    ProductTournamentExperienceAction(id: "compare_current_alternative"),
+    ProductTournamentExperienceAction(id: "reduce_switching_objection"),
+    ProductTournamentExperienceAction(id: "start_solution_workflow"),
+    ProductTournamentExperienceAction(id: "provide_requested_input"),
   ]
 
-  func experienceInput(actions: [ProductizationExperienceAction]) -> ProductizationExperienceInput {
-    ProductizationExperienceInput(
+  func experienceInput(actions: [ProductTournamentExperienceAction]) -> ProductTournamentExperienceInput {
+    ProductTournamentExperienceInput(
       schemaVersion: 1,
-      pain: ProductizationExperiencePain(
+      pain: ProductTournamentExperiencePain(
         id: pain.id,
         summary: pain.rawPain,
         impact: pain.costOfInaction
       ),
-      solution: ProductizationExperienceSolution(
+      solution: ProductTournamentExperienceSolution(
         id: solution.id,
         title: solution.title,
         promise: solution.promise
       ),
-      experiment: ProductizationExperienceExperiment(
+      experiment: ProductTournamentExperienceExperiment(
         id: experiment.id,
         branchName: experiment.branchName,
         successSignal: scenarioSuccessSignal.isEmpty
           ? (solution.requiredProof.first ?? experiment.prototypeScope)
           : scenarioSuccessSignal
       ),
-      scenario: ProductizationExperienceScenario(
+      scenario: ProductTournamentExperienceScenario(
         seed: scenarioID,
         personaSummary: [
           segment.name,
@@ -126,7 +126,7 @@ struct ProductizationSimulationRequest {
           "Decision criteria: \(segment.decisionCriteria.joined(separator: "; "))",
         ].filter { !$0.isEmpty }.joined(separator: ". ")
       ),
-      currentWorkflow: ProductizationExperienceCurrentWorkflow(
+      currentWorkflow: ProductTournamentExperienceCurrentWorkflow(
         summary: [
           currentWorkflow.title,
           currentWorkflow.steps.joined(separator: " -> "),
@@ -138,14 +138,14 @@ struct ProductizationSimulationRequest {
           : (currentWorkflow.failureModes + currentWorkflow.handoffs + currentWorkflow.workarounds)
       ),
       alternatives: alternatives.map {
-        ProductizationExperienceAlternative(
+        ProductTournamentExperienceAlternative(
           id: $0.id,
           name: $0.title,
           description: ($0.strengths + $0.weaknesses).joined(separator: "; "),
           switchingObjection: $0.switchingCost
         )
       },
-      decisionIntent: decisionIntent.map(ProductizationExperienceDecisionIntent.init),
+      decisionIntent: decisionIntent.map(ProductTournamentExperienceDecisionIntent.init),
       actions: actions
     )
   }
@@ -237,11 +237,11 @@ struct ProductizationRunResult: Codable, Equatable, Sendable {
   var modelProvider: String
   var model: String
   var status: ProductizationRunStatus
-  var actions: [ProductizationExperienceAction]
+  var actions: [ProductTournamentExperienceAction]
   var rawPersonaActionTranscript: [ProductizationPersonaActionTranscriptEntry]
   var experienceTraceJSON: String?
   var experienceTraceHash: String?
-  var tournamentTrace: ProductizationExperienceTrace?
+  var tournamentTrace: ProductTournamentExperienceTrace?
   var failure: ProductizationRunFailure?
 
   var isSuccess: Bool {
@@ -288,13 +288,13 @@ struct ProductizationPersonaActionTranscriptEntry: Codable, Equatable, Sendable 
 
 struct ProductizationPersonaActionChoice: Equatable, Sendable {
   var promptVersionID: String
-  var action: ProductizationExperienceAction
+  var action: ProductTournamentExperienceAction
   var rationale: String
   var rawResponse: String
 
   init(
     promptVersionID: String = "productization.persona_action.v1",
-    action: ProductizationExperienceAction,
+    action: ProductTournamentExperienceAction,
     rationale: String = "",
     rawResponse: String = ""
   ) {
@@ -308,9 +308,9 @@ struct ProductizationPersonaActionChoice: Equatable, Sendable {
 struct ProductizationPersonaActionContext: Equatable, Sendable {
   var request: ProductizationSimulationRequestContext
   var turnIndex: Int
-  var trace: ProductizationExperienceTrace
-  var allowedActions: [ProductizationExperienceAllowedAction]
-  var actionPrefix: [ProductizationExperienceAction]
+  var trace: ProductTournamentExperienceTrace
+  var allowedActions: [ProductTournamentExperienceAllowedAction]
+  var actionPrefix: [ProductTournamentExperienceAction]
 }
 
 struct ProductizationPersonaActionRepairContext: Equatable, Sendable {
@@ -434,7 +434,7 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
     }
     return ProductizationPersonaActionChoice(
       promptVersionID: promptVersionID,
-      action: ProductizationExperienceAction(id: decoded.actionID, params: decoded.params),
+      action: ProductTournamentExperienceAction(id: decoded.actionID, params: decoded.params),
       rationale: decoded.rationale,
       rawResponse: response
     )
@@ -471,9 +471,9 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
     title: String,
     request: ProductizationSimulationRequestContext,
     turnIndex: Int,
-    trace: ProductizationExperienceTrace,
-    allowedActions: [ProductizationExperienceAllowedAction],
-    actionPrefix: [ProductizationExperienceAction],
+    trace: ProductTournamentExperienceTrace,
+    allowedActions: [ProductTournamentExperienceAllowedAction],
+    actionPrefix: [ProductTournamentExperienceAction],
     repairNote: String?
   ) -> String {
     let allowed = allowedActions.map {
@@ -622,7 +622,7 @@ protocol ProductTournamentExperienceAppRunning {
   func productTournamentExperienceContractAvailable(workingDirectory: URL) async -> Bool
 
   func runProductTournamentExperience(
-    input: ProductizationExperienceInput,
+    input: ProductTournamentExperienceInput,
     workingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,
     timeout: TimeInterval?
@@ -651,7 +651,7 @@ struct ProductTournamentExperienceCLIAppRunner: ProductTournamentExperienceAppRu
   }
 
   func runProductTournamentExperience(
-    input: ProductizationExperienceInput,
+    input: ProductTournamentExperienceInput,
     workingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,
     timeout: TimeInterval?
@@ -673,7 +673,7 @@ struct ProductTournamentExperienceCLIAppRunner: ProductTournamentExperienceAppRu
     ])
   }
 
-  static func inputJSONString(_ input: ProductizationExperienceInput) throws -> String {
+  static func inputJSONString(_ input: ProductTournamentExperienceInput) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     let data = try encoder.encode(input)
@@ -714,7 +714,7 @@ struct ProductTournamentSimulationRunner {
       )
     }
 
-    var actions: [ProductizationExperienceAction] = []
+    var actions: [ProductTournamentExperienceAction] = []
     var transcript: [ProductizationPersonaActionTranscriptEntry] = []
 
     for turnIndex in 0..<request.maxTurns {
@@ -981,7 +981,7 @@ struct ProductTournamentSimulationRunner {
   private func deterministicResult(
     request: ProductizationSimulationRequest,
     status: ProductizationRunStatus,
-    actions: [ProductizationExperienceAction],
+    actions: [ProductTournamentExperienceAction],
     transcript: [ProductizationPersonaActionTranscriptEntry],
     fallbackTraceJSON: String,
     failure: ProductizationRunFailure? = nil
@@ -1064,7 +1064,7 @@ struct ProductTournamentSimulationRunner {
 
   private func loadTrace(
     request: ProductizationSimulationRequest,
-    actions: [ProductizationExperienceAction]
+    actions: [ProductTournamentExperienceAction]
   ) async -> ProductizationTraceLoadOutcome {
     let input = request.experienceInput(actions: actions)
     let result: ProcessResult
@@ -1108,7 +1108,7 @@ struct ProductTournamentSimulationRunner {
     }
 
     do {
-      let trace = try JSONDecoder().decode(ProductizationExperienceTrace.self, from: data)
+      let trace = try JSONDecoder().decode(ProductTournamentExperienceTrace.self, from: data)
       return .success(trace, traceJSON: result.stdout)
     } catch {
       return .failure(
@@ -1127,9 +1127,9 @@ struct ProductTournamentSimulationRunner {
   private func personaContext(
     request: ProductizationSimulationRequest,
     turnIndex: Int,
-    trace: ProductizationExperienceTrace,
-    allowedActions: [ProductizationExperienceAllowedAction],
-    actionPrefix: [ProductizationExperienceAction]
+    trace: ProductTournamentExperienceTrace,
+    allowedActions: [ProductTournamentExperienceAllowedAction],
+    actionPrefix: [ProductTournamentExperienceAction]
   ) -> ProductizationPersonaActionContext {
     ProductizationPersonaActionContext(
       request: ProductizationSimulationRequestContext(
@@ -1155,8 +1155,8 @@ struct ProductTournamentSimulationRunner {
   }
 
   private func isValid(
-    _ action: ProductizationExperienceAction,
-    allowedActions: [ProductizationExperienceAllowedAction]
+    _ action: ProductTournamentExperienceAction,
+    allowedActions: [ProductTournamentExperienceAllowedAction]
   ) -> Bool {
     allowedActions.contains { $0.id == action.id }
   }
@@ -1166,7 +1166,7 @@ struct ProductTournamentSimulationRunner {
     phase: ProductizationPersonaActionTranscriptEntry.Phase,
     choice: ProductizationPersonaActionChoice,
     wasValid: Bool,
-    allowedActions: [ProductizationExperienceAllowedAction]
+    allowedActions: [ProductTournamentExperienceAllowedAction]
   ) -> ProductizationPersonaActionTranscriptEntry {
     ProductizationPersonaActionTranscriptEntry(
       turnIndex: turnIndex,
@@ -1183,11 +1183,11 @@ struct ProductTournamentSimulationRunner {
   private func makeResult(
     request: ProductizationSimulationRequest,
     status: ProductizationRunStatus,
-    actions: [ProductizationExperienceAction],
+    actions: [ProductTournamentExperienceAction],
     transcript: [ProductizationPersonaActionTranscriptEntry],
     traceJSON: String?,
     traceHash: String?,
-    trace: ProductizationExperienceTrace?,
+    trace: ProductTournamentExperienceTrace?,
     failure: ProductizationRunFailure?
   ) -> ProductizationRunResult {
     ProductizationRunResult(
@@ -1222,59 +1222,59 @@ struct ProductTournamentSimulationRunner {
 }
 
 private enum ProductizationTraceLoadOutcome {
-  case success(ProductizationExperienceTrace, traceJSON: String)
+  case success(ProductTournamentExperienceTrace, traceJSON: String)
   case failure(ProductizationRunFailure, traceJSON: String?)
 }
 
-struct ProductizationExperienceInput: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceInput: Codable, Equatable, Sendable {
   var schemaVersion: Int
-  var pain: ProductizationExperiencePain
-  var solution: ProductizationExperienceSolution
-  var experiment: ProductizationExperienceExperiment
-  var scenario: ProductizationExperienceScenario
-  var currentWorkflow: ProductizationExperienceCurrentWorkflow
-  var alternatives: [ProductizationExperienceAlternative]
-  var decisionIntent: ProductizationExperienceDecisionIntent?
-  var actions: [ProductizationExperienceAction]
+  var pain: ProductTournamentExperiencePain
+  var solution: ProductTournamentExperienceSolution
+  var experiment: ProductTournamentExperienceExperiment
+  var scenario: ProductTournamentExperienceScenario
+  var currentWorkflow: ProductTournamentExperienceCurrentWorkflow
+  var alternatives: [ProductTournamentExperienceAlternative]
+  var decisionIntent: ProductTournamentExperienceDecisionIntent?
+  var actions: [ProductTournamentExperienceAction]
 }
 
-struct ProductizationExperiencePain: Codable, Equatable, Sendable {
+struct ProductTournamentExperiencePain: Codable, Equatable, Sendable {
   var id: String
   var summary: String
   var impact: String
 }
 
-struct ProductizationExperienceSolution: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceSolution: Codable, Equatable, Sendable {
   var id: String
   var title: String
   var promise: String
 }
 
-struct ProductizationExperienceExperiment: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceExperiment: Codable, Equatable, Sendable {
   var id: String
   var branchName: String
   var successSignal: String
 }
 
-struct ProductizationExperienceScenario: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceScenario: Codable, Equatable, Sendable {
   var seed: String
   var personaSummary: String
   var task: String
 }
 
-struct ProductizationExperienceCurrentWorkflow: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceCurrentWorkflow: Codable, Equatable, Sendable {
   var summary: String
   var frictionPoints: [String]
 }
 
-struct ProductizationExperienceAlternative: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceAlternative: Codable, Equatable, Sendable {
   var id: String
   var name: String
   var description: String
   var switchingObjection: String
 }
 
-struct ProductizationExperienceDecisionIntent: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceDecisionIntent: Codable, Equatable, Sendable {
   var currentDecision: ProductExperimentDecision
   var targetDecision: ProductExperimentDecision
   var directive: String
@@ -1288,7 +1288,7 @@ struct ProductizationExperienceDecisionIntent: Codable, Equatable, Sendable {
   }
 }
 
-struct ProductizationExperienceAction: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceAction: Codable, Equatable, Sendable {
   var id: String
   var params: ProductizationJSONValue
 
@@ -1310,43 +1310,43 @@ struct ProductizationExperienceAction: Codable, Equatable, Sendable {
   }
 }
 
-struct ProductizationExperienceTrace: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceTrace: Codable, Equatable, Sendable {
   var schemaVersion: Int
   var painID: String
   var solutionID: String
   var experimentID: String
-  var initialState: ProductizationExperienceState
-  var turns: [ProductizationExperienceTurn]
-  var allowedNextActions: [ProductizationExperienceAllowedAction]
-  var terminalStatus: ProductizationExperienceTerminalStatus
+  var initialState: ProductTournamentExperienceState
+  var turns: [ProductTournamentExperienceTurn]
+  var allowedNextActions: [ProductTournamentExperienceAllowedAction]
+  var terminalStatus: ProductTournamentExperienceTerminalStatus
   var eventLog: [String]
   var painReliefSignals: ProductizationPainReliefSignals
 }
 
-struct ProductizationExperienceState: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceState: Codable, Equatable, Sendable {
   var id: String
   var headline: String
   var body: String
-  var semanticNodes: [ProductizationExperienceNode]
+  var semanticNodes: [ProductTournamentExperienceNode]
   var observations: [String]
   var terminal: Bool
 }
 
-struct ProductizationExperienceNode: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceNode: Codable, Equatable, Sendable {
   var id: String
   var role: String
   var text: String
 }
 
-struct ProductizationExperienceTurn: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceTurn: Codable, Equatable, Sendable {
   var index: Int
-  var action: ProductizationExperienceAction
-  var state: ProductizationExperienceState
-  var allowedNextActions: [ProductizationExperienceAllowedAction]
+  var action: ProductTournamentExperienceAction
+  var state: ProductTournamentExperienceState
+  var allowedNextActions: [ProductTournamentExperienceAllowedAction]
   var eventLog: [String]
 }
 
-struct ProductizationExperienceAllowedAction: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceAllowedAction: Codable, Equatable, Sendable {
   var id: String
   var label: String
   var description: String
@@ -1449,7 +1449,7 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
   }
 }
 
-enum ProductizationExperienceTerminalStatus: String, Codable, Equatable, Sendable {
+enum ProductTournamentExperienceTerminalStatus: String, Codable, Equatable, Sendable {
   case inProgress = "in_progress"
   case completed
   case abandoned
