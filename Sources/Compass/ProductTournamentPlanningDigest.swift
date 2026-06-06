@@ -42,7 +42,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     lines += productImplementationEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
-    lines += tournamentAutomationCycleAuditLines(config: config)
+    lines += tournamentAutomationCycleAuditLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationWorktreePrepLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationPlanProofAuditLines(config: config)
     lines += TournamentPlanProofDeltaOverview.contextLines(
@@ -792,7 +792,10 @@ enum ProductTournamentPlanningDigestFormatter {
     return lines
   }
 
-  private static func tournamentAutomationCycleAuditLines(config: ProductTournamentConfig) -> [String] {
+  private static func tournamentAutomationCycleAuditLines(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [String] {
     let audits = config.tournamentAutomationCycleAudits
       .sorted { lhs, rhs in
         if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
@@ -829,6 +832,13 @@ enum ProductTournamentPlanningDigestFormatter {
           audit.actedProofPressureGroupSummaries.isEmpty
           ? ""
           : "; acted pressure groups \(bounded(actedPressureGroupList, 260))"
+        let actedPressureGroupOutcomes =
+          TournamentAutomationCycleWorkbenchFacts.actedPressureGroupOutcomeSummary(
+            for: audit,
+            config: config,
+            evidenceIndex: evidenceIndex
+          )
+          .map { "; acted group outcomes \(bounded($0, 260))" } ?? ""
         let targetedProofOutcomeList = audit.targetedProofOutcomeSummaries.prefix(3)
           .joined(separator: " | ")
         let targetedProofOutcomes =
@@ -850,7 +860,7 @@ enum ProductTournamentPlanningDigestFormatter {
         let planModes = audit.planEvaluationModeContext.map { "; \($0)" } ?? ""
         return
           "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(planModes)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedProofOutcomes)\(rationaleSignals)\(revisionBriefs)"
-          + "\(actedPressureGroups); stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
+          + "\(actedPressureGroups)\(actedPressureGroupOutcomes); stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
   }
 

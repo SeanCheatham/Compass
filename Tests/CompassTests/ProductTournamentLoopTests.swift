@@ -3652,6 +3652,8 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("targeted proof 1 promote, 0 kill"))
     try #require(digest.contains("acted pressure groups"))
     try #require(digest.contains("pressure_group Proof runs"))
+    try #require(digest.contains("acted group outcomes"))
+    try #require(digest.contains("cleared from proof scoreboard"))
   }
 
   @Test func tournamentAutomationCycleOutcomeCountsPrepareWorktreeSeparatelyFromEvidence() throws {

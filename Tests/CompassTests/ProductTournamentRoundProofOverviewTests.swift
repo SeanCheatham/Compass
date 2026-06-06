@@ -591,6 +591,8 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(digest.contains("latest_result cleared 2 proof debt"))
     try #require(digest.contains("run_pair last cleared 2 proof debt"))
     try #require(digest.contains("top_action_status More proof"))
+    try #require(digest.contains("acted group outcomes"))
+    try #require(digest.contains("reduced but still Proof runs"))
     try #require(workbenchBody.contains("Proof Scoreboard"))
     try #require(workbenchBody.contains("Last Group"))
     try #require(workbenchBody.contains("Group Outcome"))

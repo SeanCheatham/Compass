@@ -116,6 +116,25 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
     )
   }
 
+  static func actedPressureGroupOutcomeSummary(
+    for audit: TournamentAutomationCycleAudit,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
+  ) -> String? {
+    guard !audit.actedProofPressureGroupSummaries.isEmpty else { return nil }
+    let proofScoreboardItems = TournamentAutomationProofTargetScoreboard.items(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      limit: Int.max,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    )
+    return makeActedPressureGroupOutcomeSummary(
+      for: audit,
+      scoreboardItems: proofScoreboardItems
+    )
+  }
+
   private static func sortedAudits(
     in config: ProductTournamentConfig
   ) -> [TournamentAutomationCycleAudit] {

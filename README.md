@@ -157,9 +157,10 @@ and advances them through rounds:
   bucket, records acted pressure-group context in the audit trail for
   Plan/Reflect, shows the latest acted group in Tournament Automation facts with
   whether that anchored row moved, cleared, or stayed in the current proof
-  scoreboard, and sorts transition/decision/revision/worktree-ready contenders
-  above ordinary proof gathering so operators can see when a contender has moved
-  out of evidence collection before opening the detail. After a proof action
+  scoreboard, repeats that acted-outcome signal in Plan/Reflect prompt context,
+  and sorts transition/decision/revision/worktree-ready contenders above
+  ordinary proof gathering so operators can see when a contender has moved out
+  of evidence collection before opening the detail. After a proof action
   completes, the Workbench resolves the new audit back to the affected
   scoreboard contender and selects the matching scenario evidence run or Round 1
   plan-evaluation outcome when the evidence index knows it; selecting a
