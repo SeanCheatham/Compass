@@ -34,6 +34,9 @@ extension Prompts {
       Candidate tournament experiment rules:
       - `candidateTournamentExperiments` are implementation tracks for tournament
         contenders after the plan-only round; do not treat them as Round 1.
+        When a candidate references a contender without a linked tournament
+        experiment, Compass will materialize a durable Round 2/Round 3
+        implementation track from it during apply.
       - `contenderID` must reference a tournament contender in `stateEdits` or current
         tournament state.
       - `branchSlug` must be a single safe git-ref component such as
@@ -185,7 +188,7 @@ struct DiscoverPromptOutput: Codable, Equatable {
       throw DiscoverPromptValidationError.stateUpdateTooLarge(editData.count)
     }
 
-    let config = stateEdits.applying(to: currentConfig)
+    var config = stateEdits.applying(to: currentConfig)
     let painIDs = Set(config.painHypotheses.map(\.id))
     let activePainIDs = Set(
       config.painHypotheses
@@ -222,6 +225,21 @@ struct DiscoverPromptOutput: Codable, Equatable {
         painID: contenderPlan.painID
       )
     }
+
+    let candidateReferenceContenderIDs = Set(config.tournamentContenders.map(\.id))
+    for candidate in candidateTournamentExperiments {
+      guard candidateReferenceContenderIDs.contains(candidate.contenderID) else {
+        throw DiscoverPromptValidationError.candidateReferencesMissingContender(
+          contenderID: candidate.contenderID
+        )
+      }
+      guard DiscoverBranchName.isValidComponent(candidate.branchSlug) else {
+        throw DiscoverPromptValidationError.invalidBranchSlug(candidate.branchSlug)
+      }
+    }
+
+    config = materializingCandidateTournamentExperiments(in: config)
+
     for experiment in config.tournamentExperiments {
       guard contenderPlanIDs.contains(experiment.contenderPlanID) else {
         throw DiscoverPromptValidationError.experimentReferencesMissingContenderPlan(
@@ -299,16 +317,6 @@ struct DiscoverPromptOutput: Codable, Equatable {
         )
       }
     }
-    for candidate in candidateTournamentExperiments {
-      guard contenderIDs.contains(candidate.contenderID) else {
-        throw DiscoverPromptValidationError.candidateReferencesMissingContender(
-          contenderID: candidate.contenderID
-        )
-      }
-      guard DiscoverBranchName.isValidComponent(candidate.branchSlug) else {
-        throw DiscoverPromptValidationError.invalidBranchSlug(candidate.branchSlug)
-      }
-    }
 
     if candidateTournamentExperiments.isEmpty && !openQuestions.isEmpty {
       throw DiscoverPromptValidationError.openQuestionsUsedInsteadOfActionableNextSteps(
@@ -322,6 +330,174 @@ struct DiscoverPromptOutput: Codable, Equatable {
     }
 
     return config
+  }
+
+  private func materializingCandidateTournamentExperiments(
+    in config: ProductTournamentConfig
+  ) -> ProductTournamentConfig {
+    guard !candidateTournamentExperiments.isEmpty else { return config }
+
+    var next = config
+    var experimentIDs = Set(next.tournamentExperiments.map(\.id))
+    var branchNames = Set(next.tournamentExperiments.map(\.branchName))
+    var worktreeIDs = Set(next.tournamentExperiments.map(\.worktreeID))
+    var cohortIDs = Set(next.scenarioCohorts.map(\.id))
+    let timestamp = Self.materializationTimestamp(in: next)
+
+    for candidate in candidateTournamentExperiments {
+      guard
+        let contenderIndex = next.tournamentContenders.firstIndex(where: {
+          $0.id == candidate.contenderID
+        })
+      else { continue }
+
+      let contender = next.tournamentContenders[contenderIndex]
+      if let experimentID = contender.experimentID,
+        next.tournamentExperiments.contains(where: { $0.id == experimentID })
+      {
+        continue
+      }
+
+      let branchSlug = ProductTournamentModelText.slug(
+        candidate.branchSlug,
+        fallback: candidate.implementationName
+      )
+      let experimentID = Self.reserveUniqueIdentifier(
+        preferred: contender.experimentID ?? "experiment-\(branchSlug)",
+        fallback: "experiment-\(branchSlug)",
+        existing: &experimentIDs
+      )
+      let branchName = Self.reserveUniqueBranchName(
+        component: branchSlug,
+        existing: &branchNames
+      )
+      let worktreeID = Self.reserveUniqueIdentifier(
+        preferred: "\(branchSlug)-worktree",
+        fallback: "implementation-worktree",
+        existing: &worktreeIDs
+      )
+      let cohortID = Self.reserveUniqueIdentifier(
+        preferred: "\(experimentID)-starter-cohort",
+        fallback: "\(branchSlug)-cohort",
+        existing: &cohortIDs
+      )
+
+      next.tournamentExperiments.append(
+        ProductTournamentExperiment(
+          id: experimentID,
+          contenderPlanID: contender.contenderPlanID,
+          title: candidate.implementationName,
+          branchName: branchName,
+          worktreeID: worktreeID,
+          baseSha: nil,
+          currentSha: nil,
+          implementationScope: Self.implementationScope(for: candidate),
+          scenarioCohortIDs: [cohortID],
+          evidenceSummary: "Candidate implementation track from Discover; no evidence recorded yet.",
+          decision: .notRun,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        )
+      )
+
+      next.scenarioCohorts.append(
+        ProductScenarioCohort(
+          id: cohortID,
+          title: candidate.targetScenarioCohort,
+          experimentID: experimentID,
+          scenarioIDs: [],
+          enabled: true,
+          tags: ["discover", "candidate-implementation-track"]
+        )
+      )
+
+      next.tournamentContenders[contenderIndex].experimentID = experimentID
+      next.tournamentContenders[contenderIndex].updatedAt = timestamp
+
+      for roundIndex in next.tournamentRounds.indices
+      where next.tournamentRounds[roundIndex].tournamentID == contender.tournamentID
+        && next.tournamentRounds[roundIndex].requiresBuiltProduct
+        && next.tournamentRounds[roundIndex].contenderIDs.contains(contender.id)
+      {
+        if !next.tournamentRounds[roundIndex].scenarioCohortIDs.contains(cohortID) {
+          next.tournamentRounds[roundIndex].scenarioCohortIDs.append(cohortID)
+          next.tournamentRounds[roundIndex].updatedAt = timestamp
+        }
+      }
+    }
+
+    return next
+  }
+
+  private static func reserveUniqueIdentifier(
+    preferred: String,
+    fallback: String,
+    existing: inout Set<String>
+  ) -> String {
+    let base = ProductTournamentModelText.identifier(preferred, fallback: fallback)
+    var candidate = base
+    var suffix = 2
+    while existing.contains(candidate) {
+      let trimmed = String(base.prefix(90)).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+      candidate = "\(trimmed)-\(suffix)"
+      suffix += 1
+    }
+    existing.insert(candidate)
+    return candidate
+  }
+
+  private static func reserveUniqueBranchName(
+    component: String,
+    existing: inout Set<String>
+  ) -> String {
+    let base = ProductTournamentModelText.slug(component, fallback: "implementation")
+    var branchName = "codex/\(base)"
+    var suffix = 2
+    while existing.contains(branchName) {
+      let trimmed = String(base.prefix(58)).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+      branchName = "codex/\(trimmed)-\(suffix)"
+      suffix += 1
+    }
+    existing.insert(branchName)
+    return branchName
+  }
+
+  private static func implementationScope(
+    for candidate: DiscoveryCandidateTournamentExperiment
+  ) -> String {
+    StringUtils.boundedText(
+      [
+        "Build \(candidate.implementationName) as the smallest workflow slice: \(candidate.smallestWorkflowToProve)",
+        "Expected evidence: \(candidate.expectedEvidenceSignal)",
+        "Kill or reframe if: \(candidate.killCriteria)",
+      ].joined(separator: ". "),
+      limit: 800
+    )
+  }
+
+  private static func materializationTimestamp(in config: ProductTournamentConfig) -> Double {
+    var timestamps: [Double] = []
+    for pain in config.painHypotheses {
+      timestamps.append(pain.createdAt)
+      timestamps.append(pain.updatedAt)
+    }
+    for experiment in config.tournamentExperiments {
+      timestamps.append(experiment.createdAt)
+      timestamps.append(experiment.updatedAt)
+    }
+    for tournament in config.tournaments {
+      timestamps.append(tournament.createdAt)
+      timestamps.append(tournament.updatedAt)
+    }
+    for contender in config.tournamentContenders {
+      timestamps.append(contender.createdAt)
+      timestamps.append(contender.updatedAt)
+    }
+    for round in config.tournamentRounds {
+      timestamps.append(round.createdAt)
+      timestamps.append(round.updatedAt)
+    }
+    return timestamps.max() ?? 0
   }
 }
 

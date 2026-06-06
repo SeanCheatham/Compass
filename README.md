@@ -157,7 +157,10 @@ for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
 state schema stores contender plans under `contenderPlans`, and Discover
 state edits store tournament implementation tracks under `tournamentExperiments`;
 Discover candidate tournament experiments reference tournament contenders with
-`contenderID`. The Tournament workbench lists pain hypotheses,
+`contenderID`. If a candidate references a contender that is not already linked
+to a tournament experiment, Compass materializes a durable implementation track,
+starter scenario cohort, and built-product round cohort link when the Discover
+output is applied. The Tournament workbench lists pain hypotheses,
 contenders, rounds, implementation
 tracks, selectable Round 1 plan evaluations with buyer objections and
 willingness-to-pay rationale, per-plan commercial proof, evaluation mode/model

@@ -223,6 +223,73 @@ struct DiscoverPromptContractTests {
 
     try #require(FileManager.default.fileExists(atPath: workspace.productTournamentConfigURL.path))
     try #require(try workspace.readProductTournamentConfig() == written)
+    try #require(written.tournamentExperiments.count == 1)
+    try #require(written.scenarioCohorts.count == 1)
+  }
+
+  @Test func workspaceMaterializesCandidateTournamentExperimentsAsImplementationTracks() throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let workspace = CompassWorkspace(repoURL: root)
+    var output = makeDiscoverOutput()
+    output.stateEdits.tournamentExperiments = []
+    output.stateEdits.scenarioCohorts = []
+    for contenderIndex in output.stateEdits.tournamentContenders.indices
+    where output.stateEdits.tournamentContenders[contenderIndex].id == "contender-command-board"
+    {
+      output.stateEdits.tournamentContenders[contenderIndex].experimentID = nil
+    }
+    for roundIndex in output.stateEdits.tournamentRounds.indices {
+      output.stateEdits.tournamentRounds[roundIndex].scenarioCohortIDs = []
+    }
+
+    let written = try workspace.applyDiscoverOutput(output)
+    let experiment = try #require(
+      written.tournamentExperiments.first { $0.id == "experiment-incident-command-board" }
+    )
+    try #require(experiment.title == "Incident Command Board")
+    try #require(experiment.contenderPlanID == "plan-command-board")
+    try #require(experiment.branchName == "codex/incident-command-board")
+    try #require(experiment.worktreeID == "incident-command-board-worktree")
+    try #require(
+      experiment.scenarioCohortIDs == ["experiment-incident-command-board-starter-cohort"]
+    )
+    try #require(
+      experiment.implementationScope.contains(
+        "Draft a customer update from owner and decision context."
+      )
+    )
+    try #require(
+      experiment.implementationScope.contains(
+        "Persona creates a clearer update than the Slack thread."
+      )
+    )
+    try #require(experiment.implementationScope.contains("Persona still prefers Slack"))
+
+    let linkedContender = try #require(
+      written.tournamentContenders.first { $0.id == "contender-command-board" }
+    )
+    try #require(linkedContender.experimentID == experiment.id)
+
+    let cohort = try #require(
+      written.scenarioCohorts.first {
+        $0.id == "experiment-incident-command-board-starter-cohort"
+      }
+    )
+    try #require(cohort.title == "Incident lead cohort")
+    try #require(cohort.experimentID == experiment.id)
+    try #require(cohort.scenarioIDs.isEmpty)
+    try #require(cohort.tags == ["discover", "candidate-implementation-track"])
+
+    let planRound = try #require(written.tournamentRounds.first { $0.kind == .productPlans })
+    try #require(!planRound.scenarioCohortIDs.contains(cohort.id))
+    let builtProductRounds = written.tournamentRounds.filter {
+      $0.requiresBuiltProduct && $0.contenderIDs.contains(linkedContender.id)
+    }
+    try #require(builtProductRounds.count == 2)
+    for round in builtProductRounds {
+      try #require(round.scenarioCohortIDs.contains(cohort.id))
+    }
   }
 }
 
