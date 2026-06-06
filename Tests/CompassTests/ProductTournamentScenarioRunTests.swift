@@ -358,9 +358,13 @@ struct ProductTournamentScenarioRunTests {
     try #require(markdown.contains("- Tournament: \(scope.tournamentID)"))
     try #require(markdown.contains("- Tournament Round: \(scope.roundID)"))
     try #require(markdown.contains("- Contender: \(scope.contenderID)"))
+    try #require(markdown.contains("- Branch: \(config.tournamentExperiments[0].branchName)"))
+    try #require(markdown.contains("- Commit: \(head)"))
     try #require(digest.contains("tournament \(scope.tournamentID)"))
     try #require(digest.contains("round \(scope.roundID)"))
     try #require(digest.contains("contender \(scope.contenderID)"))
+    try #require(digest.contains("branch \(config.tournamentExperiments[0].branchName)"))
+    try #require(digest.contains("commit \(head)"))
   }
 
   @Test func personaModelRunWritesEvidenceTranscriptAndMode() async throws {

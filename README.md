@@ -217,7 +217,10 @@ distinction with separate last-preparation and last-evidence automation facts,
 so operators can see prepared implementation branches that still lack
 simulated-user use. When the current queue is the first runnable simulated-user
 cohort after that preparation, the Workbench also labels the post-prep evidence
-step explicitly.
+step explicitly. Stored Round 2 and Round 3 run evidence, Workbench selected-run
+details, scenario-run rows, and Plan/Reflect evidence context all include the
+implementation branch and commit used for the run, so post-prep evidence can be
+audited against the exact prepared implementation.
 Only the proof overview for the active tournament round is shown at a time:
 Round 1 plan proof, Round 2 core-technology proof, or Round 3 product
 implementation winner proof.

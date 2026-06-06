@@ -2551,6 +2551,10 @@ struct ProductTournamentWorkbenchTab: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 }
+                Text("Target \(summary.branchName) @ \(short(summary.commitSha))")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
                 WorkbenchFact(
                   label: "Completed use",
                   value: summary.completedUseProof ? "yes" : "no"
@@ -2594,6 +2598,8 @@ struct ProductTournamentWorkbenchTab: View {
           WorkbenchFact(label: "Scenario", value: record.scenarioID)
           WorkbenchFact(label: "Persona", value: record.personaID)
           WorkbenchFact(label: "Mode", value: record.mode.rawValue)
+          WorkbenchFact(label: "Branch", value: record.branchName)
+          WorkbenchFact(label: "Commit", value: record.commitSha)
           if let tournamentID = record.tournamentID {
             WorkbenchFact(label: "Tournament", value: tournamentID)
           }

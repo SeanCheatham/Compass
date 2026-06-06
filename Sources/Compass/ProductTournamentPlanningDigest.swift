@@ -900,6 +900,8 @@ enum ProductTournamentPlanningDigestFormatter {
           "run \(summary.runID)",
           "scenario \(summary.scenarioID)",
           "experiment \(summary.experimentID)",
+          "branch \(bounded(summary.branchName, 140))",
+          "commit \(bounded(summary.commitSha, 80))",
           "status \(summary.status.rawValue)",
           "model \(bounded(summary.model, 80))",
           "mode \(summary.mode.rawValue)",

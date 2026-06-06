@@ -570,6 +570,8 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(text.contains("cohort \(config.scenarioCohorts[0].id)"))
     try #require(text.contains("mode model_free"))
     try #require(text.contains("digest-run"))
+    try #require(text.contains("branch \(config.tournamentExperiments[0].branchName)"))
+    try #require(text.contains("commit abc123"))
     try #require(text.contains("completed_use_proof no"))
     try #require(text.contains("persona_rationale"))
     try #require(text.contains("Wanted proof against the spreadsheet"))
