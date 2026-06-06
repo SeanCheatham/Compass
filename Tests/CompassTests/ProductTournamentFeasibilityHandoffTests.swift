@@ -41,21 +41,47 @@ struct ProductTournamentFeasibilityHandoffTests {
       config: transition.config,
       evidenceIndex: index
     )
+    let planPrompt = try Prompts.planPrompt(
+      state: .empty,
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature,
+      productizationConfig: transition.config,
+      productizationEvidenceIndex: index
+    )
 
     try #require(handoffs.count == 1)
     try #require(handoff.roundID == feasibilityRound.id)
     try #require(handoff.contenderID == contender.id)
     try #require(handoff.experimentID == experiment.id)
     try #require(handoff.branchName == experiment.branchName)
+    try #require(handoff.worktreeID == experiment.worktreeID)
     try #require(handoff.planRecommendation == .advanceToFeasibility)
     try #require((handoff.planReadinessScore ?? 0) >= 66)
     try #require(handoff.coreTechnologyProof.contains(experiment.title))
+    try #require(handoff.implementationTargetLine.contains("selected_experiment \(experiment.id)"))
+    try #require(handoff.implementationTargetLine.contains("only_contender \(contender.id)"))
+    try #require(
+      handoff.implementationTargetLine.contains("do_not_build_competing_contenders true"))
     try #require(handoff.acceptanceSignals.contains("Technical feasibility"))
+    try #require(digest.contains("Round 2 implementation target"))
+    try #require(digest.contains("round_2_implementation_target"))
+    try #require(digest.contains("selected_experiment \(experiment.id)"))
+    try #require(digest.contains("only_contender \(contender.id)"))
+    try #require(digest.contains("core_technology_proof"))
     try #require(digest.contains("Round 2 feasibility handoff"))
     try #require(digest.contains("round_2_feasibility contender \(contender.id)"))
     try #require(digest.contains("experiment \(experiment.id)"))
     try #require(digest.contains("branch \(experiment.branchName)"))
     try #require(digest.contains("plan_readiness"))
+    try #require(planPrompt.contains("Round 2 implementation target"))
+    try #require(planPrompt.contains("must name `selected_experiment`"))
+    try #require(planPrompt.contains("selected_experiment \(experiment.id)"))
+    try #require(planPrompt.contains("only_contender \(contender.id)"))
+    try #require(planPrompt.contains("worktree \(experiment.worktreeID)"))
   }
 
   @Test func handoffIsAbsentBeforeRoundOneTransition() throws {

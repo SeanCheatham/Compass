@@ -21,6 +21,7 @@ enum ProductizationPlanningDigestFormatter {
 
     lines += painLines(config: config, maxPainHypotheses: maxPainHypotheses)
     lines += tournamentLines(config: config, evidenceIndex: evidenceIndex)
+    lines += roundTwoImplementationTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += feasibilityHandoffLines(config: config, evidenceIndex: evidenceIndex)
     lines += roundEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += prototypeEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
@@ -215,6 +216,25 @@ enum ProductizationPlanningDigestFormatter {
     guard !handoffs.isEmpty else { return [] }
     return ["Round 2 feasibility handoff:"]
       + handoffs.prefix(3).map { handoff in bounded(handoff.digestLine, 620) }
+  }
+
+  private static func roundTwoImplementationTargetLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    let handoffs = ProductTournamentFeasibilityAdvisor.handoffs(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    guard let target = handoffs.first else { return [] }
+    var lines = ["Round 2 implementation target:"]
+    lines.append(bounded(target.implementationTargetLine, 760))
+    if handoffs.count > 1 {
+      lines.append(
+        "- \(handoffs.count - 1) additional Round 2 target(s) omitted; keep one Immediate scoped to selected_experiment \(target.experimentID)."
+      )
+    }
+    return lines
   }
 
   private static func roundEvidenceTransitionLines(

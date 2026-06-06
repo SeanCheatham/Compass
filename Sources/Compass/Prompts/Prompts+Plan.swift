@@ -166,10 +166,16 @@ extension Prompts {
         implementation work on eliminated contenders.
       - Round 2 should prove the core technology for a surviving contender.
         Round 3 should exercise a low-medium fidelity product version.
-      - When Productization Context includes a "Round 2 feasibility handoff",
-        treat it as the current implementation target: scope one Immediate
-        around that narrowed contender's experiment branch/worktree and the
-        named core-technology proof.
+      - When Productization Context includes a "Round 2 implementation target",
+        treat it as the current implementation target: the Immediate handoff
+        must name `selected_experiment`, use that branch/worktree, build only
+        `only_contender`, and keep the Outcome scoped to the named
+        `core_technology_proof`. Pull at least one Acceptance check from the
+        target's acceptance signals.
+      - When Productization Context includes only a "Round 2 feasibility
+        handoff", treat it as supporting evidence for the same narrowed
+        contender: scope one Immediate around that contender's experiment
+        branch/worktree and the named core-technology proof.
       - Preserve contender and experiment branch isolation. Do not plan one
         Immediate handoff that implements several competing contenders at once.
         If the slice truly serves more than one contender, explicitly scope it
