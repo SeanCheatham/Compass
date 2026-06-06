@@ -132,7 +132,7 @@ struct ProductExperimentWorktreeTests {
     )
   }
 
-  @Test func sessionRecordsRoundTripProductExperimentMetadata() throws {
+  @Test func sessionRecordsRoundTripTournamentMetadata() throws {
     let record = SessionRecord(
       session: 42,
       startedAt: 1,
@@ -146,29 +146,34 @@ struct ProductExperimentWorktreeTests {
       notes: [],
       verifyOutput: nil,
       feedback: nil,
-      productExperimentID: "experiment-command-board",
-      productHypothesisID: "hypothesis-command-board",
-      productPainID: "pain-command-board",
-      productExperimentBranchName: "compass/exp/command-board",
-      productExperimentCommitSha: "abc123",
-      productExperimentBeforeSha: "before123",
-      productExperimentAfterSha: "after123",
-      productEvidenceRunIDs: ["run-one", "run-two"],
-      productDecision: .narrow
+      tournamentExperimentID: "experiment-command-board",
+      tournamentProductHypothesisID: "hypothesis-command-board",
+      tournamentPainID: "pain-command-board",
+      tournamentExperimentBranchName: "compass/exp/command-board",
+      tournamentExperimentCommitSha: "abc123",
+      tournamentExperimentBeforeSha: "before123",
+      tournamentExperimentAfterSha: "after123",
+      tournamentEvidenceRunIDs: ["run-one", "run-two"],
+      tournamentDecision: .narrow
     )
 
     let data = try JSONEncoder().encode(record)
+    let payload = String(decoding: data, as: UTF8.self)
     let decoded = try JSONDecoder().decode(SessionRecord.self, from: data)
 
-    try #require(decoded.productExperimentID == "experiment-command-board")
-    try #require(decoded.productHypothesisID == "hypothesis-command-board")
-    try #require(decoded.productPainID == "pain-command-board")
-    try #require(decoded.productExperimentBranchName == "compass/exp/command-board")
-    try #require(decoded.productExperimentCommitSha == "abc123")
-    try #require(decoded.productExperimentBeforeSha == "before123")
-    try #require(decoded.productExperimentAfterSha == "after123")
-    try #require(decoded.productEvidenceRunIDs == ["run-one", "run-two"])
-    try #require(decoded.productDecision == .narrow)
+    try #require(payload.contains("\"tournamentExperimentID\""))
+    try #require(payload.contains("\"tournamentProductHypothesisID\""))
+    try #require(!payload.contains("\"productExperimentID\""))
+    try #require(!payload.contains("\"productHypothesisID\""))
+    try #require(decoded.tournamentExperimentID == "experiment-command-board")
+    try #require(decoded.tournamentProductHypothesisID == "hypothesis-command-board")
+    try #require(decoded.tournamentPainID == "pain-command-board")
+    try #require(decoded.tournamentExperimentBranchName == "compass/exp/command-board")
+    try #require(decoded.tournamentExperimentCommitSha == "abc123")
+    try #require(decoded.tournamentExperimentBeforeSha == "before123")
+    try #require(decoded.tournamentExperimentAfterSha == "after123")
+    try #require(decoded.tournamentEvidenceRunIDs == ["run-one", "run-two"])
+    try #require(decoded.tournamentDecision == .narrow)
   }
 
   @Test func simulationTargetCapturesReadOnlyCommitIdentity() throws {

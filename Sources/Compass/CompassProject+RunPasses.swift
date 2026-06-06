@@ -861,16 +861,16 @@ extension CompassProject {
       let experiment = productTournamentConfig.experiments.first(where: { $0.id == experimentIDs[0] })
     else { return }
 
-    sessions[sessionIndex].productExperimentID = experiment.id
-    sessions[sessionIndex].productHypothesisID = experiment.productHypothesisID
-    sessions[sessionIndex].productPainID = productTournamentPainID(
+    sessions[sessionIndex].tournamentExperimentID = experiment.id
+    sessions[sessionIndex].tournamentProductHypothesisID = experiment.productHypothesisID
+    sessions[sessionIndex].tournamentPainID = productTournamentPainID(
       forProductHypothesisID: experiment.productHypothesisID,
       config: productTournamentConfig
     )
-    sessions[sessionIndex].productExperimentBranchName = experiment.branchName
-    sessions[sessionIndex].productExperimentCommitSha = experiment.currentSha ?? experiment.baseSha
-    sessions[sessionIndex].productExperimentBeforeSha = experiment.currentSha ?? experiment.baseSha
-    sessions[sessionIndex].productDecision = experiment.decision
+    sessions[sessionIndex].tournamentExperimentBranchName = experiment.branchName
+    sessions[sessionIndex].tournamentExperimentCommitSha = experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].tournamentExperimentBeforeSha = experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].tournamentDecision = experiment.decision
   }
 
   func recordProductTournamentDecisionMetadata(
@@ -884,22 +884,22 @@ extension CompassProject {
     else { return }
 
     let previousExperiment = previousConfig.experiments.first { $0.id == latest.experimentID }
-    sessions[sessionIndex].productExperimentID = experiment.id
-    sessions[sessionIndex].productHypothesisID = experiment.productHypothesisID
-    sessions[sessionIndex].productPainID = productTournamentPainID(
+    sessions[sessionIndex].tournamentExperimentID = experiment.id
+    sessions[sessionIndex].tournamentProductHypothesisID = experiment.productHypothesisID
+    sessions[sessionIndex].tournamentPainID = productTournamentPainID(
       forProductHypothesisID: experiment.productHypothesisID,
       config: nextConfig
     )
-    sessions[sessionIndex].productExperimentBranchName = experiment.branchName
-    sessions[sessionIndex].productExperimentCommitSha = experiment.currentSha ?? experiment.baseSha
-    sessions[sessionIndex].productExperimentBeforeSha =
+    sessions[sessionIndex].tournamentExperimentBranchName = experiment.branchName
+    sessions[sessionIndex].tournamentExperimentCommitSha = experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].tournamentExperimentBeforeSha =
       previousExperiment?.currentSha ?? previousExperiment?.baseSha
-    sessions[sessionIndex].productExperimentAfterSha = experiment.currentSha ?? experiment.baseSha
-    sessions[sessionIndex].productEvidenceRunIDs = Array(
+    sessions[sessionIndex].tournamentExperimentAfterSha = experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].tournamentEvidenceRunIDs = Array(
       Set(updates.flatMap(\.evidenceRunIDs))
     )
     .sorted()
-    sessions[sessionIndex].productDecision = latest.decision
+    sessions[sessionIndex].tournamentDecision = latest.decision
   }
 
   private func productTournamentPainID(

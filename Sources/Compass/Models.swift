@@ -1687,15 +1687,15 @@ struct SessionRecord: Codable, Identifiable, Equatable {
   var verifyOutput: VerifyOutput?
   var feedback: String?
   var executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot]
-  var productExperimentID: String?
-  var productHypothesisID: String?
-  var productPainID: String?
-  var productExperimentBranchName: String?
-  var productExperimentCommitSha: String?
-  var productExperimentBeforeSha: String?
-  var productExperimentAfterSha: String?
-  var productEvidenceRunIDs: [String]
-  var productDecision: ProductExperimentDecision?
+  var tournamentExperimentID: String?
+  var tournamentProductHypothesisID: String?
+  var tournamentPainID: String?
+  var tournamentExperimentBranchName: String?
+  var tournamentExperimentCommitSha: String?
+  var tournamentExperimentBeforeSha: String?
+  var tournamentExperimentAfterSha: String?
+  var tournamentEvidenceRunIDs: [String]
+  var tournamentDecision: ProductExperimentDecision?
 
   static func started(_ number: Int) -> SessionRecord {
     SessionRecord(
@@ -1712,15 +1712,15 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       verifyOutput: nil,
       feedback: nil,
       executionEnvironmentSnapshots: [],
-      productExperimentID: nil,
-      productHypothesisID: nil,
-      productPainID: nil,
-      productExperimentBranchName: nil,
-      productExperimentCommitSha: nil,
-      productExperimentBeforeSha: nil,
-      productExperimentAfterSha: nil,
-      productEvidenceRunIDs: [],
-      productDecision: nil
+      tournamentExperimentID: nil,
+      tournamentProductHypothesisID: nil,
+      tournamentPainID: nil,
+      tournamentExperimentBranchName: nil,
+      tournamentExperimentCommitSha: nil,
+      tournamentExperimentBeforeSha: nil,
+      tournamentExperimentAfterSha: nil,
+      tournamentEvidenceRunIDs: [],
+      tournamentDecision: nil
     )
   }
 
@@ -1740,15 +1740,15 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     case verifyOutput
     case feedback
     case executionEnvironmentSnapshots
-    case productExperimentID
-    case productHypothesisID
-    case productPainID
-    case productExperimentBranchName
-    case productExperimentCommitSha
-    case productExperimentBeforeSha
-    case productExperimentAfterSha
-    case productEvidenceRunIDs
-    case productDecision
+    case tournamentExperimentID
+    case tournamentProductHypothesisID
+    case tournamentPainID
+    case tournamentExperimentBranchName
+    case tournamentExperimentCommitSha
+    case tournamentExperimentBeforeSha
+    case tournamentExperimentAfterSha
+    case tournamentEvidenceRunIDs
+    case tournamentDecision
   }
 
   init(
@@ -1765,15 +1765,15 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     verifyOutput: VerifyOutput?,
     feedback: String?,
     executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = [],
-    productExperimentID: String? = nil,
-    productHypothesisID: String? = nil,
-    productPainID: String? = nil,
-    productExperimentBranchName: String? = nil,
-    productExperimentCommitSha: String? = nil,
-    productExperimentBeforeSha: String? = nil,
-    productExperimentAfterSha: String? = nil,
-    productEvidenceRunIDs: [String] = [],
-    productDecision: ProductExperimentDecision? = nil
+    tournamentExperimentID: String? = nil,
+    tournamentProductHypothesisID: String? = nil,
+    tournamentPainID: String? = nil,
+    tournamentExperimentBranchName: String? = nil,
+    tournamentExperimentCommitSha: String? = nil,
+    tournamentExperimentBeforeSha: String? = nil,
+    tournamentExperimentAfterSha: String? = nil,
+    tournamentEvidenceRunIDs: [String] = [],
+    tournamentDecision: ProductExperimentDecision? = nil
   ) {
     self.session = session
     self.startedAt = startedAt
@@ -1790,40 +1790,40 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     self.executionEnvironmentSnapshots = Self.normalizedExecutionEnvironmentSnapshots(
       executionEnvironmentSnapshots
     )
-    self.productExperimentID = Self.normalizedOptionalProductTournamentField(
-      productExperimentID,
+    self.tournamentExperimentID = Self.normalizedOptionalProductTournamentField(
+      tournamentExperimentID,
       limit: 120
     )
-    self.productHypothesisID = Self.normalizedOptionalProductTournamentField(
-      productHypothesisID,
+    self.tournamentProductHypothesisID = Self.normalizedOptionalProductTournamentField(
+      tournamentProductHypothesisID,
       limit: 120
     )
-    self.productPainID = Self.normalizedOptionalProductTournamentField(
-      productPainID,
+    self.tournamentPainID = Self.normalizedOptionalProductTournamentField(
+      tournamentPainID,
       limit: 120
     )
-    self.productExperimentBranchName = Self.normalizedOptionalProductTournamentField(
-      productExperimentBranchName,
+    self.tournamentExperimentBranchName = Self.normalizedOptionalProductTournamentField(
+      tournamentExperimentBranchName,
       limit: 240
     )
-    self.productExperimentCommitSha = Self.normalizedOptionalProductTournamentField(
-      productExperimentCommitSha,
+    self.tournamentExperimentCommitSha = Self.normalizedOptionalProductTournamentField(
+      tournamentExperimentCommitSha,
       limit: 80
     )
-    self.productExperimentBeforeSha = Self.normalizedOptionalProductTournamentField(
-      productExperimentBeforeSha,
+    self.tournamentExperimentBeforeSha = Self.normalizedOptionalProductTournamentField(
+      tournamentExperimentBeforeSha,
       limit: 80
     )
-    self.productExperimentAfterSha = Self.normalizedOptionalProductTournamentField(
-      productExperimentAfterSha,
+    self.tournamentExperimentAfterSha = Self.normalizedOptionalProductTournamentField(
+      tournamentExperimentAfterSha,
       limit: 80
     )
-    self.productEvidenceRunIDs = Self.normalizedProductTournamentFields(
-      productEvidenceRunIDs,
+    self.tournamentEvidenceRunIDs = Self.normalizedProductTournamentFields(
+      tournamentEvidenceRunIDs,
       limit: 120,
       maxCount: 20
     )
-    self.productDecision = productDecision
+    self.tournamentDecision = tournamentDecision
   }
 
   init(from decoder: Decoder) throws {
@@ -1846,42 +1846,42 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         forKey: .executionEnvironmentSnapshots
       ) ?? []
     )
-    productExperimentID = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .productExperimentID),
+    tournamentExperimentID = Self.normalizedOptionalProductTournamentField(
+      try container.decodeIfPresent(String.self, forKey: .tournamentExperimentID),
       limit: 120
     )
-    productHypothesisID = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .productHypothesisID),
+    tournamentProductHypothesisID = Self.normalizedOptionalProductTournamentField(
+      try container.decodeIfPresent(String.self, forKey: .tournamentProductHypothesisID),
       limit: 120
     )
-    productPainID = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .productPainID),
+    tournamentPainID = Self.normalizedOptionalProductTournamentField(
+      try container.decodeIfPresent(String.self, forKey: .tournamentPainID),
       limit: 120
     )
-    productExperimentBranchName = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .productExperimentBranchName),
+    tournamentExperimentBranchName = Self.normalizedOptionalProductTournamentField(
+      try container.decodeIfPresent(String.self, forKey: .tournamentExperimentBranchName),
       limit: 240
     )
-    productExperimentCommitSha = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .productExperimentCommitSha),
+    tournamentExperimentCommitSha = Self.normalizedOptionalProductTournamentField(
+      try container.decodeIfPresent(String.self, forKey: .tournamentExperimentCommitSha),
       limit: 80
     )
-    productExperimentBeforeSha = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .productExperimentBeforeSha),
+    tournamentExperimentBeforeSha = Self.normalizedOptionalProductTournamentField(
+      try container.decodeIfPresent(String.self, forKey: .tournamentExperimentBeforeSha),
       limit: 80
     )
-    productExperimentAfterSha = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .productExperimentAfterSha),
+    tournamentExperimentAfterSha = Self.normalizedOptionalProductTournamentField(
+      try container.decodeIfPresent(String.self, forKey: .tournamentExperimentAfterSha),
       limit: 80
     )
-    productEvidenceRunIDs = Self.normalizedProductTournamentFields(
-      try container.decodeIfPresent([String].self, forKey: .productEvidenceRunIDs) ?? [],
+    tournamentEvidenceRunIDs = Self.normalizedProductTournamentFields(
+      try container.decodeIfPresent([String].self, forKey: .tournamentEvidenceRunIDs) ?? [],
       limit: 120,
       maxCount: 20
     )
-    productDecision = try container.decodeIfPresent(
+    tournamentDecision = try container.decodeIfPresent(
       ProductExperimentDecision.self,
-      forKey: .productDecision
+      forKey: .tournamentDecision
     )
   }
 
@@ -1902,17 +1902,32 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     if !executionEnvironmentSnapshots.isEmpty {
       try container.encode(executionEnvironmentSnapshots, forKey: .executionEnvironmentSnapshots)
     }
-    try container.encodeIfPresent(productExperimentID, forKey: .productExperimentID)
-    try container.encodeIfPresent(productHypothesisID, forKey: .productHypothesisID)
-    try container.encodeIfPresent(productPainID, forKey: .productPainID)
-    try container.encodeIfPresent(productExperimentBranchName, forKey: .productExperimentBranchName)
-    try container.encodeIfPresent(productExperimentCommitSha, forKey: .productExperimentCommitSha)
-    try container.encodeIfPresent(productExperimentBeforeSha, forKey: .productExperimentBeforeSha)
-    try container.encodeIfPresent(productExperimentAfterSha, forKey: .productExperimentAfterSha)
-    if !productEvidenceRunIDs.isEmpty {
-      try container.encode(productEvidenceRunIDs, forKey: .productEvidenceRunIDs)
+    try container.encodeIfPresent(tournamentExperimentID, forKey: .tournamentExperimentID)
+    try container.encodeIfPresent(
+      tournamentProductHypothesisID,
+      forKey: .tournamentProductHypothesisID
+    )
+    try container.encodeIfPresent(tournamentPainID, forKey: .tournamentPainID)
+    try container.encodeIfPresent(
+      tournamentExperimentBranchName,
+      forKey: .tournamentExperimentBranchName
+    )
+    try container.encodeIfPresent(
+      tournamentExperimentCommitSha,
+      forKey: .tournamentExperimentCommitSha
+    )
+    try container.encodeIfPresent(
+      tournamentExperimentBeforeSha,
+      forKey: .tournamentExperimentBeforeSha
+    )
+    try container.encodeIfPresent(
+      tournamentExperimentAfterSha,
+      forKey: .tournamentExperimentAfterSha
+    )
+    if !tournamentEvidenceRunIDs.isEmpty {
+      try container.encode(tournamentEvidenceRunIDs, forKey: .tournamentEvidenceRunIDs)
     }
-    try container.encodeIfPresent(productDecision, forKey: .productDecision)
+    try container.encodeIfPresent(tournamentDecision, forKey: .tournamentDecision)
   }
 
   var latestExecutionEnvironmentSnapshot: SessionExecutionEnvironmentSnapshot? {
