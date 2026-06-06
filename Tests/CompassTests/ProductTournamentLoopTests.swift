@@ -3360,6 +3360,168 @@ struct ProductTournamentLoopTests {
     try #require(blockedStep.blockedReason?.contains("change the scenario") == true)
   }
 
+  @Test func tournamentAutomationRetargetsStalledActedProofGroup() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    for index in config.tournamentExperiments.indices.dropFirst() {
+      config.tournamentExperiments[index].decision = .promoted
+    }
+    let experiment = config.tournamentExperiments[0]
+    let evidenceIndex = ProductTournamentEvidenceIndex.build(
+      records: [
+        makeDecisionAdvisorRecord(
+          id: "first-pass",
+          experiment: experiment,
+          config: config,
+          personaID: config.userSegments[0].id,
+          endedAt: 30,
+          verdict: .promising,
+          scores: ProductTournamentEvidenceScores(
+            painRecognition: 4,
+            workflowImprovement: 4,
+            alternativeAdvantage: 3,
+            switchingReadiness: 3,
+            continuedUsePull: 3
+          )
+        )
+      ])
+    let broadStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
+        id: "tournament-cycle-stalled-broad-proof",
+        startedAt: 100,
+        endedAt: 110,
+        executedStepIDs: [broadStep.id],
+        experimentIDs: [experiment.id],
+        messages: [
+          "Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."
+        ],
+        maxSteps: 3,
+        evidenceRunStepCount: 1,
+        evidenceRunIDs: ["first-pass"],
+        completedEvidenceRunCount: 1,
+        failedEvidenceRunCount: 0,
+        skippedScenarioCount: 0,
+        startingProofDebtCount: 6,
+        endingProofDebtCount: 6,
+        startingProofDebtSummary:
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 persona-model simulated user(s), 0 persona-model current-alternative proof(s)",
+        endingProofDebtSummary:
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 persona-model simulated user(s), 0 persona-model current-alternative proof(s)",
+        stopReason: .noExecutableStep,
+        stopDetail: "Stopped because no executable tournament automation step remains.",
+        userMessage: "Tournament automation cycle ran 1 step(s). Proof debt held steady (6 -> 6)."
+      )
+    )
+
+    let proofRunAction = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
+    let proofTarget = try #require(
+      TournamentAutomationProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
+    let targetScenarioID = try #require(proofRunAction.targetScenarioID)
+    let scoreboardItem = try #require(
+      TournamentAutomationProofTargetScoreboard.items(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        limit: Int.max,
+        isPersonaModelAvailable: true
+      )
+      .first { item in
+        item.rows.contains { $0.targetScenarioID == targetScenarioID }
+      })
+    let row = try #require(
+      scoreboardItem.rows.first { $0.targetScenarioID == targetScenarioID })
+    let group = try #require(
+      scoreboardItem.readinessGroup(containingRowSelectionID: row.selectionID))
+
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
+        id: "tournament-cycle-stalled-acted-group",
+        startedAt: 120,
+        endedAt: 130,
+        executedStepIDs: [
+          "\(experiment.id):\(ProductTournamentNextActionKind.runCohort.rawValue):\(targetScenarioID)"
+        ],
+        experimentIDs: [experiment.id],
+        messages: ["persona-model proof group ran 1 scenario and left proof debt unchanged."],
+        maxSteps: 3,
+        evidenceRunStepCount: 1,
+        evidenceRunIDs: ["buyer-persona-model-stalled"],
+        completedEvidenceRunCount: 1,
+        failedEvidenceRunCount: 0,
+        skippedScenarioCount: 0,
+        startingProofDebtCount: 6,
+        endingProofDebtCount: 6,
+        startingProofDebtSummary:
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 persona-model simulated user(s), 0 persona-model current-alternative proof(s)",
+        endingProofDebtSummary:
+          "\(experiment.id): 1 completed run(s), 1 persona(s), 0 persona-model simulated user(s), 0 persona-model current-alternative proof(s)",
+        proofTargetSummaries: [proofTarget.auditSummary],
+        actedProofPressureGroupSummaries: [
+          group.actionAuditSummary(anchorRow: row)
+        ],
+        stopReason: .noExecutableStep,
+        stopDetail: "Stopped because no executable tournament automation step remains.",
+        userMessage: "Tournament automation cycle ran 1 step(s). Proof debt held steady (6 -> 6)."
+      )
+    )
+
+    let stalledGroup = try #require(
+      TournamentAutomationCycleLearningAdvisor.stalledActedPressureGroupAudit(
+        for: proofRunAction,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
+    let retarget = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ))
+    let nextStep = try #require(
+      TournamentAutomationPlanner.nextStep(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: true
+      ))
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+
+    try #require(stalledGroup.audit.id == "tournament-cycle-stalled-acted-group")
+    try #require(stalledGroup.outcome.isStalledProofRun)
+    try #require(stalledGroup.outcome.summary.contains("stalled in Proof runs"))
+    try #require(retarget.kind == .refineContender)
+    try #require(retarget.title == "Retarget stalled proof group")
+    try #require(retarget.detail.contains("tournament-cycle-stalled-acted-group"))
+    try #require(retarget.detail.contains("stalled in Proof runs"))
+    try #require(retarget.targetScenarioID == targetScenarioID)
+    try #require(nextStep.action.title == "Retarget stalled proof group")
+    try #require(nextStep.action.kind == .refineContender)
+    try #require(digest.contains("acted group outcomes"))
+    try #require(digest.contains("stalled in Proof runs"))
+  }
+
   @Test func tournamentAutomationFallsBackWhenStalledProofDebtHasNoPersonaModelTarget() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",

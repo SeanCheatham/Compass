@@ -4075,6 +4075,48 @@ enum TournamentAutomationCycleLearningAdvisor {
       }
   }
 
+  static func stalledActedPressureGroupAudit(
+    for action: ProductTournamentNextAction,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> (
+    audit: TournamentAutomationCycleAudit,
+    outcome: TournamentAutomationActedPressureGroupOutcome
+  )? {
+    guard isProofRunAction(action) else { return nil }
+    return config.tournamentAutomationCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(5)
+      .compactMap { audit in
+        guard audit.stopReason != .executionFailed,
+          audit.experimentIDs.contains(experiment.id),
+          audit.completedEvidenceRunCount > 0 || audit.evidenceRunStepCount > 0,
+          (audit.endingProofDebtCount ?? 0) > 0,
+          audit.proofDebtDelta == 0,
+          !audit.actedProofPressureGroupSummaries.isEmpty,
+          !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
+        else { return nil }
+        let outcomes = audit.actedProofPressureGroupSummaries.compactMap {
+          TournamentAutomationActedPressureGroupOutcome.stalledProofRun(
+            auditID: audit.id,
+            actedSummary: $0
+          )
+        }
+        guard
+          let outcome = outcomes.first(where: {
+            $0.isStalledProofRun
+              && actedPressureGroupOutcome($0, matches: action, experiment: experiment)
+          })
+        else { return nil }
+        return (audit: audit, outcome: outcome)
+      }
+      .first
+  }
+
   static func stalledEvidenceTensionAudit(
     for action: ProductTournamentNextAction,
     experiment: ProductTournamentExperiment,
@@ -4357,6 +4399,12 @@ enum TournamentAutomationCycleLearningAdvisor {
       && action.requiredSimulationMode == .personaModel
   }
 
+  private static func isProofRunAction(_ action: ProductTournamentNextAction) -> Bool {
+    action.kind == .runCohort
+      || action.kind == .rerunCohort
+      || action.kind == .runPlanProof
+  }
+
   private static func isTargetedEvidenceTensionAction(
     _ action: ProductTournamentNextAction
   ) -> Bool {
@@ -4403,6 +4451,34 @@ enum TournamentAutomationCycleLearningAdvisor {
       "\(action.experimentID):\(ProductTournamentNextActionKind.runCohort.rawValue):\(targetScenarioID)",
       "\(action.experimentID):\(ProductTournamentNextActionKind.rerunCohort.rawValue):\(targetScenarioID)",
     ]
+  }
+
+  private static func actedPressureGroupOutcome(
+    _ outcome: TournamentAutomationActedPressureGroupOutcome,
+    matches action: ProductTournamentNextAction,
+    experiment: ProductTournamentExperiment
+  ) -> Bool {
+    guard let anchor = outcome.anchor else { return false }
+    let anchorTokens = Set(anchor.split(separator: ":").map(String.init))
+    guard anchorTokens.contains(experiment.id) || anchor.contains(experiment.id) else {
+      return false
+    }
+    if let targetScenarioID = action.targetScenarioID {
+      return anchorTokens.contains(targetScenarioID) || anchor.contains(targetScenarioID)
+    }
+    if let cohortID = action.cohortID {
+      return anchorTokens.contains(cohortID) || anchor.contains(cohortID)
+    }
+    if let targetPersonaID = action.targetPersonaID {
+      return anchorTokens.contains(targetPersonaID) || anchor.contains(targetPersonaID)
+    }
+    if let contenderID = action.contenderID {
+      return anchorTokens.contains(contenderID) || anchor.contains(contenderID)
+    }
+    if let roundID = action.roundID {
+      return anchorTokens.contains(roundID) || anchor.contains(roundID)
+    }
+    return true
   }
 
   private static func matchesCurrentProofTarget(
@@ -4612,8 +4688,21 @@ enum TournamentAutomationPlanner {
         evidenceIndex: evidenceIndex,
         isPersonaModelAvailable: isPersonaModelAvailable
       )
-      if planProofStep?.action.requiredSimulationMode == .personaModel {
-        return planProofStep
+      if let planProofStep,
+        planProofStep.action.requiredSimulationMode == .personaModel
+      {
+        let failureGuarded = applyingRecentCycleFailureBlock(
+          to: planProofStep,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
+        return applyingRecentCycleLearningBlock(
+          to: failureGuarded,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
       }
       if let transitionStep = roundTransitionStep(
         for: experiment,
@@ -5084,6 +5173,21 @@ enum TournamentAutomationPlanner {
       blocked.canExecute = false
       blocked.blockedReason =
         "Recent tournament automation cycle \(audit.id) already attempted this simulated-user rationale signal and the same rationale is still present; revise the product implementation, scenario, or current-alternative proof before retrying."
+      return blocked
+    }
+    if step.canExecute,
+      let stalledActedGroup = TournamentAutomationCycleLearningAdvisor
+        .stalledActedPressureGroupAudit(
+          for: step.action,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
+    {
+      var blocked = step
+      blocked.canExecute = false
+      blocked.blockedReason =
+        "Recent tournament automation cycle \(stalledActedGroup.audit.id) already acted on this proof-pressure group and the proof run stalled; revise the product implementation, scenario, current-alternative proof, or choose a different proof bucket before retrying. \(stalledActedGroup.outcome.summary)"
       return blocked
     }
     guard step.canExecute,
@@ -6710,6 +6814,20 @@ enum ProductTournamentNextActionAdvisor {
         targetDecision: action.targetDecision
       )
     }
+    if let stalledActedGroup = TournamentAutomationCycleLearningAdvisor
+      .stalledActedPressureGroupAudit(
+        for: action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    {
+      return stalledActedPressureGroupRetargetAction(
+        after: stalledActedGroup,
+        replacing: action,
+        experiment: experiment
+      )
+    }
     guard
       let audit = TournamentAutomationCycleLearningAdvisor.stalledProofDebtAudit(
         for: action,
@@ -6725,12 +6843,27 @@ enum ProductTournamentNextActionAdvisor {
       config: config,
       evidenceIndex: evidenceIndex
     ) {
-      return applyingRecentCycleFailureGuard(
+      let failureGuardedRetarget = applyingRecentCycleFailureGuard(
         to: retargetedAction,
         experiment: experiment,
         config: config,
         evidenceIndex: evidenceIndex
       )
+      if let stalledActedGroup = TournamentAutomationCycleLearningAdvisor
+        .stalledActedPressureGroupAudit(
+          for: failureGuardedRetarget,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
+      {
+        return stalledActedPressureGroupRetargetAction(
+          after: stalledActedGroup,
+          replacing: failureGuardedRetarget,
+          experiment: experiment
+        )
+      }
+      return failureGuardedRetarget
     }
     return ProductTournamentNextAction(
       experimentID: experiment.id,
@@ -6739,6 +6872,29 @@ enum ProductTournamentNextActionAdvisor {
       detail:
         "Recent tournament automation cycle \(audit.id) ran broad evidence without reducing proof debt (\(audit.summary)); retarget the scenario cohort, persona, or current-alternative proof before rerunning broad evidence.",
       priority: min(98, max(action.priority + 1, 84))
+    )
+  }
+
+  private static func stalledActedPressureGroupRetargetAction(
+    after stalledActedGroup: (
+      audit: TournamentAutomationCycleAudit,
+      outcome: TournamentAutomationActedPressureGroupOutcome
+    ),
+    replacing action: ProductTournamentNextAction,
+    experiment: ProductTournamentExperiment
+  ) -> ProductTournamentNextAction {
+    ProductTournamentNextAction(
+      experimentID: experiment.id,
+      kind: .refineContender,
+      title: "Retarget stalled proof group",
+      detail:
+        "Recent tournament automation cycle \(stalledActedGroup.audit.id) acted on a proof-pressure group and the same proof run stalled (\(stalledActedGroup.outcome.summary)); revise the product implementation, scenario, current-alternative proof, or choose a different proof bucket before retrying.",
+      priority: min(98, max(action.priority + 2, 88)),
+      requiredSimulationMode: action.requiredSimulationMode,
+      targetPersonaID: action.targetPersonaID,
+      targetPersonaName: action.targetPersonaName,
+      targetScenarioID: action.targetScenarioID,
+      targetDecision: action.targetDecision
     )
   }
 

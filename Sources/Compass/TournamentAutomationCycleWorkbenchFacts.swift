@@ -1,5 +1,75 @@
 import Foundation
 
+struct TournamentAutomationActedPressureGroupOutcome: Equatable, Sendable {
+  enum State: String, Sendable {
+    case cleared
+    case moved
+    case still
+    case reduced
+    case worsened
+    case stalled
+    case unknown
+  }
+
+  var auditID: String
+  var anchor: String?
+  var sourceGroup: String?
+  var currentGroup: String?
+  var contender: String?
+  var state: State
+  var summary: String
+
+  var isStalledProofRun: Bool {
+    state == .stalled && currentGroup == "Proof runs"
+  }
+
+  static func stalledProofRun(
+    auditID: String,
+    actedSummary: String
+  ) -> TournamentAutomationActedPressureGroupOutcome? {
+    let fields = parsedFields(in: actedSummary)
+    guard fields.group == "Proof runs" else { return nil }
+    let status = fields.status ?? "More proof"
+    let next = fields.next.map { "next \($0)" } ?? "next proof target unchanged"
+    return TournamentAutomationActedPressureGroupOutcome(
+      auditID: auditID,
+      anchor: fields.anchor,
+      sourceGroup: fields.group,
+      currentGroup: fields.group,
+      contender: fields.contender,
+      state: .stalled,
+      summary: "stalled in Proof runs; \(status); \(next)"
+    )
+  }
+
+  private static func parsedFields(
+    in summary: String
+  ) -> (group: String?, anchor: String?, contender: String?, status: String?, next: String?) {
+    var group: String?
+    var anchor: String?
+    var contender: String?
+    var status: String?
+    var next: String?
+    let fields = summary
+      .split(separator: ";", omittingEmptySubsequences: true)
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+    for field in fields {
+      if field.hasPrefix("pressure_group ") {
+        group = String(field.dropFirst("pressure_group ".count))
+      } else if field.hasPrefix("anchor ") {
+        anchor = String(field.dropFirst("anchor ".count))
+      } else if field.hasPrefix("contender ") {
+        contender = String(field.dropFirst("contender ".count))
+      } else if field.hasPrefix("status ") {
+        status = String(field.dropFirst("status ".count))
+      } else if field.hasPrefix("next ") {
+        next = String(field.dropFirst("next ".count))
+      }
+    }
+    return (group, anchor, contender, status, next)
+  }
+}
+
 struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   var latestCycleSummary: String
   var latestCycleHelp: String
@@ -135,6 +205,25 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
     )
   }
 
+  static func actedPressureGroupOutcomes(
+    for audit: TournamentAutomationCycleAudit,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
+  ) -> [TournamentAutomationActedPressureGroupOutcome] {
+    guard !audit.actedProofPressureGroupSummaries.isEmpty else { return [] }
+    let proofScoreboardItems = TournamentAutomationProofTargetScoreboard.items(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      limit: Int.max,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    )
+    return makeActedPressureGroupOutcomes(
+      for: audit,
+      scoreboardItems: proofScoreboardItems
+    )
+  }
+
   private static func sortedAudits(
     in config: ProductTournamentConfig
   ) -> [TournamentAutomationCycleAudit] {
@@ -217,9 +306,9 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
     for audit: TournamentAutomationCycleAudit,
     scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
   ) -> String? {
-    let outcomes = audit.actedProofPressureGroupSummaries.prefix(2)
-      .map(ActedPressureGroupContext.init(summary:))
-      .map { $0.outcomeSummary(after: audit, in: scoreboardItems) }
+    let outcomes = makeActedPressureGroupOutcomes(for: audit, scoreboardItems: scoreboardItems)
+      .prefix(2)
+      .map(\.summary)
     guard !outcomes.isEmpty else { return nil }
     return bounded(outcomes.joined(separator: " | "), limit: 260)
   }
@@ -236,6 +325,15 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       "audit \(audit.id); \(outcomes); stop \(audit.stopReason.rawValue); \(audit.stopDetail)",
       limit: 500
     )
+  }
+
+  private static func makeActedPressureGroupOutcomes(
+    for audit: TournamentAutomationCycleAudit,
+    scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
+  ) -> [TournamentAutomationActedPressureGroupOutcome] {
+    audit.actedProofPressureGroupSummaries
+      .map(ActedPressureGroupContext.init(summary:))
+      .map { $0.outcome(after: audit, in: scoreboardItems) }
   }
 
   private static func makePostPreparationEvidenceCue(
@@ -353,20 +451,54 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       after audit: TournamentAutomationCycleAudit,
       in scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
     ) -> String {
-      guard let anchor else { return "outcome unknown; no anchor" }
+      outcome(after: audit, in: scoreboardItems).summary
+    }
+
+    func outcome(
+      after audit: TournamentAutomationCycleAudit,
+      in scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
+    ) -> TournamentAutomationActedPressureGroupOutcome {
+      guard let anchor else {
+        return TournamentAutomationActedPressureGroupOutcome(
+          auditID: audit.id,
+          anchor: nil,
+          sourceGroup: group,
+          currentGroup: nil,
+          contender: contender,
+          state: .unknown,
+          summary: "outcome unknown; no anchor"
+        )
+      }
       guard let match = currentMatch(for: anchor, in: scoreboardItems) else {
-        return "cleared from proof scoreboard"
+        return TournamentAutomationActedPressureGroupOutcome(
+          auditID: audit.id,
+          anchor: anchor,
+          sourceGroup: group,
+          currentGroup: nil,
+          contender: contender,
+          state: .cleared,
+          summary: "cleared from proof scoreboard"
+        )
       }
       let transition = outcomeTransition(
         audit: audit,
         currentGroup: match.group,
         row: match.row
       )
-      return [
-        transition,
+      let summary = [
+        transition.summary,
         match.row.nextStatusLabel,
         "next \(match.row.nextStepSummary)",
       ].joined(separator: "; ")
+      return TournamentAutomationActedPressureGroupOutcome(
+        auditID: audit.id,
+        anchor: anchor,
+        sourceGroup: group,
+        currentGroup: match.group.bucket,
+        contender: contender ?? match.row.contenderTitle,
+        state: transition.state,
+        summary: summary
+      )
     }
 
     func outcomeHelpSummary(
@@ -381,21 +513,21 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       audit: TournamentAutomationCycleAudit,
       currentGroup: TournamentAutomationProofTargetScoreboardReadinessGroup,
       row: TournamentAutomationProofTargetScoreboardRow
-    ) -> String {
+    ) -> (state: TournamentAutomationActedPressureGroupOutcome.State, summary: String) {
       guard let group, group == currentGroup.bucket else {
         let source = group ?? "acted group"
-        return "moved \(source) -> \(currentGroup.bucket)"
+        return (.moved, "moved \(source) -> \(currentGroup.bucket)")
       }
       guard let movement = row.latestDebtMovement, movement.auditID == audit.id else {
-        return "still \(currentGroup.bucket)"
+        return (.still, "still \(currentGroup.bucket)")
       }
       if movement.proofDebtDelta < 0 {
-        return "reduced but still \(currentGroup.bucket)"
+        return (.reduced, "reduced but still \(currentGroup.bucket)")
       }
       if movement.proofDebtDelta > 0 {
-        return "worsened in \(currentGroup.bucket)"
+        return (.worsened, "worsened in \(currentGroup.bucket)")
       }
-      return "stalled in \(currentGroup.bucket)"
+      return (.stalled, "stalled in \(currentGroup.bucket)")
     }
 
     private func currentMatch(
