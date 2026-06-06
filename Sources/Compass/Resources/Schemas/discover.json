@@ -400,7 +400,7 @@
         "ordinal": { "type": "integer" },
         "kind": {
           "type": "string",
-          "enum": ["product_plans", "core_technology", "prototype"]
+          "enum": ["product_plans", "core_technology", "product_implementation"]
         },
         "title": { "type": "string" },
         "goal": { "type": "string" },

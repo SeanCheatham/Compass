@@ -58,7 +58,7 @@ struct DiscoverPromptContractTests {
     try #require(config.tournaments.count == 1)
     try #require(config.tournamentContenders.count == 2)
     try #require(
-      config.tournamentRounds.map(\.kind) == [.productPlans, .coreTechnology, .prototype])
+      config.tournamentRounds.map(\.kind) == [.productPlans, .coreTechnology, .productImplementation])
     try #require(config.tournamentRounds[0].requiresBuiltProduct == false)
     try #require(decoded.candidateTournamentExperiments[0].branchSlug == "incident-command-board")
     try #require(decoded.candidateTournamentExperiments[0].contenderID == "contender-command-board")
@@ -386,8 +386,8 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
       id: "round-incident-prototype",
       tournamentID: tournament.id,
       ordinal: 3,
-      kind: .prototype,
-      title: "Round 3: prototype",
+      kind: .productImplementation,
+      title: "Round 3: product implementation",
       goal: "Evaluate a low-medium fidelity command board with simulated users.",
       evaluationFocus: ["Workflow improvement", "Continued-use pull"],
       contenderIDs: ["contender-command-board"],

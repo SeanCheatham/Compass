@@ -36,7 +36,7 @@ struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Id
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
     return
-      "- round_3_prototype_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), branch \(branchName), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), prototype_use_proofs \(prototypeUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: prototype_scope \(Self.bounded(prototypeScope, limit: 220)); next \(Self.bounded(detail, limit: 220))."
+      "- round_3_product_implementation_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), branch \(branchName), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), prototype_use_proofs \(prototypeUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: prototype_scope \(Self.bounded(prototypeScope, limit: 220)); next \(Self.bounded(detail, limit: 220))."
   }
 
   var displaySubtitle: String {
@@ -148,7 +148,7 @@ enum ProductTournamentRoundThreePrototypeOverview {
   ) -> [String] {
     let items = items(config: config, evidenceIndex: evidenceIndex, limit: limit)
     guard !items.isEmpty else { return [] }
-    return ["Round 3 prototype proof overview:"]
+    return ["Round 3 product implementation proof overview:"]
       + items.map(\.contextLine)
   }
 }

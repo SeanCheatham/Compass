@@ -322,7 +322,7 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
   let tournament = try #require(config.tournaments.first)
   let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
   let coreRound = try #require(config.tournamentRounds.first { $0.kind == .coreTechnology })
-  let prototypeRound = try #require(config.tournamentRounds.first { $0.kind == .prototype })
+  let prototypeRound = try #require(config.tournamentRounds.first { $0.kind == .productImplementation })
   let contender = try #require(config.tournamentContenders.first)
   let experimentID = try #require(contender.experimentID)
   let experiment = try #require(config.tournamentExperiments.first { $0.id == experimentID })

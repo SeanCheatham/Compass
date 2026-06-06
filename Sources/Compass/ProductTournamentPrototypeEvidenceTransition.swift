@@ -68,7 +68,7 @@ struct ProductTournamentPrototypeEvidenceTransitionProposal: Codable, Equatable,
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
     return
-      "- round_3_prototype contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), prototype_use_proofs \(prototypeUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
+      "- round_3_product_implementation contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), prototype_use_proofs \(prototypeUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
   }
 
   private static func format(_ value: Double) -> String {
@@ -87,13 +87,14 @@ struct ProductTournamentPrototypeEvidenceTransitionOutcome: Equatable, Sendable 
     switch proposal.recommendation {
     case .selectWinner:
       return
-        "Selected \(proposal.contenderTitle) as the product tournament winner from Round 3 prototype evidence."
+        "Selected \(proposal.contenderTitle) as the product tournament winner from Round 3 product implementation evidence."
     case .revisePrototype:
-      return "Marked \(proposal.contenderTitle) for Round 3 prototype revision."
+      return "Marked \(proposal.contenderTitle) for Round 3 product implementation revision."
     case .eliminate:
-      return "Eliminated \(proposal.contenderTitle) after Round 3 prototype evidence."
+      return "Eliminated \(proposal.contenderTitle) after Round 3 product implementation evidence."
     case .gatherEvidence:
-      return "Round 3 still needs more prototype evidence for \(proposal.contenderTitle)."
+      return
+        "Round 3 still needs more product implementation evidence for \(proposal.contenderTitle)."
     }
   }
 }
@@ -113,11 +114,11 @@ enum ProductTournamentPrototypeEvidenceTransitionError: LocalizedError, Equatabl
     case .unknownRound(let id):
       return "Product tournament round \(id) was not found."
     case .unsupportedRound(let id):
-      return "Product tournament round \(id) is not a prototype round."
+      return "Product tournament round \(id) is not a product implementation round."
     case .unknownContender(let id):
       return "Product tournament contender \(id) was not found."
     case .missingPrototypeEvidence(let contenderID):
-      return "No scoped Round 3 prototype evidence exists for contender \(contenderID)."
+      return "No scoped Round 3 product implementation evidence exists for contender \(contenderID)."
     case .recommendationNotActionable(let contenderID, let recommendation):
       return
         "Round 3 recommendation \(recommendation.rawValue) for contender \(contenderID) is not a tournament transition."
@@ -211,7 +212,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     guard let round = config.tournamentRounds.first(where: { $0.id == proposal.roundID }) else {
       throw ProductTournamentPrototypeEvidenceTransitionError.unknownRound(proposal.roundID)
     }
-    guard round.kind == .prototype else {
+    guard round.kind == .productImplementation else {
       throw ProductTournamentPrototypeEvidenceTransitionError.unsupportedRound(round.id)
     }
     guard config.tournamentContenders.contains(where: { $0.id == proposal.contenderID }) else {
@@ -644,7 +645,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
         if let round = config.tournamentRounds.first(where: {
           $0.id == roundID
             && $0.tournamentID == tournament.id
-            && $0.kind == .prototype
+            && $0.kind == .productImplementation
             && $0.status == .active
         }) {
           pairs.append((tournament, round))
@@ -655,14 +656,14 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       let currentRound = tournament.currentRoundID.flatMap { roundID in
         config.tournamentRounds.first { $0.id == roundID && $0.tournamentID == tournament.id }
       }
-      if let currentRound, currentRound.kind == .prototype, currentRound.status == .active {
+      if let currentRound, currentRound.kind == .productImplementation, currentRound.status == .active {
         pairs.append((tournament, currentRound))
         continue
       }
       guard tournament.currentRoundID == nil else { continue }
       if let activeRound = config.tournamentRounds
         .filter({
-          $0.tournamentID == tournament.id && $0.kind == .prototype && $0.status == .active
+          $0.tournamentID == tournament.id && $0.kind == .productImplementation && $0.status == .active
         })
         .sorted(by: { $0.ordinal < $1.ordinal })
         .first

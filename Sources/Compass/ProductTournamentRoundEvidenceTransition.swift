@@ -85,7 +85,7 @@ struct ProductTournamentRoundEvidenceTransitionOutcome: Equatable, Sendable {
     switch proposal.recommendation {
     case .advanceToPrototype:
       return
-        "Advanced \(proposal.contenderTitle) to Round 3 prototype from Round 2 feasibility evidence."
+        "Advanced \(proposal.contenderTitle) to Round 3 product implementation from Round 2 feasibility evidence."
     case .reviseCoreTechnology:
       return "Marked \(proposal.contenderTitle) for Round 2 core-technology revision."
     case .eliminate:
@@ -121,7 +121,7 @@ enum ProductTournamentRoundEvidenceTransitionError: LocalizedError, Equatable {
       return
         "Round 2 recommendation \(recommendation.rawValue) for contender \(contenderID) is not a tournament transition."
     case .missingPrototypeRound(let tournamentID):
-      return "Product tournament \(tournamentID) has no Round 3 prototype round."
+      return "Product tournament \(tournamentID) has no Round 3 product implementation round."
     }
   }
 }
@@ -649,7 +649,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
       config.tournamentRounds.first { $0.id == roundID }
     }
     if let prototype = rounds.first(where: {
-      $0.kind == .prototype && $0.ordinal > round.ordinal
+      $0.kind == .productImplementation && $0.ordinal > round.ordinal
     }) {
       return prototype
     }

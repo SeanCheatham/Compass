@@ -3721,7 +3721,7 @@ struct ProductTournamentLoopTests {
     )
     let experiment = try #require(config.tournamentExperiments.first)
     let tournament = try #require(config.tournaments.first)
-    let round = try #require(config.tournamentRounds.first { $0.kind == .prototype })
+    let round = try #require(config.tournamentRounds.first { $0.kind == .productImplementation })
     let contender = try #require(
       config.tournamentContenders.first { $0.experimentID == experiment.id })
     let step = TournamentAutomationStep(
@@ -3730,7 +3730,7 @@ struct ProductTournamentLoopTests {
         experimentID: experiment.id,
         kind: .applyRoundTransition,
         title: "Apply Round 3 transition",
-        detail: "Select the winner from prototype evidence.",
+        detail: "Select the winner from product implementation evidence.",
         priority: 10_000,
         tournamentID: tournament.id,
         roundID: round.id,
@@ -4455,7 +4455,7 @@ struct ProductTournamentLoopTests {
 
     try #require(outcome.roundKind == .coreTechnology)
     try #require(outcome.userMessage.contains("Round 3"))
-    try #require(activeRound.kind == .prototype)
+    try #require(activeRound.kind == .productImplementation)
     try #require(activeRound.status == .active)
     try #require(saved.tournaments[0].currentRoundID == activeRound.id)
   }
@@ -4512,7 +4512,7 @@ struct ProductTournamentLoopTests {
     let savedExperiment = try #require(
       saved.tournamentExperiments.first { $0.id == target.experimentID })
 
-    try #require(outcome.roundKind == .prototype)
+    try #require(outcome.roundKind == .productImplementation)
     try #require(outcome.userMessage.contains("winner"))
     try #require(savedTournament.status == .completed)
     try #require(savedContender.status == .winner)
@@ -4814,7 +4814,7 @@ private func activateRoundThreePrototypeTarget(
   let roundTwoTarget = try activateRoundTwoImplementationTarget(in: &config)
   let prototypeRoundIndex = try #require(
     config.tournamentRounds.firstIndex {
-      $0.tournamentID == roundTwoTarget.tournamentID && $0.kind == .prototype
+      $0.tournamentID == roundTwoTarget.tournamentID && $0.kind == .productImplementation
     })
   let coreRoundIndex = try #require(
     config.tournamentRounds.firstIndex { $0.id == roundTwoTarget.roundID })

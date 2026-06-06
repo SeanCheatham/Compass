@@ -16,7 +16,7 @@ struct ProductTournamentRoundProofOverviewTests {
         expectedWorkbenchAccessibilityIDPrefix: "round-1-proof-overview-",
         absentDigestHeadings: [
           "Round 2 core-technology proof overview",
-          "Round 3 prototype proof overview",
+          "Round 3 product implementation proof overview",
         ],
         absentWorkbenchHeadings: [
           "Core Technology Proof",
@@ -32,7 +32,7 @@ struct ProductTournamentRoundProofOverviewTests {
         expectedWorkbenchAccessibilityIDPrefix: "round-2-proof-overview-",
         absentDigestHeadings: [
           "Round 1 plan-proof contender overview",
-          "Round 3 prototype proof overview",
+          "Round 3 product implementation proof overview",
         ],
         absentWorkbenchHeadings: [
           "Round 1 Proof Deltas",
@@ -41,9 +41,9 @@ struct ProductTournamentRoundProofOverviewTests {
       ),
       ProofOverviewCase(
         name: "round-3-prototype",
-        activeKind: .prototype,
+        activeKind: .productImplementation,
         config: roundThreeConfig(),
-        expectedDigestHeading: "Round 3 prototype proof overview",
+        expectedDigestHeading: "Round 3 product implementation proof overview",
         expectedWorkbenchHeading: "Prototype Winner Proof",
         expectedWorkbenchAccessibilityIDPrefix: "round-3-proof-overview-",
         absentDigestHeadings: [
@@ -137,7 +137,7 @@ private struct ProofOverviewCase {
         ).first
       )
       return [item.contextLine]
-    case .prototype:
+    case .productImplementation:
       let item = try #require(
         ProductTournamentRoundThreePrototypeOverview.items(
           config: config,
@@ -172,7 +172,7 @@ private struct ProofOverviewCase {
       return [
         item.workbenchAccessibilityID,
       ]
-    case .prototype:
+    case .productImplementation:
       let item = try #require(
         ProductTournamentRoundThreePrototypeOverview.items(
           config: config,
@@ -199,7 +199,7 @@ private func roundTwoConfig() throws -> ProductTournamentConfig {
 }
 
 private func roundThreeConfig() throws -> ProductTournamentConfig {
-  try configWithActiveRound(.prototype)
+  try configWithActiveRound(.productImplementation)
 }
 
 private func configWithActiveRound(
@@ -210,7 +210,7 @@ private func configWithActiveRound(
   let contender = try #require(config.tournamentContenders.first)
   let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
   let coreRound = try #require(config.tournamentRounds.first { $0.kind == .coreTechnology })
-  let prototypeRound = try #require(config.tournamentRounds.first { $0.kind == .prototype })
+  let prototypeRound = try #require(config.tournamentRounds.first { $0.kind == .productImplementation })
 
   let activeRound: ProductTournamentRound
   switch activeKind {
@@ -218,7 +218,7 @@ private func configWithActiveRound(
     activeRound = planRound
   case .coreTechnology:
     activeRound = coreRound
-  case .prototype:
+  case .productImplementation:
     activeRound = prototypeRound
   }
 
@@ -232,11 +232,11 @@ private func configWithActiveRound(
         activeKind == .productPlans ? .active : .completed
     case .coreTechnology:
       config.tournamentRounds[index].status =
-        activeKind == .coreTechnology ? .active : activeKind == .prototype ? .completed : .planned
+        activeKind == .coreTechnology ? .active : activeKind == .productImplementation ? .completed : .planned
       config.tournamentRounds[index].contenderIDs = [contender.id]
-    case .prototype:
+    case .productImplementation:
       config.tournamentRounds[index].status =
-        activeKind == .prototype ? .active : .planned
+        activeKind == .productImplementation ? .active : .planned
       config.tournamentRounds[index].contenderIDs = [contender.id]
     }
   }

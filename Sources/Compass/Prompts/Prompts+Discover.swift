@@ -23,7 +23,7 @@ extension Prompts {
       - Generate multiple competing product contenders when the pain is broad.
       - Create a tournament with explicit rounds: Round 1 compares product
         plans with no built product, Round 2 proves the core technology, and
-        Round 3 evaluates low-medium fidelity prototype versions.
+        Round 3 evaluates low-medium fidelity product implementations.
       - Make each candidate tournament experiment small enough to become the Round 2 or
         Round 3 Rust desktop track for one contender.
       - Include willingness-to-pay or willingness-to-sponsor signals in the

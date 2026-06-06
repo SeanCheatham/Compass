@@ -4617,7 +4617,7 @@ enum TournamentAutomationRoundTransitionStepExecutor {
         now: now
       )
       result = (outcome.userMessage, outcome.config, outcome.toRoundID)
-    case .prototype:
+    case .productImplementation:
       let proposal = try roundThreeProposal(
         tournamentID: tournamentID,
         roundID: roundID,

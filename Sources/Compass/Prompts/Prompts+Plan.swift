@@ -165,7 +165,7 @@ extension Prompts {
         `needs_revision` contenders before more implementation, and do not spend
         implementation work on eliminated contenders.
       - Round 2 should prove the core technology for a surviving contender.
-        Round 3 should exercise a low-medium fidelity prototype version.
+        Round 3 should exercise a low-medium fidelity product implementation.
       - When Product Tournament Context includes a "Round 2 implementation target",
         treat it as the current implementation target: the Immediate handoff
         must name `selected_experiment`, use that branch/worktree, build only

@@ -85,7 +85,7 @@ struct ProductTournamentConfigTests {
     let workspace = CompassWorkspace(repoURL: root)
     let payload = """
       {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "rawPain": "Pain",
         "painHypotheses": [],
         "userSegments": [],
@@ -186,7 +186,7 @@ struct ProductTournamentConfigTests {
       now: Date(timeIntervalSince1970: 1_700_000_000)
     )
 
-    try #require(config.schemaVersion == 3)
+    try #require(config.schemaVersion == 4)
     try #require(config.rawPain.contains("Finance operators"))
     try #require(config.painHypotheses.count == 1)
     try #require(config.userSegments.count == 2)
@@ -216,7 +216,7 @@ struct ProductTournamentConfigTests {
     try #require(tournament.roundIDs == config.tournamentRounds.map(\.id))
     try #require(tournament.currentRoundID == config.tournamentRounds[0].id)
     try #require(
-      config.tournamentRounds.map(\.kind) == [.productPlans, .coreTechnology, .prototype])
+      config.tournamentRounds.map(\.kind) == [.productPlans, .coreTechnology, .productImplementation])
     try #require(config.tournamentRounds[0].requiresBuiltProduct == false)
     try #require(config.tournamentRounds[1].requiresBuiltProduct)
     try #require(config.tournamentRounds[2].evaluationFocus.contains("Continued-use pull"))

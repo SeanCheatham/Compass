@@ -300,7 +300,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     guard !proposals.isEmpty else { return [] }
-    return ["Round 3 prototype transition:"]
+    return ["Round 3 product implementation transition:"]
       + proposals.prefix(3).map { proposal in bounded(proposal.digestLine, 620) }
   }
 

@@ -1,7 +1,7 @@
 import Foundation
 
 struct ProductTournamentConfig: Codable, Equatable, Sendable {
-  static let supportedSchemaVersion = 3
+  static let supportedSchemaVersion = 4
 
   var schemaVersion: Int
   var rawPain: String
@@ -578,10 +578,10 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         id: prototypeRoundID,
         tournamentID: tournamentID,
         ordinal: 3,
-        kind: .prototype,
+        kind: .productImplementation,
         title: "Round 3: low-medium fidelity product",
         goal:
-          "Let agentic users exercise low-medium fidelity prototype versions and judge adoption, switching, and willingness to pay.",
+          "Let agentic users exercise low-medium fidelity product implementations and judge adoption, switching, and willingness to pay.",
         evaluationFocus: [
           "Workflow improvement",
           "Switching readiness",
@@ -1113,13 +1113,13 @@ struct ProductTournamentRound: Codable, Equatable, Identifiable, Sendable {
 enum ProductTournamentRoundKind: String, Codable, CaseIterable, Equatable, Sendable {
   case productPlans = "product_plans"
   case coreTechnology = "core_technology"
-  case prototype
+  case productImplementation = "product_implementation"
 
   var title: String {
     switch self {
     case .productPlans: return "Product plans"
     case .coreTechnology: return "Core technology"
-    case .prototype: return "Prototype"
+    case .productImplementation: return "Product implementation"
     }
   }
 
@@ -1127,7 +1127,7 @@ enum ProductTournamentRoundKind: String, Codable, CaseIterable, Equatable, Senda
     switch self {
     case .productPlans:
       return false
-    case .coreTechnology, .prototype:
+    case .coreTechnology, .productImplementation:
       return true
     }
   }

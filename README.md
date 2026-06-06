@@ -104,16 +104,17 @@ and advances them through rounds:
   and next transition recommendation in both the Workbench and Product
   Tournament Context. Scoped Round 2 scenario evidence then drives the next
   tournament transition: advance the contender to Round 3, mark the core
-  technology for revision, or eliminate the contender before adding prototype
-  fidelity. Advancement requires completed evidence from two personas plus two
-  stored completed-use proofs derived from traces that reach the required
-  product-use action sequence.
-- **Round 3: prototype.** Agentic users exercise low-medium fidelity product
-  versions and evaluate workflow improvement, switching readiness, continued-use
-  pull, and explicit price or sponsorship intent. Scoped prototype evidence can
-  select a tournament winner, force a final prototype revision, or eliminate the
-  remaining contender. A Round 3 prototype proof overview keeps the active
-  contender's winner-readiness, willingness-to-pay, current-alternative proof,
+  technology for revision, or eliminate the contender before adding product
+  implementation fidelity. Advancement requires completed evidence from two
+  personas plus two stored completed-use proofs derived from traces that reach
+  the required product-use action sequence.
+- **Round 3: product implementation.** Agentic users exercise low-medium
+  fidelity product implementations and evaluate workflow improvement, switching
+  readiness, continued-use pull, and explicit price or sponsorship intent.
+  Scoped Round 3 evidence can select a tournament winner, force a final product
+  implementation revision, or eliminate the remaining contender. A Round 3
+  product implementation proof overview keeps the active contender's
+  winner-readiness, willingness-to-pay, current-alternative proof,
   prototype-use proof, persona breadth, missing capabilities, and next
   transition recommendation visible in both the Workbench and Product
   Tournament Context until the tournament winner is selected. Winner selection
@@ -191,22 +192,22 @@ IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
 feedback remains comparable across tournament rounds. The workbench and
 Tournament Automation can apply the best actionable Round 1, Round 2, and Round 3
 recommendations to stored tournament state, including selecting a winner when
-prototype evidence clears the winner gate. Cycle audits record those automated
-round transitions separately from tournament decision updates and evidence runs,
-and Round 1 plan-proof cycles capture starting and ending
+product implementation evidence clears the winner gate. Cycle audits record
+those automated round transitions separately from tournament decision updates
+and evidence runs, and Round 1 plan-proof cycles capture starting and ending
 persona-model/model-free plan evidence counts.
 Only the proof overview for the active tournament round is shown at a time:
-Round 1 plan proof, Round 2 core-technology proof, or Round 3 prototype winner
-proof.
+Round 1 plan proof, Round 2 core-technology proof, or Round 3 product
+implementation winner proof.
 Plan and Reflect receive only a compact advisory summary:
 current tournament round, contender plans, Round 1 plan readiness and plan proof
 debt, focused Round 1 proof actions, buyer/sponsor signals, willingness-to-pay
 signals, persona-model/model-free plan evidence counts, Round 2 feasibility
 handoffs, core-technology proof overview, experience-use proof counts, evidence
-transitions, Round 3 prototype proof overview and winner recommendations, latest
-evidence per active scenario, repeated objections, low-score clusters, verdict
-distribution, failures, current alternative comparisons, and tournament evidence-backed
-willingness to pay or sponsor.
+transitions, Round 3 product implementation proof overview and winner
+recommendations, latest evidence per active scenario, repeated objections,
+low-score clusters, verdict distribution, failures, current alternative
+comparisons, and tournament evidence-backed willingness to pay or sponsor.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 

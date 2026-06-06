@@ -164,7 +164,7 @@ enum ProductTournamentFeasibilityAdvisor {
       round.evaluationFocus
       + contenderPlan.requiredProof
       + [
-        "The core technology proves the hard part before Round 3 prototype polish.",
+        "The core technology proves the hard part before Round 3 product implementation fidelity.",
         "The surviving contender is tested against the current workaround.",
       ]
     return signals.productTournamentUniquedPreservingOrder().prefix(8).map { $0 }

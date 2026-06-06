@@ -121,14 +121,14 @@ struct ProductTournamentWorkbenchTab: View {
     guard let tournament = activeTournamentForRoundEvidence else { return nil }
     if let currentRoundID = tournament.currentRoundID,
       let current = config.tournamentRounds.first(where: { $0.id == currentRoundID }),
-      current.kind == .prototype,
+      current.kind == .productImplementation,
       current.status == .active
     {
       return current
     }
     return config.tournamentRounds
       .filter {
-        $0.tournamentID == tournament.id && $0.kind == .prototype && $0.status == .active
+        $0.tournamentID == tournament.id && $0.kind == .productImplementation && $0.status == .active
       }
       .sorted { lhs, rhs in
         if lhs.ordinal == rhs.ordinal { return lhs.title < rhs.title }
@@ -912,7 +912,7 @@ struct ProductTournamentWorkbenchTab: View {
           }
         }
 
-        WorkbenchSection("Round 3 Prototype", systemImage: "crown") {
+        WorkbenchSection("Round 3 Product Implementation", systemImage: "crown") {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
               Button {
@@ -927,7 +927,7 @@ struct ProductTournamentWorkbenchTab: View {
               .disabled(!prototypeEvidenceTransitionCanApply)
               .help(
                 prototypeEvidenceTransitionProposal?.detail
-                  ?? "No actionable Round 3 prototype recommendation yet."
+                  ?? "No actionable Round 3 product implementation recommendation yet."
               )
 
               if let prototypeEvidenceTransitionMessage {
@@ -953,7 +953,7 @@ struct ProductTournamentWorkbenchTab: View {
                 )
               }
             } else {
-              WorkbenchEmptyLine("No contender is active in Round 3 prototype evidence yet.")
+              WorkbenchEmptyLine("No contender is active in Round 3 product implementation evidence yet.")
             }
           }
         }
