@@ -43,21 +43,19 @@ Standard generated-project checks are:
 cargo run -p xtask -- verify
 cargo run -p xtask -- visual-verify
 cargo run -p xtask -- visual-verify --emit-base64
-cargo run -p xtask -- factory-smoke
-cargo run -p xtask -- factory-smoke --emit-base64
 cargo run -p xtask -- product-tournament-smoke
+cargo run -p xtask -- product-tournament-smoke --emit-base64
 ```
 
 `xtask verify` is the normal fast path: format, lint, test, coverage, and
-build without launching the desktop app. `factory-smoke` adds desktop visual
-verification. `engine-parity-check` remains available inside generated projects
-as a compatibility alias for `factory-smoke`.
+build without launching the desktop app. `product-tournament-smoke` adds
+deterministic product-pressure replay plus desktop visual verification.
 
 Swift, TypeScript, and JavaScript are retained as legacy imported-repository
 inspection/evolution paths only. Host Xcode exists for those legacy Apple
 repositories and for Compass's own Swift code; it is not a generated-output
 dependency. The Compass host app remains Swift/macOS; the Rust engine is a
-factory sidecar and is not used for the host UI or VM lifecycle.
+Product Tournament verification sidecar and is not used for the host UI or VM lifecycle.
 
 ## Product Tournaments
 

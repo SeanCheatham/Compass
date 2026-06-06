@@ -43,10 +43,11 @@ struct RustProjectScaffoldTests {
   @Test func scaffoldDocumentsStandardRustCommandsAndDesktopStack() throws {
     let readme = try #require(
       RustProjectScaffold.files().first { $0.path == "README.md" }?.contents)
+    let removedEngineParityCommand = "engine" + "-parity-check"
 
     try #require(readme.contains("Compass itself remains a native Swift/macOS app"))
     try #require(readme.contains("generated output lives here as Rust"))
-    try #require(readme.contains("mirror Compass factory engine behavior"))
+    try #require(readme.contains("mirror Compass Product Tournament engine behavior"))
     try #require(readme.contains("eframe"))
     try #require(readme.contains("egui"))
     try #require(readme.contains("Deterministic Simulation Contract"))
@@ -71,11 +72,11 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.coverage)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.build)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify)))
-    try #require(readme.contains(RustProjectScaffold.factorySmokeCommand))
-    try #require(readme.contains(RustProjectScaffold.factorySmokeWithScreenshotCommand))
-    try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.engineParityCheck)))
+    try #require(readme.contains(RustProjectScaffold.productTournamentSmokeCommand))
+    try #require(readme.contains(RustProjectScaffold.productTournamentSmokeWithScreenshotCommand))
     try #require(readme.contains(RustProjectScaffold.visualVerifyCommand))
-    try #require(readme.contains("compatibility alias for `factory-smoke`"))
+    try #require(!readme.contains(removedEngineParityCommand))
+    try #require(!readme.contains("compatibility alias"))
     try #require(readme.contains("launch it in the guest"))
     try #require(readme.contains("platform-neutral visual input request"))
   }
@@ -171,23 +172,33 @@ struct RustProjectScaffoldTests {
   @Test func xtaskImplementsLevelTwoVisualVerificationSteps() throws {
     let xtask = try #require(
       RustProjectScaffold.files().first { $0.path == "xtask/src/main.rs" }?.contents)
+    let removedLegacySmokeCommand = "factory" + "-smoke"
+    let removedEngineParityCommand = "engine" + "-parity-check"
+    let removedLegacySmokeFunction = "fn " + "factory" + "_smoke"
 
     try #require(xtask.contains("cargo"))
     try #require(xtask.contains("build"))
-    try #require(xtask.contains("factory-smoke"))
-    try #require(xtask.contains(#""product-tournament-smoke" => product_tournament_smoke()"#))
-    try #require(xtask.contains("fn product_tournament_smoke() -> Result<()>"))
+    try #require(xtask.contains("product-tournament-smoke"))
+    try #require(
+      xtask.contains(
+        #""product-tournament-smoke" => {"#
+      ))
+    try #require(
+      xtask.contains(#"product_tournament_smoke(args.iter().any(|arg| arg == "--emit-base64"))"#))
+    try #require(xtask.contains("fn product_tournament_smoke(emit_base64: bool) -> Result<()>"))
+    try #require(xtask.contains("fn product_tournament_trace_check() -> Result<()>"))
     try #require(xtask.contains("allowedNextActions"))
     try #require(xtask.contains("product tournament trace changed across identical invocations"))
     try #require(xtask.contains("painReliefSignals"))
     try #require(xtask.contains("willingnessToPayScore"))
     try #require(xtask.contains("sponsorshipIntent"))
-    try #require(xtask.contains("engine-parity-check"))
-    try #require(xtask.contains("fn factory_smoke(emit_base64: bool)"))
+    try #require(!xtask.contains(removedEngineParityCommand))
+    try #require(!xtask.contains(removedLegacySmokeCommand))
+    try #require(!xtask.contains(removedLegacySmokeFunction))
     try #require(xtask.contains("fn run_clippy() -> Result<()>"))
     try #require(xtask.contains(#""clippy" => run_clippy()"#))
     try #require(xtask.contains("run_clippy()?"))
-    try #require(xtask.contains("product_tournament_smoke()?"))
+    try #require(xtask.contains("product_tournament_trace_check()?"))
     try #require(xtask.contains("visual_verify(emit_base64)?"))
     try #require(
       xtask.contains("run(\"cargo\", &[\"test\", \"--workspace\", \"--all-features\"])?"))
@@ -219,8 +230,8 @@ struct RustProjectScaffoldTests {
     let xtask = try #require(
       RustProjectScaffold.files().first { $0.path == "xtask/src/main.rs" }?.contents)
     let verifyStart = try #require(xtask.range(of: "fn verify_all()"))
-    let factoryStart = try #require(xtask.range(of: "fn factory_smoke"))
-    let verifyBody = String(xtask[verifyStart.lowerBound..<factoryStart.lowerBound])
+    let smokeStart = try #require(xtask.range(of: "fn product_tournament_smoke"))
+    let verifyBody = String(xtask[verifyStart.lowerBound..<smokeStart.lowerBound])
 
     try #require(!verifyBody.contains("visual_verify"))
     try #require(!verifyBody.contains("app-desktop"))
@@ -282,7 +293,8 @@ struct RustProjectScaffoldTests {
       options: RustProjectScaffold.Options(projectName: "Compass Cargo Smoke")
     )
 
-    if await cargoSubcommandAvailable("llvm-cov") {
+    let hasCoverageTooling = await cargoSubcommandAvailable("llvm-cov")
+    if hasCoverageTooling {
       try await requireCommand(["run", "-p", "xtask", "--", "verify"], in: root)
     } else {
       print("Skipping generated `xtask verify`: cargo llvm-cov is not installed.")
@@ -290,7 +302,12 @@ struct RustProjectScaffoldTests {
       try await requireCommand(["test", "--workspace", "--all-features"], in: root)
       try await requireCommand(["build", "--workspace"], in: root)
     }
-    try await requireCommand(["run", "-p", "xtask", "--", "product-tournament-smoke"], in: root)
+    if hasCoverageTooling {
+      try await requireCommand(["run", "-p", "xtask", "--", "product-tournament-smoke"], in: root)
+    } else {
+      print("Skipping generated `product-tournament-smoke`: cargo llvm-cov is not installed.")
+      try await requireCommand(["run", "-p", "app-cli", "--", "product-tournament-experience"], in: root)
+    }
     try await requireCommand(["build", "-p", RustProjectScaffold.desktopPackage], in: root)
   }
 

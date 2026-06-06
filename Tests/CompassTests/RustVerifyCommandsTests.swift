@@ -3,7 +3,7 @@ import Testing
 @testable import Compass
 
 struct RustVerifyCommandsTests {
-  @Test func cargoCommandsRenderSharedFactoryChecks() throws {
+  @Test func cargoCommandsRenderProductTournamentChecks() throws {
     try #require(RustVerifyCommands.cargo(RustVerifyCommands.fmt) == "cargo fmt --all --check")
     try #require(
       RustVerifyCommands.cargo(RustVerifyCommands.clippy)
@@ -18,15 +18,15 @@ struct RustVerifyCommandsTests {
         == "cargo run -p xtask -- verify"
     )
     try #require(
-      RustVerifyCommands.cargo(RustVerifyCommands.factorySmoke)
-        == "cargo run -p xtask -- factory-smoke"
+      RustVerifyCommands.cargo(RustVerifyCommands.productTournamentSmoke)
+        == "cargo run -p xtask -- product-tournament-smoke"
     )
     try #require(
-      RustVerifyCommands.cargo(RustVerifyCommands.factorySmokeWithScreenshot)
-        == "cargo run -p xtask -- factory-smoke --emit-base64"
+      RustVerifyCommands.cargo(RustVerifyCommands.productTournamentSmokeWithScreenshot)
+        == "cargo run -p xtask -- product-tournament-smoke --emit-base64"
     )
-    try #require(RustVerifyCommands.cargoSmokeCommands == [
-      "cargo run -p xtask -- factory-smoke --emit-base64"
+    try #require(RustVerifyCommands.productTournamentSmokeCommands == [
+      "cargo run -p xtask -- product-tournament-smoke --emit-base64"
     ])
   }
 

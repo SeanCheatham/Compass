@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 #[command(
     name = "compass-engine",
     version,
-    about = "Compass Rust factory sidecar"
+    about = "Compass Rust Product Tournament verification sidecar"
 )]
 pub struct Cli {
     #[arg(long, global = true, default_value = ".")]

@@ -289,7 +289,7 @@ fn scaffold_repair_hints(data: &serde_json::Value) -> Vec<RepairHint> {
             hints.push(RepairHint::new(
                 "generated-scaffold-missing-product-tournament-experience",
                 "error",
-                "Scaffold advertises Product Tournament experience simulation but the app-core contract, CLI command, xtask smoke, or schema files are missing.",
+                "Scaffold advertises Product Tournament experience simulation but the app-core contract, CLI command, product-tournament-smoke xtask command, or schema files are missing.",
                 None::<String>,
             ));
         }

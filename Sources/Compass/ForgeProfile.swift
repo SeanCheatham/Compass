@@ -60,8 +60,8 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         - Standard fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
           runs fmt, clippy, tests, coverage, and build without launching the desktop app.
         - Use `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerifyNoBase64))` for
-          desktop UI proof, or `\(RustVerifyCommands.cargo(RustVerifyCommands.factorySmoke))`
-          when full factory proof is needed.
+          desktop UI proof, or `\(RustVerifyCommands.cargo(RustVerifyCommands.productTournamentSmoke))`
+          when full Product Tournament proof is needed.
         - Use `\(RustVerifyCommands.cargo(RustVerifyCommands.productTournamentSmoke))` to validate the
           generated app's deterministic product tournament experience contract without a live model call.
         - Verify for test increments should use `\(RustVerifyCommands.cargo(RustVerifyCommands.coverage))` or \

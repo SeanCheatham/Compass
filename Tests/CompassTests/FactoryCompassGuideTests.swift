@@ -70,7 +70,7 @@ struct FactoryCompassGuideTests {
   }
 
   @Test
-  func testBriefIncludesRustFactoryHealthWhenProvided() throws {
+  func testBriefIncludesRustProductTournamentHealthWhenProvided() throws {
     let runGuide = ProjectRunControlGuide(
       state: makeState(),
       reliabilityStatus: emptyReliabilityStatus(),
@@ -79,7 +79,7 @@ struct FactoryCompassGuideTests {
       isAutoPlaying: false,
       isPaused: false
     )
-    let rustHealth = RustFactoryHealth(
+    let rustHealth = RustProductTournamentHealth(
       inputs: .init(
         engineBinaryURL: nil,
         generatedAt: Date(timeIntervalSince1970: 1_700_000_000)
@@ -88,9 +88,9 @@ struct FactoryCompassGuideTests {
 
     let guide = FactoryCompassGuide(runGuide: runGuide, rustHealth: rustHealth)
 
-    try #require(guide.rustHealth?.title == "Rust Factory Needs Repair")
+    try #require(guide.rustHealth?.title == "Rust Product Tournament Needs Repair")
     try #require(guide.rustHealth?.nextAction == "./scripts/build-compass-engine.sh")
-    try #require(guide.handoffText.contains("Rust factory health: Rust Factory Needs Repair"))
+    try #require(guide.handoffText.contains("Rust Product Tournament health: Rust Product Tournament Needs Repair"))
   }
 
   @Test

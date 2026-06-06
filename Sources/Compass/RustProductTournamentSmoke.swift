@@ -2,11 +2,11 @@ import AppKit
 import Darwin
 import Foundation
 
-struct RustFactorySmokeOptions: Equatable {
-  static let flag = "--compass-rust-factory-smoke"
-  static let projectDirFlag = "--compass-rust-factory-smoke-project"
-  static let reportFlag = "--compass-rust-factory-smoke-report"
-  static let timeoutFlag = "--compass-rust-factory-smoke-timeout"
+struct RustProductTournamentSmokeOptions: Equatable {
+  static let flag = "--compass-rust-product-tournament-smoke"
+  static let projectDirFlag = "--compass-rust-product-tournament-smoke-project"
+  static let reportFlag = "--compass-rust-product-tournament-smoke-report"
+  static let timeoutFlag = "--compass-rust-product-tournament-smoke-timeout"
 
   var projectURL: URL
   var reportURL: URL
@@ -15,30 +15,30 @@ struct RustFactorySmokeOptions: Equatable {
   static func parse(
     arguments: [String] = CommandLine.arguments,
     environment: [String: String] = ProcessInfo.processInfo.environment
-  ) -> RustFactorySmokeOptions? {
+  ) -> RustProductTournamentSmokeOptions? {
     guard arguments.contains(flag) else { return nil }
 
     let projectPath =
       value(after: projectDirFlag, in: arguments)
-      ?? environment["COMPASS_RUST_FACTORY_SMOKE_PROJECT"]
+      ?? environment["COMPASS_RUST_PRODUCT_TOURNAMENT_SMOKE_PROJECT"]
     let reportPath =
       value(after: reportFlag, in: arguments)
-      ?? environment["COMPASS_RUST_FACTORY_SMOKE_REPORT"]
+      ?? environment["COMPASS_RUST_PRODUCT_TOURNAMENT_SMOKE_REPORT"]
     let timeoutText =
       value(after: timeoutFlag, in: arguments)
-      ?? environment["COMPASS_RUST_FACTORY_SMOKE_TIMEOUT"]
+      ?? environment["COMPASS_RUST_PRODUCT_TOURNAMENT_SMOKE_TIMEOUT"]
 
     let projectURL =
       projectPath.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
       ?? FileManager.default.temporaryDirectory
-      .appending(path: "CompassRustFactorySmoke-\(UUID().uuidString)", directoryHint: .isDirectory)
+      .appending(path: "CompassRustProductTournamentSmoke-\(UUID().uuidString)", directoryHint: .isDirectory)
     let reportURL =
       reportPath.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
       ?? FileManager.default.temporaryDirectory
-      .appending(path: "compass-rust-factory-smoke-\(UUID().uuidString).json")
+      .appending(path: "compass-rust-product-tournament-smoke-\(UUID().uuidString).json")
     let timeoutSeconds = timeoutText.flatMap(TimeInterval.init) ?? 20 * 60
 
-    return RustFactorySmokeOptions(
+    return RustProductTournamentSmokeOptions(
       projectURL: projectURL.standardizedFileURL,
       reportURL: reportURL.standardizedFileURL,
       timeoutSeconds: max(30, timeoutSeconds)
@@ -56,26 +56,26 @@ struct RustFactorySmokeOptions: Equatable {
 }
 
 @MainActor
-enum RustFactorySmokeBootstrap {
+enum RustProductTournamentSmokeBootstrap {
   private static var started = false
 
   static func startIfRequested() {
-    guard RustFactorySmokeOptions.parse() != nil, !started else { return }
+    guard RustProductTournamentSmokeOptions.parse() != nil, !started else { return }
     started = true
     Task { @MainActor in
       let model = AppModel()
       await model.bootstrap()
-      await RustFactorySmoke.runIfRequested(model: model)
+      await RustProductTournamentSmoke.runIfRequested(model: model)
     }
   }
 }
 
 @MainActor
-enum RustFactorySmoke {
+enum RustProductTournamentSmoke {
   private static var started = false
 
   static func runIfRequested(model: AppModel) async {
-    guard let options = RustFactorySmokeOptions.parse(), !started else { return }
+    guard let options = RustProductTournamentSmokeOptions.parse(), !started else { return }
     started = true
 
     let exitCode: Int32
@@ -83,7 +83,7 @@ enum RustFactorySmoke {
       try await run(options: options, model: model)
       exitCode = 0
     } catch {
-      let report = RustFactorySmokeReport(
+      let report = RustProductTournamentSmokeReport(
         status: .failed,
         projectPath: options.projectURL.path,
         guestWorkspacePath: nil,
@@ -96,7 +96,7 @@ enum RustFactorySmoke {
       if !FileManager.default.fileExists(atPath: options.reportURL.path) {
         try? writeReport(report, to: options.reportURL)
       }
-      log("Rust factory smoke failed: \(error)")
+      log("Rust product tournament smoke failed: \(error)")
       exitCode = 1
     }
 
@@ -104,8 +104,8 @@ enum RustFactorySmoke {
     Darwin.exit(exitCode)
   }
 
-  private static func run(options: RustFactorySmokeOptions, model: AppModel) async throws {
-    var reports: [RustFactorySmokeCommandReport] = []
+  private static func run(options: RustProductTournamentSmokeOptions, model: AppModel) async throws {
+    var reports: [RustProductTournamentSmokeCommandReport] = []
     var guestWorkspacePath: String?
     var sshDestination: String?
     var screenshotURL: URL?
@@ -120,7 +120,7 @@ enum RustFactorySmoke {
         screenshotURL: &screenshotURL
       )
     } catch {
-      let report = RustFactorySmokeReport(
+      let report = RustProductTournamentSmokeReport(
         status: .failed,
         projectPath: options.projectURL.path,
         guestWorkspacePath: guestWorkspacePath,
@@ -136,20 +136,20 @@ enum RustFactorySmoke {
   }
 
   private static func runChecked(
-    options: RustFactorySmokeOptions,
+    options: RustProductTournamentSmokeOptions,
     model: AppModel,
-    reports: inout [RustFactorySmokeCommandReport],
+    reports: inout [RustProductTournamentSmokeCommandReport],
     guestWorkspacePath: inout String?,
     sshDestination: inout String?,
     screenshotURL: inout URL?
   ) async throws {
-    log("Rust factory smoke: preparing \(options.projectURL.path)")
+    log("Rust product tournament smoke: preparing \(options.projectURL.path)")
     try await AppModel.initializeGeneratedRustProject(at: options.projectURL)
 
-    log("Rust factory smoke: starting Shared VM")
+    log("Rust product tournament smoke: starting Shared VM")
     try await model.sharedVMHost.warmup()
     guard model.sharedVMHost.bundle.existsOnDisk() else {
-      throw RustFactorySmokeError.sharedVMNotProvisioned
+      throw RustProductTournamentSmokeError.sharedVMNotProvisioned
     }
     try await model.sharedVMHost.start()
     sshDestination = try await waitForReady(host: model.sharedVMHost, timeout: 5 * 60)
@@ -162,21 +162,21 @@ enum RustFactorySmoke {
     )
     let launchPlan = project.agentLaunchPlan(for: options.projectURL)
     guard case .sharedVM(let route) = launchPlan.effectiveRoute else {
-      throw RustFactorySmokeError.sharedVMRouteUnavailable(launchPlan.routeDetail())
+      throw RustProductTournamentSmokeError.sharedVMRouteUnavailable(launchPlan.routeDetail())
     }
     guestWorkspacePath = route.guestWorkspacePath
 
     var visualOutput = ""
     let commands =
-      RustVerifyCommands.cargoSmokeCommands.map {
-        RustFactorySmokeCommandSpec(
+      RustVerifyCommands.productTournamentSmokeCommands.map {
+        RustProductTournamentSmokeCommandSpec(
           command: $0,
-          category: $0 == RustProjectScaffold.factorySmokeWithScreenshotCommand
-            ? .factorySmoke : .cargo
+          category: $0 == RustProjectScaffold.productTournamentSmokeWithScreenshotCommand
+            ? .productTournamentSmoke : .cargo
         )
       }
       + RustVerifyCommands.compassEngineSmokeCommands.map {
-        RustFactorySmokeCommandSpec(command: $0, category: .compassEngine)
+        RustProductTournamentSmokeCommandSpec(command: $0, category: .compassEngine)
       }
 
     for spec in commands {
@@ -188,11 +188,11 @@ enum RustFactorySmoke {
         timeoutSeconds: options.timeoutSeconds
       )
       reports.append(commandRun.report)
-      if spec.category == .factorySmoke || spec.category == .visualVerification {
+      if spec.category == .productTournamentSmoke || spec.category == .visualVerification {
         visualOutput = commandRun.rawOutput
       }
       if commandRun.report.exitCode != 0 {
-        throw RustFactorySmokeError.commandFailed(commandRun.report)
+        throw RustProductTournamentSmokeError.commandFailed(commandRun.report)
       }
       if spec.category == .compassEngine {
         try validateEngineResponse(commandRun)
@@ -204,7 +204,7 @@ enum RustFactorySmoke {
       nextTo: options.reportURL
     )
 
-    let report = RustFactorySmokeReport(
+    let report = RustProductTournamentSmokeReport(
       status: .passed,
       projectPath: options.projectURL.path,
       guestWorkspacePath: guestWorkspacePath,
@@ -215,18 +215,18 @@ enum RustFactorySmoke {
       error: nil
     )
     try writeReport(report, to: options.reportURL)
-    log("Rust factory smoke passed. Report: \(options.reportURL.path)")
+    log("Rust product tournament smoke passed. Report: \(options.reportURL.path)")
   }
 
   private static func runCommand(
-    _ spec: RustFactorySmokeCommandSpec,
+    _ spec: RustProductTournamentSmokeCommandSpec,
     project: CompassProject,
     hostWorkingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,
     timeoutSeconds: TimeInterval
-  ) async throws -> RustFactorySmokeCommandRun {
+  ) async throws -> RustProductTournamentSmokeCommandRun {
     let command = spec.command
-    log("Rust factory smoke: \(command)")
+    log("Rust product tournament smoke: \(command)")
     let startedAt = Date()
     let result = try await project.runVerifyCommand(
       command: command,
@@ -235,7 +235,7 @@ enum RustFactorySmoke {
       launchPlan: launchPlan
     )
     let shouldRedactVisualOutput =
-      spec.category == .factorySmoke || spec.category == .visualVerification
+      spec.category == .productTournamentSmoke || spec.category == .visualVerification
     let stdoutForReport =
       shouldRedactVisualOutput
       ? RustDesktopVisualVerification.redactedOutput(result.stdout)
@@ -244,7 +244,7 @@ enum RustFactorySmoke {
       shouldRedactVisualOutput
       ? RustDesktopVisualVerification.redactedOutput(result.stderr)
       : result.stderr
-    let report = RustFactorySmokeCommandReport(
+    let report = RustProductTournamentSmokeCommandReport(
       command: command,
       category: spec.category,
       exitCode: result.exitCode,
@@ -253,25 +253,25 @@ enum RustFactorySmoke {
       stdoutTail: tail(stdoutForReport, limit: 6000),
       stderrTail: tail(stderrForReport, limit: 6000)
     )
-    return RustFactorySmokeCommandRun(
+    return RustProductTournamentSmokeCommandRun(
       report: report,
       rawOutput: "\(result.stdout)\n\(result.stderr)",
       stdout: result.stdout
     )
   }
 
-  private static func validateEngineResponse(_ commandRun: RustFactorySmokeCommandRun) throws {
+  private static func validateEngineResponse(_ commandRun: RustProductTournamentSmokeCommandRun) throws {
     let data = Data(commandRun.stdout.utf8)
     let object = try JSONSerialization.jsonObject(with: data)
     guard let root = object as? [String: Any] else {
-      throw RustFactorySmokeError.invalidEngineResponse(
+      throw RustProductTournamentSmokeError.invalidEngineResponse(
         commandRun.report,
         "compass-engine did not return a JSON object"
       )
     }
     guard root["ok"] as? Bool == true else {
       let errors = (root["errors"] as? [String])?.joined(separator: "\n") ?? "unknown engine error"
-      throw RustFactorySmokeError.invalidEngineResponse(commandRun.report, errors)
+      throw RustProductTournamentSmokeError.invalidEngineResponse(commandRun.report, errors)
     }
     guard
       let data = root["data"] as? [String: Any],
@@ -280,7 +280,7 @@ enum RustFactorySmoke {
       return
     }
     guard exitCode == 0 else {
-      throw RustFactorySmokeError.invalidEngineResponse(
+      throw RustProductTournamentSmokeError.invalidEngineResponse(
         commandRun.report,
         "compass-engine payload reported Cargo exit_code \(exitCode)"
       )
@@ -302,14 +302,14 @@ enum RustFactorySmoke {
       case .ready(let sshDestination):
         return sshDestination
       case .unavailable(let reason):
-        throw RustFactorySmokeError.sharedVMUnavailable(reason)
+        throw RustProductTournamentSmokeError.sharedVMUnavailable(reason)
       case .error(let detail):
-        throw RustFactorySmokeError.sharedVMError(detail)
+        throw RustProductTournamentSmokeError.sharedVMError(detail)
       default:
         try await Task.sleep(nanoseconds: 1_000_000_000)
       }
     }
-    throw RustFactorySmokeError.sharedVMReadyTimeout(String(describing: host.readiness))
+    throw RustProductTournamentSmokeError.sharedVMReadyTimeout(String(describing: host.readiness))
   }
 
   private static func writeScreenshotIfPresent(
@@ -328,7 +328,7 @@ enum RustFactorySmoke {
     return screenshotURL
   }
 
-  private static func writeReport(_ report: RustFactorySmokeReport, to url: URL) throws {
+  private static func writeReport(_ report: RustProductTournamentSmokeReport, to url: URL) throws {
     try FileManager.default.createDirectory(
       at: url.deletingLastPathComponent(),
       withIntermediateDirectories: true
@@ -349,7 +349,7 @@ enum RustFactorySmoke {
   }
 }
 
-struct RustFactorySmokeReport: Codable, Equatable {
+struct RustProductTournamentSmokeReport: Codable, Equatable {
   enum Status: String, Codable {
     case passed
     case failed
@@ -361,13 +361,13 @@ struct RustFactorySmokeReport: Codable, Equatable {
   var sshDestination: String?
   var reportPath: String
   var screenshotPath: String?
-  var commands: [RustFactorySmokeCommandReport]
+  var commands: [RustProductTournamentSmokeCommandReport]
   var error: String?
 }
 
-struct RustFactorySmokeCommandReport: Codable, Equatable {
+struct RustProductTournamentSmokeCommandReport: Codable, Equatable {
   var command: String
-  var category: RustFactorySmokeCommandCategory
+  var category: RustProductTournamentSmokeCommandCategory
   var exitCode: Int32
   var durationSeconds: TimeInterval
   var audit: RustEngineAudit?
@@ -377,32 +377,32 @@ struct RustFactorySmokeCommandReport: Codable, Equatable {
 
 private struct EmptyEngineData: Codable, Equatable {}
 
-enum RustFactorySmokeCommandCategory: String, Codable, Equatable {
+enum RustProductTournamentSmokeCommandCategory: String, Codable, Equatable {
   case cargo
-  case factorySmoke = "factory-smoke"
+  case productTournamentSmoke = "product-tournament-smoke"
   case visualVerification = "visual-verification"
   case compassEngine = "compass-engine"
 }
 
-private struct RustFactorySmokeCommandSpec {
+private struct RustProductTournamentSmokeCommandSpec {
   var command: String
-  var category: RustFactorySmokeCommandCategory
+  var category: RustProductTournamentSmokeCommandCategory
 }
 
-private struct RustFactorySmokeCommandRun {
-  var report: RustFactorySmokeCommandReport
+private struct RustProductTournamentSmokeCommandRun {
+  var report: RustProductTournamentSmokeCommandReport
   var rawOutput: String
   var stdout: String
 }
 
-enum RustFactorySmokeError: Error, CustomStringConvertible {
+enum RustProductTournamentSmokeError: Error, CustomStringConvertible {
   case sharedVMNotProvisioned
   case sharedVMUnavailable(String)
   case sharedVMError(String)
   case sharedVMReadyTimeout(String)
   case sharedVMRouteUnavailable(String)
-  case commandFailed(RustFactorySmokeCommandReport)
-  case invalidEngineResponse(RustFactorySmokeCommandReport, String)
+  case commandFailed(RustProductTournamentSmokeCommandReport)
+  case invalidEngineResponse(RustProductTournamentSmokeCommandReport, String)
 
   var description: String {
     switch self {

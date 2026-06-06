@@ -19,14 +19,12 @@ enum RustVerifyCommands {
   static let visualVerifyNoBase64 = ["run", "-p", "xtask", "--", "visual-verify"]
   static let visualVerify = ["run", "-p", "xtask", "--", "visual-verify", "--emit-base64"]
   static let productTournamentSmoke = ["run", "-p", "xtask", "--", "product-tournament-smoke"]
-  static let factorySmoke = ["run", "-p", "xtask", "--", "factory-smoke"]
-  static let factorySmokeWithScreenshot = [
-    "run", "-p", "xtask", "--", "factory-smoke", "--emit-base64",
+  static let productTournamentSmokeWithScreenshot = [
+    "run", "-p", "xtask", "--", "product-tournament-smoke", "--emit-base64",
   ]
-  static let engineParityCheck = ["run", "-p", "xtask", "--", "engine-parity-check"]
 
-  static let cargoSmokeCommands = [
-    cargo(factorySmokeWithScreenshot),
+  static let productTournamentSmokeCommands = [
+    cargo(productTournamentSmokeWithScreenshot),
   ]
 
   static let compassEngineSmokeCommands = [

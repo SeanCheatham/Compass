@@ -3,10 +3,10 @@ import Testing
 
 @testable import Compass
 
-struct RustFactorySmokeTests {
+struct RustProductTournamentSmokeTests {
 
   @Test func parserIgnoresNormalLaunchArguments() throws {
-    let options = RustFactorySmokeOptions.parse(
+    let options = RustProductTournamentSmokeOptions.parse(
       arguments: ["/Applications/Compass.app/Contents/MacOS/Compass"],
       environment: [:]
     )
@@ -15,15 +15,15 @@ struct RustFactorySmokeTests {
 
   @Test func parserAcceptsExplicitProjectReportAndTimeout() throws {
     let options = try #require(
-      RustFactorySmokeOptions.parse(
+      RustProductTournamentSmokeOptions.parse(
         arguments: [
           "Compass",
-          RustFactorySmokeOptions.flag,
-          RustFactorySmokeOptions.projectDirFlag,
+          RustProductTournamentSmokeOptions.flag,
+          RustProductTournamentSmokeOptions.projectDirFlag,
           "/tmp/project",
-          RustFactorySmokeOptions.reportFlag,
+          RustProductTournamentSmokeOptions.reportFlag,
           "/tmp/report.json",
-          RustFactorySmokeOptions.timeoutFlag,
+          RustProductTournamentSmokeOptions.timeoutFlag,
           "90",
         ],
         environment: [:]
@@ -36,12 +36,12 @@ struct RustFactorySmokeTests {
 
   @Test func parserUsesEnvironmentFallbacksAndClampsTinyTimeout() throws {
     let options = try #require(
-      RustFactorySmokeOptions.parse(
-        arguments: ["Compass", RustFactorySmokeOptions.flag],
+      RustProductTournamentSmokeOptions.parse(
+        arguments: ["Compass", RustProductTournamentSmokeOptions.flag],
         environment: [
-          "COMPASS_RUST_FACTORY_SMOKE_PROJECT": "/tmp/env-project",
-          "COMPASS_RUST_FACTORY_SMOKE_REPORT": "/tmp/env-report.json",
-          "COMPASS_RUST_FACTORY_SMOKE_TIMEOUT": "2",
+          "COMPASS_RUST_PRODUCT_TOURNAMENT_SMOKE_PROJECT": "/tmp/env-project",
+          "COMPASS_RUST_PRODUCT_TOURNAMENT_SMOKE_REPORT": "/tmp/env-report.json",
+          "COMPASS_RUST_PRODUCT_TOURNAMENT_SMOKE_TIMEOUT": "2",
         ]
       ))
 
@@ -51,9 +51,9 @@ struct RustFactorySmokeTests {
   }
 
   @Test func smokeCommandReportRecordsCommandCategory() throws {
-    let report = RustFactorySmokeCommandReport(
-      command: RustProjectScaffold.factorySmokeWithScreenshotCommand,
-      category: .factorySmoke,
+    let report = RustProductTournamentSmokeCommandReport(
+      command: RustProjectScaffold.productTournamentSmokeWithScreenshotCommand,
+      category: .productTournamentSmoke,
       exitCode: 0,
       durationSeconds: 0.25,
       audit: nil,
@@ -62,12 +62,12 @@ struct RustFactorySmokeTests {
     )
 
     let data = try JSONEncoder().encode(report)
-    let decoded = try JSONDecoder().decode(RustFactorySmokeCommandReport.self, from: data)
+    let decoded = try JSONDecoder().decode(RustProductTournamentSmokeCommandReport.self, from: data)
     try #require(decoded == report)
   }
 
   @Test func smokeCommandReportPreservesEngineAudit() throws {
-    let report = RustFactorySmokeCommandReport(
+    let report = RustProductTournamentSmokeCommandReport(
       command: RustVerifyCommands.compassEngine(.cargoCheck, arguments: ["--all-features"]),
       category: .compassEngine,
       exitCode: 0,
@@ -83,7 +83,7 @@ struct RustFactorySmokeTests {
     )
 
     let data = try JSONEncoder().encode(report)
-    let decoded = try JSONDecoder().decode(RustFactorySmokeCommandReport.self, from: data)
+    let decoded = try JSONDecoder().decode(RustProductTournamentSmokeCommandReport.self, from: data)
 
     try #require(decoded.audit?.argv?.first == "cargo")
     try #require(decoded.audit?.durationMs == 42)

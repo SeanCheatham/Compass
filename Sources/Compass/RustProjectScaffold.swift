@@ -19,9 +19,10 @@ struct RustProjectScaffold: Equatable, Sendable {
   static let desktopPackage = "app-desktop"
   static let desktopBinary = "app-desktop"
   static let visualVerifyCommand = RustVerifyCommands.cargo(RustVerifyCommands.visualVerify)
-  static let factorySmokeCommand = RustVerifyCommands.cargo(RustVerifyCommands.factorySmoke)
-  static let factorySmokeWithScreenshotCommand = RustVerifyCommands.cargo(
-    RustVerifyCommands.factorySmokeWithScreenshot)
+  static let productTournamentSmokeCommand = RustVerifyCommands.cargo(
+    RustVerifyCommands.productTournamentSmoke)
+  static let productTournamentSmokeWithScreenshotCommand = RustVerifyCommands.cargo(
+    RustVerifyCommands.productTournamentSmokeWithScreenshot)
 
   static func write(to rootURL: URL, options: Options = Options()) throws {
     let fm = FileManager.default
@@ -171,7 +172,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     This is the blessed Compass Rust workspace shape for generated projects.
     Compass itself remains a native Swift/macOS app; generated output lives here as Rust.
-    The verification commands below mirror Compass factory engine behavior while
+    The verification commands below mirror Compass Product Tournament engine behavior while
     staying self-contained in this generated Cargo workspace.
 
     ## Architecture
@@ -237,18 +238,16 @@ struct RustProjectScaffold: Equatable, Sendable {
     - Run GUI replay fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "gui-replay", "--input", #"{"seed":"demo","steps":[{"action":"advance","ticks":2},{"action":"visual_input","value":"space"}]}"#]))`
     - Run product tournament experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience", "--input", #"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"solution":{"id":"solution-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"start_solution_workflow","params":{}}]}"#]))`
     - Print product tournament experience schema: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience-schema"]))`
-    - Product tournament smoke: `\(RustVerifyCommands.cargo(RustVerifyCommands.productTournamentSmoke))`
     - Run desktop: `\(RustVerifyCommands.cargo(RustVerifyCommands.runDesktop))`
     - Fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
     - Visual verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerifyNoBase64))`
     - Visual verify with screenshot bytes: `\(RustProjectScaffold.visualVerifyCommand)`
-    - Factory smoke: `\(RustProjectScaffold.factorySmokeCommand)`
-    - Factory smoke with screenshot bytes: `\(RustProjectScaffold.factorySmokeWithScreenshotCommand)`
-    - Engine parity check: `\(RustVerifyCommands.cargo(RustVerifyCommands.engineParityCheck))`
+    - Product Tournament smoke: `\(RustProjectScaffold.productTournamentSmokeCommand)`
+    - Product Tournament smoke with screenshot bytes: `\(RustProjectScaffold.productTournamentSmokeWithScreenshotCommand)`
 
-    `engine-parity-check` is retained as a compatibility alias for `factory-smoke`.
     Normal implementation verify should use the fast `xtask verify` tier; reserve
-    `factory-smoke` for full factory proof that includes desktop visual verification.
+    `product-tournament-smoke` for full Product Tournament proof that includes
+    deterministic product-pressure replay and desktop visual verification.
 
     The desktop app uses deterministic demo state and stable window labels so Compass can
     build it in the Shared VM, launch it in the guest, wait for readiness, send a
@@ -2401,9 +2400,9 @@ struct RustProjectScaffold: Equatable, Sendable {
             "build" => \(xtaskCargoRunExpression(RustVerifyCommands.build)),
             "run" => \(xtaskCargoRunExpression(RustVerifyCommands.runDesktop)),
             "verify" => verify_all(),
-            "product-tournament-smoke" => product_tournament_smoke(),
-            "factory-smoke" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
-            "engine-parity-check" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
+            "product-tournament-smoke" => {
+                product_tournament_smoke(args.iter().any(|arg| arg == "--emit-base64"))
+            }
             "visual-verify" => visual_verify(args.iter().any(|arg| arg == "--emit-base64")),
             other => Err(format!("unknown xtask command: {other}").into()),
         }
@@ -2433,14 +2432,14 @@ struct RustProjectScaffold: Equatable, Sendable {
         )
     }
 
-    fn factory_smoke(emit_base64: bool) -> Result<()> {
+    fn product_tournament_smoke(emit_base64: bool) -> Result<()> {
         verify_all()?;
-        product_tournament_smoke()?;
+        product_tournament_trace_check()?;
         visual_verify(emit_base64)?;
         Ok(())
     }
 
-    fn product_tournament_smoke() -> Result<()> {
+    fn product_tournament_trace_check() -> Result<()> {
         let demo = run_capture(
             "cargo",
             &[
@@ -2533,7 +2532,10 @@ struct RustProjectScaffold: Equatable, Sendable {
         {
             return Err("product tournament trace did not report sponsorship intent".into());
         }
-        println!("COMPASS_PRODUCTIZATION_SMOKE_TRACE_BYTES={}", first.len());
+        println!(
+            "COMPASS_PRODUCT_TOURNAMENT_SMOKE_TRACE_BYTES={}",
+            first.len()
+        );
         Ok(())
     }
 

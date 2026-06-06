@@ -1,6 +1,6 @@
 import Foundation
 
-struct RustFactoryHealth: Codable, Equatable, Sendable {
+struct RustProductTournamentHealth: Codable, Equatable, Sendable {
   static let detailLimit = 220
 
   enum Status: String, Codable, Equatable, Sendable {
@@ -27,7 +27,7 @@ struct RustFactoryHealth: Codable, Equatable, Sendable {
     var clippy: RustEngineResponse<ClippyLintData>?
     var coverage: RustEngineResponse<CoverageGapsData>?
     var visual: RustEngineResponse<VisualVerifyData>?
-    var smokeReport: RustFactorySmokeReport?
+    var smokeReport: RustProductTournamentSmokeReport?
     var smokeReportURL: URL?
     var generatedAt: Date
 
@@ -40,7 +40,7 @@ struct RustFactoryHealth: Codable, Equatable, Sendable {
       clippy: RustEngineResponse<ClippyLintData>? = nil,
       coverage: RustEngineResponse<CoverageGapsData>? = nil,
       visual: RustEngineResponse<VisualVerifyData>? = nil,
-      smokeReport: RustFactorySmokeReport? = nil,
+      smokeReport: RustProductTournamentSmokeReport? = nil,
       smokeReportURL: URL? = nil,
       generatedAt: Date = Date()
     ) {
@@ -79,7 +79,7 @@ struct RustFactoryHealth: Codable, Equatable, Sendable {
     systemImage = presentation.systemImage
   }
 
-  static func local(repoURL: URL, workspace: CompassWorkspace?) -> RustFactoryHealth {
+  static func local(repoURL: URL, workspace: CompassWorkspace?) -> RustProductTournamentHealth {
     let engineURL = RustEngineLocator.locateEngineBinary()
     let scaffold: RustEngineResponse<ScaffoldCheckData>? =
       RustProjectScaffold.isBlessedDesktopWorkspace(at: repoURL)
@@ -105,7 +105,7 @@ struct RustFactoryHealth: Codable, Equatable, Sendable {
       )
       : nil
     let cargoGraph = workspace.flatMap { CargoGraphStore().load(from: $0)?.graph }
-    return RustFactoryHealth(
+    return RustProductTournamentHealth(
       inputs: Inputs(
         engineBinaryURL: engineURL,
         scaffold: scaffold,
@@ -297,26 +297,26 @@ struct RustFactoryHealth: Codable, Equatable, Sendable {
   }
 
   private static func smokeReportCheck(
-    _ report: RustFactorySmokeReport?,
+    _ report: RustProductTournamentSmokeReport?,
     url: URL?,
     now _: Date
   ) -> Check {
     guard let report else {
       return Check(
         id: "smoke-report",
-        label: "Factory smoke",
+        label: "Product Tournament smoke",
         status: .unknown,
-        detail: "No latest factory smoke report is cached.",
-        nextAction: "cargo run -p xtask -- factory-smoke"
+        detail: "No latest product tournament smoke report is cached.",
+        nextAction: "cargo run -p xtask -- product-tournament-smoke"
       )
     }
     let reportPath = boundedPath(url?.path ?? report.reportPath)
     return Check(
       id: "smoke-report",
-      label: "Factory smoke",
+      label: "Product Tournament smoke",
       status: report.status == .passed ? .healthy : .failed,
       detail: "\(report.status.rawValue) report at \(reportPath).",
-      nextAction: report.status == .passed ? nil : "Open the smoke report and rerun factory-smoke."
+      nextAction: report.status == .passed ? nil : "Open the smoke report and rerun product-tournament-smoke."
     )
   }
 
@@ -333,7 +333,7 @@ struct RustFactoryHealth: Codable, Equatable, Sendable {
     switch status {
     case .healthy:
       return (
-        "Rust Factory Healthy",
+        "Rust Product Tournament Healthy",
         "Engine, scaffold, Cargo probes, coverage, visual verification, and smoke report are ready.",
         "No action needed",
         "checkmark.seal.fill"
@@ -341,24 +341,24 @@ struct RustFactoryHealth: Codable, Equatable, Sendable {
     case .failed:
       let failed = checks.first { $0.status == .failed }
       return (
-        "Rust Factory Needs Repair",
-        failed?.detail ?? "One or more Rust factory checks failed.",
+        "Rust Product Tournament Needs Repair",
+        failed?.detail ?? "One or more Rust Product Tournament checks failed.",
         failed?.nextAction ?? "Run structured Rust probes.",
         "exclamationmark.triangle.fill"
       )
     case .warning:
       let warning = checks.first { $0.status == .warning }
       return (
-        "Rust Factory Partly Ready",
-        warning?.detail ?? "The Rust factory has a degraded but usable path.",
-        warning?.nextAction ?? "Review Rust factory checks.",
+        "Rust Product Tournament Partly Ready",
+        warning?.detail ?? "The Rust Product Tournament path is degraded but usable.",
+        warning?.nextAction ?? "Review Rust Product Tournament checks.",
         "exclamationmark.circle"
       )
     case .unknown:
       let unknownCount = checks.filter { $0.status == .unknown }.count
       return (
-        "Rust Factory Status Partial",
-        "\(unknownCount) Rust factory check(s) need cached probe results; no expensive checks were launched for this summary.",
+        "Rust Product Tournament Status Partial",
+        "\(unknownCount) Rust Product Tournament check(s) need cached probe results; no expensive checks were launched for this summary.",
         checks.first { $0.status == .unknown }?.nextAction ?? "Run structured Rust probes.",
         "questionmark.circle"
       )
@@ -370,21 +370,21 @@ struct RustFactoryHealth: Codable, Equatable, Sendable {
   }
 }
 
-struct RustFactoryHealthStore {
-  static let filename = "rust-factory-health.json"
+struct RustProductTournamentHealthStore {
+  static let filename = "rust-product-tournament-health.json"
 
   func url(for workspace: CompassWorkspace) -> URL {
     workspace.compassURL.appending(path: Self.filename)
   }
 
-  func load(from workspace: CompassWorkspace) -> RustFactoryHealth? {
+  func load(from workspace: CompassWorkspace) -> RustProductTournamentHealth? {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
     guard let data = try? Data(contentsOf: url(for: workspace)), !data.isEmpty else { return nil }
-    return try? decoder.decode(RustFactoryHealth.self, from: data)
+    return try? decoder.decode(RustProductTournamentHealth.self, from: data)
   }
 
-  func save(_ health: RustFactoryHealth, workspace: CompassWorkspace) throws {
+  func save(_ health: RustProductTournamentHealth, workspace: CompassWorkspace) throws {
     try FileManager.default.createDirectory(at: workspace.compassURL, withIntermediateDirectories: true)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]

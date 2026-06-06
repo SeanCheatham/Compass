@@ -16,7 +16,7 @@ struct FactoryCompassGuide: Equatable {
   var readinessDetail: String
   var signalLabel: String
   var signalDetail: String
-  var rustHealth: RustFactoryHealth?
+  var rustHealth: RustProductTournamentHealth?
   var previewSteps: [PreviewStep]
   var handoffText: String
 
@@ -35,7 +35,7 @@ struct FactoryCompassGuide: Equatable {
     }
   }
 
-  init(runGuide: ProjectRunControlGuide, rustHealth: RustFactoryHealth? = nil) {
+  init(runGuide: ProjectRunControlGuide, rustHealth: RustProductTournamentHealth? = nil) {
     title = Self.bounded(runGuide.readiness.title, limit: 44)
     headline = Self.bounded(runGuide.primaryHelp, limit: Self.headlineLimit)
     systemImage = runGuide.readiness.systemImage
@@ -117,7 +117,7 @@ struct FactoryCompassGuide: Equatable {
     primaryActionTitle: String,
     primaryActionDetail: String,
     primaryActionIsEnabled: Bool,
-    rustHealth: RustFactoryHealth?,
+    rustHealth: RustProductTournamentHealth?,
     previewSteps: [PreviewStep]
   ) -> String {
     var sections = [
@@ -130,7 +130,7 @@ struct FactoryCompassGuide: Equatable {
       "Recommended action: \(primaryActionTitle) (\(primaryActionIsEnabled ? "enabled" : "disabled"))",
       "Recommended action detail: \(primaryActionDetail)",
       rustHealth.map {
-        "Rust factory health: \($0.title) - \($0.detail) Next action: \($0.nextAction)"
+        "Rust Product Tournament health: \($0.title) - \($0.detail) Next action: \($0.nextAction)"
       },
       "",
       "Next run preview:",

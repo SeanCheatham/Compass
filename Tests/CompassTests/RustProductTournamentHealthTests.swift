@@ -3,12 +3,12 @@ import Testing
 
 @testable import Compass
 
-struct RustFactoryHealthTests {
+struct RustProductTournamentHealthTests {
   @Test func allHealthySummaryIsReady() throws {
-    let health = RustFactoryHealth(inputs: healthyInputs())
+    let health = RustProductTournamentHealth(inputs: healthyInputs())
 
     #expect(health.status == .healthy)
-    #expect(health.title == "Rust Factory Healthy")
+    #expect(health.title == "Rust Product Tournament Healthy")
     #expect(health.checks.allSatisfy { $0.status == .healthy })
   }
 
@@ -16,10 +16,10 @@ struct RustFactoryHealthTests {
     var inputs = healthyInputs()
     inputs.engineBinaryURL = nil
 
-    let health = RustFactoryHealth(inputs: inputs)
+    let health = RustProductTournamentHealth(inputs: inputs)
 
     #expect(health.status == .failed)
-    #expect(health.title == "Rust Factory Needs Repair")
+    #expect(health.title == "Rust Product Tournament Needs Repair")
     #expect(health.nextAction == "./scripts/build-compass-engine.sh")
   }
 
@@ -53,7 +53,7 @@ struct RustFactoryHealthTests {
       errors: []
     )
 
-    let health = RustFactoryHealth(inputs: inputs)
+    let health = RustProductTournamentHealth(inputs: inputs)
 
     #expect(health.status == .failed)
     #expect(health.detail.contains("required member xtask"))
@@ -81,7 +81,7 @@ struct RustFactoryHealthTests {
       errors: []
     )
 
-    let health = RustFactoryHealth(inputs: inputs)
+    let health = RustProductTournamentHealth(inputs: inputs)
 
     #expect(health.status == .warning)
     #expect(health.checks.first { $0.id == "visual" }?.status == .warning)
@@ -93,10 +93,10 @@ struct RustFactoryHealthTests {
     inputs.smokeReport = nil
     inputs.smokeReportURL = nil
 
-    let health = RustFactoryHealth(inputs: inputs)
+    let health = RustProductTournamentHealth(inputs: inputs)
 
     #expect(health.status == .unknown)
-    #expect(health.checks.first { $0.id == "smoke-report" }?.nextAction?.contains("factory-smoke") == true)
+    #expect(health.checks.first { $0.id == "smoke-report" }?.nextAction?.contains("product-tournament-smoke") == true)
   }
 
   @Test func storeRoundTripsUnderCompassWorkspace() throws {
@@ -104,18 +104,18 @@ struct RustFactoryHealthTests {
     defer { try? FileManager.default.removeItem(at: root) }
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
-    let health = RustFactoryHealth(inputs: healthyInputs())
-    let store = RustFactoryHealthStore()
+    let health = RustProductTournamentHealth(inputs: healthyInputs())
+    let store = RustProductTournamentHealthStore()
 
     try store.save(health, workspace: workspace)
     let loaded = try #require(store.load(from: workspace))
 
-    #expect(store.url(for: workspace).lastPathComponent == RustFactoryHealthStore.filename)
+    #expect(store.url(for: workspace).lastPathComponent == RustProductTournamentHealthStore.filename)
     #expect(loaded == health)
   }
 
-  private func healthyInputs() -> RustFactoryHealth.Inputs {
-    RustFactoryHealth.Inputs(
+  private func healthyInputs() -> RustProductTournamentHealth.Inputs {
+    RustProductTournamentHealth.Inputs(
       engineBinaryURL: URL(fileURLWithPath: "/tmp/compass-engine"),
       ping: RustEngineResponse(
         schemaVersion: 1,
@@ -153,7 +153,7 @@ struct RustFactoryHealthTests {
         data: VisualVerifyData(ok: true, screenshotPath: "/tmp/screenshot.png", logTail: ""),
         errors: []
       ),
-      smokeReport: RustFactorySmokeReport(
+      smokeReport: RustProductTournamentSmokeReport(
         status: .passed,
         projectPath: "/tmp/repo",
         guestWorkspacePath: "/Users/compass/worktree",

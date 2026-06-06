@@ -569,9 +569,9 @@ struct ProjectRunControls: View {
       foundationModelsAvailable: FoundationModelsAvailability.isAvailable,
       runGuide: runGuide
     )
-    let rustFactoryHealth = RustFactoryHealth.local(
+    let rustProductTournamentHealth = RustProductTournamentHealth.local(
       repoURL: project.repoURL, workspace: project.workspace)
-    let factoryGuide = FactoryCompassGuide(runGuide: runGuide, rustHealth: rustFactoryHealth)
+    let factoryGuide = FactoryCompassGuide(runGuide: runGuide, rustHealth: rustProductTournamentHealth)
 
     HStack(spacing: 5) {
       Menu {
@@ -863,7 +863,7 @@ private struct FactoryCompassPopover: View {
             systemImage: health.systemImage,
             title: health.title,
             detail: "\(health.detail) Next: \(health.nextAction)",
-            color: rustFactoryHealthColor(for: health.status)
+            color: rustProductTournamentHealthColor(for: health.status)
           )
         }
       }
@@ -951,7 +951,7 @@ private func factoryCompassColor(for tone: FactoryCompassGuide.Tone) -> Color {
   }
 }
 
-private func rustFactoryHealthColor(for status: RustFactoryHealth.Status) -> Color {
+private func rustProductTournamentHealthColor(for status: RustProductTournamentHealth.Status) -> Color {
   switch status {
   case .healthy:
     return .green
