@@ -75,7 +75,7 @@ struct ProductTournamentRoundEvidenceTransitionProposal: Codable, Equatable, Ide
 
 struct ProductTournamentRoundEvidenceTransitionOutcome: Equatable, Sendable {
   var proposal: ProductTournamentRoundEvidenceTransitionProposal
-  var config: ProductizationConfig
+  var config: ProductTournamentConfig
   var affectedContenderIDs: [String]
   var fromRoundID: String
   var toRoundID: String?
@@ -129,7 +129,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
   static func proposals(
     tournamentID: String? = nil,
     roundID: String? = nil,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentRoundEvidenceTransitionProposal] {
     activeCoreTechnologyRounds(
@@ -157,7 +157,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
   static func bestProposal(
     tournamentID: String? = nil,
     roundID: String? = nil,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentRoundEvidenceTransitionProposal? {
     proposals(
@@ -172,7 +172,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
   static func applyBestProposal(
     tournamentID: String? = nil,
     roundID: String? = nil,
-    to config: ProductizationConfig,
+    to config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     now: Date = Date()
   ) throws -> ProductTournamentRoundEvidenceTransitionOutcome {
@@ -194,7 +194,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
 
   static func apply(
     proposal: ProductTournamentRoundEvidenceTransitionProposal,
-    to config: ProductizationConfig,
+    to config: ProductTournamentConfig,
     now: Date = Date()
   ) throws -> ProductTournamentRoundEvidenceTransitionOutcome {
     guard proposal.isActionable else {
@@ -303,7 +303,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
   private static func proposals(
     for tournament: ProductTournament,
     round: ProductTournamentRound,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentRoundEvidenceTransitionProposal] {
     let contenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
@@ -567,7 +567,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
   private static func activeCoreTechnologyRounds(
     tournamentID: String?,
     roundID: String?,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> [(ProductTournament, ProductTournamentRound)] {
     let tournaments = config.tournaments
       .filter { tournament in
@@ -611,7 +611,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
 
   private static func selectedTournament(
     tournamentID: String?,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> ProductTournament? {
     if let tournamentID {
       return config.tournaments.first { $0.id == tournamentID }
@@ -628,7 +628,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
   private static func roundThreePrototypeRound(
     for tournament: ProductTournament,
     after round: ProductTournamentRound,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) throws -> ProductTournamentRound {
     let rounds = tournament.roundIDs.compactMap { roundID in
       config.tournamentRounds.first { $0.id == roundID }
@@ -688,7 +688,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
 
   private static func updateTournament(
     _ tournamentID: String,
-    in config: inout ProductizationConfig,
+    in config: inout ProductTournamentConfig,
     timestamp: Double,
     mutate: (inout ProductTournament) -> Void
   ) {
@@ -701,7 +701,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
 
   private static func updateRound(
     _ roundID: String,
-    in config: inout ProductizationConfig,
+    in config: inout ProductTournamentConfig,
     timestamp: Double,
     mutate: (inout ProductTournamentRound) -> Void
   ) {
@@ -714,7 +714,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
 
   private static func updateContender(
     _ contenderID: String,
-    in config: inout ProductizationConfig,
+    in config: inout ProductTournamentConfig,
     timestamp: Double,
     mutate: (inout ProductTournamentContender) -> Void
   ) {
@@ -727,7 +727,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
 
   private static func updateExperiment(
     for contenderID: String,
-    in config: inout ProductizationConfig,
+    in config: inout ProductTournamentConfig,
     timestamp: Double,
     mutate: (inout ProductExperiment) -> Void
   ) {
@@ -742,7 +742,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
 
   private static func updateSolution(
     for contenderID: String,
-    in config: inout ProductizationConfig,
+    in config: inout ProductTournamentConfig,
     mutate: (inout SolutionHypothesis) -> Void
   ) {
     guard
@@ -787,7 +787,7 @@ extension CompassProject {
         evidenceIndex: evidenceIndex
       )
       try workspace.writeProductTournamentConfig(outcome.config)
-      productizationConfig = outcome.config
+      productTournamentConfig = outcome.config
       productTournamentEvidenceIndex = evidenceIndex
       log(outcome.userMessage, level: .success)
       return outcome

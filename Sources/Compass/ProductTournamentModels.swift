@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProductizationConfig: Codable, Equatable, Sendable {
+struct ProductTournamentConfig: Codable, Equatable, Sendable {
   static let supportedSchemaVersion = 1
 
   var schemaVersion: Int
@@ -19,7 +19,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
   var decisions: [ProductDecision]
   var factoryCycleAudits: [ProductFactoryCycleAudit]
 
-  static let empty = ProductizationConfig(
+  static let empty = ProductTournamentConfig(
     rawPain: "",
     painHypotheses: [],
     userSegments: [],
@@ -94,7 +94,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
       try container.decodeIfPresent(Int.self, forKey: .schemaVersion)
       ?? Self.supportedSchemaVersion
     guard schemaVersion == Self.supportedSchemaVersion else {
-      throw ProductizationConfigError.unsupportedSchemaVersion(schemaVersion)
+      throw ProductTournamentConfigError.unsupportedSchemaVersion(schemaVersion)
     }
 
     self.init(
@@ -151,7 +151,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
   func recordingFactoryCycleAudit(
     _ audit: ProductFactoryCycleAudit,
     limit: Int = 20
-  ) -> ProductizationConfig {
+  ) -> ProductTournamentConfig {
     var next = self
     let cappedLimit = max(1, limit)
     next.factoryCycleAudits = (next.factoryCycleAudits + [audit])
@@ -171,7 +171,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     projectTitle: String,
     rawPain: String,
     now: Date = Date()
-  ) -> ProductizationConfig {
+  ) -> ProductTournamentConfig {
     let timestamp = now.timeIntervalSince1970
     let title = ProductTournamentModelText.cleanedText(projectTitle, fallback: "Project", limit: 120)
     let painText =
@@ -598,7 +598,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
       createdAt: timestamp
     )
 
-    return ProductizationConfig(
+    return ProductTournamentConfig(
       rawPain: painText,
       painHypotheses: [pain],
       userSegments: userSegments,
@@ -1606,13 +1606,13 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
   }
 }
 
-enum ProductizationConfigError: LocalizedError, Equatable {
+enum ProductTournamentConfigError: LocalizedError, Equatable {
   case unsupportedSchemaVersion(Int)
 
   var errorDescription: String? {
     switch self {
     case .unsupportedSchemaVersion(let version):
-      return "Unsupported productization config schema version \(version)."
+      return "Unsupported product tournament config schema version \(version)."
     }
   }
 }

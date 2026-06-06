@@ -21,7 +21,7 @@ struct ProductTournamentEvidenceScope: Codable, Equatable, Sendable {
 enum ProductTournamentEvidenceScopeResolver {
   static func scope(
     experimentID: String,
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) -> ProductTournamentEvidenceScope? {
     guard
       let contender = config.tournamentContenders.first(where: {
@@ -44,7 +44,7 @@ enum ProductTournamentEvidenceScopeResolver {
   private static func activeBuiltProductRound(
     for tournament: ProductTournament,
     contenderID: String,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> ProductTournamentRound? {
     let currentRound = tournament.currentRoundID.flatMap { roundID in
       config.tournamentRounds.first { $0.id == roundID && $0.tournamentID == tournament.id }

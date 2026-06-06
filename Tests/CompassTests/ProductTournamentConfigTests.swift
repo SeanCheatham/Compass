@@ -4,12 +4,12 @@ import Testing
 @testable import Compass
 
 @MainActor
-struct ProductizationConfigTests {
-  @Test func productizationConfigRoundTripsThroughWorkspaceStorage() throws {
+struct ProductTournamentConfigTests {
+  @Test func productTournamentConfigRoundTripsThroughWorkspaceStorage() throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
     let workspace = CompassWorkspace(repoURL: root)
-    let config = makeProductizationConfig()
+    let config = makeProductTournamentConfig()
 
     try workspace.writeProductTournamentConfig(config)
 
@@ -18,7 +18,7 @@ struct ProductizationConfigTests {
     try #require(try workspace.readProductTournamentConfig() == config)
   }
 
-  @Test func missingProductizationConfigReturnsEmptyConfig() throws {
+  @Test func missingProductTournamentConfigReturnsEmptyConfig() throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
     let workspace = CompassWorkspace(repoURL: root)
@@ -27,7 +27,7 @@ struct ProductizationConfigTests {
     try #require(try workspace.readProductTournamentConfig() == .empty)
   }
 
-  @Test func malformedProductizationConfigThrows() throws {
+  @Test func malformedProductTournamentConfigThrows() throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
     let workspace = CompassWorkspace(repoURL: root)
@@ -41,7 +41,7 @@ struct ProductizationConfigTests {
     }
   }
 
-  @Test func unsupportedProductizationSchemaVersionThrowsClearError() throws {
+  @Test func unsupportedProductTournamentSchemaVersionThrowsClearError() throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
     let workspace = CompassWorkspace(repoURL: root)
@@ -67,14 +67,14 @@ struct ProductizationConfigTests {
     do {
       _ = try workspace.readProductTournamentConfig()
       #expect(Bool(false), "Expected unsupported schema version.")
-    } catch let error as ProductizationConfigError {
+    } catch let error as ProductTournamentConfigError {
       try #require(error == .unsupportedSchemaVersion(99))
       try #require(error.localizedDescription.contains("99"))
     }
   }
 
   @Test func recordingFactoryCycleAuditKeepsLatestBoundedHistory() throws {
-    let base = ProductizationConfig.empty
+    let base = ProductTournamentConfig.empty
     let first = ProductFactoryCycleAudit(
       id: "factory-cycle-first",
       startedAt: 10,
@@ -123,7 +123,7 @@ struct ProductizationConfigTests {
   }
 
   @Test func seedDefaultsCreateProductTournamentContendersRoundsAndCohorts() throws {
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "LedgerLift",
       rawPain: "Finance operators lose weekly reporting context between Slack and spreadsheets.\n",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -182,7 +182,7 @@ struct ProductizationConfigTests {
     try #require(config.experiments[0].createdAt == 1_700_000_000)
   }
 
-  @Test func projectRefreshLoadsSeededProductizationConfigWhenMissing() async throws {
+  @Test func projectRefreshLoadsSeededProductTournamentConfigWhenMissing() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
     try initGitRepo(at: root)
@@ -193,33 +193,33 @@ struct ProductizationConfigTests {
     let project = CompassProject(repoURL: root)
     await project.refresh()
 
-    try #require(!project.productizationConfig.isEmpty)
-    try #require(project.productizationConfig.rawPain.contains("Support teams"))
-    try #require(project.productizationConfig.solutionHypotheses.count == 2)
-    try #require(project.productizationConfig.tournaments.count == 1)
-    try #require(project.productizationConfig.tournamentRounds.map(\.kind).contains(.productPlans))
+    try #require(!project.productTournamentConfig.isEmpty)
+    try #require(project.productTournamentConfig.rawPain.contains("Support teams"))
+    try #require(project.productTournamentConfig.solutionHypotheses.count == 2)
+    try #require(project.productTournamentConfig.tournaments.count == 1)
+    try #require(project.productTournamentConfig.tournamentRounds.map(\.kind).contains(.productPlans))
   }
 
-  @Test func projectSavesAndReloadsProductizationConfig() async throws {
+  @Test func projectSavesAndReloadsProductTournamentConfig() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
     try initGitRepo(at: root)
-    let config = makeProductizationConfig()
+    let config = makeProductTournamentConfig()
 
     let project = CompassProject(repoURL: root)
     await project.initializeWorkspace()
     await project.saveProductTournamentConfig(config)
 
-    project.productizationConfig = .empty
+    project.productTournamentConfig = .empty
     await project.refresh()
 
-    try #require(project.productizationConfig == config)
+    try #require(project.productTournamentConfig == config)
     try #require(try CompassWorkspace(repoURL: root).readProductTournamentConfig() == config)
   }
 
 }
 
-private func makeProductizationConfig() -> ProductizationConfig {
+private func makeProductTournamentConfig() -> ProductTournamentConfig {
   let pain = PainHypothesis(
     id: "pain-handoff-drift",
     title: "Handoff drift",
@@ -343,7 +343,7 @@ private func makeProductizationConfig() -> ProductizationConfig {
     userMessage:
       "Factory cycle ran 1 step(s). Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped. Stopped because no executable product-factory step remains."
   )
-  return ProductizationConfig(
+  return ProductTournamentConfig(
     rawPain: pain.rawPain,
     painHypotheses: [pain],
     userSegments: [segment],

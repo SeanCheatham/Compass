@@ -58,13 +58,13 @@ extension Prompts {
 
   static func decodeDiscoverResponse(
     _ json: String,
-    currentConfig: ProductizationConfig = .empty
+    currentConfig: ProductTournamentConfig = .empty
   ) throws -> DiscoverPromptOutput {
     let data = Data(json.utf8)
     do {
       _ = try DiscoverPromptJSON.topLevelObject(data)
       let output = try JSONDecoder().decode(DiscoverPromptOutput.self, from: data)
-      _ = try output.validatedProductizationConfig(applyingTo: currentConfig)
+      _ = try output.validatedProductTournamentConfig(applyingTo: currentConfig)
       return output
     } catch let error as DiscoverPromptValidationError {
       throw error
@@ -89,7 +89,7 @@ struct DiscoveryPromptContext: Equatable {
   var drafts: String
   var lessons: String
   var assumptions: String
-  var productizationConfig: ProductizationConfig
+  var productTournamentConfig: ProductTournamentConfig
   var evidenceIndex: ProductTournamentEvidenceIndex
   var repositoryShape: String
 
@@ -99,7 +99,7 @@ struct DiscoveryPromptContext: Equatable {
     drafts: String = "",
     lessons: String = "",
     assumptions: String = "",
-    productizationConfig: ProductizationConfig = .empty,
+    productTournamentConfig: ProductTournamentConfig = .empty,
     evidenceIndex: ProductTournamentEvidenceIndex = .empty,
     repositoryShape: String = ""
   ) {
@@ -108,7 +108,7 @@ struct DiscoveryPromptContext: Equatable {
     self.drafts = StringUtils.boundedText(drafts, limit: 2_400)
     self.lessons = StringUtils.boundedText(lessons, limit: 1_800)
     self.assumptions = StringUtils.boundedText(assumptions, limit: 1_800)
-    self.productizationConfig = productizationConfig
+    self.productTournamentConfig = productTournamentConfig
     self.evidenceIndex = evidenceIndex
     self.repositoryShape = StringUtils.boundedText(repositoryShape, limit: 1_800)
   }
@@ -166,9 +166,9 @@ struct DiscoverPromptOutput: Codable, Equatable {
     )
   }
 
-  func validatedProductizationConfig(
-    applyingTo currentConfig: ProductizationConfig
-  ) throws -> ProductizationConfig {
+  func validatedProductTournamentConfig(
+    applyingTo currentConfig: ProductTournamentConfig
+  ) throws -> ProductTournamentConfig {
     let editData = try JSONEncoder().encode(stateEdits)
     guard editData.count <= Self.stateEditByteLimit else {
       throw DiscoverPromptValidationError.stateUpdateTooLarge(editData.count)
@@ -401,7 +401,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     )
   }
 
-  func applying(to config: ProductizationConfig) -> ProductizationConfig {
+  func applying(to config: ProductTournamentConfig) -> ProductTournamentConfig {
     var next = config
     if let rawPain, !rawPain.isEmpty {
       next.rawPain = rawPain
@@ -580,7 +580,7 @@ private struct DiscoveryPromptDigest: Encodable {
     lessons = context.lessons
     assumptions = context.assumptions
     productTournamentDigest = ProductTournamentPlanningDigestFormatter.promptText(
-      config: context.productizationConfig,
+      config: context.productTournamentConfig,
       evidenceIndex: context.evidenceIndex
     )
     repositoryShape = context.repositoryShape

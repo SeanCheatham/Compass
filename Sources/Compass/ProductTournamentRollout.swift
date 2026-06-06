@@ -52,7 +52,7 @@ struct ProductExperimentGitRolloutPreview: Equatable, Sendable {
 }
 
 struct ProductExperimentGitRolloutResult: Equatable, Sendable {
-  var config: ProductizationConfig
+  var config: ProductTournamentConfig
   var preview: ProductExperimentGitRolloutPreview
   var acceptedAfterSha: String
   var archiveBranchName: String?
@@ -154,11 +154,11 @@ enum ProductExperimentRolloutWorkflow {
   static func applying(
     _ action: ProductExperimentRolloutAction,
     experimentID: String,
-    to config: ProductizationConfig,
+    to config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     now: Date = Date(),
     decidedBy: String = "Product Tournament Workbench"
-  ) throws -> ProductizationConfig {
+  ) throws -> ProductTournamentConfig {
     var next = config
     guard let experimentIndex = next.experiments.firstIndex(where: { $0.id == experimentID })
     else {
@@ -249,7 +249,7 @@ enum ProductExperimentRolloutWorkflow {
 enum ProductExperimentGitRolloutWorkflow {
   static func preview(
     experimentID: String,
-    in config: ProductizationConfig,
+    in config: ProductTournamentConfig,
     repoURL: URL,
     acceptedBranchName: String? = nil
   ) async throws -> ProductExperimentGitRolloutPreview {
@@ -316,7 +316,7 @@ enum ProductExperimentGitRolloutWorkflow {
 
   static func promote(
     experimentID: String,
-    in config: ProductizationConfig,
+    in config: ProductTournamentConfig,
     repoURL: URL,
     evidenceIndex: ProductTournamentEvidenceIndex,
     acceptedBranchName: String? = nil,
@@ -408,7 +408,7 @@ enum ProductExperimentGitRolloutWorkflow {
 
   static func archive(
     experimentID: String,
-    in config: ProductizationConfig,
+    in config: ProductTournamentConfig,
     repoURL: URL,
     evidenceIndex: ProductTournamentEvidenceIndex,
     acceptedBranchName: String? = nil,
@@ -483,7 +483,7 @@ enum ProductExperimentGitRolloutWorkflow {
 
   private static func applyGitDecision(
     _ target: ProductExperimentDecision,
-    to config: ProductizationConfig,
+    to config: ProductTournamentConfig,
     experimentIndex: Int,
     summary: String,
     evidenceRunIDs: [String],
@@ -492,7 +492,7 @@ enum ProductExperimentGitRolloutWorkflow {
     afterSha: String,
     now: Date,
     decidedBy: String
-  ) -> ProductizationConfig {
+  ) -> ProductTournamentConfig {
     var next = config
     let experiment = next.experiments[experimentIndex]
     let timestamp = now.timeIntervalSince1970
@@ -528,7 +528,7 @@ enum ProductExperimentGitRolloutWorkflow {
 
   private static func archiveBranchName(
     for experiment: ProductExperiment,
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) -> String {
     let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
     let slug = ProductTournamentModelText.slug(
@@ -724,15 +724,15 @@ extension CompassProject {
         fail(AppModelError.noRepositorySelected)
         return
       }
-      let actionTitle = productizationConfig.experiments
+      let actionTitle = productTournamentConfig.experiments
         .first { $0.id == experimentID }
         .map { action.title(from: $0.decision) }
         ?? action.rawValue
       if action == .promoteOrConfirm,
-        productizationConfig.experiments.first(where: { $0.id == experimentID })?.decision == .promote
+        productTournamentConfig.experiments.first(where: { $0.id == experimentID })?.decision == .promote
       {
         let result = try await workspace.promoteProductExperiment(experimentID: experimentID)
-        productizationConfig = result.config
+        productTournamentConfig = result.config
         log(
           "Promoted product experiment \(experimentID) into \(result.preview.acceptedBranchName) at \(String(result.acceptedAfterSha.prefix(12))).",
           level: .success
@@ -740,10 +740,10 @@ extension CompassProject {
         return
       }
       if action == .killOrArchive,
-        productizationConfig.experiments.first(where: { $0.id == experimentID })?.decision == .kill
+        productTournamentConfig.experiments.first(where: { $0.id == experimentID })?.decision == .kill
       {
         let result = try await workspace.archiveProductExperiment(experimentID: experimentID)
-        productizationConfig = result.config
+        productTournamentConfig = result.config
         log(
           "Archived product experiment \(experimentID) to \(result.archiveBranchName ?? "archive branch").",
           level: .success
@@ -753,11 +753,11 @@ extension CompassProject {
       let next = try ProductExperimentRolloutWorkflow.applying(
         action,
         experimentID: experimentID,
-        to: productizationConfig,
+        to: productTournamentConfig,
         evidenceIndex: productTournamentEvidenceIndex
       )
       try workspace.writeProductTournamentConfig(next)
-      productizationConfig = next
+      productTournamentConfig = next
       log(
         "\(actionTitle) recorded for product experiment \(experimentID).",
         level: .success
@@ -776,7 +776,7 @@ extension CompassProject {
       guard
         let proposal = ProductMarketFitDecisionAdvisor.proposal(
           experimentID: experimentID,
-          config: productizationConfig,
+          config: productTournamentConfig,
           evidenceIndex: productTournamentEvidenceIndex
         )
       else {
@@ -784,11 +784,11 @@ extension CompassProject {
       }
       let next = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
         experimentID: experimentID,
-        to: productizationConfig,
+        to: productTournamentConfig,
         evidenceIndex: productTournamentEvidenceIndex
       )
       try workspace.writeProductTournamentConfig(next)
-      productizationConfig = next
+      productTournamentConfig = next
       log(
         "Applied PMF recommendation for product experiment \(experimentID): \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue).",
         level: .success

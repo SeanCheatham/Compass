@@ -229,22 +229,22 @@ struct CompassWorkspace {
     try text.write(to: visionURL, atomically: true, encoding: .utf8)
   }
 
-  func readProductTournamentConfig() throws -> ProductizationConfig {
+  func readProductTournamentConfig() throws -> ProductTournamentConfig {
     guard FileManager.default.fileExists(atPath: productTournamentConfigURL.path) else {
       return .empty
     }
     let data = try Data(contentsOf: productTournamentConfigURL)
     guard !data.isEmpty else { return .empty }
-    return try JSONDecoder().decode(ProductizationConfig.self, from: data)
+    return try JSONDecoder().decode(ProductTournamentConfig.self, from: data)
   }
 
   func readOrSeedProductTournamentConfig(
     projectTitle: String,
     rawPain: String,
     now: Date = Date()
-  ) throws -> ProductizationConfig {
+  ) throws -> ProductTournamentConfig {
     guard FileManager.default.fileExists(atPath: productTournamentConfigURL.path) else {
-      return ProductizationConfig.seedDefaults(
+      return ProductTournamentConfig.seedDefaults(
         projectTitle: projectTitle,
         rawPain: rawPain,
         now: now
@@ -252,15 +252,15 @@ struct CompassWorkspace {
     }
     let config = try readProductTournamentConfig()
     return config.isEmpty
-      ? ProductizationConfig.seedDefaults(projectTitle: projectTitle, rawPain: rawPain, now: now)
+      ? ProductTournamentConfig.seedDefaults(projectTitle: projectTitle, rawPain: rawPain, now: now)
       : config
   }
 
-  func writeProductTournamentConfig(_ config: ProductizationConfig) throws {
+  func writeProductTournamentConfig(_ config: ProductTournamentConfig) throws {
     try FileManager.default.createDirectory(at: compassURL, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(
       at: productTournamentURL, withIntermediateDirectories: true)
-    try Self.encodeProductizationConfig(config).write(
+    try Self.encodeProductTournamentConfig(config).write(
       to: productTournamentConfigURL,
       atomically: true,
       encoding: .utf8
@@ -270,10 +270,10 @@ struct CompassWorkspace {
   @discardableResult
   func applyDiscoverOutput(
     _ output: DiscoverPromptOutput,
-    currentConfig: ProductizationConfig? = nil
-  ) throws -> ProductizationConfig {
+    currentConfig: ProductTournamentConfig? = nil
+  ) throws -> ProductTournamentConfig {
     let baseConfig = try currentConfig ?? readProductTournamentConfig()
-    let nextConfig = try output.validatedProductizationConfig(applyingTo: baseConfig)
+    let nextConfig = try output.validatedProductTournamentConfig(applyingTo: baseConfig)
     try writeProductTournamentConfig(nextConfig)
     return nextConfig
   }
@@ -491,7 +491,7 @@ struct CompassWorkspace {
     return String(decoding: data, as: UTF8.self) + "\n"
   }
 
-  static func encodeProductizationConfig(_ config: ProductizationConfig) throws -> String {
+  static func encodeProductTournamentConfig(_ config: ProductTournamentConfig) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(config)

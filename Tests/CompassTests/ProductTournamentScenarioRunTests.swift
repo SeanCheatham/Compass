@@ -5,7 +5,7 @@ import Testing
 
 struct ProductTournamentScenarioRunTests {
   @Test func scenarioDraftPersistsAndAddsScenarioToExperimentCohort() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Scenario Helper",
       rawPain: "Support teams lose workflow context.",
       now: Date(timeIntervalSince1970: 10)
@@ -76,7 +76,7 @@ struct ProductTournamentScenarioRunTests {
   }
 
   @Test func revisionBriefCreatesTargetedScenarioDraft() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Scenario Helper",
       rawPain: "Support teams lose workflow context.",
       now: Date(timeIntervalSince1970: 10)
@@ -627,8 +627,8 @@ private final class ScriptedScenarioPersonaSelector: ProductTournamentPersonaAct
   }
 }
 
-private func makeScenarioRunConfig(commitSha: String) throws -> ProductizationConfig {
-  var config = ProductizationConfig.seedDefaults(
+private func makeScenarioRunConfig(commitSha: String) throws -> ProductTournamentConfig {
+  var config = ProductTournamentConfig.seedDefaults(
     projectTitle: "Scenario Helper",
     rawPain: "Support teams lose workflow context.",
     now: Date(timeIntervalSince1970: 10)
@@ -658,7 +658,7 @@ private func makeScenarioRunConfig(commitSha: String) throws -> ProductizationCo
 }
 
 private func activateRoundTwoTournamentScope(
-  in config: inout ProductizationConfig
+  in config: inout ProductTournamentConfig
 ) throws -> ProductTournamentEvidenceScope {
   let experimentID = config.experiments[0].id
   let contenderIndex = try #require(

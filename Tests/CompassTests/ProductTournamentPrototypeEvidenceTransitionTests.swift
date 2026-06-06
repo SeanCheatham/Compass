@@ -187,7 +187,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
 }
 
 private struct RoundThreeFixture {
-  var config: ProductizationConfig
+  var config: ProductTournamentConfig
   var tournament: ProductTournament
   var prototypeRound: ProductTournamentRound
   var contender: ProductTournamentContender
@@ -197,7 +197,7 @@ private struct RoundThreeFixture {
 }
 
 private func roundThreeFixture() throws -> RoundThreeFixture {
-  var config = ProductizationConfig.seedDefaults(
+  var config = ProductTournamentConfig.seedDefaults(
     projectTitle: "Reporting Helper",
     rawPain: "Weekly reporting takes too long.",
     now: Date(timeIntervalSince1970: 1_700_000_000)

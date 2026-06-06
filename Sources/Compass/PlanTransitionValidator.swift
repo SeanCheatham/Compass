@@ -44,7 +44,7 @@ enum PlanTransitionValidator {
     from current: PlanState,
     to next: PlanState,
     forgeProfile: ForgeProfile? = nil,
-    productizationConfig: ProductizationConfig? = nil
+    productTournamentConfig: ProductTournamentConfig? = nil
   )
     throws
   {
@@ -155,7 +155,7 @@ enum PlanTransitionValidator {
 
     try validateProductizationScope(
       immediate: immediate,
-      productizationConfig: productizationConfig
+      productTournamentConfig: productTournamentConfig
     )
   }
 
@@ -211,9 +211,9 @@ enum PlanTransitionValidator {
 
   private static func validateProductizationScope(
     immediate: PlanNext,
-    productizationConfig: ProductizationConfig?
+    productTournamentConfig: ProductTournamentConfig?
   ) throws {
-    guard let productizationConfig, productizationConfig.experiments.count > 1 else { return }
+    guard let productTournamentConfig, productTournamentConfig.experiments.count > 1 else { return }
     let handoffText = [
       immediate.plan,
       immediate.selectedBecause,
@@ -226,7 +226,7 @@ enum PlanTransitionValidator {
 
     let mentioned = mentionedExperimentIDs(
       in: handoffText,
-      productizationConfig: productizationConfig
+      productTournamentConfig: productTournamentConfig
     )
     guard mentioned.count <= 1 else {
       throw PlanTransitionValidationError(
@@ -240,13 +240,13 @@ enum PlanTransitionValidator {
 
   private static func mentionedExperimentIDs(
     in text: String,
-    productizationConfig: ProductizationConfig
+    productTournamentConfig: ProductTournamentConfig
   ) -> [String] {
     let normalizedText = normalizedForProductizationMatch(text)
     guard !normalizedText.isEmpty else { return [] }
 
     var matches: [String] = []
-    for experiment in productizationConfig.experiments {
+    for experiment in productTournamentConfig.experiments {
       let tokens = [
         experiment.id,
         experiment.branchName,

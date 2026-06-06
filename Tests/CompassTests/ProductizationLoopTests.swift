@@ -67,7 +67,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func reflectDecisionApplierUpdatesExperimentAndDecisionTrail() throws {
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -99,7 +99,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfDecisionAdvisorProposesValidatedProductTransitions() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -265,7 +265,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfDecisionAdvisorDefersPromotionWhenEvidenceIsSplit() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -534,7 +534,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfDecisionAdvisorDefersKillWhenEvidenceIsSplit() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -641,7 +641,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -735,7 +735,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryStalledProofTargetRequiresMatchingDecisionIntent() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -895,7 +895,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryFailureBlockRequiresMatchingDecisionIntent() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -970,7 +970,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforeKill() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -1043,7 +1043,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfDecisionAdvisorRequiresCurrentAlternativeProofBeforeKill() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -1133,7 +1133,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -1197,7 +1197,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforePromotion() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -1239,7 +1239,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfDecisionAdvisorRequiresCurrentAlternativeProofBeforePromotion() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -1283,7 +1283,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfNextActionRunsTargetedAIUserRationaleSignalProof() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -1407,7 +1407,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfNextActionRetargetsStalledRationaleSignalAfterCycleAudit() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -1811,7 +1811,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func revisionBriefDoesNotCompeteWithReadyPMFDecision() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -1857,7 +1857,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfNextActionRefinesRepeatedRationaleSignalBeforeGenericNarrowing() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -1969,7 +1969,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfNextActionNamesMissingAIUserSegmentInSuggestedCohort() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2075,7 +2075,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfNextActionRedirectsMissingAIUserSegmentToRunnableCohort() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2221,7 +2221,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfNextActionBlocksAIUserCohortWhenMissingSegmentHasNoScenario() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2300,7 +2300,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotBlocksRequiredAIUserCohortWhenUnavailable() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2364,7 +2364,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryProofTargetsFollowRoundTwoImplementationTarget() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2409,7 +2409,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotOmitsSiblingEvidenceDuringRoundTwoTarget() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2450,7 +2450,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryRankerPrioritizesActionablePMFPressure() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2492,7 +2492,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryRankerSurfacesPMFProofDebt() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2524,7 +2524,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotChoosesExecutablePMFDecision() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2548,7 +2548,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotRunsRunnableCohortWhenEvidenceIsMissing() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2584,7 +2584,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotBlocksRecentlyFailedStep() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2659,7 +2659,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotClearsFailureBlockAfterCompletedEvidence() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2723,7 +2723,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotRetargetsBroadCohortWhenProofDebtStalls() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -2915,7 +2915,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotFallsBackWhenStalledProofDebtHasNoAIUserTarget() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3052,7 +3052,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotCyclePlanCapsExecutableSteps() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3080,7 +3080,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotCyclePlanReportsBlockedStep() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3103,7 +3103,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotCycleOutcomeReportsRepeatStop() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3134,7 +3134,7 @@ struct ProductizationLoopTests {
   @Test func productFactoryAutopilotCycleOutcomeSeparatesTargetedProofFromAppliedDecisions()
     throws
   {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3193,7 +3193,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotCycleOutcomeCountsLiftAndCutDecisions() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3273,7 +3273,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func targetedProofOutcomeContradictionQueuesProductRevision() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3359,7 +3359,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func targetedProofOutcomeContradictedKillQueuesLiftProofRerun() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3428,7 +3428,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func targetedProofOutcomeStallQueuesRetargetedRevision() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3540,7 +3540,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func targetedProofOutcomeAppliedRevisionQueuesValidationRerun() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3649,7 +3649,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotCycleOutcomeReportsFailureStop() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3689,7 +3689,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func productFactoryAutopilotCycleOutcomeBuildsDurableAudit() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3790,7 +3790,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3832,7 +3832,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfDecisionAdvisorDoesNotPromoteFromStaleEvidence() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3873,7 +3873,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfNextActionTargetsRunnableCohortBeforeEvidenceExists() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3908,7 +3908,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfNextActionAsksForEvidenceCohortWhenNoneIsRunnable() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -3940,7 +3940,7 @@ struct ProductizationLoopTests {
   }
 
   @Test func pmfSuggestedCohortReadinessBlocksMissingTargetCommit() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -4064,8 +4064,8 @@ struct ProductizationLoopTests {
   }
 }
 
-private func makeRolloutConfig(decision: ProductExperimentDecision) -> ProductizationConfig {
-  var config = ProductizationConfig.seedDefaults(
+private func makeRolloutConfig(decision: ProductExperimentDecision) -> ProductTournamentConfig {
+  var config = ProductTournamentConfig.seedDefaults(
     projectTitle: "Factory",
     rawPain: "Factory users need better product bet evidence.",
     now: Date(timeIntervalSince1970: 10)
@@ -4077,7 +4077,7 @@ private func makeRolloutConfig(decision: ProductExperimentDecision) -> Productiz
 }
 
 private func activateRoundTwoImplementationTarget(
-  in config: inout ProductizationConfig
+  in config: inout ProductTournamentConfig
 ) throws -> ProductTournamentRoundImplementationTarget {
   let experimentID = config.experiments[0].id
   let contenderIndex = try #require(
@@ -4114,7 +4114,7 @@ private func activateRoundTwoImplementationTarget(
 
 private func makeProofDebtEvidenceIndex(
   experiments: [ProductExperiment],
-  config: ProductizationConfig
+  config: ProductTournamentConfig
 ) -> ProductTournamentEvidenceIndex {
   let scores = ProductTournamentEvidenceScores(
     painRecognition: 5,
@@ -4151,7 +4151,7 @@ private func makeProofDebtEvidenceIndex(
   return ProductTournamentEvidenceIndex.build(records: records)
 }
 
-private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> ProductTournamentEvidenceIndex {
+private func makeRolloutEvidenceIndex(config: ProductTournamentConfig) -> ProductTournamentEvidenceIndex {
   let record = ProductTournamentEvidenceRecord(
     id: "rollout-run",
     experimentID: config.experiments[0].id,
@@ -4185,7 +4185,7 @@ private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> ProductTo
 
 private func makePMFPromotionEvidenceIndex(
   experiment: ProductExperiment? = nil,
-  config: ProductizationConfig,
+  config: ProductTournamentConfig,
   includeAIUserEvidence: Bool = true,
   includeAIUserPersonaBreadth: Bool = true,
   includeCurrentAlternativeProof: Bool = true,
@@ -4246,7 +4246,7 @@ private func makePMFPromotionEvidenceIndex(
 private func makeDecisionAdvisorRecord(
   id: String,
   experiment: ProductExperiment,
-  config: ProductizationConfig,
+  config: ProductTournamentConfig,
   personaID: String,
   mode: ProductTournamentSimulationMode = .modelFree,
   endedAt: Double,

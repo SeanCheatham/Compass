@@ -348,7 +348,7 @@ private func makeTournamentRequest(
   maxTurns: Int = 6,
   appCommandTimeout: TimeInterval? = 120
 ) -> ProductTournamentSimulationRequest {
-  let config = ProductizationConfig.seedDefaults(
+  let config = ProductTournamentConfig.seedDefaults(
     projectTitle: "Reporting Helper",
     rawPain: "Weekly reporting takes too long.",
     now: Date(timeIntervalSince1970: 1_700_000_000)

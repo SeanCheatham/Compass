@@ -342,7 +342,7 @@ struct ProductFactoryDecisionCandidate: Equatable, Sendable, Identifiable {
 
 enum ProductFactoryDecisionCandidateAdvisor {
   static func candidates(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductFactoryDecisionCandidate] {
     ProductMarketFitDecisionAdvisor.proposals(
@@ -528,7 +528,7 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
 
 enum ProductFactoryEvidenceTensionAdvisor {
   static func tensions(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductFactoryEvidenceTension] {
     config.experiments.compactMap { experiment in
@@ -549,7 +549,7 @@ enum ProductFactoryEvidenceTensionAdvisor {
 
   static func tension(
     for experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryEvidenceTension? {
     tension(for: experiment, config: Optional(config), evidenceIndex: evidenceIndex)
@@ -557,7 +557,7 @@ enum ProductFactoryEvidenceTensionAdvisor {
 
   private static func tension(
     for experiment: ProductExperiment,
-    config: ProductizationConfig?,
+    config: ProductTournamentConfig?,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryEvidenceTension? {
     guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment) else {
@@ -633,7 +633,7 @@ enum ProductFactoryEvidenceTensionAdvisor {
   private static func tensionTarget(
     for negative: [ProductTournamentEvidenceSummary],
     experiment: ProductExperiment,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> EvidenceTensionTarget? {
     for summary in negative {
       let scenarioID = summary.scenarioID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -676,7 +676,7 @@ enum ProductFactoryEvidenceTensionAdvisor {
   private static func executableCohortID(
     forScenarioID scenarioID: String,
     experiment: ProductExperiment,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> String? {
     config.scenarioCohorts
       .filter {
@@ -691,7 +691,7 @@ enum ProductFactoryEvidenceTensionAdvisor {
       .first?.id
   }
 
-  private static func segmentName(for segmentID: String, config: ProductizationConfig) -> String {
+  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String {
     let trimmed = segmentID.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return segmentID }
     let name = config.userSegments.first { $0.id == trimmed }?.name ?? trimmed
@@ -1113,7 +1113,7 @@ struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiab
 
 enum ProductFactoryTargetedProofOutcomeAdvisor {
   static func signals(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductFactoryTargetedProofOutcomeSignal] {
     config.experiments.compactMap { experiment in
@@ -1127,7 +1127,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
 
   static func signal(
     for experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryTargetedProofOutcomeSignal? {
     let summaries = evidenceIndex.summaries(for: experiment).filter(\.isCompleted)
@@ -1177,7 +1177,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
   private static func signal(
     for sources: [OutcomeSource],
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     readiness: ProductMarketFitReadiness?
   ) -> ProductFactoryTargetedProofOutcomeSignal? {
     guard let first = sources.first else { return nil }
@@ -1414,7 +1414,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
   private static func target(
     for summaries: [ProductTournamentEvidenceSummary],
     experiment: ProductExperiment,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> OutcomeTarget? {
     for summary in summaries {
       let scenarioID = summary.scenarioID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1457,7 +1457,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
   private static func executableCohortID(
     forScenarioID scenarioID: String,
     experiment: ProductExperiment,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> String? {
     config.scenarioCohorts
       .filter {
@@ -1472,7 +1472,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
       .first?.id
   }
 
-  private static func segmentName(for segmentID: String, config: ProductizationConfig) -> String {
+  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String {
     let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
     return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
   }
@@ -1480,7 +1480,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
 
 enum ProductFactoryRationaleSignalAdvisor {
   static func signals(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductFactoryRationaleSignal] {
     config.experiments.compactMap { experiment in
@@ -1494,7 +1494,7 @@ enum ProductFactoryRationaleSignalAdvisor {
 
   static func signal(
     for experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryRationaleSignal? {
     let summaries = evidenceIndex.summaries(for: experiment)
@@ -1569,7 +1569,7 @@ enum ProductFactoryRationaleSignalAdvisor {
   private static func target(
     for summaries: [ProductTournamentEvidenceSummary],
     experiment: ProductExperiment,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> SignalTarget? {
     let preferred = summaries.sorted { lhs, rhs in
       let lhsRank = sourceRank(lhs)
@@ -1659,7 +1659,7 @@ enum ProductFactoryRationaleSignalAdvisor {
   private static func executableCohortID(
     forScenarioID scenarioID: String,
     experiment: ProductExperiment,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> String? {
     config.scenarioCohorts
       .filter {
@@ -1674,7 +1674,7 @@ enum ProductFactoryRationaleSignalAdvisor {
       .first?.id
   }
 
-  private static func segmentName(for segmentID: String, config: ProductizationConfig) -> String {
+  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String {
     let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
     return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
   }
@@ -1819,7 +1819,7 @@ struct ProductFactoryRevisionBrief: Equatable, Sendable, Identifiable {
 
 enum ProductFactoryRevisionBriefAdvisor {
   static func briefs(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductFactoryRevisionBrief] {
     config.experiments.compactMap {
@@ -1833,7 +1833,7 @@ enum ProductFactoryRevisionBriefAdvisor {
 
   static func brief(
     for experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryRevisionBrief? {
     if let proofOutcomeBrief = targetedProofOutcomeBrief(
@@ -1882,7 +1882,7 @@ enum ProductFactoryRevisionBriefAdvisor {
 
   private static func targetedProofOutcomeBrief(
     for experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryRevisionBrief? {
     guard
@@ -2186,7 +2186,7 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
 
 enum ProductFactoryProofTargetAdvisor {
   static func targets(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductFactoryProofTarget] {
     ProductFactoryExperimentRanker.rankedExperiments(
@@ -2204,7 +2204,7 @@ enum ProductFactoryProofTargetAdvisor {
 
   static func target(
     for experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryProofTarget? {
     guard
@@ -2279,7 +2279,7 @@ enum ProductFactoryProofTargetAdvisor {
 
 enum ProductFactoryExperimentRanker {
   static func rankedExperiments(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductExperiment] {
     let signals = Dictionary(
@@ -2302,7 +2302,7 @@ enum ProductFactoryExperimentRanker {
   }
 
   static func experimentSignals(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductFactoryExperimentSignal] {
     config.experiments.map {
@@ -2312,7 +2312,7 @@ enum ProductFactoryExperimentRanker {
 
   static func signal(
     for experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryExperimentSignal {
     let readiness = evidenceIndex.currentPMFReadiness(for: experiment)
@@ -2944,7 +2944,7 @@ enum ProductFactoryCycleFailureAdvisor {
   static func blockingAudit(
     forStepID stepID: String,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryCycleAudit? {
     guard let audit = recentExecutionFailureAudit(forStepID: stepID, config: config),
@@ -2955,7 +2955,7 @@ enum ProductFactoryCycleFailureAdvisor {
 
   private static func recentExecutionFailureAudit(
     forStepID stepID: String,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> ProductFactoryCycleAudit? {
     config.factoryCycleAudits
       .sorted { lhs, rhs in
@@ -2988,7 +2988,7 @@ enum ProductFactoryCycleLearningAdvisor {
   static func stalledProofDebtAudit(
     for action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryCycleAudit? {
     guard isBroadCohortAction(action) else { return nil }
@@ -3016,7 +3016,7 @@ enum ProductFactoryCycleLearningAdvisor {
   static func stalledProofTargetAudit(
     for action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryCycleAudit? {
     guard isTargetedProofAction(action) else { return nil }
@@ -3055,7 +3055,7 @@ enum ProductFactoryCycleLearningAdvisor {
   static func stalledEvidenceTensionAudit(
     for action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryCycleAudit? {
     guard isTargetedEvidenceTensionAction(action) else { return nil }
@@ -3092,7 +3092,7 @@ enum ProductFactoryCycleLearningAdvisor {
   static func stalledRationaleSignalAudit(
     for action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryCycleAudit? {
     guard isTargetedRationaleSignalAction(action) else { return nil }
@@ -3129,7 +3129,7 @@ enum ProductFactoryCycleLearningAdvisor {
   static func stalledTargetedProofOutcomeAudit(
     for action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryCycleAudit? {
     guard action.kind == .runCohort || action.kind == .rerunCohort,
@@ -3170,7 +3170,7 @@ enum ProductFactoryCycleLearningAdvisor {
   static func revisionFatigueAudit(
     for action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryCycleAudit? {
     guard isTargetedRationaleSignalAction(action) else { return nil }
@@ -3219,7 +3219,7 @@ enum ProductFactoryCycleLearningAdvisor {
   static func appliedTargetedProofOutcomeRevisionAudit(
     for action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryCycleAudit? {
     guard action.kind == .refineBet,
@@ -3252,7 +3252,7 @@ enum ProductFactoryCycleLearningAdvisor {
   static func appliedRevisionBriefAudit(
     for brief: ProductFactoryRevisionBrief,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryCycleAudit? {
     config.factoryCycleAudits
@@ -3275,7 +3275,7 @@ enum ProductFactoryCycleLearningAdvisor {
   static func appliedRevisionBriefAudit(
     for action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryCycleAudit? {
     guard action.targetScenarioID != nil || action.targetPersonaName != nil else {
@@ -3573,7 +3573,7 @@ enum ProductFactoryAutopilotPlanner {
   }
 
   static func steps(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> [ProductFactoryAutopilotStep] {
@@ -3627,7 +3627,7 @@ enum ProductFactoryAutopilotPlanner {
   }
 
   static func nextExecutableStep(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> ProductFactoryAutopilotStep? {
@@ -3640,7 +3640,7 @@ enum ProductFactoryAutopilotPlanner {
   }
 
   static func nextStep(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> ProductFactoryAutopilotStep? {
@@ -3657,7 +3657,7 @@ enum ProductFactoryAutopilotPlanner {
   }
 
   static func cyclePlan(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     maxSteps: Int = 3,
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
@@ -3681,7 +3681,7 @@ enum ProductFactoryAutopilotPlanner {
   private static func applyingRecentCycleFailureBlock(
     to step: ProductFactoryAutopilotStep,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryAutopilotStep {
     guard step.canExecute,
@@ -3702,7 +3702,7 @@ enum ProductFactoryAutopilotPlanner {
   private static func shouldOmitForRoundTwoImplementationTarget(
     action: ProductMarketFitNextAction,
     experimentID: String,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> Bool {
     guard action.kind != .applyDecision else { return false }
     return ProductTournamentRoundImplementationTargetResolver.blocksEvidenceLaunch(
@@ -3714,7 +3714,7 @@ enum ProductFactoryAutopilotPlanner {
   private static func applyingRecentCycleLearningBlock(
     to step: ProductFactoryAutopilotStep,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryAutopilotStep {
     if step.canExecute,
@@ -3797,7 +3797,7 @@ enum ProductFactoryAutopilotPlanner {
   private static func applyingRevisionBriefStep(
     to step: ProductFactoryAutopilotStep,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductFactoryAutopilotStep {
     guard step.action.kind == .refineBet,
@@ -3854,7 +3854,7 @@ enum ProductMarketFitDecisionAdvisorError: LocalizedError, Equatable {
 
 enum ProductMarketFitNextActionAdvisor {
   static func actions(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductMarketFitNextAction] {
     config.experiments.compactMap { experiment in
@@ -3868,7 +3868,7 @@ enum ProductMarketFitNextActionAdvisor {
 
   static func nextAction(
     for experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductMarketFitNextAction? {
     switch experiment.decision {
@@ -4335,7 +4335,7 @@ enum ProductMarketFitNextActionAdvisor {
 
   private static func missingAIUserPersonaTarget(
     for experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     cohort: ProductScenarioCohort?,
     testedPersonaIDs explicitTestedPersonaIDs: Set<String>? = nil
@@ -4418,7 +4418,7 @@ enum ProductMarketFitNextActionAdvisor {
   private static func executableCohortID(
     forScenarioID scenarioID: String?,
     experiment: ProductExperiment,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> String? {
     guard let scenarioID else { return nil }
     return config.scenarioCohorts
@@ -4436,7 +4436,7 @@ enum ProductMarketFitNextActionAdvisor {
 
   private static func targetSegmentIDs(
     for experiment: ProductExperiment,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> [String] {
     let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
     let painID = solution?.painID
@@ -4455,13 +4455,13 @@ enum ProductMarketFitNextActionAdvisor {
     return orderedUnique(segmentIDs)
   }
 
-  private static func segmentName(for segmentID: String, config: ProductizationConfig) -> String {
+  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String {
     let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
     return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
   }
 
   private static func scenarioSort(
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> (ProductScenario, ProductScenario) -> Bool {
     { lhs, rhs in
       let lhsName = segmentName(for: lhs.segmentID, config: config)
@@ -4484,7 +4484,7 @@ enum ProductMarketFitNextActionAdvisor {
   private static func applyingRecentCycleGuards(
     to action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductMarketFitNextAction {
     let failureGuarded = applyingRecentCycleFailureGuard(
@@ -4505,7 +4505,7 @@ enum ProductMarketFitNextActionAdvisor {
   private static func applyingRecentCycleLearningGuard(
     to action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductMarketFitNextAction {
     if let revisionAudit =
@@ -4649,7 +4649,7 @@ enum ProductMarketFitNextActionAdvisor {
     after audit: ProductFactoryCycleAudit,
     replacing action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductMarketFitNextAction? {
     guard
@@ -4772,7 +4772,7 @@ enum ProductMarketFitNextActionAdvisor {
     audit: ProductFactoryCycleAudit,
     replacing action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductMarketFitNextAction? {
     guard let readiness = evidenceIndex.currentPMFReadiness(for: experiment),
@@ -4875,7 +4875,7 @@ enum ProductMarketFitNextActionAdvisor {
   private static func applyingRecentCycleFailureGuard(
     to action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductMarketFitNextAction {
     guard action.kind == .runCohort || action.kind == .rerunCohort,
@@ -4899,7 +4899,7 @@ enum ProductMarketFitNextActionAdvisor {
   static func cohortRunReadiness(
     for action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> ProductMarketFitCohortRunReadiness? {
     guard action.experimentID == experiment.id,
       let cohortID = action.cohortID,
@@ -4932,7 +4932,7 @@ enum ProductMarketFitNextActionAdvisor {
 
   private static func runnableCohort(
     for experiment: ProductExperiment,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> ProductScenarioCohort? {
     let enabledScenarioIDs = Set(
       config.scenarios
@@ -4967,7 +4967,7 @@ enum ProductMarketFitNextActionAdvisor {
 
 enum ProductMarketFitDecisionAdvisor {
   static func proposals(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductMarketFitDecisionProposal] {
     return config.experiments.compactMap { experiment in
@@ -5009,7 +5009,7 @@ enum ProductMarketFitDecisionAdvisor {
 
   static func proposal(
     experimentID: String,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductMarketFitDecisionProposal? {
     proposals(config: config, evidenceIndex: evidenceIndex)
@@ -5018,10 +5018,10 @@ enum ProductMarketFitDecisionAdvisor {
 
   static func applyingRecommendedDecision(
     experimentID: String,
-    to config: ProductizationConfig,
+    to config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     now: Date = Date()
-  ) throws -> ProductizationConfig {
+  ) throws -> ProductTournamentConfig {
     guard
       let proposal = proposal(
         experimentID: experimentID,
@@ -5107,9 +5107,9 @@ enum ProductMarketFitDecisionAdvisor {
 enum ProductTournamentReflectDecisionApplier {
   static func applying(
     _ updates: [ProductTournamentReflectDecisionUpdate],
-    to config: ProductizationConfig,
+    to config: ProductTournamentConfig,
     now: Date = Date()
-  ) throws -> ProductizationConfig {
+  ) throws -> ProductTournamentConfig {
     guard !updates.isEmpty else { return config }
 
     var next = config

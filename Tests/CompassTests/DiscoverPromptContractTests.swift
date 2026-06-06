@@ -11,7 +11,7 @@ struct DiscoverPromptContractTests {
       drafts: "Explore the current workflow before building.",
       lessons: "Keep generated prototypes Rust-only.",
       assumptions: "Assumption: buyers care about escalation latency.",
-      productizationConfig: ProductizationConfig.seedDefaults(
+      productTournamentConfig: ProductTournamentConfig.seedDefaults(
         projectTitle: "Escalation Desk",
         rawPain: "Support leads lose escalation decisions across chat and tickets.",
         now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -35,7 +35,7 @@ struct DiscoverPromptContractTests {
   @Test func validDiscoverResponseAppliesStructuredProductizationEdits() throws {
     let output = makeDiscoverOutput()
     let decoded = try Prompts.decodeDiscoverResponse(try encodeDiscoverJSON(output))
-    let config = try decoded.validatedProductizationConfig(applyingTo: .empty)
+    let config = try decoded.validatedProductTournamentConfig(applyingTo: .empty)
 
     try #require(config.rawPain.contains("customer-facing decisions"))
     try #require(config.painHypotheses.count == 1)

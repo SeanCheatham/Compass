@@ -173,7 +173,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
 }
 
 private struct RoundTwoFixture {
-  var config: ProductizationConfig
+  var config: ProductTournamentConfig
   var tournament: ProductTournament
   var coreRound: ProductTournamentRound
   var prototypeRound: ProductTournamentRound
@@ -183,7 +183,7 @@ private struct RoundTwoFixture {
 }
 
 private func roundTwoFixture() throws -> RoundTwoFixture {
-  var config = ProductizationConfig.seedDefaults(
+  var config = ProductTournamentConfig.seedDefaults(
     projectTitle: "Reporting Helper",
     rawPain: "Weekly reporting takes too long.",
     now: Date(timeIntervalSince1970: 1_700_000_000)

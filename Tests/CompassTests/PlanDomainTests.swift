@@ -89,7 +89,7 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test func testRejectsProductizationImmediateThatMentionsMultipleExperiments() throws {
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users cannot compare product bets.",
       now: Date(timeIntervalSince1970: 1)
@@ -108,7 +108,7 @@ struct PlanTransitionValidatorTests {
     let error = try rejectedTransition(
       from: current,
       to: next,
-      productizationConfig: config
+      productTournamentConfig: config
     )
 
     try #require(error.reason == .multiExperimentImmediate)
@@ -118,7 +118,7 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test func testAcceptsSharedInfrastructureImmediateAcrossExperiments() throws {
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users cannot compare product bets.",
       now: Date(timeIntervalSince1970: 1)
@@ -139,7 +139,7 @@ struct PlanTransitionValidatorTests {
     try PlanTransitionValidator.validate(
       from: current,
       to: next,
-      productizationConfig: config
+      productTournamentConfig: config
     )
   }
 
@@ -322,14 +322,14 @@ struct PlanTransitionValidatorTests {
     from current: PlanState,
     to next: PlanState,
     forgeProfile: ForgeProfile? = nil,
-    productizationConfig: ProductizationConfig? = nil
+    productTournamentConfig: ProductTournamentConfig? = nil
   ) throws -> PlanTransitionValidationError {
     do {
       try PlanTransitionValidator.validate(
         from: current,
         to: next,
         forgeProfile: forgeProfile,
-        productizationConfig: productizationConfig
+        productTournamentConfig: productTournamentConfig
       )
     } catch let error as PlanTransitionValidationError {
       return error

@@ -249,7 +249,7 @@ private func makeGitRolloutConfig(
   baseSha: String,
   currentSha: String,
   decision: ProductExperimentDecision
-) -> ProductizationConfig {
+) -> ProductTournamentConfig {
   let pain = PainHypothesis(
     id: "pain-rollout",
     title: "Rollout pain",
@@ -287,7 +287,7 @@ private func makeGitRolloutConfig(
     decision: decision,
     createdAt: 1
   )
-  return ProductizationConfig(
+  return ProductTournamentConfig(
     rawPain: pain.rawPain,
     painHypotheses: [pain],
     userSegments: [],
@@ -300,7 +300,7 @@ private func makeGitRolloutConfig(
   )
 }
 
-private func makeGitRolloutEvidence(config: ProductizationConfig) -> ProductTournamentEvidenceRecord {
+private func makeGitRolloutEvidence(config: ProductTournamentConfig) -> ProductTournamentEvidenceRecord {
   ProductTournamentEvidenceRecord(
     id: "rollout-run",
     experimentID: config.experiments[0].id,

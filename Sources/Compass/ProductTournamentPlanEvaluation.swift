@@ -284,7 +284,7 @@ enum ProductTournamentPlanEvaluator {
   private static func planRound(
     roundID: String?,
     tournament: ProductTournament,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) throws -> ProductTournamentRound {
     let round: ProductTournamentRound?
     if let roundID {
@@ -315,7 +315,7 @@ enum ProductTournamentPlanEvaluator {
 
   private static func solution(
     for contender: ProductTournamentContender,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) throws -> SolutionHypothesis {
     guard let solution = config.solutionHypotheses.first(where: { $0.id == contender.solutionID })
     else {
@@ -326,7 +326,7 @@ enum ProductTournamentPlanEvaluator {
 
   private static func pain(
     for solution: SolutionHypothesis,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) throws -> PainHypothesis {
     guard let pain = config.painHypotheses.first(where: { $0.id == solution.painID }) else {
       throw ProductTournamentPlanEvaluationError.unknownPain(solution.painID)
@@ -337,7 +337,7 @@ enum ProductTournamentPlanEvaluator {
   private static func targetSegments(
     for contender: ProductTournamentContender,
     painID: String,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> [UserSegment] {
     let targetIDs = Set(contender.targetSegmentIDs)
     let targeted = config.userSegments.filter {
@@ -350,7 +350,7 @@ enum ProductTournamentPlanEvaluator {
   private static func currentWorkflow(
     for segment: UserSegment,
     painID: String,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> CurrentWorkflow? {
     config.currentWorkflows.first {
       $0.painID == painID && segment.currentWorkflowIDs.contains($0.id)
@@ -360,7 +360,7 @@ enum ProductTournamentPlanEvaluator {
   private static func currentAlternative(
     for segment: UserSegment,
     painID: String,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> Alternative? {
     config.alternatives.first {
       $0.painID == painID && segment.alternativeIDs.contains($0.id)
@@ -584,7 +584,7 @@ extension CompassProject {
         in: workspace,
         projectID: id
       )
-      productizationConfig = try workspace.readProductTournamentConfig()
+      productTournamentConfig = try workspace.readProductTournamentConfig()
       productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
       log(outcome.userMessage, level: outcome.isSuccess ? .success : .warning)
       return outcome
@@ -612,7 +612,7 @@ extension CompassProject {
         evidenceIndex: evidenceIndex
       )
       try workspace.writeProductTournamentConfig(outcome.config)
-      productizationConfig = outcome.config
+      productTournamentConfig = outcome.config
       productTournamentEvidenceIndex = evidenceIndex
       log(outcome.userMessage, level: .success)
       return outcome

@@ -101,7 +101,7 @@ struct ProductTournamentEvidenceStoreTests {
   }
 
   @Test func storePreservesDecisionIntentAcrossRecordIndexMarkdownAndDigest() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need targeted PMF evidence.",
       now: Date(timeIntervalSince1970: 10)
@@ -404,7 +404,7 @@ struct ProductTournamentEvidenceStoreTests {
   }
 
   @Test func currentCommitReadinessIgnoresStaleExperimentEvidence() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -462,7 +462,7 @@ struct ProductTournamentEvidenceStoreTests {
   }
 
   @Test func planningDigestIncludesBoundedProductTournamentEvidence() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -562,7 +562,7 @@ struct ProductTournamentEvidenceStoreTests {
   }
 
   @Test func planningDigestIncludesRepeatedAIUserRationaleSignals() throws {
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -606,7 +606,7 @@ struct ProductTournamentEvidenceStoreTests {
   }
 
   @Test func planningDigestBlocksAutopilotAfterRecentCycleFailure() throws {
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -658,7 +658,7 @@ struct ProductTournamentEvidenceStoreTests {
   }
 
   @Test func planAndReflectPromptsIncludeProductTournamentContextWithoutTranscripts() throws {
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -697,7 +697,7 @@ struct ProductTournamentEvidenceStoreTests {
       lessons: "",
       vision: "",
       focus: .feature,
-      productizationConfig: config,
+      productTournamentConfig: config,
       productTournamentEvidenceIndex: index
     )
     let reflect = try Prompts.reflectPrompt(
@@ -706,7 +706,7 @@ struct ProductTournamentEvidenceStoreTests {
       vision: "",
       recentSessions: [],
       iteration: 1,
-      productizationConfig: config,
+      productTournamentConfig: config,
       productTournamentEvidenceIndex: index
     )
 
@@ -741,7 +741,7 @@ struct ProductTournamentEvidenceStoreTests {
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
 
-    var config = ProductizationConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -810,7 +810,7 @@ struct ProductTournamentEvidenceStoreTests {
     let project = CompassProject(repoURL: root)
     await project.refresh()
 
-    try #require(project.productizationConfig.experiments[0].decision == .keepGoing)
+    try #require(project.productTournamentConfig.experiments[0].decision == .keepGoing)
     try #require(project.productTournamentEvidenceIndex.summaries.map(\.runID) == ["smoke-run"])
     try #require(
       project.productTournamentEvidenceIndex.planEvaluationSummaries.map(\.evaluationID)
@@ -828,7 +828,7 @@ struct ProductTournamentEvidenceStoreTests {
       lessons: "",
       vision: "",
       focus: .feature,
-      productizationConfig: project.productizationConfig,
+      productTournamentConfig: project.productTournamentConfig,
       productTournamentEvidenceIndex: project.productTournamentEvidenceIndex
     )
 

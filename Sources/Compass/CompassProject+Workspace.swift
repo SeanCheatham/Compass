@@ -32,7 +32,7 @@ extension CompassProject {
       lessons = ""
       assumptions = []
       vision = ""
-      productizationConfig = .empty
+      productTournamentConfig = .empty
       productTournamentEvidenceIndex = .empty
       sessions = []
       archivedSessions = []
@@ -64,7 +64,7 @@ extension CompassProject {
       lessons = ""
       assumptions = []
       vision = ""
-      productizationConfig = .empty
+      productTournamentConfig = .empty
       productTournamentEvidenceIndex = .empty
       sessions = []
       archivedSessions = []
@@ -88,7 +88,7 @@ extension CompassProject {
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
       .joined(separator: "\n\n")
-    productizationConfig = try workspace.readOrSeedProductTournamentConfig(
+    productTournamentConfig = try workspace.readOrSeedProductTournamentConfig(
       projectTitle: workspace.repoURL.lastPathComponent,
       rawPain: rawProductPain.isEmpty ? vision : rawProductPain
     )
@@ -98,15 +98,15 @@ extension CompassProject {
     hasOlderArchivedSessions = workspace.hasArchivedSessions()
   }
 
-  func saveProductTournamentConfig(_ config: ProductizationConfig? = nil) async {
+  func saveProductTournamentConfig(_ config: ProductTournamentConfig? = nil) async {
     do {
       guard let workspace else {
         fail(AppModelError.noRepositorySelected)
         return
       }
-      let value = config ?? productizationConfig
+      let value = config ?? productTournamentConfig
       try workspace.writeProductTournamentConfig(value)
-      productizationConfig = value
+      productTournamentConfig = value
     } catch {
       fail(error)
     }

@@ -8,7 +8,7 @@ extension Prompts {
     vision: String,
     recentSessions: [SessionRecord],
     iteration: Int,
-    productizationConfig: ProductizationConfig = .empty,
+    productTournamentConfig: ProductTournamentConfig = .empty,
     productTournamentEvidenceIndex: ProductTournamentEvidenceIndex = .empty,
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
@@ -20,7 +20,7 @@ extension Prompts {
     let assumptionsDigest = reflectCompactPromptBlock(assumptions, maxLines: 8, maxCharacters: 1800)
     let visionDigest = reflectCompactPromptBlock(vision, maxLines: 10, maxCharacters: 2400)
     let productTournamentDigest = ProductTournamentPlanningDigestFormatter.promptText(
-      config: productizationConfig,
+      config: productTournamentConfig,
       evidenceIndex: productTournamentEvidenceIndex
     )
     let hostXcodeGuidance =

@@ -42,7 +42,7 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var prototypeEvidenceTransitionMessage: String?
   @State private var contractAvailable: Bool?
 
-  private var config: ProductizationConfig { project.productizationConfig }
+  private var config: ProductTournamentConfig { project.productTournamentConfig }
   private var evidenceIndex: ProductTournamentEvidenceIndex { project.productTournamentEvidenceIndex }
 
   private var tournamentsForBoard: [ProductTournament] {
@@ -2441,13 +2441,13 @@ struct ProductTournamentWorkbenchTab: View {
     do {
       let draft = try ProductTournamentScenarioCoordinator.revisionDraft(
         for: brief,
-        in: project.productizationConfig
+        in: project.productTournamentConfig
       )
       selectedExperimentID = draft.experimentID
       loadScenarioDraftValues(draft)
       await project.saveProductScenarioDraft(draft)
       guard let scenarioID = draft.id,
-        project.productizationConfig.scenarios.contains(where: { $0.id == scenarioID })
+        project.productTournamentConfig.scenarios.contains(where: { $0.id == scenarioID })
       else {
         scenarioRunMessage = project.errorMessage ?? "Revision scenario could not be saved."
         return
@@ -2468,7 +2468,7 @@ struct ProductTournamentWorkbenchTab: View {
       )
       scenarioRunMessage = audit.userMessage
       await project.saveProductTournamentConfig(
-        project.productizationConfig.recordingFactoryCycleAudit(audit)
+        project.productTournamentConfig.recordingFactoryCycleAudit(audit)
       )
       await loadContractStatus()
     } catch {
@@ -2576,12 +2576,12 @@ struct ProductTournamentWorkbenchTab: View {
         ?? []
       : []
     let personaRationaleSignalSummaries: [String]
-    if let stepExperiment = project.productizationConfig.experiments.first(where: {
+    if let stepExperiment = project.productTournamentConfig.experiments.first(where: {
       $0.id == step.experimentID
     }),
       let rationaleSignal = ProductFactoryRationaleSignalAdvisor.signal(
         for: stepExperiment,
-        config: project.productizationConfig,
+        config: project.productTournamentConfig,
         evidenceIndex: project.productTournamentEvidenceIndex
       )
     {
@@ -2628,7 +2628,7 @@ struct ProductTournamentWorkbenchTab: View {
     let audit = outcome.audit(startedAt: stepStartedAt)
     scenarioRunMessage = result?.message ?? project.errorMessage ?? step.blockedReason
     await project.saveProductTournamentConfig(
-      project.productizationConfig.recordingFactoryCycleAudit(audit)
+      project.productTournamentConfig.recordingFactoryCycleAudit(audit)
     )
     await loadContractStatus()
   }
@@ -2651,14 +2651,14 @@ struct ProductTournamentWorkbenchTab: View {
     var evidenceTensionSummaries: [String] = []
     var proofTargetSummaries: [String] = []
     var targetedProofOutcomeSummaries = ProductFactoryTargetedProofOutcomeAdvisor.signals(
-      config: project.productizationConfig,
+      config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
     .prefix(3)
     .map(\.auditSummary)
     var revisionBriefSummaries: [String] = []
     var personaRationaleSignalSummaries = ProductFactoryRationaleSignalAdvisor.signals(
-      config: project.productizationConfig,
+      config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
     .prefix(3)
@@ -2668,7 +2668,7 @@ struct ProductTournamentWorkbenchTab: View {
     for _ in 0..<maxSteps {
       guard
         let step = ProductFactoryAutopilotPlanner.nextExecutableStep(
-          config: project.productizationConfig,
+          config: project.productTournamentConfig,
           evidenceIndex: project.productTournamentEvidenceIndex,
           isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
         )
@@ -2729,12 +2729,12 @@ struct ProductTournamentWorkbenchTab: View {
       {
         revisionBriefSummaries.append(revisionBrief.auditSummary)
       }
-      if let stepExperiment = project.productizationConfig.experiments.first(where: {
+      if let stepExperiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == step.experimentID
       }),
         let rationaleSignal = ProductFactoryRationaleSignalAdvisor.signal(
           for: stepExperiment,
-          config: project.productizationConfig,
+          config: project.productTournamentConfig,
           evidenceIndex: project.productTournamentEvidenceIndex
         ),
         !personaRationaleSignalSummaries.contains(rationaleSignal.auditSummary)
@@ -2774,7 +2774,7 @@ struct ProductTournamentWorkbenchTab: View {
             "Product revision checkpoint recorded for \(stepRevisionBrief.experimentID). Continuing with targeted validation evidence."
         )
         await project.saveProductTournamentConfig(
-          project.productizationConfig.recordingFactoryCycleAudit(checkpoint)
+          project.productTournamentConfig.recordingFactoryCycleAudit(checkpoint)
         )
       }
     }
@@ -2808,7 +2808,7 @@ struct ProductTournamentWorkbenchTab: View {
     let audit = outcome.audit(startedAt: cycleStartedAt)
     scenarioRunMessage = audit.userMessage
     await project.saveProductTournamentConfig(
-      project.productizationConfig.recordingFactoryCycleAudit(audit)
+      project.productTournamentConfig.recordingFactoryCycleAudit(audit)
     )
     await loadContractStatus()
   }
@@ -2817,7 +2817,7 @@ struct ProductTournamentWorkbenchTab: View {
     forExperimentID experimentID: String
   ) -> ProductMarketFitProofDebt? {
     guard
-      let experiment = project.productizationConfig.experiments.first(where: {
+      let experiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
@@ -2835,13 +2835,13 @@ struct ProductTournamentWorkbenchTab: View {
     forExperimentID experimentID: String
   ) -> ProductFactoryProofTarget? {
     guard
-      let experiment = project.productizationConfig.experiments.first(where: {
+      let experiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
     return ProductFactoryProofTargetAdvisor.target(
       for: experiment,
-      config: project.productizationConfig,
+      config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
@@ -2850,7 +2850,7 @@ struct ProductTournamentWorkbenchTab: View {
     forExperimentID experimentID: String
   ) -> ProductFactoryDecisionCandidate? {
     ProductFactoryDecisionCandidateAdvisor.candidates(
-      config: project.productizationConfig,
+      config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
     .first { $0.experimentID == experimentID }
@@ -2860,13 +2860,13 @@ struct ProductTournamentWorkbenchTab: View {
     forExperimentID experimentID: String
   ) -> ProductFactoryEvidenceTension? {
     guard
-      let experiment = project.productizationConfig.experiments.first(where: {
+      let experiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
     return ProductFactoryEvidenceTensionAdvisor.tension(
       for: experiment,
-      config: project.productizationConfig,
+      config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
@@ -2875,13 +2875,13 @@ struct ProductTournamentWorkbenchTab: View {
     forExperimentID experimentID: String
   ) -> ProductFactoryTargetedProofOutcomeSignal? {
     guard
-      let experiment = project.productizationConfig.experiments.first(where: {
+      let experiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
     return ProductFactoryTargetedProofOutcomeAdvisor.signal(
       for: experiment,
-      config: project.productizationConfig,
+      config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
@@ -2890,13 +2890,13 @@ struct ProductTournamentWorkbenchTab: View {
     forExperimentID experimentID: String
   ) -> ProductFactoryRevisionBrief? {
     guard
-      let experiment = project.productizationConfig.experiments.first(where: {
+      let experiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
     return ProductFactoryRevisionBriefAdvisor.brief(
       for: experiment,
-      config: project.productizationConfig,
+      config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
@@ -2931,9 +2931,9 @@ struct ProductTournamentWorkbenchTab: View {
   ) async -> ProductFactoryAutopilotStepResult? {
     switch step.kind {
     case .applyDecision:
-      let decisionCount = project.productizationConfig.decisions.count
+      let decisionCount = project.productTournamentConfig.decisions.count
       await project.applyProductMarketFitDecisionRecommendation(experimentID: step.experimentID)
-      if project.productizationConfig.decisions.count > decisionCount {
+      if project.productTournamentConfig.decisions.count > decisionCount {
         return ProductFactoryAutopilotStepResult(
           message: "Applied PMF advice for \(step.experimentTitle)."
         )
@@ -3018,13 +3018,13 @@ struct ProductTournamentWorkbenchTab: View {
       do {
         let draft = try ProductTournamentScenarioCoordinator.revisionDraft(
           for: brief,
-          in: project.productizationConfig
+          in: project.productTournamentConfig
         )
         selectedExperimentID = draft.experimentID
         loadScenarioDraftValues(draft)
         await project.saveProductScenarioDraft(draft)
         guard let scenarioID = draft.id,
-          project.productizationConfig.scenarios.contains(where: { $0.id == scenarioID })
+          project.productTournamentConfig.scenarios.contains(where: { $0.id == scenarioID })
         else {
           return nil
         }

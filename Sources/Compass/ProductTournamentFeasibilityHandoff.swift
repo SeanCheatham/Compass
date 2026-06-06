@@ -58,7 +58,7 @@ struct ProductTournamentFeasibilityHandoff: Codable, Equatable, Identifiable, Se
 enum ProductTournamentFeasibilityAdvisor {
   static func handoffs(
     tournamentID: String? = nil,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentFeasibilityHandoff] {
     activeCoreTechnologyRounds(tournamentID: tournamentID, config: config)
@@ -76,7 +76,7 @@ enum ProductTournamentFeasibilityAdvisor {
   private static func handoffs(
     for tournament: ProductTournament,
     round: ProductTournamentRound,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentFeasibilityHandoff] {
     let contenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
@@ -126,7 +126,7 @@ enum ProductTournamentFeasibilityAdvisor {
 
   private static func activeCoreTechnologyRounds(
     tournamentID: String?,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> [(ProductTournament, ProductTournamentRound)] {
     let tournaments = config.tournaments
       .filter { tournament in

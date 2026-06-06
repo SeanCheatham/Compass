@@ -217,7 +217,7 @@ enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
 enum ProductTournamentScenarioCoordinator {
   static func revisionDraft(
     for brief: ProductFactoryRevisionBrief,
-    in config: ProductizationConfig,
+    in config: ProductTournamentConfig,
     now: Date = Date()
   ) throws -> ProductScenarioDraft {
     guard let experiment = config.experiments.first(where: { $0.id == brief.experimentID }) else {
@@ -282,7 +282,7 @@ enum ProductTournamentScenarioCoordinator {
 
   static func defaultDraft(
     for experiment: ProductExperiment,
-    in config: ProductizationConfig,
+    in config: ProductTournamentConfig,
     now: Date = Date()
   ) -> ProductScenarioDraft {
     let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
@@ -327,7 +327,7 @@ enum ProductTournamentScenarioCoordinator {
   private static func cohortID(
     containing scenarioID: String?,
     experiment: ProductExperiment,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> String? {
     guard let scenarioID else { return nil }
     return config.scenarioCohorts.first {
@@ -335,7 +335,7 @@ enum ProductTournamentScenarioCoordinator {
     }?.id
   }
 
-  private static func segmentName(for segmentID: String, in config: ProductizationConfig) -> String
+  private static func segmentName(for segmentID: String, in config: ProductTournamentConfig) -> String
   {
     let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
     return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
@@ -343,9 +343,9 @@ enum ProductTournamentScenarioCoordinator {
 
   static func saving(
     draft: ProductScenarioDraft,
-    to config: ProductizationConfig,
+    to config: ProductTournamentConfig,
     now: Date = Date()
-  ) throws -> ProductizationConfig {
+  ) throws -> ProductTournamentConfig {
     var next = config
     guard let experiment = next.experiments.first(where: { $0.id == draft.experimentID }) else {
       throw ProductTournamentScenarioRunError.unknownExperiment(draft.experimentID)
@@ -418,7 +418,7 @@ enum ProductTournamentScenarioCoordinator {
   static func request(
     experimentID: String,
     scenarioID: String,
-    in config: ProductizationConfig,
+    in config: ProductTournamentConfig,
     projectID: UUID? = nil,
     projectTitle: String,
     generatedAppWorkingDirectory: URL,
@@ -517,7 +517,7 @@ enum ProductTournamentScenarioCoordinator {
 
   static func contractAvailable(
     experimentID: String,
-    in config: ProductizationConfig,
+    in config: ProductTournamentConfig,
     workspace: CompassWorkspace,
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner()
   ) async throws -> Bool {
@@ -773,7 +773,7 @@ enum ProductTournamentScenarioCoordinator {
   private static func alternatives(
     for scenario: ProductScenario,
     painID: String,
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) -> [Alternative] {
     if let alternativeID = scenario.alternativeID,
       let selected = config.alternatives.first(where: { $0.id == alternativeID })
@@ -785,7 +785,7 @@ enum ProductTournamentScenarioCoordinator {
 
   private static func validateRoundTwoImplementationTarget(
     experimentID: String,
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) throws {
     guard
       let target = ProductTournamentRoundImplementationTargetResolver.roundTwoTarget(
@@ -838,7 +838,7 @@ enum ProductTournamentScenarioCoordinator {
 
 extension CompassWorkspace {
   @discardableResult
-  func saveProductScenarioDraft(_ draft: ProductScenarioDraft) throws -> ProductizationConfig {
+  func saveProductScenarioDraft(_ draft: ProductScenarioDraft) throws -> ProductTournamentConfig {
     let next = try ProductTournamentScenarioCoordinator.saving(
       draft: draft,
       to: try readProductTournamentConfig()
@@ -856,7 +856,7 @@ extension CompassProject {
         fail(AppModelError.noRepositorySelected)
         return
       }
-      productizationConfig = try workspace.saveProductScenarioDraft(draft)
+      productTournamentConfig = try workspace.saveProductScenarioDraft(draft)
       log("Saved product tournament scenario \(draft.title).", level: .success)
     } catch {
       fail(error)
@@ -868,7 +868,7 @@ extension CompassProject {
     do {
       return try await ProductTournamentScenarioCoordinator.contractAvailable(
         experimentID: experimentID,
-        in: productizationConfig,
+        in: productTournamentConfig,
         workspace: workspace
       )
     } catch {
@@ -948,7 +948,7 @@ extension CompassProject {
         return nil
       }
       guard
-        let experiment = productizationConfig.experiments.first(where: { $0.id == experimentID })
+        let experiment = productTournamentConfig.experiments.first(where: { $0.id == experimentID })
       else {
         throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
       }
@@ -969,7 +969,7 @@ extension CompassProject {
         personaSelector: personaSelector,
         targetDecision: targetDecision
       )
-      productizationConfig = try workspace.readProductTournamentConfig()
+      productTournamentConfig = try workspace.readProductTournamentConfig()
       productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
       log(outcome.userMessage, level: outcome.result.isSuccess ? .success : .warning)
       return outcome
@@ -991,7 +991,7 @@ extension CompassProject {
         return nil
       }
       guard
-        let experiment = productizationConfig.experiments.first(where: { $0.id == experimentID })
+        let experiment = productTournamentConfig.experiments.first(where: { $0.id == experimentID })
       else {
         throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
       }
@@ -1012,7 +1012,7 @@ extension CompassProject {
         personaSelector: personaSelector,
         targetDecision: targetDecision
       )
-      productizationConfig = try workspace.readProductTournamentConfig()
+      productTournamentConfig = try workspace.readProductTournamentConfig()
       productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
       log(outcome.userMessage, level: outcome.isSuccess ? .success : .warning)
       return outcome

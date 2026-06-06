@@ -5,7 +5,7 @@ import Testing
 
 struct ProductTournamentFeasibilityHandoffTests {
   @Test func roundTwoHandoffTargetsNarrowedContenderImplementationTrack() throws {
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -70,7 +70,7 @@ struct ProductTournamentFeasibilityHandoffTests {
       lessons: "",
       vision: "",
       focus: .feature,
-      productizationConfig: transition.config,
+      productTournamentConfig: transition.config,
       productTournamentEvidenceIndex: index
     )
     let reflectPrompt = try Prompts.reflectPrompt(
@@ -79,7 +79,7 @@ struct ProductTournamentFeasibilityHandoffTests {
       vision: "",
       recentSessions: [],
       iteration: 1,
-      productizationConfig: transition.config,
+      productTournamentConfig: transition.config,
       productTournamentEvidenceIndex: index
     )
 
@@ -135,7 +135,7 @@ struct ProductTournamentFeasibilityHandoffTests {
   }
 
   @Test func handoffIsAbsentBeforeRoundOneTransition() throws {
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -185,7 +185,7 @@ private func strongPlanRecords(
   for contender: ProductTournamentContender,
   tournament: ProductTournament,
   round: ProductTournamentRound,
-  config: ProductizationConfig
+  config: ProductTournamentConfig
 ) throws -> [ProductTournamentPlanEvaluationRecord] {
   let solution = try #require(config.solutionHypotheses.first { $0.id == contender.solutionID })
   return config.userSegments.prefix(2).enumerated().map { index, segment in

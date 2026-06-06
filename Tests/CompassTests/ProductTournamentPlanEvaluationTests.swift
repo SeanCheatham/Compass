@@ -9,7 +9,7 @@ struct ProductTournamentPlanEvaluationTests {
     defer { try? FileManager.default.removeItem(at: root) }
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "LedgerLift",
       rawPain: "Finance operators lose weekly reporting context between Slack and spreadsheets.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -61,7 +61,7 @@ struct ProductTournamentPlanEvaluationTests {
     defer { try? FileManager.default.removeItem(at: root) }
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "LedgerLift",
       rawPain: "Finance operators lose weekly reporting context.",
       now: Date(timeIntervalSince1970: 1_700_000_000)

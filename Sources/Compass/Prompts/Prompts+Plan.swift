@@ -12,7 +12,7 @@ extension Prompts {
     focus: PlanFocus,
     forgeProfile: ForgeProfile? = nil,
     coverageSnapshot: CoverageSnapshot? = nil,
-    productizationConfig: ProductizationConfig = .empty,
+    productTournamentConfig: ProductTournamentConfig = .empty,
     productTournamentEvidenceIndex: ProductTournamentEvidenceIndex = .empty,
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
@@ -24,7 +24,7 @@ extension Prompts {
     let feedbackDigest = compactPromptBlock(feedback, maxLines: 8, maxCharacters: 1800)
     let visionDigest = compactPromptBlock(vision, maxLines: 10, maxCharacters: 2400)
     let productTournamentDigest = ProductTournamentPlanningDigestFormatter.promptText(
-      config: productizationConfig,
+      config: productTournamentConfig,
       evidenceIndex: productTournamentEvidenceIndex
     )
     let includeHostXcodeGuidance =

@@ -5,7 +5,7 @@ import Testing
 
 struct ProductTournamentPlanTransitionTests {
   @Test func strongPlanReadinessAdvancesContenderToFeasibilityRound() throws {
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -62,7 +62,7 @@ struct ProductTournamentPlanTransitionTests {
   }
 
   @Test func weakPlanReadinessEliminatesContenderFromFutureRounds() throws {
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -99,7 +99,7 @@ struct ProductTournamentPlanTransitionTests {
   }
 
   @Test func mixedPlanReadinessMarksContenderForRevision() throws {
-    let config = ProductizationConfig.seedDefaults(
+    let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
@@ -139,7 +139,7 @@ private func strongRecords(
   for contender: ProductTournamentContender,
   tournament: ProductTournament,
   round: ProductTournamentRound,
-  config: ProductizationConfig
+  config: ProductTournamentConfig
 ) throws -> [ProductTournamentPlanEvaluationRecord] {
   try records(
     for: contender,
@@ -157,7 +157,7 @@ private func weakRecords(
   for contender: ProductTournamentContender,
   tournament: ProductTournament,
   round: ProductTournamentRound,
-  config: ProductizationConfig
+  config: ProductTournamentConfig
 ) throws -> [ProductTournamentPlanEvaluationRecord] {
   try records(
     for: contender,
@@ -177,7 +177,7 @@ private func revisionRecords(
   for contender: ProductTournamentContender,
   tournament: ProductTournament,
   round: ProductTournamentRound,
-  config: ProductizationConfig
+  config: ProductTournamentConfig
 ) throws -> [ProductTournamentPlanEvaluationRecord] {
   try records(
     for: contender,
@@ -196,7 +196,7 @@ private func records(
   for contender: ProductTournamentContender,
   tournament: ProductTournament,
   round: ProductTournamentRound,
-  config: ProductizationConfig,
+  config: ProductTournamentConfig,
   score: Int,
   willingnessToPay: Int,
   verdict: ProductTournamentEvidenceVerdict,

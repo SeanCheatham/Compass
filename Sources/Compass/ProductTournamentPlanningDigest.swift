@@ -2,7 +2,7 @@ import Foundation
 
 enum ProductTournamentPlanningDigestFormatter {
   static func promptText(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     maxPainHypotheses: Int = 3,
     maxSolutionHypotheses: Int = 5,
@@ -49,7 +49,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func painLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     maxPainHypotheses: Int
   ) -> [String] {
     let active = config.painHypotheses
@@ -82,7 +82,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func tournamentLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let tournaments = config.tournaments
@@ -168,7 +168,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func solutionLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     maxSolutionHypotheses: Int
   ) -> [String] {
     let solutions = config.solutionHypotheses
@@ -206,7 +206,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func feasibilityHandoffLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let handoffs = ProductTournamentFeasibilityAdvisor.handoffs(
@@ -219,7 +219,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func roundTwoImplementationTargetLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let handoffs = ProductTournamentFeasibilityAdvisor.handoffs(
@@ -257,7 +257,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func roundEvidenceTransitionLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let proposals = ProductTournamentRoundEvidenceTransitioner.proposals(
@@ -270,7 +270,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func prototypeEvidenceTransitionLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let proposals = ProductTournamentPrototypeEvidenceTransitioner.proposals(
@@ -283,7 +283,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func experimentLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     maxExperiments: Int
   ) -> [String] {
     let experiments = config.experiments.sorted { lhs, rhs in
@@ -315,7 +315,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func decisionLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     maxDecisions: Int
   ) -> [String] {
     let decisions = config.decisions
@@ -337,7 +337,7 @@ enum ProductTournamentPlanningDigestFormatter {
       }
   }
 
-  private static func unknownLines(config: ProductizationConfig) -> [String] {
+  private static func unknownLines(config: ProductTournamentConfig) -> [String] {
     let unknowns = config.painHypotheses
       .filter { $0.status == .active || $0.status == .draft }
       .flatMap(\.unknowns)
@@ -349,7 +349,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func decisionProposalLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let candidates = ProductFactoryDecisionCandidateAdvisor.candidates(
@@ -378,7 +378,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func evidenceTensionLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let tensions = ProductFactoryEvidenceTensionAdvisor.tensions(
@@ -424,7 +424,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func portfolioPressureLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let signals = ProductFactoryExperimentRanker.experimentSignals(
@@ -461,7 +461,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func rationaleSignalLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let signals = ProductFactoryRationaleSignalAdvisor.signals(
@@ -502,7 +502,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func targetedProofOutcomeLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let signals = ProductFactoryTargetedProofOutcomeAdvisor.signals(
@@ -545,7 +545,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func revisionBriefLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let briefs = ProductFactoryRevisionBriefAdvisor.briefs(
@@ -583,7 +583,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func proofTargetLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let targets = ProductFactoryProofTargetAdvisor.targets(
@@ -624,7 +624,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func autopilotLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     guard
@@ -681,7 +681,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func nextActionLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let actions = ProductMarketFitNextActionAdvisor.actions(
@@ -717,7 +717,7 @@ enum ProductTournamentPlanningDigestFormatter {
     return lines
   }
 
-  private static func factoryCycleAuditLines(config: ProductizationConfig) -> [String] {
+  private static func factoryCycleAuditLines(config: ProductTournamentConfig) -> [String] {
     let audits = config.factoryCycleAudits
       .sorted { lhs, rhs in
         if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
@@ -773,7 +773,7 @@ enum ProductTournamentPlanningDigestFormatter {
   }
 
   private static func evidenceSignalLines(
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     index: ProductTournamentEvidenceIndex,
     maxEvidenceSignals: Int
   ) -> [String] {

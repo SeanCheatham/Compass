@@ -84,7 +84,7 @@ extension CompassProject {
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }
         .joined(separator: "\n\n")
-      let productizationConfigForPrompt = try workspace.readOrSeedProductTournamentConfig(
+      let productTournamentConfigForPrompt = try workspace.readOrSeedProductTournamentConfig(
         projectTitle: workspace.repoURL.lastPathComponent,
         rawPain: productPainText.isEmpty ? visionText : productPainText
       )
@@ -99,7 +99,7 @@ extension CompassProject {
         focus: focus,
         forgeProfile: forgeProfile,
         coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace),
-        productizationConfig: productizationConfigForPrompt,
+        productTournamentConfig: productTournamentConfigForPrompt,
         productTournamentEvidenceIndex: workspace.readProductTournamentEvidenceIndex(),
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
@@ -137,7 +137,7 @@ extension CompassProject {
       try validatePlanTransition(
         from: currentState,
         to: nextState,
-        productizationConfig: productizationConfigForPrompt
+        productTournamentConfig: productTournamentConfigForPrompt
       )
       let lessonEditCount = try workspace.applyLessonEdits(planResult.lessonEdits)
       try workspace.writeState(nextState)
@@ -155,7 +155,7 @@ extension CompassProject {
       sessions[sessionIndex].verify = nextState.immediate?.verify
       recordProductizationPlanMetadata(
         for: nextState.immediate,
-        productizationConfig: productizationConfigForPrompt,
+        productTournamentConfig: productTournamentConfigForPrompt,
         sessionIndex: sessionIndex
       )
       try persistSessions()
@@ -651,7 +651,7 @@ extension CompassProject {
       .prefix(reflectSessionWindow)
 
     let visionText = workspace.readVision()
-    let productizationConfigForPrompt = try workspace.readOrSeedProductTournamentConfig(
+    let productTournamentConfigForPrompt = try workspace.readOrSeedProductTournamentConfig(
       projectTitle: workspace.repoURL.lastPathComponent,
       rawPain: visionText
     )
@@ -662,7 +662,7 @@ extension CompassProject {
       vision: visionText,
       recentSessions: Array(recentSessions),
       iteration: iteration,
-      productizationConfig: productizationConfigForPrompt,
+      productTournamentConfig: productTournamentConfigForPrompt,
       productTournamentEvidenceIndex: workspace.readProductTournamentEvidenceIndex(),
       hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
     )
@@ -691,7 +691,7 @@ extension CompassProject {
 
     let productDecisionUpdateCount = try applyProductTournamentDecisionUpdates(
       result.productDecisionUpdates,
-      from: productizationConfigForPrompt,
+      from: productTournamentConfigForPrompt,
       workspace: workspace,
       sessionIndex: sessionIndex
     )
@@ -803,14 +803,14 @@ extension CompassProject {
   func validatePlanTransition(
     from current: PlanState,
     to next: PlanState,
-    productizationConfig: ProductizationConfig? = nil
+    productTournamentConfig: ProductTournamentConfig? = nil
   ) throws {
     do {
       try PlanTransitionValidator.validate(
         from: current,
         to: next,
         forgeProfile: forgeProfile,
-        productizationConfig: productizationConfig
+        productTournamentConfig: productTournamentConfig
       )
     } catch let error as PlanTransitionValidationError {
       throw AppModelError.rejectedPlan(error.message)
@@ -819,7 +819,7 @@ extension CompassProject {
 
   func applyProductTournamentDecisionUpdates(
     _ updates: [ProductTournamentReflectDecisionUpdate],
-    from currentConfig: ProductizationConfig,
+    from currentConfig: ProductTournamentConfig,
     workspace: CompassWorkspace,
     sessionIndex: Int
   ) throws -> Int {
@@ -829,7 +829,7 @@ extension CompassProject {
       to: currentConfig
     )
     try workspace.writeProductTournamentConfig(nextConfig)
-    productizationConfig = nextConfig
+    productTournamentConfig = nextConfig
 
     recordProductTournamentDecisionMetadata(
       updates,
@@ -843,7 +843,7 @@ extension CompassProject {
 
   func recordProductizationPlanMetadata(
     for immediate: PlanNext?,
-    productizationConfig: ProductizationConfig,
+    productTournamentConfig: ProductTournamentConfig,
     sessionIndex: Int
   ) {
     guard sessions.indices.contains(sessionIndex), let immediate else { return }
@@ -855,17 +855,17 @@ extension CompassProject {
       ]
       .compactMap { $0 }
       .joined(separator: "\n"),
-      productizationConfig: productizationConfig
+      productTournamentConfig: productTournamentConfig
     )
     guard experimentIDs.count == 1,
-      let experiment = productizationConfig.experiments.first(where: { $0.id == experimentIDs[0] })
+      let experiment = productTournamentConfig.experiments.first(where: { $0.id == experimentIDs[0] })
     else { return }
 
     sessions[sessionIndex].productExperimentID = experiment.id
     sessions[sessionIndex].productSolutionID = experiment.solutionID
     sessions[sessionIndex].productPainID = productizationPainID(
       forSolutionID: experiment.solutionID,
-      config: productizationConfig
+      config: productTournamentConfig
     )
     sessions[sessionIndex].productExperimentBranchName = experiment.branchName
     sessions[sessionIndex].productExperimentCommitSha = experiment.currentSha ?? experiment.baseSha
@@ -875,8 +875,8 @@ extension CompassProject {
 
   func recordProductTournamentDecisionMetadata(
     _ updates: [ProductTournamentReflectDecisionUpdate],
-    previousConfig: ProductizationConfig,
-    nextConfig: ProductizationConfig,
+    previousConfig: ProductTournamentConfig,
+    nextConfig: ProductTournamentConfig,
     sessionIndex: Int
   ) {
     guard sessions.indices.contains(sessionIndex), let latest = updates.last,
@@ -904,19 +904,19 @@ extension CompassProject {
 
   private func productizationPainID(
     forSolutionID solutionID: String,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> String? {
     config.solutionHypotheses.first { $0.id == solutionID }?.painID
   }
 
   private func productizationExperimentIDs(
     mentionedIn text: String,
-    productizationConfig: ProductizationConfig
+    productTournamentConfig: ProductTournamentConfig
   ) -> [String] {
     let normalizedText = normalizedProductizationMatchText(text)
     guard !normalizedText.isEmpty else { return [] }
     var matches: [String] = []
-    for experiment in productizationConfig.experiments {
+    for experiment in productTournamentConfig.experiments {
       let tokens = [
         experiment.id,
         experiment.branchName,

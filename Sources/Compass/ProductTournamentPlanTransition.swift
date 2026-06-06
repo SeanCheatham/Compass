@@ -27,7 +27,7 @@ struct ProductTournamentPlanTransitionProposal: Codable, Equatable, Identifiable
 
 struct ProductTournamentPlanTransitionOutcome: Equatable, Sendable {
   var proposal: ProductTournamentPlanTransitionProposal
-  var config: ProductizationConfig
+  var config: ProductTournamentConfig
   var affectedContenderIDs: [String]
   var fromRoundID: String
   var toRoundID: String?
@@ -78,7 +78,7 @@ enum ProductTournamentPlanTransitioner {
   static func proposals(
     tournamentID: String? = nil,
     roundID: String? = nil,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentPlanTransitionProposal] {
     guard
@@ -115,7 +115,7 @@ enum ProductTournamentPlanTransitioner {
   static func bestProposal(
     tournamentID: String? = nil,
     roundID: String? = nil,
-    config: ProductizationConfig,
+    config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentPlanTransitionProposal? {
     proposals(
@@ -130,7 +130,7 @@ enum ProductTournamentPlanTransitioner {
   static func applyBestProposal(
     tournamentID: String? = nil,
     roundID: String? = nil,
-    to config: ProductizationConfig,
+    to config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     now: Date = Date()
   ) throws -> ProductTournamentPlanTransitionOutcome {
@@ -152,7 +152,7 @@ enum ProductTournamentPlanTransitioner {
 
   static func apply(
     proposal: ProductTournamentPlanTransitionProposal,
-    to config: ProductizationConfig,
+    to config: ProductTournamentConfig,
     now: Date = Date()
   ) throws -> ProductTournamentPlanTransitionOutcome {
     guard proposal.isActionable else {
@@ -292,7 +292,7 @@ enum ProductTournamentPlanTransitioner {
 
   private static func selectedTournament(
     tournamentID: String?,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> ProductTournament? {
     if let tournamentID {
       return config.tournaments.first { $0.id == tournamentID }
@@ -309,7 +309,7 @@ enum ProductTournamentPlanTransitioner {
   private static func selectedPlanRound(
     roundID: String?,
     tournament: ProductTournament,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) -> ProductTournamentRound? {
     if let roundID {
       return config.tournamentRounds.first {
@@ -337,7 +337,7 @@ enum ProductTournamentPlanTransitioner {
   private static func roundTwoFeasibilityRound(
     for tournament: ProductTournament,
     after round: ProductTournamentRound,
-    config: ProductizationConfig
+    config: ProductTournamentConfig
   ) throws -> ProductTournamentRound {
     let rounds = tournament.roundIDs.compactMap { roundID in
       config.tournamentRounds.first { $0.id == roundID }
@@ -352,7 +352,7 @@ enum ProductTournamentPlanTransitioner {
 
   private static func updateTournament(
     _ tournamentID: String,
-    in config: inout ProductizationConfig,
+    in config: inout ProductTournamentConfig,
     timestamp: Double,
     mutate: (inout ProductTournament) -> Void
   ) {
@@ -365,7 +365,7 @@ enum ProductTournamentPlanTransitioner {
 
   private static func updateRound(
     _ roundID: String,
-    in config: inout ProductizationConfig,
+    in config: inout ProductTournamentConfig,
     timestamp: Double,
     mutate: (inout ProductTournamentRound) -> Void
   ) {
@@ -378,7 +378,7 @@ enum ProductTournamentPlanTransitioner {
 
   private static func updateContender(
     _ contenderID: String,
-    in config: inout ProductizationConfig,
+    in config: inout ProductTournamentConfig,
     timestamp: Double,
     mutate: (inout ProductTournamentContender) -> Void
   ) {
@@ -391,7 +391,7 @@ enum ProductTournamentPlanTransitioner {
 
   private static func activateSolution(
     for contenderID: String,
-    in config: inout ProductizationConfig,
+    in config: inout ProductTournamentConfig,
     timestamp _: Double
   ) {
     guard

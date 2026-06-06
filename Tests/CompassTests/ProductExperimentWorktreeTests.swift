@@ -11,7 +11,7 @@ struct ProductExperimentWorktreeTests {
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
     try commitAll("Initialize Compass storage ignore", at: root)
-    let config = makeBranchingProductizationConfig()
+    let config = makeBranchingProductTournamentConfig()
     try workspace.writeProductTournamentConfig(config)
     let initialMainSha = try await gitOutput(["rev-parse", "HEAD"], in: root)
 
@@ -86,7 +86,7 @@ struct ProductExperimentWorktreeTests {
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
     try writeFile("dirty.txt", contents: "uncommitted\n", at: root)
-    let experiment = makeBranchingProductizationConfig().experiments[0]
+    let experiment = makeBranchingProductTournamentConfig().experiments[0]
 
     do {
       _ = try await ProductExperimentWorktreeManager.ensureWorktree(for: experiment, in: workspace)
@@ -191,7 +191,7 @@ struct ProductExperimentWorktreeTests {
   }
 }
 
-private func makeBranchingProductizationConfig() -> ProductizationConfig {
+private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
   let pain = PainHypothesis(
     id: "pain-incidents",
     title: "Incident decision drift",
@@ -242,7 +242,7 @@ private func makeBranchingProductizationConfig() -> ProductizationConfig {
     decision: .notRun,
     createdAt: 1
   )
-  return ProductizationConfig(
+  return ProductTournamentConfig(
     rawPain: pain.rawPain,
     painHypotheses: [pain],
     userSegments: [],

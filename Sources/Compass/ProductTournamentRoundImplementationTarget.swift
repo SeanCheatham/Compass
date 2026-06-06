@@ -9,7 +9,7 @@ struct ProductTournamentRoundImplementationTarget: Equatable, Sendable {
 
 enum ProductTournamentRoundImplementationTargetResolver {
   static func defaultActiveRoundTwoTarget(
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) -> ProductTournamentRoundImplementationTarget? {
     let targets = activeRoundTwoTargets(in: config)
     guard targets.count == 1 else { return nil }
@@ -17,7 +17,7 @@ enum ProductTournamentRoundImplementationTargetResolver {
   }
 
   static func activeRoundTwoTargets(
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) -> [ProductTournamentRoundImplementationTarget] {
     config.tournaments
       .filter { $0.status == .active || $0.status == .drafting }
@@ -30,7 +30,7 @@ enum ProductTournamentRoundImplementationTargetResolver {
 
   static func roundTwoTarget(
     forExperimentInTargetTournament experimentID: String,
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) -> ProductTournamentRoundImplementationTarget? {
     guard
       let contender = config.tournamentContenders.first(where: {
@@ -43,7 +43,7 @@ enum ProductTournamentRoundImplementationTargetResolver {
 
   static func activeRoundTwoTargetBlockingExperiment(
     _ experimentID: String,
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) -> ProductTournamentRoundImplementationTarget? {
     guard
       let target = roundTwoTarget(
@@ -57,14 +57,14 @@ enum ProductTournamentRoundImplementationTargetResolver {
 
   static func blocksEvidenceLaunch(
     experimentID: String,
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) -> Bool {
     activeRoundTwoTargetBlockingExperiment(experimentID, in: config) != nil
   }
 
   static func blockedSiblingExperimentIDs(
     for target: ProductTournamentRoundImplementationTarget,
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) -> [String] {
     guard roundTwoTarget(tournamentID: target.tournamentID, in: config) == target else {
       return []
@@ -81,7 +81,7 @@ enum ProductTournamentRoundImplementationTargetResolver {
 
   static func roundTwoTarget(
     tournamentID: String,
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) -> ProductTournamentRoundImplementationTarget? {
     guard
       let tournament = config.tournaments.first(where: {
@@ -115,7 +115,7 @@ enum ProductTournamentRoundImplementationTargetResolver {
 
   private static func activeCoreTechnologyRound(
     for tournament: ProductTournament,
-    in config: ProductizationConfig
+    in config: ProductTournamentConfig
   ) -> ProductTournamentRound? {
     let currentRound = tournament.currentRoundID.flatMap { roundID in
       config.tournamentRounds.first { $0.id == roundID && $0.tournamentID == tournament.id }
