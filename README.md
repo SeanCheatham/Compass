@@ -153,7 +153,9 @@ The Workbench contender rows show the same latest proof-debt delta beside the
 focused proof action, with the audit and starting/ending debt labels available
 from the row help. A Round 1 proof-delta overview also groups active plan-round
 contenders so operators can compare cleared, unchanged, missing, or worsened
-proof debt before deciding which plan to test next.
+proof debt before deciding which plan to test next; that overview disappears once
+the tournament advances to Round 2 while recent automation deltas remain in
+context as history.
 Later-round scenario evidence is stamped with tournament, round, and contender
 IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
 feedback remains comparable across tournament rounds. The workbench can apply the

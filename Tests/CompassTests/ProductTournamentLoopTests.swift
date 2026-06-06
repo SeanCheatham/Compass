@@ -922,6 +922,30 @@ struct ProductTournamentLoopTests {
     try #require(planProofContenderLine.contains("audit \(planProofAudit.id)"))
     try #require(planProofContenderLine.contains("starting \(experiment.id): contender \(contender.id)"))
     try #require(planProofContenderLine.contains("ending \(experiment.id): contender \(contender.id)"))
+    let roundTwoOutcome = try ProductTournamentPlanTransitioner.applyBestProposal(
+      tournamentID: tournament.id,
+      roundID: planRound.id,
+      to: auditedPlanProofConfig,
+      evidenceIndex: executedIndex,
+      now: Date(timeIntervalSince1970: 40)
+    )
+    let roundTwoConfig = roundTwoOutcome.config
+    let activeRoundTwo = try #require(
+      roundTwoConfig.tournamentRounds.first { $0.id == roundTwoOutcome.toRoundID })
+    let postTransitionOverview = TournamentPlanProofDeltaOverview.items(
+      config: roundTwoConfig,
+      evidenceIndex: executedIndex
+    )
+    let postTransitionDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: roundTwoConfig,
+      evidenceIndex: executedIndex
+    )
+    try #require(roundTwoOutcome.proposal.recommendation == .advanceToFeasibility)
+    try #require(activeRoundTwo.kind == .coreTechnology)
+    try #require(activeRoundTwo.status == .active)
+    try #require(postTransitionOverview.isEmpty)
+    try #require(postTransitionDigest.contains("Round 1 plan-proof automation deltas"))
+    try #require(!postTransitionDigest.contains("Round 1 plan-proof contender overview"))
 
     let operatorSegment = try #require(
       config.userSegments.first { $0.id == contender.targetSegmentIDs.first })
