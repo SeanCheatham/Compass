@@ -50,17 +50,17 @@ extension Prompts {
       - `summary`: a concise explanation of the reflection result.
       - `lessonEdits`: exact find/replace edits against the lessons content
         shown below, or `[]` when nothing durable should be recorded.
-      - `productDecisionUpdates`: experiment decision updates justified by
-        product tournament evidence, or `[]` when no experiment decision should
-        change. Reflect may update tournament state through this field but must
-        not mutate code.
+      - `tournamentDecisionUpdates`: tournament experiment decision updates
+        justified by Product Tournament evidence, or `[]` when no experiment
+        decision should change. Reflect may update tournament state through this
+        field but must not mutate code.
 
       Copy this shape when no planning update is needed:
       {
         "state": null,
         "summary": "<why the current plan is still on course>",
         "lessonEdits": [],
-        "productDecisionUpdates": []
+        "tournamentDecisionUpdates": []
       }
 
       If planning needs revision, replace `state: null` with an object
@@ -80,7 +80,7 @@ extension Prompts {
         },
         "summary": "<what changed and why>",
         "lessonEdits": [],
-        "productDecisionUpdates": []
+        "tournamentDecisionUpdates": []
       }
       When preserving a non-null `immediate`, copy the full current immediate
       object, including `plan`, `verify`, `verifyTimeoutMs`, `estimatedDifficulty`,
@@ -108,7 +108,7 @@ extension Prompts {
       When Product Tournament Context includes `round_2_evidence_lock`, treat
       `paused_sibling_experiments` as intentionally paused while the selected
       Round 2 contender proves core technology. Do not recommend planning
-      revisions or productDecisionUpdates that restart sibling evidence unless
+      revisions or tournamentDecisionUpdates that restart sibling evidence unless
       new transition evidence says the tournament should leave the current
       Round 2 target.
       Allowed experiment decision transitions are:

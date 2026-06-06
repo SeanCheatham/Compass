@@ -689,8 +689,8 @@ extension CompassProject {
       decode: ReflectSummary.self
     )
 
-    let productDecisionUpdateCount = try applyProductTournamentDecisionUpdates(
-      result.productDecisionUpdates,
+    let tournamentDecisionUpdateCount = try applyProductTournamentDecisionUpdates(
+      result.tournamentDecisionUpdates,
       from: productTournamentConfigForPrompt,
       workspace: workspace,
       sessionIndex: sessionIndex
@@ -706,9 +706,9 @@ extension CompassProject {
       log("Reflect: \(result.summary)", level: .info)
     }
     logLessonEdits(lessonEditCount)
-    if productDecisionUpdateCount > 0 {
+    if tournamentDecisionUpdateCount > 0 {
       log(
-        "Reflect updated \(productDecisionUpdateCount) product experiment decision(s).",
+        "Reflect updated \(tournamentDecisionUpdateCount) tournament experiment decision(s).",
         level: .success
       )
     }

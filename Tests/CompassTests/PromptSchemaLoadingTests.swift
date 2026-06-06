@@ -91,13 +91,14 @@ struct PromptSchemaLoadingTests {
   }
 
   @Test
-  func testReflectSchemasAllowProductDecisionUpdates() throws {
+  func testReflectSchemasAllowTournamentDecisionUpdates() throws {
     for schema in [Prompts.reflectSchema, Prompts.reflectHostXcodeSchema] {
       let properties = try schemaProperties(schema)
-      try #require(properties.keys.contains("productDecisionUpdates"))
+      try #require(properties.keys.contains("tournamentDecisionUpdates"))
+      try #require(!properties.keys.contains("productDecisionUpdates"))
       try #require(
-        propertyDescription("productDecisionUpdates", in: properties)
-          .contains("Product experiment decision updates"))
+        propertyDescription("tournamentDecisionUpdates", in: properties)
+          .contains("Tournament experiment decision updates"))
     }
   }
 

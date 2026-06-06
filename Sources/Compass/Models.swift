@@ -1325,7 +1325,7 @@ struct ReflectSummary: Codable, Equatable {
   var state: PlanProposal?
   var summary: String
   var lessonEdits: [LessonEdit]
-  var productDecisionUpdates: [ProductTournamentReflectDecisionUpdate]
+  var tournamentDecisionUpdates: [ProductTournamentReflectDecisionUpdate]
 
   enum CodingKeys: String, CodingKey {
     case state
@@ -1342,20 +1342,20 @@ struct ReflectSummary: Codable, Equatable {
     case notes
     case lessonEdits
     case lessonEditsSnake = "lesson_edits"
-    case productDecisionUpdates
-    case productDecisionUpdatesSnake = "product_decision_updates"
+    case tournamentDecisionUpdates
+    case tournamentDecisionUpdatesSnake = "tournament_decision_updates"
   }
 
   init(
     state: PlanProposal?,
     summary: String,
     lessonEdits: [LessonEdit] = [],
-    productDecisionUpdates: [ProductTournamentReflectDecisionUpdate] = []
+    tournamentDecisionUpdates: [ProductTournamentReflectDecisionUpdate] = []
   ) {
     self.state = state
     self.summary = summary
     self.lessonEdits = lessonEdits
-    self.productDecisionUpdates = productDecisionUpdates
+    self.tournamentDecisionUpdates = tournamentDecisionUpdates
   }
 
   init(from decoder: Decoder) throws {
@@ -1377,10 +1377,10 @@ struct ReflectSummary: Codable, Equatable {
         preferredKey: .lessonEdits,
         aliases: [.lessonEditsSnake]
       ) ?? []
-    productDecisionUpdates = try Self.decodeProductDecisionUpdates(
+    tournamentDecisionUpdates = try Self.decodeTournamentDecisionUpdates(
       from: container,
-      preferredKey: .productDecisionUpdates,
-      aliases: [.productDecisionUpdatesSnake]
+      preferredKey: .tournamentDecisionUpdates,
+      aliases: [.tournamentDecisionUpdatesSnake]
     ) ?? []
   }
 
@@ -1392,7 +1392,7 @@ struct ReflectSummary: Codable, Equatable {
     }
     try container.encode(summary, forKey: .summary)
     try container.encode(lessonEdits, forKey: .lessonEdits)
-    try container.encode(productDecisionUpdates, forKey: .productDecisionUpdates)
+    try container.encode(tournamentDecisionUpdates, forKey: .tournamentDecisionUpdates)
   }
 
   private static func decodeOptionalPlanProposal(
@@ -1416,7 +1416,7 @@ struct ReflectSummary: Codable, Equatable {
     return nil
   }
 
-  private static func decodeProductDecisionUpdates(
+  private static func decodeTournamentDecisionUpdates(
     from container: KeyedDecodingContainer<CodingKeys>,
     preferredKey: CodingKeys,
     aliases: [CodingKeys]

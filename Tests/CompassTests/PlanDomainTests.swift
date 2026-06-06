@@ -1578,14 +1578,14 @@ struct PlanningEnvelopeDecoderTests {
     try #require(summary.lessonEdits.isEmpty)
   }
 
-  @Test func reflectSummaryDecoderAcceptsProductDecisionUpdates() throws {
+  @Test func reflectSummaryDecoderAcceptsTournamentDecisionUpdates() throws {
     let data = Data(
       """
       {
         "state": null,
         "summary": "Evidence supports narrowing the prototype.",
         "lessonEdits": [],
-        "productDecisionUpdates": [
+        "tournamentDecisionUpdates": [
           {
             "experimentID": "experiment-command-board",
             "decision": "narrow",
@@ -1600,10 +1600,13 @@ struct PlanningEnvelopeDecoderTests {
 
     let summary = try JSONDecoder().decode(ReflectSummary.self, from: data)
 
-    try #require(summary.productDecisionUpdates.count == 1)
-    try #require(summary.productDecisionUpdates[0].experimentID == "experiment-command-board")
-    try #require(summary.productDecisionUpdates[0].decision == .narrow)
-    try #require(summary.productDecisionUpdates[0].evidenceRunIDs == ["run-one", "run-two"])
+    let encoded = String(decoding: try JSONEncoder().encode(summary), as: UTF8.self)
+    try #require(encoded.contains("\"tournamentDecisionUpdates\""))
+    try #require(!encoded.contains("\"productDecisionUpdates\""))
+    try #require(summary.tournamentDecisionUpdates.count == 1)
+    try #require(summary.tournamentDecisionUpdates[0].experimentID == "experiment-command-board")
+    try #require(summary.tournamentDecisionUpdates[0].decision == .narrow)
+    try #require(summary.tournamentDecisionUpdates[0].evidenceRunIDs == ["run-one", "run-two"])
   }
 
   @Test func planProposalDecoderAcceptsCanonicalTypedState() throws {

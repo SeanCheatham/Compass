@@ -32,11 +32,11 @@
       "type": "array",
       "items": { "$ref": "#/$defs/lessonEdit" }
     },
-    "productDecisionUpdates": {
+    "tournamentDecisionUpdates": {
       "type": "array",
       "maxItems": 4,
-      "description": "Product experiment decision updates justified by product tournament evidence. Use [] when no experiment decision should change.",
-      "items": { "$ref": "#/$defs/productDecisionUpdate" }
+      "description": "Tournament experiment decision updates justified by Product Tournament evidence. Use [] when no experiment decision should change.",
+      "items": { "$ref": "#/$defs/tournamentDecisionUpdate" }
     }
   },
   "$defs": {
@@ -168,7 +168,7 @@
         }
       }
     },
-    "productDecisionUpdate": {
+    "tournamentDecisionUpdate": {
       "type": "object",
       "additionalProperties": false,
       "required": ["experimentID", "decision", "summary", "evidenceRunIDs", "decidedBy"],
