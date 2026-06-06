@@ -394,6 +394,10 @@ struct ProductTournamentWorkbenchTab: View {
     }
   }
 
+  private var roundOnePlanProofDeltaOverview: [TournamentPlanProofDeltaOverviewItem] {
+    TournamentPlanProofDeltaOverview.items(config: config, evidenceIndex: evidenceIndex)
+  }
+
   private var experimentsForBoard: [ProductExperiment] {
     TournamentAutomationExperimentRanker.rankedExperiments(
       config: config,
@@ -757,6 +761,16 @@ struct ProductTournamentWorkbenchTab: View {
           }
         }
 
+        if !roundOnePlanProofDeltaOverview.isEmpty {
+          WorkbenchSection("Round 1 Proof Deltas", systemImage: "chart.line.uptrend.xyaxis") {
+            VStack(alignment: .leading, spacing: 8) {
+              ForEach(roundOnePlanProofDeltaOverview) { item in
+                planProofDeltaOverviewRow(item)
+              }
+            }
+          }
+        }
+
         WorkbenchSection("Rounds", systemImage: "list.number") {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -1098,6 +1112,40 @@ struct ProductTournamentWorkbenchTab: View {
       }
     }
     .help(contender.productPlan)
+  }
+
+  private func planProofDeltaOverviewRow(
+    _ item: TournamentPlanProofDeltaOverviewItem
+  ) -> some View {
+    HStack(alignment: .top, spacing: 9) {
+      Image(systemName: item.displaySystemImage)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .frame(width: 16, alignment: .center)
+        .padding(.top, 2)
+      VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text(item.contenderTitle)
+            .font(.callout.weight(.semibold))
+            .lineLimit(2)
+          Spacer()
+          WorkbenchStatusPill(text: item.status.rawValue)
+        }
+        Text(item.displaySubtitle)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        Text(item.displayDetail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .help(item.helpSummary)
   }
 
   private func tournamentRoundRow(_ round: ProductTournamentRound) -> some View {

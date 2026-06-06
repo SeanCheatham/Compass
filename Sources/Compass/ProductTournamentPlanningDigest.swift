@@ -27,6 +27,10 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += prototypeEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationCycleAuditLines(config: config)
     lines += tournamentAutomationPlanProofAuditLines(config: config)
+    lines += TournamentPlanProofDeltaOverview.contextLines(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
     lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
     lines += solutionLines(config: config, maxSolutionHypotheses: maxSolutionHypotheses)
     lines += experimentLines(config: config, maxExperiments: maxExperiments)

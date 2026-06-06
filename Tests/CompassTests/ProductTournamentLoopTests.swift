@@ -876,6 +876,28 @@ struct ProductTournamentLoopTests {
     try #require(
       latestPlanProofDelta.helpSummary.contains(
         "Ending: \(experiment.id): contender \(contender.id)"))
+    let proofDeltaOverview = TournamentPlanProofDeltaOverview.items(
+      config: auditedPlanProofConfig,
+      evidenceIndex: executedIndex
+    )
+    try #require(proofDeltaOverview.count == 2)
+    let focusedOverview = try #require(
+      proofDeltaOverview.first { $0.contenderID == contender.id })
+    let siblingOverview = try #require(
+      proofDeltaOverview.first { $0.contenderID != contender.id })
+    try #require(focusedOverview.displaySubtitle == "Proof debt cleared 6 (6 -> 0)")
+    try #require(focusedOverview.displaySystemImage == "checkmark.seal")
+    try #require(focusedOverview.contextLine.contains("focused_action Proof Complete"))
+    try #require(
+      focusedOverview.contextLine.contains("latest_plan_proof_delta proof_debt 6 -> 0 (-6)"))
+    try #require(siblingOverview.displaySubtitle == "No proof delta yet")
+    try #require(siblingOverview.contextLine.contains("latest_plan_proof_delta none"))
+    let proofDeltaOverviewLines = TournamentPlanProofDeltaOverview.contextLines(
+      config: auditedPlanProofConfig,
+      evidenceIndex: executedIndex
+    )
+    try #require(proofDeltaOverviewLines.contains("Round 1 plan-proof contender overview:"))
+    try #require(proofDeltaOverviewLines.joined(separator: "\n").contains(contender.id))
     let planProofDigest = ProductTournamentPlanningDigestFormatter.promptText(
       config: auditedPlanProofConfig,
       evidenceIndex: executedIndex
@@ -888,6 +910,9 @@ struct ProductTournamentLoopTests {
     try #require(planProofDigest.contains("plan proof complete"))
     try #require(planProofDigest.contains(initialStep.id))
     try #require(planProofDigest.contains(executionOutcome.records[0].id))
+    try #require(planProofDigest.contains("Round 1 plan-proof contender overview"))
+    try #require(planProofDigest.contains("focused_action Proof Complete"))
+    try #require(planProofDigest.contains("latest_plan_proof_delta none"))
     let planProofContenderLine = try #require(
       planProofDigest.split(separator: "\n").map(String.init).first {
         $0.contains("Contender \(contender.id)")

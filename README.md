@@ -151,7 +151,9 @@ Plan and Reflect can see the exact debt labels that changed after automation;
 matching context rows repeat the latest delta beside the plan-readiness state.
 The Workbench contender rows show the same latest proof-debt delta beside the
 focused proof action, with the audit and starting/ending debt labels available
-from the row help.
+from the row help. A Round 1 proof-delta overview also groups active plan-round
+contenders so operators can compare cleared, unchanged, missing, or worsened
+proof debt before deciding which plan to test next.
 Later-round scenario evidence is stamped with tournament, round, and contender
 IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
 feedback remains comparable across tournament rounds. The workbench can apply the
