@@ -1338,6 +1338,10 @@ struct ProductTournamentWorkbenchTab: View {
             .lineLimit(2)
           WorkbenchFact(label: "Track", value: item.experimentID)
           WorkbenchFact(label: "Proof", value: item.coreTechnologyProof)
+          if let validationSummary = item.proofGapValidationSummary {
+            WorkbenchFact(label: "Validation", value: validationSummary)
+              .help(item.proofGapValidationDetail ?? validationSummary)
+          }
           Text(item.displayDetail)
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -1794,6 +1798,15 @@ struct ProductTournamentWorkbenchTab: View {
                 .help(
                   latestTournamentAutomationCycleFacts.postPreparationEvidenceHelp
                     ?? postPreparationEvidenceSummary
+                )
+            }
+            if let validationSummary =
+              latestTournamentAutomationCycleFacts.latestRoundTwoProofGapValidationSummary
+            {
+              WorkbenchFact(label: "Round 2 Validation", value: validationSummary)
+                .help(
+                  latestTournamentAutomationCycleFacts.latestRoundTwoProofGapValidationHelp
+                    ?? validationSummary
                 )
             }
           }

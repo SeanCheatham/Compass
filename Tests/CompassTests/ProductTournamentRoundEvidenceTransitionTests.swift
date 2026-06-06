@@ -329,6 +329,19 @@ struct ProductTournamentRoundEvidenceTransitionTests {
         isPersonaModelAvailable: true
       )
     )
+    let validationOverviewItem = try #require(
+      ProductTournamentRoundTwoProofOverview.items(
+        config: preparedRevisionConfig,
+        evidenceIndex: validationIndex
+      ).first
+    )
+    let validationCycleFacts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: preparedRevisionConfig,
+        evidenceIndex: validationIndex,
+        currentStep: validationTransitionStep
+      )
+    )
 
     try #require(proposal.recommendation == .reviseCoreTechnology)
     try #require(preTransitionStep.kind == .applyRoundTransition)
@@ -423,6 +436,20 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(validationDigest.contains("resolved missing capability inspectable_source_artifact"))
     try #require(validationTransitionStep.kind == .applyRoundTransition)
     try #require(validationTransitionStep.title == "Apply Round 2 transition")
+    try #require(validationOverviewItem.proofGapValidation?.outcome == .resolved)
+    try #require(validationOverviewItem.proofGapValidationSummary?.contains("Resolved") == true)
+    try #require(validationOverviewItem.proofGapValidationSummary?.contains("2/2 validation") == true)
+    try #require(validationOverviewItem.proofGapValidationDetail?.contains(revisionAudit.id) == true)
+    try #require(validationOverviewItem.helpSummary.contains("Proof-gap validation: Resolved"))
+    try #require(
+      validationCycleFacts.latestRoundTwoProofGapValidationSummary?
+        .contains("Resolved") == true)
+    try #require(
+      validationCycleFacts.latestRoundTwoProofGapValidationSummary?
+        .contains(revisionAudit.id) == true)
+    try #require(
+      validationCycleFacts.latestRoundTwoProofGapValidationHelp?
+        .contains("round_2_proof_gap_validation") == true)
     try #require(updatedTournament.currentRoundID == fixture.coreRound.id)
     try #require(updatedCoreRound.status == .active)
     try #require(updatedContender.status == .needsRevision)

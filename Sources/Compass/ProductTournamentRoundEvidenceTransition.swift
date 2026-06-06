@@ -111,6 +111,15 @@ enum ProductTournamentRoundTwoProofGapValidationOutcome: String, Codable, Equata
   case resolved
   case persisted
   case eliminated
+
+  var title: String {
+    switch self {
+    case .pendingValidation: return "Pending Validation"
+    case .resolved: return "Resolved"
+    case .persisted: return "Persisted"
+    case .eliminated: return "Eliminated"
+    }
+  }
 }
 
 struct ProductTournamentRoundTwoProofGapValidationResult: Equatable, Sendable, Identifiable {
@@ -136,6 +145,24 @@ struct ProductTournamentRoundTwoProofGapValidationResult: Equatable, Sendable, I
 
   var scoreLabel: String {
     "\(Int(readinessScore.rounded()))"
+  }
+
+  var displaySummary: String {
+    "\(outcome.title), \(completedValidationRunCount)/\(validationRunCount) validation run(s), readiness \(scoreLabel)/100"
+  }
+
+  var displayDetail: String {
+    let scenario = revisionScenarioID.map { "scenario \($0)" } ?? "unknown scenario"
+    let resolved =
+      resolvedProofGaps.isEmpty
+      ? "resolved none"
+      : "resolved \(resolvedProofGaps.prefix(3).joined(separator: "; "))"
+    let persisted =
+      persistedProofGaps.isEmpty
+      ? "persisted none"
+      : "persisted \(persistedProofGaps.prefix(3).joined(separator: "; "))"
+    return
+      "Audit \(revisionAuditID), \(scenario); \(resolved); \(persisted). Next: \(nextValidationTarget)"
   }
 
   var contextLine: String {

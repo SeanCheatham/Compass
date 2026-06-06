@@ -7,6 +7,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   var latestEvidenceHelp: String?
   var postPreparationEvidenceSummary: String?
   var postPreparationEvidenceHelp: String?
+  var latestRoundTwoProofGapValidationSummary: String?
+  var latestRoundTwoProofGapValidationHelp: String?
 
   static func latest(
     config: ProductTournamentConfig,
@@ -50,6 +52,9 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       config: config,
       evidenceIndex: evidenceIndex
     )
+    let roundTwoValidation = ProductTournamentRoundTwoProofGapValidationAdvisor
+      .results(config: config, evidenceIndex: evidenceIndex, limit: 1)
+      .first
 
     return TournamentAutomationCycleWorkbenchFacts(
       latestCycleSummary: latestAudit.summary,
@@ -59,7 +64,11 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       latestEvidenceSummary: evidenceAudit.map(makeEvidenceSummary(for:)) ?? "none recorded",
       latestEvidenceHelp: evidenceAudit.map(helpSummary(for:)),
       postPreparationEvidenceSummary: postPreparationEvidence?.summary,
-      postPreparationEvidenceHelp: postPreparationEvidence?.help
+      postPreparationEvidenceHelp: postPreparationEvidence?.help,
+      latestRoundTwoProofGapValidationSummary: roundTwoValidation.map(
+        makeRoundTwoProofGapValidationSummary(for:)
+      ),
+      latestRoundTwoProofGapValidationHelp: roundTwoValidation.map(\.contextLine)
     )
   }
 
@@ -158,6 +167,16 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
     bounded(
       "audit \(audit.id); stop \(audit.stopReason.rawValue); \(audit.stopDetail)",
       limit: 500
+    )
+  }
+
+  private static func makeRoundTwoProofGapValidationSummary(
+    for result: ProductTournamentRoundTwoProofGapValidationResult
+  ) -> String {
+    let scenario = result.revisionScenarioID.map { "; scenario \($0)" } ?? ""
+    return bounded(
+      "\(result.outcome.title), contender \(result.contenderID), \(result.completedValidationRunCount)/\(result.validationRunCount) validation run(s), audit \(result.revisionAuditID)\(scenario)",
+      limit: 260
     )
   }
 

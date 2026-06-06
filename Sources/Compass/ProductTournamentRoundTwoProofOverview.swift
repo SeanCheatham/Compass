@@ -27,6 +27,7 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
   var detail: String
   var proofGaps: [String]
   var nextValidationTarget: String
+  var proofGapValidation: ProductTournamentRoundTwoProofGapValidationResult?
 
   var scoreLabel: String {
     "\(Int(readinessScore.rounded()))"
@@ -55,6 +56,14 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
 
   var displayDetail: String {
     "\(detail) Next validation: \(nextValidationTarget) Proof: \(coreTechnologyProof)"
+  }
+
+  var proofGapValidationSummary: String? {
+    proofGapValidation?.displaySummary
+  }
+
+  var proofGapValidationDetail: String? {
+    proofGapValidation?.displayDetail
   }
 
   var displaySystemImage: String {
@@ -92,6 +101,10 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
     if !proofGaps.isEmpty {
       parts.append("Proof gaps: \(proofGaps.prefix(4).joined(separator: "; "))")
     }
+    if let proofGapValidation {
+      parts.append("Proof-gap validation: \(proofGapValidation.displaySummary)")
+      parts.append(proofGapValidation.displayDetail)
+    }
     parts.append("Next validation: \(nextValidationTarget)")
     if !acceptanceSignals.isEmpty {
       parts.append("Acceptance: \(acceptanceSignals.prefix(4).joined(separator: "; "))")
@@ -126,6 +139,18 @@ enum ProductTournamentRoundTwoProofOverview {
         key(roundID: proposal.roundID, contenderID: proposal.contenderID),
         default: proposal
       ] = proposal
+    }
+    var validationResultsByRoundAndContender:
+      [String: ProductTournamentRoundTwoProofGapValidationResult] = [:]
+    for result in ProductTournamentRoundTwoProofGapValidationAdvisor.results(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      limit: max(limit, 4)
+    ) {
+      validationResultsByRoundAndContender[
+        key(roundID: result.roundID, contenderID: result.contenderID),
+        default: result
+      ] = result
     }
 
     return ProductTournamentFeasibilityAdvisor.handoffs(
@@ -162,7 +187,10 @@ enum ProductTournamentRoundTwoProofOverview {
         evidenceRunIDs: proposal.evidenceRunIDs,
         detail: proposal.detail,
         proofGaps: proposal.proofGaps,
-        nextValidationTarget: proposal.nextValidationTarget
+        nextValidationTarget: proposal.nextValidationTarget,
+        proofGapValidation: validationResultsByRoundAndContender[
+          key(roundID: handoff.roundID, contenderID: handoff.contenderID)
+        ]
       )
     }
     .prefix(limit)
