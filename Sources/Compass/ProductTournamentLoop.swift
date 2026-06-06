@@ -2459,6 +2459,7 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
   var targetPersonaName: String?
   var targetDecision: ProductTournamentExperimentDecision?
   var requiredSimulationMode: ProductTournamentSimulationMode?
+  var tournamentPositionSummary: String?
 
   var urgencyScore: Int {
     (nextActionPriority * 1_000) + readinessScore
@@ -2487,6 +2488,9 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
     var parts = ["Debt: \(debtSummary)"]
     if let nextActionTitle {
       parts.append("Next: \(nextActionTitle)")
+    }
+    if let tournamentPositionSummary {
+      parts.append("Tournament position: \(tournamentPositionSummary)")
     }
     if let tournamentID {
       parts.append("Tournament: \(tournamentID)")
@@ -2534,6 +2538,9 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
     if let contenderID {
       parts.append("contender \(contenderID)")
     }
+    if let tournamentPositionSummary {
+      parts.append("position \(tournamentPositionSummary)")
+    }
     parts.append("debt \(debtSummary)")
     return StringUtils.boundedText(parts.joined(separator: "; "), limit: 360)
   }
@@ -2547,6 +2554,7 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
     tournamentID: String? = nil,
     contenderID: String? = nil,
     roundID: String? = nil,
+    tournamentPositionSummary: String? = nil,
     planProofActionTitle: String? = nil,
     planProofPriority: Int = 0
   ) {
@@ -2581,6 +2589,10 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
     self.targetPersonaName = nextAction?.targetPersonaName
     self.targetDecision = nextAction?.targetDecision
     self.requiredSimulationMode = nextAction?.requiredSimulationMode
+    self.tournamentPositionSummary = ProductTournamentModelText.optionalCleanedText(
+      tournamentPositionSummary,
+      limit: 220
+    )
   }
 }
 
@@ -2633,7 +2645,15 @@ enum TournamentAutomationProofTargetAdvisor {
         label: label(readiness: readiness, action: action),
         readinessScore: Int(readiness.readinessScore.rounded()),
         debtSummary: readiness.proofDebt.summary,
-        nextAction: action
+        nextAction: action,
+        tournamentPositionSummary: tournamentPositionSummary(
+          for: experiment,
+          nextAction: action,
+          tournamentID: action?.tournamentID,
+          contenderID: action?.contenderID,
+          roundID: action?.roundID,
+          config: config
+        )
       )
     }
     return planProofTarget(
@@ -2698,9 +2718,143 @@ enum TournamentAutomationProofTargetAdvisor {
       tournamentID: planScope.tournament.id,
       contenderID: contender.id,
       roundID: planScope.round.id,
+      tournamentPositionSummary: tournamentPositionSummary(
+        for: experiment,
+        nextAction: nil,
+        tournamentID: planScope.tournament.id,
+        contenderID: contender.id,
+        roundID: planScope.round.id,
+        config: config
+      ),
       planProofActionTitle: actionTitle,
       planProofPriority: needsPersonaModelPlanProof ? 96 : 92
     )
+  }
+
+  private static func tournamentPositionSummary(
+    for experiment: ProductTournamentExperiment,
+    nextAction: ProductTournamentNextAction?,
+    tournamentID: String?,
+    contenderID: String?,
+    roundID: String?,
+    config: ProductTournamentConfig
+  ) -> String? {
+    guard
+      let contender = tournamentContender(
+        experimentID: experiment.id,
+        contenderID: nextAction?.contenderID ?? contenderID,
+        config: config
+      ),
+      let tournament = tournament(
+        tournamentID: nextAction?.tournamentID ?? tournamentID ?? contender.tournamentID,
+        contender: contender,
+        config: config
+      ),
+      let round = round(
+        roundID: nextAction?.roundID ?? roundID,
+        contender: contender,
+        tournament: tournament,
+        config: config
+      )
+    else { return nil }
+
+    let roundContenderIDs = round.contenderIDs.isEmpty
+      ? tournament.contenderIDs
+      : round.contenderIDs
+    let contendersByID = Dictionary(
+      uniqueKeysWithValues: config.tournamentContenders.map { ($0.id, $0) }
+    )
+    let roundContenders = roundContenderIDs.compactMap { contendersByID[$0] }
+    let activeRoundContenders = roundContenders.filter { isActiveTournamentStatus($0.status) }
+    let positionedContenders =
+      activeRoundContenders.contains { $0.id == contender.id }
+      ? activeRoundContenders
+      : roundContenders
+    guard !positionedContenders.isEmpty,
+      let position = positionedContenders
+        .sorted(by: tournamentPositionSort)
+        .firstIndex(where: { $0.id == contender.id })
+    else { return nil }
+
+    let count = positionedContenders.count
+    let rivalCount = max(0, count - 1)
+    let activeText = activeRoundContenders.isEmpty ? "round" : "active"
+    let rivalText = rivalCount == 1 ? "1 rival product" : "\(rivalCount) rival products"
+    return "\(round.kind.title) contender \(position + 1) of \(count) \(activeText) contender(s); compare against \(rivalText)"
+  }
+
+  private static func tournamentContender(
+    experimentID: String,
+    contenderID: String?,
+    config: ProductTournamentConfig
+  ) -> ProductTournamentContender? {
+    contenderID.flatMap { id in
+      config.tournamentContenders.first { $0.id == id }
+    } ?? config.tournamentContenders.first { $0.experimentID == experimentID }
+  }
+
+  private static func tournament(
+    tournamentID: String?,
+    contender: ProductTournamentContender,
+    config: ProductTournamentConfig
+  ) -> ProductTournament? {
+    tournamentID.flatMap { id in
+      config.tournaments.first { $0.id == id }
+    } ?? config.tournaments.first { $0.id == contender.tournamentID }
+  }
+
+  private static func round(
+    roundID: String?,
+    contender: ProductTournamentContender,
+    tournament: ProductTournament,
+    config: ProductTournamentConfig
+  ) -> ProductTournamentRound? {
+    if let roundID,
+      let round = config.tournamentRounds.first(where: {
+        $0.id == roundID && $0.tournamentID == tournament.id
+      })
+    {
+      return round
+    }
+    if let currentRoundID = tournament.currentRoundID,
+      let currentRound = config.tournamentRounds.first(where: {
+        $0.id == currentRoundID
+          && $0.tournamentID == tournament.id
+          && round($0, contains: contender.id, tournament: tournament)
+      })
+    {
+      return currentRound
+    }
+    return config.tournamentRounds
+      .filter {
+        $0.tournamentID == tournament.id
+          && $0.status != .completed
+          && round($0, contains: contender.id, tournament: tournament)
+      }
+      .sorted {
+        if $0.ordinal == $1.ordinal { return $0.id < $1.id }
+        return $0.ordinal < $1.ordinal
+      }
+      .first
+  }
+
+  private static func tournamentPositionSort(
+    lhs: ProductTournamentContender,
+    rhs: ProductTournamentContender
+  ) -> Bool {
+    if lhs.title == rhs.title { return lhs.id < rhs.id }
+    return lhs.title < rhs.title
+  }
+
+  private static func isActiveTournamentStatus(
+    _ status: ProductTournamentContenderStatus
+  ) -> Bool {
+    switch status {
+    case .competing, .narrowed, .needsRevision:
+      return true
+    case .eliminated, .winner, .archived:
+      return false
+    }
   }
 
   private static func activePlanRound(

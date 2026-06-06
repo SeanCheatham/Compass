@@ -1575,6 +1575,9 @@ struct ProductTournamentWorkbenchTab: View {
         WorkbenchFact(label: "Experiment", value: target.experimentID)
         WorkbenchFact(label: "Target", value: target.displaySubtitle)
         WorkbenchFact(label: "Debt", value: target.debtSummary)
+        if let tournamentPositionSummary = target.tournamentPositionSummary {
+          WorkbenchFact(label: "Tournament position", value: tournamentPositionSummary)
+        }
         if let nextActionTitle = target.nextActionTitle {
           WorkbenchFact(label: "Next", value: nextActionTitle)
         }

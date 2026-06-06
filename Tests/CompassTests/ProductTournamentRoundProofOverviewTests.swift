@@ -105,6 +105,26 @@ struct ProductTournamentRoundProofOverviewTests {
       }
     }
   }
+
+  @Test func workbenchProofTargetRowsShowTournamentPosition() async throws {
+    let config = try roundOneConfig()
+    let evidenceIndex = ProductTournamentEvidenceIndex.build(records: [])
+    let target = try #require(
+      TournamentAutomationProofTargetAdvisor.targets(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: false
+      ).first
+    )
+    let summary = try #require(target.tournamentPositionSummary)
+    let workbenchBody = try await workbenchBody(for: config)
+    let includesPositionSummary = workbenchBody.contains(summary)
+
+    try #require(summary.contains("Product plans contender"))
+    try #require(summary.contains("active contender"))
+    try #require(summary.contains("rival product"))
+    try #require(includesPositionSummary)
+  }
 }
 
 private struct ProofOverviewCase {

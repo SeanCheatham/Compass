@@ -139,12 +139,15 @@ and advances them through rounds:
   proofs, and evidence from at least two personas. When those Round 3 gates are
   not met, Tournament Automation targets the next persona-model cohort toward
   implementation-use proof first, then current-alternative comparison, then
-  explicit willingness-to-pay or sponsorship proof. When the proof gates are met
-  but the low-medium fidelity implementation still has weak pay intent, missing
-  capabilities, or mixed pull, Compass queues a Round 3 implementation revision
-  brief instead of selecting a winner; that brief becomes an apply-revision
-  checkpoint with implementation, scenario, and validation instructions for the
-  next scoped simulated-user pass. After that checkpoint is applied, Compass
+  explicit willingness-to-pay or sponsorship proof. Proof-target rows and
+  Product Tournament Context include each contender's position within the active
+  round, making the next simulated-user proof legible as one contender's burden
+  against its rival products. When the proof gates are met but the low-medium
+  fidelity implementation still has weak pay intent, missing capabilities, or
+  mixed pull, Compass queues a Round 3 implementation revision brief instead of
+  selecting a winner; that brief becomes an apply-revision checkpoint with
+  implementation, scenario, and validation instructions for the next scoped
+  simulated-user pass. After that checkpoint is applied, Compass
   tracks Round 3 implementation revision validation as pending, partial,
   resolved, persisted, or eliminated. Fresh post-revision validation runs become
   the scoring set for winner selection, so stale pre-revision evidence cannot

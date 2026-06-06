@@ -643,6 +643,9 @@ enum ProductTournamentPlanningDigestFormatter {
       if let nextActionTitle = target.nextActionTitle {
         metadata.append("next \(bounded(nextActionTitle, 100))")
       }
+      if let tournamentPositionSummary = target.tournamentPositionSummary {
+        metadata.append("position \(bounded(tournamentPositionSummary, 160))")
+      }
       if let tournamentID = target.tournamentID {
         metadata.append("tournament \(tournamentID)")
       }
