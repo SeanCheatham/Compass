@@ -1790,35 +1790,35 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     self.executionEnvironmentSnapshots = Self.normalizedExecutionEnvironmentSnapshots(
       executionEnvironmentSnapshots
     )
-    self.productExperimentID = Self.normalizedOptionalProductizationField(
+    self.productExperimentID = Self.normalizedOptionalProductTournamentField(
       productExperimentID,
       limit: 120
     )
-    self.productSolutionID = Self.normalizedOptionalProductizationField(
+    self.productSolutionID = Self.normalizedOptionalProductTournamentField(
       productSolutionID,
       limit: 120
     )
-    self.productPainID = Self.normalizedOptionalProductizationField(
+    self.productPainID = Self.normalizedOptionalProductTournamentField(
       productPainID,
       limit: 120
     )
-    self.productExperimentBranchName = Self.normalizedOptionalProductizationField(
+    self.productExperimentBranchName = Self.normalizedOptionalProductTournamentField(
       productExperimentBranchName,
       limit: 240
     )
-    self.productExperimentCommitSha = Self.normalizedOptionalProductizationField(
+    self.productExperimentCommitSha = Self.normalizedOptionalProductTournamentField(
       productExperimentCommitSha,
       limit: 80
     )
-    self.productExperimentBeforeSha = Self.normalizedOptionalProductizationField(
+    self.productExperimentBeforeSha = Self.normalizedOptionalProductTournamentField(
       productExperimentBeforeSha,
       limit: 80
     )
-    self.productExperimentAfterSha = Self.normalizedOptionalProductizationField(
+    self.productExperimentAfterSha = Self.normalizedOptionalProductTournamentField(
       productExperimentAfterSha,
       limit: 80
     )
-    self.productEvidenceRunIDs = Self.normalizedProductizationFields(
+    self.productEvidenceRunIDs = Self.normalizedProductTournamentFields(
       productEvidenceRunIDs,
       limit: 120,
       maxCount: 20
@@ -1846,35 +1846,35 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         forKey: .executionEnvironmentSnapshots
       ) ?? []
     )
-    productExperimentID = Self.normalizedOptionalProductizationField(
+    productExperimentID = Self.normalizedOptionalProductTournamentField(
       try container.decodeIfPresent(String.self, forKey: .productExperimentID),
       limit: 120
     )
-    productSolutionID = Self.normalizedOptionalProductizationField(
+    productSolutionID = Self.normalizedOptionalProductTournamentField(
       try container.decodeIfPresent(String.self, forKey: .productSolutionID),
       limit: 120
     )
-    productPainID = Self.normalizedOptionalProductizationField(
+    productPainID = Self.normalizedOptionalProductTournamentField(
       try container.decodeIfPresent(String.self, forKey: .productPainID),
       limit: 120
     )
-    productExperimentBranchName = Self.normalizedOptionalProductizationField(
+    productExperimentBranchName = Self.normalizedOptionalProductTournamentField(
       try container.decodeIfPresent(String.self, forKey: .productExperimentBranchName),
       limit: 240
     )
-    productExperimentCommitSha = Self.normalizedOptionalProductizationField(
+    productExperimentCommitSha = Self.normalizedOptionalProductTournamentField(
       try container.decodeIfPresent(String.self, forKey: .productExperimentCommitSha),
       limit: 80
     )
-    productExperimentBeforeSha = Self.normalizedOptionalProductizationField(
+    productExperimentBeforeSha = Self.normalizedOptionalProductTournamentField(
       try container.decodeIfPresent(String.self, forKey: .productExperimentBeforeSha),
       limit: 80
     )
-    productExperimentAfterSha = Self.normalizedOptionalProductizationField(
+    productExperimentAfterSha = Self.normalizedOptionalProductTournamentField(
       try container.decodeIfPresent(String.self, forKey: .productExperimentAfterSha),
       limit: 80
     )
-    productEvidenceRunIDs = Self.normalizedProductizationFields(
+    productEvidenceRunIDs = Self.normalizedProductTournamentFields(
       try container.decodeIfPresent([String].self, forKey: .productEvidenceRunIDs) ?? [],
       limit: 120,
       maxCount: 20
@@ -1948,14 +1948,14 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     }
   }
 
-  private static func normalizedOptionalProductizationField(_ value: String?, limit: Int)
+  private static func normalizedOptionalProductTournamentField(_ value: String?, limit: Int)
     -> String?
   {
     let bounded = StringUtils.boundedText(value ?? "", limit: limit)
     return bounded.isEmpty ? nil : bounded
   }
 
-  private static func normalizedProductizationFields(
+  private static func normalizedProductTournamentFields(
     _ values: [String],
     limit: Int,
     maxCount: Int
