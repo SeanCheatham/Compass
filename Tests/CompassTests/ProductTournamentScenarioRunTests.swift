@@ -140,6 +140,93 @@ struct ProductTournamentScenarioRunTests {
     try #require(revisedCohort.scenarioIDs.contains(scenario.id))
   }
 
+  @Test func actedProofGroupRevisionBriefCreatesPressureSpecificScenarioDrafts() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Scenario Helper",
+      rawPain: "Support teams lose workflow context.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
+    let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
+    let scenario = try #require(
+      config.scenarios.first {
+        $0.experimentID == experiment.id && $0.segmentID == buyer.id
+      })
+    let cohort = try #require(
+      config.scenarioCohorts.first {
+        $0.experimentID == experiment.id && $0.scenarioIDs.contains(scenario.id)
+      })
+    let stalledBrief = TournamentAutomationRevisionBrief(
+      experimentID: experiment.id,
+      source: .actedProofGroup,
+      title: "Retarget contender revision for stalled proof group",
+      priority: 88,
+      triggerSummary:
+        "Acted proof-pressure group stalled in cycle `tournament-cycle-stalled`: stalled in Proof runs.",
+      implementationChange:
+        "change the proof surface before the same persona-model bucket is retried.",
+      scenarioChange:
+        "Retarget Budget owner's scenario to force the unresolved proof bucket.",
+      proofPlan:
+        "Rerun the targeted persona-model proof group.",
+      targetPersonaID: buyer.id,
+      targetPersonaName: buyer.name,
+      targetScenarioID: scenario.id,
+      targetCohortID: cohort.id
+    )
+    let repeatedBrief = TournamentAutomationRevisionBrief(
+      experimentID: experiment.id,
+      source: .actedProofGroup,
+      title: "Retarget contender revision for repeated proof group",
+      priority: 87,
+      triggerSummary:
+        "Acted proof-pressure group remained after repeated attempts in cycle `tournament-cycle-repeated`: still Proof runs.",
+      implementationChange:
+        "treat the repeated still-present proof pressure as product evidence.",
+      scenarioChange:
+        "Retarget Budget owner's scenario to confront repeated attempts.",
+      proofPlan:
+        "Rerun targeted persona-model proof and compare against the repeated attempts.",
+      targetPersonaID: buyer.id,
+      targetPersonaName: buyer.name,
+      targetScenarioID: scenario.id,
+      targetCohortID: cohort.id
+    )
+
+    let stalledDraft = try ProductTournamentScenarioCoordinator.revisionDraft(
+      for: stalledBrief,
+      in: config,
+      now: Date(timeIntervalSince1970: 40)
+    )
+    let repeatedDraft = try ProductTournamentScenarioCoordinator.revisionDraft(
+      for: repeatedBrief,
+      in: config,
+      now: Date(timeIntervalSince1970: 50)
+    )
+
+    try #require(stalledDraft.id == scenario.id)
+    try #require(stalledDraft.cohortID == cohort.id)
+    try #require(stalledDraft.targetCommitSha == "head-sha")
+    try #require(stalledDraft.task.contains("direct proof stall"))
+    try #require(stalledDraft.task.contains("stalled in Proof runs"))
+    try #require(stalledDraft.successSignal.contains("direct stalled proof pressure cleared"))
+    try #require(stalledDraft.successSignal.contains("different proof bucket"))
+    try #require(stalledDraft.successSignal.contains("willingness to continue or pay"))
+    try #require(!stalledDraft.successSignal.contains("original rationale"))
+    try #require(repeatedDraft.id == scenario.id)
+    try #require(repeatedDraft.cohortID == cohort.id)
+    try #require(repeatedDraft.task.contains("repeated still-present proof pressure"))
+    try #require(repeatedDraft.task.contains("repeated attempts"))
+    try #require(
+      repeatedDraft.successSignal.contains(
+        "repeated still-present proof pressure cleared"))
+    try #require(repeatedDraft.successSignal.contains("different proof bucket"))
+    try #require(repeatedDraft.successSignal.contains("willingness to continue or pay"))
+    try #require(repeatedDraft.successSignal.contains(repeatedBrief.proofPlan))
+  }
+
   @Test func requestConstructionUsesScenarioTaskSuccessSignalAndSelectedAlternative() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }

@@ -263,6 +263,7 @@ enum ProductTournamentScenarioCoordinator {
         fallback: "revision-scenario"
       )
     let targetName = brief.targetPersonaName ?? segmentName(for: segmentID, in: config)
+    let copy = revisionDraftCopy(for: brief, targetName: targetName)
     return ProductScenarioDraft(
       id: scenarioID,
       experimentID: experiment.id,
@@ -274,15 +275,50 @@ enum ProductTournamentScenarioCoordinator {
       alternativeID: alternativeID,
       title: existingScenario?.title ?? "\(experiment.title) revision proof",
       task:
-        "Revise the product contender for \(targetName). Product implementation change to inspect: \(brief.implementationChange) Scenario change: \(brief.scenarioChange) Trigger: \(brief.triggerSummary)",
+        "\(copy.taskLead) Product implementation change to inspect: \(brief.implementationChange) Scenario change: \(brief.scenarioChange) Trigger: \(brief.triggerSummary)",
       successSignal:
-        "The simulated user can say whether the revision resolved the original rationale. Proof plan: \(brief.proofPlan)",
+        "\(copy.successSignalLead) Proof plan: \(brief.proofPlan)",
       targetCommitSha: experiment.currentSha ?? experiment.baseSha,
       maxTurns: existingScenario?.maxTurns ?? fallback.maxTurns,
       appCommandTimeoutSeconds: existingScenario?.appCommandTimeoutSeconds
         ?? fallback.appCommandTimeoutSeconds,
       enabled: true
     )
+  }
+
+  private static func revisionDraftCopy(
+    for brief: TournamentAutomationRevisionBrief,
+    targetName: String
+  ) -> (taskLead: String, successSignalLead: String) {
+    guard brief.source == .actedProofGroup else {
+      return (
+        taskLead: "Revise the product contender for \(targetName).",
+        successSignalLead:
+          "The simulated user can say whether the revision resolved the original rationale."
+      )
+    }
+    if isRepeatedActedProofGroupBrief(brief) {
+      return (
+        taskLead:
+          "Revise the product contender for \(targetName) to validate repeated still-present proof pressure.",
+        successSignalLead:
+          "The simulated user can say whether the repeated still-present proof pressure cleared, moved to a different proof bucket, or still blocks willingness to continue or pay."
+      )
+    }
+    return (
+      taskLead:
+        "Revise the product contender for \(targetName) to validate a direct proof stall.",
+      successSignalLead:
+        "The simulated user can say whether the direct stalled proof pressure cleared, moved to a different proof bucket, or still blocks willingness to continue or pay."
+    )
+  }
+
+  private static func isRepeatedActedProofGroupBrief(
+    _ brief: TournamentAutomationRevisionBrief
+  ) -> Bool {
+    let marker = "\(brief.title) \(brief.triggerSummary) \(brief.implementationChange)"
+      .lowercased()
+    return marker.contains("repeated") || marker.contains("still-present")
   }
 
   static func defaultDraft(
