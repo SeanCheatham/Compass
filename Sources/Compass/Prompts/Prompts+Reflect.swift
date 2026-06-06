@@ -105,6 +105,12 @@ extension Prompts {
       from contender validity, recommend eliminating contenders that repeatedly
       fail to beat current alternatives, and recommend promotion only when both
       product evidence and normal Verify support it.
+      When Productization Context includes `round_2_evidence_lock`, treat
+      `paused_sibling_experiments` as intentionally paused while the selected
+      Round 2 contender proves core technology. Do not recommend planning
+      revisions or productDecisionUpdates that restart sibling evidence unless
+      new transition evidence says the tournament should leave the current
+      Round 2 target.
       Allowed experiment decision transitions are:
       - not_run -> continue
       - continue -> continue | narrow | pivot | kill | promote

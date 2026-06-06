@@ -229,6 +229,25 @@ enum ProductizationPlanningDigestFormatter {
     guard let target = handoffs.first else { return [] }
     var lines = ["Round 2 implementation target:"]
     lines.append(bounded(target.implementationTargetLine, 760))
+    let implementationTarget = ProductTournamentRoundImplementationTarget(
+      tournamentID: target.tournamentID,
+      roundID: target.roundID,
+      contenderID: target.contenderID,
+      experimentID: target.experimentID
+    )
+    let pausedSiblingExperimentIDs =
+      ProductTournamentRoundImplementationTargetResolver.blockedSiblingExperimentIDs(
+        for: implementationTarget,
+        in: config
+      )
+    if !pausedSiblingExperimentIDs.isEmpty {
+      lines.append(
+        bounded(
+          "- round_2_evidence_lock selected_experiment \(target.experimentID) [tournament \(target.tournamentID), round \(target.roundID), only_contender \(target.contenderID), paused_sibling_experiments \(pausedSiblingExperimentIDs.joined(separator: ", "))]: sibling product-factory evidence is paused; run only the selected core_technology_proof \(target.coreTechnologyProof).",
+          760
+        )
+      )
+    }
     if handoffs.count > 1 {
       lines.append(
         "- \(handoffs.count - 1) additional Round 2 target(s) omitted; keep one Immediate scoped to selected_experiment \(target.experimentID)."

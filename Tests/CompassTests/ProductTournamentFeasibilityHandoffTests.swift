@@ -53,6 +53,11 @@ struct ProductTournamentFeasibilityHandoffTests {
         in: transition.config
       )
     )
+    let pausedSiblingExperimentIDs =
+      ProductTournamentRoundImplementationTargetResolver.blockedSiblingExperimentIDs(
+        for: implementationTarget,
+        in: transition.config
+      )
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: transition.config,
       evidenceIndex: index
@@ -68,6 +73,15 @@ struct ProductTournamentFeasibilityHandoffTests {
       productizationConfig: transition.config,
       productizationEvidenceIndex: index
     )
+    let reflectPrompt = try Prompts.reflectPrompt(
+      state: .empty,
+      lessons: "",
+      vision: "",
+      recentSessions: [],
+      iteration: 1,
+      productizationConfig: transition.config,
+      productizationEvidenceIndex: index
+    )
 
     try #require(handoffs.count == 1)
     try #require(handoff.roundID == feasibilityRound.id)
@@ -80,6 +94,7 @@ struct ProductTournamentFeasibilityHandoffTests {
     try #require(implementationTarget.contenderID == contender.id)
     try #require(implementationTarget.experimentID == experiment.id)
     try #require(siblingResolvedTarget == implementationTarget)
+    try #require(pausedSiblingExperimentIDs == [siblingExperimentID])
     try #require(handoff.planRecommendation == .advanceToFeasibility)
     try #require((handoff.planReadinessScore ?? 0) >= 66)
     try #require(handoff.coreTechnologyProof.contains(experiment.title))
@@ -93,6 +108,10 @@ struct ProductTournamentFeasibilityHandoffTests {
     try #require(digest.contains("selected_experiment \(experiment.id)"))
     try #require(digest.contains("only_contender \(contender.id)"))
     try #require(digest.contains("core_technology_proof"))
+    try #require(digest.contains("Round 2 implementation target"))
+    try #require(digest.contains("round_2_evidence_lock"))
+    try #require(digest.contains("paused_sibling_experiments \(siblingExperimentID)"))
+    try #require(digest.contains("sibling product-factory evidence is paused"))
     try #require(digest.contains("Round 2 feasibility handoff"))
     try #require(digest.contains("round_2_feasibility contender \(contender.id)"))
     try #require(digest.contains("experiment \(experiment.id)"))
@@ -103,6 +122,12 @@ struct ProductTournamentFeasibilityHandoffTests {
     try #require(planPrompt.contains("selected_experiment \(experiment.id)"))
     try #require(planPrompt.contains("only_contender \(contender.id)"))
     try #require(planPrompt.contains("worktree \(experiment.worktreeID)"))
+    try #require(planPrompt.contains("round_2_evidence_lock"))
+    try #require(planPrompt.contains("paused_sibling_experiments \(siblingExperimentID)"))
+    try #require(planPrompt.contains("Do not plan scenario, cohort, autopilot"))
+    try #require(reflectPrompt.contains("round_2_evidence_lock"))
+    try #require(reflectPrompt.contains("paused_sibling_experiments \(siblingExperimentID)"))
+    try #require(reflectPrompt.contains("Do not recommend planning"))
   }
 
   @Test func handoffIsAbsentBeforeRoundOneTransition() throws {
@@ -137,6 +162,17 @@ struct ProductTournamentFeasibilityHandoffTests {
       ProductTournamentRoundImplementationTargetResolver.activeRoundTwoTargets(
         in: config
       ).isEmpty
+    )
+    try #require(
+      ProductTournamentRoundImplementationTargetResolver.blockedSiblingExperimentIDs(
+        for: ProductTournamentRoundImplementationTarget(
+          tournamentID: tournament.id,
+          roundID: planRound.id,
+          contenderID: contender.id,
+          experimentID: try #require(contender.experimentID)
+        ),
+        in: config
+      ) == []
     )
   }
 }

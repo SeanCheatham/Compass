@@ -62,6 +62,23 @@ enum ProductTournamentRoundImplementationTargetResolver {
     activeRoundTwoTargetBlockingExperiment(experimentID, in: config) != nil
   }
 
+  static func blockedSiblingExperimentIDs(
+    for target: ProductTournamentRoundImplementationTarget,
+    in config: ProductizationConfig
+  ) -> [String] {
+    guard roundTwoTarget(tournamentID: target.tournamentID, in: config) == target else {
+      return []
+    }
+    return config.tournamentContenders
+      .filter {
+        $0.tournamentID == target.tournamentID
+          && $0.experimentID != nil
+          && $0.experimentID != target.experimentID
+      }
+      .compactMap(\.experimentID)
+      .sorted()
+  }
+
   static func roundTwoTarget(
     tournamentID: String,
     in config: ProductizationConfig

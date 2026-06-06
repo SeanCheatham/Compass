@@ -172,6 +172,11 @@ extension Prompts {
         `only_contender`, and keep the Outcome scoped to the named
         `core_technology_proof`. Pull at least one Acceptance check from the
         target's acceptance signals.
+      - When Productization Context includes `round_2_evidence_lock`, treat
+        `paused_sibling_experiments` as intentionally paused tournament tracks.
+        Do not plan scenario, cohort, autopilot, or implementation work for
+        those siblings until Round 2 transitions; mention the pause in Outcome
+        or Why it matters when it could otherwise look like missing evidence.
       - When Productization Context includes only a "Round 2 feasibility
         handoff", treat it as supporting evidence for the same narrowed
         contender: scope one Immediate around that contender's experiment
