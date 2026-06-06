@@ -84,7 +84,7 @@ extension CompassProject {
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }
         .joined(separator: "\n\n")
-      let productizationConfigForPrompt = try workspace.readOrSeedProductizationConfig(
+      let productizationConfigForPrompt = try workspace.readOrSeedProductTournamentConfig(
         projectTitle: workspace.repoURL.lastPathComponent,
         rawPain: productPainText.isEmpty ? visionText : productPainText
       )
@@ -100,7 +100,7 @@ extension CompassProject {
         forgeProfile: forgeProfile,
         coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace),
         productizationConfig: productizationConfigForPrompt,
-        productizationEvidenceIndex: workspace.readProductizationEvidenceIndex(),
+        productizationEvidenceIndex: workspace.readProductTournamentEvidenceIndex(),
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
       let promptURL = try workspace.writeSessionArtifact(
@@ -651,7 +651,7 @@ extension CompassProject {
       .prefix(reflectSessionWindow)
 
     let visionText = workspace.readVision()
-    let productizationConfigForPrompt = try workspace.readOrSeedProductizationConfig(
+    let productizationConfigForPrompt = try workspace.readOrSeedProductTournamentConfig(
       projectTitle: workspace.repoURL.lastPathComponent,
       rawPain: visionText
     )
@@ -663,7 +663,7 @@ extension CompassProject {
       recentSessions: Array(recentSessions),
       iteration: iteration,
       productizationConfig: productizationConfigForPrompt,
-      productizationEvidenceIndex: workspace.readProductizationEvidenceIndex(),
+      productizationEvidenceIndex: workspace.readProductTournamentEvidenceIndex(),
       hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
     )
 
@@ -828,7 +828,7 @@ extension CompassProject {
       updates,
       to: currentConfig
     )
-    try workspace.writeProductizationConfig(nextConfig)
+    try workspace.writeProductTournamentConfig(nextConfig)
     productizationConfig = nextConfig
 
     recordProductizationDecisionMetadata(

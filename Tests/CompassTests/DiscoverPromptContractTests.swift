@@ -131,7 +131,7 @@ struct DiscoverPromptContractTests {
     let written = try workspace.applyDiscoverOutput(makeDiscoverOutput())
 
     try #require(FileManager.default.fileExists(atPath: workspace.productTournamentConfigURL.path))
-    try #require(try workspace.readProductizationConfig() == written)
+    try #require(try workspace.readProductTournamentConfig() == written)
   }
 }
 

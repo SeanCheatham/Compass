@@ -657,7 +657,7 @@ enum ProductizationScenarioCoordinator {
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductizationScenarioCohortRunOutcome {
-    let config = try workspace.readProductizationConfig()
+    let config = try workspace.readProductTournamentConfig()
     guard config.experiments.contains(where: { $0.id == experimentID }) else {
       throw ProductizationScenarioRunError.unknownExperiment(experimentID)
     }
@@ -718,7 +718,7 @@ enum ProductizationScenarioCoordinator {
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductizationScenarioRunOutcome {
-    var config = try workspace.readProductizationConfig()
+    var config = try workspace.readProductTournamentConfig()
     guard let experimentIndex = config.experiments.firstIndex(where: { $0.id == experimentID })
     else {
       throw ProductizationScenarioRunError.unknownExperiment(experimentID)
@@ -754,14 +754,14 @@ enum ProductizationScenarioCoordinator {
       startedAt: startedAt,
       endedAt: endedAt
     )
-    let stored = try workspace.writeProductizationEvidenceRecord(
+    let stored = try workspace.writeProductTournamentEvidenceRecord(
       record,
       traceJSON: result.experienceTraceJSON,
       transcriptJSONL: transcriptJSONL(result.rawPersonaActionTranscript)
     )
     config.experiments[experimentIndex].evidenceSummary = stored.summary
     config.experiments[experimentIndex].updatedAt = endedAt
-    try workspace.writeProductizationConfig(config)
+    try workspace.writeProductTournamentConfig(config)
     return ProductizationScenarioRunOutcome(
       request: request,
       result: result,
@@ -841,9 +841,9 @@ extension CompassWorkspace {
   func saveProductScenarioDraft(_ draft: ProductScenarioDraft) throws -> ProductizationConfig {
     let next = try ProductizationScenarioCoordinator.saving(
       draft: draft,
-      to: try readProductizationConfig()
+      to: try readProductTournamentConfig()
     )
-    try writeProductizationConfig(next)
+    try writeProductTournamentConfig(next)
     return next
   }
 }
@@ -969,8 +969,8 @@ extension CompassProject {
         personaSelector: personaSelector,
         targetDecision: targetDecision
       )
-      productizationConfig = try workspace.readProductizationConfig()
-      productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()
+      productizationConfig = try workspace.readProductTournamentConfig()
+      productizationEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
       log(outcome.userMessage, level: outcome.result.isSuccess ? .success : .warning)
       return outcome
     } catch {
@@ -1012,8 +1012,8 @@ extension CompassProject {
         personaSelector: personaSelector,
         targetDecision: targetDecision
       )
-      productizationConfig = try workspace.readProductizationConfig()
-      productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()
+      productizationConfig = try workspace.readProductTournamentConfig()
+      productizationEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
       log(outcome.userMessage, level: outcome.isSuccess ? .success : .warning)
       return outcome
     } catch {

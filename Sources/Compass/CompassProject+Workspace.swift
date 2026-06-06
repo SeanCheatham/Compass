@@ -88,43 +88,43 @@ extension CompassProject {
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
       .joined(separator: "\n\n")
-    productizationConfig = try workspace.readOrSeedProductizationConfig(
+    productizationConfig = try workspace.readOrSeedProductTournamentConfig(
       projectTitle: workspace.repoURL.lastPathComponent,
       rawPain: rawProductPain.isEmpty ? vision : rawProductPain
     )
-    productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()
+    productizationEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
     sessions = workspace.readSessions()
     archivedSessions = []
     hasOlderArchivedSessions = workspace.hasArchivedSessions()
   }
 
-  func saveProductizationConfig(_ config: ProductizationConfig? = nil) async {
+  func saveProductTournamentConfig(_ config: ProductizationConfig? = nil) async {
     do {
       guard let workspace else {
         fail(AppModelError.noRepositorySelected)
         return
       }
       let value = config ?? productizationConfig
-      try workspace.writeProductizationConfig(value)
+      try workspace.writeProductTournamentConfig(value)
       productizationConfig = value
     } catch {
       fail(error)
     }
   }
 
-  func reloadProductizationEvidenceIndex() async {
+  func reloadProductTournamentEvidenceIndex() async {
     guard let workspace else {
       productizationEvidenceIndex = .empty
       return
     }
-    productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()
+    productizationEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
   }
 
-  func readProductizationEvidenceRecord(id: String) throws -> ProductizationEvidenceRecord {
+  func readProductTournamentEvidenceRecord(id: String) throws -> ProductizationEvidenceRecord {
     guard let workspace else {
       throw AppModelError.noRepositorySelected
     }
-    return try workspace.readProductizationEvidenceRecord(id: id)
+    return try workspace.readProductTournamentEvidenceRecord(id: id)
   }
 
   func readProductTournamentPlanEvaluationRecord(

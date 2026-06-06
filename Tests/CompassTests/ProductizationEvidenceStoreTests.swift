@@ -16,7 +16,7 @@ struct ProductizationEvidenceStoreTests {
         "turn 0 choose valid action inspect_pain: Wanted to confirm the weekly reporting pain."
       ]
     )
-    let stored = try workspace.writeProductizationEvidenceRecord(
+    let stored = try workspace.writeProductTournamentEvidenceRecord(
       record,
       traceJSON: #"{"trace":true}"#,
       feedbackJSON: #"{"feedback":true}"#,
@@ -32,9 +32,9 @@ struct ProductizationEvidenceStoreTests {
     try #require(
       FileManager.default.fileExists(
         atPath: workspace.productTournamentURL.appending(path: "evidence-index.json").path))
-    let read = try workspace.readProductizationEvidenceRecord(id: "run-one")
+    let read = try workspace.readProductTournamentEvidenceRecord(id: "run-one")
     try #require(read == stored)
-    let summaries = workspace.readProductizationEvidenceIndex().summaries
+    let summaries = workspace.readProductTournamentEvidenceIndex().summaries
     try #require(summaries.map(\.runID) == ["run-one"])
     try #require(
       summaries.first?.personaActionRationales.first?.contains("inspect_pain") == true)
@@ -86,7 +86,7 @@ struct ProductizationEvidenceStoreTests {
         == "product-tournament/plan-evaluations/plan-eval-one/summary.md")
     let read = try workspace.readProductTournamentPlanEvaluationRecord(id: "plan-eval-one")
     try #require(read == stored)
-    let index = workspace.readProductizationEvidenceIndex()
+    let index = workspace.readProductTournamentEvidenceIndex()
     try #require(index.summaries.isEmpty)
     try #require(index.planEvaluationSummaries.map(\.evaluationID) == ["plan-eval-one"])
     try #require(
@@ -749,7 +749,7 @@ struct ProductizationEvidenceStoreTests {
     config.experiments[0].decision = .keepGoing
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
-    try workspace.writeProductizationConfig(config)
+    try workspace.writeProductTournamentConfig(config)
 
     let record = makeEvidenceRecord(
       id: "smoke-run",
@@ -762,7 +762,7 @@ struct ProductizationEvidenceStoreTests {
       missingCapabilities: ["csv_import"],
       comparison: "The prototype beats the spreadsheet for review speed."
     )
-    _ = try workspace.writeProductizationEvidenceRecord(
+    _ = try workspace.writeProductTournamentEvidenceRecord(
       record,
       traceJSON: #"{"trace":true}"#,
       transcriptJSONL: #"{"raw":"persona transcript should stay out of prompts"}"#
@@ -844,7 +844,7 @@ struct ProductizationEvidenceStoreTests {
       experimentID: config.experiments[0].id
     )
 
-    let saved = try workspace.readProductizationConfig()
+    let saved = try workspace.readProductTournamentConfig()
     let savedExperiment = try #require(
       saved.experiments.first { $0.id == config.experiments[0].id })
     let savedDecision = try #require(saved.decisions.last)

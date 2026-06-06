@@ -280,7 +280,7 @@ struct ProductizationScenarioRunTests {
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
     let config = try makeScenarioRunConfig(commitSha: head)
-    try workspace.writeProductizationConfig(config)
+    try workspace.writeProductTournamentConfig(config)
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
 
     let outcome = try await ProductizationScenarioCoordinator.runModelFree(
@@ -291,8 +291,8 @@ struct ProductizationScenarioRunTests {
       appRunner: appRunner,
       now: Date(timeIntervalSince1970: 100)
     )
-    let index = workspace.readProductizationEvidenceIndex()
-    let saved = try workspace.readProductizationConfig()
+    let index = workspace.readProductTournamentEvidenceIndex()
+    let saved = try workspace.readProductTournamentConfig()
 
     try #require(outcome.result.status == .completed)
     try #require(outcome.record.scenarioID == config.scenarios[0].id)
@@ -320,7 +320,7 @@ struct ProductizationScenarioRunTests {
     try workspace.initialize()
     var config = try makeScenarioRunConfig(commitSha: head)
     let scope = try activateRoundTwoTournamentScope(in: &config)
-    try workspace.writeProductizationConfig(config)
+    try workspace.writeProductTournamentConfig(config)
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
 
     let outcome = try await ProductizationScenarioCoordinator.runModelFree(
@@ -331,11 +331,11 @@ struct ProductizationScenarioRunTests {
       appRunner: appRunner,
       now: Date(timeIntervalSince1970: 180)
     )
-    let stored = try workspace.readProductizationEvidenceRecord(id: outcome.record.id)
-    let index = workspace.readProductizationEvidenceIndex()
+    let stored = try workspace.readProductTournamentEvidenceRecord(id: outcome.record.id)
+    let index = workspace.readProductTournamentEvidenceIndex()
     let summary = try #require(index.summaries.first)
     let digest = ProductizationPlanningDigestFormatter.promptText(
-      config: try workspace.readProductizationConfig(),
+      config: try workspace.readProductTournamentConfig(),
       evidenceIndex: index
     )
     let markdown = ProductizationEvidenceMarkdownExporter.markdown(record: stored)
@@ -367,7 +367,7 @@ struct ProductizationScenarioRunTests {
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
     let config = try makeScenarioRunConfig(commitSha: head)
-    try workspace.writeProductizationConfig(config)
+    try workspace.writeProductTournamentConfig(config)
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
     let selector = ScriptedScenarioPersonaSelector(actionIDs: [
       "inspect_pain",
@@ -387,7 +387,7 @@ struct ProductizationScenarioRunTests {
       targetDecision: .promote,
       now: Date(timeIntervalSince1970: 160)
     )
-    let stored = try workspace.readProductizationEvidenceRecord(id: outcome.record.id)
+    let stored = try workspace.readProductTournamentEvidenceRecord(id: outcome.record.id)
     let transcriptPath = try #require(stored.transcriptArtifactPath)
     let transcript = try String(
       contentsOf: workspace.compassURL.appending(path: transcriptPath),
@@ -411,7 +411,7 @@ struct ProductizationScenarioRunTests {
     try #require(stored.verdict == .promising)
     try #require(transcript.contains(#""phase":"choose""#))
     try #require(transcript.contains(#""chosenActionID":"inspect_pain""#))
-    let summary = workspace.readProductizationEvidenceIndex().summaries.first
+    let summary = workspace.readProductTournamentEvidenceIndex().summaries.first
     try #require(summary?.mode == .personaModel)
     try #require(summary?.decisionIntent?.targetDecision == .promote)
     try #require(summary?.decisionIntentEvaluation?.outcome == .supportsTarget)
@@ -451,7 +451,7 @@ struct ProductizationScenarioRunTests {
       enabled: true,
       tags: cohort.tags
     )
-    try workspace.writeProductizationConfig(config)
+    try workspace.writeProductTournamentConfig(config)
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
 
     let outcome = try await ProductizationScenarioCoordinator.runCohortModelFree(
@@ -462,7 +462,7 @@ struct ProductizationScenarioRunTests {
       appRunner: appRunner,
       now: Date(timeIntervalSince1970: 180)
     )
-    let index = workspace.readProductizationEvidenceIndex()
+    let index = workspace.readProductTournamentEvidenceIndex()
 
     try #require(outcome.outcomes.count == 1)
     try #require(outcome.completedRunCount == 1)
@@ -480,7 +480,7 @@ struct ProductizationScenarioRunTests {
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
     let config = try makeScenarioRunConfig(commitSha: head)
-    try workspace.writeProductizationConfig(config)
+    try workspace.writeProductTournamentConfig(config)
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: false)
 
     let outcome = try await ProductizationScenarioCoordinator.runModelFree(
@@ -491,7 +491,7 @@ struct ProductizationScenarioRunTests {
       appRunner: appRunner,
       now: Date(timeIntervalSince1970: 120)
     )
-    let index = workspace.readProductizationEvidenceIndex()
+    let index = workspace.readProductTournamentEvidenceIndex()
 
     try #require(outcome.result.status == .appContractMissing)
     try #require(outcome.record.failure?.status == .appContractMissing)
@@ -534,7 +534,7 @@ struct ProductizationScenarioRunTests {
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
     let config = try makeScenarioRunConfig(commitSha: head)
-    try workspace.writeProductizationConfig(config)
+    try workspace.writeProductTournamentConfig(config)
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true) { _, _, _, _ in
       ProcessResult(exitCode: 2, stdout: "not json", stderr: "scenario command failed")
     }
@@ -552,7 +552,7 @@ struct ProductizationScenarioRunTests {
     try #require(outcome.record.failure?.status == .appCommandFailed)
     try #require(outcome.userMessage.contains("exited with code 2"))
     try #require(
-      workspace.readProductizationEvidenceIndex().aggregate.failuresByKind["appCommandFailed"] == 1)
+      workspace.readProductTournamentEvidenceIndex().aggregate.failuresByKind["appCommandFailed"] == 1)
   }
 }
 

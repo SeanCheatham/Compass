@@ -234,7 +234,7 @@ extension CompassWorkspace {
   func prepareProductExperimentWorktree(
     experimentID: String
   ) async throws -> ProductExperimentWorktree {
-    var config = try readProductizationConfig()
+    var config = try readProductTournamentConfig()
     guard let index = config.experiments.firstIndex(where: { $0.id == experimentID }) else {
       throw ProductExperimentWorktreeError.experimentNotFound(experimentID)
     }
@@ -247,7 +247,7 @@ extension CompassWorkspace {
     }
     config.experiments[index].currentSha = prepared.currentSha
     config.experiments[index].updatedAt = Date().timeIntervalSince1970
-    try writeProductizationConfig(config)
+    try writeProductTournamentConfig(config)
     return prepared
   }
 }

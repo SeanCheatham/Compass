@@ -26,15 +26,15 @@ struct ProductizationGitRolloutTests {
       currentSha: experimentSha,
       decision: .promote
     )
-    try workspace.writeProductizationConfig(config)
-    try workspace.writeProductizationEvidenceRecord(makeGitRolloutEvidence(config: config))
+    try workspace.writeProductTournamentConfig(config)
+    try workspace.writeProductTournamentEvidenceRecord(makeGitRolloutEvidence(config: config))
 
     let result = try await workspace.promoteProductExperiment(
       experimentID: "experiment-fast-forward",
       acceptedBranchName: "main",
       now: Date(timeIntervalSince1970: 100)
     )
-    let promoted = try workspace.readProductizationConfig()
+    let promoted = try workspace.readProductTournamentConfig()
     let experiment = try #require(
       promoted.experiments.first { $0.id == "experiment-fast-forward" }
     )
@@ -80,8 +80,8 @@ struct ProductizationGitRolloutTests {
       currentSha: experimentSha,
       decision: .promote
     )
-    try workspace.writeProductizationConfig(config)
-    try workspace.writeProductizationEvidenceRecord(makeGitRolloutEvidence(config: config))
+    try workspace.writeProductTournamentConfig(config)
+    try workspace.writeProductTournamentEvidenceRecord(makeGitRolloutEvidence(config: config))
 
     let result = try await workspace.promoteProductExperiment(
       experimentID: "experiment-merge",
@@ -91,7 +91,7 @@ struct ProductizationGitRolloutTests {
     let mergeSha = try await gitOutput(["rev-parse", "main"], in: root)
     let parents = try await gitOutput(["rev-list", "--parents", "-n", "1", "main"], in: root)
       .split(separator: " ")
-    let decision = try #require(try workspace.readProductizationConfig().decisions.last)
+    let decision = try #require(try workspace.readProductTournamentConfig().decisions.last)
 
     try #require(result.preview.kind == .mergePromotion)
     try #require(mergeSha != acceptedBeforeSha)
@@ -130,7 +130,7 @@ struct ProductizationGitRolloutTests {
       currentSha: recordedExperimentSha,
       decision: .promote
     )
-    try workspace.writeProductizationConfig(config)
+    try workspace.writeProductTournamentConfig(config)
 
     do {
       _ = try await workspace.promoteProductExperiment(
@@ -149,7 +149,7 @@ struct ProductizationGitRolloutTests {
     }
 
     try #require(try await gitOutput(["rev-parse", "main"], in: root) == baseSha)
-    try #require(try workspace.readProductizationConfig().experiments[0].decision == .promote)
+    try #require(try workspace.readProductTournamentConfig().experiments[0].decision == .promote)
   }
 
   @Test func archiveCreatesArchiveRefAndPreservesExperimentLineage() async throws {
@@ -174,8 +174,8 @@ struct ProductizationGitRolloutTests {
       currentSha: experimentSha,
       decision: .kill
     )
-    try workspace.writeProductizationConfig(config)
-    try workspace.writeProductizationEvidenceRecord(makeGitRolloutEvidence(config: config))
+    try workspace.writeProductTournamentConfig(config)
+    try workspace.writeProductTournamentEvidenceRecord(makeGitRolloutEvidence(config: config))
     let worktreeURL = workspace.productExperimentWorktreeURL(experimentID: "experiment-archive")
     try FileManager.default.createDirectory(
       at: worktreeURL.deletingLastPathComponent(),
@@ -188,7 +188,7 @@ struct ProductizationGitRolloutTests {
       acceptedBranchName: "main",
       now: Date(timeIntervalSince1970: 120)
     )
-    let saved = try workspace.readProductizationConfig()
+    let saved = try workspace.readProductTournamentConfig()
     let experiment = try #require(saved.experiments.first { $0.id == "experiment-archive" })
     let solution = try #require(saved.solutionHypotheses.first)
     let decision = try #require(saved.decisions.last)

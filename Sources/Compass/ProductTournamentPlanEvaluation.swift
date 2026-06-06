@@ -62,7 +62,7 @@ enum ProductTournamentPlanEvaluator {
     projectID: UUID? = nil,
     now: Date = Date()
   ) throws -> ProductTournamentPlanEvaluationOutcome {
-    var config = try workspace.readProductizationConfig()
+    var config = try workspace.readProductTournamentConfig()
     let evaluationStart = now.timeIntervalSince1970
     guard let tournament = config.tournaments.first(where: { $0.id == tournamentID }) else {
       throw ProductTournamentPlanEvaluationError.unknownTournament(tournamentID)
@@ -110,7 +110,7 @@ enum ProductTournamentPlanEvaluator {
 
     if let roundIndex = config.tournamentRounds.firstIndex(where: { $0.id == round.id }) {
       config.tournamentRounds[roundIndex].updatedAt = Date().timeIntervalSince1970
-      try workspace.writeProductizationConfig(config)
+      try workspace.writeProductTournamentConfig(config)
     }
 
     return ProductTournamentPlanEvaluationOutcome(
@@ -584,8 +584,8 @@ extension CompassProject {
         in: workspace,
         projectID: id
       )
-      productizationConfig = try workspace.readProductizationConfig()
-      productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()
+      productizationConfig = try workspace.readProductTournamentConfig()
+      productizationEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
       log(outcome.userMessage, level: outcome.isSuccess ? .success : .warning)
       return outcome
     } catch {
@@ -603,15 +603,15 @@ extension CompassProject {
         fail(AppModelError.noRepositorySelected)
         return nil
       }
-      let config = try workspace.readProductizationConfig()
-      let evidenceIndex = workspace.readProductizationEvidenceIndex()
+      let config = try workspace.readProductTournamentConfig()
+      let evidenceIndex = workspace.readProductTournamentEvidenceIndex()
       let outcome = try ProductTournamentPlanTransitioner.applyBestProposal(
         tournamentID: tournamentID,
         roundID: roundID,
         to: config,
         evidenceIndex: evidenceIndex
       )
-      try workspace.writeProductizationConfig(outcome.config)
+      try workspace.writeProductTournamentConfig(outcome.config)
       productizationConfig = outcome.config
       productizationEvidenceIndex = evidenceIndex
       log(outcome.userMessage, level: .success)

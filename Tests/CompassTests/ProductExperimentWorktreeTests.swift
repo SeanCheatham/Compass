@@ -12,7 +12,7 @@ struct ProductExperimentWorktreeTests {
     try workspace.initialize()
     try commitAll("Initialize Compass storage ignore", at: root)
     let config = makeBranchingProductizationConfig()
-    try workspace.writeProductizationConfig(config)
+    try workspace.writeProductTournamentConfig(config)
     let initialMainSha = try await gitOutput(["rev-parse", "HEAD"], in: root)
 
     let first = try await workspace.prepareProductExperimentWorktree(
@@ -35,7 +35,7 @@ struct ProductExperimentWorktreeTests {
     let updatedFirst = try await workspace.prepareProductExperimentWorktree(
       experimentID: "experiment-command-board"
     )
-    let saved = try workspace.readProductizationConfig()
+    let saved = try workspace.readProductTournamentConfig()
     let savedFirst = try #require(
       saved.experiments.first { $0.id == "experiment-command-board" }
     )

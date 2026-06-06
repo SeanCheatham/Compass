@@ -229,7 +229,7 @@ struct CompassWorkspace {
     try text.write(to: visionURL, atomically: true, encoding: .utf8)
   }
 
-  func readProductizationConfig() throws -> ProductizationConfig {
+  func readProductTournamentConfig() throws -> ProductizationConfig {
     guard FileManager.default.fileExists(atPath: productTournamentConfigURL.path) else {
       return .empty
     }
@@ -238,7 +238,7 @@ struct CompassWorkspace {
     return try JSONDecoder().decode(ProductizationConfig.self, from: data)
   }
 
-  func readOrSeedProductizationConfig(
+  func readOrSeedProductTournamentConfig(
     projectTitle: String,
     rawPain: String,
     now: Date = Date()
@@ -250,13 +250,13 @@ struct CompassWorkspace {
         now: now
       )
     }
-    let config = try readProductizationConfig()
+    let config = try readProductTournamentConfig()
     return config.isEmpty
       ? ProductizationConfig.seedDefaults(projectTitle: projectTitle, rawPain: rawPain, now: now)
       : config
   }
 
-  func writeProductizationConfig(_ config: ProductizationConfig) throws {
+  func writeProductTournamentConfig(_ config: ProductizationConfig) throws {
     try FileManager.default.createDirectory(at: compassURL, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(
       at: productTournamentURL, withIntermediateDirectories: true)
@@ -272,17 +272,17 @@ struct CompassWorkspace {
     _ output: DiscoverPromptOutput,
     currentConfig: ProductizationConfig? = nil
   ) throws -> ProductizationConfig {
-    let baseConfig = try currentConfig ?? readProductizationConfig()
+    let baseConfig = try currentConfig ?? readProductTournamentConfig()
     let nextConfig = try output.validatedProductizationConfig(applyingTo: baseConfig)
-    try writeProductizationConfig(nextConfig)
+    try writeProductTournamentConfig(nextConfig)
     return nextConfig
   }
 
-  func readProductizationEvidenceIndex() -> ProductizationEvidenceIndex {
+  func readProductTournamentEvidenceIndex() -> ProductizationEvidenceIndex {
     (try? productTournamentEvidenceStore.readIndex()) ?? .empty
   }
 
-  func readProductizationEvidenceRecord(id: String) throws -> ProductizationEvidenceRecord {
+  func readProductTournamentEvidenceRecord(id: String) throws -> ProductizationEvidenceRecord {
     try productTournamentEvidenceStore.readRecord(id: id)
   }
 
@@ -293,7 +293,7 @@ struct CompassWorkspace {
   }
 
   @discardableResult
-  func writeProductizationEvidenceRecord(
+  func writeProductTournamentEvidenceRecord(
     _ record: ProductizationEvidenceRecord,
     traceJSON: String? = nil,
     feedbackJSON: String? = nil,

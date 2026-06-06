@@ -300,7 +300,7 @@ extension CompassProject {
         from: currentState,
         to: nextState,
         forgeProfile: activeForgeProfile,
-        productizationConfig: try? hostWorkspace.readProductizationConfig()
+        productizationConfig: try? hostWorkspace.readProductTournamentConfig()
       )
     }
   }

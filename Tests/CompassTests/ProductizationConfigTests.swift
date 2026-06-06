@@ -11,11 +11,11 @@ struct ProductizationConfigTests {
     let workspace = CompassWorkspace(repoURL: root)
     let config = makeProductizationConfig()
 
-    try workspace.writeProductizationConfig(config)
+    try workspace.writeProductTournamentConfig(config)
 
     try #require(FileManager.default.fileExists(atPath: workspace.productTournamentConfigURL.path))
     try #require(FileManager.default.fileExists(atPath: workspace.productTournamentURL.path))
-    try #require(try workspace.readProductizationConfig() == config)
+    try #require(try workspace.readProductTournamentConfig() == config)
   }
 
   @Test func missingProductizationConfigReturnsEmptyConfig() throws {
@@ -24,7 +24,7 @@ struct ProductizationConfigTests {
     let workspace = CompassWorkspace(repoURL: root)
 
     try #require(!FileManager.default.fileExists(atPath: workspace.productTournamentConfigURL.path))
-    try #require(try workspace.readProductizationConfig() == .empty)
+    try #require(try workspace.readProductTournamentConfig() == .empty)
   }
 
   @Test func malformedProductizationConfigThrows() throws {
@@ -37,7 +37,7 @@ struct ProductizationConfigTests {
     try "{".write(to: workspace.productTournamentConfigURL, atomically: true, encoding: .utf8)
 
     #expect(throws: (any Error).self) {
-      _ = try workspace.readProductizationConfig()
+      _ = try workspace.readProductTournamentConfig()
     }
   }
 
@@ -65,7 +65,7 @@ struct ProductizationConfigTests {
     try payload.write(to: workspace.productTournamentConfigURL, atomically: true, encoding: .utf8)
 
     do {
-      _ = try workspace.readProductizationConfig()
+      _ = try workspace.readProductTournamentConfig()
       #expect(Bool(false), "Expected unsupported schema version.")
     } catch let error as ProductizationConfigError {
       try #require(error == .unsupportedSchemaVersion(99))
@@ -208,13 +208,13 @@ struct ProductizationConfigTests {
 
     let project = CompassProject(repoURL: root)
     await project.initializeWorkspace()
-    await project.saveProductizationConfig(config)
+    await project.saveProductTournamentConfig(config)
 
     project.productizationConfig = .empty
     await project.refresh()
 
     try #require(project.productizationConfig == config)
-    try #require(try CompassWorkspace(repoURL: root).readProductizationConfig() == config)
+    try #require(try CompassWorkspace(repoURL: root).readProductTournamentConfig() == config)
   }
 
 }

@@ -821,15 +821,15 @@ extension CompassProject {
         fail(AppModelError.noRepositorySelected)
         return nil
       }
-      let config = try workspace.readProductizationConfig()
-      let evidenceIndex = workspace.readProductizationEvidenceIndex()
+      let config = try workspace.readProductTournamentConfig()
+      let evidenceIndex = workspace.readProductTournamentEvidenceIndex()
       let outcome = try ProductTournamentPrototypeEvidenceTransitioner.applyBestProposal(
         tournamentID: tournamentID,
         roundID: roundID,
         to: config,
         evidenceIndex: evidenceIndex
       )
-      try workspace.writeProductizationConfig(outcome.config)
+      try workspace.writeProductTournamentConfig(outcome.config)
       productizationConfig = outcome.config
       productizationEvidenceIndex = evidenceIndex
       log(outcome.userMessage, level: .success)

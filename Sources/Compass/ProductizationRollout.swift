@@ -546,7 +546,7 @@ extension CompassWorkspace {
   ) async throws -> ProductExperimentGitRolloutPreview {
     try await ProductExperimentGitRolloutWorkflow.preview(
       experimentID: experimentID,
-      in: try readProductizationConfig(),
+      in: try readProductTournamentConfig(),
       repoURL: repoURL,
       acceptedBranchName: acceptedBranchName
     )
@@ -560,13 +560,13 @@ extension CompassWorkspace {
   ) async throws -> ProductExperimentGitRolloutResult {
     let result = try await ProductExperimentGitRolloutWorkflow.promote(
       experimentID: experimentID,
-      in: try readProductizationConfig(),
+      in: try readProductTournamentConfig(),
       repoURL: repoURL,
-      evidenceIndex: readProductizationEvidenceIndex(),
+      evidenceIndex: readProductTournamentEvidenceIndex(),
       acceptedBranchName: acceptedBranchName,
       now: now
     )
-    try writeProductizationConfig(result.config)
+    try writeProductTournamentConfig(result.config)
     return result
   }
 
@@ -578,13 +578,13 @@ extension CompassWorkspace {
   ) async throws -> ProductExperimentGitRolloutResult {
     let result = try await ProductExperimentGitRolloutWorkflow.archive(
       experimentID: experimentID,
-      in: try readProductizationConfig(),
+      in: try readProductTournamentConfig(),
       repoURL: repoURL,
-      evidenceIndex: readProductizationEvidenceIndex(),
+      evidenceIndex: readProductTournamentEvidenceIndex(),
       acceptedBranchName: acceptedBranchName,
       now: now
     )
-    try writeProductizationConfig(result.config)
+    try writeProductTournamentConfig(result.config)
     return result
   }
 }
@@ -756,7 +756,7 @@ extension CompassProject {
         to: productizationConfig,
         evidenceIndex: productizationEvidenceIndex
       )
-      try workspace.writeProductizationConfig(next)
+      try workspace.writeProductTournamentConfig(next)
       productizationConfig = next
       log(
         "\(actionTitle) recorded for product experiment \(experimentID).",
@@ -787,7 +787,7 @@ extension CompassProject {
         to: productizationConfig,
         evidenceIndex: productizationEvidenceIndex
       )
-      try workspace.writeProductizationConfig(next)
+      try workspace.writeProductTournamentConfig(next)
       productizationConfig = next
       log(
         "Applied PMF recommendation for product experiment \(experimentID): \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue).",

@@ -553,7 +553,7 @@ struct ProductTournamentWorkbenchTab: View {
       SectionHeader("Product Tournament", systemImage: "trophy")
       Spacer()
       Button {
-        Task { await project.reloadProductizationEvidenceIndex() }
+        Task { await project.reloadProductTournamentEvidenceIndex() }
       } label: {
         Image(systemName: "arrow.clockwise")
           .frame(width: 18, height: 18)
@@ -2295,7 +2295,7 @@ struct ProductTournamentWorkbenchTab: View {
       return
     }
     do {
-      selectedRecord = try project.readProductizationEvidenceRecord(id: selectedRunID)
+      selectedRecord = try project.readProductTournamentEvidenceRecord(id: selectedRunID)
       recordError = nil
     } catch {
       selectedRecord = nil
@@ -2467,7 +2467,7 @@ struct ProductTournamentWorkbenchTab: View {
           "Applied product revision for \(brief.experimentID). Run targeted validation evidence next."
       )
       scenarioRunMessage = audit.userMessage
-      await project.saveProductizationConfig(
+      await project.saveProductTournamentConfig(
         project.productizationConfig.recordingFactoryCycleAudit(audit)
       )
       await loadContractStatus()
@@ -2627,7 +2627,7 @@ struct ProductTournamentWorkbenchTab: View {
     )
     let audit = outcome.audit(startedAt: stepStartedAt)
     scenarioRunMessage = result?.message ?? project.errorMessage ?? step.blockedReason
-    await project.saveProductizationConfig(
+    await project.saveProductTournamentConfig(
       project.productizationConfig.recordingFactoryCycleAudit(audit)
     )
     await loadContractStatus()
@@ -2773,7 +2773,7 @@ struct ProductTournamentWorkbenchTab: View {
           userMessage:
             "Product revision checkpoint recorded for \(stepRevisionBrief.experimentID). Continuing with targeted validation evidence."
         )
-        await project.saveProductizationConfig(
+        await project.saveProductTournamentConfig(
           project.productizationConfig.recordingFactoryCycleAudit(checkpoint)
         )
       }
@@ -2807,7 +2807,7 @@ struct ProductTournamentWorkbenchTab: View {
     )
     let audit = outcome.audit(startedAt: cycleStartedAt)
     scenarioRunMessage = audit.userMessage
-    await project.saveProductizationConfig(
+    await project.saveProductTournamentConfig(
       project.productizationConfig.recordingFactoryCycleAudit(audit)
     )
     await loadContractStatus()
