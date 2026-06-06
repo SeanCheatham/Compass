@@ -5186,6 +5186,19 @@ enum ProductTournamentNextActionAdvisor {
       break
     }
 
+    if let roundThreeProofAction = roundThreeProductImplementationProofAction(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return applyingRecentCycleGuards(
+        to: roundThreeProofAction,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
+
     if let proposal = ProductTournamentDecisionAdvisor.proposal(
       experimentID: experiment.id,
       config: config,
@@ -5563,6 +5576,300 @@ enum ProductTournamentNextActionAdvisor {
     }
   }
 
+  private enum RoundThreeProductImplementationProofNeed: Equatable, Sendable {
+    case implementationUse
+    case currentAlternative
+    case willingnessToPay
+    case personaBreadth
+    case completedRun
+    case remaining
+
+    init(proposal: ProductTournamentProductImplementationEvidenceTransitionProposal) {
+      if proposal.completedRunCount == 0 || proposal.implementationUseProofCount < 3 {
+        self = .implementationUse
+      } else if proposal.currentAlternativeProofCount < 2 {
+        self = .currentAlternative
+      } else if proposal.willingnessToPayProofCount < 2 {
+        self = .willingnessToPay
+      } else if proposal.distinctPersonaCount < 2 {
+        self = .personaBreadth
+      } else if proposal.completedRunCount < 3 {
+        self = .completedRun
+      } else {
+        self = .remaining
+      }
+    }
+
+    var title: String {
+      switch self {
+      case .implementationUse:
+        return "Run Round 3 implementation-use proof"
+      case .currentAlternative:
+        return "Run Round 3 alternative proof"
+      case .willingnessToPay:
+        return "Run Round 3 pay proof"
+      case .personaBreadth:
+        return "Broaden Round 3 persona proof"
+      case .completedRun:
+        return "Run Round 3 product proof"
+      case .remaining:
+        return "Run Round 3 proof-gap validation"
+      }
+    }
+
+    var proofLabel: String {
+      switch self {
+      case .implementationUse:
+        return "implementation-use trace"
+      case .currentAlternative:
+        return "current-alternative comparison"
+      case .willingnessToPay:
+        return "explicit willingness-to-pay or sponsorship proof"
+      case .personaBreadth:
+        return "second simulated-user persona"
+      case .completedRun:
+        return "completed Round 3 run"
+      case .remaining:
+        return "remaining Round 3 proof gap"
+      }
+    }
+
+    var priority: Int {
+      switch self {
+      case .implementationUse: return 93
+      case .currentAlternative: return 92
+      case .willingnessToPay: return 92
+      case .personaBreadth: return 91
+      case .completedRun: return 90
+      case .remaining: return 89
+      }
+    }
+
+    func isProven(by summary: ProductTournamentEvidenceSummary) -> Bool {
+      guard summary.isCompleted else { return false }
+      switch self {
+      case .implementationUse:
+        return summary.completedUseProof
+      case .currentAlternative:
+        return hasCurrentAlternativeProof(summary)
+      case .willingnessToPay:
+        return hasExplicitRoundThreePayProof(summary)
+      case .personaBreadth, .completedRun, .remaining:
+        return true
+      }
+    }
+
+    private func hasCurrentAlternativeProof(
+      _ summary: ProductTournamentEvidenceSummary
+    ) -> Bool {
+      let comparison = summary.currentAlternativeComparison
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+      guard !comparison.isEmpty else { return false }
+      return !comparison.contains("did not address")
+        && !comparison.contains("no current-alternative comparison")
+        && !comparison.contains("no current alternative")
+    }
+
+    private func hasExplicitRoundThreePayProof(
+      _ summary: ProductTournamentEvidenceSummary
+    ) -> Bool {
+      let intent = normalizedText(summary.sponsorshipIntent)
+      guard !intent.isEmpty else { return false }
+      return ![
+        "the simulated user shows strong willingness to pay for or sponsor this contender",
+        "the simulated user shows moderate willingness to pay for or sponsor this contender after more proof",
+        "the simulated user recognizes some contender value but is not ready to pay or sponsor",
+        "the simulated user shows weak willingness to pay for or sponsor this contender",
+      ].contains(intent)
+    }
+
+    private func normalizedText(_ value: String) -> String {
+      value
+        .lowercased()
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+    }
+  }
+
+  private static func roundThreeProductImplementationProofAction(
+    for experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> ProductTournamentNextAction? {
+    guard
+      let proposal = ProductTournamentProductImplementationEvidenceTransitioner.proposals(
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      .first(where: {
+        $0.recommendation == .gatherEvidence
+          && contender($0.contenderID, matches: experiment, in: config)
+      })
+    else { return nil }
+
+    let need = RoundThreeProductImplementationProofNeed(proposal: proposal)
+    let selectedCohort =
+      roundScopedRunnableCohort(
+        roundID: proposal.roundID,
+        experiment: experiment,
+        config: config
+      ) ?? runnableCohort(for: experiment, config: config)
+    let summaries = evidenceIndex.summaries(for: experiment)
+      .filter {
+        $0.tournamentID == proposal.tournamentID
+          && $0.roundID == proposal.roundID
+          && $0.contenderID == proposal.contenderID
+      }
+    let target = roundThreeProductImplementationTarget(
+      need: need,
+      summaries: summaries,
+      experiment: experiment,
+      config: config,
+      selectedCohort: selectedCohort
+    )
+    let gaps =
+      proposal.proofGaps.isEmpty
+      ? proposal.detail
+      : proposal.proofGaps.prefix(3).joined(separator: "; ")
+    let targetName = target?.name ?? "the next simulated user"
+    let executableCohortID = target?.executableCohortID
+    let executableScenarioID = target?.executableScenarioID
+    let canRunTarget = executableCohortID != nil && executableScenarioID != nil
+    let actionKind: ProductTournamentNextActionKind =
+      canRunTarget
+      ? (proposal.completedRunCount == 0 ? .runCohort : .rerunCohort)
+      : .refineContender
+    let detail: String
+    if let executableCohortID, let executableScenarioID {
+      detail =
+        "Round 3 product implementation needs \(need.proofLabel) before winner selection; run persona-model scenario `\(executableScenarioID)` for \(targetName) in cohort `\(executableCohortID)` to close \(gaps). Next validation: \(proposal.nextValidationTarget)"
+    } else if let selectedCohort {
+      let guidance =
+        target?.guidance(selectedCohort: selectedCohort, executableCohortID: executableCohortID)
+        ?? " Target simulated-user segment: add an enabled scenario for this Round 3 proof gap."
+      detail =
+        "Round 3 product implementation needs \(need.proofLabel) before winner selection; cohort `\(selectedCohort.id)` does not cover a runnable target. \(guidance) Remaining gaps: \(gaps)."
+    } else {
+      let guidance =
+        target?.guidance(selectedCohort: nil, executableCohortID: executableCohortID)
+        ?? " Target simulated-user segment: add an enabled scenario and cohort for this Round 3 proof gap."
+      detail =
+        "Round 3 product implementation needs \(need.proofLabel) before winner selection; define an enabled persona-model scenario cohort.\(guidance) Remaining gaps: \(gaps)."
+    }
+    let action = ProductTournamentNextAction(
+      experimentID: experiment.id,
+      kind: actionKind,
+      title: need.title,
+      detail: detail,
+      priority: need.priority,
+      tournamentID: proposal.tournamentID,
+      roundID: proposal.roundID,
+      contenderID: proposal.contenderID,
+      cohortID: executableCohortID,
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: target?.id,
+      targetPersonaName: target?.name,
+      targetScenarioID: executableScenarioID,
+      targetDecision: .promote
+    )
+    return prepareWorktreeActionIfNeeded(
+      replacing: action,
+      experiment: experiment,
+      config: config
+    ) ?? action
+  }
+
+  private static func roundThreeProductImplementationTarget(
+    need: RoundThreeProductImplementationProofNeed,
+    summaries: [ProductTournamentEvidenceSummary],
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    selectedCohort: ProductScenarioCohort?
+  ) -> PersonaModelTarget? {
+    let proofCounts = Dictionary(
+      grouping: summaries.filter { need.isProven(by: $0) && !$0.personaID.isEmpty },
+      by: \.personaID
+    )
+    .mapValues(\.count)
+    let enabledScenarios = config.scenarios
+      .filter { $0.experimentID == experiment.id && $0.enabled }
+    let selectedScenarioIDs = Set(selectedCohort?.scenarioIDs ?? [])
+    let selectedScenarios = enabledScenarios.filter { selectedScenarioIDs.contains($0.id) }
+    let candidateScenarios = selectedScenarios.isEmpty ? enabledScenarios : selectedScenarios
+    if let scenario = candidateScenarios.sorted(by: {
+      let lhsCount = proofCounts[$0.segmentID, default: 0]
+      let rhsCount = proofCounts[$1.segmentID, default: 0]
+      if lhsCount == rhsCount { return scenarioSort(config: config)($0, $1) }
+      return lhsCount < rhsCount
+    }).first {
+      let executableCohortID =
+        selectedScenarioIDs.contains(scenario.id)
+        ? selectedCohort?.id
+        : executableCohortID(
+          forScenarioID: scenario.id,
+          experiment: experiment,
+          config: config
+        )
+      return PersonaModelTarget(
+        id: scenario.segmentID,
+        name: segmentName(for: scenario.segmentID, config: config),
+        scenarioID: scenario.id,
+        executableCohortID: executableCohortID
+      )
+    }
+
+    guard let segmentID = targetSegmentIDs(for: experiment, config: config).first else {
+      return nil
+    }
+    return PersonaModelTarget(
+      id: segmentID,
+      name: segmentName(for: segmentID, config: config),
+      scenarioID: nil,
+      executableCohortID: nil
+    )
+  }
+
+  private static func roundScopedRunnableCohort(
+    roundID: String,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig
+  ) -> ProductScenarioCohort? {
+    guard
+      let round = config.tournamentRounds.first(where: { $0.id == roundID }),
+      !round.scenarioCohortIDs.isEmpty
+    else { return nil }
+    let enabledScenarioIDs = Set(
+      config.scenarios
+        .filter { $0.experimentID == experiment.id && $0.enabled }
+        .map(\.id)
+    )
+    return config.scenarioCohorts
+      .filter {
+        $0.experimentID == experiment.id
+          && $0.enabled
+          && round.scenarioCohortIDs.contains($0.id)
+          && $0.scenarioIDs.contains { enabledScenarioIDs.contains($0) }
+      }
+      .sorted {
+        let lhsCoverage = $0.scenarioIDs.filter { enabledScenarioIDs.contains($0) }.count
+        let rhsCoverage = $1.scenarioIDs.filter { enabledScenarioIDs.contains($0) }.count
+        if lhsCoverage == rhsCoverage { return $0.title < $1.title }
+        return lhsCoverage > rhsCoverage
+      }
+      .first
+  }
+
+  private static func contender(
+    _ contenderID: String,
+    matches experiment: ProductTournamentExperiment,
+    in config: ProductTournamentConfig
+  ) -> Bool {
+    config.tournamentContenders.contains {
+      $0.id == contenderID && $0.experimentID == experiment.id
+    }
+  }
+
   private static func shouldRunPersonaModelRejectionCheck(
     _ readiness: ProductTournamentReadiness
   ) -> Bool {
@@ -5597,11 +5904,16 @@ enum ProductTournamentNextActionAdvisor {
     let isRoundTwoProofGapValidation =
       action.title == "Validate Round 2 proof-gap revision"
       || action.title == "Complete Round 2 proof-gap validation"
-    guard isCandidateTrack || isRoundTwoProofGapValidation else { return nil }
+    let isRoundThreeProductImplementationProof = action.title.hasPrefix("Run Round 3")
+      || action.title == "Broaden Round 3 persona proof"
+    guard isCandidateTrack || isRoundTwoProofGapValidation || isRoundThreeProductImplementationProof
+    else { return nil }
 
     let scenarioText =
       isRoundTwoProofGapValidation
       ? "Round 2 revision validation scenario needs"
+      : isRoundThreeProductImplementationProof
+      ? "Round 3 product implementation proof scenario needs"
       : readiness.missingTargetCommitCount == 1
       ? "1 candidate starter scenario needs"
       : "\(readiness.missingTargetCommitCount) candidate starter scenarios need"

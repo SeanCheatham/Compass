@@ -4716,6 +4716,181 @@ struct ProductTournamentLoopTests {
     try #require(savedExperiment.decision == .promote)
   }
 
+  @Test func tournamentNextActionTargetsRoundThreePayProofBeforeGenericPromotion() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let target = try activateRoundThreeProductImplementationTarget(in: &config)
+    let experiment = try #require(
+      config.tournamentExperiments.first { $0.id == target.experimentID })
+    let records = scopedTournamentEvidenceRecords(
+      prefix: "round-3-pay-gap",
+      experiment: experiment,
+      config: config,
+      target: target,
+      count: 3,
+      completedUseProof: true,
+      mode: .personaModel
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+
+    let genericDecision = try #require(
+      ProductTournamentDecisionAdvisor.proposal(
+        experimentID: experiment.id,
+        config: config,
+        evidenceIndex: index
+      ))
+    let proposal = try #require(
+      ProductTournamentProductImplementationEvidenceTransitioner.proposals(
+        tournamentID: target.tournamentID,
+        roundID: target.roundID,
+        config: config,
+        evidenceIndex: index
+      ).first)
+    let action = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let readiness = try #require(
+      ProductTournamentNextActionAdvisor.cohortRunReadiness(
+        for: action,
+        experiment: experiment,
+        config: config
+      ))
+    let signal = TournamentAutomationExperimentRanker.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: index
+    )
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
+
+    try #require(genericDecision.update.decision == .promote)
+    try #require(proposal.recommendation == .gatherEvidence)
+    try #require(proposal.proofGaps.contains { $0.contains("explicit willingness-to-pay") })
+    try #require(action.kind == .rerunCohort)
+    try #require(action.title == "Run Round 3 pay proof")
+    try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.tournamentID == target.tournamentID)
+    try #require(action.roundID == target.roundID)
+    try #require(action.contenderID == target.contenderID)
+    try #require(action.cohortID == config.scenarioCohorts[0].id)
+    try #require(action.targetScenarioID != nil)
+    try #require(action.targetDecision == .promote)
+    try #require(action.detail.contains("explicit willingness-to-pay"))
+    try #require(action.detail.contains("before winner selection"))
+    try #require(readiness.canRun)
+    try #require(readiness.targetScenarioID == action.targetScenarioID)
+    try #require(signal.nextActionKind == .rerunCohort)
+    try #require(signal.nextActionTitle == "Run Round 3 pay proof")
+    try #require(digest.contains("Next tournament automation actions"))
+    try #require(digest.contains("Run Round 3 pay proof"))
+  }
+
+  @Test func tournamentNextActionTargetsRoundThreeImplementationUseProofFirst() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let target = try activateRoundThreeProductImplementationTarget(in: &config)
+    let experiment = try #require(
+      config.tournamentExperiments.first { $0.id == target.experimentID })
+    let records = scopedTournamentEvidenceRecords(
+      prefix: "round-3-use-gap",
+      experiment: experiment,
+      config: config,
+      target: target,
+      count: 3,
+      completedUseProof: false,
+      willingnessToPay: 5,
+      mode: .personaModel
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+
+    let proposal = try #require(
+      ProductTournamentProductImplementationEvidenceTransitioner.proposals(
+        tournamentID: target.tournamentID,
+        roundID: target.roundID,
+        config: config,
+        evidenceIndex: index
+      ).first)
+    let action = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(proposal.recommendation == .gatherEvidence)
+    try #require(proposal.proofGaps.contains { $0.contains("implementation-use") })
+    try #require(action.kind == .rerunCohort)
+    try #require(action.title == "Run Round 3 implementation-use proof")
+    try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetScenarioID != nil)
+    try #require(action.detail.contains("implementation-use trace"))
+  }
+
+  @Test func tournamentNextActionTargetsRoundThreeCurrentAlternativeProof() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let target = try activateRoundThreeProductImplementationTarget(in: &config)
+    let experiment = try #require(
+      config.tournamentExperiments.first { $0.id == target.experimentID })
+    let records = scopedTournamentEvidenceRecords(
+      prefix: "round-3-alternative-gap",
+      experiment: experiment,
+      config: config,
+      target: target,
+      count: 3,
+      completedUseProof: true,
+      willingnessToPay: 5,
+      mode: .personaModel,
+      currentAlternativeComparison: "No current-alternative comparison was captured."
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+
+    let proposal = try #require(
+      ProductTournamentProductImplementationEvidenceTransitioner.proposals(
+        tournamentID: target.tournamentID,
+        roundID: target.roundID,
+        config: config,
+        evidenceIndex: index
+      ).first)
+    let action = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+
+    try #require(proposal.recommendation == .gatherEvidence)
+    try #require(proposal.proofGaps.contains { $0.contains("current-alternative") })
+    try #require(action.kind == .rerunCohort)
+    try #require(action.title == "Run Round 3 alternative proof")
+    try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetScenarioID != nil)
+    try #require(action.detail.contains("current-alternative comparison"))
+  }
+
   @Test func tournamentDecisionAdvisorDoesNotPromoteFromStaleEvidence() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
@@ -5242,7 +5417,9 @@ private func scopedTournamentEvidenceRecords(
   target: ProductTournamentRoundImplementationTarget,
   count: Int,
   completedUseProof: Bool,
-  willingnessToPay: Int? = nil
+  willingnessToPay: Int? = nil,
+  mode: ProductTournamentSimulationMode = .modelFree,
+  currentAlternativeComparison: String = "The contender beat the current spreadsheet workflow."
 ) -> [ProductTournamentEvidenceRecord] {
   let scores = ProductTournamentEvidenceScores(
     painRecognition: 5,
@@ -5260,10 +5437,11 @@ private func scopedTournamentEvidenceRecords(
       experiment: experiment,
       config: config,
       personaID: segment.id,
+      mode: mode,
       endedAt: Double(200 + index),
       verdict: .strongPull,
       scores: scores,
-      currentAlternativeComparison: "The contender beat the current spreadsheet workflow.",
+      currentAlternativeComparison: currentAlternativeComparison,
       tournamentID: target.tournamentID,
       roundID: target.roundID,
       contenderID: target.contenderID,

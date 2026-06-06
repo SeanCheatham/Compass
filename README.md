@@ -136,7 +136,10 @@ and advances them through rounds:
   until the tournament winner is selected. Winner selection requires three
   completed implementation-use proofs derived from completed traces, two
   current-alternative comparisons, two explicit willingness-to-pay or sponsorship
-  proofs, and evidence from at least two personas.
+  proofs, and evidence from at least two personas. When those Round 3 gates are
+  not met, Tournament Automation targets the next persona-model cohort toward
+  implementation-use proof first, then current-alternative comparison, then
+  explicit willingness-to-pay or sponsorship proof.
   Workbench scenario-run rows and selected-run details expose whether each run
   counts as completed-use proof.
 
@@ -224,7 +227,10 @@ IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
 feedback remains comparable across tournament rounds. The workbench and
 Tournament Automation can apply the best actionable Round 1, Round 2, and Round 3
 recommendations to stored tournament state, including selecting a winner when
-product implementation evidence clears the winner gate. Cycle audits record
+product implementation evidence clears the winner gate. Non-actionable Round 3
+proof gaps become targeted persona-model reruns instead of generic promotion
+decisions, so missing implementation-use, current-alternative, and pay/sponsor
+proof each point at a runnable scenario when one exists. Cycle audits record
 worktree preparation and automated round transitions separately from tournament
 decision updates and simulated-user evidence runs, and Round 1 plan-proof cycles
 capture starting and ending persona-model/model-free plan evidence counts.
