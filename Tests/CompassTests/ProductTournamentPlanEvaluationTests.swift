@@ -37,6 +37,8 @@ struct ProductTournamentPlanEvaluationTests {
         $0.promptVersions == [ProductTournamentPlanEvaluator.promptVersionID]
       })
     try #require(outcome.records.contains { $0.willingnessToPayScore ?? 0 >= 3 })
+    try #require(
+      outcome.records.allSatisfy { $0.scores.willingnessToPay == $0.willingnessToPayScore })
 
     let index = workspace.readProductizationEvidenceIndex()
     try #require(index.summaries.isEmpty)

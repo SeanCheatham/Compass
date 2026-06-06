@@ -328,6 +328,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
         summary.scores.alternativeAdvantage,
         summary.scores.switchingReadiness,
         summary.scores.continuedUsePull,
+        summary.scores.willingnessToPay,
       ].compactMap { $0 }.map(Double.init)
     }
     let averageScore = Self.average(scoreValues)
@@ -459,6 +460,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     let alternativeAdvantage = dimensionAverage(completed.compactMap(\.scores.alternativeAdvantage))
     let switchingReadiness = dimensionAverage(completed.compactMap(\.scores.switchingReadiness))
     let continuedUsePull = dimensionAverage(completed.compactMap(\.scores.continuedUsePull))
+    let willingnessToPay = dimensionAverage(completed.compactMap(\.scores.willingnessToPay))
     let productPull =
       [workflowImprovement, alternativeAdvantage, switchingReadiness, continuedUsePull]
       .filter { $0 > 0 }
@@ -480,6 +482,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       && aiUserDistinctPersonaCount >= 2
       && aiUserCurrentAlternativePersonaCount >= 2
       && readinessScore >= 76
+      && (willingnessToPay == 0 || willingnessToPay >= 3.2)
       && missingCount == 0
       && repeatedObjections == 0
       && strongOrPromisingCount >= 2
@@ -533,12 +536,16 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     if failedRunCount > 0 {
       lines.append("\(failedRunCount) failed run(s) reduce confidence in the evidence.")
     }
+    let willingnessToPay = dimensionAverage(completed.compactMap(\.scores.willingnessToPay))
     lines.append(
       "\(aiUserCompletedRunCount) AI-user run(s) across \(aiUserDistinctPersonaCount) persona(s), \(modelFreeCompletedRunCount) model-free run(s)."
     )
     lines.append(
       "\(currentAlternativeComparisonCount) current-alternative comparison(s), including \(aiUserCurrentAlternativePersonaCount) AI-user persona(s)."
     )
+    if willingnessToPay > 0 {
+      lines.append("Average willingness to pay or sponsor \(format(willingnessToPay))/5.")
+    }
     let isStopGate =
       completed.count >= 2
       && (readinessScore <= 40
@@ -691,19 +698,22 @@ struct ProductizationEvidenceScores: Codable, Equatable, Sendable {
   var alternativeAdvantage: Int?
   var switchingReadiness: Int?
   var continuedUsePull: Int?
+  var willingnessToPay: Int?
 
   init(
     painRecognition: Int? = nil,
     workflowImprovement: Int? = nil,
     alternativeAdvantage: Int? = nil,
     switchingReadiness: Int? = nil,
-    continuedUsePull: Int? = nil
+    continuedUsePull: Int? = nil,
+    willingnessToPay: Int? = nil
   ) {
     self.painRecognition = Self.clamped(painRecognition)
     self.workflowImprovement = Self.clamped(workflowImprovement)
     self.alternativeAdvantage = Self.clamped(alternativeAdvantage)
     self.switchingReadiness = Self.clamped(switchingReadiness)
     self.continuedUsePull = Self.clamped(continuedUsePull)
+    self.willingnessToPay = Self.clamped(willingnessToPay)
   }
 
   var hasScores: Bool {
@@ -712,6 +722,7 @@ struct ProductizationEvidenceScores: Codable, Equatable, Sendable {
       || alternativeAdvantage != nil
       || switchingReadiness != nil
       || continuedUsePull != nil
+      || willingnessToPay != nil
   }
 
   private static func clamped(_ value: Int?) -> Int? {
@@ -772,6 +783,8 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   var objections: [String]
   var missingCapabilities: [String]
   var currentAlternativeComparison: String
+  var willingnessToPayScore: Int?
+  var sponsorshipIntent: String
   var verdict: ProductizationEvidenceVerdict
   var summary: String
   var failure: ProductizationRunFailure?
@@ -808,6 +821,8 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     case objections
     case missingCapabilities
     case currentAlternativeComparison
+    case willingnessToPayScore
+    case sponsorshipIntent
     case verdict
     case summary
     case failure
@@ -868,6 +883,14 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
         String.self,
         forKey: .currentAlternativeComparison
       ) ?? "",
+      willingnessToPayScore: try container.decodeIfPresent(
+        Int.self,
+        forKey: .willingnessToPayScore
+      ),
+      sponsorshipIntent: try container.decodeIfPresent(
+        String.self,
+        forKey: .sponsorshipIntent
+      ) ?? "",
       personaActionRationales: try container.decodeIfPresent(
         [String].self,
         forKey: .personaActionRationales
@@ -912,6 +935,8 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     objections: [String] = [],
     missingCapabilities: [String] = [],
     currentAlternativeComparison: String = "",
+    willingnessToPayScore: Int? = nil,
+    sponsorshipIntent: String = "",
     personaActionRationales: [String] = [],
     verdict: ProductizationEvidenceVerdict = .unclear,
     summary: String,
@@ -959,6 +984,8 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     self.missingCapabilities = Self.cleanedList(missingCapabilities, limit: 160)
     self.currentAlternativeComparison = StringUtils.boundedText(
       currentAlternativeComparison, limit: 1_000)
+    self.willingnessToPayScore = Self.clampedScore(willingnessToPayScore)
+    self.sponsorshipIntent = StringUtils.boundedText(sponsorshipIntent, limit: 700)
     self.verdict = verdict
     self.summary = StringUtils.boundedText(summary, limit: 1_500)
     self.failure = failure
@@ -974,6 +1001,10 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     let traceSignals = runResult.productizationTrace?.painReliefSignals
     let missing = traceSignals?.missingCapabilityIDs ?? []
     let comparison = Self.currentAlternativeComparison(from: traceSignals)
+    let willingnessToPayScore = Self.derivedWillingnessToPayScore(
+      status: runResult.status,
+      signals: traceSignals
+    )
     self.init(
       id: id,
       projectID: runResult.projectID?.uuidString,
@@ -1000,6 +1031,11 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       objections: [],
       missingCapabilities: missing,
       currentAlternativeComparison: comparison,
+      willingnessToPayScore: willingnessToPayScore,
+      sponsorshipIntent: Self.sponsorshipIntent(
+        from: traceSignals,
+        willingnessToPayScore: willingnessToPayScore
+      ),
       personaActionRationales: Self.personaActionRationales(
         from: runResult.rawPersonaActionTranscript
       ),
@@ -1065,6 +1101,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       scores.alternativeAdvantage,
       scores.switchingReadiness,
       scores.continuedUsePull,
+      scores.willingnessToPay,
     ].compactMap { $0 }
     let productPullCeiling = productPullScores.max() ?? 0
     let productPullFloor = productPullScores.min() ?? 0
@@ -1220,6 +1257,10 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     return cleaned.isEmpty ? nil : cleaned
   }
 
+  private static func clampedScore(_ value: Int?) -> Int? {
+    value.map { min(5, max(1, $0)) }
+  }
+
   private static func derivedScores(
     status: ProductizationRunStatus,
     signals: ProductizationPainReliefSignals?
@@ -1234,7 +1275,8 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       workflowImprovement: signals.workflowAdvanced ? positiveWithPenalty : 2,
       alternativeAdvantage: signals.currentAlternativeAddressed ? positiveWithPenalty : 2,
       switchingReadiness: signals.switchingObjectionReduced ? positiveWithPenalty : 2,
-      continuedUsePull: continuedUsePullScore(signals: signals)
+      continuedUsePull: continuedUsePullScore(signals: signals),
+      willingnessToPay: derivedWillingnessToPayScore(status: status, signals: signals)
     )
   }
 
@@ -1248,6 +1290,50 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       return 3
     }
     return 2
+  }
+
+  private static func derivedWillingnessToPayScore(
+    status: ProductizationRunStatus,
+    signals: ProductizationPainReliefSignals?
+  ) -> Int? {
+    guard status == .completed, let signals else { return nil }
+    if let explicit = clampedScore(signals.willingnessToPayScore) {
+      return explicit
+    }
+    if signals.workflowAdvanced && signals.currentAlternativeAddressed
+      && signals.switchingObjectionReduced && signals.missingCapabilityIDs.isEmpty
+    {
+      return 4
+    }
+    if signals.workflowAdvanced && signals.switchingObjectionReduced {
+      return 3
+    }
+    if signals.painRecognized || signals.workflowAdvanced {
+      return 2
+    }
+    return 1
+  }
+
+  private static func sponsorshipIntent(
+    from signals: ProductizationPainReliefSignals?,
+    willingnessToPayScore: Int?
+  ) -> String {
+    guard let signals else { return "" }
+    let explicit = signals.sponsorshipIntent.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !explicit.isEmpty {
+      return explicit
+    }
+    guard let willingnessToPayScore else { return "" }
+    switch willingnessToPayScore {
+    case 4...:
+      return "The simulated user shows strong willingness to pay for or sponsor this product."
+    case 3:
+      return "The simulated user shows moderate willingness to pay or sponsor after more proof."
+    case 2:
+      return "The simulated user recognizes some value but is not ready to pay or sponsor."
+    default:
+      return "The simulated user shows weak willingness to pay or sponsor."
+    }
   }
 
   private static func derivedVerdict(
@@ -1286,6 +1372,8 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
   var objections: [String]
   var missingCapabilities: [String]
   var currentAlternativeComparison: String
+  var willingnessToPayScore: Int?
+  var sponsorshipIntent: String
   var personaActionRationales: [String]
   var traceHash: String?
   var summary: String
@@ -1316,6 +1404,8 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     case objections
     case missingCapabilities
     case currentAlternativeComparison
+    case willingnessToPayScore
+    case sponsorshipIntent
     case personaActionRationales
     case traceHash
     case summary
@@ -1360,6 +1450,9 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
       try container.decodeIfPresent([String].self, forKey: .missingCapabilities) ?? []
     currentAlternativeComparison =
       try container.decodeIfPresent(String.self, forKey: .currentAlternativeComparison) ?? ""
+    willingnessToPayScore = try container.decodeIfPresent(Int.self, forKey: .willingnessToPayScore)
+      .map { min(5, max(1, $0)) }
+    sponsorshipIntent = try container.decodeIfPresent(String.self, forKey: .sponsorshipIntent) ?? ""
     personaActionRationales =
       try container.decodeIfPresent([String].self, forKey: .personaActionRationales) ?? []
     traceHash = try container.decodeIfPresent(String.self, forKey: .traceHash)
@@ -1392,6 +1485,8 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     objections = record.objections
     missingCapabilities = record.missingCapabilities
     currentAlternativeComparison = record.currentAlternativeComparison
+    willingnessToPayScore = record.willingnessToPayScore
+    sponsorshipIntent = record.sponsorshipIntent
     personaActionRationales = record.personaActionRationales
     traceHash = record.traceHash
     summary = record.summary
@@ -2804,6 +2899,8 @@ enum ProductizationEvidenceMarkdownExporter {
       record.decisionIntentEvaluation.map {
         "- Decision Intent Outcome: \(decisionIntentEvaluationLine($0))"
       },
+      record.willingnessToPayScore.map { "- Willingness To Pay: \($0)/5" },
+      record.sponsorshipIntent.isEmpty ? nil : "- Sponsorship Intent: \(record.sponsorshipIntent)",
       "",
       "## Summary",
       "",

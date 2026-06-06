@@ -33,7 +33,7 @@ struct ProductTournamentPrototypeEvidenceTransitionProposal: Codable, Equatable,
   var recommendation: ProductTournamentPrototypeEvidenceRecommendation
   var readinessScore: Double
   var averageScore: Double
-  var sponsorshipPullScore: Double
+  var willingnessToPayScore: Double
   var runCount: Int
   var completedRunCount: Int
   var failedRunCount: Int
@@ -67,7 +67,7 @@ struct ProductTournamentPrototypeEvidenceTransitionProposal: Codable, Equatable,
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
     return
-      "- round_3_prototype contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, sponsorship_pull \(Self.format(sponsorshipPullScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
+      "- round_3_prototype contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
   }
 
   private static func format(_ value: Double) -> String {
@@ -352,16 +352,22 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
         summary.scores.alternativeAdvantage,
         summary.scores.switchingReadiness,
         summary.scores.continuedUsePull,
+        summary.scores.willingnessToPay,
       ].compactMap { $0 }.map(Double.init)
     }
     let averageScore = average(scoreValues)
-    let sponsorshipPullScore = average(
+    let explicitWillingnessToPayScore = average(
+      completed.compactMap(\.scores.willingnessToPay).map(Double.init)
+    )
+    let fallbackPullScore = average(
       completed.flatMap { summary in
         [summary.scores.switchingReadiness, summary.scores.continuedUsePull]
           .compactMap { $0 }
           .map(Double.init)
       }
     )
+    let willingnessToPayScore =
+      explicitWillingnessToPayScore > 0 ? explicitWillingnessToPayScore : fallbackPullScore
     let missingCapabilityCount = completed.flatMap(\.missingCapabilities).count
     let repeatedObjectionCount = repeatedObjectionCount(in: completed)
     let strongCount = completed.filter {
@@ -372,7 +378,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       summaries: summaries,
       completed: completed,
       averageScore: averageScore,
-      sponsorshipPullScore: sponsorshipPullScore,
+      willingnessToPayScore: willingnessToPayScore,
       distinctPersonaCount: distinctPersonaCount,
       currentAlternativeProofCount: currentAlternativeProofCount,
       missingCapabilityCount: missingCapabilityCount,
@@ -385,7 +391,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       currentAlternativeProofCount: currentAlternativeProofCount,
       readinessScore: readinessScore,
       averageScore: averageScore,
-      sponsorshipPullScore: sponsorshipPullScore,
+      willingnessToPayScore: willingnessToPayScore,
       strongOrPromisingCount: strongCount,
       weakOrRejectedCount: weakCount,
       missingCapabilityCount: missingCapabilityCount,
@@ -396,7 +402,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       recommendation: recommendation,
       readinessScore: readinessScore,
       averageScore: averageScore,
-      sponsorshipPullScore: sponsorshipPullScore,
+      willingnessToPayScore: willingnessToPayScore,
       completedRunCount: completed.count,
       runCount: summaries.count,
       distinctPersonaCount: distinctPersonaCount,
@@ -413,7 +419,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       recommendation: recommendation,
       readinessScore: readinessScore,
       averageScore: roundedScore(averageScore, upperBound: 5),
-      sponsorshipPullScore: roundedScore(sponsorshipPullScore, upperBound: 5),
+      willingnessToPayScore: roundedScore(willingnessToPayScore, upperBound: 5),
       runCount: summaries.count,
       completedRunCount: completed.count,
       failedRunCount: failedCount,
@@ -433,7 +439,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
         currentAlternativeProofCount: currentAlternativeProofCount,
         readinessScore: readinessScore,
         averageScore: averageScore,
-        sponsorshipPullScore: sponsorshipPullScore,
+        willingnessToPayScore: willingnessToPayScore,
         missingCapabilityCount: missingCapabilityCount,
         repeatedObjectionCount: repeatedObjectionCount,
         recommendation: recommendation
@@ -445,7 +451,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     summaries: [ProductizationEvidenceSummary],
     completed: [ProductizationEvidenceSummary],
     averageScore: Double,
-    sponsorshipPullScore: Double,
+    willingnessToPayScore: Double,
     distinctPersonaCount: Int,
     currentAlternativeProofCount: Int,
     missingCapabilityCount: Int,
@@ -476,8 +482,8 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     } else if !completed.isEmpty {
       score += 8
     }
-    if sponsorshipPullScore > 0 {
-      score += max(0, min(18, ((sponsorshipPullScore - 1) / 4) * 18))
+    if willingnessToPayScore > 0 {
+      score += max(0, min(18, ((willingnessToPayScore - 1) / 4) * 18))
     }
     score += average(summaries.map { verdictContribution($0.verdict) })
     score -= Double(min(20, missingCapabilityCount * 5))
@@ -495,7 +501,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     currentAlternativeProofCount: Int,
     readinessScore: Double,
     averageScore: Double,
-    sponsorshipPullScore: Double,
+    willingnessToPayScore: Double,
     strongOrPromisingCount: Int,
     weakOrRejectedCount: Int,
     missingCapabilityCount: Int,
@@ -513,7 +519,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     }
     if readinessScore >= 76
       && averageScore >= 3.8
-      && sponsorshipPullScore >= 3.6
+      && willingnessToPayScore >= 3.6
       && strongOrPromisingCount >= 2
       && missingCapabilityCount == 0
       && repeatedObjectionCount == 0
@@ -527,7 +533,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     recommendation: ProductTournamentPrototypeEvidenceRecommendation,
     readinessScore: Double,
     averageScore: Double,
-    sponsorshipPullScore: Double,
+    willingnessToPayScore: Double,
     completedRunCount: Int,
     runCount: Int,
     distinctPersonaCount: Int,
@@ -536,12 +542,12 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
   ) -> (String, String) {
     let score = "\(Int(readinessScore.rounded()))"
     let averageLabel = format(averageScore)
-    let sponsorLabel = format(sponsorshipPullScore)
+    let payLabel = format(willingnessToPayScore)
     switch recommendation {
     case .selectWinner:
       return (
         "Select Tournament Winner",
-        "Readiness \(score)/100 with prototype score \(averageLabel)/5 and sponsorship pull \(sponsorLabel)/5."
+        "Readiness \(score)/100 with prototype score \(averageLabel)/5 and willingness to pay \(payLabel)/5."
       )
     case .revisePrototype:
       let blocker =
@@ -572,7 +578,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     currentAlternativeProofCount: Int,
     readinessScore: Double,
     averageScore: Double,
-    sponsorshipPullScore: Double,
+    willingnessToPayScore: Double,
     missingCapabilityCount: Int,
     repeatedObjectionCount: Int,
     recommendation: ProductTournamentPrototypeEvidenceRecommendation
@@ -586,8 +592,8 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
         "Average prototype score \(format(averageScore))/5; readiness \(format(readinessScore))/100."
       )
     }
-    if sponsorshipPullScore > 0 {
-      lines.append("Switching and continued-use pull average \(format(sponsorshipPullScore))/5.")
+    if willingnessToPayScore > 0 {
+      lines.append("Willingness to pay or sponsor average \(format(willingnessToPayScore))/5.")
     }
     if missingCapabilityCount > 0 {
       lines.append("\(missingCapabilityCount) missing capability signal(s) remain.")

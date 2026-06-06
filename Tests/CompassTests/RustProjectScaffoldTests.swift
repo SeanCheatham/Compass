@@ -177,6 +177,8 @@ struct RustProjectScaffoldTests {
     try #require(xtask.contains("allowedNextActions"))
     try #require(xtask.contains("productization trace changed across identical invocations"))
     try #require(xtask.contains("painReliefSignals"))
+    try #require(xtask.contains("willingnessToPayScore"))
+    try #require(xtask.contains("sponsorshipIntent"))
     try #require(xtask.contains("engine-parity-check"))
     try #require(xtask.contains("fn factory_smoke(emit_base64: bool)"))
     try #require(xtask.contains("fn run_clippy() -> Result<()>"))

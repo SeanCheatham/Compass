@@ -37,6 +37,9 @@ struct ProductizationSimulationRunnerTests {
     try #require(record.scores.alternativeAdvantage == 4)
     try #require(record.scores.switchingReadiness == 4)
     try #require(record.scores.continuedUsePull == 4)
+    try #require(record.scores.willingnessToPay == 4)
+    try #require(record.willingnessToPayScore == 4)
+    try #require(record.sponsorshipIntent.contains("sponsor"))
     try #require(record.currentAlternativeComparison.contains("Shared spreadsheet"))
     try #require(
       record.personaActionRationales.contains {
@@ -63,6 +66,8 @@ struct ProductizationSimulationRunnerTests {
 
     try #require(signals.currentAlternativeAddressed)
     try #require(signals.currentAlternativeComparison.isEmpty)
+    try #require(signals.willingnessToPayScore == nil)
+    try #require(signals.sponsorshipIntent.isEmpty)
   }
 
   @Test func personaModelRejectsInventedActionsAndAllowsOneRepair() async throws {
@@ -482,6 +487,10 @@ private func defaultProductizationTrace(
         ? "Compared Reporting Helper against Shared spreadsheet and the team's spreadsheet habit."
         : "",
       switchingObjectionReduced: actionIDs.contains("reduce_switching_objection"),
+      willingnessToPayScore: actionIDs.contains("provide_requested_input") ? 4 : 2,
+      sponsorshipIntent: actionIDs.contains("provide_requested_input")
+        ? "The simulated user would sponsor the Reporting Helper prototype."
+        : "The simulated user needs more proof before sponsorship.",
       missingCapabilityIDs: actionIDs.contains("provide_requested_input")
         ? [] : ["workflow_completion"],
       evidenceSummary: actionIDs.contains("provide_requested_input")

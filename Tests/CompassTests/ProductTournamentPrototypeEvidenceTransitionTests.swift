@@ -10,6 +10,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       fixture: fixture,
       count: 3,
       score: 5,
+      willingnessToPay: 5,
       verdict: .strongPull,
       summary: "The prototype beats the current workaround and creates sponsor pull."
     )
@@ -72,6 +73,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       fixture: fixture,
       count: 3,
       score: 3,
+      willingnessToPay: 2,
       verdict: .unclear,
       objections: ["The sponsor proof needs clearer export and audit context."],
       missingCapabilities: ["sponsor_export"],
@@ -116,6 +118,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       fixture: fixture,
       count: 2,
       score: 1,
+      willingnessToPay: 1,
       verdict: .weak,
       objections: ["The prototype does not beat the spreadsheet."],
       missingCapabilities: ["workflow_advantage"],
@@ -155,6 +158,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       fixture: fixture,
       count: 2,
       score: 5,
+      willingnessToPay: 5,
       verdict: .strongPull,
       summary: "Two strong prototype runs are promising."
     )
@@ -239,6 +243,7 @@ private func prototypeEvidenceRecords(
   fixture: RoundThreeFixture,
   count: Int,
   score: Int,
+  willingnessToPay: Int,
   verdict: ProductizationEvidenceVerdict,
   objections: [String] = [],
   missingCapabilities: [String] = [],
@@ -268,11 +273,16 @@ private func prototypeEvidenceRecords(
         workflowImprovement: score,
         alternativeAdvantage: score,
         switchingReadiness: score,
-        continuedUsePull: score
+        continuedUsePull: score,
+        willingnessToPay: willingnessToPay
       ),
       objections: objections,
       missingCapabilities: missingCapabilities,
       currentAlternativeComparison: "The prototype beat the current spreadsheet workaround.",
+      willingnessToPayScore: willingnessToPay,
+      sponsorshipIntent: willingnessToPay >= 4
+        ? "The simulated user would pay for or sponsor this prototype."
+        : "The simulated user is not ready to sponsor this prototype.",
       verdict: verdict,
       summary: summary
     )

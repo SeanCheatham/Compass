@@ -470,6 +470,8 @@ struct RustProjectScaffold: Equatable, Sendable {
             "currentAlternativeAddressed",
             "currentAlternativeComparison",
             "switchingObjectionReduced",
+            "willingnessToPayScore",
+            "sponsorshipIntent",
             "missingCapabilityIDs",
             "evidenceSummary"
           ],
@@ -479,6 +481,8 @@ struct RustProjectScaffold: Equatable, Sendable {
             "currentAlternativeAddressed": { "type": "boolean" },
             "currentAlternativeComparison": { "type": "string" },
             "switchingObjectionReduced": { "type": "boolean" },
+            "willingnessToPayScore": { "type": "integer", "minimum": 1, "maximum": 5 },
+            "sponsorshipIntent": { "type": "string" },
             "missingCapabilityIDs": {
               "type": "array",
               "items": { "type": "string" }
@@ -703,6 +707,8 @@ struct RustProjectScaffold: Equatable, Sendable {
         pub current_alternative_addressed: bool,
         pub current_alternative_comparison: String,
         pub switching_objection_reduced: bool,
+        pub willingness_to_pay_score: u8,
+        pub sponsorship_intent: String,
         #[serde(rename = "missingCapabilityIDs")]
         pub missing_capability_ids: Vec<String>,
         pub evidence_summary: String,
@@ -1307,8 +1313,55 @@ struct RustProjectScaffold: Equatable, Sendable {
             current_alternative_addressed: runtime.current_alternative_addressed,
             current_alternative_comparison,
             switching_objection_reduced: runtime.switching_objection_reduced,
+            willingness_to_pay_score: willingness_to_pay_score(runtime, &missing_capability_ids),
+            sponsorship_intent: sponsorship_intent(input, runtime, &missing_capability_ids),
             missing_capability_ids,
             evidence_summary,
+        }
+    }
+
+    fn willingness_to_pay_score(
+        runtime: &ProductizationExperienceRuntime,
+        missing_capability_ids: &[String],
+    ) -> u8 {
+        if runtime.workflow_advanced
+            && runtime.current_alternative_addressed
+            && runtime.switching_objection_reduced
+            && missing_capability_ids.is_empty()
+        {
+            4
+        } else if runtime.workflow_advanced && runtime.switching_objection_reduced {
+            3
+        } else if runtime.pain_recognized || runtime.workflow_advanced {
+            2
+        } else {
+            1
+        }
+    }
+
+    fn sponsorship_intent(
+        input: &ProductizationExperienceInput,
+        runtime: &ProductizationExperienceRuntime,
+        missing_capability_ids: &[String],
+    ) -> String {
+        let score = willingness_to_pay_score(runtime, missing_capability_ids);
+        if score >= 4 {
+            format!(
+                "The simulated user would sponsor `{}` because it beat `{}` in the tested workflow.",
+                input.solution.title,
+                current_alternative_label(input)
+            )
+        } else if score == 3 {
+            format!(
+                "The simulated user might sponsor `{}` after one more proof against `{}`.",
+                input.solution.title,
+                current_alternative_label(input)
+            )
+        } else {
+            format!(
+                "The simulated user is not ready to sponsor `{}` from this trace.",
+                input.solution.title
+            )
         }
     }
 
@@ -1646,6 +1699,8 @@ struct RustProjectScaffold: Equatable, Sendable {
                         "currentAlternativeAddressed",
                         "currentAlternativeComparison",
                         "switchingObjectionReduced",
+                        "willingnessToPayScore",
+                        "sponsorshipIntent",
                         "missingCapabilityIDs",
                         "evidenceSummary"
                     ],
@@ -1655,6 +1710,8 @@ struct RustProjectScaffold: Equatable, Sendable {
                         "currentAlternativeAddressed": { "type": "boolean" },
                         "currentAlternativeComparison": { "type": "string" },
                         "switchingObjectionReduced": { "type": "boolean" },
+                        "willingnessToPayScore": { "type": "integer", "minimum": 1, "maximum": 5 },
+                        "sponsorshipIntent": { "type": "string" },
                         "missingCapabilityIDs": {
                             "type": "array",
                             "items": { "type": "string" }
@@ -1826,6 +1883,11 @@ struct RustProjectScaffold: Equatable, Sendable {
             .current_alternative_comparison
             .contains("Shared spreadsheet"));
         assert!(first.pain_relief_signals.switching_objection_reduced);
+        assert!(first.pain_relief_signals.willingness_to_pay_score >= 3);
+        assert!(first
+            .pain_relief_signals
+            .sponsorship_intent
+            .contains("sponsor"));
         assert!(first
             .allowed_next_actions
             .iter()
@@ -2446,6 +2508,21 @@ struct RustProjectScaffold: Equatable, Sendable {
             return Err(
                 "productization trace did not explain the current alternative comparison".into(),
             );
+        }
+        let willingness_to_pay = signals
+            .get("willingnessToPayScore")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0);
+        if !(1..=5).contains(&willingness_to_pay) {
+            return Err("productization trace did not report willingness to pay".into());
+        }
+        if signals
+            .get("sponsorshipIntent")
+            .and_then(|value| value.as_str())
+            .unwrap_or("")
+            .is_empty()
+        {
+            return Err("productization trace did not report sponsorship intent".into());
         }
         println!("COMPASS_PRODUCTIZATION_SMOKE_TRACE_BYTES={}", first.len());
         Ok(())

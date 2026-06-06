@@ -191,7 +191,8 @@ enum ProductTournamentPlanEvaluator {
       workflowImprovement: workflowImprovement,
       alternativeAdvantage: alternativeAdvantage,
       switchingReadiness: switchingReadiness,
-      continuedUsePull: continuedUsePull
+      continuedUsePull: continuedUsePull,
+      willingnessToPay: willingnessToPay
     )
     let average =
       Double(

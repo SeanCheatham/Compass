@@ -799,8 +799,15 @@ enum ProductizationPlanningDigestFormatter {
             summary.scores.alternativeAdvantage.map { "alternative \($0)" },
             summary.scores.switchingReadiness.map { "switch \($0)" },
             summary.scores.continuedUsePull.map { "pull \($0)" },
+            summary.scores.willingnessToPay.map { "pay \($0)" },
           ].compactMap { $0 }.joined(separator: ", ")
           parts.append("scores \(scores)")
+        }
+        if let willingnessToPayScore = summary.willingnessToPayScore {
+          parts.append("willingness_to_pay \(willingnessToPayScore)/5")
+        }
+        if !summary.sponsorshipIntent.isEmpty {
+          parts.append("sponsorship_intent \(bounded(summary.sponsorshipIntent, 180))")
         }
         if let objection = summary.objections.first, !objection.isEmpty {
           parts.append("objection \(bounded(objection, 180))")

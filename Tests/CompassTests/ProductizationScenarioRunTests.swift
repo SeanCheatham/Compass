@@ -212,6 +212,9 @@ struct ProductizationScenarioRunTests {
     try #require(outcome.record.scores.alternativeAdvantage == 4)
     try #require(outcome.record.scores.switchingReadiness == 4)
     try #require(outcome.record.scores.continuedUsePull == 4)
+    try #require(outcome.record.scores.willingnessToPay == 4)
+    try #require(outcome.record.willingnessToPayScore == 4)
+    try #require(outcome.record.sponsorshipIntent.contains("sponsor"))
     try #require(index.summaries.map(\.runID) == [outcome.record.id])
     try #require(index.aggregate.pmfReadinessByExperiment.first?.averageScore == 4)
     try #require(saved.experiments[0].evidenceSummary.contains("completed the scenario"))
@@ -660,6 +663,10 @@ private func defaultScenarioTrace(
       workflowAdvanced: actionIDs.contains("start_solution_workflow"),
       currentAlternativeAddressed: actionIDs.contains("compare_current_alternative"),
       switchingObjectionReduced: actionIDs.contains("reduce_switching_objection"),
+      willingnessToPayScore: actionIDs.contains("provide_requested_input") ? 4 : 2,
+      sponsorshipIntent: actionIDs.contains("provide_requested_input")
+        ? "The simulated user would sponsor this workflow proof."
+        : "The simulated user needs more proof before sponsorship.",
       missingCapabilityIDs: actionIDs.contains("provide_requested_input") ? [] : ["follow_up"],
       evidenceSummary: actionIDs.contains("provide_requested_input")
         ? "The model-free run completed the scenario."

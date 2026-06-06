@@ -1359,6 +1359,8 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
   var currentAlternativeAddressed: Bool
   var currentAlternativeComparison: String
   var switchingObjectionReduced: Bool
+  var willingnessToPayScore: Int?
+  var sponsorshipIntent: String
   var missingCapabilityIDs: [String]
   var evidenceSummary: String
 
@@ -1368,6 +1370,8 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
     case currentAlternativeAddressed
     case currentAlternativeComparison
     case switchingObjectionReduced
+    case willingnessToPayScore
+    case sponsorshipIntent
     case missingCapabilityIDs
     case missingCapabilityIds
     case evidenceSummary
@@ -1379,6 +1383,8 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
     currentAlternativeAddressed: Bool,
     currentAlternativeComparison: String = "",
     switchingObjectionReduced: Bool,
+    willingnessToPayScore: Int? = nil,
+    sponsorshipIntent: String = "",
     missingCapabilityIDs: [String],
     evidenceSummary: String
   ) {
@@ -1390,6 +1396,8 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
       limit: 1_000
     )
     self.switchingObjectionReduced = switchingObjectionReduced
+    self.willingnessToPayScore = Self.clampedScore(willingnessToPayScore)
+    self.sponsorshipIntent = StringUtils.boundedText(sponsorshipIntent, limit: 700)
     self.missingCapabilityIDs = missingCapabilityIDs
     self.evidenceSummary = evidenceSummary
   }
@@ -1411,6 +1419,11 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
       Bool.self,
       forKey: .switchingObjectionReduced
     )
+    willingnessToPayScore = Self.clampedScore(
+      try container.decodeIfPresent(Int.self, forKey: .willingnessToPayScore)
+    )
+    sponsorshipIntent =
+      try container.decodeIfPresent(String.self, forKey: .sponsorshipIntent) ?? ""
     missingCapabilityIDs =
       try container.decodeIfPresent([String].self, forKey: .missingCapabilityIDs)
       ?? container.decodeIfPresent([String].self, forKey: .missingCapabilityIds)
@@ -1425,8 +1438,14 @@ struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
     try container.encode(currentAlternativeAddressed, forKey: .currentAlternativeAddressed)
     try container.encode(currentAlternativeComparison, forKey: .currentAlternativeComparison)
     try container.encode(switchingObjectionReduced, forKey: .switchingObjectionReduced)
+    try container.encodeIfPresent(willingnessToPayScore, forKey: .willingnessToPayScore)
+    try container.encode(sponsorshipIntent, forKey: .sponsorshipIntent)
     try container.encode(missingCapabilityIDs, forKey: .missingCapabilityIDs)
     try container.encode(evidenceSummary, forKey: .evidenceSummary)
+  }
+
+  private static func clampedScore(_ value: Int?) -> Int? {
+    value.map { min(5, max(1, $0)) }
   }
 }
 

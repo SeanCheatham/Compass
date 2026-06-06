@@ -1864,6 +1864,12 @@ struct ProductizationWorkbenchTab: View {
             )
             WorkbenchFact(label: "Intent rationale", value: decisionIntentEvaluation.rationale)
           }
+          if let willingnessToPayScore = record.willingnessToPayScore {
+            WorkbenchFact(label: "Willingness to pay", value: "\(willingnessToPayScore)/5")
+          }
+          if !record.sponsorshipIntent.isEmpty {
+            WorkbenchFact(label: "Sponsorship", value: record.sponsorshipIntent)
+          }
           WorkbenchFact(label: "Trace", value: record.traceHash ?? "none")
           if !record.objections.isEmpty {
             WorkbenchFact(
