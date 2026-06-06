@@ -25,6 +25,8 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
   var missingCapabilityCount: Int
   var evidenceRunIDs: [String]
   var detail: String
+  var proofGaps: [String]
+  var nextValidationTarget: String
 
   var scoreLabel: String {
     "\(Int(readinessScore.rounded()))"
@@ -39,8 +41,12 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
       acceptanceSignals.isEmpty
       ? "no acceptance signals"
       : acceptanceSignals.prefix(4).joined(separator: "; ")
+    let gaps =
+      proofGaps.isEmpty
+      ? "none"
+      : proofGaps.prefix(4).joined(separator: "; ")
     return
-      "- round_2_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), experience_use_proofs \(experienceUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: core_technology_proof \(Self.bounded(coreTechnologyProof, limit: 220)); next \(Self.bounded(detail, limit: 220)); acceptance \(Self.bounded(acceptance, limit: 180)); risk \(Self.bounded(riskFocus, limit: 120))."
+      "- round_2_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), experience_use_proofs \(experienceUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence), proof_gaps \(Self.bounded(gaps, limit: 260))]: core_technology_proof \(Self.bounded(coreTechnologyProof, limit: 220)); next \(Self.bounded(detail, limit: 220)); next_validation \(Self.bounded(nextValidationTarget, limit: 220)); acceptance \(Self.bounded(acceptance, limit: 180)); risk \(Self.bounded(riskFocus, limit: 120))."
   }
 
   var displaySubtitle: String {
@@ -48,7 +54,7 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
   }
 
   var displayDetail: String {
-    "\(detail) Proof: \(coreTechnologyProof)"
+    "\(detail) Next validation: \(nextValidationTarget) Proof: \(coreTechnologyProof)"
   }
 
   var displaySystemImage: String {
@@ -83,6 +89,10 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
     if !evidenceRunIDs.isEmpty {
       parts.append("Evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))")
     }
+    if !proofGaps.isEmpty {
+      parts.append("Proof gaps: \(proofGaps.prefix(4).joined(separator: "; "))")
+    }
+    parts.append("Next validation: \(nextValidationTarget)")
     if !acceptanceSignals.isEmpty {
       parts.append("Acceptance: \(acceptanceSignals.prefix(4).joined(separator: "; "))")
     }
@@ -150,7 +160,9 @@ enum ProductTournamentRoundTwoProofOverview {
         experienceUseProofCount: proposal.experienceUseProofCount,
         missingCapabilityCount: proposal.missingCapabilityCount,
         evidenceRunIDs: proposal.evidenceRunIDs,
-        detail: proposal.detail
+        detail: proposal.detail,
+        proofGaps: proposal.proofGaps,
+        nextValidationTarget: proposal.nextValidationTarget
       )
     }
     .prefix(limit)

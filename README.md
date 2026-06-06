@@ -101,9 +101,10 @@ and advances them through rounds:
   handoff stays focused on the single core-technology proof. A Round 2
   core-technology proof overview summarizes that active target's readiness,
   scoped evidence, persona breadth, experience-use proof, missing capabilities,
-  and next transition recommendation in both the Workbench and Product
-  Tournament Context. Scoped Round 2 scenario evidence then drives the next
-  tournament transition: advance the contender to Round 3, mark the core
+  proof gaps, next validation target, and next transition recommendation in
+  both the Workbench and Product Tournament Context. Scoped Round 2 scenario
+  evidence then drives the next tournament transition: advance the contender
+  to Round 3, mark the core
   technology for revision, or eliminate the contender before adding product
   implementation fidelity. Advancement requires completed evidence from two
   personas plus two stored completed-use proofs derived from traces that reach

@@ -45,6 +45,8 @@ struct ProductTournamentRoundEvidenceTransitionProposal: Codable, Equatable, Ide
   var priority: Int
   var title: String
   var detail: String
+  var proofGaps: [String]
+  var nextValidationTarget: String
   var rationale: [String]
 
   var scoreLabel: String {
@@ -65,12 +67,20 @@ struct ProductTournamentRoundEvidenceTransitionProposal: Codable, Equatable, Ide
       evidenceRunIDs.isEmpty
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
+    let gaps =
+      proofGaps.isEmpty
+      ? "none"
+      : proofGaps.prefix(4).joined(separator: "; ")
     return
-      "- round_2_evidence contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), experience_use_proofs \(experienceUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
+      "- round_2_evidence contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), experience_use_proofs \(experienceUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence), proof_gaps \(Self.bounded(gaps, limit: 260))]: \(detail); next_validation \(Self.bounded(nextValidationTarget, limit: 220))"
   }
 
   private static func format(_ value: Double) -> String {
     value == 0 ? "0" : String(format: "%.1f", value)
+  }
+
+  private static func bounded(_ value: String, limit: Int) -> String {
+    StringUtils.boundedText(value, limit: limit)
   }
 }
 
@@ -388,6 +398,22 @@ enum ProductTournamentRoundEvidenceTransitioner {
       experienceUseProofCount: experienceUseProofCount,
       missingCapabilityCount: missingCapabilityCount
     )
+    let proofGaps = proofGaps(
+      summaries: summaries,
+      completedRunCount: completed.count,
+      distinctPersonaCount: distinctPersonaCount,
+      experienceUseProofCount: experienceUseProofCount,
+      readinessScore: readinessScore,
+      averageScore: averageScore,
+      weakOrRejectedCount: weakCount,
+      missingCapabilities: completed.flatMap(\.missingCapabilities),
+      objections: completed.flatMap(\.objections),
+      recommendation: recommendation
+    )
+    let nextValidationTarget = nextValidationTarget(
+      for: recommendation,
+      proofGaps: proofGaps
+    )
 
     return ProductTournamentRoundEvidenceTransitionProposal(
       tournamentID: tournament.id,
@@ -410,6 +436,8 @@ enum ProductTournamentRoundEvidenceTransitioner {
       priority: priority,
       title: title,
       detail: detail,
+      proofGaps: proofGaps,
+      nextValidationTarget: nextValidationTarget,
       rationale: rationale(
         completedRunCount: completed.count,
         runCount: summaries.count,
@@ -574,6 +602,103 @@ enum ProductTournamentRoundEvidenceTransitioner {
       lines.append("Run more scoped Round 2 scenarios before advancing or eliminating.")
     }
     return lines
+  }
+
+  private static func proofGaps(
+    summaries: [ProductTournamentEvidenceSummary],
+    completedRunCount: Int,
+    distinctPersonaCount: Int,
+    experienceUseProofCount: Int,
+    readinessScore: Double,
+    averageScore: Double,
+    weakOrRejectedCount: Int,
+    missingCapabilities: [String],
+    objections: [String],
+    recommendation: ProductTournamentRoundEvidenceRecommendation
+  ) -> [String] {
+    var gaps: [String] = []
+    if summaries.isEmpty {
+      gaps.append("no scoped Round 2 evidence yet")
+    }
+    if completedRunCount < 2 {
+      gaps.append("needs \(2 - completedRunCount) more completed Round 2 run(s)")
+    }
+    if distinctPersonaCount < 2 {
+      gaps.append("needs \(2 - distinctPersonaCount) more persona(s)")
+    }
+    if experienceUseProofCount < 2 {
+      gaps.append("needs \(2 - experienceUseProofCount) completed-use trace(s)")
+    }
+    gaps += countedLabels(
+      missingCapabilities,
+      prefix: "missing capability",
+      minimumCount: 1
+    )
+    gaps += countedLabels(
+      objections,
+      prefix: "repeated objection",
+      minimumCount: 2
+    )
+    if completedRunCount >= 2, averageScore > 0, averageScore < 3.4 {
+      gaps.append("average feasibility score \(format(averageScore))/5 below 3.4")
+    }
+    if weakOrRejectedCount >= 2 {
+      gaps.append("\(weakOrRejectedCount) weak or rejected verdict(s)")
+    }
+    if recommendation == .reviseCoreTechnology, readinessScore < 66 {
+      gaps.append("readiness \(format(readinessScore))/100 below Round 3 threshold")
+    }
+    return Array(gaps.prefix(8))
+  }
+
+  private static func nextValidationTarget(
+    for recommendation: ProductTournamentRoundEvidenceRecommendation,
+    proofGaps: [String]
+  ) -> String {
+    let gaps =
+      proofGaps.isEmpty
+      ? "no remaining Round 2 proof gaps"
+      : proofGaps.prefix(3).joined(separator: "; ")
+    switch recommendation {
+    case .advanceToProductImplementation:
+      return
+        "Advance to Round 3 product implementation and validate low-medium fidelity implementation-use proof."
+    case .reviseCoreTechnology:
+      return
+        "Revise the core technology against \(gaps), then rerun scoped Round 2 completed-use validation."
+    case .eliminate:
+      return "Stop this contender unless new scoped Round 2 evidence rebuts \(gaps)."
+    case .gatherEvidence:
+      return "Run scoped Round 2 evidence for \(gaps)."
+    }
+  }
+
+  private static func countedLabels(
+    _ values: [String],
+    prefix: String,
+    minimumCount: Int
+  ) -> [String] {
+    var counts: [String: Int] = [:]
+    var display: [String: String] = [:]
+    for value in values {
+      let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+      let normalized = normalizedEvidenceText(trimmed)
+      guard !normalized.isEmpty else { continue }
+      counts[normalized, default: 0] += 1
+      if display[normalized] == nil {
+        display[normalized] = StringUtils.boundedText(trimmed, limit: 80)
+      }
+    }
+    return counts
+      .filter { $0.value >= minimumCount }
+      .sorted {
+        if $0.value == $1.value { return $0.key < $1.key }
+        return $0.value > $1.value
+      }
+      .prefix(3)
+      .map { key, count in
+        "\(prefix) \(display[key] ?? key) (\(count)x)"
+      }
   }
 
   private static func hasExperienceUseProof(_ summary: ProductTournamentEvidenceSummary) -> Bool {
