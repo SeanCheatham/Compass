@@ -88,7 +88,7 @@ struct PlanTransitionValidatorTests {
     try PlanTransitionValidator.validate(from: current, to: next)
   }
 
-  @Test func testRejectsProductizationImmediateThatMentionsMultipleExperiments() throws {
+  @Test func testRejectsProductTournamentImmediateThatMentionsMultipleExperiments() throws {
     let config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users cannot compare product bets.",
@@ -100,7 +100,7 @@ struct PlanTransitionValidatorTests {
     let next = makeState(
       immediate: PlanNext(
         plan: executablePlan("Improve \(first.id) and \(second.id) in one slice"),
-        verify: "swift test --filter ProductizationLoopTests"
+        verify: "swift test --filter ProductTournamentLoopTests"
       ),
       candidates: "- Improve active experiments"
     )
@@ -131,7 +131,7 @@ struct PlanTransitionValidatorTests {
         plan: executablePlan(
           "Add shared experiment infrastructure for \(first.id) and \(second.id)"
         ),
-        verify: "swift test --filter ProductizationLoopTests"
+        verify: "swift test --filter ProductTournamentLoopTests"
       ),
       candidates: "- Improve active experiments"
     )

@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct ProductizationLoopTests {
+struct ProductTournamentLoopTests {
   @Test func decisionTransitionValidatorAllowsDocumentedTournamentPath() throws {
     try ProductTournamentDecisionTransitionValidator.validate(
       experimentID: "experiment-one",
