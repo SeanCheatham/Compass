@@ -156,9 +156,10 @@ state schema stores product hypotheses under `productHypotheses`, and Discover
 candidate experiments reference them with `productHypothesisID`. The Tournament
 workbench lists pain hypotheses, contenders, rounds, implementation
 tracks, selectable Round 1 plan evaluations with buyer objections and
-willingness-to-pay rationale, per-plan commercial proof, scenario runs, feedback
-scores, objections, missing capabilities, failure kinds, decision history, and
-copyable Markdown summaries. Contender rows in the active plan-only round label
+willingness-to-pay rationale, per-plan commercial proof, evaluation mode/model
+and prompt-version provenance, scenario runs, feedback scores, objections,
+missing capabilities, failure kinds, decision history, and copyable Markdown
+summaries. Contender rows in the active plan-only round label
 the exact focused proof action, such as buyer, price/ROI, persona, or plan proof,
 and disable it once the contender is ready for the Round 2 feasibility transition.
 Tournament automation proof targets also surface those focused Round 1 actions

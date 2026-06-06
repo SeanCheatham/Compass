@@ -3190,6 +3190,9 @@ enum ProductTournamentEvidenceMarkdownExporter {
       "- Pain: \(record.painID)",
       "- Persona: \(record.personaName) (`\(record.personaID)`)",
       "- Mode: \(record.mode.rawValue)",
+      "- Model: \(record.model)",
+      record.promptVersions.isEmpty
+        ? nil : "- Prompt Versions: \(record.promptVersions.joined(separator: ", "))",
       "- Status: \(record.status.rawValue)",
       "- Verdict: \(record.verdict.rawValue)",
       record.willingnessToPayScore.map { "- Willingness To Pay: \($0)/5" },

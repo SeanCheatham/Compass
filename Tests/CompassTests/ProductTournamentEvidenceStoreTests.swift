@@ -106,6 +106,8 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(readiness.commercialProofSummary.contains("buyer/sponsor price and ROI"))
     try #require(readiness.nextProofTargetSummary.contains("economic-buyer"))
     let markdown = ProductTournamentEvidenceMarkdownExporter.markdown(planEvaluation: stored)
+    try #require(markdown.contains("Model: model-free-plan-evaluator"))
+    try #require(markdown.contains("Prompt Versions: test.plan"))
     try #require(markdown.contains("Willingness To Pay: 4/5"))
     try #require(markdown.contains("$99/month"))
     try #require(markdown.contains("Commercial Proof: priced at $99/month with buyer ROI proof"))

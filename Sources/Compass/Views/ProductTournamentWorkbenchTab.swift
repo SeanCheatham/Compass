@@ -2261,6 +2261,7 @@ struct ProductTournamentWorkbenchTab: View {
           }
           WorkbenchFact(label: "Mode", value: record.mode.rawValue)
           WorkbenchFact(label: "Model", value: record.model)
+          planEvaluationDetailList(label: "Prompt Versions", values: record.promptVersions)
           if let estimatedMonthlyPriceCents = record.estimatedMonthlyPriceCents {
             WorkbenchFact(label: "Price", value: priceLabel(cents: estimatedMonthlyPriceCents))
           }
