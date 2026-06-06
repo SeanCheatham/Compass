@@ -157,10 +157,12 @@ and advances them through rounds:
   bucket, records acted pressure-group context in the audit trail for
   Plan/Reflect, shows the latest acted group in Tournament Automation facts with
   whether that anchored row moved, cleared, or stayed in the current proof
-  scoreboard, repeats that acted-outcome signal in Plan/Reflect prompt context,
-  feeds stalled or repeatedly still-present proof-run group outcomes back into
-  the next-action guard so the planner retargets the scenario, product revision,
-  current-alternative proof, or proof bucket before repeating the same run, and sorts
+  scoreboard, adds a Group Learning fact plus matching Plan/Reflect prompt line
+  when that acted group drives retargeting, repeats that acted-outcome signal in
+  Plan/Reflect prompt context, feeds stalled or repeatedly still-present
+  proof-run group outcomes back into the next-action guard so the planner
+  retargets the scenario, product revision, current-alternative proof, or proof
+  bucket before repeating the same run, and sorts
   transition/decision/revision/worktree-ready contenders above ordinary proof
   gathering so operators can see when a contender has moved out of evidence
   collection before opening the detail. After a proof action

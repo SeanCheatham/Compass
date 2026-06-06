@@ -3503,6 +3503,13 @@ struct ProductTournamentLoopTests {
         evidenceIndex: evidenceIndex,
         isPersonaModelAvailable: true
       ))
+    let facts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        currentStep: nextStep,
+        isPersonaModelAvailable: true
+      ))
     let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: evidenceIndex
@@ -3518,11 +3525,21 @@ struct ProductTournamentLoopTests {
     try #require(retarget.targetScenarioID == targetScenarioID)
     try #require(nextStep.action.title == "Retarget stalled proof group")
     try #require(nextStep.action.kind == .refineContender)
+    try #require(
+      facts.latestActedPressureGroupLearningSummary
+        == "stalled Proof runs; next Retarget stalled proof group")
+    try #require(
+      facts.latestActedPressureGroupLearningHelp?.contains(
+        "audit tournament-cycle-stalled-acted-group") == true)
+    try #require(facts.latestActedPressureGroupLearningHelp?.contains(row.selectionID) == true)
     try #require(digest.contains("acted group outcomes"))
     try #require(digest.contains("stalled in Proof runs"))
+    try #require(digest.contains("acted group learning"))
+    try #require(digest.contains("stalled Proof runs"))
+    try #require(digest.contains("Retarget stalled proof group"))
   }
 
-  @Test func tournamentAutomationRetargetsRepeatedStillActedProofGroup() throws {
+  @MainActor @Test func tournamentAutomationRetargetsRepeatedStillActedProofGroup() async throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -3656,10 +3673,18 @@ struct ProductTournamentLoopTests {
         evidenceIndex: evidenceIndex,
         isPersonaModelAvailable: true
       ))
+    let facts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        currentStep: nextStep,
+        isPersonaModelAvailable: true
+      ))
     let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: evidenceIndex
     )
+    let workbenchBody = try await productTournamentLoopWorkbenchBody(for: config)
 
     try #require(repeatedGroup.audit.id == "tournament-cycle-still-acted-group-b")
     try #require(repeatedGroup.outcome.isStillProofRun)
@@ -3671,8 +3696,24 @@ struct ProductTournamentLoopTests {
     try #require(retarget.targetScenarioID == targetScenarioID)
     try #require(nextStep.action.title == "Retarget repeated proof group")
     try #require(nextStep.action.kind == .refineContender)
+    try #require(
+      facts.latestActedPressureGroupLearningSummary
+        == "repeated still-present Proof runs; 2 recent attempts; next Retarget repeated proof group"
+    )
+    try #require(
+      facts.latestActedPressureGroupLearningHelp?.contains(
+        "tournament-cycle-still-acted-group-b") == true)
+    try #require(
+      facts.latestActedPressureGroupLearningHelp?.contains(
+        "tournament-cycle-still-acted-group-a") == true)
+    try #require(facts.latestActedPressureGroupLearningHelp?.contains(row.selectionID) == true)
     try #require(digest.contains("acted group outcomes"))
     try #require(digest.contains("still Proof runs"))
+    try #require(digest.contains("acted group learning"))
+    try #require(digest.contains("repeated still-present Proof runs"))
+    try #require(digest.contains("Retarget repeated proof group"))
+    try #require(workbenchBody.contains("Group Learning"))
+    try #require(workbenchBody.contains("repeated still-present Proof runs"))
   }
 
   @Test func tournamentAutomationFallsBackWhenStalledProofDebtHasNoPersonaModelTarget() throws {
@@ -6008,4 +6049,20 @@ private func makeDecisionAdvisorRecord(
     verdict: verdict,
     summary: "Evidence summary for \(id)."
   )
+}
+
+@MainActor
+private func productTournamentLoopWorkbenchBody(
+  for config: ProductTournamentConfig
+) async throws -> String {
+  let root = try makeTempDir()
+  defer { try? FileManager.default.removeItem(at: root) }
+  try initGitRepo(at: root)
+  let workspace = CompassWorkspace(repoURL: root)
+  try workspace.initialize()
+  try workspace.writeProductTournamentConfig(config)
+
+  let project = CompassProject(repoURL: root)
+  await project.refresh()
+  return String(reflecting: ProductTournamentWorkbenchTab(project: project).body)
 }

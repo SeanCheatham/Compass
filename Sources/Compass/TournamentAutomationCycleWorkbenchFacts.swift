@@ -104,6 +104,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   var latestActedPressureGroupHelp: String?
   var latestActedPressureGroupOutcomeSummary: String?
   var latestActedPressureGroupOutcomeHelp: String?
+  var latestActedPressureGroupLearningSummary: String?
+  var latestActedPressureGroupLearningHelp: String?
   var postPreparationEvidenceSummary: String?
   var postPreparationEvidenceHelp: String?
   var latestRoundTwoProofGapValidationSummary: String?
@@ -129,6 +131,14 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
         || audit.skippedScenarioCount > 0
     }
     let actedPressureGroupAudit = audits.first { !$0.actedProofPressureGroupSummaries.isEmpty }
+    let actedPressureGroupLearning = actedPressureGroupAudit.flatMap {
+      makeActedPressureGroupLearningSignal(
+        for: $0,
+        audits: audits,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
     let proofScoreboardItems =
       actedPressureGroupAudit == nil
       ? []
@@ -196,6 +206,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
           scoreboardItems: proofScoreboardItems
         )
       },
+      latestActedPressureGroupLearningSummary: actedPressureGroupLearning?.summary,
+      latestActedPressureGroupLearningHelp: actedPressureGroupLearning?.help,
       postPreparationEvidenceSummary: postPreparationEvidence?.summary,
       postPreparationEvidenceHelp: postPreparationEvidence?.help,
       latestRoundTwoProofGapValidationSummary: roundTwoValidation.map(
@@ -245,6 +257,20 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       for: audit,
       scoreboardItems: proofScoreboardItems
     )
+  }
+
+  static func actedPressureGroupLearningSummary(
+    for audit: TournamentAutomationCycleAudit,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> String? {
+    let audits = sortedAudits(in: config)
+    return makeActedPressureGroupLearningSignal(
+      for: audit,
+      audits: audits,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )?.summary
   }
 
   private static func sortedAudits(
@@ -348,6 +374,106 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       "audit \(audit.id); \(outcomes); stop \(audit.stopReason.rawValue); \(audit.stopDetail)",
       limit: 500
     )
+  }
+
+  private static func makeActedPressureGroupLearningSignal(
+    for audit: TournamentAutomationCycleAudit,
+    audits: [TournamentAutomationCycleAudit],
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> (summary: String, help: String)? {
+    guard !audit.actedProofPressureGroupSummaries.isEmpty,
+      !hasCompletedEvidence(after: audit, config: config, evidenceIndex: evidenceIndex)
+    else { return nil }
+    if (audit.endingProofDebtCount ?? 0) > 0,
+      audit.proofDebtDelta == 0,
+      let outcome = audit.actedProofPressureGroupSummaries
+        .compactMap({
+          TournamentAutomationActedPressureGroupOutcome.stalledProofRun(
+            auditID: audit.id,
+            actedSummary: $0
+          )
+        })
+        .first(where: \.isStalledProofRun)
+    {
+      return (
+        summary: "stalled Proof runs; next Retarget stalled proof group",
+        help: bounded(
+          "audit \(audit.id); \(anchorHelp(for: outcome)); outcome \(outcome.summary); proof debt unchanged; next Retarget stalled proof group",
+          limit: 500
+        )
+      )
+    }
+    let recentAudits = audits.prefix(8)
+    for outcome in audit.actedProofPressureGroupSummaries
+      .compactMap({
+        TournamentAutomationActedPressureGroupOutcome.stillProofRun(
+          auditID: audit.id,
+          actedSummary: $0
+        )
+      })
+      where outcome.isStillProofRun
+    {
+      let matchingAudits = recentAudits.filter { recentAudit in
+        guard recentAudit.stopReason != .executionFailed,
+          recentAudit.endedAt <= audit.endedAt,
+          recentAudit.completedEvidenceRunCount > 0 || recentAudit.evidenceRunStepCount > 0,
+          recentAudit.proofDebtDelta.map({ $0 >= 0 }) ?? true
+        else { return false }
+        return recentAudit.actedProofPressureGroupSummaries.contains { summary in
+          guard
+            let recentOutcome = TournamentAutomationActedPressureGroupOutcome.stillProofRun(
+              auditID: recentAudit.id,
+              actedSummary: summary
+            )
+          else { return false }
+          return outcomesShareAnchor(outcome, recentOutcome)
+        }
+      }
+      guard matchingAudits.count >= 2 else { continue }
+      let auditIDs = matchingAudits.prefix(3).map(\.id).joined(separator: ", ")
+      let moreAudits =
+        matchingAudits.count > 3
+        ? ", +\(matchingAudits.count - 3) more"
+        : ""
+      return (
+        summary:
+          "repeated still-present Proof runs; \(matchingAudits.count) recent attempts; next Retarget repeated proof group",
+        help: bounded(
+          "audits \(auditIDs)\(moreAudits); \(anchorHelp(for: outcome)); outcome \(outcome.summary); next Retarget repeated proof group",
+          limit: 500
+        )
+      )
+    }
+    return nil
+  }
+
+  private static func outcomesShareAnchor(
+    _ lhs: TournamentAutomationActedPressureGroupOutcome,
+    _ rhs: TournamentAutomationActedPressureGroupOutcome
+  ) -> Bool {
+    guard let lhsAnchor = lhs.anchor, let rhsAnchor = rhs.anchor else { return false }
+    return lhsAnchor == rhsAnchor
+  }
+
+  private static func anchorHelp(
+    for outcome: TournamentAutomationActedPressureGroupOutcome
+  ) -> String {
+    outcome.anchor.map { "anchor \($0)" } ?? "anchor unavailable"
+  }
+
+  private static func hasCompletedEvidence(
+    after audit: TournamentAutomationCycleAudit,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> Bool {
+    config.tournamentExperiments
+      .filter { audit.experimentIDs.contains($0.id) }
+      .contains { experiment in
+        evidenceIndex.summaries(for: experiment).contains {
+          $0.isCompleted && $0.endedAt > audit.endedAt
+        }
+      }
   }
 
   private static func makeActedPressureGroupOutcomes(
