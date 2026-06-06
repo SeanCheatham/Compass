@@ -175,7 +175,21 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(item.readinessSummary == "Proof runs 2")
     try #require(item.readinessGroups.map(\.displaySummary) == ["Proof runs 2"])
     try #require(item.displayReadinessGroups().map(\.displaySummary) == ["Proof runs 2"])
-    try #require(item.readinessGroups.first?.accessibilitySuffix == "proof-runs")
+    let proofRunGroup = try #require(item.readinessGroups.first)
+    let proofRunGroupActionRow = try #require(proofRunGroup.primaryActionRow)
+    let proofRunGroupActionStep = try #require(proofRunGroup.primaryActionStep)
+    try #require(proofRunGroup.accessibilitySuffix == "proof-runs")
+    try #require(proofRunGroupActionRow.selectionID == topActionRow.selectionID)
+    try #require(proofRunGroupActionStep.id == topActionStep.id)
+    try #require(proofRunGroup.actionButtonTitle == "Run Proof")
+    try #require(proofRunGroup.actionSystemImage == "text.badge.checkmark")
+    try #require(proofRunGroup.actionHelpSummary.contains("Ready: Run Plan Proof"))
+    try #require(proofRunGroup.actionContextSummary.contains("Proof runs"))
+    try #require(
+      item.readinessGroupActionAccessibilityID(proofRunGroup)
+        == "\(item.workbenchAccessibilityID)-group-proof-runs-action"
+    )
+    try #require(item.readinessGroupActionSummary.contains("Proof runs"))
     try #require(topActionRow.experimentID == topActionStep.experimentID)
     try #require(topActionRow.selectionID.contains(topActionStep.experimentID))
     try #require(topActionRow.selectionID.contains(item.roundID ?? "unknown-round"))
@@ -277,7 +291,33 @@ struct ProductTournamentRoundProofOverviewTests {
         "Ready transitions 1",
       ]
     )
-    try #require(priorityItem.readinessGroups.first?.accessibilitySuffix == "ready-decisions")
+    let decisionGroup = try #require(priorityItem.readinessGroups.first)
+    let decisionGroupActionRow = try #require(decisionGroup.primaryActionRow)
+    let decisionGroupActionStep = try #require(decisionGroup.primaryActionStep)
+    let noQueuedGroup = try #require(priorityItem.readinessGroups.last)
+    try #require(decisionGroup.accessibilitySuffix == "ready-decisions")
+    try #require(decisionGroupActionRow.selectionID == promoteRow.selectionID)
+    try #require(decisionGroupActionStep.kind == .applyDecision)
+    try #require(decisionGroup.actionButtonTitle == "Apply Decision")
+    try #require(decisionGroup.actionSystemImage == "checkmark.circle")
+    try #require(decisionGroup.actionContextSummary.contains("Ready decisions"))
+    try #require(noQueuedGroup.primaryActionRow == nil)
+    try #require(noQueuedGroup.primaryRow?.selectionID == noQueuedRow.selectionID)
+    try #require(noQueuedGroup.actionButtonTitle == "Select")
+    try #require(noQueuedGroup.actionSystemImage == "scope")
+    var secondProofRunRow = topActionRow
+    secondProofRunRow.experimentID = "overflow-proof-b"
+    secondProofRunRow.contenderTitle = "Overflow proof B"
+    secondProofRunRow.urgencyScore = topActionRow.urgencyScore - 1
+    var thirdProofRunRow = topActionRow
+    thirdProofRunRow.experimentID = "overflow-proof-c"
+    thirdProofRunRow.contenderTitle = "Overflow proof C"
+    thirdProofRunRow.urgencyScore = topActionRow.urgencyScore - 2
+    var proofOverflowItem = item
+    proofOverflowItem.rows = [topActionRow, secondProofRunRow, thirdProofRunRow]
+    let proofOverflowGroup = try #require(proofOverflowItem.displayReadinessGroups(limit: 2).first)
+    try #require(proofOverflowGroup.displaySummary == "Proof runs 3")
+    try #require(proofOverflowGroup.rows.count == 2)
     try #require(priorityItem.topActionRow?.nextStatusLabel == "Promotion ready")
     try #require(priorityItem.topActionStep?.kind == .applyDecision)
     try #require(includesAllRivalPositions)
@@ -285,6 +325,7 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(contextLines.first == "Tournament automation proof scoreboard:")
     try #require(context.contains("proof_target_scoreboard"))
     try #require(context.contains("pressure Proof runs 2"))
+    try #require(context.contains("group_actions Proof runs"))
     try #require(context.contains("top_action"))
     try #require(context.contains("top_action_status More proof"))
     try #require(context.contains("run_pair"))
@@ -292,6 +333,7 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(digest.contains("Tournament automation proof scoreboard:"))
     try #require(digest.contains("proof_target_scoreboard"))
     try #require(digest.contains("pressure Proof runs 2"))
+    try #require(digest.contains("group_actions Proof runs"))
     try #require(digest.contains("top_action"))
     try #require(digest.contains("top_action_status More proof"))
     try #require(digest.contains("run_pair"))

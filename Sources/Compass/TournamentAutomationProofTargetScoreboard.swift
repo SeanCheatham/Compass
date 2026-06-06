@@ -174,8 +174,9 @@ struct TournamentAutomationProofTargetScoreboardReadinessGroup: Equatable, Senda
 
   var bucket: String
   var rows: [TournamentAutomationProofTargetScoreboardRow]
+  var totalCount: Int? = nil
 
-  var count: Int { rows.count }
+  var count: Int { totalCount ?? rows.count }
 
   var displaySummary: String {
     "\(bucket) \(count)"
@@ -183,6 +184,70 @@ struct TournamentAutomationProofTargetScoreboardReadinessGroup: Equatable, Senda
 
   var accessibilitySuffix: String {
     bucket.lowercased().replacingOccurrences(of: " ", with: "-")
+  }
+
+  var primaryRow: TournamentAutomationProofTargetScoreboardRow? {
+    rows.first
+  }
+
+  var primaryActionRow: TournamentAutomationProofTargetScoreboardRow? {
+    rows.first { $0.nextStep?.canExecute == true }
+  }
+
+  var primaryActionStep: TournamentAutomationStep? {
+    primaryActionRow?.nextStep
+  }
+
+  var actionButtonTitle: String {
+    guard let primaryActionStep else { return "Select" }
+    switch primaryActionStep.kind {
+    case .applyDecision:
+      return "Apply Decision"
+    case .applyRoundTransition:
+      return "Apply Transition"
+    case .applyRevision:
+      return "Apply Revision"
+    case .prepareWorktree:
+      return "Prepare Worktree"
+    case .runPlanProof, .runCohort:
+      return "Run Proof"
+    case .blocked:
+      return "Select"
+    }
+  }
+
+  var actionSystemImage: String {
+    primaryActionRow?.nextStepSystemImage ?? "scope"
+  }
+
+  var actionHelpSummary: String {
+    if let primaryActionRow {
+      return [
+        "\(bucket): \(primaryActionRow.contenderTitle)",
+        primaryActionRow.nextStepSummary,
+        primaryActionRow.nextStepDetail,
+      ].joined(separator: "\n")
+    }
+    if let primaryRow {
+      return "Select \(primaryRow.contenderTitle) to inspect \(bucket.lowercased())."
+    }
+    return "No targets in \(bucket.lowercased())."
+  }
+
+  var actionContextSummary: String {
+    if let primaryActionRow {
+      return [
+        "\(bucket) \(StringUtils.boundedText(primaryActionRow.contenderTitle, limit: 80))",
+        StringUtils.boundedText(primaryActionRow.nextStepSummary, limit: 120),
+      ].joined(separator: ": ")
+    }
+    if let primaryRow {
+      return [
+        "\(bucket) \(StringUtils.boundedText(primaryRow.contenderTitle, limit: 80))",
+        "select \(StringUtils.boundedText(primaryRow.nextStatusLabel, limit: 80))",
+      ].joined(separator: ": ")
+    }
+    return "\(bucket): none"
   }
 }
 
@@ -567,7 +632,8 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
       groups.append(
         TournamentAutomationProofTargetScoreboardReadinessGroup(
           bucket: group.bucket,
-          rows: visibleRows
+          rows: visibleRows,
+          totalCount: group.count
         )
       )
       remaining -= visibleRows.count
@@ -588,6 +654,20 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
 
   var runTopStepAccessibilityID: String {
     "\(workbenchAccessibilityID)-run-top-step"
+  }
+
+  func readinessGroupActionAccessibilityID(
+    _ group: TournamentAutomationProofTargetScoreboardReadinessGroup
+  ) -> String {
+    "\(workbenchAccessibilityID)-group-\(group.accessibilitySuffix)-action"
+  }
+
+  var readinessGroupActionSummary: String {
+    let summary = readinessGroups
+      .prefix(4)
+      .map { StringUtils.boundedText($0.actionContextSummary, limit: 140) }
+      .joined(separator: " | ")
+    return summary.isEmpty ? "none" : summary
   }
 
   var topActionSummary: String {
@@ -641,6 +721,7 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
       "tournament \(tournamentID ?? "unknown_tournament")",
       "targets \(targetCount)/\(contenderCount)",
       "pressure \(StringUtils.boundedText(readinessSummary, limit: 160))",
+      "group_actions \(readinessGroupActionSummary)",
       topAction,
     ]
     .joined(separator: ", ")

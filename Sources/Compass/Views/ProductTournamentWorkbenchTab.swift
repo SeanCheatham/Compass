@@ -1627,13 +1627,7 @@ struct ProductTournamentWorkbenchTab: View {
       WorkbenchFact(label: "Targets", value: item.displayDetail)
       ForEach(item.displayReadinessGroups()) { group in
         VStack(alignment: .leading, spacing: 5) {
-          HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(group.bucket)
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(.secondary)
-            Spacer()
-            WorkbenchStatusPill(text: "\(group.count)")
-          }
+          proofTargetScoreboardGroupHeader(item: item, group: group)
           ForEach(group.rows) { row in
             Button {
               selectProofScoreboardRow(row)
@@ -1699,6 +1693,54 @@ struct ProductTournamentWorkbenchTab: View {
     .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     .accessibilityIdentifier(item.workbenchAccessibilityID)
     .help(item.contextLine)
+  }
+
+  @ViewBuilder
+  private func proofTargetScoreboardGroupHeader(
+    item: TournamentAutomationProofTargetScoreboardItem,
+    group: TournamentAutomationProofTargetScoreboardReadinessGroup
+  ) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: 8) {
+      Text(group.bucket)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Spacer()
+      WorkbenchStatusPill(text: "\(group.count)")
+      if let actionRow = group.primaryActionRow, let actionStep = group.primaryActionStep {
+        let roundTwoBlockedMessage =
+          roundTwoLaunchBlockedMessage(experimentID: actionStep.experimentID)
+        let helpText =
+          roundTwoBlockedMessage
+          ?? (actionStep.canExecute
+            ? group.actionHelpSummary
+            : actionStep.blockedReason ?? group.actionHelpSummary)
+        let isDisabled =
+          isRunningTournamentStep || isRunningTournamentAutomationCycle || isRunningScenario
+          || !actionStep.canExecute || roundTwoBlockedMessage != nil
+        Button {
+          selectProofScoreboardRow(actionRow)
+          Task { await runTournamentAutomationStep(actionStep) }
+        } label: {
+          Label(
+            isRunningTournamentStep ? "Running" : group.actionButtonTitle,
+            systemImage: group.actionSystemImage
+          )
+        }
+        .buttonStyle(.bordered)
+        .disabled(isDisabled)
+        .accessibilityIdentifier(item.readinessGroupActionAccessibilityID(group))
+        .help(helpText)
+      } else if let primaryRow = group.primaryRow {
+        Button {
+          selectProofScoreboardRow(primaryRow)
+        } label: {
+          Label(group.actionButtonTitle, systemImage: group.actionSystemImage)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier(item.readinessGroupActionAccessibilityID(group))
+        .help(group.actionHelpSummary)
+      }
+    }
   }
 
   private func proofTargetRow(_ target: TournamentAutomationProofTarget) -> some View {

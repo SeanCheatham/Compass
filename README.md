@@ -150,14 +150,16 @@ and advances them through rounds:
   contender row. The compact scoreboard badges each row and the round-level top
   action as more proof, transition ready, promotion/kill ready, or no queued
   proof, shows a round-level pressure summary such as ready decisions, ready
-  transitions, and proof runs, groups rows under those pressure headers, and sorts
-  transition/decision/revision/worktree-ready contenders above ordinary proof
-  gathering so operators can see when a contender has moved out of evidence
-  collection before opening the detail. After a proof action completes, the
-  Workbench resolves the new audit back to the affected scoreboard contender and
-  selects the matching scenario evidence run or Round 1 plan-evaluation outcome
-  when the evidence index knows it; selecting a scoreboard contender applies the
-  same proof-target focus manually. The selected proof-target detail promotes
+  transitions, and proof runs, groups rows under those pressure headers, gives
+  each pressure group a first-row action for running or selecting that bucket,
+  and sorts transition/decision/revision/worktree-ready contenders above
+  ordinary proof gathering so operators can see when a contender has moved out
+  of evidence collection before opening the detail. After a proof action
+  completes, the Workbench resolves the new audit back to the affected
+  scoreboard contender and selects the matching scenario evidence run or Round 1
+  plan-evaluation outcome when the evidence index knows it; selecting a
+  scoreboard contender applies the same proof-target focus manually. The
+  selected proof-target detail promotes
   the latest before/after proof-debt movement into a compact result strip, names
   the current next automation step after that result, repeats the same readiness
   badge, and exposes the row's queued proof action, so operators can run the
