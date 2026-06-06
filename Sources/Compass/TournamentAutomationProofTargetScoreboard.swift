@@ -170,6 +170,16 @@ struct TournamentAutomationProofTargetFocus: Equatable, Sendable {
 }
 
 struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identifiable {
+  static let nextStatusSummaryBucketOrder = [
+    "Ready decisions",
+    "Ready transitions",
+    "Ready revisions",
+    "Prepare worktrees",
+    "Proof runs",
+    "Blocked",
+    "No queued proof",
+  ]
+
   var id: String { selectionID }
 
   var experimentID: String
@@ -369,6 +379,25 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
     postMovementNextStatusSystemImage
   }
 
+  var nextStatusSummaryBucket: String {
+    guard let nextStep else { return "No queued proof" }
+    guard nextStep.canExecute else { return "Blocked" }
+    switch nextStep.kind {
+    case .applyDecision:
+      return "Ready decisions"
+    case .applyRoundTransition:
+      return "Ready transitions"
+    case .applyRevision:
+      return "Ready revisions"
+    case .prepareWorktree:
+      return "Prepare worktrees"
+    case .runCohort, .runPlanProof:
+      return "Proof runs"
+    case .blocked:
+      return "Blocked"
+    }
+  }
+
   var nextStatusSortPriority: Int {
     guard let nextStep else { return 0 }
     guard nextStep.canExecute else { return 20 }
@@ -482,6 +511,25 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
     "\(targetCount)/\(contenderCount) contender proof target(s)"
   }
 
+  var readinessSummaryAccessibilityID: String {
+    "\(workbenchAccessibilityID)-readiness-summary"
+  }
+
+  var readinessSummaryParts: [String] {
+    guard !rows.isEmpty else { return ["No proof pressure"] }
+    let counts = Dictionary(grouping: rows, by: \.nextStatusSummaryBucket)
+      .mapValues(\.count)
+    return TournamentAutomationProofTargetScoreboardRow.nextStatusSummaryBucketOrder
+      .compactMap { bucket in
+        guard let count = counts[bucket], count > 0 else { return nil }
+        return "\(bucket) \(count)"
+      }
+  }
+
+  var readinessSummary: String {
+    readinessSummaryParts.joined(separator: ", ")
+  }
+
   var displayDetail: String {
     guard !rows.isEmpty else { return "No proof targets queued for this round." }
     return rows.prefix(4)
@@ -547,6 +595,7 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
     let scope = [
       "tournament \(tournamentID ?? "unknown_tournament")",
       "targets \(targetCount)/\(contenderCount)",
+      "pressure \(StringUtils.boundedText(readinessSummary, limit: 160))",
       topAction,
     ]
     .joined(separator: ", ")

@@ -168,6 +168,11 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(item.displaySubtitle == "2/2 contender proof target(s)")
     try #require(item.workbenchAccessibilityID.hasPrefix("proof-target-scoreboard-"))
     try #require(item.runTopStepAccessibilityID == "\(item.workbenchAccessibilityID)-run-top-step")
+    try #require(
+      item.readinessSummaryAccessibilityID == "\(item.workbenchAccessibilityID)-readiness-summary"
+    )
+    try #require(item.readinessSummaryParts == ["Proof runs 2"])
+    try #require(item.readinessSummary == "Proof runs 2")
     try #require(topActionRow.experimentID == topActionStep.experimentID)
     try #require(topActionRow.selectionID.contains(topActionStep.experimentID))
     try #require(topActionRow.selectionID.contains(item.roundID ?? "unknown-round"))
@@ -200,6 +205,7 @@ struct ProductTournamentRoundProofOverviewTests {
     )
     try #require(topActionRow.postMovementNextStatusLabel == "More proof")
     try #require(topActionRow.postMovementNextStatusSystemImage == "text.badge.checkmark")
+    try #require(topActionRow.nextStatusSummaryBucket == "Proof runs")
     try #require(topActionRow.nextStatusSortPriority == 50)
     try #require(topActionRow.contextSummary.contains("step ready run_plan_proof"))
     try #require(topActionRow.runPairSummary == "No audited proof run yet -> Ready: Run Plan Proof")
@@ -212,6 +218,7 @@ struct ProductTournamentRoundProofOverviewTests {
     transitionRow.nextStep = transitionStep
     try #require(transitionRow.postMovementNextStatusLabel == "Transition ready")
     try #require(transitionRow.postMovementNextStatusSystemImage == "arrow.turn.down.right")
+    try #require(transitionRow.nextStatusSummaryBucket == "Ready transitions")
     try #require(transitionRow.nextStatusSortPriority == 90)
     var promoteRow = topActionRow
     var promoteStep = topActionStep
@@ -221,6 +228,7 @@ struct ProductTournamentRoundProofOverviewTests {
     promoteRow.nextStep = promoteStep
     try #require(promoteRow.postMovementNextStatusLabel == "Promotion ready")
     try #require(promoteRow.postMovementNextStatusSystemImage == "arrow.up.circle")
+    try #require(promoteRow.nextStatusSummaryBucket == "Ready decisions")
     try #require(promoteRow.nextStatusSortPriority == 100)
     var killRow = promoteRow
     var killStep = promoteStep
@@ -232,6 +240,7 @@ struct ProductTournamentRoundProofOverviewTests {
     noQueuedRow.nextStep = nil
     try #require(noQueuedRow.postMovementNextStatusLabel == "No queued proof")
     try #require(noQueuedRow.postMovementNextStatusSystemImage == "checkmark.seal")
+    try #require(noQueuedRow.nextStatusSummaryBucket == "No queued proof")
     try #require(noQueuedRow.nextStatusSortPriority == 0)
     let prioritizedStatuses =
       [topActionRow, noQueuedRow, transitionRow, promoteRow]
@@ -247,18 +256,24 @@ struct ProductTournamentRoundProofOverviewTests {
     )
     var priorityItem = item
     priorityItem.rows = [topActionRow, noQueuedRow, transitionRow, promoteRow]
+    try #require(
+      priorityItem.readinessSummary
+        == "Ready decisions 1, Ready transitions 1, Proof runs 1, No queued proof 1"
+    )
     try #require(priorityItem.topActionRow?.nextStatusLabel == "Promotion ready")
     try #require(priorityItem.topActionStep?.kind == .applyDecision)
     try #require(includesAllRivalPositions)
     try #require(displayDetailIncludesRows)
     try #require(contextLines.first == "Tournament automation proof scoreboard:")
     try #require(context.contains("proof_target_scoreboard"))
+    try #require(context.contains("pressure Proof runs 2"))
     try #require(context.contains("top_action"))
     try #require(context.contains("top_action_status More proof"))
     try #require(context.contains("run_pair"))
     try #require(context.contains("Ready: Run Plan Proof"))
     try #require(digest.contains("Tournament automation proof scoreboard:"))
     try #require(digest.contains("proof_target_scoreboard"))
+    try #require(digest.contains("pressure Proof runs 2"))
     try #require(digest.contains("top_action"))
     try #require(digest.contains("top_action_status More proof"))
     try #require(digest.contains("run_pair"))
@@ -396,17 +411,20 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(row.displaySummary.contains("Latest audit cleared 2 proof debt"))
     try #require(row.contextSummary.contains("latest_audit scoreboard-proof-delta"))
     try #require(row.contextSummary.contains("run_pair last cleared 2 proof debt"))
+    try #require(item.readinessSummary == "Proof runs 2")
     try #require(item.topActionStatusLabel == "More proof")
     try #require(item.topActionStatusSystemImage == "text.badge.checkmark")
     try #require(item.topActionDetail.contains("Latest audit cleared 2 proof debt"))
     try #require(item.topActionDetail.contains("Readiness: More proof"))
     try #require(context.contains("latest_audit scoreboard-proof-delta"))
     try #require(context.contains("proof_debt 6 -> 4 (-2)"))
+    try #require(context.contains("pressure Proof runs 2"))
     try #require(context.contains("run_pair last cleared 2 proof debt"))
     try #require(context.contains("next_status More proof"))
     try #require(context.contains("top_action_status More proof"))
     try #require(digest.contains("latest_audit scoreboard-proof-delta"))
     try #require(digest.contains("proof_debt 6 -> 4 (-2)"))
+    try #require(digest.contains("pressure Proof runs 2"))
     try #require(digest.contains("run_pair last cleared 2 proof debt"))
     try #require(digest.contains("top_action_status More proof"))
     try #require(workbenchBody.contains("Proof Scoreboard"))

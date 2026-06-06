@@ -1613,6 +1613,9 @@ struct ProductTournamentWorkbenchTab: View {
       if let tournamentID = item.tournamentID {
         WorkbenchFact(label: "Tournament", value: tournamentID)
       }
+      WorkbenchFact(label: "Pressure", value: item.readinessSummary)
+        .accessibilityIdentifier(item.readinessSummaryAccessibilityID)
+        .help(item.contextLine)
       WorkbenchStatusFact(
         label: "Top action",
         value: item.topActionSummary,
