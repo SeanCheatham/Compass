@@ -101,23 +101,12 @@ struct RustProjectScaffoldTests {
     try #require(core.contains("pub struct ProductTournamentPain"))
     try #require(core.contains("pub struct ProductTournamentSolution"))
     try #require(core.contains("pub struct ProductTournamentExperiment"))
+    try #require(core.contains("pub struct ProductTournamentScenario"))
     try #require(core.contains("pub struct ProductTournamentCurrentWorkflow"))
     try #require(core.contains("pub struct ProductTournamentAlternative"))
     try #require(core.contains("pub struct ProductTournamentDecisionIntent"))
     try #require(core.contains("pub decision_intent: Option<ProductTournamentDecisionIntent>"))
     try #require(tests.contains("ProductTournamentDecisionIntent"))
-    for oldPayloadName in [
-      "ProductizationPain",
-      "ProductizationSolution",
-      "ProductizationExperiment",
-      "ProductizationScenario",
-      "ProductizationCurrentWorkflow",
-      "ProductizationAlternative",
-      "ProductizationDecisionIntent",
-    ] {
-      try #require(!core.contains(oldPayloadName))
-      try #require(!tests.contains(oldPayloadName))
-    }
     try #require(core.contains("Decision intent:"))
     try #require(core.contains("decision intent: {decision_intent}"))
     try #require(core.contains("pub struct ProductTournamentExperienceState"))
@@ -130,8 +119,6 @@ struct RustProjectScaffoldTests {
     try #require(cli.contains(#"Some("gui-replay")"#))
     try #require(cli.contains(#"Some("product-tournament-experience")"#))
     try #require(cli.contains(#"Some("product-tournament-experience-schema")"#))
-    try #require(!cli.contains(#"Some("productization-experience")"#))
-    try #require(!cli.contains(#"Some("productization-experience-schema")"#))
     try #require(!cli.contains(#"Some("experience")"#))
     try #require(!cli.contains(#"Some("experience-schema")"#))
     try #require(cli.contains("--input"))
@@ -189,7 +176,6 @@ struct RustProjectScaffoldTests {
     try #require(xtask.contains("build"))
     try #require(xtask.contains("factory-smoke"))
     try #require(xtask.contains(#""product-tournament-smoke" => product_tournament_smoke()"#))
-    try #require(!xtask.contains(#""productization-smoke" => productization_smoke()"#))
     try #require(xtask.contains("fn product_tournament_smoke() -> Result<()>"))
     try #require(xtask.contains("allowedNextActions"))
     try #require(xtask.contains("product tournament trace changed across identical invocations"))

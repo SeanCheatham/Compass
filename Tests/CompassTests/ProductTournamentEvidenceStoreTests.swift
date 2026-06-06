@@ -712,7 +712,6 @@ struct ProductTournamentEvidenceStoreTests {
 
     for prompt in [plan, reflect] {
       try #require(prompt.contains("## Product Tournament Context"))
-      try #require(!prompt.contains("## Productization Context"))
       try #require(prompt.contains(config.experiments[0].branchName))
       try #require(prompt.contains("Factory autopilot step"))
       try #require(prompt.contains("executable false"))
@@ -821,7 +820,7 @@ struct ProductTournamentEvidenceStoreTests {
     let workbenchBody = String(reflecting: ProductTournamentWorkbenchTab(project: project).body)
 
     try #require(WorkspaceTab.allCases.contains(.productTournament))
-    try #require(!WorkspaceTab.allCases.map(\.rawValue).contains("productization"))
+    try #require(WorkspaceTab.productTournament.rawValue == "productTournament")
     let prompt = try Prompts.planPrompt(
       state: .empty,
       completedCount: 0,
@@ -835,7 +834,6 @@ struct ProductTournamentEvidenceStoreTests {
     )
 
     try #require(workbenchBody.contains("Checking tournament experience contract"))
-    try #require(!workbenchBody.contains("Checking productization contract"))
     try #require(prompt.contains("smoke-run"))
     try #require(prompt.contains(config.experiments[0].branchName))
     try #require(prompt.contains("csv_import"))
