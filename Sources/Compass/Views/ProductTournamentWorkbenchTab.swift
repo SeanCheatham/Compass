@@ -2439,6 +2439,11 @@ struct ProductTournamentWorkbenchTab: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 }
+                WorkbenchFact(
+                  label: "Completed use",
+                  value: summary.completedUseProof ? "yes" : "no"
+                )
+                .accessibilityIdentifier("scenario-run-completed-use-\(summary.runID)")
                 Text(summary.summary)
                   .font(.caption)
                   .foregroundStyle(.secondary)
@@ -2509,6 +2514,11 @@ struct ProductTournamentWorkbenchTab: View {
           if !record.sponsorshipIntent.isEmpty {
             WorkbenchFact(label: "Sponsorship", value: record.sponsorshipIntent)
           }
+          WorkbenchFact(
+            label: "Completed use",
+            value: record.completedUseProof ? "yes" : "no"
+          )
+          .accessibilityIdentifier("selected-run-completed-use")
           WorkbenchFact(label: "Trace", value: record.traceHash ?? "none")
           if !record.objections.isEmpty {
             WorkbenchFact(

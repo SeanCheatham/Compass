@@ -118,6 +118,8 @@ and advances them through rounds:
   Tournament Context until the tournament winner is selected. Winner selection
   requires three completed prototype-use proofs derived from completed traces,
   along with current-alternative comparison and willingness-to-pay evidence.
+  Workbench scenario-run rows and selected-run details expose whether each run
+  counts as completed-use proof.
 
 Simulation is not user research, a sales forecast, or a Verify gate. It is a
 skeptical, repeatable product-pressure loop: a scenario works through the app's

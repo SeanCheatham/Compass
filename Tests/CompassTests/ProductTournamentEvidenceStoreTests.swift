@@ -772,7 +772,8 @@ struct ProductTournamentEvidenceStoreTests {
       commitSha: "head-sha",
       objections: ["Spreadsheet is already trusted"],
       missingCapabilities: ["csv_import"],
-      comparison: "The prototype beats the spreadsheet for review speed."
+      comparison: "The prototype beats the spreadsheet for review speed.",
+      completedUseProof: true
     )
     _ = try workspace.writeProductTournamentEvidenceRecord(
       record,
@@ -847,9 +848,11 @@ struct ProductTournamentEvidenceStoreTests {
     )
 
     try #require(workbenchBody.contains("Checking tournament experience contract"))
+    try #require(workbenchBody.contains("completedUseProof: true"))
     try #require(prompt.contains("smoke-run"))
     try #require(prompt.contains(config.experiments[0].branchName))
     try #require(prompt.contains("csv_import"))
+    try #require(prompt.contains("completed_use_proof yes"))
     try #require(!prompt.contains("persona transcript should stay out of prompts"))
 
     await project.applyProductExperimentRolloutAction(
@@ -888,6 +891,7 @@ private func makeEvidenceRecord(
   objections: [String] = [],
   missingCapabilities: [String] = [],
   comparison: String = "Compared with the current alternative.",
+  completedUseProof: Bool = false,
   personaActionRationales: [String] = [],
   scores: ProductTournamentEvidenceScores = ProductTournamentEvidenceScores(
     painRecognition: 4,
@@ -913,6 +917,7 @@ private func makeEvidenceRecord(
     startedAt: startedAt,
     endedAt: endedAt,
     traceHash: "trace-\(id)",
+    completedUseProof: completedUseProof,
     promptVersions: ["product_tournament.persona_action.v1"],
     model: mode == .modelFree ? "model-free" : "gpt-test",
     scores: scores,
