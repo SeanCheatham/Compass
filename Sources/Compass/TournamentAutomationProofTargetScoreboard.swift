@@ -273,8 +273,8 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
         "\($0.lastRunContextSummary) audit \(StringUtils.boundedText($0.auditID, limit: 80))"
       }
       ?? "no audited proof run"
-    return
-      "run_pair last \(lastRun); next \(StringUtils.boundedText(nextStepSummary, limit: 140))"
+    let next = StringUtils.boundedText(nextStepSummary, limit: 140)
+    return "run_pair last \(lastRun); next \(next); next_status \(postMovementNextStatusLabel)"
   }
 
   var helpSummary: String {
@@ -301,7 +301,60 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
 
   var postMovementNextDetail: String {
     guard let latestDebtMovement else { return nextStepDetail }
-    return "\(latestDebtMovement.resultStripSummary). Current next step: \(nextStepDetail)"
+    return "\(latestDebtMovement.resultStripSummary). Current next step: \(nextStepDetail) "
+      + "Readiness: \(postMovementNextStatusLabel)."
+  }
+
+  var postMovementNextStatusLabel: String {
+    guard let nextStep else { return "No queued proof" }
+    guard nextStep.canExecute else { return "Blocked" }
+    switch nextStep.kind {
+    case .applyDecision:
+      switch nextStep.action.targetDecision {
+      case .promote:
+        return "Promotion ready"
+      case .kill:
+        return "Kill ready"
+      default:
+        return "Decision ready"
+      }
+    case .applyRoundTransition:
+      return "Transition ready"
+    case .prepareWorktree:
+      return "Prepare worktree"
+    case .runPlanProof, .runCohort:
+      return "More proof"
+    case .applyRevision:
+      return "Revision ready"
+    case .blocked:
+      return "Blocked"
+    }
+  }
+
+  var postMovementNextStatusSystemImage: String {
+    guard let nextStep else { return "checkmark.seal" }
+    guard nextStep.canExecute else { return "exclamationmark.triangle" }
+    switch nextStep.kind {
+    case .applyDecision:
+      switch nextStep.action.targetDecision {
+      case .promote:
+        return "arrow.up.circle"
+      case .kill:
+        return "xmark.circle"
+      default:
+        return "checkmark.circle"
+      }
+    case .applyRoundTransition:
+      return "arrow.turn.down.right"
+    case .prepareWorktree:
+      return "hammer"
+    case .runPlanProof, .runCohort:
+      return nextStepSystemImage
+    case .applyRevision:
+      return "wand.and.stars"
+    case .blocked:
+      return "exclamationmark.triangle"
+    }
   }
 
   private var lastRunSummary: String {

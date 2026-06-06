@@ -185,9 +185,37 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(item.topActionSummary.contains("Ready: Run Plan Proof"))
     try #require(item.topActionButtonTitle == "Run Top Proof")
     try #require(topActionRow.selectedActionButtonTitle == "Run Selected Proof")
+    try #require(topActionRow.postMovementNextStatusLabel == "More proof")
+    try #require(topActionRow.postMovementNextStatusSystemImage == "text.badge.checkmark")
     try #require(topActionRow.contextSummary.contains("step ready run_plan_proof"))
     try #require(topActionRow.runPairSummary == "No audited proof run yet -> Ready: Run Plan Proof")
     try #require(topActionRow.contextSummary.contains("run_pair last no audited proof run"))
+    try #require(topActionRow.contextSummary.contains("next_status More proof"))
+    var transitionRow = topActionRow
+    var transitionStep = topActionStep
+    transitionStep.kind = .applyRoundTransition
+    transitionStep.action.kind = .applyRoundTransition
+    transitionRow.nextStep = transitionStep
+    try #require(transitionRow.postMovementNextStatusLabel == "Transition ready")
+    try #require(transitionRow.postMovementNextStatusSystemImage == "arrow.turn.down.right")
+    var promoteRow = topActionRow
+    var promoteStep = topActionStep
+    promoteStep.kind = .applyDecision
+    promoteStep.action.kind = .applyDecision
+    promoteStep.action.targetDecision = .promote
+    promoteRow.nextStep = promoteStep
+    try #require(promoteRow.postMovementNextStatusLabel == "Promotion ready")
+    try #require(promoteRow.postMovementNextStatusSystemImage == "arrow.up.circle")
+    var killRow = promoteRow
+    var killStep = promoteStep
+    killStep.action.targetDecision = .kill
+    killRow.nextStep = killStep
+    try #require(killRow.postMovementNextStatusLabel == "Kill ready")
+    try #require(killRow.postMovementNextStatusSystemImage == "xmark.circle")
+    var noQueuedRow = topActionRow
+    noQueuedRow.nextStep = nil
+    try #require(noQueuedRow.postMovementNextStatusLabel == "No queued proof")
+    try #require(noQueuedRow.postMovementNextStatusSystemImage == "checkmark.seal")
     try #require(includesAllRivalPositions)
     try #require(displayDetailIncludesRows)
     try #require(contextLines.first == "Tournament automation proof scoreboard:")
@@ -317,9 +345,12 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(row.firstEvidenceRunID == "scoreboard-proof-run")
     try #require(row.proofMovementAccessibilityID == "\(row.workbenchAccessibilityID)-proof-movement")
     try #require(row.postMovementNextSummary == "Proof debt reduced; next Ready: Run Plan Proof")
+    try #require(row.postMovementNextStatusLabel == "More proof")
+    try #require(row.postMovementNextStatusSystemImage == "text.badge.checkmark")
     try #require(row.postMovementNextDetail.contains(movement.resultStripSummary))
     try #require(row.postMovementNextDetail.contains("Current next step:"))
     try #require(row.postMovementNextDetail.contains(row.nextStepDetail))
+    try #require(row.postMovementNextDetail.contains("Readiness: More proof."))
     try #require(focus.auditID == "scoreboard-proof-delta")
     try #require(focus.row.selectionID == row.selectionID)
     try #require(focus.evidenceRunID == nil)

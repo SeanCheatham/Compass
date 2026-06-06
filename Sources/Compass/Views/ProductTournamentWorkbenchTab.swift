@@ -2174,7 +2174,22 @@ struct ProductTournamentWorkbenchTab: View {
             systemImage: movement.movementSystemImage
           )
         }
-        WorkbenchFact(label: "After result", value: row.postMovementNextSummary)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text("After result")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .frame(width: 86, alignment: .leading)
+          Text(row.postMovementNextSummary)
+            .font(.caption)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutPriority(1)
+          Spacer(minLength: 8)
+          WorkbenchStatusPill(
+            text: row.postMovementNextStatusLabel,
+            systemImage: row.postMovementNextStatusSystemImage
+          )
+        }
           .help(row.postMovementNextDetail)
       }
       .accessibilityIdentifier(row.proofMovementAccessibilityID)
@@ -4316,9 +4331,15 @@ private struct WorkbenchMetric: View {
 
 private struct WorkbenchStatusPill: View {
   var text: String
+  var systemImage: String? = nil
 
   var body: some View {
-    Text(text)
+    HStack(spacing: 4) {
+      if let systemImage {
+        Image(systemName: systemImage)
+      }
+      Text(text)
+    }
       .font(.caption2.weight(.semibold))
       .foregroundStyle(.secondary)
       .lineLimit(1)

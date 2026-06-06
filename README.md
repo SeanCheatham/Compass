@@ -153,9 +153,11 @@ and advances them through rounds:
   index knows it; selecting a scoreboard contender applies the same proof-target
   focus manually. The selected proof-target detail promotes the latest
   before/after proof-debt movement into a compact result strip, names the
-  current next automation step after that result, and exposes the row's queued
-  proof action, so operators can run the selected contender's next proof without
-  switching back to the round-level top action.
+  current next automation step after that result, badges whether the contender
+  still needs more proof or is ready for transition, promotion/kill decision, or
+  no queued proof action, and exposes the row's queued proof action, so
+  operators can run the selected contender's next proof without switching back
+  to the round-level top action.
   When the proof gates are met but the low-medium
   fidelity implementation still has weak pay intent, missing capabilities, or
   mixed pull, Compass queues a Round 3 implementation revision brief instead of
