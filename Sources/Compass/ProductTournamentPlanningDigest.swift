@@ -610,7 +610,8 @@ enum ProductTournamentPlanningDigestFormatter {
   ) -> [String] {
     let targets = TournamentAutomationProofTargetAdvisor.targets(
       config: config,
-      evidenceIndex: evidenceIndex
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
     )
     var lines = ["Tournament automation proof targets:"]
     for target in targets.prefix(4) {
@@ -702,7 +703,10 @@ enum ProductTournamentPlanningDigestFormatter {
       metadata.append("required_mode \(requiredMode.rawValue)")
     }
     if step.kind == .runPlanProof {
-      metadata.append("mode model_free_plan")
+      let modeLabel =
+        step.action.requiredSimulationMode == .personaModel
+        ? "persona_model_plan" : "model_free_plan"
+      metadata.append("mode \(modeLabel)")
     } else if step.kind == .runCohort {
       let mode =
         step.action.requiredSimulationMode

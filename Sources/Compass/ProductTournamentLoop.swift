@@ -2171,6 +2171,9 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
     if let targetDecision {
       parts.append("target_decision \(targetDecision.rawValue)")
     }
+    if let requiredSimulationMode {
+      parts.append("required_mode \(requiredSimulationMode.rawValue)")
+    }
     if let targetPersonaName {
       parts.append("target \(targetPersonaName)")
     }
@@ -2240,14 +2243,20 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
 enum TournamentAutomationProofTargetAdvisor {
   static func targets(
     config: ProductTournamentConfig,
-    evidenceIndex: ProductTournamentEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> [TournamentAutomationProofTarget] {
     TournamentAutomationExperimentRanker.rankedExperiments(
       config: config,
       evidenceIndex: evidenceIndex
     )
     .compactMap { experiment in
-      target(for: experiment, config: config, evidenceIndex: evidenceIndex)
+      target(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      )
     }
     .sorted { lhs, rhs in
       if lhs.urgencyScore == rhs.urgencyScore { return lhs.experimentID < rhs.experimentID }
@@ -2258,7 +2267,8 @@ enum TournamentAutomationProofTargetAdvisor {
   static func target(
     for experiment: ProductExperiment,
     config: ProductTournamentConfig,
-    evidenceIndex: ProductTournamentEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> TournamentAutomationProofTarget? {
     guard
       !ProductTournamentRoundImplementationTargetResolver.blocksEvidenceLaunch(
@@ -2285,14 +2295,16 @@ enum TournamentAutomationProofTargetAdvisor {
     return planProofTarget(
       for: experiment,
       config: config,
-      evidenceIndex: evidenceIndex
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: isPersonaModelAvailable
     )
   }
 
   private static func planProofTarget(
     for experiment: ProductExperiment,
     config: ProductTournamentConfig,
-    evidenceIndex: ProductTournamentEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    isPersonaModelAvailable: Bool
   ) -> TournamentAutomationProofTarget? {
     guard
       let contender = config.tournamentContenders.first(where: { $0.experimentID == experiment.id }),
@@ -2310,18 +2322,39 @@ enum TournamentAutomationProofTargetAdvisor {
         buyerOrSponsorPersonaCount: 0,
         averageWillingnessToPayScore: 0
       )
-    guard proofDebt.hasActionableFocusedProof else { return nil }
+    let needsPersonaModelPlanProof =
+      readiness.map {
+        isPersonaModelAvailable && $0.modelFreeEvaluationCount > 0
+          && $0.personaModelEvaluationCount == 0
+      } ?? false
+    guard proofDebt.hasActionableFocusedProof || needsPersonaModelPlanProof else { return nil }
+    let actionTitle =
+      needsPersonaModelPlanProof ? "Run Persona Plan Proof" : proofDebt.focusedActionTitle
+    let debtSummary =
+      needsPersonaModelPlanProof
+      ? "\(proofDebt.summary); persona-model plan proof missing"
+      : proofDebt.summary
     return TournamentAutomationProofTarget(
       experimentID: experiment.id,
-      label: proofDebt.focusedActionTitle,
+      label: actionTitle,
       readinessScore: Int((readiness?.readinessScore ?? 0).rounded()),
-      debtSummary: proofDebt.summary,
-      nextAction: nil,
+      debtSummary: debtSummary,
+      nextAction: ProductTournamentNextAction(
+        experimentID: experiment.id,
+        kind: .runPlanProof,
+        title: actionTitle,
+        detail: "",
+        priority: needsPersonaModelPlanProof ? 96 : 92,
+        tournamentID: planScope.tournament.id,
+        roundID: planScope.round.id,
+        contenderID: contender.id,
+        requiredSimulationMode: needsPersonaModelPlanProof ? .personaModel : nil
+      ),
       tournamentID: planScope.tournament.id,
       contenderID: contender.id,
       roundID: planScope.round.id,
-      planProofActionTitle: proofDebt.focusedActionTitle,
-      planProofPriority: 92
+      planProofActionTitle: actionTitle,
+      planProofPriority: needsPersonaModelPlanProof ? 96 : 92
     )
   }
 
@@ -2672,12 +2705,17 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
         : "Tournament round transition is missing tournament, round, or contender scope."
     case .runPlanProof:
       self.kind = .runPlanProof
+      let modeBlockedReason = Self.simulationModeBlockedReason(
+        for: action,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      )
       self.canExecute = action.tournamentID != nil && action.roundID != nil
-        && action.contenderID != nil
+        && action.contenderID != nil && modeBlockedReason == nil
       self.blockedReason =
         self.canExecute
         ? nil
-        : "Round 1 plan-proof target is missing tournament, round, or contender scope."
+        : modeBlockedReason
+          ?? "Round 1 plan-proof target is missing tournament, round, or contender scope."
     case .runCohort, .rerunCohort:
       self.kind = .runCohort
       let modeBlockedReason = Self.simulationModeBlockedReason(
@@ -2716,7 +2754,7 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
     guard action.requiredSimulationMode == .personaModel, !isPersonaModelAvailable else {
       return nil
     }
-    return "AI-user validation requires Foundation Models before this cohort can run."
+    return "AI-user validation requires Foundation Models before this step can run."
   }
 }
 
@@ -4001,6 +4039,15 @@ enum TournamentAutomationPlanner {
       config: config,
       evidenceIndex: evidenceIndex
     ).compactMap { experiment in
+      let planProofStep = planProofStep(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      )
+      if planProofStep?.action.requiredSimulationMode == .personaModel {
+        return planProofStep
+      }
       if let transitionStep = roundTransitionStep(
         for: experiment,
         config: config,
@@ -4014,12 +4061,7 @@ enum TournamentAutomationPlanner {
           evidenceIndex: evidenceIndex
         )
       }
-      if let planProofStep = planProofStep(
-        for: experiment,
-        config: config,
-        evidenceIndex: evidenceIndex,
-        isPersonaModelAvailable: isPersonaModelAvailable
-      ) {
+      if let planProofStep {
         return planProofStep
       }
       guard
@@ -4186,23 +4228,27 @@ enum TournamentAutomationPlanner {
       let target = TournamentAutomationProofTargetAdvisor.target(
         for: experiment,
         config: config,
-        evidenceIndex: evidenceIndex
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: isPersonaModelAvailable
       ),
       let tournamentID = target.tournamentID,
       let roundID = target.roundID,
       let contenderID = target.contenderID
     else { return nil }
     let actionTitle = target.nextActionTitle ?? target.label
+    let planMode = target.requiredSimulationMode
+    let planModeLabel = planMode == .personaModel ? "persona-model" : "model-free"
     let action = ProductTournamentNextAction(
       experimentID: experiment.id,
       kind: .runPlanProof,
       title: actionTitle,
       detail:
-        "Run focused Round 1 model-free simulated-user plan proof for contender `\(contenderID)` in round `\(roundID)`. Remaining plan proof debt: \(target.debtSummary).",
+        "Run focused Round 1 \(planModeLabel) simulated-user plan proof for contender `\(contenderID)` in round `\(roundID)`. Remaining plan proof debt: \(target.debtSummary).",
       priority: target.nextActionPriority,
       tournamentID: tournamentID,
       roundID: roundID,
-      contenderID: contenderID
+      contenderID: contenderID,
+      requiredSimulationMode: planMode
     )
     return TournamentAutomationStep(
       experiment: experiment,
@@ -4432,6 +4478,7 @@ enum TournamentAutomationPlanner {
 enum TournamentAutomationPlanProofStepError: LocalizedError, Equatable {
   case invalidStep(String)
   case missingScope(String)
+  case personaModelRequiresAsync(String)
 
   var errorDescription: String? {
     switch self {
@@ -4439,6 +4486,8 @@ enum TournamentAutomationPlanProofStepError: LocalizedError, Equatable {
       return "Tournament automation step \(id) is not a Round 1 plan-proof step."
     case .missingScope(let id):
       return "Tournament automation plan-proof step \(id) is missing tournament, round, or contender scope."
+    case .personaModelRequiresAsync(let id):
+      return "Tournament automation plan-proof step \(id) requires persona-model evaluation."
     }
   }
 }
@@ -4646,6 +4695,47 @@ enum TournamentAutomationRoundTransitionStepExecutor {
 }
 
 enum TournamentAutomationPlanProofStepExecutor {
+  static func runAutomation(
+    _ step: TournamentAutomationStep,
+    in workspace: CompassWorkspace,
+    projectID: UUID? = nil,
+    now: Date = Date(),
+    streamText: (@Sendable (_ prompt: String) async -> String?)? = nil
+  ) async throws -> ProductTournamentPlanEvaluationOutcome {
+    guard step.kind == .runPlanProof, step.action.kind == .runPlanProof else {
+      throw TournamentAutomationPlanProofStepError.invalidStep(step.id)
+    }
+    guard
+      let tournamentID = step.tournamentID,
+      let roundID = step.roundID,
+      let contenderID = step.contenderID
+    else {
+      throw TournamentAutomationPlanProofStepError.missingScope(step.id)
+    }
+    guard step.action.requiredSimulationMode == .personaModel else {
+      return try run(step, in: workspace, projectID: projectID, now: now)
+    }
+    if let streamText {
+      return try await ProductTournamentPlanEvaluator.runPlanRoundPersonaModel(
+        tournamentID: tournamentID,
+        roundID: roundID,
+        contenderID: contenderID,
+        in: workspace,
+        projectID: projectID,
+        now: now,
+        streamText: streamText
+      )
+    }
+    return try await ProductTournamentPlanEvaluator.runPlanRoundPersonaModel(
+      tournamentID: tournamentID,
+      roundID: roundID,
+      contenderID: contenderID,
+      in: workspace,
+      projectID: projectID,
+      now: now
+    )
+  }
+
   static func run(
     _ step: TournamentAutomationStep,
     in workspace: CompassWorkspace,
@@ -4661,6 +4751,9 @@ enum TournamentAutomationPlanProofStepExecutor {
       let contenderID = step.contenderID
     else {
       throw TournamentAutomationPlanProofStepError.missingScope(step.id)
+    }
+    guard step.action.requiredSimulationMode != .personaModel else {
+      throw TournamentAutomationPlanProofStepError.personaModelRequiresAsync(step.id)
     }
     return try ProductTournamentPlanEvaluator.runPlanRound(
       tournamentID: tournamentID,

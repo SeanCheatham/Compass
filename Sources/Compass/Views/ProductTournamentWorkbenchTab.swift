@@ -432,7 +432,8 @@ struct ProductTournamentWorkbenchTab: View {
   private var tournamentAutomationProofTargets: [TournamentAutomationProofTarget] {
     TournamentAutomationProofTargetAdvisor.targets(
       config: config,
-      evidenceIndex: evidenceIndex
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
     )
   }
 
@@ -3202,7 +3203,8 @@ struct ProductTournamentWorkbenchTab: View {
     return TournamentAutomationProofTargetAdvisor.target(
       for: experiment,
       config: project.productTournamentConfig,
-      evidenceIndex: project.productTournamentEvidenceIndex
+      evidenceIndex: project.productTournamentEvidenceIndex,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
     )
   }
 
@@ -3307,7 +3309,7 @@ struct ProductTournamentWorkbenchTab: View {
           project.fail(AppModelError.noRepositorySelected)
           return nil
         }
-        let outcome = try TournamentAutomationPlanProofStepExecutor.run(
+        let outcome = try await TournamentAutomationPlanProofStepExecutor.runAutomation(
           step,
           in: workspace,
           projectID: project.id

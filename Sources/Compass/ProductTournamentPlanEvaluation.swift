@@ -732,7 +732,13 @@ enum ProductTournamentPlanEvaluator {
     )
 
     return ProductTournamentPlanEvaluationRecord(
-      id: recordID(round: round, contender: contender, segment: segment, endedAt: endedAt),
+      id: recordID(
+        round: round,
+        contender: contender,
+        segment: segment,
+        mode: .modelFree,
+        endedAt: endedAt
+      ),
       projectID: projectID?.uuidString,
       tournamentID: tournament.id,
       roundID: round.id,
@@ -856,7 +862,13 @@ enum ProductTournamentPlanEvaluator {
     )
 
     return ProductTournamentPlanEvaluationRecord(
-      id: recordID(round: round, contender: contender, segment: segment, endedAt: endedAt),
+      id: recordID(
+        round: round,
+        contender: contender,
+        segment: segment,
+        mode: .personaModel,
+        endedAt: endedAt
+      ),
       projectID: projectID?.uuidString,
       tournamentID: tournament.id,
       roundID: round.id,
@@ -1054,10 +1066,12 @@ enum ProductTournamentPlanEvaluator {
     round: ProductTournamentRound,
     contender: ProductTournamentContender,
     segment: UserSegment,
+    mode: ProductTournamentSimulationMode,
     endedAt: Double
   ) -> String {
     [
       "plan",
+      mode == .personaModel ? "persona" : "model-free",
       String(round.id.suffix(20)),
       String(contender.id.suffix(30)),
       String(segment.id.suffix(22)),

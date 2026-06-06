@@ -1023,6 +1023,138 @@ struct ProductTournamentLoopTests {
     try #require(followUpTarget.roundID == planRound.id)
   }
 
+  @Test func tournamentAutomationRunsPersonaPlanProofBeforeRoundOneTransitionWhenAvailable()
+    async throws
+  {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    let config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    try workspace.writeProductTournamentConfig(config)
+    let tournament = try #require(config.tournaments.first)
+    let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let initialStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(initialStep.kind == .runPlanProof)
+    try #require(initialStep.action.requiredSimulationMode == nil)
+    _ = try TournamentAutomationPlanProofStepExecutor.run(
+      initialStep,
+      in: workspace,
+      now: Date(timeIntervalSince1970: 20)
+    )
+    let modelFreeIndex = workspace.readProductTournamentEvidenceIndex()
+    let modelFreeConfig = try workspace.readProductTournamentConfig()
+    let readiness = try #require(modelFreeIndex.aggregate.planReadinessByContender.first)
+
+    try #require(readiness.modelFreeEvaluationCount == 2)
+    try #require(readiness.personaModelEvaluationCount == 0)
+    let noFoundationStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: modelFreeConfig,
+        evidenceIndex: modelFreeIndex,
+        isPersonaModelAvailable: false
+      ))
+    try #require(noFoundationStep.kind == .applyRoundTransition)
+    try #require(noFoundationStep.title == "Apply Round 1 transition")
+
+    let modelFreeExperiment = try #require(
+      modelFreeConfig.experiments.first { $0.id == initialStep.experimentID })
+    let personaTarget = try #require(
+      TournamentAutomationProofTargetAdvisor.target(
+        for: modelFreeExperiment,
+        config: modelFreeConfig,
+        evidenceIndex: modelFreeIndex,
+        isPersonaModelAvailable: true
+      ))
+    try #require(personaTarget.label == "Run Persona Plan Proof")
+    try #require(personaTarget.requiredSimulationMode == .personaModel)
+    try #require(personaTarget.debtSummary.contains("persona-model plan proof missing"))
+    try #require(personaTarget.auditSummary.contains("required_mode persona_model"))
+
+    let personaStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: modelFreeConfig,
+        evidenceIndex: modelFreeIndex,
+        isPersonaModelAvailable: true
+      ))
+    try #require(personaStep.kind == .runPlanProof)
+    try #require(personaStep.action.kind == .runPlanProof)
+    try #require(personaStep.action.requiredSimulationMode == .personaModel)
+    try #require(personaStep.title == "Run Persona Plan Proof")
+    try #require(personaStep.detail.contains("persona-model simulated-user plan proof"))
+    try #require(personaStep.tournamentID == tournament.id)
+    try #require(personaStep.roundID == planRound.id)
+    do {
+      _ = try TournamentAutomationPlanProofStepExecutor.run(
+        personaStep,
+        in: workspace,
+        now: Date(timeIntervalSince1970: 30)
+      )
+      Issue.record("Expected synchronous plan-proof executor to reject persona-model proof.")
+    } catch let error as TournamentAutomationPlanProofStepError {
+      try #require(error == .personaModelRequiresAsync(personaStep.id))
+    }
+    let stream = TournamentAutomationPlanEvaluationModelStream(
+      response: """
+        {
+          "painRecognition": 5,
+          "workflowImprovement": 5,
+          "alternativeAdvantage": 5,
+          "switchingReadiness": 4,
+          "continuedUsePull": 5,
+          "willingnessToPayScore": 5,
+          "estimatedMonthlyPriceCents": 9900,
+          "commercialProofSummary": "The buyer would sponsor a feasibility proof.",
+          "currentAlternativeComparison": "The plan beats the spreadsheet status quo.",
+          "verdict": "strong_pull",
+          "summary": "Persona-model plan proof supports feasibility.",
+          "objections": ["Needs core import proof."],
+          "missingCapabilities": ["core_import_proof"],
+          "rationale": ["The persona sees budget value."],
+          "planStrengths": ["Clear buyer value."],
+          "planRisks": ["Import feasibility remains unproven."]
+        }
+        """
+    )
+    let personaOutcome = try await TournamentAutomationPlanProofStepExecutor.runAutomation(
+      personaStep,
+      in: workspace,
+      now: Date(timeIntervalSince1970: 30),
+      streamText: { prompt in await stream.respond(prompt) }
+    )
+    let personaIndex = workspace.readProductTournamentEvidenceIndex()
+    let personaContenderID = try #require(personaStep.contenderID)
+    let updatedReadiness = try #require(
+      personaIndex.aggregate.planReadinessByContender.first {
+        $0.contenderID == personaContenderID
+      })
+    let prompts = await stream.recordedPrompts()
+    let postPersonaStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: try workspace.readProductTournamentConfig(),
+        evidenceIndex: personaIndex,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(personaOutcome.personaModelEvaluationCount == 2)
+    try #require(personaOutcome.records.allSatisfy { $0.mode == .personaModel })
+    try #require(prompts.count == 2)
+    try #require(updatedReadiness.modelFreeEvaluationCount == 2)
+    try #require(updatedReadiness.personaModelEvaluationCount == 2)
+    try #require(postPersonaStep.kind == .applyRoundTransition)
+    try #require(postPersonaStep.title == "Apply Round 1 transition")
+  }
+
   @Test func tournamentAutomationStalledProofTargetRequiresMatchingDecisionIntent() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
@@ -4761,6 +4893,24 @@ private func makePlanProofRecord(
     verdict: .strongPull,
     summary: "\(segment.name) strongly liked the plan."
   )
+}
+
+private actor TournamentAutomationPlanEvaluationModelStream {
+  private let response: String?
+  private var prompts: [String] = []
+
+  init(response: String?) {
+    self.response = response
+  }
+
+  func respond(_ prompt: String) -> String? {
+    prompts.append(prompt)
+    return response
+  }
+
+  func recordedPrompts() -> [String] {
+    prompts
+  }
 }
 
 private func makeRolloutEvidenceIndex(config: ProductTournamentConfig) -> ProductTournamentEvidenceIndex {

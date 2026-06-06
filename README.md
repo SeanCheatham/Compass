@@ -167,12 +167,12 @@ Tournament automation proof targets also surface those focused Round 1 actions
 with contender and round IDs, so Plan/Reflect can queue plan-only proof before a
 prototype or core-technology artifact exists. While the active tournament has no
 generated-product evidence yet, automation turns that target into a runnable
-`run_plan_proof` step that executes the focused model-free plan evaluator and
-the Workbench can also run a Foundation Models persona-model plan proof when
-available. Both write Round 1 plan-evaluation evidence for that contender. Cycle
-audits report the before/after Round 1 plan-proof debt for automation steps
-directly, so a focused plan run shows whether it cleared buyer/sponsor, persona,
-evaluation, or
+`run_plan_proof` step that executes focused model-free plan evidence first, then
+prefers Foundation Models persona-model plan proof before Round 1 transition
+when the contender only has deterministic plan evaluations. Both write Round 1
+plan-evaluation evidence for that contender. Cycle audits report the before/after
+Round 1 plan-proof debt for automation steps directly, so a focused plan run
+shows whether it cleared buyer/sponsor, persona, evaluation, or
 willingness-to-pay debt before any generated-product evidence exists. Product
 Tournament Context also includes recent Round 1 plan-proof automation deltas so
 Plan and Reflect can see the exact debt labels that changed after automation;
