@@ -28,6 +28,8 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
   var detail: String
   var proofGaps: [String]
   var nextValidationTarget: String
+  var implementationRevisionValidation:
+    ProductTournamentRoundThreeImplementationRevisionValidationResult?
 
   var scoreLabel: String {
     "\(Int(readinessScore.rounded()))"
@@ -52,6 +54,14 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
 
   var displayDetail: String {
     "\(detail) Next validation: \(nextValidationTarget) Product implementation: \(implementationScope)"
+  }
+
+  var implementationRevisionValidationSummary: String? {
+    implementationRevisionValidation?.displaySummary
+  }
+
+  var implementationRevisionValidationDetail: String? {
+    implementationRevisionValidation?.displayDetail
   }
 
   var displaySystemImage: String {
@@ -92,6 +102,12 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
     if !proofGaps.isEmpty {
       parts.append("Proof gaps: \(proofGaps.prefix(4).joined(separator: "; "))")
     }
+    if let implementationRevisionValidation {
+      parts.append(
+        "Implementation revision validation: \(implementationRevisionValidation.displaySummary)"
+      )
+      parts.append(implementationRevisionValidation.displayDetail)
+    }
     parts.append("Next validation: \(nextValidationTarget)")
     return parts.joined(separator: "\n")
   }
@@ -112,6 +128,19 @@ enum ProductTournamentRoundThreeProductImplementationOverview {
     limit: Int = 4
   ) -> [ProductTournamentRoundThreeProductImplementationOverviewItem] {
     guard limit > 0 else { return [] }
+    var validationResultsByRoundAndContender:
+      [String: ProductTournamentRoundThreeImplementationRevisionValidationResult] = [:]
+    for result in ProductTournamentRoundThreeImplementationRevisionValidationAdvisor.results(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      limit: max(limit, 4)
+    ) {
+      let resultKey = key(roundID: result.roundID, contenderID: result.contenderID)
+      if validationResultsByRoundAndContender[resultKey] == nil {
+        validationResultsByRoundAndContender[resultKey] = result
+      }
+    }
+
     return ProductTournamentProductImplementationEvidenceTransitioner.proposals(
       config: config,
       evidenceIndex: evidenceIndex
@@ -149,7 +178,10 @@ enum ProductTournamentRoundThreeProductImplementationOverview {
         evidenceRunIDs: proposal.evidenceRunIDs,
         detail: proposal.detail,
         proofGaps: proposal.proofGaps,
-        nextValidationTarget: proposal.nextValidationTarget
+        nextValidationTarget: proposal.nextValidationTarget,
+        implementationRevisionValidation: validationResultsByRoundAndContender[
+          key(roundID: proposal.roundID, contenderID: proposal.contenderID)
+        ]
       )
     }
     .prefix(limit)
@@ -165,5 +197,9 @@ enum ProductTournamentRoundThreeProductImplementationOverview {
     guard !items.isEmpty else { return [] }
     return ["Round 3 product implementation proof overview:"]
       + items.map(\.contextLine)
+  }
+
+  private static func key(roundID: String, contenderID: String) -> String {
+    "\(roundID)|\(contenderID)"
   }
 }

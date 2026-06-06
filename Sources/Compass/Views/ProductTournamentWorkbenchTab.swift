@@ -1389,6 +1389,10 @@ struct ProductTournamentWorkbenchTab: View {
           if !item.proofGaps.isEmpty {
             WorkbenchFact(label: "Proof gaps", value: item.proofGaps.prefix(2).joined(separator: "; "))
           }
+          if let validationSummary = item.implementationRevisionValidationSummary {
+            WorkbenchFact(label: "Validation", value: validationSummary)
+              .help(item.implementationRevisionValidationDetail ?? validationSummary)
+          }
           Text(item.displayDetail)
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -1810,6 +1814,17 @@ struct ProductTournamentWorkbenchTab: View {
               WorkbenchFact(label: "Round 2 Validation", value: validationSummary)
                 .help(
                   latestTournamentAutomationCycleFacts.latestRoundTwoProofGapValidationHelp
+                    ?? validationSummary
+                )
+            }
+            if let validationSummary =
+              latestTournamentAutomationCycleFacts
+              .latestRoundThreeImplementationRevisionValidationSummary
+            {
+              WorkbenchFact(label: "Round 3 Validation", value: validationSummary)
+                .help(
+                  latestTournamentAutomationCycleFacts
+                    .latestRoundThreeImplementationRevisionValidationHelp
                     ?? validationSummary
                 )
             }

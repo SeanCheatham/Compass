@@ -9,6 +9,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   var postPreparationEvidenceHelp: String?
   var latestRoundTwoProofGapValidationSummary: String?
   var latestRoundTwoProofGapValidationHelp: String?
+  var latestRoundThreeImplementationRevisionValidationSummary: String?
+  var latestRoundThreeImplementationRevisionValidationHelp: String?
 
   static func latest(
     config: ProductTournamentConfig,
@@ -55,6 +57,9 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
     let roundTwoValidation = ProductTournamentRoundTwoProofGapValidationAdvisor
       .results(config: config, evidenceIndex: evidenceIndex, limit: 1)
       .first
+    let roundThreeValidation = ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
+      .results(config: config, evidenceIndex: evidenceIndex, limit: 1)
+      .first
 
     return TournamentAutomationCycleWorkbenchFacts(
       latestCycleSummary: latestAudit.summary,
@@ -68,7 +73,11 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       latestRoundTwoProofGapValidationSummary: roundTwoValidation.map(
         makeRoundTwoProofGapValidationSummary(for:)
       ),
-      latestRoundTwoProofGapValidationHelp: roundTwoValidation.map(\.contextLine)
+      latestRoundTwoProofGapValidationHelp: roundTwoValidation.map(\.contextLine),
+      latestRoundThreeImplementationRevisionValidationSummary: roundThreeValidation.map(
+        makeRoundThreeImplementationRevisionValidationSummary(for:)
+      ),
+      latestRoundThreeImplementationRevisionValidationHelp: roundThreeValidation.map(\.contextLine)
     )
   }
 
@@ -172,6 +181,16 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
 
   private static func makeRoundTwoProofGapValidationSummary(
     for result: ProductTournamentRoundTwoProofGapValidationResult
+  ) -> String {
+    let scenario = result.revisionScenarioID.map { "; scenario \($0)" } ?? ""
+    return bounded(
+      "\(result.outcome.title), contender \(result.contenderID), \(result.completedValidationRunCount)/\(result.validationRunCount) validation run(s), audit \(result.revisionAuditID)\(scenario)",
+      limit: 260
+    )
+  }
+
+  private static func makeRoundThreeImplementationRevisionValidationSummary(
+    for result: ProductTournamentRoundThreeImplementationRevisionValidationResult
   ) -> String {
     let scenario = result.revisionScenarioID.map { "; scenario \($0)" } ?? ""
     return bounded(

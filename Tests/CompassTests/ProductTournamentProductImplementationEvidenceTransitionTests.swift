@@ -232,7 +232,15 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
       scenarioID: revisionScenarioID,
       endedAt: 100
     )
-    let revisionAuditedConfig = config.recordingTournamentAutomationCycleAudit(revisionAudit)
+    let olderRevisionAudit = roundThreeImplementationRevisionAudit(
+      fixture: fixture,
+      brief: revisionBrief,
+      scenarioID: revisionScenarioID,
+      endedAt: 80
+    )
+    let revisionAuditedConfig = config
+      .recordingTournamentAutomationCycleAudit(olderRevisionAudit)
+      .recordingTournamentAutomationCycleAudit(revisionAudit)
     let recognizedAudit = TournamentAutomationCycleLearningAdvisor.appliedRevisionBriefAudit(
       for: revisionBrief,
       experiment: experiment,
@@ -343,6 +351,18 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
         evidenceIndex: validationIndex,
         isPersonaModelAvailable: true
       ))
+    let validationOverviewItem = try #require(
+      ProductTournamentRoundThreeProductImplementationOverview.items(
+        config: revisionAuditedConfig,
+        evidenceIndex: validationIndex
+      ).first
+    )
+    let validationCycleFacts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: revisionAuditedConfig,
+        evidenceIndex: validationIndex,
+        currentStep: validationTransitionStep
+      ))
 
     try #require(revisionBrief.source == .roundThreeImplementationRevision)
     try #require(recognizedAudit?.id == revisionAudit.id)
@@ -395,6 +415,38 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(validationDigest.contains("outcome resolved"))
     try #require(validationTransitionStep.kind == .applyRoundTransition)
     try #require(validationTransitionStep.title == "Apply Round 3 transition")
+    try #require(validationOverviewItem.implementationRevisionValidation?.outcome == .resolved)
+    try #require(
+      validationOverviewItem.implementationRevisionValidation?.revisionAuditID == revisionAudit.id)
+    try #require(
+      validationOverviewItem.implementationRevisionValidation?.revisionAuditID != olderRevisionAudit.id)
+    try #require(
+      validationOverviewItem.implementationRevisionValidationSummary?
+        .contains("Resolved") == true)
+    try #require(
+      validationOverviewItem.implementationRevisionValidationSummary?
+        .contains("3/3 validation") == true)
+    try #require(
+      validationOverviewItem.implementationRevisionValidationDetail?
+        .contains(revisionAudit.id) == true)
+    try #require(
+      validationOverviewItem.implementationRevisionValidationDetail?
+        .contains(olderRevisionAudit.id) == false)
+    try #require(
+      validationOverviewItem.helpSummary.contains(
+        "Implementation revision validation: Resolved"))
+    try #require(
+      validationCycleFacts.latestRoundThreeImplementationRevisionValidationSummary?
+        .contains("Resolved") == true)
+    try #require(
+      validationCycleFacts.latestRoundThreeImplementationRevisionValidationSummary?
+        .contains(revisionAudit.id) == true)
+    try #require(
+      validationCycleFacts.latestRoundThreeImplementationRevisionValidationSummary?
+        .contains(olderRevisionAudit.id) == false)
+    try #require(
+      validationCycleFacts.latestRoundThreeImplementationRevisionValidationHelp?
+        .contains("round_3_implementation_revision_validation") == true)
   }
 
   @Test func weakProductImplementationEvidenceEliminatesContender() throws {
