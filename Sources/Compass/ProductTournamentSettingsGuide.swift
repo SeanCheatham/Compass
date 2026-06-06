@@ -1,6 +1,6 @@
 import Foundation
 
-struct FactorySettingsGuide: Equatable, Sendable {
+struct ProductTournamentSettingsGuide: Equatable, Sendable {
   static let detailLimit = 280
   static let rowDetailLimit = 190
   static let identifierLimit = 1_600
@@ -68,29 +68,29 @@ struct FactorySettingsGuide: Equatable, Sendable {
     if sortedProjects.isEmpty {
       title = "Add a Project"
       detail =
-        "Add a Git repository from the sidebar before Compass can tune build and test routing."
+        "Add a Git repository from the sidebar before Compass can tune Product Tournament verification routing."
       actionLabel = "No projects"
       tone = .empty
       systemImageName = "folder.badge.plus"
     } else if !recommendedOff.isEmpty {
       title =
         recommendedOff.count == 1
-        ? "Factory Needs One Toggle"
-        : "Factory Needs \(recommendedOff.count) Toggles"
+        ? "Tournament Needs One Toggle"
+        : "Tournament Needs \(recommendedOff.count) Toggles"
       detail =
         "Legacy Swift and Xcode repositories verify most reliably through full Xcode on this Mac. Enable Host Xcode Build/Test only on recommended imported-repo rows."
       actionLabel = "\(recommendedOff.count) recommended"
       tone = .attention
       systemImageName = "hammer.circle"
     } else if enabledCount > 0 {
-      title = "Factory Verification Ready"
+      title = "Tournament Verification Ready"
       detail =
         "Host Xcode Build/Test is enabled for legacy imported projects that need full Xcode. Generated projects still use Rust in the private workspace."
       actionLabel = "Ready"
       tone = .ready
       systemImageName = "checkmark.seal.fill"
     } else {
-      title = "Factory Defaults Ready"
+      title = "Tournament Defaults Ready"
       detail =
         "No current project looks like a legacy Apple build/test case. Generated projects use Rust and keep Host Xcode Build/Test off."
       actionLabel = "Ready"
@@ -122,7 +122,7 @@ struct FactorySettingsGuide: Equatable, Sendable {
         Row(
           id: "projects",
           label: "Projects",
-          detail: "Add a repository to configure factory routing.",
+          detail: "Add a repository to configure tournament verification routing.",
           status: .off
         )
       ]
@@ -173,7 +173,7 @@ struct FactorySettingsGuide: Equatable, Sendable {
         recommendedCount: 0,
         fraction: 0,
         label: "No projects yet",
-        detail: "Add a repository before Compass can recommend build/test routing."
+        detail: "Add a repository before Compass can recommend tournament verification routing."
       )
     }
 
@@ -234,17 +234,17 @@ struct FactorySettingsGuide: Equatable, Sendable {
   }
 }
 
-struct FactorySettingsClipboardPayload: Equatable, Sendable {
+struct ProductTournamentSettingsClipboardPayload: Equatable, Sendable {
   static let textLimit = 3_200
 
   var text: String
 
-  init(guide: FactorySettingsGuide) {
+  init(guide: ProductTournamentSettingsGuide) {
     var sections: [String] = [
-      "Compass Factory Settings Handoff",
+      "Compass Product Tournament Settings Handoff",
       "",
       "Recipient instructions:",
-      "- Treat this packet as bounded factory-routing context. Do not invent projects, "
+      "- Treat this packet as bounded tournament-verification routing context. Do not invent projects, "
         + "repo paths, build commands, Xcode availability, verification results, or hidden toggles.",
       "- Host Xcode Build/Test changes the verification route only; agents still edit inside "
         + "the private workspace.",
@@ -264,7 +264,7 @@ struct FactorySettingsClipboardPayload: Equatable, Sendable {
       sections.append("- [\(row.status.rawValue)] \(row.label): \(row.detail)")
     }
 
-    text = FactorySettingsClipboardText.boundedMultilineText(
+    text = ProductTournamentSettingsClipboardText.boundedMultilineText(
       sections.joined(separator: "\n"),
       limit: Self.textLimit
     )
@@ -274,7 +274,7 @@ struct FactorySettingsClipboardPayload: Equatable, Sendable {
     text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
-  private static func countSummary(_ rows: [FactorySettingsGuide.Row]) -> String {
+  private static func countSummary(_ rows: [ProductTournamentSettingsGuide.Row]) -> String {
     let ready = rows.filter { $0.status == .ready }.count
     let recommended = rows.filter { $0.status == .recommended }.count
     let off = rows.filter { $0.status == .off }.count
@@ -282,7 +282,7 @@ struct FactorySettingsClipboardPayload: Equatable, Sendable {
   }
 }
 
-private enum FactorySettingsClipboardText {
+private enum ProductTournamentSettingsClipboardText {
   static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }

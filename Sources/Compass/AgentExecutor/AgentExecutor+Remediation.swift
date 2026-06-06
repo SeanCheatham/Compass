@@ -418,7 +418,7 @@ extension AgentExecutor {
       return """
         - Preserve existing actionable candidates unless you record a completed slice or mark stale work explicitly.
         - Do not clear candidates, strategic context, open questions, or completed context as a side effect of selecting Immediate Work.
-        - Return the smallest valid state change that keeps the factory moving.
+        - Return the smallest valid state change that keeps the Product Tournament moving.
         """
     case .multiExperimentImmediate:
       return """

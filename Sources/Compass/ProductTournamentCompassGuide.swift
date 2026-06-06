@@ -1,6 +1,6 @@
 import Foundation
 
-struct FactoryCompassGuide: Equatable {
+struct ProductTournamentCompassGuide: Equatable {
   static let headlineLimit = 180
   static let detailLimit = 240
   static let handoffLimit = 2_600
@@ -121,7 +121,7 @@ struct FactoryCompassGuide: Equatable {
     previewSteps: [PreviewStep]
   ) -> String {
     var sections = [
-      "Compass Factory Brief",
+      "Compass Product Tournament Brief",
       "",
       "Current state: \(title)",
       "Plain-English summary: \(headline)",

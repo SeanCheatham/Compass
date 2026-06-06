@@ -3,9 +3,9 @@ import Testing
 
 @testable import Compass
 
-struct FactoryCompassGuideTests {
+struct ProductTournamentCompassGuideTests {
   @Test
-  func testPlanFirstBriefSummarizesTheFactoryState() throws {
+  func testPlanFirstBriefSummarizesTheTournamentState() throws {
     let runGuide = ProjectRunControlGuide(
       state: makeState(immediate: nil),
       reliabilityStatus: emptyReliabilityStatus(),
@@ -15,7 +15,7 @@ struct FactoryCompassGuideTests {
       isPaused: false
     )
 
-    let guide = FactoryCompassGuide(runGuide: runGuide)
+    let guide = ProductTournamentCompassGuide(runGuide: runGuide)
 
     try #require(guide.title == "Plan needed")
     try #require(guide.controlLabel == "Plan first")
@@ -26,7 +26,7 @@ struct FactoryCompassGuideTests {
       guide.previewSteps.map(\.title) == [
         "Plan one slice", "Develop in the private workspace", "Verify and review",
       ])
-    try #require(guide.handoffText.contains("Compass Factory Brief"))
+    try #require(guide.handoffText.contains("Compass Product Tournament Brief"))
     try #require(guide.handoffText.contains("Current state: Plan needed"))
     try #require(guide.handoffText.contains("Recommended action: Run Loop (enabled)"))
   }
@@ -38,12 +38,12 @@ struct FactoryCompassGuideTests {
         immediate: PlanNext(
           plan: """
             ## Outcome
-            Make the run controls explain the next factory action.
+            Make the run controls explain the next tournament action.
 
             ## Acceptance checks
             - The run menu previews the next action before starting.
             """,
-          verify: "swift test --filter FactoryCompassGuideTests",
+          verify: "swift test --filter ProductTournamentCompassGuideTests",
           requiresHostXcode: true
         )
       ),
@@ -54,19 +54,19 @@ struct FactoryCompassGuideTests {
       isPaused: false
     )
 
-    let guide = FactoryCompassGuide(runGuide: runGuide)
+    let guide = ProductTournamentCompassGuide(runGuide: runGuide)
 
     try #require(guide.title == "Ready for Develop")
     try #require(guide.controlLabel == "Ready")
     try #require(guide.tone == .ready)
     try #require(
-      guide.previewSteps[0].detail == "Make the run controls explain the next factory action.")
+      guide.previewSteps[0].detail == "Make the run controls explain the next tournament action.")
     try #require(
       guide.previewSteps[1].detail
-        == "Host Xcode runs: swift test --filter FactoryCompassGuideTests"
+        == "Host Xcode runs: swift test --filter ProductTournamentCompassGuideTests"
     )
     try #require(guide.handoffText.contains("Run signal: Ready -"))
-    try #require(guide.handoffText.count <= FactoryCompassGuide.handoffLimit)
+    try #require(guide.handoffText.count <= ProductTournamentCompassGuide.handoffLimit)
   }
 
   @Test
@@ -86,7 +86,7 @@ struct FactoryCompassGuideTests {
       )
     )
 
-    let guide = FactoryCompassGuide(runGuide: runGuide, rustHealth: rustHealth)
+    let guide = ProductTournamentCompassGuide(runGuide: runGuide, rustHealth: rustHealth)
 
     try #require(guide.rustHealth?.title == "Rust Product Tournament Needs Repair")
     try #require(guide.rustHealth?.nextAction == "./scripts/build-compass-engine.sh")
@@ -105,7 +105,7 @@ struct FactoryCompassGuideTests {
       vision: ""
     )
 
-    let guide = FactoryCompassGuide(runGuide: runGuide)
+    let guide = ProductTournamentCompassGuide(runGuide: runGuide)
 
     try #require(guide.title == "Vision missing")
     try #require(guide.controlLabel == "Vision first")
@@ -124,7 +124,7 @@ struct FactoryCompassGuideTests {
           verifyOutput: VerifyOutput(
             command: "swift test",
             exitCode: 1,
-            tail: "FactoryCompassGuideTests failed"
+            tail: "ProductTournamentCompassGuideTests failed"
           )
         )
       ]
@@ -138,7 +138,7 @@ struct FactoryCompassGuideTests {
       isPaused: false
     )
 
-    let guide = FactoryCompassGuide(runGuide: runGuide)
+    let guide = ProductTournamentCompassGuide(runGuide: runGuide)
 
     try #require(guide.title == "Verify failed")
     try #require(guide.controlLabel == "Needs repair")
@@ -158,7 +158,7 @@ struct FactoryCompassGuideTests {
   private func makeState(
     immediate: PlanNext? = PlanNext(
       plan: "## Outcome\nImprove run controls.\n\n## Acceptance checks\n- Focused tests pass.",
-      verify: "swift test --filter FactoryCompassGuideTests"
+      verify: "swift test --filter ProductTournamentCompassGuideTests"
     )
   ) -> PlanState {
     PlanState(

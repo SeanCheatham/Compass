@@ -3,10 +3,10 @@ import Testing
 
 @testable import Compass
 
-struct FactorySettingsGuideTests {
+struct ProductTournamentSettingsGuideTests {
   @Test
   func emptyGuideExplainsProjectSetup() {
-    let guide = FactorySettingsGuide(projects: [])
+    let guide = ProductTournamentSettingsGuide(projects: [])
 
     #expect(guide.title == "Add a Project")
     #expect(guide.actionLabel == "No projects")
@@ -19,7 +19,7 @@ struct FactorySettingsGuideTests {
 
   @Test
   func recommendedSwiftProjectNeedsToggle() {
-    let guide = FactorySettingsGuide(projects: [
+    let guide = ProductTournamentSettingsGuide(projects: [
       makeProject(
         name: "Swift App",
         hostXcodeBuildTestEnabled: false,
@@ -28,7 +28,7 @@ struct FactorySettingsGuideTests {
       )
     ])
 
-    #expect(guide.title == "Factory Needs One Toggle")
+    #expect(guide.title == "Tournament Needs One Toggle")
     #expect(guide.actionLabel == "1 recommended")
     #expect(guide.tone == .attention)
     #expect(guide.detail.contains("Enable Host Xcode Build/Test"))
@@ -41,12 +41,12 @@ struct FactorySettingsGuideTests {
 
   @Test
   func multipleRecommendedProjectsUsePluralCopy() {
-    let guide = FactorySettingsGuide(projects: [
+    let guide = ProductTournamentSettingsGuide(projects: [
       makeProject(name: "One", hostXcodeBuildTestEnabled: false, recommendsHostXcode: true),
       makeProject(name: "Two", hostXcodeBuildTestEnabled: false, recommendsHostXcode: true),
     ])
 
-    #expect(guide.title == "Factory Needs 2 Toggles")
+    #expect(guide.title == "Tournament Needs 2 Toggles")
     #expect(guide.actionLabel == "2 recommended")
     #expect(guide.routingCoverage.label == "0 of 2 recommended enabled")
     #expect(guide.rows.map(\.label) == ["One", "Two"])
@@ -55,11 +55,11 @@ struct FactorySettingsGuideTests {
 
   @Test
   func enabledHostXcodeProjectMarksVerificationReady() {
-    let guide = FactorySettingsGuide(projects: [
+    let guide = ProductTournamentSettingsGuide(projects: [
       makeProject(name: "Swift App", hostXcodeBuildTestEnabled: true, recommendsHostXcode: true)
     ])
 
-    #expect(guide.title == "Factory Verification Ready")
+    #expect(guide.title == "Tournament Verification Ready")
     #expect(guide.actionLabel == "Ready")
     #expect(guide.tone == .ready)
     #expect(guide.routingCoverage.label == "All 1 recommended enabled")
@@ -70,12 +70,12 @@ struct FactorySettingsGuideTests {
 
   @Test
   func nonSwiftProjectCanKeepHostXcodeOff() {
-    let guide = FactorySettingsGuide(projects: [
+    let guide = ProductTournamentSettingsGuide(projects: [
       makeProject(
         name: "Rust Service", hostXcodeBuildTestEnabled: false, recommendsHostXcode: false)
     ])
 
-    #expect(guide.title == "Factory Defaults Ready")
+    #expect(guide.title == "Tournament Defaults Ready")
     #expect(guide.tone == .ready)
     #expect(guide.routingCoverage.label == "No recommended toggles")
     #expect(guide.routingCoverage.fraction == 1)
@@ -84,8 +84,8 @@ struct FactorySettingsGuideTests {
   }
 
   @Test
-  func factoryClipboardPayloadPackagesRecommendedRowsForReuse() {
-    let guide = FactorySettingsGuide(projects: [
+  func tournamentClipboardPayloadPackagesRecommendedRowsForReuse() {
+    let guide = ProductTournamentSettingsGuide(projects: [
       makeProject(
         name: "Swift App",
         hostXcodeBuildTestEnabled: false,
@@ -104,11 +104,11 @@ struct FactorySettingsGuideTests {
       ),
     ])
 
-    let payload = FactorySettingsClipboardPayload(guide: guide)
+    let payload = ProductTournamentSettingsClipboardPayload(guide: guide)
 
-    #expect(payload.text.contains("Compass Factory Settings Handoff"))
+    #expect(payload.text.contains("Compass Product Tournament Settings Handoff"))
     #expect(payload.text.contains("Do not invent projects"))
-    #expect(payload.text.contains("Status: Factory Needs One Toggle (attention)"))
+    #expect(payload.text.contains("Status: Tournament Needs One Toggle (attention)"))
     #expect(payload.text.contains("Action: 1 recommended"))
     #expect(payload.text.contains("Routing coverage: 1 of 2 recommended enabled"))
     #expect(payload.text.contains("Rows: 1 ready, 1 recommended, 1 off"))
@@ -116,15 +116,15 @@ struct FactorySettingsGuideTests {
     #expect(payload.text.contains("[ready] CLI Tools"))
     #expect(payload.text.contains("[off] Rust Service"))
     #expect(payload.text.contains("Host Xcode Build/Test changes the verification route only"))
-    #expect(payload.text.count <= FactorySettingsClipboardPayload.textLimit)
+    #expect(payload.text.count <= ProductTournamentSettingsClipboardPayload.textLimit)
     #expect(!payload.isEmpty)
   }
 
   @Test
-  func factoryClipboardPayloadCoversEmptyProjectList() {
-    let guide = FactorySettingsGuide(projects: [])
+  func tournamentClipboardPayloadCoversEmptyProjectList() {
+    let guide = ProductTournamentSettingsGuide(projects: [])
 
-    let payload = FactorySettingsClipboardPayload(guide: guide)
+    let payload = ProductTournamentSettingsClipboardPayload(guide: guide)
 
     #expect(payload.text.contains("Status: Add a Project (empty)"))
     #expect(payload.text.contains("Action: No projects"))
@@ -133,18 +133,18 @@ struct FactorySettingsGuideTests {
   }
 
   @Test
-  func narratorUsesFoundationModelsAsOptionalFactoryPolish() async throws {
-    let guide = FactorySettingsGuide(projects: [
+  func narratorUsesFoundationModelsAsOptionalTournamentPolish() async throws {
+    let guide = ProductTournamentSettingsGuide(projects: [
       makeProject(name: "Swift App", hostXcodeBuildTestEnabled: false, recommendsHostXcode: true)
     ])
 
     try await withMockFoundationModels(
       response: "Enable Host Xcode for Swift App so build and test checks use full Xcode."
     ) {
-      let prompt = FactorySettingsGuideNarrator.prompt(for: guide)
+      let prompt = ProductTournamentSettingsGuideNarrator.prompt(for: guide)
       #expect(prompt.contains("Routing coverage: 0 of 1 recommended enabled"))
 
-      let generatedNarration = await FactorySettingsGuideNarrator.narrate(guide: guide)
+      let generatedNarration = await ProductTournamentSettingsGuideNarrator.narrate(guide: guide)
       let narration = try #require(generatedNarration)
       #expect(narration.guideIdentifier == guide.narrationIdentifier)
       #expect(
@@ -155,28 +155,28 @@ struct FactorySettingsGuideTests {
 
   @Test
   func narratorSkipsEmptyAndRejectsStructuredBulletedOrLinkedOutput() async {
-    let emptyGuide = FactorySettingsGuide(projects: [])
+    let emptyGuide = ProductTournamentSettingsGuide(projects: [])
     await withMockFoundationModels(response: "Should not be used") {
-      let narration = await FactorySettingsGuideNarrator.narrate(guide: emptyGuide)
+      let narration = await ProductTournamentSettingsGuideNarrator.narrate(guide: emptyGuide)
       #expect(narration == nil)
     }
 
-    let guide = FactorySettingsGuide(projects: [
+    let guide = ProductTournamentSettingsGuide(projects: [
       makeProject(name: "Swift App", hostXcodeBuildTestEnabled: false, recommendsHostXcode: true)
     ])
 
     await withMockFoundationModels(response: #"{"text":"Invented JSON"}"#) {
-      let narration = await FactorySettingsGuideNarrator.narrate(guide: guide)
+      let narration = await ProductTournamentSettingsGuideNarrator.narrate(guide: guide)
       #expect(narration == nil)
     }
 
     await withMockFoundationModels(response: "- Enable a hidden service") {
-      let narration = await FactorySettingsGuideNarrator.narrate(guide: guide)
+      let narration = await ProductTournamentSettingsGuideNarrator.narrate(guide: guide)
       #expect(narration == nil)
     }
 
     await withMockFoundationModels(response: "Read more at https://example.com") {
-      let narration = await FactorySettingsGuideNarrator.narrate(guide: guide)
+      let narration = await ProductTournamentSettingsGuideNarrator.narrate(guide: guide)
       #expect(narration == nil)
     }
   }
@@ -186,8 +186,8 @@ struct FactorySettingsGuideTests {
     hostXcodeBuildTestEnabled: Bool,
     recommendsHostXcode: Bool,
     isSelected: Bool = false
-  ) -> FactorySettingsGuide.Project {
-    FactorySettingsGuide.Project(
+  ) -> ProductTournamentSettingsGuide.Project {
+    ProductTournamentSettingsGuide.Project(
       id: UUID(),
       displayName: name,
       hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled,

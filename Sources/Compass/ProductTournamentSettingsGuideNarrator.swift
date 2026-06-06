@@ -1,14 +1,14 @@
 import Foundation
 
-struct FactorySettingsGuideNarration: Equatable, Sendable {
+struct ProductTournamentSettingsGuideNarration: Equatable, Sendable {
   var guideIdentifier: String
   var text: String
 }
 
-enum FactorySettingsGuideNarrator {
+enum ProductTournamentSettingsGuideNarrator {
   static let maxCharacters = 360
 
-  static func narrate(guide: FactorySettingsGuide) async -> FactorySettingsGuideNarration? {
+  static func narrate(guide: ProductTournamentSettingsGuide) async -> ProductTournamentSettingsGuideNarration? {
     guard guide.tone != .empty else { return nil }
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
@@ -22,7 +22,7 @@ enum FactorySettingsGuideNarrator {
       }
       let text = sanitized(generated)
       guard !text.isEmpty else { return nil }
-      return FactorySettingsGuideNarration(
+      return ProductTournamentSettingsGuideNarration(
         guideIdentifier: guide.narrationIdentifier,
         text: text
       )
@@ -31,9 +31,9 @@ enum FactorySettingsGuideNarrator {
     return nil
   }
 
-  static func prompt(for guide: FactorySettingsGuide) -> String {
+  static func prompt(for guide: ProductTournamentSettingsGuide) -> String {
     """
-    You are Compass explaining factory build/test settings to a non-engineer.
+    You are Compass explaining Product Tournament build/test settings to a non-engineer.
     Use only the facts below. Do not invent commands, files, accounts, costs, timing, or outcomes.
     Return one calm paragraph under 50 words. No Markdown.
 

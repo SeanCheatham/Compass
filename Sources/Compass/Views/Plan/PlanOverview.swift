@@ -1,15 +1,15 @@
 import SwiftUI
 
-struct PlanFactoryBriefView: View {
-  var brief: PlanFactoryBrief
-  var narration: PlanFactoryBriefNarration?
+struct PlanTournamentBriefView: View {
+  var brief: PlanTournamentBrief
+  var narration: PlanTournamentBriefNarration?
 
   private let factColumns = [
     GridItem(.adaptive(minimum: 220), spacing: 8, alignment: .top)
   ]
 
   var body: some View {
-    let clipboardPayload = PlanFactoryBriefClipboardPayload(brief: brief)
+    let clipboardPayload = PlanTournamentBriefClipboardPayload(brief: brief)
 
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 12) {
@@ -47,7 +47,7 @@ struct PlanFactoryBriefView: View {
 
         Spacer(minLength: 8)
 
-        CopyFactoryBriefButton(payload: clipboardPayload)
+        CopyTournamentBriefButton(payload: clipboardPayload)
       }
 
       LazyVGrid(columns: factColumns, alignment: .leading, spacing: 8) {
@@ -153,8 +153,8 @@ struct PlanFactoryBriefView: View {
   }
 }
 
-struct CopyFactoryBriefButton: View {
-  var payload: PlanFactoryBriefClipboardPayload
+struct CopyTournamentBriefButton: View {
+  var payload: PlanTournamentBriefClipboardPayload
   @State private var copied = false
 
   var body: some View {
@@ -174,12 +174,12 @@ struct CopyFactoryBriefButton: View {
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help(ClipboardHelpText.factoryBrief)
+    .help(ClipboardHelpText.tournamentBrief)
   }
 }
 
 struct FlowChipRow: View {
-  var chips: [PlanFactoryBrief.Chip]
+  var chips: [PlanTournamentBrief.Chip]
   var color: Color
 
   var body: some View {

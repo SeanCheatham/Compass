@@ -571,7 +571,10 @@ struct ProjectRunControls: View {
     )
     let rustProductTournamentHealth = RustProductTournamentHealth.local(
       repoURL: project.repoURL, workspace: project.workspace)
-    let factoryGuide = FactoryCompassGuide(runGuide: runGuide, rustHealth: rustProductTournamentHealth)
+    let tournamentGuide = ProductTournamentCompassGuide(
+      runGuide: runGuide,
+      rustHealth: rustProductTournamentHealth
+    )
 
     HStack(spacing: 5) {
       Menu {
@@ -588,10 +591,10 @@ struct ProjectRunControls: View {
           )
         }
         Text(
-          "Routes legacy Swift and Xcode build/test through the host. Generated projects stay Rust. Also in Settings (⌘,) → Factory."
+          "Routes legacy Swift and Xcode build/test through the host. Generated projects stay Rust. Also in Settings (⌘,) → Tournament."
         )
         SettingsLink {
-          Label("Open Factory Settings…", systemImage: "hammer")
+          Label("Open Tournament Settings…", systemImage: "trophy")
         }
         Divider()
         let diagnosticsAction = executionEnvironmentMenu.copyDiagnosticsAction
@@ -650,7 +653,7 @@ struct ProjectRunControls: View {
 
       CopyRunControlButton(payload: runControlPayload)
       CopyProjectSnapshotButton(payload: snapshotPayload)
-      FactoryCompassButton(guide: factoryGuide)
+      ProductTournamentCompassButton(guide: tournamentGuide)
       ProjectRunDecisionBadge(badge: runGuide.decisionBadge)
 
       Button {
@@ -694,7 +697,7 @@ struct ProjectRunControls: View {
       }
       .menuStyle(.borderlessButton)
       .disabled(project.isRunning || project.isAutoPlaying || !project.hasRepository)
-      .help("Choose a factory run mode. \(runGuide.primaryHelp)")
+      .help("Choose a Product Tournament run mode. \(runGuide.primaryHelp)")
 
       Menu {
         ForEach(PauseMode.allCases) { mode in
@@ -787,8 +790,8 @@ private struct CopyProjectSnapshotButton: View {
   }
 }
 
-private struct FactoryCompassButton: View {
-  var guide: FactoryCompassGuide
+private struct ProductTournamentCompassButton: View {
+  var guide: ProductTournamentCompassGuide
   @State private var isShowingBrief = false
 
   var body: some View {
@@ -803,21 +806,21 @@ private struct FactoryCompassButton: View {
     .controlSize(.small)
     .foregroundStyle(color)
     .help("\(guide.title): \(guide.headline)")
-    .accessibilityLabel("Factory compass, \(guide.controlLabel)")
+    .accessibilityLabel("Product Tournament compass, \(guide.controlLabel)")
     .accessibilityValue(guide.title)
     .accessibilityHint(guide.headline)
     .popover(isPresented: $isShowingBrief, arrowEdge: .bottom) {
-      FactoryCompassPopover(guide: guide)
+      ProductTournamentCompassPopover(guide: guide)
     }
   }
 
   private var color: Color {
-    factoryCompassColor(for: guide.tone)
+    productTournamentCompassColor(for: guide.tone)
   }
 }
 
-private struct FactoryCompassPopover: View {
-  var guide: FactoryCompassGuide
+private struct ProductTournamentCompassPopover: View {
+  var guide: ProductTournamentCompassGuide
   @State private var copied = false
 
   var body: some View {
@@ -840,26 +843,26 @@ private struct FactoryCompassPopover: View {
       Divider()
 
       VStack(alignment: .leading, spacing: 10) {
-        FactoryCompassFactRow(
+        ProductTournamentCompassFactRow(
           systemImage: guide.primaryActionIsEnabled ? "bolt.circle.fill" : "lock.circle",
           title: guide.primaryActionTitle,
           detail: guide.primaryActionDetail,
           color: guide.primaryActionIsEnabled ? color : .secondary
         )
-        FactoryCompassFactRow(
+        ProductTournamentCompassFactRow(
           systemImage: guide.systemImage,
           title: guide.readinessTitle,
           detail: guide.readinessDetail,
           color: color
         )
-        FactoryCompassFactRow(
+        ProductTournamentCompassFactRow(
           systemImage: "dot.radiowaves.left.and.right",
           title: guide.signalLabel,
           detail: guide.signalDetail,
           color: color
         )
         if let health = guide.rustHealth {
-          FactoryCompassFactRow(
+          ProductTournamentCompassFactRow(
             systemImage: health.systemImage,
             title: health.title,
             detail: "\(health.detail) Next: \(health.nextAction)",
@@ -875,7 +878,7 @@ private struct FactoryCompassPopover: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
           ForEach(guide.previewSteps) { step in
-            FactoryCompassFactRow(
+            ProductTournamentCompassFactRow(
               systemImage: step.systemImage,
               title: step.title,
               detail: step.detail,
@@ -907,11 +910,11 @@ private struct FactoryCompassPopover: View {
   }
 
   private var color: Color {
-    factoryCompassColor(for: guide.tone)
+    productTournamentCompassColor(for: guide.tone)
   }
 }
 
-private struct FactoryCompassFactRow: View {
+private struct ProductTournamentCompassFactRow: View {
   var systemImage: String
   var title: String
   var detail: String
@@ -936,7 +939,7 @@ private struct FactoryCompassFactRow: View {
   }
 }
 
-private func factoryCompassColor(for tone: FactoryCompassGuide.Tone) -> Color {
+private func productTournamentCompassColor(for tone: ProductTournamentCompassGuide.Tone) -> Color {
   switch tone {
   case .ready:
     return .green

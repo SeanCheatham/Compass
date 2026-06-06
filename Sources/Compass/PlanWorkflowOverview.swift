@@ -604,7 +604,7 @@ struct PlanWorkflowOverview: Equatable {
       label: "Current",
       systemImage: "target",
       rawBody: state.immediate?.plan ?? "",
-      emptyMessage: "No immediate plan. The factory is ready for the next scoped implementation.",
+      emptyMessage: "No immediate plan. The Product Tournament is ready for the next scoped implementation.",
       verifyCommand: state.immediate?.verify,
       verifyTimeoutLabel: state.immediate.map {
         PlanVerifyMetadata(timeoutMs: $0.verifyTimeoutMs).label
@@ -793,7 +793,7 @@ struct PlanWorkflowOverview: Equatable {
   }
 }
 
-struct PlanFactoryBrief: Equatable, Sendable {
+struct PlanTournamentBrief: Equatable, Sendable {
   static let detailLimit = 260
   static let labelLimit = 90
 
@@ -848,7 +848,7 @@ struct PlanFactoryBrief: Equatable, Sendable {
 
     if let notice = reliabilityFeedback.notices.first {
       status = notice.severity == .paused ? .paused : .needsAttention
-      title = notice.severity == .paused ? "Develop Is Ready" : "Factory Needs Attention"
+      title = notice.severity == .paused ? "Develop Is Ready" : "Tournament Needs Attention"
       detail = Self.bounded("\(notice.title): \(notice.detail)")
       primaryActionLabel = notice.actionLabel
     } else if let immediate = state.immediate {
@@ -1030,14 +1030,14 @@ struct PlanFactoryBrief: Equatable, Sendable {
   }
 }
 
-struct PlanFactoryBriefClipboardPayload: Equatable, Sendable {
+struct PlanTournamentBriefClipboardPayload: Equatable, Sendable {
   static let textLimit = 2_800
 
   var text: String
 
-  init(brief: PlanFactoryBrief) {
+  init(brief: PlanTournamentBrief) {
     var sections: [String] = [
-      "Compass Factory Brief Handoff",
+      "Compass Product Tournament Brief Handoff",
       "",
       "Recipient instructions:",
       "- Treat this packet as bounded current-state context. Do not invent files, "
@@ -1081,7 +1081,7 @@ struct PlanFactoryBriefClipboardPayload: Equatable, Sendable {
       sections.append(contentsOf: brief.chips.map { "- \($0.label)" })
     }
 
-    text = PlanFactoryBriefClipboardText.boundedMultilineText(
+    text = PlanTournamentBriefClipboardText.boundedMultilineText(
       sections.joined(separator: "\n"),
       limit: Self.textLimit
     )
@@ -1092,7 +1092,7 @@ struct PlanFactoryBriefClipboardPayload: Equatable, Sendable {
   }
 }
 
-private enum PlanFactoryBriefClipboardText {
+private enum PlanTournamentBriefClipboardText {
   static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
@@ -1103,15 +1103,15 @@ private enum PlanFactoryBriefClipboardText {
   }
 }
 
-struct PlanFactoryBriefNarration: Equatable, Sendable {
+struct PlanTournamentBriefNarration: Equatable, Sendable {
   var briefIdentifier: String
   var text: String
 }
 
-enum PlanFactoryBriefNarrator {
+enum PlanTournamentBriefNarrator {
   static let maxCharacters = 320
 
-  static func narrate(brief: PlanFactoryBrief) async -> PlanFactoryBriefNarration? {
+  static func narrate(brief: PlanTournamentBrief) async -> PlanTournamentBriefNarration? {
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
     if #available(macOS 26.0, *) {
@@ -1122,7 +1122,7 @@ enum PlanFactoryBriefNarrator {
       }
       let text = sanitized(generated)
       guard !text.isEmpty else { return nil }
-      return PlanFactoryBriefNarration(
+      return PlanTournamentBriefNarration(
         briefIdentifier: brief.narrationIdentifier,
         text: text
       )
@@ -1131,7 +1131,7 @@ enum PlanFactoryBriefNarrator {
     return nil
   }
 
-  static func prompt(for brief: PlanFactoryBrief) -> String {
+  static func prompt(for brief: PlanTournamentBrief) -> String {
     """
     You write a calm plain-language status brief for a non-engineer using Compass.
     Use only the facts below. Do not invent files, commands, outcomes, deadlines, or

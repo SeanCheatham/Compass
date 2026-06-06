@@ -1258,8 +1258,8 @@ extension CompassProject {
       log("Artifact hygiene check skipped: could not inspect changed files.", level: .warning)
       return []
     }
-    let issues = FactoryArtifactHygiene.issues(fromGitNameStatus: result.stdout)
-    guard let message = FactoryArtifactHygiene.formattedIssue(from: issues) else {
+    let issues = GeneratedArtifactHygiene.issues(fromGitNameStatus: result.stdout)
+    guard let message = GeneratedArtifactHygiene.formattedIssue(from: issues) else {
       return []
     }
     log("Artifact hygiene check found generated build outputs in the change set.", level: .error)

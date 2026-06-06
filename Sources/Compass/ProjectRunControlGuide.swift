@@ -72,7 +72,7 @@ struct ProjectRunControlGuide: Equatable {
       canDevelop: canDevelop,
       isPaused: isPaused
     )
-    let resumeCopy = isPaused ? "Resume the factory from its paused gate." : nil
+    let resumeCopy = isPaused ? "Resume the Product Tournament from its paused gate." : nil
     let recoveryCopy =
       reliabilityStatus.isEmpty
       ? nil
@@ -309,7 +309,7 @@ struct ProjectRunControlGuide: Equatable {
         PreviewStep(
           id: "repository",
           title: "Add a repository",
-          detail: "Choose a Git repository before Compass can run the factory.",
+          detail: "Choose a Git repository before Compass can run the Product Tournament.",
           systemImage: "folder.badge.plus"
         )
       ]
@@ -331,7 +331,7 @@ struct ProjectRunControlGuide: Equatable {
         PreviewStep(
           id: "resume",
           title: "Resume from the gate",
-          detail: "Compass will continue from the paused factory gate.",
+          detail: "Compass will continue from the paused Product Tournament gate.",
           systemImage: "pause.circle"
         )
       ]
@@ -539,7 +539,7 @@ struct ProjectRunControlGuide: Equatable {
     if !hasRepository {
       return badge(
         label: "Needs repo",
-        detail: "Add a Git repository before any factory run can start.",
+        detail: "Add a Git repository before any Product Tournament run can start.",
         systemImage: "folder.badge.plus",
         tone: .warning
       )
@@ -557,7 +557,7 @@ struct ProjectRunControlGuide: Equatable {
     if isPaused {
       return badge(
         label: "Paused",
-        detail: "Resume from the current factory gate when you are ready.",
+        detail: "Resume from the current Product Tournament gate when you are ready.",
         systemImage: "pause.circle",
         tone: .paused
       )
@@ -676,7 +676,7 @@ struct ProjectRunControlGuide: Equatable {
     if !hasRepository {
       return Readiness(
         title: "Repository needed",
-        detail: "Add a Git repository before running the factory.",
+        detail: "Add a Git repository before running the Product Tournament.",
         systemImage: "folder.badge.plus"
       )
     }
@@ -764,13 +764,13 @@ struct ProjectRunControlGuide: Equatable {
     visionGuide: ProjectVisionGuide?
   ) -> String {
     if !hasRepository {
-      return "Add a Git repository before running the factory."
+      return "Add a Git repository before running the Product Tournament."
     }
     if isRunning || isAutoPlaying {
       return "Compass is already running."
     }
     if isPaused {
-      return "Choose how to resume the paused factory."
+      return "Choose how to resume the paused Product Tournament."
     }
     if !reliabilityStatus.isEmpty {
       return "\(reliabilityStatus.primaryCue): \(reliabilityStatus.actionLabel)"

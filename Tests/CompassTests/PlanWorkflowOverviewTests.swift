@@ -506,7 +506,7 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
-  func testFactoryBriefSummarizesImmediateWorkForNonEngineers() throws {
+  func testTournamentBriefSummarizesImmediateWorkForNonEngineers() throws {
     let state = makeState(
       completed: ["one", "two"],
       immediate: PlanNext(
@@ -522,7 +522,7 @@ struct PlanWorkflowOverviewTests {
         estimatedDifficulty: .medium
       )
     )
-    let brief = PlanFactoryBrief(
+    let brief = PlanTournamentBrief(
       state: state,
       reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
       launchPlan: .host(fallbackReason: "Shared VM has not been provisioned yet."),
@@ -552,7 +552,7 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
-  func testFactoryBriefClipboardPayloadPackagesCurrentStateForReuse() throws {
+  func testTournamentBriefClipboardPayloadPackagesCurrentStateForReuse() throws {
     let state = makeState(
       completed: ["one", "two"],
       immediate: PlanNext(
@@ -571,15 +571,15 @@ struct PlanWorkflowOverviewTests {
         estimatedDifficulty: .medium
       )
     )
-    let brief = PlanFactoryBrief(
+    let brief = PlanTournamentBrief(
       state: state,
       reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
       launchPlan: .host(fallbackReason: "Shared VM has not been provisioned yet."),
       languageProfile: profile(.swift)
     )
-    let payload = PlanFactoryBriefClipboardPayload(brief: brief)
+    let payload = PlanTournamentBriefClipboardPayload(brief: brief)
 
-    try #require(payload.text.contains("Compass Factory Brief Handoff"))
+    try #require(payload.text.contains("Compass Product Tournament Brief Handoff"))
     try #require(payload.text.contains("Recipient instructions:"))
     try #require(payload.text.contains("Do not invent files, commands, credentials"))
     try #require(payload.text.contains("Status: Ready To Build (ready)"))
@@ -599,12 +599,12 @@ struct PlanWorkflowOverviewTests {
     try #require(payload.text.contains("- Swift"))
     try #require(payload.text.contains("- Medium difficulty"))
     try #require(payload.text.contains("- Timeout 90s"))
-    try #require(payload.text.count <= PlanFactoryBriefClipboardPayload.textLimit)
+    try #require(payload.text.count <= PlanTournamentBriefClipboardPayload.textLimit)
     try #require(!payload.isEmpty)
   }
 
   @Test
-  func testFactoryBriefPresentsReadySharedVMAsPrivateWorkspace() throws {
+  func testTournamentBriefPresentsReadySharedVMAsPrivateWorkspace() throws {
     let state = makeState(
       immediate: PlanNext(
         plan: """
@@ -623,7 +623,7 @@ struct PlanWorkflowOverviewTests {
       hostWorktreeURL: URL(fileURLWithPath: "/tmp/CompassRouteTest"),
       guestWorkspacePath: "/Users/compass/Compass/Repos/AAA/worktree"
     )
-    let brief = PlanFactoryBrief(
+    let brief = PlanTournamentBrief(
       state: state,
       reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
       launchPlan: AgentExecutionLaunchPlan(
@@ -633,7 +633,7 @@ struct PlanWorkflowOverviewTests {
       ),
       languageProfile: profile(.swift)
     )
-    let payload = PlanFactoryBriefClipboardPayload(brief: brief)
+    let payload = PlanTournamentBriefClipboardPayload(brief: brief)
 
     try #require(brief.routeLabel == "Private workspace")
     try #require(brief.routeDetail == "Develop will run inside your isolated private workspace.")
@@ -643,7 +643,7 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
-  func testFactoryBriefTranslatesWorkspaceFallbackReasonForNonEngineers() throws {
+  func testTournamentBriefTranslatesWorkspaceFallbackReasonForNonEngineers() throws {
     let state = makeState(
       immediate: PlanNext(
         plan: """
@@ -657,13 +657,13 @@ struct PlanWorkflowOverviewTests {
         estimatedDifficulty: .medium
       )
     )
-    let brief = PlanFactoryBrief(
+    let brief = PlanTournamentBrief(
       state: state,
       reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
       launchPlan: .host(fallbackReason: "Shared VM has not been provisioned yet."),
       languageProfile: profile(.swift)
     )
-    let payload = PlanFactoryBriefClipboardPayload(brief: brief)
+    let payload = PlanTournamentBriefClipboardPayload(brief: brief)
 
     try #require(brief.routeLabel == "This Mac")
     try #require(
@@ -675,7 +675,7 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
-  func testFactoryBriefRoutesCoverageRepairBackToPlan() throws {
+  func testTournamentBriefRoutesCoverageRepairBackToPlan() throws {
     let state = makeState(
       immediate: PlanNext(
         plan: """
@@ -688,7 +688,7 @@ struct PlanWorkflowOverviewTests {
         verify: "cargo test"
       )
     )
-    let brief = PlanFactoryBrief(
+    let brief = PlanTournamentBrief(
       state: state,
       reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
       launchPlan: .host(),
@@ -854,7 +854,7 @@ struct PlanWorkflowOverviewTests {
     let readyGuide = PlanHandoffRepairGuide(
       plan: """
         ## Outcome
-        Add a readable factory launch checklist.
+        Add a readable tournament launch checklist.
 
         ## Acceptance checks
         - Checklist appears beside the immediate plan.
@@ -934,7 +934,7 @@ struct PlanWorkflowOverviewTests {
     let guide = PlanHandoffRepairGuide(
       plan: """
         ## Outcome
-        Add a readable factory launch checklist.
+        Add a readable tournament launch checklist.
 
         ## Acceptance checks
         - Checklist appears beside the immediate plan.
@@ -958,7 +958,7 @@ struct PlanWorkflowOverviewTests {
     let payload = PlanHandoffClipboardPayload(
       plan: """
         ## Outcome
-        Add a readable factory launch checklist.
+        Add a readable tournament launch checklist.
 
         ## Why it matters
         Non-engineers can tell whether the next run is safe.
@@ -979,7 +979,7 @@ struct PlanWorkflowOverviewTests {
     )
     try #require(payload.text.contains("Status: Executable handoff"))
     try #require(payload.text.contains("Readiness: Ready for Develop (3 of 3 required)"))
-    try #require(payload.text.contains("Outcome:\nAdd a readable factory launch checklist."))
+    try #require(payload.text.contains("Outcome:\nAdd a readable tournament launch checklist."))
     try #require(
       payload.text.contains("- Checklist appears beside the immediate plan.")
     )
@@ -1060,7 +1060,7 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
-  func testFactoryBriefRoutesWeakHandoffsBackToPlan() throws {
+  func testTournamentBriefRoutesWeakHandoffsBackToPlan() throws {
     let state = makeState(
       immediate: PlanNext(
         plan: "Make the Plan tab easier to read.",
@@ -1068,7 +1068,7 @@ struct PlanWorkflowOverviewTests {
         estimatedDifficulty: .low
       )
     )
-    let brief = PlanFactoryBrief(
+    let brief = PlanTournamentBrief(
       state: state,
       reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
       launchPlan: .host(),
@@ -1083,7 +1083,7 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
-  func testFactoryBriefPrioritizesReliabilityNotice() throws {
+  func testTournamentBriefPrioritizesReliabilityNotice() throws {
     let state = makeState()
     let session = SessionRecord(
       session: 4,
@@ -1099,7 +1099,7 @@ struct PlanWorkflowOverviewTests {
       verifyOutput: nil,
       feedback: "Missing signing credentials."
     )
-    let brief = PlanFactoryBrief(
+    let brief = PlanTournamentBrief(
       state: state,
       reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: [session]),
       launchPlan: .host(fallbackReason: "Shared VM has not been provisioned yet."),
@@ -1107,20 +1107,20 @@ struct PlanWorkflowOverviewTests {
     )
 
     try #require(brief.status == .needsAttention)
-    try #require(brief.title == "Factory Needs Attention")
+    try #require(brief.title == "Tournament Needs Attention")
     try #require(brief.detail.contains("Develop blocked"))
     try #require(brief.detail.contains("Missing signing credentials"))
     try #require(brief.primaryActionLabel == "Retry Develop")
   }
 
   @Test
-  func testFactoryBriefFallsBackToCandidatesWhenNoImmediateWorkExists() throws {
+  func testTournamentBriefFallsBackToCandidatesWhenNoImmediateWorkExists() throws {
     let state = makeState(
       immediate: nil,
       candidates: "- Improve onboarding language\n- Add tests",
       strategicContext: "Make Compass understandable."
     )
-    let brief = PlanFactoryBrief(
+    let brief = PlanTournamentBrief(
       state: state,
       reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
       launchPlan: .host(),
@@ -1135,9 +1135,9 @@ struct PlanWorkflowOverviewTests {
   }
 
   @Test
-  func testFactoryBriefNarratorUsesFoundationModelsAsOptionalPolish() async throws {
+  func testTournamentBriefNarratorUsesFoundationModelsAsOptionalPolish() async throws {
     let state = makeState()
-    let brief = PlanFactoryBrief(
+    let brief = PlanTournamentBrief(
       state: state,
       reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: []),
       launchPlan: .host(),
@@ -1145,14 +1145,14 @@ struct PlanWorkflowOverviewTests {
     )
 
     try await withMockFoundationModels(response: "Compass is ready to build the next slice.") {
-      let generatedNarration = await PlanFactoryBriefNarrator.narrate(brief: brief)
+      let generatedNarration = await PlanTournamentBriefNarrator.narrate(brief: brief)
       let narration = try #require(generatedNarration)
       try #require(narration.briefIdentifier == brief.narrationIdentifier)
       try #require(narration.text == "Compass is ready to build the next slice.")
     }
 
     try await withMockFoundationModels(available: false) {
-      let narration = await PlanFactoryBriefNarrator.narrate(brief: brief)
+      let narration = await PlanTournamentBriefNarrator.narrate(brief: brief)
       try #require(narration == nil)
     }
   }

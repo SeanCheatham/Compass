@@ -5,7 +5,7 @@ struct PlanTab: View {
   @State private var selectedItemID = PlanTimelineItem.immediateID
   @State private var showAllSessionHistory = false
   @State private var sessionHistoryFilter = PlanSessionHistoryFilter.all
-  @State private var factoryBriefNarration: PlanFactoryBriefNarration?
+  @State private var tournamentBriefNarration: PlanTournamentBriefNarration?
 
   var body: some View {
     let items = PlanTimelineItem.items(for: project.state)
@@ -26,7 +26,7 @@ struct PlanTab: View {
       sessions: historySessions,
       historyItems: sessionHistory
     )
-    let factoryBrief = PlanFactoryBrief(
+    let tournamentBrief = PlanTournamentBrief(
       state: project.state,
       reliabilityFeedback: reliabilityFeedback,
       launchPlan: launchPlan,
@@ -48,9 +48,9 @@ struct PlanTab: View {
           completedCount: project.state.completed.count
         )
 
-        PlanFactoryBriefView(
-          brief: factoryBrief,
-          narration: matchingNarration(for: factoryBrief)
+        PlanTournamentBriefView(
+          brief: tournamentBrief,
+          narration: matchingNarration(for: tournamentBrief)
         )
 
         PlanWorkflowOverviewView(
@@ -102,10 +102,10 @@ struct PlanTab: View {
     .onChange(of: project.state) {
       normalizeSelection(for: PlanTimelineItem.items(for: project.state))
     }
-    .task(id: "\(factoryBrief.narrationIdentifier)|running-\(project.isRunning)") {
-      factoryBriefNarration = nil
+    .task(id: "\(tournamentBrief.narrationIdentifier)|running-\(project.isRunning)") {
+      tournamentBriefNarration = nil
       guard !project.isRunning else { return }
-      factoryBriefNarration = await PlanFactoryBriefNarrator.narrate(brief: factoryBrief)
+      tournamentBriefNarration = await PlanTournamentBriefNarrator.narrate(brief: tournamentBrief)
     }
   }
 
@@ -127,10 +127,10 @@ struct PlanTab: View {
     }
   }
 
-  private func matchingNarration(for brief: PlanFactoryBrief) -> PlanFactoryBriefNarration? {
-    guard factoryBriefNarration?.briefIdentifier == brief.narrationIdentifier else {
+  private func matchingNarration(for brief: PlanTournamentBrief) -> PlanTournamentBriefNarration? {
+    guard tournamentBriefNarration?.briefIdentifier == brief.narrationIdentifier else {
       return nil
     }
-    return factoryBriefNarration
+    return tournamentBriefNarration
   }
 }

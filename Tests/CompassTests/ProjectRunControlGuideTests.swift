@@ -225,7 +225,7 @@ struct ProjectRunControlGuideTests {
         immediate: PlanNext(
           plan: """
             ## Outcome
-            Make run controls explain the next factory action.
+            Make run controls explain the next tournament action.
 
             ## Acceptance checks
             - The run menu previews the next action before starting.
@@ -246,7 +246,7 @@ struct ProjectRunControlGuideTests {
         "Develop current slice", "Run verification", "Review and continue",
       ])
     try #require(
-      guide.previewSteps[0].detail == "Make run controls explain the next factory action.")
+      guide.previewSteps[0].detail == "Make run controls explain the next tournament action.")
     try #require(
       guide.previewSteps[1].detail
         == "Host Xcode runs: swift test --filter ProjectRunControlGuideTests")
@@ -521,10 +521,10 @@ struct ProjectRunControlGuideTests {
       isPaused: true
     )
 
-    try #require(guide.primaryHelp == "Choose how to resume the paused factory.")
+    try #require(guide.primaryHelp == "Choose how to resume the paused Product Tournament.")
     try #require(guide.primaryKind == .loop)
     try #require(guide.options[0].title == "Resume Loop")
-    try #require(guide.options[0].detail == "Resume the factory from its paused gate.")
+    try #require(guide.options[0].detail == "Resume the Product Tournament from its paused gate.")
     try #require(guide.decisionBadge.label == "Paused")
     try #require(guide.decisionBadge.tone == .paused)
   }
@@ -622,7 +622,7 @@ struct ProjectRunControlGuideTests {
     try #require(running.decisionBadge.label == "Running")
     try #require(running.decisionBadge.tone == .info)
     try #require(
-      missingRepository.primaryHelp == "Add a Git repository before running the factory.")
+      missingRepository.primaryHelp == "Add a Git repository before running the Product Tournament.")
     try #require(missingRepository.options.allSatisfy { !$0.isEnabled })
     try #require(missingRepository.decisionBadge.label == "Needs repo")
     try #require(missingRepository.decisionBadge.tone == .warning)

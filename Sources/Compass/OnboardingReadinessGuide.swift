@@ -78,7 +78,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     let vmInProgress = Self.vmIsInProgress(vmReadiness)
 
     if textReady && vmReady {
-      title = "Factory Ready"
+      title = "Product Tournament Ready"
       detail =
         "Compass has a runnable Text provider and a private macOS workspace, so it can plan, develop, verify, and review safely."
       actionLabel = "Ready"

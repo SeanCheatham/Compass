@@ -302,7 +302,7 @@ enum ForgeProfileService {
     return detected
   }
 
-  /// Repos whose factory loops need full Xcode on the host mirror, not CLT in the guest.
+  /// Repos whose Product Tournament loops need full Xcode on the host mirror, not CLT in the guest.
   static func prefersHostXcodeBridge(in repoURL: URL) -> Bool {
     let fm = FileManager.default
     let root = repoURL.standardizedFileURL

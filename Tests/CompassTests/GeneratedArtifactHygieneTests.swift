@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct FactoryArtifactHygieneTests {
+struct GeneratedArtifactHygieneTests {
   @Test func flagsGeneratedDirectoriesAndObjectFiles() throws {
     let output = """
       A\ttarget/debug/app
@@ -13,7 +13,7 @@ struct FactoryArtifactHygieneTests {
       D\ttarget/old.o
       """
 
-    let issues = FactoryArtifactHygiene.issues(fromGitNameStatus: output)
+    let issues = GeneratedArtifactHygiene.issues(fromGitNameStatus: output)
 
     try #require(issues.map(\.path) == [
       "target/debug/app",
@@ -27,7 +27,7 @@ struct FactoryArtifactHygieneTests {
   @Test func parsesRenamedPathsUsingDestinationPath() throws {
     let output = "R100\tSources/Old.swift\tbuild/generated.o\n"
 
-    let issues = FactoryArtifactHygiene.issues(fromGitNameStatus: output)
+    let issues = GeneratedArtifactHygiene.issues(fromGitNameStatus: output)
 
     try #require(issues.count == 1)
     try #require(issues.first?.path == "build/generated.o")
@@ -35,10 +35,10 @@ struct FactoryArtifactHygieneTests {
 
   @Test func formatsActionablePostCheckMessage() throws {
     let issues = [
-      FactoryArtifactHygieneIssue(path: "target/debug/app", reason: "inside generated directory `target/`")
+      GeneratedArtifactHygieneIssue(path: "target/debug/app", reason: "inside generated directory `target/`")
     ]
 
-    let message = try #require(FactoryArtifactHygiene.formattedIssue(from: issues))
+    let message = try #require(GeneratedArtifactHygiene.formattedIssue(from: issues))
 
     try #require(message.contains("[artifact-hygiene]"))
     try #require(message.contains("target/debug/app"))

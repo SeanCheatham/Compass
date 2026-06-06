@@ -104,7 +104,7 @@ struct NativeFeedbackServiceTests {
   }
 
   @Test func testModeMenuProjectScopedCopyIsBounded() throws {
-    let rawProjectName = "  \(String(repeating: "Compass Factory ", count: 8))  "
+    let rawProjectName = "  \(String(repeating: "Compass Tournament ", count: 8))  "
     let projectName = NativeFeedbackContent.sanitizedProjectName(rawProjectName)
     let menu = NativeFeedbackModeMenu(selectedMode: .notifications, projectName: rawProjectName)
 

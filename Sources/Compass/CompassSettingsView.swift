@@ -9,9 +9,9 @@ struct CompassSettingsView: View {
         .environmentObject(model)
         .tabItem { Label("Agent", systemImage: "bolt.horizontal") }
 
-      FactorySettingsTab()
+      ProductTournamentSettingsTab()
         .environmentObject(model)
-        .tabItem { Label("Factory", systemImage: "hammer") }
+        .tabItem { Label("Tournament", systemImage: "trophy") }
     }
     .frame(minWidth: 580, minHeight: 520)
   }
@@ -437,11 +437,11 @@ private struct CopyAgentSettingsButton: View {
   }
 }
 
-// MARK: - Factory tab
+// MARK: - Product Tournament tab
 
-private struct FactorySettingsTab: View {
+private struct ProductTournamentSettingsTab: View {
   @EnvironmentObject var model: AppModel
-  @State private var factoryNarration: FactorySettingsGuideNarration?
+  @State private var tournamentNarration: ProductTournamentSettingsGuideNarration?
 
   private var sortedProjects: [CompassProject] {
     model.projects.sorted {
@@ -450,27 +450,27 @@ private struct FactorySettingsTab: View {
   }
 
   var body: some View {
-    let factoryGuide = FactorySettingsGuide(projects: factoryGuideProjects)
-    let factoryPayload = FactorySettingsClipboardPayload(guide: factoryGuide)
+    let tournamentGuide = ProductTournamentSettingsGuide(projects: tournamentGuideProjects)
+    let tournamentPayload = ProductTournamentSettingsClipboardPayload(guide: tournamentGuide)
 
     Form {
       Section {
-        FactorySettingsGuidePanel(
-          guide: factoryGuide,
-          clipboardPayload: factoryPayload,
-          narration: matchingNarration(for: factoryGuide)
+        ProductTournamentSettingsGuidePanel(
+          guide: tournamentGuide,
+          clipboardPayload: tournamentPayload,
+          narration: matchingNarration(for: tournamentGuide)
         )
       }
 
       if sortedProjects.isEmpty {
         Section("Projects") {
-          Text("Add a Git repository from the Compass sidebar to configure factory options.")
+          Text("Add a Git repository from the Compass sidebar to configure tournament verification options.")
             .foregroundStyle(.secondary)
         }
       } else {
         Section("Host Xcode Build/Test") {
           ForEach(sortedProjects) { project in
-            FactoryProjectHostXcodeRow(
+            ProductTournamentProjectHostXcodeRow(
               project: project,
               isSelected: model.selectedProjectID == project.id,
               recommendsHostXcode: ForgeProfileService.prefersHostXcodeBridge(in: project.repoURL),
@@ -491,15 +491,15 @@ private struct FactorySettingsTab: View {
     }
     .formStyle(.grouped)
     .padding()
-    .task(id: factoryGuide.narrationIdentifier) {
-      factoryNarration = nil
-      factoryNarration = await FactorySettingsGuideNarrator.narrate(guide: factoryGuide)
+    .task(id: tournamentGuide.narrationIdentifier) {
+      tournamentNarration = nil
+      tournamentNarration = await ProductTournamentSettingsGuideNarrator.narrate(guide: tournamentGuide)
     }
   }
 
-  private var factoryGuideProjects: [FactorySettingsGuide.Project] {
+  private var tournamentGuideProjects: [ProductTournamentSettingsGuide.Project] {
     sortedProjects.map { project in
-      FactorySettingsGuide.Project(
+      ProductTournamentSettingsGuide.Project(
         id: project.id,
         displayName: project.displayName,
         hostXcodeBuildTestEnabled: project.hostXcodeBuildTestEnabled,
@@ -510,19 +510,19 @@ private struct FactorySettingsTab: View {
   }
 
   private func matchingNarration(
-    for guide: FactorySettingsGuide
-  ) -> FactorySettingsGuideNarration? {
-    guard factoryNarration?.guideIdentifier == guide.narrationIdentifier else {
+    for guide: ProductTournamentSettingsGuide
+  ) -> ProductTournamentSettingsGuideNarration? {
+    guard tournamentNarration?.guideIdentifier == guide.narrationIdentifier else {
       return nil
     }
-    return factoryNarration
+    return tournamentNarration
   }
 }
 
-private struct FactorySettingsGuidePanel: View {
-  let guide: FactorySettingsGuide
-  let clipboardPayload: FactorySettingsClipboardPayload
-  let narration: FactorySettingsGuideNarration?
+private struct ProductTournamentSettingsGuidePanel: View {
+  let guide: ProductTournamentSettingsGuide
+  let clipboardPayload: ProductTournamentSettingsClipboardPayload
+  let narration: ProductTournamentSettingsGuideNarration?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -533,7 +533,7 @@ private struct FactorySettingsGuidePanel: View {
 
         Spacer(minLength: 8)
 
-        CopyFactorySettingsButton(payload: clipboardPayload)
+        CopyProductTournamentSettingsButton(payload: clipboardPayload)
 
         Text(guide.actionLabel)
           .font(.caption.weight(.semibold))
@@ -591,7 +591,7 @@ private struct FactorySettingsGuidePanel: View {
     }
   }
 
-  private func rowIconName(_ row: FactorySettingsGuide.Row) -> String {
+  private func rowIconName(_ row: ProductTournamentSettingsGuide.Row) -> String {
     switch row.status {
     case .ready: return "checkmark.circle.fill"
     case .recommended: return "exclamationmark.triangle.fill"
@@ -599,7 +599,7 @@ private struct FactorySettingsGuidePanel: View {
     }
   }
 
-  private func rowColor(_ row: FactorySettingsGuide.Row) -> Color {
+  private func rowColor(_ row: ProductTournamentSettingsGuide.Row) -> Color {
     switch row.status {
     case .ready: return .green
     case .recommended: return .orange
@@ -608,8 +608,8 @@ private struct FactorySettingsGuidePanel: View {
   }
 }
 
-private struct CopyFactorySettingsButton: View {
-  var payload: FactorySettingsClipboardPayload
+private struct CopyProductTournamentSettingsButton: View {
+  var payload: ProductTournamentSettingsClipboardPayload
   @State private var copied = false
 
   var body: some View {
@@ -622,18 +622,18 @@ private struct CopyFactorySettingsButton: View {
       }
     } label: {
       Label(
-        copied ? "Copied" : "Copy Factory",
+        copied ? "Copied" : "Copy Tournament",
         systemImage: copied ? "checkmark" : "doc.on.doc"
       )
       .lineLimit(1)
     }
     .controlSize(.small)
     .disabled(payload.isEmpty)
-    .help(ClipboardHelpText.factoryRouting)
+    .help(ClipboardHelpText.tournamentRouting)
   }
 }
 
-private struct FactoryProjectHostXcodeRow: View {
+private struct ProductTournamentProjectHostXcodeRow: View {
   @ObservedObject var project: CompassProject
   var isSelected: Bool
   var recommendsHostXcode: Bool

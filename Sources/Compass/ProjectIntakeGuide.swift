@@ -141,7 +141,7 @@ struct ProjectIntakeGuide: Equatable, Sendable {
       Signal(
         id: "git",
         label: "Git history",
-        detail: "Compass needs a repository so it can inspect changes and keep factory state nearby.",
+        detail: "Compass needs a repository so it can inspect changes and keep Product Tournament state nearby.",
         systemImage: "point.3.connected.trianglepath.dotted"
       ),
       Signal(

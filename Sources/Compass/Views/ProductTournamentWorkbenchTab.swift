@@ -33,7 +33,7 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var isApplyingPlanTransition = false
   @State private var isApplyingRoundEvidenceTransition = false
   @State private var isApplyingPrototypeEvidenceTransition = false
-  @State private var isRunningFactoryStep = false
+  @State private var isRunningTournamentStep = false
   @State private var isRunningTournamentAutomationCycle = false
   @State private var scenarioRunMessage: String?
   @State private var planEvaluationMessage: String?
@@ -141,7 +141,7 @@ struct ProductTournamentWorkbenchTab: View {
       && !isApplyingPlanTransition
       && !isApplyingRoundEvidenceTransition
       && !isApplyingPrototypeEvidenceTransition
-      && !isRunningFactoryStep
+      && !isRunningTournamentStep
       && !isRunningTournamentAutomationCycle
       && !isRunningScenario
   }
@@ -161,7 +161,7 @@ struct ProductTournamentWorkbenchTab: View {
       && !isApplyingRoundEvidenceTransition
       && !isApplyingPrototypeEvidenceTransition
       && !isRunningPlanEvaluation
-      && !isRunningFactoryStep
+      && !isRunningTournamentStep
       && !isRunningTournamentAutomationCycle
       && !isRunningScenario
   }
@@ -181,7 +181,7 @@ struct ProductTournamentWorkbenchTab: View {
       && !isApplyingPrototypeEvidenceTransition
       && !isApplyingPlanTransition
       && !isRunningPlanEvaluation
-      && !isRunningFactoryStep
+      && !isRunningTournamentStep
       && !isRunningTournamentAutomationCycle
       && !isRunningScenario
   }
@@ -203,7 +203,7 @@ struct ProductTournamentWorkbenchTab: View {
       && !isApplyingRoundEvidenceTransition
       && !isApplyingPlanTransition
       && !isRunningPlanEvaluation
-      && !isRunningFactoryStep
+      && !isRunningTournamentStep
       && !isRunningTournamentAutomationCycle
       && !isRunningScenario
   }
@@ -399,7 +399,7 @@ struct ProductTournamentWorkbenchTab: View {
 
   private var tournamentAutomationCanRun: Bool {
     tournamentAutomationStep?.canExecute == true
-      && !isRunningFactoryStep
+      && !isRunningTournamentStep
       && !isRunningTournamentAutomationCycle
       && !isRunningScenario
       && tournamentAutomationStepMatchesRoundTwoTarget
@@ -407,7 +407,7 @@ struct ProductTournamentWorkbenchTab: View {
 
   private var tournamentAutomationCycleCanRun: Bool {
     tournamentAutomationCyclePlan.canRun
-      && !isRunningFactoryStep
+      && !isRunningTournamentStep
       && !isRunningTournamentAutomationCycle
       && !isRunningScenario
       && tournamentAutomationStepMatchesRoundTwoTarget
@@ -1421,7 +1421,7 @@ struct ProductTournamentWorkbenchTab: View {
               Task { await runTournamentAutomationStep() }
             } label: {
               Label(
-                isRunningFactoryStep ? "Running Step" : "Run Step",
+                isRunningTournamentStep ? "Running Step" : "Run Step",
                 systemImage: "play.fill"
               )
             }
@@ -2555,8 +2555,8 @@ struct ProductTournamentWorkbenchTab: View {
       return
     }
     selectedExperimentID = step.experimentID
-    isRunningFactoryStep = true
-    defer { isRunningFactoryStep = false }
+    isRunningTournamentStep = true
+    defer { isRunningTournamentStep = false }
     let stepStartedAt = Date()
     let startingProofDebt = tournamentAutomationProofDebt(forExperimentID: step.experimentID)
     let decisionCandidateSummaries =

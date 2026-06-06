@@ -27,7 +27,7 @@ struct AssumptionsTab: View {
       HStack(alignment: .firstTextBaseline) {
         VStack(alignment: .leading, spacing: 3) {
           SectionHeader("Assumptions", systemImage: "checklist.checked")
-          Text("User-affirmed, denied, and implicit signals for the factory loop.")
+          Text("User-affirmed, denied, and implicit signals for the Product Tournament loop.")
             .font(.callout)
             .foregroundStyle(.secondary)
         }

@@ -144,13 +144,13 @@ struct CompassApp: App {
 
         Divider()
 
-        Button("Copy Factory Brief") {
-          if let guide = selectedFactoryGuide {
+        Button("Copy Product Tournament Brief") {
+          if let guide = selectedTournamentGuide {
             copyTextToPasteboard(guide.handoffText)
           }
         }
         .keyboardShortcut("c", modifiers: [.command, .option])
-        .disabled(selectedFactoryGuide == nil)
+        .disabled(selectedTournamentGuide == nil)
 
         Button("Copy Project Snapshot") {
           if let payload = selectedProjectSnapshotPayload {
@@ -239,9 +239,9 @@ struct CompassApp: App {
     return ProjectSnapshotBuilder.runGuide(for: project)
   }
 
-  private var selectedFactoryGuide: FactoryCompassGuide? {
+  private var selectedTournamentGuide: ProductTournamentCompassGuide? {
     guard let runGuide = selectedRunGuide else { return nil }
-    return FactoryCompassGuide(runGuide: runGuide)
+    return ProductTournamentCompassGuide(runGuide: runGuide)
   }
 
   private var selectedProjectSnapshotPayload: ProjectSnapshotClipboardPayload? {

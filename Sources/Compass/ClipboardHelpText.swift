@@ -2,7 +2,7 @@ enum ClipboardHelpText {
   static let setup = "Copy a concise setup note."
   static let privateWorkspaceReadiness = "Copy a concise private workspace status note."
   static let runtimeSettings = "Copy a redacted runtime settings note."
-  static let factoryRouting = "Copy a concise factory routing note."
+  static let tournamentRouting = "Copy a concise tournament routing note."
   static let runtimeDiagnostics = "Copy a concise runtime report with workspace readiness."
   static let projectIntake = "Copy a concise project intake checklist."
   static let projectVision = "Copy a concise project vision note."
@@ -16,7 +16,7 @@ enum ClipboardHelpText {
   static let assumptions = "Copy a concise assumptions note."
   static let draftQueue = "Copy a concise draft queue note."
   static let runHistory = "Copy a concise run history note."
-  static let factoryBrief = "Copy a concise factory brief."
+  static let tournamentBrief = "Copy a concise Product Tournament brief."
   static let immediateWork = "Copy a concise Immediate Work note."
   static let planRepair = "Copy a focused Plan repair note."
   static let worldAtlas = "Copy a concise World Atlas note."
@@ -25,7 +25,7 @@ enum ClipboardHelpText {
     setup,
     privateWorkspaceReadiness,
     runtimeSettings,
-    factoryRouting,
+    tournamentRouting,
     runtimeDiagnostics,
     projectIntake,
     projectVision,
@@ -38,7 +38,7 @@ enum ClipboardHelpText {
     assumptions,
     draftQueue,
     runHistory,
-    factoryBrief,
+    tournamentBrief,
     immediateWork,
     planRepair,
     worldAtlas,
