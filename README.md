@@ -91,24 +91,28 @@ and advances them through rounds:
   acceptance signals for the next build slice. Product Tournament Context also
   turns that handoff into a single Plan-facing implementation target, so the
   next Immediate handoff builds only the selected contender's core-technology
-  proof on its tournament experiment branch/worktree. Scenario evidence launches validate
-  that target before running, blocking accidental evidence collection against
-  sibling contenders once Round 2 has narrowed to one implementation track; the
-  Workbench also preselects that track and visibly locks sibling scenario/cohort
-  run controls, while tournament automation planning omits sibling proof
-  targets and evidence steps. Plan/Reflect prompts also receive a
-  `round_2_evidence_lock` line naming the paused sibling tournament experiments so the next
-  handoff stays focused on the single core-technology proof. A Round 2
+  proof on its tournament experiment branch/worktree. Scenario evidence
+  launches validate that target before running, blocking accidental evidence
+  collection against sibling contenders once Round 2 has narrowed to one
+  implementation track; the Workbench also preselects that track and visibly
+  locks sibling scenario/cohort run controls, while tournament automation
+  planning omits sibling proof targets and evidence steps. Plan/Reflect prompts
+  also receive a `round_2_evidence_lock` line naming the paused sibling
+  tournament experiments so the next handoff stays focused on the single
+  core-technology proof. A Round 2
   core-technology proof overview summarizes that active target's readiness,
   scoped evidence, persona breadth, experience-use proof, missing capabilities,
   proof gaps, next validation target, and next transition recommendation in
   both the Workbench and Product Tournament Context. Scoped Round 2 scenario
   evidence then drives the next tournament transition: advance the contender
-  to Round 3, mark the core
-  technology for revision, or eliminate the contender before adding product
-  implementation fidelity. Advancement requires completed evidence from two
-  personas plus two stored completed-use proofs derived from traces that reach
-  the required product-use action sequence.
+  to Round 3, mark the core technology for revision, or eliminate the contender
+  before adding product implementation fidelity. When Round 2 asks for
+  revision, Compass queues a proof-gap revision brief that turns the missing
+  capability, objection, or readiness gap into implementation, scenario, and
+  validation instructions for the next simulated-user pass. Advancement
+  requires completed evidence from two personas plus two stored completed-use
+  proofs derived from traces that reach the required product-use action
+  sequence.
 - **Round 3: product implementation.** Agentic users exercise low-medium
   fidelity product implementations and evaluate workflow improvement, switching
   readiness, continued-use pull, and explicit price or sponsorship intent.

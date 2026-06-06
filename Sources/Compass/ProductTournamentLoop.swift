@@ -1704,6 +1704,7 @@ enum TournamentAutomationRationaleSignalAdvisor {
 enum TournamentAutomationRevisionBriefSource: String, Equatable, Sendable {
   case personaModelRationale = "persona_model_rationale"
   case targetedProofOutcome = "targeted_proof_outcome"
+  case roundTwoProofGap = "round_2_proof_gap"
 }
 
 struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
@@ -1864,6 +1865,13 @@ enum TournamentAutomationRevisionBriefAdvisor {
     ) {
       return proofOutcomeBrief
     }
+    if let proofGapBrief = roundTwoProofGapBrief(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return proofGapBrief
+    }
     guard
       let signal = TournamentAutomationRationaleSignalAdvisor.signal(
         for: experiment,
@@ -1942,11 +1950,183 @@ enum TournamentAutomationRevisionBriefAdvisor {
     )
   }
 
+  private static func roundTwoProofGapBrief(
+    for experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> TournamentAutomationRevisionBrief? {
+    guard
+      let proposal = ProductTournamentRoundEvidenceTransitioner.proposals(
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      .first(where: {
+        $0.recommendation == .reviseCoreTechnology
+          && contender($0.contenderID, matches: experiment, in: config)
+      })
+    else { return nil }
+
+    let target = roundTwoProofGapTarget(
+      for: proposal,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    let gaps = proofGapSummary(for: proposal)
+    return TournamentAutomationRevisionBrief(
+      experimentID: experiment.id,
+      source: .roundTwoProofGap,
+      title: "Revise Round 2 core technology proof gaps",
+      priority: max(proposal.priority, 86),
+      triggerSummary:
+        "Round 2 feasibility evidence recommends revising contender `\(proposal.contenderID)`: \(gaps).",
+      implementationChange:
+        "Address \(gaps) in the core technology proof before adding Round 3 product implementation fidelity.",
+      scenarioChange:
+        target.scenarioChange
+          ?? "Retarget scoped Round 2 scenarios so simulated users must exercise the revised core technology and compare it against the current workaround.",
+      proofPlan: proposal.nextValidationTarget,
+      targetPersonaID: target.personaID,
+      targetPersonaName: target.personaName,
+      targetScenarioID: target.scenarioID,
+      targetCohortID: target.cohortID,
+      targetDecision: .narrow
+    )
+  }
+
   private struct RevisionPlan: Equatable, Sendable {
     var title: String
     var implementationChange: String
     var scenarioChange: String
     var proofPlan: String
+  }
+
+  private struct RoundTwoProofGapTarget: Equatable, Sendable {
+    var personaID: String?
+    var personaName: String?
+    var scenarioID: String?
+    var cohortID: String?
+    var scenarioChange: String?
+  }
+
+  private static func roundTwoProofGapTarget(
+    for proposal: ProductTournamentRoundEvidenceTransitionProposal,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> RoundTwoProofGapTarget {
+    let scopedSummaries = evidenceIndex.summaries(for: experiment)
+      .filter {
+        $0.tournamentID == proposal.tournamentID
+          && $0.roundID == proposal.roundID
+          && $0.contenderID == proposal.contenderID
+          && $0.isCompleted
+      }
+      .sorted(by: roundTwoProofGapSummarySort)
+    guard let summary = scopedSummaries.first else {
+      return RoundTwoProofGapTarget()
+    }
+    let scenario = config.scenarios.first {
+      $0.id == summary.scenarioID && $0.experimentID == experiment.id
+    }
+    let rawPersonaID =
+      summary.personaID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? scenario?.segmentID
+      : summary.personaID
+    let personaID = rawPersonaID.flatMap { candidateID in
+      config.userSegments.contains { $0.id == candidateID } ? candidateID : nil
+    }
+    let personaName = personaID.map { segmentName(for: $0, config: config) }
+    let cohortID = scenario.flatMap {
+      executableCohortID(
+        forScenarioID: $0.id,
+        experiment: experiment,
+        config: config
+      )
+    }
+    let targetName = personaName ?? "the target simulated user"
+    let scenarioChange =
+      "Retarget scoped Round 2 validation for \(targetName) so the persona must exercise the revised core technology, inspect the corrected proof gaps, and compare against the current workaround."
+    return RoundTwoProofGapTarget(
+      personaID: personaID,
+      personaName: personaName,
+      scenarioID: scenario?.id,
+      cohortID: cohortID,
+      scenarioChange: scenarioChange
+    )
+  }
+
+  private static func roundTwoProofGapSummarySort(
+    lhs: ProductTournamentEvidenceSummary,
+    rhs: ProductTournamentEvidenceSummary
+  ) -> Bool {
+    let lhsScore = roundTwoProofGapSummaryPriority(lhs)
+    let rhsScore = roundTwoProofGapSummaryPriority(rhs)
+    if lhsScore == rhsScore {
+      if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
+      return lhs.endedAt > rhs.endedAt
+    }
+    return lhsScore > rhsScore
+  }
+
+  private static func roundTwoProofGapSummaryPriority(
+    _ summary: ProductTournamentEvidenceSummary
+  ) -> Int {
+    var score = 0
+    if !summary.missingCapabilities.isEmpty { score += 8 }
+    if !summary.objections.isEmpty { score += 6 }
+    switch summary.verdict {
+    case .rejected: score += 5
+    case .weak: score += 4
+    case .unclear: score += 3
+    case .promising: score += 1
+    case .strongPull: break
+    }
+    return score
+  }
+
+  private static func proofGapSummary(
+    for proposal: ProductTournamentRoundEvidenceTransitionProposal
+  ) -> String {
+    let gaps =
+      proposal.proofGaps.isEmpty
+      ? [proposal.detail]
+      : Array(proposal.proofGaps.prefix(4))
+    return StringUtils.boundedText(gaps.joined(separator: "; "), limit: 260)
+  }
+
+  private static func contender(
+    _ contenderID: String,
+    matches experiment: ProductTournamentExperiment,
+    in config: ProductTournamentConfig
+  ) -> Bool {
+    config.tournamentContenders.contains {
+      $0.id == contenderID && $0.experimentID == experiment.id
+    }
+  }
+
+  private static func segmentName(for segmentID: String, config: ProductTournamentConfig) -> String
+  {
+    let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
+    return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
+  }
+
+  private static func executableCohortID(
+    forScenarioID scenarioID: String,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig
+  ) -> String? {
+    config.scenarioCohorts
+      .filter {
+        $0.experimentID == experiment.id
+          && $0.enabled
+          && $0.scenarioIDs.contains(scenarioID)
+      }
+      .sorted {
+        if $0.scenarioIDs.count == $1.scenarioIDs.count { return $0.title < $1.title }
+        return $0.scenarioIDs.count < $1.scenarioIDs.count
+      }
+      .first?.id
   }
 
   private static func revisionPlan(

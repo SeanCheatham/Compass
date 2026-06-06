@@ -143,6 +143,25 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       summary: "The core technology is plausible but needs revision."
     )
     let index = ProductTournamentEvidenceIndex.build(records: records)
+    let proposal = try #require(
+      ProductTournamentRoundEvidenceTransitioner.bestProposal(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.coreRound.id,
+        config: fixture.config,
+        evidenceIndex: index
+      )
+    )
+    let revisionBrief = try #require(
+      TournamentAutomationRevisionBriefAdvisor.brief(
+        for: fixture.experiment,
+        config: fixture.config,
+        evidenceIndex: index
+      )
+    )
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: fixture.config,
+      evidenceIndex: index
+    )
 
     let outcome = try ProductTournamentRoundEvidenceTransitioner.applyBestProposal(
       tournamentID: fixture.tournament.id,
@@ -164,13 +183,37 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       experimentID: fixture.experiment.id,
       in: outcome.config
     )
+    let postTransitionRevisionBrief = try #require(
+      TournamentAutomationRevisionBriefAdvisor.brief(
+        for: fixture.experiment,
+        config: outcome.config,
+        evidenceIndex: index
+      )
+    )
 
+    try #require(proposal.recommendation == .reviseCoreTechnology)
     try #require(outcome.proposal.recommendation == .reviseCoreTechnology)
     try #require(outcome.proposal.proofGaps.contains { $0.contains("inspectable_source_artifact") })
     try #require(outcome.proposal.proofGaps.contains { $0.contains("readiness") })
     try #require(outcome.proposal.nextValidationTarget.contains("Revise the core technology"))
     try #require(outcome.proposal.digestLine.contains("proof_gaps"))
     try #require(outcome.proposal.digestLine.contains("next_validation"))
+    try #require(revisionBrief.source == .roundTwoProofGap)
+    try #require(revisionBrief.title == "Revise Round 2 core technology proof gaps")
+    try #require(revisionBrief.implementationChange.contains("inspectable_source_artifact"))
+    try #require(revisionBrief.implementationChange.contains("readiness"))
+    try #require(revisionBrief.scenarioChange.contains("Round 2 validation"))
+    try #require(revisionBrief.proofPlan == proposal.nextValidationTarget)
+    try #require(revisionBrief.targetDecision == .narrow)
+    try #require(
+      Set(fixture.config.userSegments.prefix(2).map(\.id))
+        .contains(revisionBrief.targetPersonaID ?? ""))
+    try #require(revisionBrief.auditSummary.contains("source round_2_proof_gap"))
+    try #require(digest.contains("Tournament automation revision briefs"))
+    try #require(digest.contains("source round_2_proof_gap"))
+    try #require(digest.contains("inspectable_source_artifact"))
+    try #require(postTransitionRevisionBrief.source == .roundTwoProofGap)
+    try #require(postTransitionRevisionBrief.proofPlan == proposal.nextValidationTarget)
     try #require(updatedTournament.currentRoundID == fixture.coreRound.id)
     try #require(updatedCoreRound.status == .active)
     try #require(updatedContender.status == .needsRevision)

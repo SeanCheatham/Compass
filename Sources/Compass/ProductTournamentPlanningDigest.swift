@@ -28,6 +28,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     lines += roundEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
+    lines += revisionBriefLines(config: config, evidenceIndex: evidenceIndex)
     lines += ProductTournamentRoundThreeProductImplementationOverview.contextLines(
       config: config,
       evidenceIndex: evidenceIndex
@@ -54,7 +55,6 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += evidenceTensionLines(config: config, evidenceIndex: evidenceIndex)
     lines += rationaleSignalLines(config: config, evidenceIndex: evidenceIndex)
     lines += targetedProofOutcomeLines(config: config, evidenceIndex: evidenceIndex)
-    lines += revisionBriefLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationLines(config: config, evidenceIndex: evidenceIndex)
