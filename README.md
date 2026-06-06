@@ -210,6 +210,9 @@ product implementation evidence clears the winner gate. Cycle audits record
 worktree preparation and automated round transitions separately from tournament
 decision updates and simulated-user evidence runs, and Round 1 plan-proof cycles
 capture starting and ending persona-model/model-free plan evidence counts.
+Recent worktree-preparation cycles also appear as compact Plan/Reflect context
+rows with current evidence-run counts, so agents can see when a branch was
+prepared before simulated-user evidence arrived.
 Only the proof overview for the active tournament round is shown at a time:
 Round 1 plan proof, Round 2 core-technology proof, or Round 3 product
 implementation winner proof.

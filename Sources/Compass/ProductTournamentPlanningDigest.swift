@@ -34,6 +34,7 @@ enum ProductTournamentPlanningDigestFormatter {
     )
     lines += productImplementationEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationCycleAuditLines(config: config)
+    lines += tournamentAutomationWorktreePrepLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationPlanProofAuditLines(config: config)
     lines += TournamentPlanProofDeltaOverview.contextLines(
       config: config,
@@ -829,6 +830,33 @@ enum ProductTournamentPlanningDigestFormatter {
         return
           "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(planModes)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedProofOutcomes)\(rationaleSignals)\(revisionBriefs)"
           + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
+      }
+  }
+
+  private static func tournamentAutomationWorktreePrepLines(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [String] {
+    let audits = config.tournamentAutomationCycleAudits
+      .filter { $0.prepareWorktreeStepCount > 0 }
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(3)
+    guard !audits.isEmpty else { return [] }
+    return ["Recent tournament automation worktree preparation:"]
+      + audits.map { audit in
+        let experimentIDs = audit.experimentIDs.isEmpty ? ["unknown-experiment"] : audit.experimentIDs
+        let evidenceRunCount = experimentIDs.reduce(0) { count, experimentID in
+          guard
+            let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
+          else { return count }
+          return count + evidenceIndex.summaries(for: experiment).count
+        }
+        let experiments = bounded(experimentIDs.joined(separator: ", "), 220)
+        return
+          "- \(bounded(audit.id, 100)): prepare_worktree_steps \(audit.prepareWorktreeStepCount); experiments \(experiments); current_evidence_runs \(evidenceRunCount); \(bounded(audit.stopDetail, 180))."
       }
   }
 

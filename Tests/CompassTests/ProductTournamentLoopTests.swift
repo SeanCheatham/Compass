@@ -3689,6 +3689,9 @@ struct ProductTournamentLoopTests {
     )
     try #require(digest.contains("worktree prep 1 step(s)"))
     try #require(digest.contains("evidence 0 step(s)"))
+    try #require(digest.contains("Recent tournament automation worktree preparation"))
+    try #require(digest.contains("prepare_worktree_steps 1"))
+    try #require(digest.contains("current_evidence_runs 0"))
   }
 
   @Test func tournamentAutomationCycleOutcomeCountsLiftAndCutDecisions() throws {
