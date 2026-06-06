@@ -8,7 +8,7 @@ struct ProductTournamentSimulationRequest {
   var segment: UserSegment
   var currentWorkflow: CurrentWorkflow
   var alternatives: [Alternative]
-  var solution: ProductHypothesis
+  var productHypothesis: ProductHypothesis
   var experiment: ProductExperiment
   var scenarioID: String
   var scenarioTask: String
@@ -30,7 +30,7 @@ struct ProductTournamentSimulationRequest {
     segment: UserSegment,
     currentWorkflow: CurrentWorkflow,
     alternatives: [Alternative],
-    solution: ProductHypothesis,
+    productHypothesis: ProductHypothesis,
     experiment: ProductExperiment,
     scenarioID: String,
     scenarioTask: String = "",
@@ -52,7 +52,7 @@ struct ProductTournamentSimulationRequest {
     self.segment = segment
     self.currentWorkflow = currentWorkflow
     self.alternatives = alternatives
-    self.solution = solution
+    self.productHypothesis = productHypothesis
     self.experiment = experiment
     self.scenarioID = ProductTournamentModelText.identifier(scenarioID, fallback: "scenario")
     self.scenarioTask = ProductTournamentModelText.cleanedText(scenarioTask, limit: 800)
@@ -86,7 +86,7 @@ struct ProductTournamentSimulationRequest {
     ProductTournamentExperienceAction(id: "inspect_pain"),
     ProductTournamentExperienceAction(id: "compare_current_alternative"),
     ProductTournamentExperienceAction(id: "reduce_switching_objection"),
-    ProductTournamentExperienceAction(id: "start_solution_workflow"),
+    ProductTournamentExperienceAction(id: "start_contender_workflow"),
     ProductTournamentExperienceAction(id: "provide_requested_input"),
   ]
 
@@ -98,16 +98,16 @@ struct ProductTournamentSimulationRequest {
         summary: pain.rawPain,
         impact: pain.costOfInaction
       ),
-      solution: ProductTournamentExperienceSolution(
-        id: solution.id,
-        title: solution.title,
-        promise: solution.promise
+      productHypothesis: ProductTournamentExperienceProductHypothesis(
+        id: productHypothesis.id,
+        title: productHypothesis.title,
+        promise: productHypothesis.promise
       ),
       experiment: ProductTournamentExperienceExperiment(
         id: experiment.id,
         branchName: experiment.branchName,
         successSignal: scenarioSuccessSignal.isEmpty
-          ? (solution.requiredProof.first ?? experiment.prototypeScope)
+          ? (productHypothesis.requiredProof.first ?? experiment.prototypeScope)
           : scenarioSuccessSignal
       ),
       scenario: ProductTournamentExperienceScenario(
@@ -122,7 +122,7 @@ struct ProductTournamentSimulationRequest {
           scenarioTask,
           scenarioSuccessSignal.isEmpty ? "" : "Success signal: \(scenarioSuccessSignal)",
           experiment.prototypeScope,
-          "Desired pain relief: \(solution.promise)",
+          "Desired pain relief: \(productHypothesis.promise)",
           "Decision criteria: \(segment.decisionCriteria.joined(separator: "; "))",
         ].filter { !$0.isEmpty }.joined(separator: ". ")
       ),
@@ -225,7 +225,7 @@ struct ProductTournamentRunResult: Codable, Equatable, Sendable {
   var projectID: UUID?
   var projectTitle: String
   var experimentID: String
-  var solutionID: String
+  var productHypothesisID: String
   var painID: String
   var branchName: String
   var commitSha: String
@@ -325,7 +325,7 @@ struct ProductTournamentSimulationRequestContext: Equatable, Sendable {
   var segment: UserSegment
   var currentWorkflow: CurrentWorkflow
   var alternatives: [Alternative]
-  var solution: ProductHypothesis
+  var productHypothesis: ProductHypothesis
   var experiment: ProductExperiment
   var scenarioID: String
   var scenarioTask: String
@@ -501,7 +501,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
       + request.currentWorkflow.workarounds).prefix(6).joined(separator: "; ")
     let decisionCriteria = request.segment.decisionCriteria.prefix(6).joined(separator: "; ")
     let constraints = request.segment.constraints.prefix(6).joined(separator: "; ")
-    let requiredProof = request.solution.requiredProof.prefix(6).joined(separator: "; ")
+    let requiredProof = request.productHypothesis.requiredProof.prefix(6).joined(separator: "; ")
     let decisionIntent =
       request.decisionIntent.map { intent in
         let focus = intent.scorecardFocus.joined(separator: ", ")
@@ -526,7 +526,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
       Current workflow: \(bounded(request.currentWorkflow.title, 160)); \(bounded(request.currentWorkflow.estimatedCost, 240)).
       Current workflow failure modes: \(bounded(workflowFailureModes, 500)).
       Alternatives: \(bounded(alternatives, 500)).
-      Product hypothesis promise: \(bounded(request.solution.promise, 500)).
+      Product hypothesis promise: \(bounded(request.productHypothesis.promise, 500)).
       Required proof: \(bounded(requiredProof, 500)).
       Prototype scope: \(bounded(request.experiment.prototypeScope, 500)).
       \(bounded(decisionIntent, 700)).
@@ -1138,7 +1138,7 @@ struct ProductTournamentSimulationRunner {
         segment: request.segment,
         currentWorkflow: request.currentWorkflow,
         alternatives: request.alternatives,
-        solution: request.solution,
+        productHypothesis: request.productHypothesis,
         experiment: request.experiment,
         scenarioID: request.scenarioID,
         scenarioTask: request.scenarioTask,
@@ -1194,7 +1194,7 @@ struct ProductTournamentSimulationRunner {
       projectID: request.projectID,
       projectTitle: request.projectTitle,
       experimentID: request.experiment.id,
-      solutionID: request.solution.id,
+      productHypothesisID: request.productHypothesis.id,
       painID: request.pain.id,
       branchName: request.experiment.branchName,
       commitSha: request.commitSha,
@@ -1229,7 +1229,7 @@ private enum ProductTournamentTraceLoadOutcome {
 struct ProductTournamentExperienceInput: Codable, Equatable, Sendable {
   var schemaVersion: Int
   var pain: ProductTournamentExperiencePain
-  var solution: ProductTournamentExperienceSolution
+  var productHypothesis: ProductTournamentExperienceProductHypothesis
   var experiment: ProductTournamentExperienceExperiment
   var scenario: ProductTournamentExperienceScenario
   var currentWorkflow: ProductTournamentExperienceCurrentWorkflow
@@ -1244,7 +1244,7 @@ struct ProductTournamentExperiencePain: Codable, Equatable, Sendable {
   var impact: String
 }
 
-struct ProductTournamentExperienceSolution: Codable, Equatable, Sendable {
+struct ProductTournamentExperienceProductHypothesis: Codable, Equatable, Sendable {
   var id: String
   var title: String
   var promise: String
@@ -1313,7 +1313,7 @@ struct ProductTournamentExperienceAction: Codable, Equatable, Sendable {
 struct ProductTournamentExperienceTrace: Codable, Equatable, Sendable {
   var schemaVersion: Int
   var painID: String
-  var solutionID: String
+  var productHypothesisID: String
   var experimentID: String
   var initialState: ProductTournamentExperienceState
   var turns: [ProductTournamentExperienceTurn]

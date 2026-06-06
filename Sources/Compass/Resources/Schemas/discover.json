@@ -279,7 +279,7 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "solutionID",
+        "productHypothesisID",
         "title",
         "branchName",
         "worktreeID",
@@ -294,7 +294,7 @@
       ],
       "properties": {
         "id": { "type": "string" },
-        "solutionID": { "type": "string" },
+        "productHypothesisID": { "type": "string" },
         "title": { "type": "string" },
         "branchName": { "type": "string" },
         "worktreeID": { "type": "string" },
@@ -348,7 +348,7 @@
       "required": [
         "id",
         "tournamentID",
-        "solutionID",
+        "productHypothesisID",
         "experimentID",
         "title",
         "productPlan",
@@ -362,7 +362,7 @@
       "properties": {
         "id": { "type": "string" },
         "tournamentID": { "type": "string" },
-        "solutionID": { "type": "string" },
+        "productHypothesisID": { "type": "string" },
         "experimentID": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
         "title": { "type": "string" },
         "productPlan": { "type": "string" },

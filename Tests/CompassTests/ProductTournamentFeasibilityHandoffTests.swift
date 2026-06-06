@@ -185,16 +185,16 @@ private func strongPlanRecords(
   round: ProductTournamentRound,
   config: ProductTournamentConfig
 ) throws -> [ProductTournamentPlanEvaluationRecord] {
-  let solution = try #require(config.productHypotheses.first { $0.id == contender.solutionID })
+  let hypothesis = try #require(config.productHypotheses.first { $0.id == contender.productHypothesisID })
   return config.userSegments.prefix(2).enumerated().map { index, segment in
     ProductTournamentPlanEvaluationRecord(
       id: "\(contender.id)-feasibility-\(index)",
       tournamentID: tournament.id,
       roundID: round.id,
       contenderID: contender.id,
-      solutionID: contender.solutionID,
+      productHypothesisID: contender.productHypothesisID,
       experimentID: contender.experimentID,
-      painID: solution.painID,
+      painID: hypothesis.painID,
       personaID: segment.id,
       personaName: segment.name,
       startedAt: Double(index),

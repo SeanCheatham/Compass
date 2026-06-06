@@ -373,7 +373,7 @@ struct ProductTournamentScenarioRunTests {
       "inspect_pain",
       "compare_current_alternative",
       "reduce_switching_objection",
-      "start_solution_workflow",
+      "start_contender_workflow",
       "provide_requested_input",
     ])
 
@@ -710,18 +710,18 @@ private func defaultScenarioTrace(
   let terminalStatus: ProductTournamentExperienceTerminalStatus
   switch lastActionID {
   case nil:
-    allowedIDs = ["inspect_pain", "compare_current_alternative", "start_solution_workflow"]
+    allowedIDs = ["inspect_pain", "compare_current_alternative", "start_contender_workflow"]
     terminalStatus = .inProgress
   case "inspect_pain":
-    allowedIDs = ["compare_current_alternative", "start_solution_workflow"]
+    allowedIDs = ["compare_current_alternative", "start_contender_workflow"]
     terminalStatus = .inProgress
   case "compare_current_alternative":
-    allowedIDs = ["reduce_switching_objection", "start_solution_workflow"]
+    allowedIDs = ["reduce_switching_objection", "start_contender_workflow"]
     terminalStatus = .inProgress
   case "reduce_switching_objection":
-    allowedIDs = ["start_solution_workflow"]
+    allowedIDs = ["start_contender_workflow"]
     terminalStatus = .inProgress
-  case "start_solution_workflow":
+  case "start_contender_workflow":
     allowedIDs = ["provide_requested_input"]
     terminalStatus = .inProgress
   case "provide_requested_input":
@@ -735,7 +735,7 @@ private func defaultScenarioTrace(
   return ProductTournamentExperienceTrace(
     schemaVersion: 1,
     painID: input.pain.id,
-    solutionID: input.solution.id,
+    productHypothesisID: input.productHypothesis.id,
     experimentID: input.experiment.id,
     initialState: scenarioState(id: "initial"),
     turns: input.actions.enumerated().map { index, action in
@@ -752,7 +752,7 @@ private func defaultScenarioTrace(
     eventLog: ["last:\(lastActionID ?? "initial")"],
     painReliefSignals: ProductTournamentPainReliefSignals(
       painRecognized: actionIDs.contains("inspect_pain"),
-      workflowAdvanced: actionIDs.contains("start_solution_workflow"),
+      workflowAdvanced: actionIDs.contains("start_contender_workflow"),
       currentAlternativeAddressed: actionIDs.contains("compare_current_alternative"),
       switchingObjectionReduced: actionIDs.contains("reduce_switching_objection"),
       willingnessToPayScore: actionIDs.contains("provide_requested_input") ? 4 : 2,

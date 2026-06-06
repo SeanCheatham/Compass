@@ -38,14 +38,14 @@ struct ProductTournamentGitRolloutTests {
     let experiment = try #require(
       promoted.experiments.first { $0.id == "experiment-fast-forward" }
     )
-    let solution = try #require(promoted.productHypotheses.first)
+    let hypothesis = try #require(promoted.productHypotheses.first)
     let decision = try #require(promoted.decisions.last)
 
     try #require(result.preview.kind == .fastForwardPromotion)
     try #require(try await gitOutput(["rev-parse", "main"], in: root) == experimentSha)
     try #require(try await gitOutput(["rev-parse", branchName], in: root) == experimentSha)
     try #require(experiment.decision == .promoted)
-    try #require(solution.status == .promoted)
+    try #require(hypothesis.status == .promoted)
     try #require(decision.decision == .promoted)
     try #require(decision.beforeSha == baseSha)
     try #require(decision.afterSha == experimentSha)
@@ -190,18 +190,18 @@ struct ProductTournamentGitRolloutTests {
     )
     let saved = try workspace.readProductTournamentConfig()
     let experiment = try #require(saved.experiments.first { $0.id == "experiment-archive" })
-    let solution = try #require(saved.productHypotheses.first)
+    let hypothesis = try #require(saved.productHypotheses.first)
     let decision = try #require(saved.decisions.last)
     let archiveBranch = try #require(result.archiveBranchName)
 
-    try #require(archiveBranch == "compass/archive/rollout-solution")
+    try #require(archiveBranch == "compass/archive/rollout-hypothesis")
     try #require(try await gitOutput(["rev-parse", archiveBranch], in: root) == experimentSha)
     try #require(try await gitOutput(["rev-parse", branchName], in: root) == experimentSha)
     try #require(FileManager.default.fileExists(atPath: worktreeURL.path))
     try #require(try await gitOutput(["rev-parse", "--abbrev-ref", "HEAD"], in: worktreeURL) == branchName)
     try #require(experiment.decision == .archived)
     try #require(experiment.worktreeID == "experiment-archive-worktree")
-    try #require(solution.status == .parked)
+    try #require(hypothesis.status == .parked)
     try #require(decision.decision == .archived)
     try #require(decision.branchName == branchName)
     try #require(decision.beforeSha == experimentSha)
@@ -261,10 +261,10 @@ private func makeGitRolloutConfig(
     status: .active,
     createdAt: 1
   )
-  let solution = ProductHypothesis(
-    id: "solution-rollout",
+  let hypothesis = ProductHypothesis(
+    id: "hypothesis-rollout",
     painID: pain.id,
-    title: "Rollout Solution",
+    title: "Rollout Hypothesis",
     promise: "Promote and archive product experiments deliberately.",
     contenderPlan: "Git-backed rollout preserves evidence and lineage.",
     targetSegmentIDs: [],
@@ -276,7 +276,7 @@ private func makeGitRolloutConfig(
   )
   let experiment = ProductExperiment(
     id: experimentID,
-    solutionID: solution.id,
+    productHypothesisID: hypothesis.id,
     title: "Rollout experiment",
     branchName: branchName,
     worktreeID: "\(experimentID)-worktree",
@@ -293,7 +293,7 @@ private func makeGitRolloutConfig(
     userSegments: [],
     currentWorkflows: [],
     alternatives: [],
-    productHypotheses: [solution],
+    productHypotheses: [hypothesis],
     experiments: [experiment],
     scenarioCohorts: [],
     decisions: []
@@ -304,7 +304,7 @@ private func makeGitRolloutEvidence(config: ProductTournamentConfig) -> ProductT
   ProductTournamentEvidenceRecord(
     id: "rollout-run",
     experimentID: config.experiments[0].id,
-    solutionID: config.productHypotheses[0].id,
+    productHypothesisID: config.productHypotheses[0].id,
     painID: config.painHypotheses[0].id,
     branchName: config.experiments[0].branchName,
     commitSha: config.experiments[0].currentSha ?? "unknown",

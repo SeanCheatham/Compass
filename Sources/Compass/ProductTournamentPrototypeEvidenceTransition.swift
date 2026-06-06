@@ -248,15 +248,15 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
         updateExperiment(for: losingContender.id, in: &next, timestamp: timestamp) { experiment in
           experiment.decision = .kill
         }
-        updateSolution(for: losingContender.id, in: &next) { solution in
-          solution.status = .rejected
+        updateProductHypothesis(for: losingContender.id, in: &next) { hypothesis in
+          hypothesis.status = .rejected
         }
       }
       updateExperiment(for: proposal.contenderID, in: &next, timestamp: timestamp) { experiment in
         experiment.decision = .promote
       }
-      updateSolution(for: proposal.contenderID, in: &next) { solution in
-        solution.status = .promoted
+      updateProductHypothesis(for: proposal.contenderID, in: &next) { hypothesis in
+        hypothesis.status = .promoted
       }
 
     case .revisePrototype:
@@ -288,8 +288,8 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       updateExperiment(for: proposal.contenderID, in: &next, timestamp: timestamp) { experiment in
         experiment.decision = .kill
       }
-      updateSolution(for: proposal.contenderID, in: &next) { solution in
-        solution.status = .rejected
+      updateProductHypothesis(for: proposal.contenderID, in: &next) { hypothesis in
+        hypothesis.status = .rejected
       }
 
     case .gatherEvidence:
@@ -783,14 +783,14 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     config.experiments[index].updatedAt = timestamp
   }
 
-  private static func updateSolution(
+  private static func updateProductHypothesis(
     for contenderID: String,
     in config: inout ProductTournamentConfig,
     mutate: (inout ProductHypothesis) -> Void
   ) {
     guard
       let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
-      let index = config.productHypotheses.firstIndex(where: { $0.id == contender.solutionID })
+      let index = config.productHypotheses.firstIndex(where: { $0.id == contender.productHypothesisID })
     else { return }
     mutate(&config.productHypotheses[index])
   }

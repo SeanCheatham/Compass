@@ -59,7 +59,7 @@ struct ProductExperimentWorktreeTests {
     try workspace.initialize()
     let experiment = ProductExperiment(
       id: "experiment-bad",
-      solutionID: "solution-command-board",
+      productHypothesisID: "hypothesis-command-board",
       title: "Bad branch",
       branchName: "bad branch",
       worktreeID: "bad-worktree",
@@ -147,7 +147,7 @@ struct ProductExperimentWorktreeTests {
       verifyOutput: nil,
       feedback: nil,
       productExperimentID: "experiment-command-board",
-      productSolutionID: "solution-command-board",
+      productHypothesisID: "hypothesis-command-board",
       productPainID: "pain-command-board",
       productExperimentBranchName: "compass/exp/command-board",
       productExperimentCommitSha: "abc123",
@@ -161,7 +161,7 @@ struct ProductExperimentWorktreeTests {
     let decoded = try JSONDecoder().decode(SessionRecord.self, from: data)
 
     try #require(decoded.productExperimentID == "experiment-command-board")
-    try #require(decoded.productSolutionID == "solution-command-board")
+    try #require(decoded.productHypothesisID == "hypothesis-command-board")
     try #require(decoded.productPainID == "pain-command-board")
     try #require(decoded.productExperimentBranchName == "compass/exp/command-board")
     try #require(decoded.productExperimentCommitSha == "abc123")
@@ -203,8 +203,8 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     status: .active,
     createdAt: 1
   )
-  let solution = ProductHypothesis(
-    id: "solution-command-board",
+  let hypothesis = ProductHypothesis(
+    id: "hypothesis-command-board",
     painID: pain.id,
     title: "Command Board",
     promise: "Keep incident decisions visible.",
@@ -218,7 +218,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
   )
   let first = ProductExperiment(
     id: "experiment-command-board",
-    solutionID: solution.id,
+    productHypothesisID: hypothesis.id,
     title: "Command board prototype",
     branchName: "compass/exp/command-board",
     worktreeID: "command-board-worktree",
@@ -231,7 +231,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
   )
   let second = ProductExperiment(
     id: "experiment-timeline",
-    solutionID: solution.id,
+    productHypothesisID: hypothesis.id,
     title: "Timeline prototype",
     branchName: "compass/exp/timeline",
     worktreeID: "timeline-worktree",
@@ -248,7 +248,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     userSegments: [],
     currentWorkflows: [],
     alternatives: [],
-    productHypotheses: [solution],
+    productHypotheses: [hypothesis],
     experiments: [first, second],
     scenarioCohorts: [],
     decisions: []

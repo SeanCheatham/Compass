@@ -282,8 +282,8 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     decisionCriteria: ["Less follow-up"],
     skepticism: "Will keep chat if Compass feels heavier."
   )
-  let solution = ProductHypothesis(
-    id: "solution-handoff-desk",
+  let hypothesis = ProductHypothesis(
+    id: "hypothesis-handoff-desk",
     painID: pain.id,
     title: "Handoff Desk",
     promise: "Preserve decisions and owners in one executable workflow.",
@@ -297,7 +297,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
   )
   let experiment = ProductExperiment(
     id: "experiment-handoff-desk",
-    solutionID: solution.id,
+    productHypothesisID: hypothesis.id,
     title: "Handoff Desk prototype",
     branchName: "codex/handoff-desk",
     worktreeID: "handoff-desk-worktree",
@@ -364,7 +364,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     userSegments: [segment],
     currentWorkflows: [workflow],
     alternatives: [alternative],
-    productHypotheses: [solution],
+    productHypotheses: [hypothesis],
     experiments: [experiment],
     scenarios: [scenario],
     scenarioCohorts: [cohort],

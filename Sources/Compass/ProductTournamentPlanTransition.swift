@@ -396,7 +396,7 @@ enum ProductTournamentPlanTransitioner {
   ) {
     guard
       let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
-      let index = config.productHypotheses.firstIndex(where: { $0.id == contender.solutionID })
+      let index = config.productHypotheses.firstIndex(where: { $0.id == contender.productHypothesisID })
     else { return }
     config.productHypotheses[index].status = .active
   }

@@ -100,7 +100,7 @@ struct RustProjectScaffoldTests {
     try #require(core.contains("pub fn gui_semantic_snapshot"))
     try #require(core.contains("pub struct ProductTournamentExperienceInput"))
     try #require(core.contains("pub struct ProductTournamentPain"))
-    try #require(core.contains("pub struct ProductTournamentSolution"))
+    try #require(core.contains("pub struct ProductTournamentProductHypothesis"))
     try #require(core.contains("pub struct ProductTournamentExperiment"))
     try #require(core.contains("pub struct ProductTournamentScenario"))
     try #require(core.contains("pub struct ProductTournamentCurrentWorkflow"))

@@ -222,9 +222,9 @@ struct ProductTournamentPlanEvaluationTests {
       "Offer a clearer reporting workspace that organizes updates and reminders."
     config.tournamentContenders[genericContenderIndex].valueProposition =
       "Make weekly reporting easier to review."
-    let genericSolutionID = config.tournamentContenders[genericContenderIndex].solutionID
+    let genericProductHypothesisID = config.tournamentContenders[genericContenderIndex].productHypothesisID
     let genericSolutionIndex = try #require(
-      config.productHypotheses.firstIndex { $0.id == genericSolutionID })
+      config.productHypotheses.firstIndex { $0.id == genericProductHypothesisID })
     config.productHypotheses[genericSolutionIndex].differentiator =
       "Organizes reporting context in one workflow."
     config.productHypotheses[genericSolutionIndex].whyThisCouldWin =
@@ -299,15 +299,15 @@ private func makePlanEvaluationRecord(
   startedAt: Double,
   endedAt: Double
 ) throws -> ProductTournamentPlanEvaluationRecord {
-  let solution = try #require(config.productHypotheses.first { $0.id == contender.solutionID })
+  let hypothesis = try #require(config.productHypotheses.first { $0.id == contender.productHypothesisID })
   return ProductTournamentPlanEvaluationRecord(
     id: id,
     tournamentID: tournament.id,
     roundID: round.id,
     contenderID: contender.id,
-    solutionID: contender.solutionID,
+    productHypothesisID: contender.productHypothesisID,
     experimentID: contender.experimentID,
-    painID: solution.painID,
+    painID: hypothesis.painID,
     personaID: segment.id,
     personaName: segment.name,
     currentWorkflowID: segment.currentWorkflowIDs.first,

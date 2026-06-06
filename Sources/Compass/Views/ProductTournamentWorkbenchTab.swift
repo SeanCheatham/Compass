@@ -1060,7 +1060,7 @@ struct ProductTournamentWorkbenchTab: View {
         Spacer()
         WorkbenchStatusPill(text: contender.status.rawValue)
       }
-      WorkbenchFact(label: "Hypothesis", value: contender.solutionID)
+      WorkbenchFact(label: "Hypothesis", value: contender.productHypothesisID)
       WorkbenchFact(label: "Track", value: contender.experimentID ?? "plan only")
       if let experiment {
         WorkbenchFact(label: "Decision", value: experiment.decision.rawValue)
@@ -2249,7 +2249,7 @@ struct ProductTournamentWorkbenchTab: View {
           WorkbenchFact(label: "Tournament", value: record.tournamentID)
           WorkbenchFact(label: "Round", value: record.roundID)
           WorkbenchFact(label: "Contender", value: record.contenderID)
-          WorkbenchFact(label: "Hypothesis", value: record.solutionID)
+          WorkbenchFact(label: "Hypothesis", value: record.productHypothesisID)
           if let experimentID = record.experimentID {
             WorkbenchFact(label: "Track", value: experimentID)
           }

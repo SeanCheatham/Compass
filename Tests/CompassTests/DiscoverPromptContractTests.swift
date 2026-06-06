@@ -70,9 +70,9 @@ struct DiscoverPromptContractTests {
   @Test func discoverValidationRejectsProductHypothesisWithoutPain() throws {
     var output = makeDiscoverOutput()
     output.stateEdits.productHypotheses[0] = ProductHypothesis(
-      id: "solution-bad",
+      id: "hypothesis-bad",
       painID: "missing-pain",
-      title: "Bad solution",
+      title: "Bad hypothesis",
       promise: "Help somehow",
       contenderPlan: "Prototype something",
       targetSegmentIDs: [],
@@ -85,7 +85,7 @@ struct DiscoverPromptContractTests {
 
     #expect(
       throws: DiscoverPromptValidationError.productHypothesisReferencesMissingPain(
-        productHypothesisID: "solution-bad",
+        productHypothesisID: "hypothesis-bad",
         painID: "missing-pain"
       )
     ) {
@@ -96,7 +96,7 @@ struct DiscoverPromptContractTests {
   @Test func discoverValidationRejectsInvalidCandidateBranchSlug() throws {
     var output = makeDiscoverOutput()
     output.candidateExperiments[0] = DiscoveryCandidateExperiment(
-      productHypothesisID: "solution-command-board",
+      productHypothesisID: "hypothesis-command-board",
       prototypeName: "Incident Command Board",
       branchSlug: "bad slug",
       smallestWorkflowToProve: "Draft a customer update",
@@ -193,7 +193,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     skepticism: "Will stay in chat if the product is slower."
   )
   let commandBoard = ProductHypothesis(
-    id: "solution-command-board",
+    id: "hypothesis-command-board",
     painID: pain.id,
     title: "Incident Command Board",
     promise: "Preserve decisions, owners, and customer update status.",
@@ -206,7 +206,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     status: .active
   )
   let timeline = ProductHypothesis(
-    id: "solution-timeline",
+    id: "hypothesis-timeline",
     painID: pain.id,
     title: "Incident Timeline",
     promise: "Turn noisy chat into an auditable timeline.",
@@ -220,7 +220,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
   )
   let experiment = ProductExperiment(
     id: "experiment-command-board",
-    solutionID: commandBoard.id,
+    productHypothesisID: commandBoard.id,
     title: "Incident command board prototype",
     branchName: "codex/incident-command-board",
     worktreeID: "incident-command-board-worktree",
@@ -259,7 +259,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
   let commandBoardContender = ProductTournamentContender(
     id: "contender-command-board",
     tournamentID: tournament.id,
-    solutionID: commandBoard.id,
+    productHypothesisID: commandBoard.id,
     experimentID: experiment.id,
     title: "Incident command board",
     productPlan: "Use owner and decision context to draft a customer update during triage.",
@@ -273,7 +273,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
   let timelineContender = ProductTournamentContender(
     id: "contender-timeline",
     tournamentID: tournament.id,
-    solutionID: timeline.id,
+    productHypothesisID: timeline.id,
     experimentID: nil,
     title: "Incident timeline",
     productPlan: "Turn chat and ticket context into an auditable incident timeline.",

@@ -147,7 +147,7 @@ enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
   case unknownExperiment(String)
   case unknownCohort(String)
   case unknownScenario(String)
-  case unknownSolution(String)
+  case unknownProductHypothesis(String)
   case unknownPain(String)
   case unknownSegment(String)
   case unknownWorkflow(String)
@@ -176,7 +176,7 @@ enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
       return "Product scenario cohort \(id) was not found in product tournament state."
     case .unknownScenario(let id):
       return "Product scenario \(id) was not found in product tournament state."
-    case .unknownSolution(let id):
+    case .unknownProductHypothesis(let id):
       return "Product hypothesis \(id) was not found in product tournament state."
     case .unknownPain(let id):
       return "Pain hypothesis \(id) was not found in product tournament state."
@@ -285,13 +285,13 @@ enum ProductTournamentScenarioCoordinator {
     in config: ProductTournamentConfig,
     now: Date = Date()
   ) -> ProductScenarioDraft {
-    let solution = config.productHypotheses.first { $0.id == experiment.solutionID }
-    let painID = solution?.painID ?? config.painHypotheses.first?.id ?? ""
+    let hypothesis = config.productHypotheses.first { $0.id == experiment.productHypothesisID }
+    let painID = hypothesis?.painID ?? config.painHypotheses.first?.id ?? ""
     let segment =
       config.userSegments.first { segment in
         segment.painID == painID
-          && (solution?.targetSegmentIDs.isEmpty != false
-            || solution?.targetSegmentIDs.contains(segment.id) == true)
+          && (hypothesis?.targetSegmentIDs.isEmpty != false
+            || hypothesis?.targetSegmentIDs.contains(segment.id) == true)
       } ?? config.userSegments.first
     let workflow =
       config.currentWorkflows.first { workflow in
@@ -315,7 +315,7 @@ enum ProductTournamentScenarioCoordinator {
       title: "\(experiment.title) scenario",
       task:
         "Try \(experiment.title) against the current workflow and decide whether it relieves the pain.",
-      successSignal: solution?.requiredProof.first
+      successSignal: hypothesis?.requiredProof.first
         ?? "The target user can explain why this beats the current alternative.",
       targetCommitSha: experiment.currentSha ?? experiment.baseSha,
       maxTurns: 8,
@@ -444,12 +444,12 @@ enum ProductTournamentScenarioCoordinator {
       experimentID: experiment.id,
       in: config
     )
-    guard let solution = config.productHypotheses.first(where: { $0.id == experiment.solutionID })
+    guard let hypothesis = config.productHypotheses.first(where: { $0.id == experiment.productHypothesisID })
     else {
-      throw ProductTournamentScenarioRunError.unknownSolution(experiment.solutionID)
+      throw ProductTournamentScenarioRunError.unknownProductHypothesis(experiment.productHypothesisID)
     }
-    guard let pain = config.painHypotheses.first(where: { $0.id == solution.painID }) else {
-      throw ProductTournamentScenarioRunError.unknownPain(solution.painID)
+    guard let pain = config.painHypotheses.first(where: { $0.id == hypothesis.painID }) else {
+      throw ProductTournamentScenarioRunError.unknownPain(hypothesis.painID)
     }
     guard let segment = config.userSegments.first(where: { $0.id == scenario.segmentID }) else {
       throw ProductTournamentScenarioRunError.unknownSegment(scenario.segmentID)
@@ -488,7 +488,7 @@ enum ProductTournamentScenarioCoordinator {
       segment: segment,
       currentWorkflow: currentWorkflow,
       alternatives: selectedAlternatives,
-      solution: solution,
+      productHypothesis: hypothesis,
       experiment: experiment,
       scenarioID: scenario.id,
       scenarioTask: scenario.task,

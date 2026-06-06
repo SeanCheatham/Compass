@@ -8,7 +8,7 @@ enum ProductExperimentGitRolloutKind: String, Equatable, Sendable {
 
 struct ProductExperimentGitRolloutPreview: Equatable, Sendable {
   var experimentID: String
-  var solutionID: String
+  var productHypothesisID: String
   var experimentBranchName: String
   var acceptedBranchName: String
   var archiveBranchName: String?
@@ -183,7 +183,7 @@ enum ProductExperimentRolloutWorkflow {
     next.experiments[experimentIndex].evidenceSummary = summary
     next.experiments[experimentIndex].updatedAt = timestamp
 
-    if let solutionIndex = next.productHypotheses.firstIndex(where: { $0.id == experiment.solutionID }) {
+    if let solutionIndex = next.productHypotheses.firstIndex(where: { $0.id == experiment.productHypothesisID }) {
       switch target {
       case .promoted:
         next.productHypotheses[solutionIndex].status = .promoted
@@ -298,7 +298,7 @@ enum ProductExperimentGitRolloutWorkflow {
     )
     return ProductExperimentGitRolloutPreview(
       experimentID: experiment.id,
-      solutionID: experiment.solutionID,
+      productHypothesisID: experiment.productHypothesisID,
       experimentBranchName: experiment.branchName,
       acceptedBranchName: acceptedBranch,
       archiveBranchName: archiveBranchName,
@@ -499,7 +499,7 @@ enum ProductExperimentGitRolloutWorkflow {
     next.experiments[experimentIndex].decision = target
     next.experiments[experimentIndex].evidenceSummary = summary
     next.experiments[experimentIndex].updatedAt = timestamp
-    if let solutionIndex = next.productHypotheses.firstIndex(where: { $0.id == experiment.solutionID }) {
+    if let solutionIndex = next.productHypotheses.firstIndex(where: { $0.id == experiment.productHypothesisID }) {
       switch target {
       case .promoted:
         next.productHypotheses[solutionIndex].status = .promoted
@@ -530,10 +530,10 @@ enum ProductExperimentGitRolloutWorkflow {
     for experiment: ProductExperiment,
     in config: ProductTournamentConfig
   ) -> String {
-    let solution = config.productHypotheses.first { $0.id == experiment.solutionID }
+    let hypothesis = config.productHypotheses.first { $0.id == experiment.productHypothesisID }
     let slug = ProductTournamentModelText.slug(
-      solution?.title ?? experiment.solutionID,
-      fallback: experiment.solutionID
+      hypothesis?.title ?? experiment.productHypothesisID,
+      fallback: experiment.productHypothesisID
     )
     return "compass/archive/\(slug)"
   }

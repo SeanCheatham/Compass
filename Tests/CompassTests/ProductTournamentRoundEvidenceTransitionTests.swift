@@ -112,7 +112,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     let updatedExperiment = try #require(
       outcome.config.experiments.first { $0.id == fixture.experiment.id })
     let updatedSolution = try #require(
-      outcome.config.productHypotheses.first { $0.id == fixture.contender.solutionID })
+      outcome.config.productHypotheses.first { $0.id == fixture.contender.productHypothesisID })
 
     try #require(outcome.proposal.recommendation == .eliminate)
     try #require(updatedTournament.currentRoundID == fixture.coreRound.id)
@@ -246,7 +246,7 @@ private struct RoundTwoFixture {
   var prototypeRound: ProductTournamentRound
   var contender: ProductTournamentContender
   var experiment: ProductExperiment
-  var solution: ProductHypothesis
+  var hypothesis: ProductHypothesis
 }
 
 private func roundTwoFixture() throws -> RoundTwoFixture {
@@ -262,7 +262,7 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
   let contender = try #require(config.tournamentContenders.first)
   let experimentID = try #require(contender.experimentID)
   let experiment = try #require(config.experiments.first { $0.id == experimentID })
-  let solution = try #require(config.productHypotheses.first { $0.id == contender.solutionID })
+  let hypothesis = try #require(config.productHypotheses.first { $0.id == contender.productHypothesisID })
 
   config.tournaments[0].currentRoundID = coreRound.id
   if let index = config.tournamentRounds.firstIndex(where: { $0.id == planRound.id }) {
@@ -286,7 +286,7 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
     prototypeRound: prototypeRound,
     contender: contender,
     experiment: experiment,
-    solution: solution
+    hypothesis: hypothesis
   )
 }
 
@@ -302,8 +302,8 @@ private func evidenceRecords(
     ProductTournamentEvidenceRecord(
       id: "\(fixture.contender.id)-round-2-\(index)",
       experimentID: fixture.experiment.id,
-      solutionID: fixture.contender.solutionID,
-      painID: fixture.solution.painID,
+      productHypothesisID: fixture.contender.productHypothesisID,
+      painID: fixture.hypothesis.painID,
       tournamentID: fixture.tournament.id,
       roundID: fixture.coreRound.id,
       contenderID: fixture.contender.id,

@@ -862,9 +862,9 @@ extension CompassProject {
     else { return }
 
     sessions[sessionIndex].productExperimentID = experiment.id
-    sessions[sessionIndex].productSolutionID = experiment.solutionID
+    sessions[sessionIndex].productHypothesisID = experiment.productHypothesisID
     sessions[sessionIndex].productPainID = productTournamentPainID(
-      forSolutionID: experiment.solutionID,
+      forProductHypothesisID: experiment.productHypothesisID,
       config: productTournamentConfig
     )
     sessions[sessionIndex].productExperimentBranchName = experiment.branchName
@@ -885,9 +885,9 @@ extension CompassProject {
 
     let previousExperiment = previousConfig.experiments.first { $0.id == latest.experimentID }
     sessions[sessionIndex].productExperimentID = experiment.id
-    sessions[sessionIndex].productSolutionID = experiment.solutionID
+    sessions[sessionIndex].productHypothesisID = experiment.productHypothesisID
     sessions[sessionIndex].productPainID = productTournamentPainID(
-      forSolutionID: experiment.solutionID,
+      forProductHypothesisID: experiment.productHypothesisID,
       config: nextConfig
     )
     sessions[sessionIndex].productExperimentBranchName = experiment.branchName
@@ -903,10 +903,10 @@ extension CompassProject {
   }
 
   private func productTournamentPainID(
-    forSolutionID solutionID: String,
+    forProductHypothesisID productHypothesisID: String,
     config: ProductTournamentConfig
   ) -> String? {
-    config.productHypotheses.first { $0.id == solutionID }?.painID
+    config.productHypotheses.first { $0.id == productHypothesisID }?.painID
   }
 
   private func productTournamentExperimentIDs(

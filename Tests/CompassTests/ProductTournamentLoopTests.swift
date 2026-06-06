@@ -108,7 +108,7 @@ struct ProductTournamentLoopTests {
     config.experiments[1].decision = .keepGoing
     let weakExperiment = ProductExperiment(
       id: "reporting-weak-contender",
-      solutionID: config.productHypotheses[0].id,
+      productHypothesisID: config.productHypotheses[0].id,
       title: "Reporting weak contender",
       branchName: "codex/reporting-weak-contender",
       worktreeID: "reporting-weak-contender",
@@ -4254,7 +4254,7 @@ struct ProductTournamentLoopTests {
     )
     let promotedExperiment = try #require(promoted.experiments.first { $0.id == experiment.id })
     let promotedSolution = try #require(
-      promoted.productHypotheses.first { $0.id == experiment.solutionID }
+      promoted.productHypotheses.first { $0.id == experiment.productHypothesisID }
     )
     let promotedDecision = try #require(promoted.decisions.last)
 
@@ -4281,7 +4281,7 @@ struct ProductTournamentLoopTests {
     )
     let killedExperiment = try #require(killed.experiments.first { $0.id == experiment.id })
     let rejectedSolution = try #require(
-      killed.productHypotheses.first { $0.id == experiment.solutionID }
+      killed.productHypotheses.first { $0.id == experiment.productHypothesisID }
     )
 
     try #require(killedExperiment.decision == .kill)
@@ -4299,7 +4299,7 @@ struct ProductTournamentLoopTests {
     )
     let archivedExperiment = try #require(archived.experiments.first { $0.id == experiment.id })
     let parkedSolution = try #require(
-      archived.productHypotheses.first { $0.id == experiment.solutionID }
+      archived.productHypotheses.first { $0.id == experiment.productHypothesisID }
     )
     let archiveDecision = try #require(archived.decisions.last)
 
@@ -4419,15 +4419,15 @@ private func makePlanProofRecord(
   config: ProductTournamentConfig,
   segment: UserSegment
 ) throws -> ProductTournamentPlanEvaluationRecord {
-  let solution = try #require(config.productHypotheses.first { $0.id == contender.solutionID })
+  let hypothesis = try #require(config.productHypotheses.first { $0.id == contender.productHypothesisID })
   return ProductTournamentPlanEvaluationRecord(
     id: id,
     tournamentID: tournament.id,
     roundID: round.id,
     contenderID: contender.id,
-    solutionID: contender.solutionID,
+    productHypothesisID: contender.productHypothesisID,
     experimentID: contender.experimentID,
-    painID: solution.painID,
+    painID: hypothesis.painID,
     personaID: segment.id,
     personaName: segment.name,
     currentWorkflowID: segment.currentWorkflowIDs.first,
@@ -4455,7 +4455,7 @@ private func makeRolloutEvidenceIndex(config: ProductTournamentConfig) -> Produc
   let record = ProductTournamentEvidenceRecord(
     id: "rollout-run",
     experimentID: config.experiments[0].id,
-    solutionID: config.productHypotheses[0].id,
+    productHypothesisID: config.productHypotheses[0].id,
     painID: config.painHypotheses[0].id,
     branchName: config.experiments[0].branchName,
     commitSha: config.experiments[0].currentSha ?? "head-sha",
@@ -4559,12 +4559,12 @@ private func makeDecisionAdvisorRecord(
   personaActionRationales: [String] = [],
   decisionIntent: ProductTournamentSimulationDecisionIntent? = nil
 ) -> ProductTournamentEvidenceRecord {
-  let solution = config.productHypotheses.first { $0.id == experiment.solutionID }
+  let hypothesis = config.productHypotheses.first { $0.id == experiment.productHypothesisID }
   return ProductTournamentEvidenceRecord(
     id: id,
     experimentID: experiment.id,
-    solutionID: experiment.solutionID,
-    painID: solution?.painID ?? config.painHypotheses.first?.id ?? "pain",
+    productHypothesisID: experiment.productHypothesisID,
+    painID: hypothesis?.painID ?? config.painHypotheses.first?.id ?? "pain",
     branchName: experiment.branchName,
     commitSha: experiment.currentSha ?? experiment.baseSha ?? "head-sha",
     scenarioID: scenarioID ?? "\(experiment.id)-scenario",

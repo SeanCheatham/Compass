@@ -377,7 +377,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let experiments = [
       ProductExperiment(
         id: workflowExperimentID,
-        solutionID: workflowHypothesisID,
+        productHypothesisID: workflowHypothesisID,
         title: "\(title) workflow prototype",
         branchName: "codex/\(slug)-workflow-prototype",
         worktreeID: "\(slug)-workflow-worktree",
@@ -392,7 +392,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ),
       ProductExperiment(
         id: proofExperimentID,
-        solutionID: proofHypothesisID,
+        productHypothesisID: proofHypothesisID,
         title: "\(title) proof prototype",
         branchName: "codex/\(slug)-proof-prototype",
         worktreeID: "\(slug)-proof-worktree",
@@ -496,7 +496,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ProductTournamentContender(
         id: workflowContenderID,
         tournamentID: tournamentID,
-        solutionID: workflowHypothesisID,
+        productHypothesisID: workflowHypothesisID,
         experimentID: workflowExperimentID,
         title: "\(title) workflow product",
         productPlan:
@@ -512,7 +512,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ProductTournamentContender(
         id: proofContenderID,
         tournamentID: tournamentID,
-        solutionID: proofHypothesisID,
+        productHypothesisID: proofHypothesisID,
         experimentID: proofExperimentID,
         title: "\(title) proof product",
         productPlan:
@@ -850,7 +850,7 @@ enum ProductHypothesisStatus: String, Codable, CaseIterable, Equatable, Sendable
 
 struct ProductExperiment: Codable, Equatable, Identifiable, Sendable {
   var id: String
-  var solutionID: String
+  var productHypothesisID: String
   var title: String
   var branchName: String
   var worktreeID: String
@@ -865,7 +865,7 @@ struct ProductExperiment: Codable, Equatable, Identifiable, Sendable {
 
   init(
     id: String,
-    solutionID: String,
+    productHypothesisID: String,
     title: String,
     branchName: String,
     worktreeID: String,
@@ -879,7 +879,7 @@ struct ProductExperiment: Codable, Equatable, Identifiable, Sendable {
     updatedAt: Double? = nil
   ) {
     self.id = ProductTournamentModelText.identifier(id, fallback: "experiment")
-    self.solutionID = ProductTournamentModelText.identifier(solutionID, fallback: "solution")
+    self.productHypothesisID = ProductTournamentModelText.identifier(productHypothesisID, fallback: "product-hypothesis")
     self.title = ProductTournamentModelText.cleanedText(
       title, fallback: "Product experiment", limit: 180)
     self.branchName = ProductTournamentModelText.cleanedText(
@@ -973,7 +973,7 @@ enum ProductTournamentStatus: String, Codable, CaseIterable, Equatable, Sendable
 struct ProductTournamentContender: Codable, Equatable, Identifiable, Sendable {
   var id: String
   var tournamentID: String
-  var solutionID: String
+  var productHypothesisID: String
   var experimentID: String?
   var title: String
   var productPlan: String
@@ -987,7 +987,7 @@ struct ProductTournamentContender: Codable, Equatable, Identifiable, Sendable {
   init(
     id: String,
     tournamentID: String,
-    solutionID: String,
+    productHypothesisID: String,
     experimentID: String? = nil,
     title: String,
     productPlan: String,
@@ -1000,7 +1000,7 @@ struct ProductTournamentContender: Codable, Equatable, Identifiable, Sendable {
   ) {
     self.id = ProductTournamentModelText.identifier(id, fallback: "contender")
     self.tournamentID = ProductTournamentModelText.identifier(tournamentID, fallback: "tournament")
-    self.solutionID = ProductTournamentModelText.identifier(solutionID, fallback: "solution")
+    self.productHypothesisID = ProductTournamentModelText.identifier(productHypothesisID, fallback: "product-hypothesis")
     self.experimentID = ProductTournamentModelText.optionalIdentifier(
       experimentID,
       fallback: "experiment"

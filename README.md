@@ -123,10 +123,12 @@ Generated apps expose the contract through:
 
 ```bash
 cargo run -p app-cli -- product-tournament-experience-schema
-cargo run -p app-cli -- product-tournament-experience --input '{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"solution":{"id":"solution-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[]}'
+cargo run -p app-cli -- product-tournament-experience --input '{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"productHypothesis":{"id":"hypothesis-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[]}'
 cargo run -p xtask -- product-tournament-smoke
 ```
 
+The generated experience input carries the tested `productHypothesis`, and the
+semantic trace stamps it as `productHypothesisID`.
 `product-tournament-smoke` is the model-free generated-project check. It proves the
 app owns a stable experience contract and can replay a deterministic tournament
 journey. Live persona and feedback calls are manual/interactive checks, not part

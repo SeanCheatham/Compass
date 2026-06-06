@@ -152,7 +152,7 @@ enum ProductTournamentPlanningDigestFormatter {
         .compactMap { $0 }
         .joined(separator: ", ")
         lines.append(
-          "- Contender \(contender.id) [\(contender.status.rawValue), hypothesis \(contender.solutionID), exp \(experiment), seg \(segments), \(planEvidence)]: \(bounded(contender.valueProposition, 100)); risk \(bounded(contender.primaryRisk, 60))."
+          "- Contender \(contender.id) [\(contender.status.rawValue), hypothesis \(contender.productHypothesisID), exp \(experiment), seg \(segments), \(planEvidence)]: \(bounded(contender.valueProposition, 100)); risk \(bounded(contender.primaryRisk, 60))."
         )
       }
 
@@ -327,7 +327,7 @@ enum ProductTournamentPlanningDigestFormatter {
         ? "no evidence recorded"
         : bounded(experiment.evidenceSummary, 120)
       lines.append(
-        "- \(bounded(experiment.title, 120)) [\(experiment.decision.rawValue)]: hypothesis \(experiment.solutionID), branch \(bounded(experiment.branchName, 140)), sha \(sha); scope \(bounded(experiment.prototypeScope, 140)); evidence \(evidenceSummary)."
+        "- \(bounded(experiment.title, 120)) [\(experiment.decision.rawValue)]: hypothesis \(experiment.productHypothesisID), branch \(bounded(experiment.branchName, 140)), sha \(sha); scope \(bounded(experiment.prototypeScope, 140)); evidence \(evidenceSummary)."
       )
     }
     if experiments.count > maxExperiments {

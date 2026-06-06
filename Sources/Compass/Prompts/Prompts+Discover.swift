@@ -212,10 +212,10 @@ struct DiscoverPromptOutput: Codable, Equatable {
       )
     }
     for experiment in config.experiments {
-      guard productHypothesisIDs.contains(experiment.solutionID) else {
+      guard productHypothesisIDs.contains(experiment.productHypothesisID) else {
         throw DiscoverPromptValidationError.experimentReferencesMissingProductHypothesis(
           experimentID: experiment.id,
-          productHypothesisID: experiment.solutionID
+          productHypothesisID: experiment.productHypothesisID
         )
       }
       guard DiscoverBranchName.isValidRef(experiment.branchName) else {
@@ -255,10 +255,10 @@ struct DiscoverPromptOutput: Codable, Equatable {
           tournamentID: contender.tournamentID
         )
       }
-      guard productHypothesisIDs.contains(contender.solutionID) else {
+      guard productHypothesisIDs.contains(contender.productHypothesisID) else {
         throw DiscoverPromptValidationError.contenderReferencesMissingProductHypothesis(
           contenderID: contender.id,
-          productHypothesisID: contender.solutionID
+          productHypothesisID: contender.productHypothesisID
         )
       }
       if let experimentID = contender.experimentID, !experimentIDs.contains(experimentID) {

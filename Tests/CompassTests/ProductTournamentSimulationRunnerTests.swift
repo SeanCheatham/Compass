@@ -18,7 +18,7 @@ struct ProductTournamentSimulationRunnerTests {
         "inspect_pain",
         "compare_current_alternative",
         "reduce_switching_objection",
-        "start_solution_workflow",
+        "start_contender_workflow",
         "provide_requested_input",
       ])
     try #require(result.experienceTraceHash != nil)
@@ -354,7 +354,7 @@ private func makeTournamentRequest(
     now: Date(timeIntervalSince1970: 1_700_000_000)
   )
   let pain = config.painHypotheses[0]
-  let solution = config.productHypotheses[0]
+  let hypothesis = config.productHypotheses[0]
   var experiment = config.experiments[0]
   experiment.currentSha = "abc123"
   if targetDecision != nil {
@@ -368,7 +368,7 @@ private func makeTournamentRequest(
     segment: segment,
     currentWorkflow: workflow,
     alternatives: config.alternatives,
-    solution: solution,
+    productHypothesis: hypothesis,
     experiment: experiment,
     scenarioID: "scenario-reporting",
     scenarioTask: "Try the reporting helper against the weekly manual export.",
@@ -391,7 +391,7 @@ private func makePersonaActionContext() -> ProductTournamentPersonaActionContext
       segment: request.segment,
       currentWorkflow: request.currentWorkflow,
       alternatives: request.alternatives,
-      solution: request.solution,
+      productHypothesis: request.productHypothesis,
       experiment: request.experiment,
       scenarioID: request.scenarioID,
       scenarioTask: request.scenarioTask,
@@ -421,7 +421,7 @@ private func defaultTournamentTrace(
     allowedIDs = [
       "inspect_pain",
       "compare_current_alternative",
-      "start_solution_workflow",
+      "start_contender_workflow",
       "ask_for_help",
       "abandon_task",
     ]
@@ -429,7 +429,7 @@ private func defaultTournamentTrace(
     terminalStatus = .inProgress
     allowedIDs = [
       "compare_current_alternative",
-      "start_solution_workflow",
+      "start_contender_workflow",
       "ask_for_help",
       "abandon_task",
     ]
@@ -437,14 +437,14 @@ private func defaultTournamentTrace(
     terminalStatus = .inProgress
     allowedIDs = [
       "reduce_switching_objection",
-      "start_solution_workflow",
+      "start_contender_workflow",
       "ask_for_help",
       "abandon_task",
     ]
   case "reduce_switching_objection":
     terminalStatus = .inProgress
-    allowedIDs = ["start_solution_workflow", "ask_for_help", "abandon_task"]
-  case "start_solution_workflow":
+    allowedIDs = ["start_contender_workflow", "ask_for_help", "abandon_task"]
+  case "start_contender_workflow":
     terminalStatus = .inProgress
     allowedIDs = ["provide_requested_input", "ask_for_help", "abandon_task"]
   case "provide_requested_input":
@@ -462,7 +462,7 @@ private func defaultTournamentTrace(
   return ProductTournamentExperienceTrace(
     schemaVersion: 1,
     painID: input.pain.id,
-    solutionID: input.solution.id,
+    productHypothesisID: input.productHypothesis.id,
     experimentID: input.experiment.id,
     initialState: tournamentState(id: "initial"),
     turns: input.actions.enumerated().map { index, action in
@@ -479,7 +479,7 @@ private func defaultTournamentTrace(
     eventLog: ["last:\(lastActionID ?? "initial")"],
     painReliefSignals: ProductTournamentPainReliefSignals(
       painRecognized: actionIDs.contains("inspect_pain"),
-      workflowAdvanced: actionIDs.contains("start_solution_workflow")
+      workflowAdvanced: actionIDs.contains("start_contender_workflow")
         || actionIDs.contains("provide_requested_input"),
       currentAlternativeAddressed: actionIDs.contains("compare_current_alternative")
         || actionIDs.contains("reduce_switching_objection"),

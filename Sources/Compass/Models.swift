@@ -1688,7 +1688,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
   var feedback: String?
   var executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot]
   var productExperimentID: String?
-  var productSolutionID: String?
+  var productHypothesisID: String?
   var productPainID: String?
   var productExperimentBranchName: String?
   var productExperimentCommitSha: String?
@@ -1713,7 +1713,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       feedback: nil,
       executionEnvironmentSnapshots: [],
       productExperimentID: nil,
-      productSolutionID: nil,
+      productHypothesisID: nil,
       productPainID: nil,
       productExperimentBranchName: nil,
       productExperimentCommitSha: nil,
@@ -1741,7 +1741,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     case feedback
     case executionEnvironmentSnapshots
     case productExperimentID
-    case productSolutionID
+    case productHypothesisID
     case productPainID
     case productExperimentBranchName
     case productExperimentCommitSha
@@ -1766,7 +1766,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     feedback: String?,
     executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = [],
     productExperimentID: String? = nil,
-    productSolutionID: String? = nil,
+    productHypothesisID: String? = nil,
     productPainID: String? = nil,
     productExperimentBranchName: String? = nil,
     productExperimentCommitSha: String? = nil,
@@ -1794,8 +1794,8 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       productExperimentID,
       limit: 120
     )
-    self.productSolutionID = Self.normalizedOptionalProductTournamentField(
-      productSolutionID,
+    self.productHypothesisID = Self.normalizedOptionalProductTournamentField(
+      productHypothesisID,
       limit: 120
     )
     self.productPainID = Self.normalizedOptionalProductTournamentField(
@@ -1850,8 +1850,8 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       try container.decodeIfPresent(String.self, forKey: .productExperimentID),
       limit: 120
     )
-    productSolutionID = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .productSolutionID),
+    productHypothesisID = Self.normalizedOptionalProductTournamentField(
+      try container.decodeIfPresent(String.self, forKey: .productHypothesisID),
       limit: 120
     )
     productPainID = Self.normalizedOptionalProductTournamentField(
@@ -1903,7 +1903,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       try container.encode(executionEnvironmentSnapshots, forKey: .executionEnvironmentSnapshots)
     }
     try container.encodeIfPresent(productExperimentID, forKey: .productExperimentID)
-    try container.encodeIfPresent(productSolutionID, forKey: .productSolutionID)
+    try container.encodeIfPresent(productHypothesisID, forKey: .productHypothesisID)
     try container.encodeIfPresent(productPainID, forKey: .productPainID)
     try container.encodeIfPresent(productExperimentBranchName, forKey: .productExperimentBranchName)
     try container.encodeIfPresent(productExperimentCommitSha, forKey: .productExperimentCommitSha)
