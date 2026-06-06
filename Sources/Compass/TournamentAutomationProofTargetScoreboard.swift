@@ -1,5 +1,94 @@
 import Foundation
 
+struct TournamentAutomationProofTargetDebtMovement: Equatable, Sendable, Identifiable {
+  var id: String { auditID }
+
+  var auditID: String
+  var endedAt: Double
+  var executedStepIDs: [String]
+  var evidenceRunIDs: [String]
+  var startingProofDebtCount: Int
+  var endingProofDebtCount: Int
+  var startingProofDebtSummary: String?
+  var endingProofDebtSummary: String?
+  var userMessage: String
+
+  var proofDebtDelta: Int {
+    endingProofDebtCount - startingProofDebtCount
+  }
+
+  init?(audit: TournamentAutomationCycleAudit) {
+    guard
+      let startingProofDebtCount = audit.startingProofDebtCount,
+      let endingProofDebtCount = audit.endingProofDebtCount
+    else { return nil }
+
+    self.auditID = audit.id
+    self.endedAt = audit.endedAt
+    self.executedStepIDs = audit.executedStepIDs
+    self.evidenceRunIDs = audit.evidenceRunIDs
+    self.startingProofDebtCount = startingProofDebtCount
+    self.endingProofDebtCount = endingProofDebtCount
+    self.startingProofDebtSummary = audit.startingProofDebtSummary
+    self.endingProofDebtSummary = audit.endingProofDebtSummary
+    self.userMessage = audit.userMessage
+  }
+
+  var displaySummary: String {
+    if proofDebtDelta < 0 {
+      return
+        "Latest audit cleared \(abs(proofDebtDelta)) proof debt (\(startingProofDebtCount) -> \(endingProofDebtCount))"
+    }
+    if proofDebtDelta > 0 {
+      return
+        "Latest audit added \(proofDebtDelta) proof debt (\(startingProofDebtCount) -> \(endingProofDebtCount))"
+    }
+    return "Latest audit left proof debt unchanged (\(startingProofDebtCount) -> \(endingProofDebtCount))"
+  }
+
+  var contextSummary: String {
+    var parts = [
+      "latest_audit \(StringUtils.boundedText(auditID, limit: 80))",
+      "proof_debt \(startingProofDebtCount) -> \(endingProofDebtCount) (\(signedDelta))",
+    ]
+    if !evidenceRunIDs.isEmpty {
+      parts.append("evidence \(evidenceRunIDs.prefix(3).joined(separator: ", "))")
+    }
+    if let startingProofDebtSummary {
+      parts.append("starting \(StringUtils.boundedText(startingProofDebtSummary, limit: 140))")
+    }
+    if let endingProofDebtSummary {
+      parts.append("ending \(StringUtils.boundedText(endingProofDebtSummary, limit: 140))")
+    }
+    return parts.joined(separator: "; ")
+  }
+
+  var helpSummary: String {
+    var parts = [
+      displaySummary,
+      "Audit \(auditID)",
+    ]
+    if !executedStepIDs.isEmpty {
+      parts.append("Steps \(executedStepIDs.prefix(3).joined(separator: ", "))")
+    }
+    if !evidenceRunIDs.isEmpty {
+      parts.append("Evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))")
+    }
+    if let startingProofDebtSummary {
+      parts.append("Starting: \(StringUtils.boundedText(startingProofDebtSummary, limit: 260))")
+    }
+    if let endingProofDebtSummary {
+      parts.append("Ending: \(StringUtils.boundedText(endingProofDebtSummary, limit: 260))")
+    }
+    parts.append(StringUtils.boundedText(userMessage, limit: 260))
+    return parts.joined(separator: "\n")
+  }
+
+  private var signedDelta: String {
+    proofDebtDelta > 0 ? "+\(proofDebtDelta)" : "\(proofDebtDelta)"
+  }
+}
+
 struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identifiable {
   var id: String { experimentID }
 
@@ -13,6 +102,7 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
   var nextActionTitle: String?
   var tournamentPositionSummary: String?
   var nextStep: TournamentAutomationStep?
+  var latestDebtMovement: TournamentAutomationProofTargetDebtMovement?
 
   var displaySummary: String {
     var parts = [
@@ -24,6 +114,9 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
     }
     if let tournamentPositionSummary {
       parts.append(tournamentPositionSummary)
+    }
+    if let latestDebtMovement {
+      parts.append(latestDebtMovement.displaySummary)
     }
     return parts.joined(separator: " - ")
   }
@@ -45,7 +138,30 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
       let status = nextStep.canExecute ? "ready" : "blocked"
       parts.append("step \(status) \(nextStep.kind.rawValue)")
     }
+    if let latestDebtMovement {
+      parts.append(latestDebtMovement.contextSummary)
+    } else {
+      parts.append("latest_audit none")
+    }
     return parts.joined(separator: "; ")
+  }
+
+  var latestDebtMovementSummary: String {
+    latestDebtMovement?.displaySummary ?? "No audited proof-debt movement"
+  }
+
+  var helpSummary: String {
+    var parts = [
+      contenderTitle,
+      displaySummary,
+      "Debt: \(debtSummary)",
+      "Next step: \(nextStepSummary)",
+      nextStepDetail,
+    ]
+    if let latestDebtMovement {
+      parts.append(latestDebtMovement.helpSummary)
+    }
+    return parts.joined(separator: "\n")
   }
 
   var nextStepSummary: String {
@@ -134,7 +250,12 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
 
   var topActionDetail: String {
     guard let topActionRow else { return "No automation step queued for this round." }
-    return "\(topActionRow.contenderTitle): \(topActionRow.nextStepDetail)"
+    return [
+      "\(topActionRow.contenderTitle): \(topActionRow.nextStepDetail)",
+      topActionRow.latestDebtMovement?.helpSummary,
+    ]
+    .compactMap { $0 }
+    .joined(separator: "\n")
   }
 
   var topActionButtonTitle: String {
@@ -191,6 +312,15 @@ enum TournamentAutomationProofTargetScoreboard {
         nextStepsByExperimentID[step.experimentID] = step
       }
     }
+    var latestDebtMovementByExperimentID: [String: TournamentAutomationProofTargetDebtMovement] =
+      [:]
+    for target in targets {
+      guard latestDebtMovementByExperimentID[target.experimentID] == nil else { continue }
+      latestDebtMovementByExperimentID[target.experimentID] = latestDebtMovement(
+        for: target,
+        config: config
+      )
+    }
 
     let grouped = Dictionary(grouping: targets) { target in
       scopeKey(for: target, config: config)
@@ -200,7 +330,8 @@ enum TournamentAutomationProofTargetScoreboard {
         for: key,
         targets: targets,
         config: config,
-        nextStepsByExperimentID: nextStepsByExperimentID
+        nextStepsByExperimentID: nextStepsByExperimentID,
+        latestDebtMovementByExperimentID: latestDebtMovementByExperimentID
       )
     }
     .sorted { lhs, rhs in
@@ -243,7 +374,8 @@ enum TournamentAutomationProofTargetScoreboard {
     for key: ScopeKey,
     targets: [TournamentAutomationProofTarget],
     config: ProductTournamentConfig,
-    nextStepsByExperimentID: [String: TournamentAutomationStep]
+    nextStepsByExperimentID: [String: TournamentAutomationStep],
+    latestDebtMovementByExperimentID: [String: TournamentAutomationProofTargetDebtMovement]
   ) -> TournamentAutomationProofTargetScoreboardItem {
     let tournament = key.tournamentID.flatMap { tournamentID in
       config.tournaments.first { $0.id == tournamentID }
@@ -260,7 +392,8 @@ enum TournamentAutomationProofTargetScoreboard {
         row(
           for: target,
           config: config,
-          nextStep: nextStepsByExperimentID[target.experimentID]
+          nextStep: nextStepsByExperimentID[target.experimentID],
+          latestDebtMovement: latestDebtMovementByExperimentID[target.experimentID]
         )
       }
       .sorted {
@@ -281,7 +414,8 @@ enum TournamentAutomationProofTargetScoreboard {
   private static func row(
     for target: TournamentAutomationProofTarget,
     config: ProductTournamentConfig,
-    nextStep: TournamentAutomationStep?
+    nextStep: TournamentAutomationStep?,
+    latestDebtMovement: TournamentAutomationProofTargetDebtMovement?
   ) -> TournamentAutomationProofTargetScoreboardRow {
     let contender = target.contenderID.flatMap { contenderID in
       config.tournamentContenders.first { $0.id == contenderID }
@@ -296,8 +430,173 @@ enum TournamentAutomationProofTargetScoreboard {
       debtSummary: target.debtSummary,
       nextActionTitle: target.nextActionTitle,
       tournamentPositionSummary: target.tournamentPositionSummary,
-      nextStep: nextStep
+      nextStep: nextStep,
+      latestDebtMovement: latestDebtMovement
     )
+  }
+
+  private static func latestDebtMovement(
+    for target: TournamentAutomationProofTarget,
+    config: ProductTournamentConfig
+  ) -> TournamentAutomationProofTargetDebtMovement? {
+    config.tournamentAutomationCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .first(where: { audit in matches(audit, target: target) })
+      .flatMap(TournamentAutomationProofTargetDebtMovement.init(audit:))
+  }
+
+  private static func matches(
+    _ audit: TournamentAutomationCycleAudit,
+    target: TournamentAutomationProofTarget
+  ) -> Bool {
+    guard audit.proofDebtDelta != nil else { return false }
+    let searchable = auditSearchText(audit)
+    let experimentMatches =
+      audit.experimentIDs.contains(target.experimentID)
+      || audit.executedStepIDs.contains { $0.hasPrefix("\(target.experimentID):") }
+      || searchable.contains(target.experimentID)
+    guard experimentMatches else { return false }
+
+    if audit.proofTargetSummaries.contains(where: { proofTargetSummary($0, matches: target) }) {
+      return true
+    }
+    if let scopedMatch = scopedAuditText(searchable, matches: target) {
+      return scopedMatch
+    }
+    if let nextActionKind = target.nextActionKind {
+      return audit.executedStepIDs.contains {
+        $0.hasPrefix("\(target.experimentID):\(nextActionKind.rawValue)")
+      }
+    }
+    return !targetHasScopeHints(target)
+  }
+
+  private static func auditSearchText(_ audit: TournamentAutomationCycleAudit) -> String {
+    (
+      audit.executedStepIDs + audit.experimentIDs + audit.messages + audit.evidenceRunIDs
+        + audit.decisionCandidateSummaries + audit.evidenceTensionSummaries
+        + audit.proofTargetSummaries + audit.targetedProofOutcomeSummaries
+        + audit.personaRationaleSignalSummaries + audit.revisionBriefSummaries
+        + [
+          audit.startingProofDebtSummary,
+          audit.endingProofDebtSummary,
+          audit.stopStepID,
+          audit.stopStepTitle,
+          audit.stopDetail,
+          audit.userMessage,
+        ].compactMap { $0 }
+    )
+    .joined(separator: " ")
+  }
+
+  private static func proofTargetSummary(
+    _ summary: String,
+    matches target: TournamentAutomationProofTarget
+  ) -> Bool {
+    guard summary.localizedCaseInsensitiveContains(target.label) else { return false }
+    if let targetScenarioID = target.targetScenarioID,
+      !summary.contains("scenario \(targetScenarioID)") && !summary.contains(targetScenarioID)
+    {
+      return false
+    }
+    if let cohortID = target.cohortID,
+      !summary.contains("cohort \(cohortID)") && !summary.contains(cohortID)
+    {
+      return false
+    }
+    if let roundID = target.roundID,
+      !summary.contains("round \(roundID)") && !summary.contains(roundID)
+    {
+      return false
+    }
+    if let contenderID = target.contenderID,
+      !summary.contains("contender \(contenderID)") && !summary.contains(contenderID)
+    {
+      return false
+    }
+    if let targetDecision = target.targetDecision,
+      !summary.contains("target_decision \(targetDecision.rawValue)")
+    {
+      return false
+    }
+    if let requiredSimulationMode = target.requiredSimulationMode,
+      !summary.contains("required_mode \(requiredSimulationMode.rawValue)")
+    {
+      return false
+    }
+    if let targetPersonaName = target.targetPersonaName,
+      !summary.localizedCaseInsensitiveContains(targetPersonaName)
+    {
+      return false
+    }
+    return true
+  }
+
+  private static func scopedAuditText(
+    _ text: String,
+    matches target: TournamentAutomationProofTarget
+  ) -> Bool? {
+    let lowercased = text.lowercased()
+    var sawScopeMarker = false
+
+    if lowercased.contains("contender ") {
+      sawScopeMarker = true
+      guard let contenderID = target.contenderID,
+        lowercased.contains("contender \(contenderID.lowercased())")
+          || lowercased.contains(contenderID.lowercased())
+      else { return false }
+    }
+    if lowercased.contains("round ") {
+      sawScopeMarker = true
+      guard let roundID = target.roundID,
+        lowercased.contains("round \(roundID.lowercased())") || lowercased.contains(
+          roundID.lowercased()
+        )
+      else { return false }
+    }
+    if lowercased.contains("scenario ") {
+      sawScopeMarker = true
+      guard let targetScenarioID = target.targetScenarioID,
+        lowercased.contains("scenario \(targetScenarioID.lowercased())")
+          || lowercased.contains(targetScenarioID.lowercased())
+      else { return false }
+    }
+    if lowercased.contains("cohort ") {
+      sawScopeMarker = true
+      guard let cohortID = target.cohortID,
+        lowercased.contains("cohort \(cohortID.lowercased())")
+          || lowercased.contains(cohortID.lowercased())
+      else { return false }
+    }
+    if lowercased.contains("target_decision ") {
+      sawScopeMarker = true
+      guard let targetDecision = target.targetDecision,
+        lowercased.contains("target_decision \(targetDecision.rawValue)")
+      else { return false }
+    }
+    if lowercased.contains("required_mode ") {
+      sawScopeMarker = true
+      guard let requiredSimulationMode = target.requiredSimulationMode,
+        lowercased.contains("required_mode \(requiredSimulationMode.rawValue)")
+      else { return false }
+    }
+
+    return sawScopeMarker ? true : nil
+  }
+
+  private static func targetHasScopeHints(_ target: TournamentAutomationProofTarget) -> Bool {
+    target.tournamentID != nil
+      || target.contenderID != nil
+      || target.roundID != nil
+      || target.cohortID != nil
+      || target.targetScenarioID != nil
+      || target.targetPersonaID != nil
+      || target.targetPersonaName != nil
+      || target.targetDecision != nil
+      || target.requiredSimulationMode != nil
   }
 
   private static func scopeKey(

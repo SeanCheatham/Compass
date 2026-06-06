@@ -187,6 +187,107 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(workbenchBody.contains("Proof Scoreboard"))
     try #require(workbenchBody.contains("AccessibilityAttachmentModifier"))
   }
+
+  @Test func proofTargetScoreboardShowsLatestAuditDebtMovement() async throws {
+    var config = try roundOneConfig()
+    let evidenceIndex = ProductTournamentEvidenceIndex.build(records: [])
+    let target = try #require(
+      TournamentAutomationProofTargetAdvisor.targets(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: false
+      ).first
+    )
+    let step = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: false
+      )
+    )
+    let contenderID = try #require(step.contenderID)
+    let roundID = try #require(step.roundID)
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
+        id: "scoreboard-proof-delta",
+        startedAt: 20,
+        endedAt: 25,
+        executedStepIDs: [step.id],
+        experimentIDs: [step.experimentID],
+        messages: ["Scoreboard top proof ran one focused plan proof."],
+        maxSteps: 1,
+        evidenceRunStepCount: 1,
+        evidenceRunIDs: ["scoreboard-proof-run"],
+        completedEvidenceRunCount: 1,
+        startingProofDebtCount: 6,
+        endingProofDebtCount: 4,
+        startingProofDebtSummary:
+          "\(step.experimentID): contender \(contenderID), round \(roundID), Round 1 plan proof had 6 proof debt item(s).",
+        endingProofDebtSummary:
+          "\(step.experimentID): contender \(contenderID), round \(roundID), Round 1 plan proof had 4 proof debt item(s).",
+        proofTargetSummaries: [target.auditSummary],
+        stopReason: .reachedStepLimit,
+        stopDetail: "Reached one proof scoreboard step.",
+        userMessage: "Scoreboard top proof reduced proof debt for \(contenderID)."
+      )
+    )
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
+        id: "scoreboard-mismatched-delta",
+        startedAt: 30,
+        endedAt: 35,
+        executedStepIDs: [step.id],
+        experimentIDs: [step.experimentID],
+        messages: ["A newer scoped audit should not attach to the wrong proof row."],
+        maxSteps: 1,
+        evidenceRunStepCount: 1,
+        evidenceRunIDs: ["scoreboard-mismatch-run"],
+        completedEvidenceRunCount: 1,
+        startingProofDebtCount: 4,
+        endingProofDebtCount: 7,
+        startingProofDebtSummary:
+          "\(step.experimentID): contender other-contender, round later-round, proof had 4 proof debt item(s).",
+        endingProofDebtSummary:
+          "\(step.experimentID): contender other-contender, round later-round, proof had 7 proof debt item(s).",
+        stopReason: .reachedStepLimit,
+        stopDetail: "Reached one mismatched proof scoreboard step.",
+        userMessage: "This newer audit belongs to another scoped proof target."
+      )
+    )
+
+    let item = try #require(
+      TournamentAutomationProofTargetScoreboard.items(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: false
+      ).first
+    )
+    let row = try #require(item.rows.first { $0.experimentID == step.experimentID })
+    let movement = try #require(row.latestDebtMovement)
+    let context = TournamentAutomationProofTargetScoreboard.contextLines(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: false
+    )
+    .joined(separator: "\n")
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    let workbenchBody = try await workbenchBody(for: config)
+
+    try #require(movement.auditID == "scoreboard-proof-delta")
+    try #require(movement.displaySummary == "Latest audit cleared 2 proof debt (6 -> 4)")
+    try #require(row.displaySummary.contains("Latest audit cleared 2 proof debt"))
+    try #require(row.contextSummary.contains("latest_audit scoreboard-proof-delta"))
+    try #require(item.topActionDetail.contains("Latest audit cleared 2 proof debt"))
+    try #require(context.contains("latest_audit scoreboard-proof-delta"))
+    try #require(context.contains("proof_debt 6 -> 4 (-2)"))
+    try #require(digest.contains("latest_audit scoreboard-proof-delta"))
+    try #require(digest.contains("proof_debt 6 -> 4 (-2)"))
+    try #require(workbenchBody.contains("Proof Scoreboard"))
+    try #require(workbenchBody.contains("AccessibilityAttachmentModifier"))
+  }
 }
 
 private struct ProofOverviewCase {

@@ -1599,6 +1599,8 @@ struct ProductTournamentWorkbenchTab: View {
       WorkbenchFact(label: "Targets", value: item.displayDetail)
       ForEach(item.rows.prefix(4)) { row in
         WorkbenchFact(label: row.contenderTitle, value: row.displaySummary)
+        WorkbenchFact(label: "Latest delta", value: row.latestDebtMovementSummary)
+          .help(row.helpSummary)
       }
       if let topActionRow = item.topActionRow, let topStep = topActionRow.nextStep {
         let roundTwoBlockedMessage =
