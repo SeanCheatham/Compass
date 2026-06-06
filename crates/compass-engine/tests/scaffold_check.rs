@@ -16,7 +16,7 @@ fn scaffold_check_passes_for_blessed_shape() {
     assert_eq!(json["data"]["capabilities"]["simulation_fixtures"], true);
     assert_eq!(json["data"]["capabilities"]["gui_replay"], true);
     assert_eq!(
-        json["data"]["capabilities"]["productization_experience"],
+        json["data"]["capabilities"]["product_tournament_experience"],
         true
     );
 }
@@ -126,7 +126,7 @@ fn main() {
 }
 
 #[test]
-fn scaffold_check_reports_missing_productization_experience_markers() {
+fn scaffold_check_reports_missing_product_tournament_experience_markers() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_blessed_workspace(temp.path());
     write(
@@ -152,14 +152,14 @@ pub fn run_gui_replay(_: GuiReplayTrace) -> GuiSemanticSnapshot {
     assert_eq!(json["ok"], true);
     assert_eq!(json["data"]["status"], "fail");
     assert!(checks.iter().any(|check| {
-        check["id"] == "productization_experience_core_productizationexperiencestate"
+        check["id"] == "product_tournament_experience_core_producttournamentexperiencestate"
             && check["status"] == "fail"
     }));
     assert!(json["repair_hints"]
         .as_array()
         .expect("repair hints")
         .iter()
-        .any(|hint| { hint["id"] == "generated-scaffold-missing-productization-experience" }));
+        .any(|hint| { hint["id"] == "generated-scaffold-missing-product-tournament-experience" }));
 }
 
 fn run_scaffold_check(path: &Path) -> Value {
@@ -195,7 +195,7 @@ schema_contracts = true
 desktop_handshake = true
 simulation_fixtures = true
 gui_replay = true
-productization_experience = true
+product_tournament_experience = true
 "#,
     );
     write(
@@ -238,12 +238,12 @@ components = ["rustfmt", "clippy"]
     write(root, "schemas/gui-replay-trace.schema.json", "{}");
     write(
         root,
-        "schemas/productization-experience-input.schema.json",
+        "schemas/product-tournament-experience-input.schema.json",
         "{}",
     );
     write(
         root,
-        "schemas/productization-experience-trace.schema.json",
+        "schemas/product-tournament-experience-trace.schema.json",
         "{}",
     );
     write(
@@ -253,7 +253,7 @@ components = ["rustfmt", "clippy"]
 fn main() {
     match "verify" {
         "verify" => {}
-        "productization-smoke" => {}
+        "product-tournament-smoke" => {}
         "visual-verify" => {}
         _ => {}
     }
@@ -268,17 +268,17 @@ pub struct SimulationInput;
 pub struct SimulationSnapshot;
 pub struct GuiReplayTrace;
 pub struct GuiSemanticSnapshot;
-pub struct ProductizationExperienceInput;
-pub struct ProductizationPain;
-pub struct ProductizationSolution;
-pub struct ProductizationExperiment;
-pub struct ProductizationCurrentWorkflow;
-pub struct ProductizationAlternative;
-pub struct ProductizationExperienceState;
-pub struct ProductizationExperienceAction;
-pub struct ProductizationExperienceAllowedAction;
-pub struct ProductizationExperienceTurn;
-pub struct ProductizationExperienceTrace;
+pub struct ProductTournamentExperienceInput;
+pub struct ProductTournamentPain;
+pub struct ProductTournamentSolution;
+pub struct ProductTournamentExperiment;
+pub struct ProductTournamentCurrentWorkflow;
+pub struct ProductTournamentAlternative;
+pub struct ProductTournamentExperienceState;
+pub struct ProductTournamentExperienceAction;
+pub struct ProductTournamentExperienceAllowedAction;
+pub struct ProductTournamentExperienceTurn;
+pub struct ProductTournamentExperienceTrace;
 pub struct PainReliefSignals;
 pub fn run_simulation(_: SimulationInput) -> SimulationSnapshot {
     SimulationSnapshot
@@ -286,8 +286,8 @@ pub fn run_simulation(_: SimulationInput) -> SimulationSnapshot {
 pub fn run_gui_replay(_: GuiReplayTrace) -> GuiSemanticSnapshot {
     GuiSemanticSnapshot
 }
-pub fn run_productization_experience(_: ProductizationExperienceInput) -> ProductizationExperienceTrace {
-    ProductizationExperienceTrace
+pub fn run_product_tournament_experience(_: ProductTournamentExperienceInput) -> ProductTournamentExperienceTrace {
+    ProductTournamentExperienceTrace
 }
 "#,
     );
@@ -300,8 +300,8 @@ fn main() {
     let _ = "--input";
     let _ = "gui-replay";
     let _ = "gui-replay-schema";
-    let _ = "productization-experience";
-    let _ = "productization-experience-schema";
+    let _ = "product-tournament-experience";
+    let _ = "product-tournament-experience-schema";
 }
 "#,
     );

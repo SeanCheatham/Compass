@@ -35,7 +35,7 @@ pub struct ScaffoldCapabilities {
     pub desktop_handshake: bool,
     pub simulation_fixtures: bool,
     pub gui_replay: bool,
-    pub productization_experience: bool,
+    pub product_tournament_experience: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -74,7 +74,7 @@ pub fn scaffold_check(repo: &Utf8Path) -> Result<ScaffoldCheckResult> {
     check_desktop_handshake(repo, &capabilities, &mut checks);
     check_simulation_fixtures(repo, &capabilities, &mut checks);
     check_gui_replay(repo, &capabilities, &mut checks);
-    check_productization_experience(repo, &capabilities, &mut checks);
+    check_product_tournament_experience(repo, &capabilities, &mut checks);
 
     let status = aggregate_status(&checks);
     Ok(ScaffoldCheckResult {
@@ -190,7 +190,9 @@ fn parse_metadata(contents: &str) -> ParsedMetadata {
             desktop_handshake: parse_bool(capabilities.get("desktop_handshake")),
             simulation_fixtures: parse_bool(capabilities.get("simulation_fixtures")),
             gui_replay: parse_bool(capabilities.get("gui_replay")),
-            productization_experience: parse_bool(capabilities.get("productization_experience")),
+            product_tournament_experience: parse_bool(
+                capabilities.get("product_tournament_experience"),
+            ),
         },
     }
 }
@@ -586,12 +588,12 @@ fn check_gui_replay(
     );
 }
 
-fn check_productization_experience(
+fn check_product_tournament_experience(
     repo: &Utf8Path,
     capabilities: &ScaffoldCapabilities,
     checks: &mut Vec<ScaffoldCheck>,
 ) {
-    if !capabilities.productization_experience {
+    if !capabilities.product_tournament_experience {
         return;
     }
 
@@ -600,15 +602,15 @@ fn check_productization_experience(
         Ok(contents) => contents,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             checks.push(fail(
-                "productization_experience_core_source",
-                "Productization experience capability is advertised but app-core source is missing.",
+                "product_tournament_experience_core_source",
+                "Product Tournament experience capability is advertised but app-core source is missing.",
                 core_path,
             ));
             return;
         }
         Err(error) => {
             checks.push(fail(
-                "productization_experience_core_source",
+                "product_tournament_experience_core_source",
                 format!("app-core source could not be read: {error}"),
                 core_path,
             ));
@@ -616,24 +618,27 @@ fn check_productization_experience(
         }
     };
     for marker in [
-        "ProductizationExperienceInput",
-        "ProductizationPain",
-        "ProductizationSolution",
-        "ProductizationExperiment",
-        "ProductizationCurrentWorkflow",
-        "ProductizationAlternative",
-        "ProductizationExperienceState",
-        "ProductizationExperienceAction",
-        "ProductizationExperienceAllowedAction",
-        "ProductizationExperienceTurn",
-        "ProductizationExperienceTrace",
+        "ProductTournamentExperienceInput",
+        "ProductTournamentPain",
+        "ProductTournamentSolution",
+        "ProductTournamentExperiment",
+        "ProductTournamentCurrentWorkflow",
+        "ProductTournamentAlternative",
+        "ProductTournamentExperienceState",
+        "ProductTournamentExperienceAction",
+        "ProductTournamentExperienceAllowedAction",
+        "ProductTournamentExperienceTurn",
+        "ProductTournamentExperienceTrace",
         "PainReliefSignals",
-        "run_productization_experience",
+        "run_product_tournament_experience",
     ] {
         check_source_contains(
             &core,
             checks,
-            format!("productization_experience_core_{}", marker.to_lowercase()),
+            format!(
+                "product_tournament_experience_core_{}",
+                marker.to_lowercase()
+            ),
             marker,
             core_path,
         );
@@ -644,15 +649,15 @@ fn check_productization_experience(
         Ok(contents) => contents,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             checks.push(fail(
-                "productization_experience_cli_source",
-                "Productization experience capability is advertised but app-cli source is missing.",
+                "product_tournament_experience_cli_source",
+                "Product Tournament experience capability is advertised but app-cli source is missing.",
                 cli_path,
             ));
             return;
         }
         Err(error) => {
             checks.push(fail(
-                "productization_experience_cli_source",
+                "product_tournament_experience_cli_source",
                 format!("app-cli source could not be read: {error}"),
                 cli_path,
             ));
@@ -660,13 +665,16 @@ fn check_productization_experience(
         }
     };
     for marker in [
-        "productization-experience",
-        "productization-experience-schema",
+        "product-tournament-experience",
+        "product-tournament-experience-schema",
     ] {
         check_source_contains(
             &cli,
             checks,
-            format!("productization_experience_cli_{}", marker.replace('-', "_")),
+            format!(
+                "product_tournament_experience_cli_{}",
+                marker.replace('-', "_")
+            ),
             marker,
             cli_path,
         );
@@ -677,15 +685,15 @@ fn check_productization_experience(
         Ok(contents) => contents,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             checks.push(fail(
-                "productization_experience_xtask_source",
-                "Productization experience capability is advertised but xtask source is missing.",
+                "product_tournament_experience_xtask_source",
+                "Product Tournament experience capability is advertised but xtask source is missing.",
                 xtask_path,
             ));
             return;
         }
         Err(error) => {
             checks.push(fail(
-                "productization_experience_xtask_source",
+                "product_tournament_experience_xtask_source",
                 format!("xtask source could not be read: {error}"),
                 xtask_path,
             ));
@@ -695,32 +703,32 @@ fn check_productization_experience(
     check_source_contains(
         &xtask,
         checks,
-        "productization_experience_xtask_productization_smoke",
-        "productization-smoke",
+        "product_tournament_experience_xtask_product_tournament_smoke",
+        "product-tournament-smoke",
         xtask_path,
     );
 
     for schema in [
-        "schemas/productization-experience-input.schema.json",
-        "schemas/productization-experience-trace.schema.json",
+        "schemas/product-tournament-experience-input.schema.json",
+        "schemas/product-tournament-experience-trace.schema.json",
     ] {
         if repo.join(schema).is_file() {
             checks.push(pass(
                 format!(
-                    "productization_experience_schema_{}",
+                    "product_tournament_experience_schema_{}",
                     schema.replace(['/', '.', '-'], "_")
                 ),
-                format!("{schema} exists for productization experience capability."),
+                format!("{schema} exists for Product Tournament experience capability."),
                 schema,
             ));
         } else {
             checks.push(fail(
                 format!(
-                    "productization_experience_schema_{}",
+                    "product_tournament_experience_schema_{}",
                     schema.replace(['/', '.', '-'], "_")
                 ),
                 format!(
-                    "Productization experience capability is advertised but {schema} is missing."
+                    "Product Tournament experience capability is advertised but {schema} is missing."
                 ),
                 schema,
             ));
