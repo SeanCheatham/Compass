@@ -254,7 +254,7 @@ private func makeGitRolloutConfig(
     id: "pain-rollout",
     title: "Rollout pain",
     rawPain: "Users need reliable product experiment rollout.",
-    targetSituation: "A product bet is ready for a decision.",
+    targetSituation: "A product contender is ready for a decision.",
     painFrequency: "Weekly",
     painSeverity: "High",
     costOfInaction: "Experiment lineage gets lost.",

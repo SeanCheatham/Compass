@@ -185,10 +185,10 @@ struct ProductTournamentSimulationDecisionIntent: Codable, Equatable, Sendable {
         "Stress-test promotion. Try to disprove broad rollout by forcing proof of current-alternative advantage, switching readiness, and continued-use pull before giving positive evidence."
     case .kill, .archived:
       return
-        "Stress-test whether this bet should be killed. Expose absent pain recognition, current-alternative dominance, missing capability, or refusal to switch while still giving real relief a fair chance."
+        "Stress-test whether this contender should be killed. Expose absent pain recognition, current-alternative dominance, missing capability, or refusal to switch while still giving real relief a fair chance."
     case .narrow:
       return
-        "Stress-test narrowing. Find the smallest persona, workflow moment, or capability scope where the bet might earn pull instead of averaging vague feedback across broad users."
+        "Stress-test narrowing. Find the smallest persona, workflow moment, or capability scope where the contender might earn pull instead of averaging vague feedback across broad users."
     case .pivot:
       return
         "Stress-test a pivot. Separate evidence that the pain is real from evidence that the current product shape fails to create enough pull."
@@ -197,7 +197,7 @@ struct ProductTournamentSimulationDecisionIntent: Codable, Equatable, Sendable {
         "Stress-test continuing. Look for the next proof that would make the tournament continue, narrow, pivot, kill, or promote with less uncertainty."
     case .notRun:
       return
-        "Stress-test first evidence. Verify whether the pain, workflow, and current alternative are real before treating the prototype as a product bet."
+        "Stress-test first evidence. Verify whether the pain, workflow, and current alternative are real before treating the prototype as a product contender."
     }
   }
 

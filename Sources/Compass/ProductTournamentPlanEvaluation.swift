@@ -419,7 +419,7 @@ enum ProductTournamentPlanEvaluator {
       painID: pain.id,
       name: "Economic buyer",
       role: "Economic buyer or sponsor",
-      context: "Evaluates whether the pain is expensive enough to fund a product bet.",
+      context: "Evaluates whether the pain is expensive enough to fund a product contender.",
       goals: [
         "Understand the cost of the pain.",
         "Decide whether the product plan is worth implementation spend.",

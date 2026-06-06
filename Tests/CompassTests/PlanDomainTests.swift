@@ -90,8 +90,8 @@ struct PlanTransitionValidatorTests {
 
   @Test func testRejectsProductTournamentImmediateThatMentionsMultipleExperiments() throws {
     let config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users cannot compare product bets.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting teams cannot compare product contenders.",
       now: Date(timeIntervalSince1970: 1)
     )
     let first = config.experiments[0]
@@ -119,8 +119,8 @@ struct PlanTransitionValidatorTests {
 
   @Test func testAcceptsSharedInfrastructureImmediateAcrossExperiments() throws {
     let config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users cannot compare product bets.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting teams cannot compare product contenders.",
       now: Date(timeIntervalSince1970: 1)
     )
     let first = config.experiments[0]
@@ -408,7 +408,7 @@ struct PlanSubmitResultValidationTests {
         completed: [],
         immediate: nil,
         candidates: testPlanCandidates("- Make Plan safer for weak handoffs"),
-        strategicContext: testStrategicContext("Build a better factory")
+        strategicContext: testStrategicContext("Make reporting decisions legible")
       )
     )
 
@@ -419,7 +419,7 @@ struct PlanSubmitResultValidationTests {
           verify: "swift test --filter PlanDomainTests"
         ),
         candidates: "- Make Plan safer for weak handoffs",
-        strategicContext: "Build a better factory"
+        strategicContext: "Make reporting decisions legible"
       )
     )
     let args = try JSONEncoder().encode(payload)
@@ -1547,7 +1547,7 @@ struct PlanningEnvelopeDecoderTests {
           "immediate": null,
           "candidates": [],
           "strategicContext": {
-            "thesis": "Keep the factory understandable to non-engineers.",
+            "thesis": "Keep reporting decisions understandable to non-engineers.",
             "principles": [],
             "constraints": [],
             "nonGoals": [],
@@ -1570,7 +1570,7 @@ struct PlanningEnvelopeDecoderTests {
     try #require(summary.state?.candidates == [])
     try #require(
       summary.state?.strategicContext.thesis
-        == "Keep the factory understandable to non-engineers.")
+        == "Keep reporting decisions understandable to non-engineers.")
     try #require(
       summary.summary
         == "The strategy still points at non-engineer UX.\nNo immediate planning update is needed."
@@ -1626,7 +1626,7 @@ struct PlanningEnvelopeDecoderTests {
           }
         ],
         "strategicContext": {
-          "thesis": "Keep the factory understandable to non-engineers.",
+            "thesis": "Keep reporting decisions understandable to non-engineers.",
           "principles": ["Make model mistakes recoverable instead of mysterious."],
           "constraints": [],
           "nonGoals": [],
@@ -1641,7 +1641,7 @@ struct PlanningEnvelopeDecoderTests {
 
     try #require(proposal.immediate == nil)
     try #require(proposal.candidates.map(\.title) == ["Harden weak-model recovery"])
-    try #require(proposal.strategicContext.thesis == "Keep the factory understandable to non-engineers.")
+    try #require(proposal.strategicContext.thesis == "Keep reporting decisions understandable to non-engineers.")
     try #require(
       proposal.strategicContext.principles
         == ["Make model mistakes recoverable instead of mysterious."])

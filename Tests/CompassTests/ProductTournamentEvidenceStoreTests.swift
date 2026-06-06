@@ -354,7 +354,7 @@ struct ProductTournamentEvidenceStoreTests {
         endedAt: 210,
         verdict: .rejected,
         objections: ["No reason to switch"],
-        comparison: "Buyer rejected the bet.",
+        comparison: "Buyer rejected the contender.",
         scores: weakScores
       ),
       makeEvidenceRecord(

@@ -11,7 +11,7 @@ enum ProductTournamentPlanningDigestFormatter {
     maxEvidenceSignals: Int = 5
   ) -> String {
     var lines: [String] = [
-      "Product tournament context starts from durable user pain; competing product contenders are disposable bets evaluated through rounds."
+      "Product tournament context starts from durable user pain; competing product contenders are evaluated through rounds."
     ]
 
     if config.isEmpty {
@@ -578,7 +578,7 @@ enum ProductTournamentPlanningDigestFormatter {
     var lines = ["Tournament automation revision briefs:"]
     for brief in briefs.prefix(4) {
       var metadata = [
-        "action revise_product_bet",
+        "action revise_product_contender",
         "source \(brief.source.rawValue)",
         "priority \(brief.priority)",
       ]

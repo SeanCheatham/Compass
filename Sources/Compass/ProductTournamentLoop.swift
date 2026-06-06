@@ -226,7 +226,7 @@ enum ProductTournamentNextActionKind: String, Equatable, Sendable {
   case runCohort = "run_cohort"
   case rerunCohort = "rerun_cohort"
   case repairFailures = "repair_failures"
-  case refineBet = "refine_bet"
+  case refineContender = "refine_contender"
   case reviewDecision = "review_decision"
 }
 
@@ -1253,7 +1253,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetDecision: targetDecision,
         outcome: .contradictsTarget,
         recommendedDecision: allowedDecision(.narrow, current: experiment.decision),
-        actionKind: .refineBet,
+        actionKind: .refineContender,
         title: "Revise contradicted promotion proof",
         priority: 89,
         count: count,
@@ -1264,7 +1264,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetCohortID: target?.cohortID,
         requiredSimulationMode: .personaModel,
         summary:
-          "Targeted promotion proof contradicted promotion in \(count) run(s); narrow the bet or revise the prototype before asking for another lift proof."
+          "Targeted promotion proof contradicted promotion in \(count) run(s); narrow the contender or revise the prototype before asking for another lift proof."
       )
     case .kill, .archived:
       let canRun = target?.scenarioID != nil && target?.cohortID != nil
@@ -1273,7 +1273,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetDecision: targetDecision,
         outcome: .contradictsTarget,
         recommendedDecision: allowedDecision(.promote, current: experiment.decision),
-        actionKind: canRun ? .runCohort : .refineBet,
+        actionKind: canRun ? .runCohort : .refineContender,
         title: "Recheck contradicted stop proof",
         priority: 88,
         count: count,
@@ -1284,7 +1284,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetCohortID: target?.cohortID,
         requiredSimulationMode: .personaModel,
         summary:
-          "Targeted stop proof contradicted killing the bet in \(count) run(s); run a lift-oriented AI-user proof or revise the scenario before cutting."
+          "Targeted stop proof contradicted killing the contender in \(count) run(s); run a lift-oriented AI-user proof or revise the scenario before cutting."
       )
     case .narrow, .pivot:
       let canRun = target?.scenarioID != nil && target?.cohortID != nil
@@ -1293,7 +1293,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetDecision: targetDecision,
         outcome: .contradictsTarget,
         recommendedDecision: allowedDecision(.promote, current: experiment.decision),
-        actionKind: canRun ? .runCohort : .refineBet,
+        actionKind: canRun ? .runCohort : .refineContender,
         title: "Recheck contradicted reshape proof",
         priority: 84,
         count: count,
@@ -1312,7 +1312,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetDecision: targetDecision,
         outcome: .contradictsTarget,
         recommendedDecision: allowedDecision(.narrow, current: experiment.decision),
-        actionKind: .refineBet,
+        actionKind: .refineContender,
         title: "Resolve contradicted learning proof",
         priority: 82,
         count: count,
@@ -1323,7 +1323,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetCohortID: target?.cohortID,
         requiredSimulationMode: .personaModel,
         summary:
-          "The targeted learning proof contradicted continuing as-is; revise the bet before spending another cohort on the same uncertainty."
+          "The targeted learning proof contradicted continuing as-is; revise the contender before spending another cohort on the same uncertainty."
       )
     }
   }
@@ -1373,7 +1373,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetScenarioID: target?.scenarioID,
         targetCohortID: target?.cohortID,
         summary:
-          "Targeted stop proof supported killing the bet in \(count) run(s), but the formal tournament decision advisor did not apply it automatically; review transition state and evidence."
+          "Targeted stop proof supported killing the contender in \(count) run(s), but the formal tournament decision advisor did not apply it automatically; review transition state and evidence."
       )
     case .narrow, .pivot:
       return TournamentAutomationTargetedProofOutcomeSignal(
@@ -1381,7 +1381,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetDecision: targetDecision,
         outcome: .supportsTarget,
         recommendedDecision: allowedDecision(targetDecision, current: experiment.decision),
-        actionKind: .refineBet,
+        actionKind: .refineContender,
         title: targetDecision == .pivot
           ? "Apply supported pivot proof" : "Apply supported narrow proof",
         priority: 83,
@@ -1392,7 +1392,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetScenarioID: target?.scenarioID,
         targetCohortID: target?.cohortID,
         summary:
-          "Targeted \(targetDecision.rawValue) proof supported reshaping this bet in \(count) run(s); revise the prototype and scenario before more lift/cut evidence."
+          "Targeted \(targetDecision.rawValue) proof supported reshaping this contender in \(count) run(s); revise the prototype and scenario before more lift/cut evidence."
       )
     case .keepGoing, .notRun:
       return nil
@@ -1412,7 +1412,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
       targetDecision: targetDecision,
       outcome: .inconclusive,
       recommendedDecision: targetDecision,
-      actionKind: canRun ? .rerunCohort : .refineBet,
+      actionKind: canRun ? .rerunCohort : .refineContender,
       title: "Retarget inconclusive tournament proof",
       priority: 76,
       count: count,
@@ -1789,7 +1789,7 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
     self.source = source
     self.title = ProductTournamentModelText.cleanedText(
       title,
-      fallback: "Revise product bet",
+      fallback: "Revise product contender",
       limit: 160
     )
     self.priority = max(0, priority)
@@ -1914,7 +1914,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
       evidenceIndex: evidenceIndex
     )
     let isRetargeted = action?.title == "Retarget tournament proof outcome"
-    guard signal.actionKind == .refineBet || isRetargeted else { return nil }
+    guard signal.actionKind == .refineContender || isRetargeted else { return nil }
     guard action?.title == signal.title || isRetargeted else {
       return nil
     }
@@ -2061,11 +2061,11 @@ enum TournamentAutomationRevisionBriefAdvisor {
       return RevisionPlan(
         title: "Apply supported reshape proof",
         prototypeChange:
-          "reshape the prototype around the smaller product bet that the targeted proof supported, preserving only the capabilities that created pull.",
+          "reshape the prototype around the smaller product contender that the targeted proof supported, preserving only the capabilities that created pull.",
         scenarioChange:
           "Retarget the scenario to the narrower workflow and require \(targetName) to judge whether the narrower promise beats the current alternative.",
         proofPlan:
-          "Rerun targeted AI-user proof for the narrowed bet before considering lift/cut."
+          "Rerun targeted AI-user proof for the narrowed contender before considering lift/cut."
       )
     case (_, .inconclusive):
       return RevisionPlan(
@@ -2083,7 +2083,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
         prototypeChange:
           "translate the targeted proof outcome into a visible product change before the same tournament decision is tested again.",
         scenarioChange:
-          "Retarget the scenario to the proof outcome and require \(targetName) to explain whether the product bet should continue, narrow, pivot, kill, or promote.",
+          "Retarget the scenario to the proof outcome and require \(targetName) to explain whether the product contender should continue, narrow, pivot, kill, or promote.",
         proofPlan:
           "Rerun targeted AI-user proof and compare the new outcome with \(signal.runIDs.prefix(3).joined(separator: ", "))."
       )
@@ -2537,7 +2537,7 @@ enum TournamentAutomationExperimentRanker {
       return .learn
     case .runCohort, .rerunCohort:
       return .learn
-    case .refineBet, .reviewDecision:
+    case .refineContender, .reviewDecision:
       return .reshape
     case .repairFailures:
       return .repair
@@ -2683,12 +2683,12 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
         action.detail.isEmpty
         ? "Repair failed evidence runs before Tournament Automation can continue."
         : action.detail
-    case .refineBet:
+    case .refineContender:
       self.kind = .blocked
       self.canExecute = false
       self.blockedReason =
         action.detail.isEmpty
-        ? "Refine the product bet before Tournament Automation can run more evidence."
+        ? "Refine the product contender before Tournament Automation can run more evidence."
         : action.detail
     case .reviewDecision:
       self.kind = .blocked
@@ -3570,7 +3570,7 @@ enum TournamentAutomationCycleLearningAdvisor {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationCycleAudit? {
-    guard action.kind == .refineBet,
+    guard action.kind == .refineContender,
       let currentSignal = TournamentAutomationTargetedProofOutcomeAdvisor.signal(
         for: experiment,
         config: config,
@@ -4193,7 +4193,7 @@ enum TournamentAutomationPlanner {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationStep {
-    guard step.action.kind == .refineBet,
+    guard step.action.kind == .refineContender,
       let brief = TournamentAutomationRevisionBriefAdvisor.brief(
         for: experiment,
         config: config,
@@ -4336,7 +4336,7 @@ enum ProductTournamentNextActionAdvisor {
       guard let cohort else {
         return ProductTournamentNextAction(
           experimentID: experiment.id,
-          kind: .refineBet,
+          kind: .refineContender,
           title: "Define evidence cohort",
           detail:
             "No enabled scenario cohort is ready for this experiment; define an enabled cohort before tournament automation can gather evidence.",
@@ -4389,7 +4389,7 @@ enum ProductTournamentNextActionAdvisor {
       return applyingRecentCycleGuards(
         to: ProductTournamentNextAction(
           experimentID: experiment.id,
-          kind: cohort == nil ? .refineBet : .runCohort,
+          kind: cohort == nil ? .refineContender : .runCohort,
           title: "Gather broader persona evidence",
           detail: cohort.map {
             "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); run cohort `\($0.id)` to broaden evidence before deciding."
@@ -4436,7 +4436,7 @@ enum ProductTournamentNextActionAdvisor {
           target: missingAIUserTarget,
           title: "Run AI-user rejection check",
           decisionGate: "stopping the experiment",
-          gateReason: "stopping a bet requires at least 2",
+          gateReason: "stopping a contender requires at least 2",
           targetDecision: .kill,
           priority: 82,
           observedCount: readiness.aiUserDistinctPersonaCount,
@@ -4527,7 +4527,7 @@ enum ProductTournamentNextActionAdvisor {
       return applyingRecentCycleGuards(
         to: ProductTournamentNextAction(
           experimentID: experiment.id,
-          kind: canRunTarget ? .runCohort : .refineBet,
+          kind: canRunTarget ? .runCohort : .refineContender,
           title: "Resolve split tournament evidence",
           detail: detail,
           priority: tension.urgencyScore,
@@ -4555,7 +4555,7 @@ enum ProductTournamentNextActionAdvisor {
       let shouldRunTarget =
         canRunTarget
         && (readiness.recommendation == .gatherEvidence || readiness.recommendation == .keepGoing)
-      let actionKind: ProductTournamentNextActionKind = shouldRunTarget ? .runCohort : .refineBet
+      let actionKind: ProductTournamentNextActionKind = shouldRunTarget ? .runCohort : .refineContender
       let targetDetail: String
       if shouldRunTarget, let cohortID = rationaleSignal.targetCohortID,
         let scenarioID = rationaleSignal.targetScenarioID,
@@ -4594,8 +4594,8 @@ enum ProductTournamentNextActionAdvisor {
     case .narrow:
       return ProductTournamentNextAction(
         experimentID: experiment.id,
-        kind: .refineBet,
-        title: "Narrow the product bet",
+        kind: .refineContender,
+        title: "Narrow the product contender",
         detail:
           "Current tournament evidence points to missing capabilities or repeated objections; narrow the next prototype before more rollout work.",
         priority: 75
@@ -4603,7 +4603,7 @@ enum ProductTournamentNextActionAdvisor {
     case .pivot:
       return ProductTournamentNextAction(
         experimentID: experiment.id,
-        kind: .refineBet,
+        kind: .refineContender,
         title: "Prepare a pivot",
         detail:
           "Users recognize the pain, but current product pull is weak; reshape the solution before more cohort runs.",
@@ -4631,7 +4631,7 @@ enum ProductTournamentNextActionAdvisor {
       return applyingRecentCycleGuards(
         to: ProductTournamentNextAction(
           experimentID: experiment.id,
-          kind: cohort == nil ? .refineBet : .runCohort,
+          kind: cohort == nil ? .refineContender : .runCohort,
           title: "Run another evidence cohort",
           detail: cohort.map {
             "Current tournament readiness is \(readiness.scoreLabel)/100; run cohort `\($0.id)` or add a scenario variant before changing the product decision."
@@ -4663,7 +4663,7 @@ enum ProductTournamentNextActionAdvisor {
     switch signal.actionKind {
     case .runCohort, .rerunCohort:
       runnableCohortID = signal.targetCohortID
-    case .applyDecision, .runPlanProof, .repairFailures, .refineBet, .reviewDecision:
+    case .applyDecision, .runPlanProof, .repairFailures, .refineContender, .reviewDecision:
       runnableCohortID = nil
     }
     return ProductTournamentNextAction(
@@ -4725,7 +4725,7 @@ enum ProductTournamentNextActionAdvisor {
     }
     return ProductTournamentNextAction(
       experimentID: experiment.id,
-      kind: canRunTarget ? .runCohort : .refineBet,
+      kind: canRunTarget ? .runCohort : .refineContender,
       title: title,
       detail: detail,
       priority: priority,
@@ -4969,7 +4969,7 @@ enum ProductTournamentNextActionAdvisor {
     ) {
       return ProductTournamentNextAction(
         experimentID: experiment.id,
-        kind: .refineBet,
+        kind: .refineContender,
         title: "Retarget tournament proof outcome",
         detail:
           "Recent tournament automation cycle \(audit.id) reran the same targeted tournament proof outcome and it is still present (\(audit.summary)); revise the prototype, scenario, target persona, or decision criteria before retrying.",
@@ -4989,7 +4989,7 @@ enum ProductTournamentNextActionAdvisor {
     ) {
       return ProductTournamentNextAction(
         experimentID: experiment.id,
-        kind: .refineBet,
+        kind: .refineContender,
         title: "Retarget split tournament evidence",
         detail:
           "Recent tournament automation cycle \(audit.id) reran the split-evidence target without resolving the contradiction (\(audit.summary)); revise the scenario, persona, prototype, or decision criteria before retrying.",
@@ -5036,7 +5036,7 @@ enum ProductTournamentNextActionAdvisor {
       }
       return ProductTournamentNextAction(
         experimentID: experiment.id,
-        kind: .refineBet,
+        kind: .refineContender,
         title: "Retarget AI-user rationale signal",
         detail:
           "Recent tournament automation cycle \(audit.id) reran the same AI-user rationale target and the rationale is still present (\(audit.summary)); revise the prototype, scenario, current-alternative proof, or decision criteria before retrying.",
@@ -5072,7 +5072,7 @@ enum ProductTournamentNextActionAdvisor {
     }
     return ProductTournamentNextAction(
       experimentID: experiment.id,
-      kind: .refineBet,
+      kind: .refineContender,
       title: "Retarget stalled proof debt",
       detail:
         "Recent tournament automation cycle \(audit.id) ran broad evidence without reducing proof debt (\(audit.summary)); retarget the scenario cohort, persona, or current-alternative proof before rerunning broad evidence.",
@@ -5128,7 +5128,7 @@ enum ProductTournamentNextActionAdvisor {
     )
     let targetDetail =
       targetDecision.map {
-        "Review whether to mark the bet \($0.rawValue) before more product revisions."
+        "Review whether to mark the contender \($0.rawValue) before more product revisions."
       } ?? "Review whether to narrow, pivot, or kill before more product revisions."
     let detail = [
       "Recent tournament automation cycle \(audit.id) repeated a product revision validation.",
@@ -5294,7 +5294,7 @@ enum ProductTournamentNextActionAdvisor {
     }
     return ProductTournamentNextAction(
       experimentID: experiment.id,
-      kind: canRunTarget ? .runCohort : .refineBet,
+      kind: canRunTarget ? .runCohort : .refineContender,
       title: title,
       detail: detail,
       priority: min(98, max(action.priority + 2, 86)),

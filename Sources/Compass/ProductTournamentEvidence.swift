@@ -554,16 +554,16 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     if aiUserCompletedRunCount == 0 && !completed.isEmpty {
       if isStopGate {
         lines.append(
-          "No AI-user evidence has tested this bet yet; stopping requires simulated-user rejection."
+          "No AI-user evidence has tested this contender yet; stopping requires simulated-user rejection."
         )
       } else {
         lines.append(
-          "No AI-user evidence has tested this bet yet; promotion requires simulated-user pull.")
+          "No AI-user evidence has tested this contender yet; promotion requires simulated-user pull.")
       }
     } else if aiUserDistinctPersonaCount < 2 && !completed.isEmpty {
       if isStopGate {
         lines.append(
-          "Stopping a bet requires AI-user rejection evidence across at least 2 personas.")
+          "Stopping a contender requires AI-user rejection evidence across at least 2 personas.")
       } else {
         lines.append("Decisive tournament decisions require AI-user evidence across at least 2 personas.")
       }
@@ -571,7 +571,7 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     if aiUserCurrentAlternativePersonaCount < 2 && !completed.isEmpty {
       if isStopGate {
         lines.append(
-          "Stopping a bet requires current-alternative rejection proof from at least 2 AI-user personas."
+          "Stopping a contender requires current-alternative rejection proof from at least 2 AI-user personas."
         )
       } else {
         lines.append(
@@ -586,7 +586,7 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     case .promote:
       lines.append("Evidence breadth and pull are high enough to consider promotion.")
     case .kill:
-      lines.append("Evidence is consistently weak enough to stop this bet.")
+      lines.append("Evidence is consistently weak enough to stop this contender.")
     case .pivot:
       lines.append("The pain is recognized, but this product shape is not creating enough pull.")
     case .narrow:
@@ -1194,7 +1194,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
         return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .supportsTarget,
           rationale:
-            "The run reduced uncertainty enough to support continuing the current product bet."
+            "The run reduced uncertainty enough to support continuing the current product contender."
         )
       }
       if verdict == .rejected {
@@ -1207,7 +1207,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
       return ProductTournamentEvidenceDecisionIntentEvaluation(
         outcome: .supportsTarget,
         rationale:
-          "The first targeted evidence run completed and moved the bet out of not-run state."
+          "The first targeted evidence run completed and moved the contender out of not-run state."
       )
     }
 

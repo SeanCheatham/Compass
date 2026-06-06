@@ -12,7 +12,7 @@
   "properties": {
     "summary": {
       "type": "string",
-      "description": "Concise explanation of the discovered pain model and product bets."
+      "description": "Concise explanation of the discovered pain model and product contenders."
     },
     "stateEdits": {
       "$ref": "#/$defs/stateEdits",

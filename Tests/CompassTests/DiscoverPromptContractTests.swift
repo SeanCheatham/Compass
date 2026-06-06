@@ -320,7 +320,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     ),
   ]
   return DiscoverPromptOutput(
-    summary: "Modeled incident decision loss and two possible product bets.",
+    summary: "Modeled incident decision loss and two possible product contenders.",
     stateEdits: DiscoveryStateEdits(
       rawPain: pain.rawPain,
       painHypotheses: [pain],

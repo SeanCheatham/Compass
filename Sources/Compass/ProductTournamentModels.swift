@@ -211,7 +211,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       successSignals: [
         "A target user can name the pain in their own current workflow.",
         "A prototype reduces a concrete step, delay, uncertainty, or handoff cost.",
-        "Evidence compares the product bet against the user's actual alternative.",
+        "Evidence compares the product contender against the user's actual alternative.",
       ],
       unknowns: [
         "Which user segment feels this pain most acutely?",
@@ -288,7 +288,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         name: "Hands-on operator",
         role: "Primary user responsible for getting through the painful workflow",
         context:
-          "Evaluates whether a product bet helps in the moment of work, not just in a pitch.",
+          "Evaluates whether a product contender helps in the moment of work, not just in a pitch.",
         goals: [
           "Reduce the painful step or handoff.",
           "Know what to do next with less rework.",
@@ -317,7 +317,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
           "See a credible path from prototype to adoption.",
         ],
         constraints: [
-          "Needs ROI or risk reduction before promoting the bet."
+          "Needs ROI or risk reduction before promoting the contender."
         ],
         currentWorkflowIDs: [workflowID],
         alternativeIDs: [manualAlternativeID, doNothingAlternativeID],
@@ -467,7 +467,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         alternativeID: doNothingAlternativeID,
         title: "\(title) decision proof",
         task:
-          "Use the prototype to compare the product bet against doing nothing and decide whether evidence is strong enough to continue.",
+          "Use the prototype to compare the product contender against doing nothing and decide whether evidence is strong enough to continue.",
         successSignal:
           "The buyer can explain the decision criteria and the next product decision with reusable evidence.",
         targetCommitSha: nil,
@@ -834,7 +834,7 @@ struct SolutionHypothesis: Codable, Equatable, Identifiable, Sendable {
     self.whyThisCouldWin = ProductTournamentModelText.cleanedText(
       whyThisCouldWin, fallback: "The target segment may prefer it", limit: 700)
     self.whyThisMightFail = ProductTournamentModelText.cleanedText(
-      whyThisMightFail, fallback: "The product bet may not relieve enough pain", limit: 700)
+      whyThisMightFail, fallback: "The product contender may not relieve enough pain", limit: 700)
     self.requiredProof = ProductTournamentModelText.cleanedList(requiredProof, limit: 260)
     self.status = status
   }

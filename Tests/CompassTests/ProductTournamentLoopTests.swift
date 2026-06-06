@@ -106,20 +106,20 @@ struct ProductTournamentLoopTests {
     )
     config.experiments[0].decision = .keepGoing
     config.experiments[1].decision = .keepGoing
-    let badExperiment = ProductExperiment(
-      id: "reporting-bad-bet",
+    let weakExperiment = ProductExperiment(
+      id: "reporting-weak-contender",
       solutionID: config.solutionHypotheses[0].id,
-      title: "Reporting bad bet",
-      branchName: "codex/reporting-bad-bet",
-      worktreeID: "reporting-bad-bet",
+      title: "Reporting weak contender",
+      branchName: "codex/reporting-weak-contender",
+      worktreeID: "reporting-weak-contender",
       baseSha: "base-sha",
-      currentSha: "bad-sha",
+      currentSha: "weak-sha",
       prototypeScope: "Try a product shape that may not beat the current workflow.",
       evidenceSummary: "No evidence recorded yet.",
       decision: .keepGoing,
       createdAt: 10
     )
-    config.experiments.append(badExperiment)
+    config.experiments.append(weakExperiment)
 
     let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
@@ -195,7 +195,7 @@ struct ProductTournamentLoopTests {
         ),
         makeDecisionAdvisorRecord(
           id: "kill-a",
-          experiment: badExperiment,
+          experiment: weakExperiment,
           config: config,
           personaID: "operator",
           mode: .personaModel,
@@ -206,7 +206,7 @@ struct ProductTournamentLoopTests {
         ),
         makeDecisionAdvisorRecord(
           id: "kill-b",
-          experiment: badExperiment,
+          experiment: weakExperiment,
           config: config,
           personaID: "buyer",
           mode: .personaModel,
@@ -232,7 +232,7 @@ struct ProductTournamentLoopTests {
     )
     let promote = try #require(proposals.first { $0.experimentID == config.experiments[0].id })
     let narrow = try #require(proposals.first { $0.experimentID == config.experiments[1].id })
-    let kill = try #require(proposals.first { $0.experimentID == badExperiment.id })
+    let kill = try #require(proposals.first { $0.experimentID == weakExperiment.id })
 
     try #require(promote.update.decision == .promote)
     try #require(promote.update.evidenceRunIDs.first == "promote-a")
@@ -506,7 +506,7 @@ struct ProductTournamentLoopTests {
       ))
 
     try #require(learningAudit.id == stalledAudit.id)
-    try #require(stalledAction.kind == .refineBet)
+    try #require(stalledAction.kind == .refineContender)
     try #require(stalledAction.title == "Retarget split tournament evidence")
     try #require(stalledAction.detail.contains(stalledAudit.id))
     try #require(
@@ -521,7 +521,7 @@ struct ProductTournamentLoopTests {
         isPersonaModelAvailable: true
       ) == nil)
     try #require(!blockedStep.canExecute)
-    try #require(blockedStep.action.kind == .refineBet)
+    try #require(blockedStep.action.kind == .refineContender)
     try #require(blockedStep.action.targetDecision == .promote)
     try #require(blockedStep.blockedReason?.contains(stalledAudit.id) == true)
     try #require(blockedStep.blockedReason?.contains("split-evidence") == true)
@@ -1643,7 +1643,7 @@ struct ProductTournamentLoopTests {
     try #require(revisionBrief.proofPlan.contains("current alternative"))
     try #require(digest.contains("Tournament automation rationale signals"))
     try #require(digest.contains("Tournament automation revision briefs"))
-    try #require(digest.contains("action revise_product_bet"))
+    try #require(digest.contains("action revise_product_contender"))
     try #require(digest.contains("prototype"))
     try #require(digest.contains("resolve_rationale_signal"))
     try #require(digest.contains("rationale-buyer"))
@@ -1783,7 +1783,7 @@ struct ProductTournamentLoopTests {
     )
 
     try #require(audit.id == "tournament-cycle-stalled-rationale")
-    try #require(retarget.kind == .refineBet)
+    try #require(retarget.kind == .refineContender)
     try #require(retarget.title == "Retarget AI-user rationale signal")
     try #require(retarget.detail.contains("tournament-cycle-stalled-rationale"))
     try #require(retarget.detail.contains("same AI-user rationale target"))
@@ -1911,7 +1911,7 @@ struct ProductTournamentLoopTests {
         isPersonaModelAvailable: true
       ))
 
-    try #require(postValidationAction.kind == .refineBet)
+    try #require(postValidationAction.kind == .refineContender)
     try #require(postValidationAction.title == "Retarget AI-user rationale signal")
     try #require(postValidationAction.detail.contains(validationAudit.id))
     try #require(postValidationAction.targetScenarioID == buyerScenario.id)
@@ -2195,7 +2195,7 @@ struct ProductTournamentLoopTests {
     try #require(readiness.recommendation == .narrow)
     try #require(rationaleSignal.targetDecision == .narrow)
     try #require(rationaleSignal.auditSummary.contains("target_decision narrow"))
-    try #require(action.kind == .refineBet)
+    try #require(action.kind == .refineContender)
     try #require(action.title == "Resolve AI-user rationale signal")
     try #require(action.cohortID == nil)
     try #require(action.targetPersonaID == buyer.id)
@@ -2522,7 +2522,7 @@ struct ProductTournamentLoopTests {
       evidenceIndex: index
     )
 
-    try #require(action.kind == .refineBet)
+    try #require(action.kind == .refineContender)
     try #require(action.cohortID == nil)
     try #require(action.targetScenarioID == nil)
     try #require(action.targetPersonaID == buyer.id)
@@ -3264,7 +3264,7 @@ struct ProductTournamentLoopTests {
       evidenceIndex: evidenceIndex
     )
 
-    try #require(action.kind == .refineBet)
+    try #require(action.kind == .refineContender)
     try #require(action.title == "Retarget AI-user proof debt")
     try #require(action.targetPersonaID == buyer.id)
     try #require(action.targetScenarioID == nil)
@@ -3288,7 +3288,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: evidenceIndex
       ) == nil)
     try #require(step.kind == .blocked)
-    try #require(step.action.kind == .refineBet)
+    try #require(step.action.kind == .refineContender)
     try #require(step.action.targetDecision == nil)
     try #require(digest.contains("Tournament automation proof targets"))
     try #require(digest.contains("target add or enable runnable AI-user proof"))
@@ -3591,7 +3591,7 @@ struct ProductTournamentLoopTests {
     try #require(signal.recommendedDecision == .narrow)
     try #require(signal.runIDs == ["contradicted-promote"])
     try #require(signal.targetScenarioID == scenario.id)
-    try #require(action.kind == .refineBet)
+    try #require(action.kind == .refineContender)
     try #require(action.title == "Revise contradicted promotion proof")
     try #require(action.priority == 89)
     try #require(action.targetDecision == .narrow)
@@ -3774,7 +3774,7 @@ struct ProductTournamentLoopTests {
     )
 
     try #require(learningAudit.id == stalledAudit.id)
-    try #require(retarget.kind == .refineBet)
+    try #require(retarget.kind == .refineContender)
     try #require(retarget.title == "Retarget tournament proof outcome")
     try #require(retarget.detail.contains(stalledAudit.id))
     try #require(retarget.targetDecision == .promote)
@@ -4184,7 +4184,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: .empty
       ))
 
-    try #require(action.kind == .refineBet)
+    try #require(action.kind == .refineContender)
     try #require(action.title == "Define evidence cohort")
     try #require(action.cohortID == nil)
   }

@@ -43,7 +43,7 @@ extension Prompts {
         a full product vision.
       - `expectedEvidenceSignal` should compare pain relief against the current
         alternative.
-      - `killCriteria` should describe what would make the bet deserve stopping
+      - `killCriteria` should describe what would make the contender deserve stopping
         or reframing.
 
       Return only JSON matching this schema:
