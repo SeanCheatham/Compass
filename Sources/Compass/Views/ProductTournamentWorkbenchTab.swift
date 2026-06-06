@@ -2146,6 +2146,15 @@ struct ProductTournamentWorkbenchTab: View {
                   ?? latestActedPressureGroupLearningSummary
               )
             }
+            if let latestActedRevisionValidationSummary =
+              latestTournamentAutomationCycleFacts.latestActedRevisionValidationSummary
+            {
+              WorkbenchFact(label: "Revision", value: latestActedRevisionValidationSummary)
+                .help(
+                  latestTournamentAutomationCycleFacts.latestActedRevisionValidationHelp
+                    ?? latestActedRevisionValidationSummary
+                )
+            }
             if let postPreparationEvidenceSummary =
               latestTournamentAutomationCycleFacts.postPreparationEvidenceSummary
             {

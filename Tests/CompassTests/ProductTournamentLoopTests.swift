@@ -3540,6 +3540,13 @@ struct ProductTournamentLoopTests {
       stopDetail: "Contender revision checkpoint recorded.",
       userMessage: "Applied acted proof-group revision; validate next."
     )
+    let postRevisionFacts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: config.recordingTournamentAutomationCycleAudit(revisionAudit),
+        evidenceIndex: evidenceIndex,
+        currentStep: nextStep,
+        isPersonaModelAvailable: true
+      ))
     let postRevisionDigest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config.recordingTournamentAutomationCycleAudit(revisionAudit),
       evidenceIndex: evidenceIndex
@@ -3578,6 +3585,7 @@ struct ProductTournamentLoopTests {
       facts.latestActedPressureGroupLearningHelp?.contains(
         "audit tournament-cycle-stalled-acted-group") == true)
     try #require(facts.latestActedPressureGroupLearningHelp?.contains(row.selectionID) == true)
+    try #require(facts.latestActedRevisionValidationSummary == nil)
     try #require(digest.contains("acted group outcomes"))
     try #require(digest.contains("stalled in Proof runs"))
     try #require(digest.contains("acted group learning"))
@@ -3590,6 +3598,18 @@ struct ProductTournamentLoopTests {
     try #require(postRevisionDigest.contains("tournament-cycle-stalled-acted-revision"))
     try #require(postRevisionDigest.contains("revisions"))
     try #require(postRevisionDigest.contains("validation Direct proof stall"))
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationSummary?
+        .contains("Direct proof stall") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationSummary?
+        .contains("experiment \(experiment.id)") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationHelp?
+        .contains("tournament-cycle-stalled-acted-revision") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationHelp?
+        .contains("Retarget contender revision for stalled proof group") == true)
     try #require(workbenchRevisionBrief.validationContextSummary == "Direct proof stall")
     try #require(
       workbenchRevisionBrief.validationContextDetail == revisionBrief.validationContextDetail)
@@ -3768,6 +3788,13 @@ struct ProductTournamentLoopTests {
       stopDetail: "Contender revision checkpoint recorded.",
       userMessage: "Applied repeated acted proof-group revision; validate next."
     )
+    let postRevisionFacts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: config.recordingTournamentAutomationCycleAudit(revisionAudit),
+        evidenceIndex: evidenceIndex,
+        currentStep: nextStep,
+        isPersonaModelAvailable: true
+      ))
     let postRevisionDigest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config.recordingTournamentAutomationCycleAudit(revisionAudit),
       evidenceIndex: evidenceIndex
@@ -3813,6 +3840,7 @@ struct ProductTournamentLoopTests {
       facts.latestActedPressureGroupLearningHelp?.contains(
         "tournament-cycle-still-acted-group-a") == true)
     try #require(facts.latestActedPressureGroupLearningHelp?.contains(row.selectionID) == true)
+    try #require(facts.latestActedRevisionValidationSummary == nil)
     try #require(digest.contains("acted group outcomes"))
     try #require(digest.contains("still Proof runs"))
     try #require(digest.contains("acted group learning"))
@@ -3825,6 +3853,18 @@ struct ProductTournamentLoopTests {
     try #require(postRevisionDigest.contains("tournament-cycle-repeated-acted-revision"))
     try #require(postRevisionDigest.contains("revisions"))
     try #require(postRevisionDigest.contains("validation Repeated still-present proof pressure"))
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationSummary?
+        .contains("Repeated still-present proof pressure") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationSummary?
+        .contains("experiment \(experiment.id)") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationHelp?
+        .contains("tournament-cycle-repeated-acted-revision") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationHelp?
+        .contains("Retarget contender revision for repeated proof group") == true)
     try #require(
       workbenchRevisionBrief.validationContextSummary == revisionBrief.validationContextSummary)
     try #require(

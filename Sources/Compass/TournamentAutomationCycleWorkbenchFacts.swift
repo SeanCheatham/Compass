@@ -106,6 +106,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   var latestActedPressureGroupOutcomeHelp: String?
   var latestActedPressureGroupLearningSummary: String?
   var latestActedPressureGroupLearningHelp: String?
+  var latestActedRevisionValidationSummary: String?
+  var latestActedRevisionValidationHelp: String?
   var postPreparationEvidenceSummary: String?
   var postPreparationEvidenceHelp: String?
   var latestRoundTwoProofGapValidationSummary: String?
@@ -139,6 +141,7 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
         evidenceIndex: evidenceIndex
       )
     }
+    let actedRevisionValidation = audits.compactMap(makeActedRevisionValidationContext).first
     let proofScoreboardItems =
       actedPressureGroupAudit == nil
       ? []
@@ -208,6 +211,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       },
       latestActedPressureGroupLearningSummary: actedPressureGroupLearning?.summary,
       latestActedPressureGroupLearningHelp: actedPressureGroupLearning?.help,
+      latestActedRevisionValidationSummary: actedRevisionValidation?.summary,
+      latestActedRevisionValidationHelp: actedRevisionValidation?.help,
       postPreparationEvidenceSummary: postPreparationEvidence?.summary,
       postPreparationEvidenceHelp: postPreparationEvidence?.help,
       latestRoundTwoProofGapValidationSummary: roundTwoValidation.map(
@@ -446,6 +451,23 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       )
     }
     return nil
+  }
+
+  private static func makeActedRevisionValidationContext(
+    for audit: TournamentAutomationCycleAudit
+  ) -> (summary: String, help: String)? {
+    guard
+      let revision = audit.revisionBriefSummaries
+        .compactMap(ActedRevisionValidationContext.init(summary:))
+        .first
+    else { return nil }
+    return (
+      summary: revision.displaySummary,
+      help: bounded(
+        "audit \(audit.id); \(revision.helpSummary); stop \(audit.stopReason.rawValue); \(audit.stopDetail)",
+        limit: 500
+      )
+    )
   }
 
   private static func outcomesShareAnchor(
@@ -693,6 +715,58 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
         }
       }
       return nil
+    }
+  }
+
+  private struct ActedRevisionValidationContext {
+    var experimentID: String?
+    var title: String?
+    var validation: String?
+    var scenarioID: String?
+    var rawSummary: String
+
+    init?(summary: String) {
+      guard summary.contains("source acted_proof_group") else { return nil }
+      rawSummary = summary
+      let fields = summary
+        .split(separator: ";", omittingEmptySubsequences: true)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      guard let first = fields.first else { return nil }
+      if let separator = first.range(of: ": ") {
+        experimentID = String(first[..<separator.lowerBound])
+        title = String(first[separator.upperBound...])
+      } else {
+        title = first
+      }
+      for field in fields.dropFirst() {
+        if field.hasPrefix("validation ") {
+          validation = String(field.dropFirst("validation ".count))
+        } else if field.hasPrefix("scenario ") {
+          scenarioID = String(field.dropFirst("scenario ".count))
+        }
+      }
+      guard validation != nil else { return nil }
+    }
+
+    var displaySummary: String {
+      let parts = [
+        validation,
+        experimentID.map { "experiment \($0)" },
+        scenarioID.map { "scenario \($0)" },
+      ].compactMap { $0 }
+      guard !parts.isEmpty else { return rawSummary }
+      return bounded(parts.joined(separator: "; "), limit: 260)
+    }
+
+    var helpSummary: String {
+      let parts = [
+        title,
+        validation.map { "validation \($0)" },
+        experimentID.map { "experiment \($0)" },
+        scenarioID.map { "scenario \($0)" },
+      ].compactMap { $0 }
+      guard !parts.isEmpty else { return rawSummary }
+      return bounded(parts.joined(separator: "; "), limit: 420)
     }
   }
 }
