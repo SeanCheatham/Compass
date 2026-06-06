@@ -185,11 +185,21 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(proofRunGroup.actionSystemImage == "text.badge.checkmark")
     try #require(proofRunGroup.actionHelpSummary.contains("Ready: Run Plan Proof"))
     try #require(proofRunGroup.actionContextSummary.contains("Proof runs"))
+    try #require(proofRunGroup.latestMovement == nil)
+    try #require(proofRunGroup.latestMovementSummary == "No group proof movement yet")
+    try #require(proofRunGroup.latestMovementStatusLabel == "No movement")
+    try #require(proofRunGroup.latestMovementSystemImage == "circle.dashed")
+    try #require(proofRunGroup.latestMovementContextSummary == "Proof runs: latest_result none")
     try #require(
       item.readinessGroupActionAccessibilityID(proofRunGroup)
         == "\(item.workbenchAccessibilityID)-group-proof-runs-action"
     )
+    try #require(
+      item.readinessGroupResultAccessibilityID(proofRunGroup)
+        == "\(item.workbenchAccessibilityID)-group-proof-runs-result"
+    )
     try #require(item.readinessGroupActionSummary.contains("Proof runs"))
+    try #require(item.readinessGroupResultSummary.contains("Proof runs: latest_result none"))
     try #require(topActionRow.experimentID == topActionStep.experimentID)
     try #require(topActionRow.selectionID.contains(topActionStep.experimentID))
     try #require(topActionRow.selectionID.contains(item.roundID ?? "unknown-round"))
@@ -326,6 +336,7 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(context.contains("proof_target_scoreboard"))
     try #require(context.contains("pressure Proof runs 2"))
     try #require(context.contains("group_actions Proof runs"))
+    try #require(context.contains("group_results Proof runs: latest_result none"))
     try #require(context.contains("top_action"))
     try #require(context.contains("top_action_status More proof"))
     try #require(context.contains("run_pair"))
@@ -334,6 +345,7 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(digest.contains("proof_target_scoreboard"))
     try #require(digest.contains("pressure Proof runs 2"))
     try #require(digest.contains("group_actions Proof runs"))
+    try #require(digest.contains("group_results Proof runs: latest_result none"))
     try #require(digest.contains("top_action"))
     try #require(digest.contains("top_action_status More proof"))
     try #require(digest.contains("run_pair"))
@@ -418,6 +430,7 @@ struct ProductTournamentRoundProofOverviewTests {
     )
     let row = try #require(item.rows.first { $0.experimentID == step.experimentID })
     let movement = try #require(row.latestDebtMovement)
+    let proofRunGroup = try #require(item.readinessGroups.first)
     let audit = try #require(
       config.tournamentAutomationCycleAudits.first { $0.id == "scoreboard-proof-delta" }
     )
@@ -472,6 +485,28 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(row.contextSummary.contains("latest_audit scoreboard-proof-delta"))
     try #require(row.contextSummary.contains("run_pair last cleared 2 proof debt"))
     try #require(item.readinessSummary == "Proof runs 2")
+    try #require(proofRunGroup.latestMovementRow?.selectionID == row.selectionID)
+    try #require(proofRunGroup.latestMovement?.auditID == "scoreboard-proof-delta")
+    try #require(
+      proofRunGroup.latestMovementSummary
+        == "\(row.contenderTitle): Cleared 2 proof debt 6 -> 4"
+    )
+    try #require(proofRunGroup.latestMovementStatusLabel == "Proof debt reduced")
+    try #require(proofRunGroup.latestMovementSystemImage == "arrow.down.circle")
+    try #require(proofRunGroup.latestMovementHelpSummary.contains("scoreboard-proof-delta"))
+    try #require(proofRunGroup.latestMovementHelpSummary.contains("Current next step:"))
+    try #require(proofRunGroup.latestMovementContextSummary.contains("Proof runs"))
+    try #require(proofRunGroup.latestMovementContextSummary.contains(row.contenderTitle))
+    try #require(
+      proofRunGroup.latestMovementContextSummary.contains("latest_result cleared 2 proof debt")
+    )
+    try #require(proofRunGroup.latestMovementContextSummary.contains("audit scoreboard-proof-delta"))
+    try #require(proofRunGroup.latestMovementContextSummary.contains("proof_debt 6 -> 4 (-2)"))
+    try #require(
+      item.readinessGroupResultAccessibilityID(proofRunGroup)
+        == "\(item.workbenchAccessibilityID)-group-proof-runs-result"
+    )
+    try #require(item.readinessGroupResultSummary.contains("scoreboard-proof-delta"))
     try #require(item.topActionStatusLabel == "More proof")
     try #require(item.topActionStatusSystemImage == "text.badge.checkmark")
     try #require(item.topActionDetail.contains("Latest audit cleared 2 proof debt"))
@@ -479,12 +514,16 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(context.contains("latest_audit scoreboard-proof-delta"))
     try #require(context.contains("proof_debt 6 -> 4 (-2)"))
     try #require(context.contains("pressure Proof runs 2"))
+    try #require(context.contains("group_results Proof runs"))
+    try #require(context.contains("latest_result cleared 2 proof debt"))
     try #require(context.contains("run_pair last cleared 2 proof debt"))
     try #require(context.contains("next_status More proof"))
     try #require(context.contains("top_action_status More proof"))
     try #require(digest.contains("latest_audit scoreboard-proof-delta"))
     try #require(digest.contains("proof_debt 6 -> 4 (-2)"))
     try #require(digest.contains("pressure Proof runs 2"))
+    try #require(digest.contains("group_results Proof runs"))
+    try #require(digest.contains("latest_result cleared 2 proof debt"))
     try #require(digest.contains("run_pair last cleared 2 proof debt"))
     try #require(digest.contains("top_action_status More proof"))
     try #require(workbenchBody.contains("Proof Scoreboard"))

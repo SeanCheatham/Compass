@@ -1628,6 +1628,7 @@ struct ProductTournamentWorkbenchTab: View {
       ForEach(item.displayReadinessGroups()) { group in
         VStack(alignment: .leading, spacing: 5) {
           proofTargetScoreboardGroupHeader(item: item, group: group)
+          proofTargetScoreboardGroupResult(item: item, group: group)
           ForEach(group.rows) { row in
             Button {
               selectProofScoreboardRow(row)
@@ -1740,6 +1741,23 @@ struct ProductTournamentWorkbenchTab: View {
         .accessibilityIdentifier(item.readinessGroupActionAccessibilityID(group))
         .help(group.actionHelpSummary)
       }
+    }
+  }
+
+  @ViewBuilder
+  private func proofTargetScoreboardGroupResult(
+    item: TournamentAutomationProofTargetScoreboardItem,
+    group: TournamentAutomationProofTargetScoreboardReadinessGroup
+  ) -> some View {
+    if group.latestMovement != nil {
+      WorkbenchStatusFact(
+        label: "Group result",
+        value: group.latestMovementSummary,
+        statusText: group.latestMovementStatusLabel,
+        statusSystemImage: group.latestMovementSystemImage,
+        statusAccessibilityID: item.readinessGroupResultAccessibilityID(group)
+      )
+      .help(group.latestMovementHelpSummary)
     }
   }
 

@@ -249,6 +249,69 @@ struct TournamentAutomationProofTargetScoreboardReadinessGroup: Equatable, Senda
     }
     return "\(bucket): none"
   }
+
+  var latestMovementRow: TournamentAutomationProofTargetScoreboardRow? {
+    rows
+      .compactMap { row -> (
+        row: TournamentAutomationProofTargetScoreboardRow,
+        movement: TournamentAutomationProofTargetDebtMovement
+      )? in
+        guard let movement = row.latestDebtMovement else { return nil }
+        return (row, movement)
+      }
+      .sorted { lhs, rhs in
+        if lhs.movement.endedAt != rhs.movement.endedAt {
+          return lhs.movement.endedAt > rhs.movement.endedAt
+        }
+        return lhs.row.scoreboardSortsBefore(rhs.row)
+      }
+      .first?
+      .row
+  }
+
+  var latestMovement: TournamentAutomationProofTargetDebtMovement? {
+    latestMovementRow?.latestDebtMovement
+  }
+
+  var latestMovementSummary: String {
+    guard let latestMovementRow, let latestMovement else {
+      return "No group proof movement yet"
+    }
+    return
+      "\(latestMovementRow.contenderTitle): \(latestMovement.movementLabel) proof debt \(latestMovement.startCountLabel) -> \(latestMovement.endCountLabel)"
+  }
+
+  var latestMovementStatusLabel: String {
+    latestMovement?.postResultStateSummary ?? "No movement"
+  }
+
+  var latestMovementSystemImage: String {
+    latestMovement?.movementSystemImage ?? "circle.dashed"
+  }
+
+  var latestMovementHelpSummary: String {
+    guard let latestMovementRow, let latestMovement else {
+      return "No audited proof movement for \(bucket.lowercased()) yet."
+    }
+    return [
+      "\(bucket): \(latestMovementRow.contenderTitle)",
+      latestMovement.helpSummary,
+      "Current next step: \(latestMovementRow.nextStepSummary)",
+    ].joined(separator: "\n")
+  }
+
+  var latestMovementContextSummary: String {
+    guard let latestMovementRow, let latestMovement else {
+      return "\(bucket): latest_result none"
+    }
+    return [
+      "\(bucket) \(StringUtils.boundedText(latestMovementRow.contenderTitle, limit: 80))",
+      "latest_result \(latestMovement.lastRunContextSummary)",
+      "audit \(StringUtils.boundedText(latestMovement.auditID, limit: 80))",
+      "proof_debt \(latestMovement.startingProofDebtCount) -> \(latestMovement.endingProofDebtCount) (\(latestMovement.deltaLabel))",
+      "next \(StringUtils.boundedText(latestMovementRow.nextStepSummary, limit: 120))",
+    ].joined(separator: "; ")
+  }
 }
 
 struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identifiable {
@@ -662,10 +725,24 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
     "\(workbenchAccessibilityID)-group-\(group.accessibilitySuffix)-action"
   }
 
+  func readinessGroupResultAccessibilityID(
+    _ group: TournamentAutomationProofTargetScoreboardReadinessGroup
+  ) -> String {
+    "\(workbenchAccessibilityID)-group-\(group.accessibilitySuffix)-result"
+  }
+
   var readinessGroupActionSummary: String {
     let summary = readinessGroups
       .prefix(4)
       .map { StringUtils.boundedText($0.actionContextSummary, limit: 140) }
+      .joined(separator: " | ")
+    return summary.isEmpty ? "none" : summary
+  }
+
+  var readinessGroupResultSummary: String {
+    let summary = readinessGroups
+      .prefix(4)
+      .map { StringUtils.boundedText($0.latestMovementContextSummary, limit: 180) }
       .joined(separator: " | ")
     return summary.isEmpty ? "none" : summary
   }
@@ -722,6 +799,7 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
       "targets \(targetCount)/\(contenderCount)",
       "pressure \(StringUtils.boundedText(readinessSummary, limit: 160))",
       "group_actions \(readinessGroupActionSummary)",
+      "group_results \(readinessGroupResultSummary)",
       topAction,
     ]
     .joined(separator: ", ")
