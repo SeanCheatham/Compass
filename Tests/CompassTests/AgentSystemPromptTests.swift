@@ -157,15 +157,16 @@ struct AgentSystemPromptTests {
     try #require(!critic.contains("edit_file"))
   }
 
-  // MARK: - Compass product and factory loop
+  // MARK: - Compass product and tournament loop
 
-  @Test func testSystemPromptExplainsCompassAndSoftwareFactory() throws {
+  @Test func testSystemPromptExplainsCompassAndProductTournamentLoop() throws {
     let prompt = Prompts.agentSystemPrompt(phase: .plan, workingDirectoryPath: "/x")
     try #require(prompt.contains("About Compass:"))
-    try #require(prompt.contains("software factory"))
+    try #require(prompt.contains("Product Tournament work loop"))
     try #require(prompt.contains("COMPASS.md"))
-    try #require(prompt.contains("Software factory loop"))
+    try #require(prompt.contains("Product Tournament work loop"))
     try #require(prompt.contains("Plan — pick the next"))
+    try #require(prompt.contains("Product Tournament Context"))
     try #require(prompt.contains("Your role this turn: Plan"))
     try #require(
       prompt.contains("until paused or until Plan sets") && prompt.contains("`immediate` to null"),
@@ -173,10 +174,10 @@ struct AgentSystemPromptTests {
     )
   }
 
-  @Test func testSystemPromptIncludesHumanCenteredFactoryRules() throws {
+  @Test func testSystemPromptIncludesHumanCenteredProductRules() throws {
     for phase in AgentPhase.allCases {
       let prompt = Prompts.agentSystemPrompt(phase: phase, workingDirectoryPath: "/x")
-      try #require(prompt.contains("Human-centered factory rules"))
+      try #require(prompt.contains("Human-centered product rules"))
       try #require(prompt.contains("non-engineer owner"))
       try #require(prompt.contains("less-capable next model"))
       try #require(prompt.contains("Foundation Models"))
@@ -185,16 +186,16 @@ struct AgentSystemPromptTests {
     }
   }
 
-  @Test func testSoftwareFactorySectionVariesByPhase() throws {
-    let develop = Prompts.softwareFactorySection(phase: .develop, role: .phaseAgent)
+  @Test func testProductTournamentWorkLoopSectionVariesByPhase() throws {
+    let develop = Prompts.productTournamentWorkLoopSection(phase: .develop, role: .phaseAgent)
     try #require(develop.contains("Your role this turn: Develop"))
     try #require(develop.contains("verify command"))
     try #require(develop.contains("generated artifact"))
 
-    let critic = Prompts.softwareFactorySection(phase: .critic, role: .phaseAgent)
+    let critic = Prompts.productTournamentWorkLoopSection(phase: .critic, role: .phaseAgent)
     try #require(critic.contains("Your role this turn: Critic"))
 
-    let sub = Prompts.softwareFactorySection(phase: .plan, role: .subAgent)
+    let sub = Prompts.productTournamentWorkLoopSection(phase: .plan, role: .subAgent)
     try #require(sub.contains("sub-agent"))
     try #require(sub.contains("does not see your tool calls"))
   }
@@ -245,16 +246,16 @@ struct AgentSystemPromptTests {
     try #require(prompt.contains("swift build --target CompassTests"))
   }
 
-  @Test func testSubAgentSystemPromptIncludesFactoryContext() throws {
+  @Test func testSubAgentSystemPromptIncludesProductTournamentContext() throws {
     let prompt = Prompts.subAgentSystemPrompt(
       parentPhase: .develop,
       workingDirectoryPath: "/x",
       toolNames: ["bash"]
     )
     try #require(prompt.contains("About Compass:"))
-    try #require(prompt.contains("software factory"))
+    try #require(prompt.contains("Product Tournament work loop"))
     try #require(prompt.contains("sub-agent"))
-    try #require(prompt.contains("Human-centered factory rules"))
+    try #require(prompt.contains("Human-centered product rules"))
   }
 
   // MARK: - Execution environment

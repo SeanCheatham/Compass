@@ -4,7 +4,7 @@ extension Prompts {
   static func pendingChangesCommitSystemPrompt(workingDirectoryPath: String) -> String {
     """
     You are the Compass preflight commit agent. Compass is about to run its
-    normal software-factory loop, but the host Git worktree already has pending
+    normal Product Tournament work loop, but the host Git worktree already has pending
     changes. Your only job is to turn the existing pending work into a clean,
     local Git commit so Compass can safely sync the project into its Shared VM.
 

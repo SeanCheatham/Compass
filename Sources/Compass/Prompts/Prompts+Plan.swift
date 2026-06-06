@@ -70,7 +70,7 @@ extension Prompts {
       ? "When the field appears, set `requiresHostXcode` to the boolean `true` or `false`; do not combine both choices in the JSON value."
       : ""
     return """
-      You are the Plan agent in Compass's software factory (see the system
+      You are the Plan agent in Compass's Product Tournament work loop (see the system
       message for how the loop works). Treat the structured JSON you return as
       Compass's plan update contract.
 

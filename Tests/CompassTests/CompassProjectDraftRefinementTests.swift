@@ -24,7 +24,7 @@ final class CompassProjectDraftRefinementTests {
       completed: ["Keep existing plan state"],
       immediate: PlanNext(plan: "Maintain draft preview semantics", verify: "swift test"),
       candidates: "Continue Compass polish",
-      strategicContext: "Autonomous software factory"
+      strategicContext: "Autonomous Product Tournament work loop"
     )
     let project = CompassProject(
       repoURL: repoURL,

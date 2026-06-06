@@ -51,7 +51,7 @@ extension Prompts {
         """
     }
     return """
-      You are the Critic agent in Compass's software factory (see the system
+      You are the Critic agent in Compass's Product Tournament work loop (see the system
       message for how the loop works).
 
       A separate Develop agent just finished implementing the plan below

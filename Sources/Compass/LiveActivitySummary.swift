@@ -611,7 +611,7 @@ enum LiveActivitySummaryService {
 
         let session = LanguageModelSession(
           instructions: """
-            You summarize a batch of recent Compass live activity for a macOS software factory.
+            You summarize a batch of recent Compass live activity for a macOS Product Tournament work loop.
             Return a single paragraph of 2 to 3 plain-text sentences describing what happened.
             Write in past tense, third person, present a calm narrative of the work.
             Ground every claim in the supplied events; you may reference file names, commands, counts, and outcomes that appear in those events.

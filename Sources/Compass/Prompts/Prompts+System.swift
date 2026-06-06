@@ -15,7 +15,7 @@ extension Prompts {
     let toolList = toolNames.isEmpty ? "(none)" : toolNames.joined(separator: ", ")
     return """
       You are a sub-agent spawned by the Compass \(parentPhase.rawValue)
-      agent via the `delegate` tool inside Compass's software factory.
+      agent via the `delegate` tool inside Compass's Product Tournament work loop.
       Your job is to investigate the focused task the parent handed you
       and report findings back. The parent will read your reply as a single
       tool result; everything you discover must be in your final
@@ -23,9 +23,9 @@ extension Prompts {
 
       \(compassOverviewSection())
 
-      \(softwareFactorySection(phase: parentPhase, role: .subAgent))
+      \(productTournamentWorkLoopSection(phase: parentPhase, role: .subAgent))
 
-      \(humanCenteredFactoryGuidance())
+      \(humanCenteredProductGuidance())
 
       \(assumptionGuidance())
 
@@ -162,9 +162,9 @@ extension Prompts {
 
       \(compassOverviewSection())
 
-      \(softwareFactorySection(phase: phase, role: .phaseAgent))
+      \(productTournamentWorkLoopSection(phase: phase, role: .phaseAgent))
 
-      \(humanCenteredFactoryGuidance())
+      \(humanCenteredProductGuidance())
 
       Working directory: \(workingDirectoryPath)
       All tool paths are resolved against this directory. Relative paths
@@ -226,9 +226,9 @@ extension Prompts {
   /// Product-level quality bar shared by every agent role. This is
   /// deliberately separate from phase mechanics so it remains visible to
   /// sub-agents and survives prompt edits around tool routing.
-  static func humanCenteredFactoryGuidance() -> String {
+  static func humanCenteredProductGuidance() -> String {
     """
-    Human-centered factory rules:
+    Human-centered product rules:
     - Optimize for a non-engineer owner. Prefer observable behavior, clear
       labels, recoverable states, and plain-language handoffs over hidden
       implementation details.
@@ -269,13 +269,13 @@ extension Prompts {
   static func compassOverviewSection() -> String {
     """
     About Compass:
-    Compass is a macOS-native app that runs a recursive software factory over
-    one Git repository at a time. The user sets a vision in `COMPASS.md` and
-    optional drafts; Compass keeps planning state in `.compass/state.json`,
+    Compass is a macOS-native app that runs a Product Tournament work loop over
+    one Git repository at a time. The user sets a product vision in `COMPASS.md`
+    and optional drafts; Compass keeps planning state in `.compass/state.json`,
     durable guidance in `.compass/lessons.md` (persistent memory every agent
     reads each session), user-reviewable assumptions in an assumptions ledger,
     and a session log of past iterations. You are one specialized agent in
-    that factory — not a one-off chat. The user may be away; Compass will keep
+    that loop — not a one-off chat. The user may be away; Compass will keep
     invoking phases until paused or until Plan sets `immediate` to null
     because there are no actionable candidates, no draft or feedback intent,
     and no useful repo-originated slice to plan (project complete).
@@ -291,16 +291,16 @@ extension Prompts {
     """
   }
 
-  enum FactoryAgentRole {
+  enum CompassAgentRole {
     case phaseAgent
     case subAgent
   }
 
   /// How the Plan → Develop → post-checks → Critic → land loop fits together,
   /// plus this turn's role. Kept separate for tests and sub-agent reuse.
-  static func softwareFactorySection(
+  static func productTournamentWorkLoopSection(
     phase: AgentPhase,
-    role: FactoryAgentRole
+    role: CompassAgentRole
   ) -> String {
     let roleLine: String
     switch (phase, role) {
@@ -341,9 +341,10 @@ extension Prompts {
         """
     }
     return """
-      Software factory loop (Compass orchestrates this; you execute one step):
+      Product Tournament work loop (Compass orchestrates this; you execute one step):
       1. Plan — pick the next `immediate` increment from drafts, feedback,
-         candidates, strategic context, focus, or repo evidence.
+         candidates, strategic context, focus, repo evidence, or the
+         Product Tournament Context.
       2. Develop — implement that increment in the working tree (often a Shared VM
          guest clone synced from the host repo).
       3. Post-checks — Compass runs the verify shell command you planned; retries
@@ -365,7 +366,7 @@ extension Prompts {
   static func lessonEditsGuidance() -> String {
     """
     Persistent memory (lessons.md):
-    `.compass/lessons.md` is the factory's long-term memory. Every future Plan,
+    `.compass/lessons.md` is Compass's long-term memory. Every future Plan,
     Develop, Reflect, and Critic turn receives the current lessons text in its
     user message — agents do not read that file from the worktree. When you
     learn something later agents should not have to rediscover (Shared VM limits,

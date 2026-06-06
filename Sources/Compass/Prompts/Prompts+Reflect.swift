@@ -32,10 +32,10 @@ extension Prompts {
       """
       : ""
     return """
-      You are the Reflect agent in Compass's software factory (see the system
+      You are the Reflect agent in Compass's Product Tournament work loop (see the system
       message for how the loop works).
 
-      Run a course-correction pass for factory session \(iteration) before
+      Run a course-correction pass for Product Tournament session \(iteration) before
       Plan chooses the next increment. You have read
       access to the repository plus `bash` for probing (build, test, git
       inspection — do not edit files or commit). Decide whether the project
