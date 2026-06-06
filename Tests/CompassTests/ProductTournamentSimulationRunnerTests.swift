@@ -27,6 +27,11 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(result.tournamentTrace?.painReliefSignals.currentAlternativeAddressed == true)
     try #require(appRunner.inputs.filter { $0.actions.count == 5 }.count == 3)
     try #require(appRunner.inputs.last?.contender.id == request.contender.id)
+    let firstTranscriptEntry = try #require(result.rawPersonaActionTranscript.first)
+    try #require(firstTranscriptEntry.experimentID == request.experiment.id)
+    try #require(firstTranscriptEntry.branchName == request.experiment.branchName)
+    try #require(firstTranscriptEntry.commitSha == request.commitSha)
+    try #require(firstTranscriptEntry.scenarioID == request.scenarioID)
 
     let record = ProductTournamentEvidenceRecord(
       runResult: result,
@@ -107,12 +112,13 @@ struct ProductTournamentSimulationRunnerTests {
     )
     let runner = ProductTournamentSimulationRunner(appRunner: appRunner, personaSelector: selector)
 
-    let result = await runner.run(
-      makeTournamentRequest(mode: .personaModel, targetDecision: .kill, maxTurns: 1)
-    )
+    let request = makeTournamentRequest(mode: .personaModel, targetDecision: .kill, maxTurns: 1)
+    let result = await runner.run(request)
 
     let inputIntent = try #require(appRunner.inputs.first?.decisionIntent)
-    let contextIntent = try #require(selector.chooseContexts.first?.request.decisionIntent)
+    let contextRequest = try #require(selector.chooseContexts.first?.request)
+    let contextIntent = try #require(contextRequest.decisionIntent)
+    let transcriptEntry = try #require(result.rawPersonaActionTranscript.first)
     try #require(result.status == .maxTurnsReached)
     try #require(result.decisionIntent?.currentDecision == .keepGoing)
     try #require(result.decisionIntent?.targetDecision == .kill)
@@ -123,6 +129,10 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(contextIntent.currentDecision == .keepGoing)
     try #require(contextIntent.targetDecision == .kill)
     try #require(contextIntent.scorecardFocus.contains("current alternative dominance"))
+    try #require(contextRequest.experiment.branchName == request.experiment.branchName)
+    try #require(contextRequest.commitSha == request.commitSha)
+    try #require(transcriptEntry.branchName == request.experiment.branchName)
+    try #require(transcriptEntry.commitSha == request.commitSha)
   }
 
   @Test func personaModelFailsWhenRepairStillInventsAction() async throws {

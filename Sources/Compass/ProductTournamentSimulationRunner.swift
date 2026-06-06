@@ -262,6 +262,10 @@ struct ProductTournamentPersonaActionTranscriptEntry: Codable, Equatable, Sendab
     case repair
   }
 
+  var experimentID: String
+  var branchName: String
+  var commitSha: String
+  var scenarioID: String
   var turnIndex: Int
   var phase: Phase
   var promptVersionID: String
@@ -272,6 +276,10 @@ struct ProductTournamentPersonaActionTranscriptEntry: Codable, Equatable, Sendab
   var rawResponse: String
 
   init(
+    experimentID: String,
+    branchName: String,
+    commitSha: String,
+    scenarioID: String,
     turnIndex: Int,
     phase: Phase,
     promptVersionID: String = "product_tournament.persona_action.v1",
@@ -281,6 +289,14 @@ struct ProductTournamentPersonaActionTranscriptEntry: Codable, Equatable, Sendab
     rationale: String = "",
     rawResponse: String = ""
   ) {
+    self.experimentID = ProductTournamentModelText.identifier(
+      experimentID,
+      fallback: "experiment"
+    )
+    self.branchName = StringUtils.boundedText(branchName, limit: 200)
+    let boundedCommit = StringUtils.boundedText(commitSha, limit: 80)
+    self.commitSha = boundedCommit.isEmpty ? "unknown" : boundedCommit
+    self.scenarioID = ProductTournamentModelText.identifier(scenarioID, fallback: "scenario")
     self.turnIndex = turnIndex
     self.phase = phase
     self.promptVersionID = promptVersionID
@@ -539,7 +555,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
       \(bounded(decisionIntent, 700)).
       Scenario task: \(bounded(request.scenarioTask, 500)).
       Scenario success signal: \(bounded(request.scenarioSuccessSignal, 400)).
-      Scenario: \(request.scenarioID), commit \(request.commitSha), turn \(turnIndex).
+      Scenario: \(request.scenarioID), branch \(request.experiment.branchName), commit \(request.commitSha), turn \(turnIndex).
       Prior actions: \(priorActions).
       Current screen: \(bounded(trace.initialState.headline, 120)) - \(bounded(trace.initialState.body, 500)).
       Observations: \(bounded(observations, 500)).
@@ -786,6 +802,7 @@ struct ProductTournamentSimulationRunner {
           if isValid(action, allowedActions: allowedActions) {
             transcript.append(
               transcriptEntry(
+                request: request,
                 turnIndex: turnIndex,
                 phase: .modelFree,
                 choice: ProductTournamentPersonaActionChoice(
@@ -800,6 +817,7 @@ struct ProductTournamentSimulationRunner {
           }
           transcript.append(
             transcriptEntry(
+              request: request,
               turnIndex: turnIndex,
               phase: .modelFree,
               choice: ProductTournamentPersonaActionChoice(action: action),
@@ -866,6 +884,7 @@ struct ProductTournamentSimulationRunner {
           if isValid(choice.action, allowedActions: allowedActions) {
             transcript.append(
               transcriptEntry(
+                request: request,
                 turnIndex: turnIndex,
                 phase: .choose,
                 choice: choice,
@@ -878,6 +897,7 @@ struct ProductTournamentSimulationRunner {
 
           transcript.append(
             transcriptEntry(
+              request: request,
               turnIndex: turnIndex,
               phase: .choose,
               choice: choice,
@@ -912,6 +932,7 @@ struct ProductTournamentSimulationRunner {
           if isValid(repairChoice.action, allowedActions: allowedActions) {
             transcript.append(
               transcriptEntry(
+                request: request,
                 turnIndex: turnIndex,
                 phase: .repair,
                 choice: repairChoice,
@@ -924,6 +945,7 @@ struct ProductTournamentSimulationRunner {
 
           transcript.append(
             transcriptEntry(
+              request: request,
               turnIndex: turnIndex,
               phase: .repair,
               choice: repairChoice,
@@ -1170,6 +1192,7 @@ struct ProductTournamentSimulationRunner {
   }
 
   private func transcriptEntry(
+    request: ProductTournamentSimulationRequest,
     turnIndex: Int,
     phase: ProductTournamentPersonaActionTranscriptEntry.Phase,
     choice: ProductTournamentPersonaActionChoice,
@@ -1177,6 +1200,10 @@ struct ProductTournamentSimulationRunner {
     allowedActions: [ProductTournamentExperienceAllowedAction]
   ) -> ProductTournamentPersonaActionTranscriptEntry {
     ProductTournamentPersonaActionTranscriptEntry(
+      experimentID: request.experiment.id,
+      branchName: request.experiment.branchName,
+      commitSha: request.commitSha,
+      scenarioID: request.scenarioID,
       turnIndex: turnIndex,
       phase: phase,
       promptVersionID: choice.promptVersionID,
