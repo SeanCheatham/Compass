@@ -1429,50 +1429,68 @@ struct ProductTournamentWorkbenchTab: View {
   private func roundThreeImplementationRevisionValidationRow(
     _ item: ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem
   ) -> some View {
-    Button {
-      selectedExperimentID = item.experimentID
-      if let revisionScenarioID = item.revisionScenarioID {
-        selectedScenarioID = revisionScenarioID
-      }
-    } label: {
-      HStack(alignment: .top, spacing: 9) {
-        Image(systemName: item.displaySystemImage)
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
-          .frame(width: 16, alignment: .center)
-          .padding(.top, 2)
-        VStack(alignment: .leading, spacing: 6) {
-          HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(item.contenderTitle)
-              .font(.callout.weight(.semibold))
-              .lineLimit(2)
-            Spacer()
-            WorkbenchStatusPill(text: item.outcome.title)
-          }
-          Text(item.displaySubtitle)
+    VStack(alignment: .leading, spacing: 8) {
+      Button {
+        selectedExperimentID = item.experimentID
+        if let revisionScenarioID = item.revisionScenarioID {
+          selectedScenarioID = revisionScenarioID
+        }
+      } label: {
+        HStack(alignment: .top, spacing: 9) {
+          Image(systemName: item.displaySystemImage)
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
-            .lineLimit(2)
-          WorkbenchFact(label: "Track", value: item.experimentID)
-          WorkbenchFact(label: "Audit", value: item.revisionAuditID)
-          if let revisionScenarioID = item.revisionScenarioID {
-            WorkbenchFact(label: "Scenario", value: revisionScenarioID)
+            .frame(width: 16, alignment: .center)
+            .padding(.top, 2)
+          VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              Text(item.contenderTitle)
+                .font(.callout.weight(.semibold))
+                .lineLimit(2)
+              Spacer()
+              WorkbenchStatusPill(text: item.outcome.title)
+            }
+            Text(item.displaySubtitle)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .lineLimit(2)
+            WorkbenchFact(label: "Track", value: item.experimentID)
+            WorkbenchFact(label: "Audit", value: item.revisionAuditID)
+            if let revisionScenarioID = item.revisionScenarioID {
+              WorkbenchFact(label: "Scenario", value: revisionScenarioID)
+            }
+            WorkbenchFact(label: "Validation", value: item.validationSummary)
+            WorkbenchFact(label: "Next", value: item.nextStepSummary)
+              .help(item.nextStepDetail)
+            WorkbenchFact(label: "Persisted gaps", value: item.persistedGapSummary)
+            WorkbenchFact(label: "Resolved gaps", value: item.resolvedGapSummary)
+            Text(item.displayDetail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .lineLimit(3)
+              .fixedSize(horizontal: false, vertical: true)
           }
-          WorkbenchFact(label: "Validation", value: item.validationSummary)
-          WorkbenchFact(label: "Persisted gaps", value: item.persistedGapSummary)
-          WorkbenchFact(label: "Resolved gaps", value: item.resolvedGapSummary)
-          Text(item.displayDetail)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .lineLimit(3)
-            .fixedSize(horizontal: false, vertical: true)
         }
       }
-      .padding(10)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      .buttonStyle(.plain)
+
+      if let nextStep = item.nextStep {
+        Button {
+          Task { await runTournamentAutomationStep(nextStep) }
+        } label: {
+          Label(
+            isRunningTournamentStep ? "Running Step" : "Run Next Step",
+            systemImage: item.nextStepSystemImage
+          )
+        }
+        .buttonStyle(.bordered)
+        .disabled(isRunningTournamentStep || !nextStep.canExecute)
+        .help(nextStep.canExecute ? item.nextStepDetail : nextStep.blockedReason ?? item.nextStepDetail)
+      }
     }
-    .buttonStyle(.plain)
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     .accessibilityIdentifier(item.workbenchAccessibilityID)
     .help(item.helpSummary)
   }
@@ -3063,8 +3081,8 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
-  private func runTournamentAutomationStep() async {
-    guard let step = tournamentAutomationStep, step.canExecute else { return }
+  private func runTournamentAutomationStep(_ explicitStep: TournamentAutomationStep? = nil) async {
+    guard let step = explicitStep ?? tournamentAutomationStep, step.canExecute else { return }
     if let blockedMessage = roundTwoLaunchBlockedMessage(experimentID: step.experimentID) {
       selectedExperimentID = step.experimentID
       scenarioRunMessage = blockedMessage

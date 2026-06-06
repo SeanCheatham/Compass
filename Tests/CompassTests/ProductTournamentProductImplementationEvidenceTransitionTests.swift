@@ -514,7 +514,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
       let validationItem = try #require(
         ProductTournamentRoundThreeImplementationRevisionValidationOverview.items(
           config: validationFixture.config,
-          evidenceIndex: index
+          evidenceIndex: index,
+          isPersonaModelAvailable: true
         ).first
       )
       let proofItem = try #require(
@@ -539,6 +540,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
       try #require(validationItem.displayDetail.contains(validationFixture.revisionAudit.id))
       try #require(validationItem.helpSummary.contains("Persisted gaps"))
       try #require(validationItem.helpSummary.contains("Resolved gaps"))
+      try #require(validationItem.helpSummary.contains("Next step"))
+      try #require(validationItem.nextStepSummary != "No automation step queued")
       try #require(
         validationItem.workbenchAccessibilityID.contains(
           "round-3-implementation-validation"))
@@ -555,23 +558,46 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
         try #require(validationItem.result.validationRunCount == 0)
         try #require(validationItem.displaySystemImage == "clock")
         try #require(validationItem.persistedGapSummary != "none")
+        try #require(validationItem.nextStep?.kind == .runCohort)
+        try #require(
+          validationItem.nextStep?.action.title == "Validate Round 3 implementation revision")
+        try #require(validationItem.nextStep?.canExecute == true)
+        try #require(validationItem.nextStep?.targetScenarioID == validationFixture.revisionScenarioID)
+        try #require(validationItem.nextStepSystemImage == "play.rectangle.on.rectangle")
       case .partialValidation:
         try #require(validationItem.result.validationRunCount == 1)
         try #require(validationItem.displaySystemImage == "hourglass")
         try #require(validationItem.persistedGapSummary.contains("needs"))
+        try #require(validationItem.nextStep?.kind == .runCohort)
+        try #require(
+          validationItem.nextStep?.action.title == "Complete Round 3 implementation validation")
+        try #require(validationItem.nextStep?.canExecute == true)
+        try #require(validationItem.nextStep?.action.targetDecision == .promote)
+        try #require(validationItem.nextStepSystemImage == "play.rectangle.on.rectangle")
       case .resolved:
         try #require(validationItem.result.validationRunCount == 3)
         try #require(validationItem.displaySystemImage == "checkmark.seal")
         try #require(validationItem.persistedGapSummary == "none")
         try #require(validationItem.resolvedGapSummary != "none")
+        try #require(validationItem.nextStep?.kind == .applyRoundTransition)
+        try #require(validationItem.nextStep?.action.title == "Apply Round 3 transition")
+        try #require(validationItem.nextStep?.canExecute == true)
+        try #require(validationItem.nextStepSystemImage == "arrow.turn.down.right")
       case .persisted:
         try #require(validationItem.result.validationRunCount == 3)
         try #require(validationItem.displaySystemImage == "exclamationmark.triangle")
         try #require(validationItem.persistedGapSummary != "none")
+        try #require(validationItem.nextStep?.kind == .applyRevision)
+        try #require(validationItem.nextStep?.canExecute == true)
+        try #require(validationItem.nextStepSystemImage == "wand.and.stars")
       case .eliminated:
         try #require(validationItem.result.validationRunCount == 2)
         try #require(validationItem.displaySystemImage == "xmark.octagon")
         try #require(validationItem.persistedGapSummary != "none")
+        try #require(validationItem.nextStep?.kind == .applyRoundTransition)
+        try #require(validationItem.nextStep?.action.title == "Apply Round 3 transition")
+        try #require(validationItem.nextStep?.canExecute == true)
+        try #require(validationItem.nextStepSystemImage == "arrow.turn.down.right")
       }
     }
   }

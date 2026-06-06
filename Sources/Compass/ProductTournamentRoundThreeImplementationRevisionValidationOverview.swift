@@ -10,6 +10,7 @@ struct ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem:
   var experimentTitle: String
   var branchName: String
   var worktreeID: String
+  var nextStep: TournamentAutomationStep?
 
   var tournamentID: String { result.tournamentID }
   var roundID: String { result.roundID }
@@ -31,6 +32,38 @@ struct ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem:
 
   var validationSummary: String {
     result.displaySummary
+  }
+
+  var nextStepSummary: String {
+    guard let nextStep else {
+      return "No automation step queued"
+    }
+    let prefix = nextStep.canExecute ? "Ready" : "Blocked"
+    return "\(prefix): \(nextStep.queueTitle)"
+  }
+
+  var nextStepDetail: String {
+    nextStep?.detail ?? result.nextValidationTarget
+  }
+
+  var nextStepSystemImage: String {
+    guard let nextStep else { return "questionmark.circle" }
+    switch nextStep.kind {
+    case .applyDecision:
+      return "checkmark.circle"
+    case .applyRoundTransition:
+      return "arrow.turn.down.right"
+    case .prepareWorktree:
+      return "hammer"
+    case .runPlanProof:
+      return "text.badge.checkmark"
+    case .runCohort:
+      return "play.rectangle.on.rectangle"
+    case .applyRevision:
+      return "wand.and.stars"
+    case .blocked:
+      return "exclamationmark.triangle"
+    }
   }
 
   var persistedGapSummary: String {
@@ -75,6 +108,8 @@ struct ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem:
       "Audit \(revisionAuditID)",
       revisionScenarioID.map { "Scenario \($0)" } ?? "Scenario unknown",
       validationSummary,
+      "Next step: \(nextStepSummary)",
+      nextStepDetail,
       "Resolved gaps: \(resolvedGapSummary)",
       "Persisted gaps: \(persistedGapSummary)",
       "Next validation: \(result.nextValidationTarget)",
@@ -87,9 +122,20 @@ enum ProductTournamentRoundThreeImplementationRevisionValidationOverview {
   static func items(
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
-    limit: Int = 5
+    limit: Int = 5,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> [ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem] {
     guard limit > 0 else { return [] }
+    var nextStepsByExperimentID: [String: TournamentAutomationStep] = [:]
+    for step in TournamentAutomationPlanner.steps(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    ) {
+      if nextStepsByExperimentID[step.experimentID] == nil {
+        nextStepsByExperimentID[step.experimentID] = step
+      }
+    }
 
     return ProductTournamentRoundThreeImplementationRevisionValidationAdvisor.results(
       config: config,
@@ -111,7 +157,8 @@ enum ProductTournamentRoundThreeImplementationRevisionValidationOverview {
         contenderTitle: contender.title,
         experimentTitle: experiment.title,
         branchName: experiment.branchName,
-        worktreeID: experiment.worktreeID
+        worktreeID: experiment.worktreeID,
+        nextStep: nextStepsByExperimentID[result.experimentID]
       )
     }
     .sorted { lhs, rhs in
