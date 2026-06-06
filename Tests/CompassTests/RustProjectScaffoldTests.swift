@@ -60,12 +60,15 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains("Deterministic Product Tournament Experience Contract"))
     try #require(readme.contains("run_product_tournament_experience(ProductTournamentExperienceInput) ->"))
     try #require(readme.contains("app-cli product-tournament-experience --input"))
+    try #require(readme.contains("provide_requested_input"))
     try #require(readme.contains("Product Tournament evidence is product pressure"))
     try #require(readme.contains("Manual product tournament simulation checklist"))
     try #require(readme.contains("allowedNextActions"))
     try #require(readme.contains("avoid optimizing for praise"))
     try #require(
       readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.productTournamentSmoke)))
+    try #require(
+      readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.productTournamentTraceCheck)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.fmt)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.clippy)))
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.test)))
@@ -74,6 +77,7 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify)))
     try #require(readme.contains(RustProjectScaffold.productTournamentSmokeCommand))
     try #require(readme.contains(RustProjectScaffold.productTournamentSmokeWithScreenshotCommand))
+    try #require(readme.contains(RustProjectScaffold.productTournamentTraceCheckCommand))
     try #require(readme.contains(RustProjectScaffold.visualVerifyCommand))
     try #require(!readme.contains(removedEngineParityCommand))
     try #require(!readme.contains("compatibility alias"))
@@ -116,6 +120,10 @@ struct RustProjectScaffoldTests {
     try #require(core.contains("pub struct ProductTournamentExperienceTrace"))
     try #require(core.contains("pub struct PainReliefSignals"))
     try #require(core.contains("pub fn run_product_tournament_experience"))
+    try #require(core.contains("workflow_completed: bool"))
+    try #require(core.contains(#"missing_capability_ids.push("workflow_completion".to_owned())"#))
+    try #require(core.contains("&& runtime.workflow_completed"))
+    try #require(core.contains("&& missing_capability_ids.is_empty()"))
     try #require(cli.contains(#"Some("simulate")"#))
     try #require(cli.contains(#"Some("gui-replay")"#))
     try #require(cli.contains(#"Some("product-tournament-experience")"#))
@@ -131,6 +139,9 @@ struct RustProjectScaffoldTests {
     try #require(tests.contains("gui_replay_fixture_emits_stable_semantic_snapshot"))
     try #require(
       tests.contains("product_tournament_experience_fixture_replays_allowed_actions_deterministically"))
+    try #require(tests.contains("provide_requested_input"))
+    try #require(tests.contains("ProductTournamentExperienceTerminalStatus::Completed"))
+    try #require(tests.contains("first.allowed_next_actions.is_empty()"))
   }
 
   @Test func desktopTemplateHasStableVisualVerificationLabels() throws {
@@ -179,18 +190,31 @@ struct RustProjectScaffoldTests {
     try #require(xtask.contains("cargo"))
     try #require(xtask.contains("build"))
     try #require(xtask.contains("product-tournament-smoke"))
+    try #require(xtask.contains("product-tournament-trace-check"))
     try #require(
       xtask.contains(
         #""product-tournament-smoke" => {"#
       ))
     try #require(
+      xtask.contains(#""product-tournament-trace-check" => product_tournament_trace_check()"#))
+    try #require(
       xtask.contains(#"product_tournament_smoke(args.iter().any(|arg| arg == "--emit-base64"))"#))
     try #require(xtask.contains("fn product_tournament_smoke(emit_base64: bool) -> Result<()>"))
     try #require(xtask.contains("fn product_tournament_trace_check() -> Result<()>"))
     try #require(xtask.contains("allowedNextActions"))
+    try #require(xtask.contains("expected_action_ids"))
+    try #require(xtask.contains("provide_requested_input"))
+    try #require(
+      xtask.contains(
+        "product tournament trace did not exercise expected product-hypothesis action sequence"))
+    try #require(
+      xtask.contains("product tournament trace did not complete the contender workflow"))
     try #require(xtask.contains("product tournament trace changed across identical invocations"))
     try #require(xtask.contains("painReliefSignals"))
     try #require(xtask.contains("willingnessToPayScore"))
+    try #require(
+      xtask.contains(
+        "product tournament trace did not earn strong willingness to pay after workflow completion"))
     try #require(xtask.contains("sponsorshipIntent"))
     try #require(!xtask.contains(removedEngineParityCommand))
     try #require(!xtask.contains(removedLegacySmokeCommand))
@@ -306,7 +330,10 @@ struct RustProjectScaffoldTests {
       try await requireCommand(["run", "-p", "xtask", "--", "product-tournament-smoke"], in: root)
     } else {
       print("Skipping generated `product-tournament-smoke`: cargo llvm-cov is not installed.")
-      try await requireCommand(["run", "-p", "app-cli", "--", "product-tournament-experience"], in: root)
+      try await requireCommand(
+        ["run", "-p", "xtask", "--", "product-tournament-trace-check"],
+        in: root
+      )
     }
     try await requireCommand(["build", "-p", RustProjectScaffold.desktopPackage], in: root)
   }

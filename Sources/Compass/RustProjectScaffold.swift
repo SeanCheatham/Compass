@@ -23,6 +23,8 @@ struct RustProjectScaffold: Equatable, Sendable {
     RustVerifyCommands.productTournamentSmoke)
   static let productTournamentSmokeWithScreenshotCommand = RustVerifyCommands.cargo(
     RustVerifyCommands.productTournamentSmokeWithScreenshot)
+  static let productTournamentTraceCheckCommand = RustVerifyCommands.cargo(
+    RustVerifyCommands.productTournamentTraceCheck)
 
   static func write(to rootURL: URL, options: Options = Options()) throws {
     let fm = FileManager.default
@@ -214,14 +216,17 @@ struct RustProjectScaffold: Equatable, Sendable {
     the assertion surface.
 
     Product Tournament evidence is product pressure, not a release gate. Use
-    `product-tournament-smoke` to prove this generated app can replay a deterministic
-    model-free product journey, then use a live persona model only for manual
-    product review. Treat repeated objections and low scores as signals to
-    investigate, not as automatic proof that the product is good or bad.
+    `product-tournament-trace-check` to prove this generated app can replay the
+    deterministic model-free product journey. Use `product-tournament-smoke`
+    when you also need coverage and desktop visual verification, then use a live
+    persona model only for manual product review. Treat repeated objections and
+    low scores as signals to investigate, not as automatic proof that the product
+    is good or bad.
 
     Manual product tournament simulation checklist:
     - Confirm `app-cli product-tournament-experience-schema` prints the expected contract.
-    - Run `xtask product-tournament-smoke` before involving a live model.
+    - Run `xtask product-tournament-trace-check` before involving a live model.
+    - Run `xtask product-tournament-smoke` when coverage and visual proof are required.
     - For live review, verify persona actions come only from `allowedNextActions`.
     - Keep feedback skeptical and structured; avoid optimizing for praise.
     - Inspect pain-relief summaries in Compass before changing the roadmap.
@@ -236,18 +241,20 @@ struct RustProjectScaffold: Equatable, Sendable {
     - Run CLI: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "status"]))`
     - Run simulation fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "simulate", "--input", #"{"seed":"demo","ticks":3,"action":"advance"}"#]))`
     - Run GUI replay fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "gui-replay", "--input", #"{"seed":"demo","steps":[{"action":"advance","ticks":2},{"action":"visual_input","value":"space"}]}"#]))`
-    - Run product tournament experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience", "--input", #"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"productHypothesis":{"id":"hypothesis-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"start_contender_workflow","params":{}}]}"#]))`
+    - Run product tournament experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience", "--input", #"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"productHypothesis":{"id":"hypothesis-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_contender_workflow","params":{}},{"id":"provide_requested_input","params":{}}]}"#]))`
     - Print product tournament experience schema: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience-schema"]))`
     - Run desktop: `\(RustVerifyCommands.cargo(RustVerifyCommands.runDesktop))`
     - Fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
     - Visual verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerifyNoBase64))`
     - Visual verify with screenshot bytes: `\(RustProjectScaffold.visualVerifyCommand)`
+    - Product Tournament trace check: `\(RustProjectScaffold.productTournamentTraceCheckCommand)`
     - Product Tournament smoke: `\(RustProjectScaffold.productTournamentSmokeCommand)`
     - Product Tournament smoke with screenshot bytes: `\(RustProjectScaffold.productTournamentSmokeWithScreenshotCommand)`
 
     Normal implementation verify should use the fast `xtask verify` tier; reserve
-    `product-tournament-smoke` for full Product Tournament proof that includes
-    deterministic product-pressure replay and desktop visual verification.
+    `product-tournament-trace-check` for semantic Product Tournament proof and
+    `product-tournament-smoke` for full Product Tournament proof that also includes
+    coverage and desktop visual verification.
 
     The desktop app uses deterministic demo state and stable window labels so Compass can
     build it in the Shared VM, launch it in the guest, wait for readiness, send a
@@ -749,6 +756,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         workflow_advanced: bool,
         current_alternative_addressed: bool,
         switching_objection_reduced: bool,
+        workflow_completed: bool,
     }
 
     impl DemoState {
@@ -929,6 +937,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             workflow_advanced: false,
             current_alternative_addressed: false,
             switching_objection_reduced: false,
+            workflow_completed: false,
         };
         let initial_state = runtime.state.clone();
         let mut turns = Vec::new();
@@ -1095,6 +1104,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             }
             "provide_requested_input" => {
                 runtime.workflow_advanced = true;
+                runtime.workflow_completed = true;
                 runtime.terminal_status = ProductTournamentExperienceTerminalStatus::Completed;
                 runtime.state = product_tournament_experience_state(
                     "workflow_completed",
@@ -1269,6 +1279,9 @@ struct RustProjectScaffold: Equatable, Sendable {
         if !runtime.workflow_advanced {
             missing_capability_ids.push("workflow_advancement".to_owned());
         }
+        if !runtime.workflow_completed {
+            missing_capability_ids.push("workflow_completion".to_owned());
+        }
         if !runtime.current_alternative_addressed {
             missing_capability_ids.push("current_alternative_comparison".to_owned());
         }
@@ -1324,6 +1337,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         missing_capability_ids: &[String],
     ) -> u8 {
         if runtime.workflow_advanced
+            && runtime.workflow_completed
             && runtime.current_alternative_addressed
             && runtime.switching_objection_reduced
             && missing_capability_ids.is_empty()
@@ -1740,8 +1754,8 @@ struct RustProjectScaffold: Equatable, Sendable {
         GuiReplayStep, GuiReplayTrace, ProductTournamentAlternative, ProductTournamentCurrentWorkflow,
         ProductTournamentDecisionIntent, ProductTournamentExperienceAction,
         ProductTournamentExperienceInput, ProductTournamentExperienceTerminalStatus,
-        ProductTournamentExperiment, ProductTournamentPain, ProductTournamentScenario,
-        ProductTournamentProductHypothesis, SimulationAction, SimulationInput,
+        ProductTournamentExperiment, ProductTournamentPain, ProductTournamentProductHypothesis,
+        ProductTournamentScenario, SimulationAction, SimulationInput,
     };
     use serde_json::json;
 
@@ -1862,6 +1876,10 @@ struct RustProjectScaffold: Equatable, Sendable {
                     id: "start_contender_workflow".to_owned(),
                     params: json!({}),
                 },
+                ProductTournamentExperienceAction {
+                    id: "provide_requested_input".to_owned(),
+                    params: json!({}),
+                },
             ],
         };
 
@@ -1871,10 +1889,25 @@ struct RustProjectScaffold: Equatable, Sendable {
         assert_eq!(first, second);
         assert_eq!(first.schema_version, 1);
         assert_eq!(first.pain_id, "pain-reporting");
-        assert_eq!(first.turns.len(), 4);
+        let action_ids: Vec<&str> = first
+            .turns
+            .iter()
+            .map(|turn| turn.action.id.as_str())
+            .collect();
+        assert_eq!(
+            action_ids,
+            vec![
+                "inspect_pain",
+                "compare_current_alternative",
+                "reduce_switching_objection",
+                "start_contender_workflow",
+                "provide_requested_input",
+            ]
+        );
+        assert_eq!(first.turns.len(), 5);
         assert_eq!(
             first.terminal_status,
-            ProductTournamentExperienceTerminalStatus::InProgress
+            ProductTournamentExperienceTerminalStatus::Completed
         );
         assert!(first.pain_relief_signals.pain_recognized);
         assert!(first.pain_relief_signals.current_alternative_addressed);
@@ -1888,10 +1921,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             .pain_relief_signals
             .sponsorship_intent
             .contains("sponsor"));
-        assert!(first
-            .allowed_next_actions
-            .iter()
-            .any(|action| action.id == "provide_requested_input"));
+        assert!(first.allowed_next_actions.is_empty());
     }
 
     """
@@ -2403,6 +2433,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "product-tournament-smoke" => {
                 product_tournament_smoke(args.iter().any(|arg| arg == "--emit-base64"))
             }
+            "product-tournament-trace-check" => product_tournament_trace_check(),
             "visual-verify" => visual_verify(args.iter().any(|arg| arg == "--emit-base64")),
             other => Err(format!("unknown xtask command: {other}").into()),
         }
@@ -2459,7 +2490,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             return Err("product tournament trace did not expose any initial allowed actions".into());
         }
 
-        let input = r#"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"productHypothesis":{"id":"hypothesis-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_contender_workflow","params":{}}]}"#;
+        let input = r#"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"productHypothesis":{"id":"hypothesis-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_contender_workflow","params":{}},{"id":"provide_requested_input","params":{}}]}"#;
         let first = run_capture(
             "cargo",
             &[
@@ -2493,8 +2524,30 @@ struct RustProjectScaffold: Equatable, Sendable {
             .get("turns")
             .and_then(|value| value.as_array())
             .ok_or("product tournament trace is missing turns")?;
-        if turns.len() < 4 {
-            return Err("product tournament trace did not replay at least four actions".into());
+        let action_ids: Vec<&str> = turns
+            .iter()
+            .filter_map(|turn| {
+                turn.get("action")
+                    .and_then(|action| action.get("id"))
+                    .and_then(|value| value.as_str())
+            })
+            .collect();
+        let expected_action_ids = vec![
+            "inspect_pain",
+            "compare_current_alternative",
+            "reduce_switching_objection",
+            "start_contender_workflow",
+            "provide_requested_input",
+        ];
+        if action_ids != expected_action_ids {
+            return Err(format!(
+                "product tournament trace did not exercise expected product-hypothesis action sequence: {}",
+                action_ids.join(" -> ")
+            )
+            .into());
+        }
+        if trace.get("terminalStatus").and_then(|value| value.as_str()) != Some("completed") {
+            return Err("product tournament trace did not complete the contender workflow".into());
         }
         let signals = trace
             .get("painReliefSignals")
@@ -2521,8 +2574,11 @@ struct RustProjectScaffold: Equatable, Sendable {
             .get("willingnessToPayScore")
             .and_then(|value| value.as_u64())
             .unwrap_or(0);
-        if !(1..=5).contains(&willingness_to_pay) {
-            return Err("product tournament trace did not report willingness to pay".into());
+        if willingness_to_pay < 4 {
+            return Err(
+                "product tournament trace did not earn strong willingness to pay after workflow completion"
+                    .into(),
+            );
         }
         if signals
             .get("sponsorshipIntent")

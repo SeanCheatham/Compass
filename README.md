@@ -43,13 +43,15 @@ Standard generated-project checks are:
 cargo run -p xtask -- verify
 cargo run -p xtask -- visual-verify
 cargo run -p xtask -- visual-verify --emit-base64
+cargo run -p xtask -- product-tournament-trace-check
 cargo run -p xtask -- product-tournament-smoke
 cargo run -p xtask -- product-tournament-smoke --emit-base64
 ```
 
 `xtask verify` is the normal fast path: format, lint, test, coverage, and
-build without launching the desktop app. `product-tournament-smoke` adds
-deterministic product-pressure replay plus desktop visual verification.
+build without launching the desktop app. `product-tournament-trace-check` proves
+the deterministic semantic product-pressure replay. `product-tournament-smoke`
+adds coverage and desktop visual verification.
 
 Swift, TypeScript, and JavaScript are retained as legacy imported-repository
 inspection/evolution paths only. Host Xcode exists for those legacy Apple
@@ -128,15 +130,19 @@ Generated apps expose the contract through:
 ```bash
 cargo run -p app-cli -- product-tournament-experience-schema
 cargo run -p app-cli -- product-tournament-experience --input '{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"productHypothesis":{"id":"hypothesis-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[]}'
+cargo run -p xtask -- product-tournament-trace-check
 cargo run -p xtask -- product-tournament-smoke
 ```
 
 The generated experience input carries the tested `productHypothesis`, and the
 semantic trace stamps it as `productHypothesisID`.
-`product-tournament-smoke` is the model-free generated-project check. It proves the
-app owns a stable experience contract and can replay a deterministic tournament
-journey. Live persona and feedback calls are manual/interactive checks, not part
-of normal automated tests.
+`product-tournament-trace-check` is the model-free generated-project semantic
+check. It proves the app owns a stable experience contract, replays the expected
+product-hypothesis action sequence, completes the contender workflow, and earns
+strong willingness-to-pay only after that completed-use proof.
+`product-tournament-smoke` adds coverage and desktop visual proof. Live persona
+and feedback calls are manual/interactive checks, not part of normal automated
+tests.
 
 Tournament state and evidence use the product tournament storage namespace:
 `.compass/product-tournament.json` for pain hypotheses, tournaments,
