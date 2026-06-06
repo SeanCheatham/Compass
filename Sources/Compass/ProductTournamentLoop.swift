@@ -223,6 +223,7 @@ struct ProductTournamentDecisionProposal: Equatable, Sendable {
 enum ProductTournamentNextActionKind: String, Equatable, Sendable {
   case applyDecision = "apply_decision"
   case applyRoundTransition = "apply_round_transition"
+  case prepareWorktree = "prepare_worktree"
   case runPlanProof = "run_plan_proof"
   case runCohort = "run_cohort"
   case rerunCohort = "rerun_cohort"
@@ -2572,7 +2573,7 @@ enum TournamentAutomationExperimentRanker {
       case .pivot, .narrow: return .reshape
       case .gatherEvidence, .keepGoing, nil: return .learn
       }
-    case .runPlanProof:
+    case .prepareWorktree, .runPlanProof:
       return .learn
     case .runCohort, .rerunCohort:
       return .learn
@@ -2603,6 +2604,7 @@ enum TournamentAutomationExperimentRanker {
 enum TournamentAutomationStepKind: String, Equatable, Sendable {
   case applyDecision = "apply_decision"
   case applyRoundTransition = "apply_round_transition"
+  case prepareWorktree = "prepare_worktree"
   case runPlanProof = "run_plan_proof"
   case runCohort = "run_cohort"
   case applyRevision = "apply_revision"
@@ -2647,7 +2649,8 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
     switch kind {
     case .applyRevision:
       return TournamentAutomationStepKind.applyRevision.rawValue
-    case .applyDecision, .applyRoundTransition, .runPlanProof, .runCohort, .blocked:
+    case .applyDecision, .applyRoundTransition, .prepareWorktree, .runPlanProof, .runCohort,
+      .blocked:
       return action.kind.rawValue
     }
   }
@@ -2661,6 +2664,8 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
     case .applyDecision:
       return "Apply tournament decision"
     case .applyRoundTransition:
+      return action.title
+    case .prepareWorktree:
       return action.title
     case .runPlanProof:
       return action.title
@@ -2709,6 +2714,10 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
         self.canExecute
         ? nil
         : "Tournament round transition is missing tournament, round, or contender scope."
+    case .prepareWorktree:
+      self.kind = .prepareWorktree
+      self.canExecute = true
+      self.blockedReason = nil
     case .runPlanProof:
       self.kind = .runPlanProof
       let modeBlockedReason = Self.simulationModeBlockedReason(
@@ -4849,17 +4858,23 @@ enum ProductTournamentNextActionAdvisor {
           priority: staleCount > 0 ? 96 : 91
         )
       }
+      let runAction = ProductTournamentNextAction(
+        experimentID: experiment.id,
+        kind: staleCount > 0 ? .rerunCohort : .runCohort,
+        title: staleCount > 0 ? "Rerun current evidence" : "Run product tournament cohort",
+        detail: staleCount > 0
+          ? "\(staleCount) stale run(s) exist for older commits; rerun cohort `\(cohort.id)` against the current experiment commit before deciding."
+          : "No current-commit evidence exists yet; run cohort `\(cohort.id)` before changing the tournament decision.",
+        priority: staleCount > 0 ? 95 : 90,
+        cohortID: cohort.id
+      )
       return applyingRecentCycleGuards(
-        to: ProductTournamentNextAction(
-          experimentID: experiment.id,
-          kind: staleCount > 0 ? .rerunCohort : .runCohort,
-          title: staleCount > 0 ? "Rerun current evidence" : "Run product tournament cohort",
-          detail: staleCount > 0
-            ? "\(staleCount) stale run(s) exist for older commits; rerun cohort `\(cohort.id)` against the current experiment commit before deciding."
-            : "No current-commit evidence exists yet; run cohort `\(cohort.id)` before changing the tournament decision.",
-          priority: staleCount > 0 ? 95 : 90,
-          cohortID: cohort.id
-        ),
+        to: prepareWorktreeActionIfNeeded(
+          replacing: runAction,
+          experiment: experiment,
+          config: config
+        )
+          ?? runAction,
         experiment: experiment,
         config: config,
         evidenceIndex: evidenceIndex
@@ -4892,18 +4907,24 @@ enum ProductTournamentNextActionAdvisor {
       )
     }
     if readiness.completedRunCount < 2 || readiness.distinctPersonaCount < 2 {
+      let runAction = ProductTournamentNextAction(
+        experimentID: experiment.id,
+        kind: cohort == nil ? .refineContender : .runCohort,
+        title: "Gather broader persona evidence",
+        detail: cohort.map {
+          "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); run cohort `\($0.id)` to broaden evidence before deciding."
+        }
+          ?? "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); define another enabled scenario or persona before deciding.",
+        priority: 80,
+        cohortID: cohort?.id
+      )
       return applyingRecentCycleGuards(
-        to: ProductTournamentNextAction(
-          experimentID: experiment.id,
-          kind: cohort == nil ? .refineContender : .runCohort,
-          title: "Gather broader persona evidence",
-          detail: cohort.map {
-            "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); run cohort `\($0.id)` to broaden evidence before deciding."
-          }
-            ?? "Current evidence has \(readiness.completedRunCount) completed run(s) across \(readiness.distinctPersonaCount) persona(s); define another enabled scenario or persona before deciding.",
-          priority: 80,
-          cohortID: cohort?.id
-        ),
+        to: prepareWorktreeActionIfNeeded(
+          replacing: runAction,
+          experiment: experiment,
+          config: config
+        )
+          ?? runAction,
         experiment: experiment,
         config: config,
         evidenceIndex: evidenceIndex
@@ -5135,18 +5156,24 @@ enum ProductTournamentNextActionAdvisor {
         priority: 73
       )
     case .gatherEvidence, .keepGoing:
+      let runAction = ProductTournamentNextAction(
+        experimentID: experiment.id,
+        kind: cohort == nil ? .refineContender : .runCohort,
+        title: "Run another evidence cohort",
+        detail: cohort.map {
+          "Current tournament readiness is \(readiness.scoreLabel)/100; run cohort `\($0.id)` or add a scenario variant before changing the tournament decision."
+        }
+          ?? "Current tournament readiness is \(readiness.scoreLabel)/100; define another enabled scenario cohort before changing the tournament decision.",
+        priority: 70,
+        cohortID: cohort?.id
+      )
       return applyingRecentCycleGuards(
-        to: ProductTournamentNextAction(
-          experimentID: experiment.id,
-          kind: cohort == nil ? .refineContender : .runCohort,
-          title: "Run another evidence cohort",
-          detail: cohort.map {
-            "Current tournament readiness is \(readiness.scoreLabel)/100; run cohort `\($0.id)` or add a scenario variant before changing the tournament decision."
-          }
-            ?? "Current tournament readiness is \(readiness.scoreLabel)/100; define another enabled scenario cohort before changing the tournament decision.",
-          priority: 70,
-          cohortID: cohort?.id
-        ),
+        to: prepareWorktreeActionIfNeeded(
+          replacing: runAction,
+          experiment: experiment,
+          config: config
+        )
+          ?? runAction,
         experiment: experiment,
         config: config,
         evidenceIndex: evidenceIndex
@@ -5163,6 +5190,50 @@ enum ProductTournamentNextActionAdvisor {
         || readiness.weakestVerdict == .rejected)
   }
 
+  private static func prepareWorktreeActionIfNeeded(
+    replacing action: ProductTournamentNextAction,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig
+  ) -> ProductTournamentNextAction? {
+    guard (action.kind == .runCohort || action.kind == .rerunCohort),
+      let cohortID = action.cohortID,
+      let cohort = config.scenarioCohorts.first(where: {
+        $0.id == cohortID && $0.experimentID == experiment.id
+      }),
+      cohort.tags.contains("discover"),
+      cohort.tags.contains("candidate-implementation-track"),
+      let readiness = cohortRunReadiness(
+        for: action,
+        experiment: experiment,
+        config: config
+      ),
+      readiness.cohortEnabled,
+      readiness.enabledScenarioCount > 0,
+      readiness.missingTargetCommitCount > 0,
+      targetCommit(for: experiment) == nil
+    else { return nil }
+
+    let scenarioText =
+      readiness.missingTargetCommitCount == 1
+      ? "1 candidate starter scenario needs"
+      : "\(readiness.missingTargetCommitCount) candidate starter scenarios need"
+    return ProductTournamentNextAction(
+      experimentID: experiment.id,
+      kind: .prepareWorktree,
+      title: "Prepare implementation worktree",
+      detail:
+        "\(scenarioText) a target commit before simulated-user evidence can run; prepare or refresh worktree `\(experiment.worktreeID)` on branch `\(experiment.branchName)` for cohort `\(cohort.id)`.",
+      priority: min(99, max(action.priority + 2, 92)),
+      cohortID: cohort.id
+    )
+  }
+
+  private static func targetCommit(for experiment: ProductTournamentExperiment) -> String? {
+    let commit = experiment.currentSha ?? experiment.baseSha
+    let trimmed = commit?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return trimmed.isEmpty ? nil : trimmed
+  }
+
   private static func nextAction(
     for signal: TournamentAutomationTargetedProofOutcomeSignal
   ) -> ProductTournamentNextAction {
@@ -5170,8 +5241,8 @@ enum ProductTournamentNextActionAdvisor {
     switch signal.actionKind {
     case .runCohort, .rerunCohort:
       runnableCohortID = signal.targetCohortID
-    case .applyDecision, .applyRoundTransition, .runPlanProof, .repairFailures, .refineContender,
-      .reviewDecision:
+    case .applyDecision, .applyRoundTransition, .prepareWorktree, .runPlanProof, .repairFailures,
+      .refineContender, .reviewDecision:
       runnableCohortID = nil
     }
     return ProductTournamentNextAction(
@@ -5822,7 +5893,7 @@ enum ProductTournamentNextActionAdvisor {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentNextAction {
-    guard action.kind == .runCohort || action.kind == .rerunCohort,
+    guard action.kind == .prepareWorktree || action.kind == .runCohort || action.kind == .rerunCohort,
       let audit = TournamentAutomationCycleFailureAdvisor.blockingAudit(
         forStepID: TournamentAutomationCycleFailureAdvisor.stepID(for: action),
         experiment: experiment,

@@ -4658,6 +4658,57 @@ struct ProductTournamentLoopTests {
     try #require(readiness.blockedReason?.contains("target commit") == true)
   }
 
+  @Test func tournamentAutomationPreparesCandidateWorktreeWhenStarterCohortNeedsCommit() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.tournamentExperiments[0].decision = .keepGoing
+    try completePlanOnlyRound(in: &config)
+    let experiment = config.tournamentExperiments[0]
+    let cohortIndex = try #require(
+      config.scenarioCohorts.firstIndex { $0.experimentID == experiment.id }
+    )
+    let cohort = config.scenarioCohorts[cohortIndex]
+    config.scenarioCohorts[cohortIndex] = ProductScenarioCohort(
+      id: cohort.id,
+      title: cohort.title,
+      experimentID: cohort.experimentID,
+      scenarioIDs: cohort.scenarioIDs,
+      enabled: cohort.enabled,
+      tags: ["discover", "candidate-implementation-track"]
+    )
+
+    let action = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: .empty
+      ))
+    let step = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+    let plan = TournamentAutomationPlanner.cyclePlan(
+      config: config,
+      evidenceIndex: .empty
+    )
+
+    try #require(action.kind == .prepareWorktree)
+    try #require(action.title == "Prepare implementation worktree")
+    try #require(action.cohortID == cohort.id)
+    try #require(action.detail.contains(experiment.branchName))
+    try #require(action.detail.contains(experiment.worktreeID))
+    try #require(step.kind == .prepareWorktree)
+    try #require(step.canExecute)
+    try #require(step.id.contains("prepare_worktree"))
+    try #require(plan.canRun)
+    try #require(plan.executableSteps.map(\.kind) == [.prepareWorktree])
+    try #require(plan.queueSummary.contains("Prepare implementation worktree"))
+  }
+
   @Test func rolloutWorkflowPromotesExperimentWithBranchCommitAndEvidenceTrail() throws {
     let config = makeRolloutConfig(decision: .keepGoing)
     let experiment = config.tournamentExperiments[0]

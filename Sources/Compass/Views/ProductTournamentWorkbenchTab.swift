@@ -1747,6 +1747,8 @@ struct ProductTournamentWorkbenchTab: View {
           WorkbenchFact(label: "Queue", value: tournamentAutomationCyclePlan.queueSummary)
           if step.kind == .runPlanProof {
             WorkbenchFact(label: "Mode", value: "Model-free plan proof")
+          } else if step.kind == .prepareWorktree {
+            WorkbenchFact(label: "Mode", value: "Prepare implementation worktree")
           } else if step.kind == .runCohort {
             WorkbenchFact(
               label: "Mode",
@@ -3332,6 +3334,27 @@ struct ProductTournamentWorkbenchTab: View {
         project.productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
         project.log(outcome.userMessage, level: .success)
         return TournamentAutomationStepResult(message: outcome.userMessage)
+      } catch {
+        project.fail(error)
+        return nil
+      }
+    case .prepareWorktree:
+      do {
+        guard let workspace = project.workspace else {
+          project.fail(AppModelError.noRepositorySelected)
+          return nil
+        }
+        let prepared = try await workspace.prepareProductTournamentExperimentWorktree(
+          experimentID: step.experimentID
+        )
+        project.productTournamentConfig = try workspace.readProductTournamentConfig()
+        project.productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
+        loadScenarioDraft()
+        let shortCommit = String(prepared.currentSha.prefix(12))
+        let message =
+          "Prepared implementation worktree for \(step.experimentTitle) at \(shortCommit) on \(prepared.branchName)."
+        project.log(message, level: .success)
+        return TournamentAutomationStepResult(message: message)
       } catch {
         project.fail(error)
         return nil

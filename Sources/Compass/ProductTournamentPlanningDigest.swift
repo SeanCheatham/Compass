@@ -718,6 +718,8 @@ enum ProductTournamentPlanningDigestFormatter {
         step.action.requiredSimulationMode == .personaModel
         ? "persona_model_plan" : "model_free_plan"
       metadata.append("mode \(modeLabel)")
+    } else if step.kind == .prepareWorktree {
+      metadata.append("mode prepare_worktree")
     } else if step.kind == .runCohort {
       let mode =
         step.action.requiredSimulationMode
