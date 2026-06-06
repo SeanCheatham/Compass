@@ -1320,7 +1320,7 @@ struct ProductTournamentExperienceTrace: Codable, Equatable, Sendable {
   var allowedNextActions: [ProductTournamentExperienceAllowedAction]
   var terminalStatus: ProductTournamentExperienceTerminalStatus
   var eventLog: [String]
-  var painReliefSignals: ProductizationPainReliefSignals
+  var painReliefSignals: ProductTournamentPainReliefSignals
 }
 
 struct ProductTournamentExperienceState: Codable, Equatable, Sendable {
@@ -1353,7 +1353,7 @@ struct ProductTournamentExperienceAllowedAction: Codable, Equatable, Sendable {
   var paramsSchema: ProductizationJSONValue
 }
 
-struct ProductizationPainReliefSignals: Codable, Equatable, Sendable {
+struct ProductTournamentPainReliefSignals: Codable, Equatable, Sendable {
   var painRecognized: Bool
   var workflowAdvanced: Bool
   var currentAlternativeAddressed: Bool

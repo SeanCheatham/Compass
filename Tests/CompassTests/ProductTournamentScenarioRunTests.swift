@@ -750,7 +750,7 @@ private func defaultScenarioTrace(
     allowedNextActions: allowedIDs.map(scenarioAllowedAction),
     terminalStatus: terminalStatus,
     eventLog: ["last:\(lastActionID ?? "initial")"],
-    painReliefSignals: ProductizationPainReliefSignals(
+    painReliefSignals: ProductTournamentPainReliefSignals(
       painRecognized: actionIDs.contains("inspect_pain"),
       workflowAdvanced: actionIDs.contains("start_solution_workflow"),
       currentAlternativeAddressed: actionIDs.contains("compare_current_alternative"),

@@ -60,7 +60,7 @@ struct ProductTournamentSimulationRunnerTests {
       """
 
     let signals = try JSONDecoder().decode(
-      ProductizationPainReliefSignals.self,
+      ProductTournamentPainReliefSignals.self,
       from: Data(json.utf8)
     )
 
@@ -477,7 +477,7 @@ private func defaultTournamentTrace(
     allowedNextActions: allowedIDs.map(tournamentAllowedAction),
     terminalStatus: terminalStatus,
     eventLog: ["last:\(lastActionID ?? "initial")"],
-    painReliefSignals: ProductizationPainReliefSignals(
+    painReliefSignals: ProductTournamentPainReliefSignals(
       painRecognized: actionIDs.contains("inspect_pain"),
       workflowAdvanced: actionIDs.contains("start_solution_workflow")
         || actionIDs.contains("provide_requested_input"),

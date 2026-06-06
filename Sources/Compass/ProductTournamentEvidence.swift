@@ -1046,7 +1046,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
   }
 
   private static func currentAlternativeComparison(
-    from signals: ProductizationPainReliefSignals?
+    from signals: ProductTournamentPainReliefSignals?
   ) -> String {
     guard let signals else {
       return "The deterministic trace did not address the current alternative."
@@ -1263,7 +1263,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
 
   private static func derivedScores(
     status: ProductTournamentRunStatus,
-    signals: ProductizationPainReliefSignals?
+    signals: ProductTournamentPainReliefSignals?
   ) -> ProductTournamentEvidenceScores {
     guard status == .completed, let signals else {
       return ProductTournamentEvidenceScores()
@@ -1280,7 +1280,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     )
   }
 
-  private static func continuedUsePullScore(signals: ProductizationPainReliefSignals) -> Int {
+  private static func continuedUsePullScore(signals: ProductTournamentPainReliefSignals) -> Int {
     if signals.workflowAdvanced && signals.currentAlternativeAddressed
       && signals.missingCapabilityIDs.isEmpty
     {
@@ -1294,7 +1294,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
 
   private static func derivedWillingnessToPayScore(
     status: ProductTournamentRunStatus,
-    signals: ProductizationPainReliefSignals?
+    signals: ProductTournamentPainReliefSignals?
   ) -> Int? {
     guard status == .completed, let signals else { return nil }
     if let explicit = clampedScore(signals.willingnessToPayScore) {
@@ -1315,7 +1315,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
   }
 
   private static func sponsorshipIntent(
-    from signals: ProductizationPainReliefSignals?,
+    from signals: ProductTournamentPainReliefSignals?,
     willingnessToPayScore: Int?
   ) -> String {
     guard let signals else { return "" }
@@ -1338,7 +1338,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
 
   private static func derivedVerdict(
     status: ProductTournamentRunStatus,
-    signals: ProductizationPainReliefSignals?
+    signals: ProductTournamentPainReliefSignals?
   ) -> ProductTournamentEvidenceVerdict {
     guard status == .completed, let signals else { return .unclear }
     guard signals.painRecognized, signals.workflowAdvanced else { return .weak }
