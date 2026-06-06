@@ -152,9 +152,10 @@ and advances them through rounds:
   scenario evidence run or Round 1 plan-evaluation outcome when the evidence
   index knows it; selecting a scoreboard contender applies the same proof-target
   focus manually. The selected proof-target detail promotes the latest
-  before/after proof-debt movement into a compact result strip and exposes the
-  row's queued proof action, so operators can run the selected contender's next
-  proof without switching back to the round-level top action.
+  before/after proof-debt movement into a compact result strip, names the
+  current next automation step after that result, and exposes the row's queued
+  proof action, so operators can run the selected contender's next proof without
+  switching back to the round-level top action.
   When the proof gates are met but the low-medium
   fidelity implementation still has weak pay intent, missing capabilities, or
   mixed pull, Compass queues a Round 3 implementation revision brief instead of

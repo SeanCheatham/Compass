@@ -2174,6 +2174,8 @@ struct ProductTournamentWorkbenchTab: View {
             systemImage: movement.movementSystemImage
           )
         }
+        WorkbenchFact(label: "After result", value: row.postMovementNextSummary)
+          .help(row.postMovementNextDetail)
       }
       .accessibilityIdentifier(row.proofMovementAccessibilityID)
       .help(movement.resultStripSummary)

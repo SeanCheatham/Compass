@@ -49,6 +49,19 @@ struct TournamentAutomationProofTargetDebtMovement: Equatable, Sendable, Identif
     return "left proof debt unchanged"
   }
 
+  var postResultStateSummary: String {
+    if endingProofDebtCount == 0 {
+      return "Proof debt clear"
+    }
+    if proofDebtDelta < 0 {
+      return "Proof debt reduced"
+    }
+    if proofDebtDelta > 0 {
+      return "Proof debt increased"
+    }
+    return "Proof debt unchanged"
+  }
+
   var movementSystemImage: String {
     if proofDebtDelta < 0 {
       return "arrow.down.circle"
@@ -277,6 +290,18 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
       parts.append(latestDebtMovement.helpSummary)
     }
     return parts.joined(separator: "\n")
+  }
+
+  var postMovementNextSummary: String {
+    guard let latestDebtMovement else {
+      return "No audited proof movement; next \(nextStepSummary)"
+    }
+    return "\(latestDebtMovement.postResultStateSummary); next \(nextStepSummary)"
+  }
+
+  var postMovementNextDetail: String {
+    guard let latestDebtMovement else { return nextStepDetail }
+    return "\(latestDebtMovement.resultStripSummary). Current next step: \(nextStepDetail)"
   }
 
   private var lastRunSummary: String {
