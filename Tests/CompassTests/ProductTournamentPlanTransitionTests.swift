@@ -164,9 +164,12 @@ struct ProductTournamentPlanTransitionTests {
     try #require(readiness.distinctPersonaCount == 2)
     try #require(readiness.buyerOrSponsorPersonaCount == 0)
     try #require(readiness.planProofDebt.summary.contains("buyer/sponsor signal"))
+    try #require(readiness.nextProofTargetSummary.contains("economic-buyer"))
     try #require(readiness.recommendation == .gatherEvidence)
     try #require(!proposal.isActionable)
     try #require(proposal.detail.contains("buyer/sponsor signal"))
+    try #require(proposal.detail.contains("Next proof target"))
+    try #require(proposal.detail.contains("economic-buyer"))
     try #require(
       ProductTournamentPlanTransitioner.bestProposal(
         tournamentID: tournament.id,

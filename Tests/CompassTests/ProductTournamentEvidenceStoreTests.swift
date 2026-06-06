@@ -98,6 +98,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(readiness.buyerOrSponsorPersonaCount == 0)
     try #require(readiness.planProofDebt.summary.contains("simulated-user persona"))
     try #require(readiness.planProofDebt.summary.contains("buyer/sponsor signal"))
+    try #require(readiness.nextProofTargetSummary.contains("economic-buyer"))
     let markdown = ProductTournamentEvidenceMarkdownExporter.markdown(planEvaluation: stored)
     try #require(markdown.contains("Willingness To Pay: 4/5"))
     try #require(markdown.contains("$99/month"))

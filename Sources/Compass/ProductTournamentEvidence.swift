@@ -1538,6 +1538,28 @@ struct ProductTournamentPlanProofDebt: Codable, Equatable, Sendable {
     return labels.joined(separator: ", ")
   }
 
+  var nextProofTargetSummary: String {
+    if isClear {
+      return "Round 2 feasibility transition"
+    }
+    if evaluationDeficit > 0 && personaDeficit > 0 && buyerOrSponsorDeficit > 0 {
+      return "operator and economic-buyer plan evaluations"
+    }
+    if buyerOrSponsorDeficit > 0 {
+      return "economic-buyer simulated-user plan evaluation"
+    }
+    if personaDeficit > 0 {
+      return "new distinct simulated-user plan evaluation"
+    }
+    if evaluationDeficit > 0 {
+      return "additional plan evaluation"
+    }
+    if willingnessToPayDeficit > 0 {
+      return "price and ROI willingness-to-pay proof"
+    }
+    return "plan proof review"
+  }
+
   var debtLabels: [String] {
     var labels: [String] = []
     if evaluationDeficit > 0 {
@@ -1612,6 +1634,10 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
 
   var scoreLabel: String {
     "\(Int(readinessScore.rounded()))"
+  }
+
+  var nextProofTargetSummary: String {
+    planProofDebt.nextProofTargetSummary
   }
 
   init(
@@ -1910,6 +1936,7 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     if !planProofDebt.isClear {
       lines.append("Plan proof debt: \(planProofDebt.summary).")
     }
+    lines.append("Next plan proof target: \(planProofDebt.nextProofTargetSummary).")
     let repeated = Self.repeatedObjections(in: completed)
     if !repeated.isEmpty {
       lines.append("Repeated objections: \(repeated.prefix(3).joined(separator: "; ")).")
