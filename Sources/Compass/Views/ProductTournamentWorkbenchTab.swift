@@ -520,12 +520,11 @@ struct ProductTournamentWorkbenchTab: View {
     return roundTwoLaunchBlockedMessage(experimentID: step.experimentID)
   }
 
-  private var latestTournamentAutomationCycleAudit: TournamentAutomationCycleAudit? {
-    config.tournamentAutomationCycleAudits.sorted { lhs, rhs in
-      if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
-      return lhs.endedAt > rhs.endedAt
-    }
-    .first
+  private var latestTournamentAutomationCycleFacts: TournamentAutomationCycleWorkbenchFacts? {
+    TournamentAutomationCycleWorkbenchFacts.latest(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
   }
 
   private var tournamentAutomationCohortMode: ProductTournamentSimulationMode {
@@ -1764,8 +1763,29 @@ struct ProductTournamentWorkbenchTab: View {
           if let tournamentAutomationRoundTwoBlockedMessage {
             WorkbenchFact(label: "Round 2", value: tournamentAutomationRoundTwoBlockedMessage)
           }
-          if let latestTournamentAutomationCycleAudit {
-            WorkbenchFact(label: "Last Cycle", value: latestTournamentAutomationCycleAudit.summary)
+          if let latestTournamentAutomationCycleFacts {
+            WorkbenchFact(
+              label: "Last Cycle",
+              value: latestTournamentAutomationCycleFacts.latestCycleSummary
+            )
+            .help(latestTournamentAutomationCycleFacts.latestCycleHelp)
+            if let latestPreparationSummary =
+              latestTournamentAutomationCycleFacts.latestPreparationSummary
+            {
+              WorkbenchFact(label: "Last Prep", value: latestPreparationSummary)
+                .help(
+                  latestTournamentAutomationCycleFacts.latestPreparationHelp
+                    ?? latestPreparationSummary
+                )
+            }
+            WorkbenchFact(
+              label: "Last Evidence",
+              value: latestTournamentAutomationCycleFacts.latestEvidenceSummary
+            )
+            .help(
+              latestTournamentAutomationCycleFacts.latestEvidenceHelp
+                ?? "No tournament evidence run has been recorded in recent cycle audits."
+            )
           }
           Text(step.detail)
             .font(.caption)

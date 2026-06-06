@@ -212,7 +212,10 @@ decision updates and simulated-user evidence runs, and Round 1 plan-proof cycles
 capture starting and ending persona-model/model-free plan evidence counts.
 Recent worktree-preparation cycles also appear as compact Plan/Reflect context
 rows with current evidence-run counts, so agents can see when a branch was
-prepared before simulated-user evidence arrived.
+prepared before simulated-user evidence arrived. The Workbench mirrors that
+distinction with separate last-preparation and last-evidence automation facts,
+so operators can see prepared implementation branches that still lack
+simulated-user use.
 Only the proof overview for the active tournament round is shown at a time:
 Round 1 plan proof, Round 2 core-technology proof, or Round 3 product
 implementation winner proof.

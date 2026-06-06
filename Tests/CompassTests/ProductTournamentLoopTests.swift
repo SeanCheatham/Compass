@@ -3694,6 +3694,85 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("current_evidence_runs 0"))
   }
 
+  @Test func tournamentAutomationWorkbenchFactsSeparatePrepareAndEvidenceHistory() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.tournamentExperiments[0].decision = .keepGoing
+    try completePlanOnlyRound(in: &config)
+    let experiment = config.tournamentExperiments[0]
+    let prepareAudit = TournamentAutomationCycleAudit(
+      id: "tournament-cycle-prepare",
+      startedAt: 340,
+      endedAt: 345,
+      executedStepIDs: [
+        "\(experiment.id):\(TournamentAutomationStepKind.prepareWorktree.rawValue):\(experiment.branchName)"
+      ],
+      experimentIDs: [experiment.id],
+      messages: [
+        "Prepared implementation worktree for \(experiment.title) at head-sha on \(experiment.branchName)."
+      ],
+      maxSteps: 3,
+      prepareWorktreeStepCount: 1,
+      stopReason: .reachedStepLimit,
+      stopStepTitle: "Prepare implementation worktree",
+      stopDetail: "Prepared branch before simulated-user evidence.",
+      userMessage: "Tournament automation cycle ran 1 step(s)."
+    )
+    let preparedConfig = config.recordingTournamentAutomationCycleAudit(prepareAudit)
+    let preparedFacts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: preparedConfig,
+        evidenceIndex: .empty
+      ))
+
+    try #require(preparedFacts.latestCycleSummary.contains("worktree prep 1 step(s)"))
+    try #require(
+      preparedFacts.latestPreparationSummary
+        == "1 prepare step(s), experiments \(experiment.id), current evidence runs 0")
+    try #require(preparedFacts.latestEvidenceSummary == "none recorded")
+    try #require(
+      preparedFacts.latestPreparationHelp?.contains(
+        "Prepared branch before simulated-user evidence.") == true)
+
+    let evidenceAudit = TournamentAutomationCycleAudit(
+      id: "tournament-cycle-evidence",
+      startedAt: 350,
+      endedAt: 355,
+      executedStepIDs: [
+        "\(experiment.id):\(TournamentAutomationStepKind.runCohort.rawValue):cohort"
+      ],
+      experimentIDs: [experiment.id],
+      messages: ["Persona-model cohort ran 1 scenario(s): 1 completed."],
+      maxSteps: 3,
+      evidenceRunStepCount: 1,
+      evidenceRunIDs: ["promote-a"],
+      completedEvidenceRunCount: 1,
+      stopReason: .noExecutableStep,
+      stopDetail: "No executable tournament automation step remains.",
+      userMessage: "Tournament automation cycle ran 1 step(s)."
+    )
+    let evidenceIndex = makeTournamentPromotionEvidenceIndex(config: config)
+    let evidenceFacts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: preparedConfig.recordingTournamentAutomationCycleAudit(evidenceAudit),
+        evidenceIndex: evidenceIndex
+      ))
+
+    try #require(evidenceFacts.latestCycleSummary.contains("evidence 1 step(s)"))
+    try #require(
+      evidenceFacts.latestPreparationSummary
+        == "1 prepare step(s), experiments \(experiment.id), current evidence runs 3")
+    try #require(
+      evidenceFacts.latestEvidenceSummary
+        == "1 evidence step(s), 1 completed, 0 needing review, 0 skipped; runs promote-a")
+    try #require(
+      evidenceFacts.latestEvidenceHelp?.contains(
+        "No executable tournament automation step remains.") == true)
+  }
+
   @Test func tournamentAutomationCycleOutcomeCountsLiftAndCutDecisions() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
