@@ -61,6 +61,7 @@ struct ProductTournamentPlanEvaluationTests {
     )
     try #require(digest.contains("plan_readiness"))
     try #require(digest.contains("willingness_to_pay"))
+    try #require(digest.contains("commercial_proof"))
     try #require(digest.contains("buyer_sponsor_signals"))
     try #require(digest.contains("plan_proof_debt"))
     try #require(digest.contains("next_plan_proof"))
@@ -105,11 +106,13 @@ struct ProductTournamentPlanEvaluationTests {
       workspace.readProductTournamentEvidenceIndex().aggregate.planReadinessByContender.first)
     try #require(before.buyerOrSponsorPersonaCount == 0)
     try #require(before.planProofDebt.buyerOrSponsorDeficit == 1)
+    try #require(before.commercialProofSummary.contains("buyer/sponsor price and ROI"))
     try #require(before.nextProofTargetSummary.contains("economic-buyer"))
     let beforeDigest = ProductTournamentPlanningDigestFormatter.promptText(
       config: try workspace.readProductTournamentConfig(),
       evidenceIndex: workspace.readProductTournamentEvidenceIndex()
     )
+    try #require(beforeDigest.contains("commercial_proof"))
     try #require(beforeDigest.contains("next_plan_proof"))
     try #require(beforeDigest.contains("economic-buyer"))
 
@@ -139,6 +142,7 @@ struct ProductTournamentPlanEvaluationTests {
     try #require(after.buyerOrSponsorPersonaCount == 1)
     try #require(after.planProofDebt.buyerOrSponsorDeficit == 0)
     try #require(after.planProofDebt.isClear)
+    try #require(after.commercialProofSummary.contains("buyer/sponsor willingness to pay"))
     try #require(after.nextProofTargetSummary == "Round 2 feasibility transition")
   }
 

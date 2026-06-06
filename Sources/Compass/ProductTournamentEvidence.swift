@@ -1640,6 +1640,16 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     planProofDebt.nextProofTargetSummary
   }
 
+  var commercialProofSummary: String {
+    Self.commercialProofSummary(
+      completedEvaluationCount: completedEvaluationCount,
+      buyerOrSponsorPersonaCount: buyerOrSponsorPersonaCount,
+      averageWillingnessToPayScore: averageWillingnessToPayScore,
+      estimatedMonthlyPriceCents: estimatedMonthlyPriceCents,
+      planProofDebt: planProofDebt
+    )
+  }
+
   init(
     contenderID: String,
     tournamentID: String,
@@ -1786,6 +1796,7 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     let averageScore = Self.average(scoreValues)
     let willingnessValues = completed.compactMap(\.willingnessToPayScore).map(Double.init)
     let averageWillingness = Self.average(willingnessValues)
+    let estimatedMonthlyPriceCents = Self.estimatedMonthlyPriceCents(completed)
     let buyerOrSponsorPersonaCount = Self.buyerOrSponsorPersonaCount(in: completed)
     let planProofDebt = ProductTournamentPlanProofDebt(
       completedEvaluationCount: completed.count,
@@ -1826,7 +1837,7 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
       readinessScore: readinessScore,
       averageScore: averageScore,
       averageWillingnessToPayScore: averageWillingness,
-      estimatedMonthlyPriceCents: Self.estimatedMonthlyPriceCents(completed),
+      estimatedMonthlyPriceCents: estimatedMonthlyPriceCents,
       strongestVerdict: strongest,
       weakestVerdict: weakest,
       recommendation: recommendation,
@@ -1838,6 +1849,7 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
         averageWillingnessToPayScore: averageWillingness,
         distinctPersonaCount: personaCount,
         buyerOrSponsorPersonaCount: buyerOrSponsorPersonaCount,
+        estimatedMonthlyPriceCents: estimatedMonthlyPriceCents,
         planProofDebt: planProofDebt,
         recommendation: recommendation
       ),
@@ -1918,6 +1930,7 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     averageWillingnessToPayScore: Double,
     distinctPersonaCount: Int,
     buyerOrSponsorPersonaCount: Int,
+    estimatedMonthlyPriceCents: Int?,
     planProofDebt: ProductTournamentPlanProofDebt,
     recommendation: ProductTournamentPlanRecommendation
   ) -> [String] {
@@ -1933,6 +1946,16 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
       lines.append("Average willingness to pay \(Self.format(averageWillingnessToPayScore))/5.")
     }
     lines.append("\(buyerOrSponsorPersonaCount) buyer/sponsor simulated-user signal(s).")
+    let commercialProof = Self.commercialProofSummary(
+      completedEvaluationCount: completed.count,
+      buyerOrSponsorPersonaCount: buyerOrSponsorPersonaCount,
+      averageWillingnessToPayScore: averageWillingnessToPayScore,
+      estimatedMonthlyPriceCents: estimatedMonthlyPriceCents,
+      planProofDebt: planProofDebt
+    )
+    lines.append(
+      "Commercial proof: \(commercialProof)."
+    )
     if !planProofDebt.isClear {
       lines.append("Plan proof debt: \(planProofDebt.summary).")
     }
@@ -1952,6 +1975,31 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
       lines.append("Run more plan evaluations before advancing or eliminating.")
     }
     return lines
+  }
+
+  private static func commercialProofSummary(
+    completedEvaluationCount: Int,
+    buyerOrSponsorPersonaCount: Int,
+    averageWillingnessToPayScore: Double,
+    estimatedMonthlyPriceCents: Int?,
+    planProofDebt: ProductTournamentPlanProofDebt
+  ) -> String {
+    guard completedEvaluationCount > 0 else {
+      return "no willingness-to-pay proof yet"
+    }
+    let payLabel = "\(format(averageWillingnessToPayScore))/5"
+    let priceText = estimatedMonthlyPriceCents.map { " at \(priceLabel(cents: $0))" } ?? ""
+    if buyerOrSponsorPersonaCount == 0 {
+      return "needs buyer/sponsor price and ROI proof; willingness to pay \(payLabel)\(priceText)"
+    }
+    if planProofDebt.willingnessToPayDeficit > 0 {
+      return "needs stronger price and ROI proof; willingness to pay \(payLabel)\(priceText)"
+    }
+    if let estimatedMonthlyPriceCents {
+      return
+        "buyer/sponsor willingness to pay \(payLabel) at \(priceLabel(cents: estimatedMonthlyPriceCents))"
+    }
+    return "buyer/sponsor willingness to pay \(payLabel); price not estimated"
   }
 
   private static func estimatedMonthlyPriceCents(
@@ -2035,6 +2083,10 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
 
   private static func format(_ value: Double) -> String {
     String(format: "%.1f", value)
+  }
+
+  private static func priceLabel(cents: Int) -> String {
+    String(format: "$%.0f/month", Double(max(0, cents)) / 100)
   }
 }
 

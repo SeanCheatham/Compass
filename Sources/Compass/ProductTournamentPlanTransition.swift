@@ -250,11 +250,11 @@ enum ProductTournamentPlanTransitioner {
     case .advanceToFeasibility:
       title = "Advance to Round 2"
       detail =
-        "Readiness \(readiness.scoreLabel)/100 with willingness to pay \(formatScore(readiness.averageWillingnessToPayScore))/5."
+        "Readiness \(readiness.scoreLabel)/100 with willingness to pay \(formatScore(readiness.averageWillingnessToPayScore))/5. Commercial proof: \(readiness.commercialProofSummary)."
     case .revisePlan:
       title = "Mark for Plan Revision"
       detail =
-        "Readiness \(readiness.scoreLabel)/100; revise objections before implementation."
+        "Readiness \(readiness.scoreLabel)/100; revise objections before implementation. Commercial proof: \(readiness.commercialProofSummary). Next proof target: \(readiness.nextProofTargetSummary)."
     case .eliminate:
       title = "Eliminate Contender"
       detail =
@@ -262,7 +262,7 @@ enum ProductTournamentPlanTransitioner {
     case .gatherEvidence:
       title = "Gather More Evidence"
       detail =
-        "Readiness \(readiness.scoreLabel)/100 needs more plan evaluations before a transition: \(readiness.planProofDebt.summary). Next proof target: \(readiness.nextProofTargetSummary)."
+        "Readiness \(readiness.scoreLabel)/100 needs more plan evaluations before a transition: \(readiness.planProofDebt.summary). Commercial proof: \(readiness.commercialProofSummary). Next proof target: \(readiness.nextProofTargetSummary)."
     }
     return ProductTournamentPlanTransitionProposal(
       tournamentID: readiness.tournamentID,

@@ -967,6 +967,7 @@ struct ProductTournamentWorkbenchTab: View {
               "\(planReadiness.scoreLabel)/100, \(planReadiness.recommendation.title), pay \(scoreLabel(planReadiness.averageWillingnessToPayScore))/5"
           )
           WorkbenchFact(label: "Plan proof", value: planReadiness.planProofDebt.summary)
+          WorkbenchFact(label: "Commercial proof", value: planReadiness.commercialProofSummary)
           WorkbenchFact(label: "Next proof", value: planReadiness.nextProofTargetSummary)
           WorkbenchFact(
             label: "Buyer signals",
@@ -977,6 +978,7 @@ struct ProductTournamentWorkbenchTab: View {
           }
         } else {
           WorkbenchFact(label: "Plan", value: "not evaluated")
+          WorkbenchFact(label: "Commercial proof", value: "no willingness-to-pay proof yet")
           WorkbenchFact(
             label: "Next proof",
             value: "operator and economic-buyer plan evaluations"

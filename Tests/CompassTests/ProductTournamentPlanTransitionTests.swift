@@ -127,6 +127,8 @@ struct ProductTournamentPlanTransitionTests {
       outcome.config.tournaments.first { $0.id == tournament.id })
 
     try #require(outcome.proposal.recommendation == .revisePlan)
+    try #require(outcome.proposal.detail.contains("Commercial proof"))
+    try #require(outcome.proposal.detail.contains("stronger price and ROI proof"))
     try #require(updatedContender.status == .needsRevision)
     try #require(updatedPlanRound.status == .active)
     try #require(updatedTournament.currentRoundID == planRound.id)
@@ -164,10 +166,12 @@ struct ProductTournamentPlanTransitionTests {
     try #require(readiness.distinctPersonaCount == 2)
     try #require(readiness.buyerOrSponsorPersonaCount == 0)
     try #require(readiness.planProofDebt.summary.contains("buyer/sponsor signal"))
+    try #require(readiness.commercialProofSummary.contains("buyer/sponsor price and ROI"))
     try #require(readiness.nextProofTargetSummary.contains("economic-buyer"))
     try #require(readiness.recommendation == .gatherEvidence)
     try #require(!proposal.isActionable)
     try #require(proposal.detail.contains("buyer/sponsor signal"))
+    try #require(proposal.detail.contains("Commercial proof"))
     try #require(proposal.detail.contains("Next proof target"))
     try #require(proposal.detail.contains("economic-buyer"))
     try #require(

@@ -75,7 +75,9 @@ and advances them through rounds:
   for that contender, even if the plan was originally aimed at an operator. The
   Workbench and Product Tournament Context show each contender's next plan proof
   target so the next run is aimed at the missing evidence instead of merely
-  reporting a generic readiness score.
+  reporting a generic readiness score. They also surface commercial proof so
+  low willingness-to-pay evidence points to price, ROI, and sponsorship work
+  instead of a vague plan revision.
 - **Round 2: core technology.** Surviving contenders get the smallest technical
   proof that demonstrates the hard part can work. After Round 1 advances a
   contender, Compass emits a Round 2 feasibility handoff that names the narrowed
