@@ -125,6 +125,13 @@ struct ProductizationWorkbenchTab: View {
     )
   }
 
+  private var factoryTargetedProofOutcomeSignals: [ProductFactoryTargetedProofOutcomeSignal] {
+    ProductFactoryTargetedProofOutcomeAdvisor.signals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var factoryRevisionBriefs: [ProductFactoryRevisionBrief] {
     ProductFactoryRevisionBriefAdvisor.briefs(
       config: config,
@@ -415,6 +422,18 @@ struct ProductizationWorkbenchTab: View {
           }
         }
 
+        WorkbenchSection("Targeted Proof Outcomes", systemImage: "arrow.triangle.branch") {
+          VStack(alignment: .leading, spacing: 8) {
+            if factoryTargetedProofOutcomeSignals.isEmpty {
+              WorkbenchEmptyLine("No targeted PMF proof outcomes queued.")
+            } else {
+              ForEach(factoryTargetedProofOutcomeSignals.prefix(4)) { signal in
+                targetedProofOutcomeRow(signal)
+              }
+            }
+          }
+        }
+
         WorkbenchSection("AI-User Rationale Signals", systemImage: "person.2.wave.2") {
           VStack(alignment: .leading, spacing: 8) {
             if factoryRationaleSignals.isEmpty {
@@ -539,6 +558,46 @@ struct ProductizationWorkbenchTab: View {
     }
     .buttonStyle(.plain)
     .help(target.displayDetail)
+  }
+
+  private func targetedProofOutcomeRow(
+    _ signal: ProductFactoryTargetedProofOutcomeSignal
+  ) -> some View {
+    Button {
+      selectedExperimentID = signal.experimentID
+      if let targetScenarioID = signal.targetScenarioID {
+        selectedScenarioID = targetScenarioID
+      }
+    } label: {
+      VStack(alignment: .leading, spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text(signal.title)
+            .font(.callout.weight(.semibold))
+            .lineLimit(2)
+          Spacer()
+          WorkbenchStatusPill(text: "\(signal.priority)")
+        }
+        WorkbenchFact(label: "Experiment", value: signal.experimentID)
+        WorkbenchFact(label: "Outcome", value: signal.displaySubtitle)
+        if !signal.runIDs.isEmpty {
+          WorkbenchFact(label: "Runs", value: signal.runIDs.prefix(3).joined(separator: ", "))
+        }
+        if let targetScenarioID = signal.targetScenarioID {
+          WorkbenchFact(label: "Scenario", value: targetScenarioID)
+        } else if let targetPersonaName = signal.targetPersonaName {
+          WorkbenchFact(label: "Target", value: targetPersonaName)
+        }
+        Text(signal.summary)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .help(signal.auditSummary)
   }
 
   private func rationaleSignalRow(_ signal: ProductFactoryRationaleSignal) -> some View {

@@ -27,6 +27,7 @@ enum ProductizationPlanningDigestFormatter {
     lines += decisionProposalLines(config: config, evidenceIndex: evidenceIndex)
     lines += evidenceTensionLines(config: config, evidenceIndex: evidenceIndex)
     lines += rationaleSignalLines(config: config, evidenceIndex: evidenceIndex)
+    lines += targetedProofOutcomeLines(config: config, evidenceIndex: evidenceIndex)
     lines += revisionBriefLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
@@ -327,6 +328,49 @@ enum ProductizationPlanningDigestFormatter {
       }
       lines.append(
         "- \(signal.experimentID): \(metadata.joined(separator: "; ")); \(bounded(signal.rationale, 180)); \(bounded(signal.summary, 220))."
+      )
+    }
+    return lines
+  }
+
+  private static func targetedProofOutcomeLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    let signals = ProductFactoryTargetedProofOutcomeAdvisor.signals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    guard !signals.isEmpty else { return [] }
+    var lines = ["Product-factory targeted proof outcomes:"]
+    for signal in signals.prefix(4) {
+      var metadata = [
+        "action \(signal.actionKind.rawValue)",
+        "target_decision \(signal.targetDecision.rawValue)",
+        "outcome \(signal.outcome.rawValue)",
+        "count \(signal.count)",
+        "priority \(signal.priority)",
+      ]
+      if let recommendedDecision = signal.recommendedDecision {
+        metadata.append("recommended_decision \(recommendedDecision.rawValue)")
+      }
+      if let targetCohortID = signal.targetCohortID {
+        metadata.append("cohort \(targetCohortID)")
+      }
+      if let targetScenarioID = signal.targetScenarioID {
+        metadata.append("target_scenario \(targetScenarioID)")
+      }
+      if let targetPersonaID = signal.targetPersonaID {
+        metadata.append("target_persona \(targetPersonaID)")
+      }
+      if let targetPersonaName = signal.targetPersonaName {
+        metadata.append("target_name \(bounded(targetPersonaName, 80))")
+      }
+      if !signal.runIDs.isEmpty {
+        metadata.append("runs \(signal.runIDs.prefix(4).joined(separator: ", "))")
+      }
+      lines.append(
+        "- \(signal.experimentID): \(metadata.joined(separator: "; ")); \(bounded(signal.summary, 240))."
       )
     }
     return lines

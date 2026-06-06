@@ -3148,6 +3148,161 @@ struct ProductizationLoopTests {
     try #require(digest.contains("needed import proof before switching"))
   }
 
+  @Test func targetedProofOutcomeContradictionQueuesProductRevision() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
+    let weakScores = ProductizationEvidenceScores(
+      painRecognition: 2,
+      workflowImprovement: 1,
+      alternativeAdvantage: 1,
+      switchingReadiness: 1,
+      continuedUsePull: 1
+    )
+    let record = makeDecisionAdvisorRecord(
+      id: "contradicted-promote",
+      experiment: experiment,
+      config: config,
+      personaID: scenario.segmentID,
+      mode: .personaModel,
+      endedAt: 200,
+      verdict: .rejected,
+      scores: weakScores,
+      currentAlternativeComparison: "The spreadsheet remained better.",
+      scenarioID: scenario.id,
+      decisionIntent: ProductizationSimulationDecisionIntent(
+        currentDecision: .keepGoing,
+        targetDecision: .promote
+      )
+    )
+    let index = ProductizationEvidenceIndex.build(records: [record])
+
+    let signal = try #require(
+      ProductFactoryTargetedProofOutcomeAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let brief = try #require(
+      ProductFactoryRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
+
+    try #require(signal.targetDecision == .promote)
+    try #require(signal.outcome == .contradictsTarget)
+    try #require(signal.recommendedDecision == .narrow)
+    try #require(signal.runIDs == ["contradicted-promote"])
+    try #require(signal.targetScenarioID == scenario.id)
+    try #require(action.kind == .refineBet)
+    try #require(action.title == "Revise contradicted promotion proof")
+    try #require(action.priority == 89)
+    try #require(action.targetDecision == .narrow)
+    try #require(action.targetScenarioID == scenario.id)
+    try #require(brief.source == .targetedProofOutcome)
+    try #require(brief.title == "Revise contradicted promotion proof")
+    try #require(brief.targetDecision == .narrow)
+    try #require(step.kind == .applyRevision)
+    try #require(step.canExecute)
+    try #require(step.action.targetDecision == .narrow)
+    try #require(digest.contains("Product-factory targeted proof outcomes"))
+    try #require(digest.contains("outcome contradicts_target"))
+    try #require(digest.contains("recommended_decision narrow"))
+  }
+
+  @Test func targetedProofOutcomeContradictedKillQueuesLiftProofRerun() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
+    let strongScores = ProductizationEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 5,
+      alternativeAdvantage: 4,
+      switchingReadiness: 4,
+      continuedUsePull: 5
+    )
+    let record = makeDecisionAdvisorRecord(
+      id: "contradicted-kill",
+      experiment: experiment,
+      config: config,
+      personaID: scenario.segmentID,
+      mode: .personaModel,
+      endedAt: 200,
+      verdict: .strongPull,
+      scores: strongScores,
+      currentAlternativeComparison: "The prototype beat the spreadsheet.",
+      scenarioID: scenario.id,
+      decisionIntent: ProductizationSimulationDecisionIntent(
+        currentDecision: .keepGoing,
+        targetDecision: .kill
+      )
+    )
+    let index = ProductizationEvidenceIndex.build(records: [record])
+
+    let signal = try #require(
+      ProductFactoryTargetedProofOutcomeAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let step = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(signal.targetDecision == .kill)
+    try #require(signal.outcome == .contradictsTarget)
+    try #require(signal.recommendedDecision == .promote)
+    try #require(signal.actionKind == .runCohort)
+    try #require(action.kind == .runCohort)
+    try #require(action.title == "Recheck contradicted stop proof")
+    try #require(action.targetDecision == .promote)
+    try #require(action.requiredSimulationMode == .personaModel)
+    try #require(action.targetScenarioID == scenario.id)
+    try #require(step.kind == .runCohort)
+    try #require(step.canExecute)
+    try #require(step.action.targetDecision == .promote)
+  }
+
   @Test func productFactoryAutopilotCycleOutcomeReportsFailureStop() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",
@@ -3670,7 +3825,8 @@ private func makeDecisionAdvisorRecord(
   missingCapabilities: [String] = [],
   currentAlternativeComparison: String = "Compared against the current workflow.",
   scenarioID: String? = nil,
-  personaActionRationales: [String] = []
+  personaActionRationales: [String] = [],
+  decisionIntent: ProductizationSimulationDecisionIntent? = nil
 ) -> ProductizationEvidenceRecord {
   let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
   return ProductizationEvidenceRecord(
@@ -3683,6 +3839,7 @@ private func makeDecisionAdvisorRecord(
     scenarioID: scenarioID ?? "\(experiment.id)-scenario",
     personaID: personaID,
     mode: mode,
+    decisionIntent: decisionIntent,
     status: .completed,
     startedAt: endedAt - 10,
     endedAt: endedAt,

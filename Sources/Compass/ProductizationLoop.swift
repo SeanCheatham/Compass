@@ -963,6 +963,517 @@ struct ProductFactoryRationaleSignal: Equatable, Sendable, Identifiable {
   }
 }
 
+struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiable {
+  var id: String {
+    [
+      experimentID,
+      targetDecision.rawValue,
+      outcome.rawValue,
+      recommendedDecision?.rawValue ?? "none",
+      runIDs.joined(separator: "-"),
+    ].joined(separator: ":")
+  }
+
+  var experimentID: String
+  var targetDecision: ProductExperimentDecision
+  var outcome: ProductizationDecisionIntentOutcome
+  var recommendedDecision: ProductExperimentDecision?
+  var actionKind: ProductMarketFitNextActionKind
+  var title: String
+  var priority: Int
+  var count: Int
+  var runIDs: [String]
+  var targetPersonaID: String?
+  var targetPersonaName: String?
+  var targetScenarioID: String?
+  var targetCohortID: String?
+  var requiredSimulationMode: ProductizationSimulationMode?
+  var summary: String
+
+  var urgencyScore: Int {
+    priority * 1_000 + count
+  }
+
+  var displaySubtitle: String {
+    var parts = [
+      "target \(targetDecision.rawValue)",
+      outcome.rawValue,
+      "\(count)x",
+    ]
+    if let recommendedDecision {
+      parts.append("next \(recommendedDecision.rawValue)")
+    }
+    if let targetPersonaName {
+      parts.append("persona \(targetPersonaName)")
+    }
+    return parts.joined(separator: ", ")
+  }
+
+  var displayDetail: String {
+    var parts = [summary]
+    if !runIDs.isEmpty {
+      parts.append("Runs: \(runIDs.prefix(4).joined(separator: ", ")).")
+    }
+    if let targetScenarioID {
+      parts.append("Scenario: \(targetScenarioID).")
+    } else if let targetPersonaName {
+      parts.append("Persona: \(targetPersonaName).")
+    }
+    return parts.joined(separator: " ")
+  }
+
+  var auditSummary: String {
+    var parts = [
+      "\(experimentID): targeted PMF proof outcome",
+      "target_decision \(targetDecision.rawValue)",
+      "outcome \(outcome.rawValue)",
+      "count \(count)",
+      "action \(actionKind.rawValue)",
+    ]
+    if let recommendedDecision {
+      parts.append("recommended_decision \(recommendedDecision.rawValue)")
+    }
+    if !runIDs.isEmpty {
+      parts.append("runs \(runIDs.prefix(4).joined(separator: ", "))")
+    }
+    if let targetPersonaName {
+      parts.append("target \(targetPersonaName)")
+    }
+    if let targetScenarioID {
+      parts.append("scenario \(targetScenarioID)")
+    }
+    if let targetCohortID {
+      parts.append("cohort \(targetCohortID)")
+    }
+    parts.append(summary)
+    return StringUtils.boundedText(parts.joined(separator: "; "), limit: 420)
+  }
+
+  init(
+    experimentID: String,
+    targetDecision: ProductExperimentDecision,
+    outcome: ProductizationDecisionIntentOutcome,
+    recommendedDecision: ProductExperimentDecision?,
+    actionKind: ProductMarketFitNextActionKind,
+    title: String,
+    priority: Int,
+    count: Int,
+    runIDs: [String],
+    targetPersonaID: String? = nil,
+    targetPersonaName: String? = nil,
+    targetScenarioID: String? = nil,
+    targetCohortID: String? = nil,
+    requiredSimulationMode: ProductizationSimulationMode? = nil,
+    summary: String
+  ) {
+    self.experimentID = ProductizationModelText.identifier(
+      experimentID,
+      fallback: "experiment"
+    )
+    self.targetDecision = targetDecision
+    self.outcome = outcome
+    self.recommendedDecision = recommendedDecision
+    self.actionKind = actionKind
+    self.title = ProductizationModelText.cleanedText(
+      title,
+      fallback: "Resolve targeted PMF proof outcome",
+      limit: 160
+    )
+    self.priority = max(0, priority)
+    self.count = max(0, count)
+    self.runIDs = ProductizationModelText.cleanedList(runIDs, limit: 96)
+    self.targetPersonaID = ProductizationModelText.optionalIdentifier(
+      targetPersonaID,
+      fallback: "persona"
+    )
+    self.targetPersonaName = ProductizationModelText.optionalCleanedText(
+      targetPersonaName,
+      limit: 160
+    )
+    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+      targetScenarioID,
+      fallback: "scenario"
+    )
+    self.targetCohortID = ProductizationModelText.optionalIdentifier(
+      targetCohortID,
+      fallback: "cohort"
+    )
+    self.requiredSimulationMode = requiredSimulationMode
+    self.summary = ProductizationModelText.cleanedText(
+      summary,
+      fallback:
+        "A targeted PMF proof answered the requested decision; update the product-factory queue before rerunning the same proof.",
+      limit: 1_000
+    )
+  }
+}
+
+enum ProductFactoryTargetedProofOutcomeAdvisor {
+  static func signals(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [ProductFactoryTargetedProofOutcomeSignal] {
+    config.experiments.compactMap { experiment in
+      signal(for: experiment, config: config, evidenceIndex: evidenceIndex)
+    }
+    .sorted { lhs, rhs in
+      if lhs.urgencyScore == rhs.urgencyScore { return lhs.experimentID < rhs.experimentID }
+      return lhs.urgencyScore > rhs.urgencyScore
+    }
+  }
+
+  static func signal(
+    for experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryTargetedProofOutcomeSignal? {
+    let summaries = evidenceIndex.summaries(for: experiment).filter(\.isCompleted)
+    guard !summaries.isEmpty else { return nil }
+    let readiness = evidenceIndex.currentPMFReadiness(for: experiment)
+    let grouped = Dictionary(
+      grouping: summaries.compactMap(OutcomeSource.init),
+      by: { "\($0.intent.targetDecision.rawValue)|\($0.evaluation.outcome.rawValue)" }
+    )
+    return grouped.compactMap { _, sources in
+      signal(
+        for: sources,
+        experiment: experiment,
+        config: config,
+        readiness: readiness
+      )
+    }
+    .sorted { lhs, rhs in
+      if lhs.urgencyScore == rhs.urgencyScore { return lhs.id < rhs.id }
+      return lhs.urgencyScore > rhs.urgencyScore
+    }
+    .first
+  }
+
+  private struct OutcomeSource: Equatable, Sendable {
+    var summary: ProductizationEvidenceSummary
+    var intent: ProductizationSimulationDecisionIntent
+    var evaluation: ProductizationDecisionIntentEvaluation
+
+    init?(_ summary: ProductizationEvidenceSummary) {
+      guard let intent = summary.decisionIntent,
+        let evaluation = summary.decisionIntentEvaluation
+      else { return nil }
+      self.summary = summary
+      self.intent = intent
+      self.evaluation = evaluation
+    }
+  }
+
+  private struct OutcomeTarget: Equatable, Sendable {
+    var personaID: String?
+    var personaName: String?
+    var scenarioID: String?
+    var cohortID: String?
+  }
+
+  private static func signal(
+    for sources: [OutcomeSource],
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    readiness: ProductMarketFitReadiness?
+  ) -> ProductFactoryTargetedProofOutcomeSignal? {
+    guard let first = sources.first else { return nil }
+    let sortedSources = sources.sorted { lhs, rhs in
+      if lhs.summary.endedAt == rhs.summary.endedAt {
+        return lhs.summary.runID < rhs.summary.runID
+      }
+      return lhs.summary.endedAt > rhs.summary.endedAt
+    }
+    let targetDecision = first.intent.targetDecision
+    let outcome = first.evaluation.outcome
+    let target = target(for: sortedSources.map(\.summary), experiment: experiment, config: config)
+    let runIDs = sortedSources.map(\.summary.runID)
+    let count = sources.count
+
+    switch outcome {
+    case .contradictsTarget:
+      return contradictedSignal(
+        experiment: experiment,
+        targetDecision: targetDecision,
+        target: target,
+        count: count,
+        runIDs: runIDs
+      )
+    case .supportsTarget:
+      return supportedSignal(
+        experiment: experiment,
+        targetDecision: targetDecision,
+        readiness: readiness,
+        target: target,
+        count: count,
+        runIDs: runIDs
+      )
+    case .inconclusive:
+      guard count >= 2 else { return nil }
+      return inconclusiveSignal(
+        experiment: experiment,
+        targetDecision: targetDecision,
+        target: target,
+        count: count,
+        runIDs: runIDs
+      )
+    }
+  }
+
+  private static func contradictedSignal(
+    experiment: ProductExperiment,
+    targetDecision: ProductExperimentDecision,
+    target: OutcomeTarget?,
+    count: Int,
+    runIDs: [String]
+  ) -> ProductFactoryTargetedProofOutcomeSignal {
+    switch targetDecision {
+    case .promote, .promoted:
+      return ProductFactoryTargetedProofOutcomeSignal(
+        experimentID: experiment.id,
+        targetDecision: targetDecision,
+        outcome: .contradictsTarget,
+        recommendedDecision: allowedDecision(.narrow, current: experiment.decision),
+        actionKind: .refineBet,
+        title: "Revise contradicted promotion proof",
+        priority: 89,
+        count: count,
+        runIDs: runIDs,
+        targetPersonaID: target?.personaID,
+        targetPersonaName: target?.personaName,
+        targetScenarioID: target?.scenarioID,
+        targetCohortID: target?.cohortID,
+        requiredSimulationMode: .personaModel,
+        summary:
+          "Targeted promotion proof contradicted promotion in \(count) run(s); narrow the bet or revise the prototype before asking for another lift proof."
+      )
+    case .kill, .archived:
+      let canRun = target?.scenarioID != nil && target?.cohortID != nil
+      return ProductFactoryTargetedProofOutcomeSignal(
+        experimentID: experiment.id,
+        targetDecision: targetDecision,
+        outcome: .contradictsTarget,
+        recommendedDecision: allowedDecision(.promote, current: experiment.decision),
+        actionKind: canRun ? .runCohort : .refineBet,
+        title: "Recheck contradicted stop proof",
+        priority: 88,
+        count: count,
+        runIDs: runIDs,
+        targetPersonaID: target?.personaID,
+        targetPersonaName: target?.personaName,
+        targetScenarioID: target?.scenarioID,
+        targetCohortID: target?.cohortID,
+        requiredSimulationMode: .personaModel,
+        summary:
+          "Targeted stop proof contradicted killing the bet in \(count) run(s); run a lift-oriented AI-user proof or revise the scenario before cutting."
+      )
+    case .narrow, .pivot:
+      let canRun = target?.scenarioID != nil && target?.cohortID != nil
+      return ProductFactoryTargetedProofOutcomeSignal(
+        experimentID: experiment.id,
+        targetDecision: targetDecision,
+        outcome: .contradictsTarget,
+        recommendedDecision: allowedDecision(.promote, current: experiment.decision),
+        actionKind: canRun ? .runCohort : .refineBet,
+        title: "Recheck contradicted reshape proof",
+        priority: 84,
+        count: count,
+        runIDs: runIDs,
+        targetPersonaID: target?.personaID,
+        targetPersonaName: target?.personaName,
+        targetScenarioID: target?.scenarioID,
+        targetCohortID: target?.cohortID,
+        requiredSimulationMode: .personaModel,
+        summary:
+          "Targeted reshape proof was contradicted in \(count) run(s); validate whether the current product shape deserves lift instead of another reshape."
+      )
+    case .keepGoing, .notRun:
+      return ProductFactoryTargetedProofOutcomeSignal(
+        experimentID: experiment.id,
+        targetDecision: targetDecision,
+        outcome: .contradictsTarget,
+        recommendedDecision: allowedDecision(.narrow, current: experiment.decision),
+        actionKind: .refineBet,
+        title: "Resolve contradicted learning proof",
+        priority: 82,
+        count: count,
+        runIDs: runIDs,
+        targetPersonaID: target?.personaID,
+        targetPersonaName: target?.personaName,
+        targetScenarioID: target?.scenarioID,
+        targetCohortID: target?.cohortID,
+        requiredSimulationMode: .personaModel,
+        summary:
+          "The targeted learning proof contradicted continuing as-is; revise the bet before spending another cohort on the same uncertainty."
+      )
+    }
+  }
+
+  private static func supportedSignal(
+    experiment: ProductExperiment,
+    targetDecision: ProductExperimentDecision,
+    readiness: ProductMarketFitReadiness?,
+    target: OutcomeTarget?,
+    count: Int,
+    runIDs: [String]
+  ) -> ProductFactoryTargetedProofOutcomeSignal? {
+    switch targetDecision {
+    case .promote, .promoted:
+      guard readiness?.proofDebt.isClear == true else { return nil }
+      return ProductFactoryTargetedProofOutcomeSignal(
+        experimentID: experiment.id,
+        targetDecision: targetDecision,
+        outcome: .supportsTarget,
+        recommendedDecision: allowedDecision(.promote, current: experiment.decision),
+        actionKind: .reviewDecision,
+        title: "Review supported promotion proof",
+        priority: 84,
+        count: count,
+        runIDs: runIDs,
+        targetPersonaID: target?.personaID,
+        targetPersonaName: target?.personaName,
+        targetScenarioID: target?.scenarioID,
+        targetCohortID: target?.cohortID,
+        summary:
+          "Targeted promotion proof supported lift in \(count) run(s), but the formal PMF decision advisor did not apply it automatically; review transition state and evidence."
+      )
+    case .kill, .archived:
+      guard readiness?.proofDebt.isClear == true else { return nil }
+      return ProductFactoryTargetedProofOutcomeSignal(
+        experimentID: experiment.id,
+        targetDecision: targetDecision,
+        outcome: .supportsTarget,
+        recommendedDecision: allowedDecision(.kill, current: experiment.decision),
+        actionKind: .reviewDecision,
+        title: "Review supported kill proof",
+        priority: 86,
+        count: count,
+        runIDs: runIDs,
+        targetPersonaID: target?.personaID,
+        targetPersonaName: target?.personaName,
+        targetScenarioID: target?.scenarioID,
+        targetCohortID: target?.cohortID,
+        summary:
+          "Targeted stop proof supported killing the bet in \(count) run(s), but the formal PMF decision advisor did not apply it automatically; review transition state and evidence."
+      )
+    case .narrow, .pivot:
+      return ProductFactoryTargetedProofOutcomeSignal(
+        experimentID: experiment.id,
+        targetDecision: targetDecision,
+        outcome: .supportsTarget,
+        recommendedDecision: allowedDecision(targetDecision, current: experiment.decision),
+        actionKind: .refineBet,
+        title: targetDecision == .pivot ? "Apply supported pivot proof" : "Apply supported narrow proof",
+        priority: 83,
+        count: count,
+        runIDs: runIDs,
+        targetPersonaID: target?.personaID,
+        targetPersonaName: target?.personaName,
+        targetScenarioID: target?.scenarioID,
+        targetCohortID: target?.cohortID,
+        summary:
+          "Targeted \(targetDecision.rawValue) proof supported reshaping this bet in \(count) run(s); revise the prototype and scenario before more lift/cut evidence."
+      )
+    case .keepGoing, .notRun:
+      return nil
+    }
+  }
+
+  private static func inconclusiveSignal(
+    experiment: ProductExperiment,
+    targetDecision: ProductExperimentDecision,
+    target: OutcomeTarget?,
+    count: Int,
+    runIDs: [String]
+  ) -> ProductFactoryTargetedProofOutcomeSignal {
+    let canRun = target?.scenarioID != nil && target?.cohortID != nil
+    return ProductFactoryTargetedProofOutcomeSignal(
+      experimentID: experiment.id,
+      targetDecision: targetDecision,
+      outcome: .inconclusive,
+      recommendedDecision: targetDecision,
+      actionKind: canRun ? .rerunCohort : .refineBet,
+      title: "Retarget inconclusive PMF proof",
+      priority: 76,
+      count: count,
+      runIDs: runIDs,
+      targetPersonaID: target?.personaID,
+      targetPersonaName: target?.personaName,
+      targetScenarioID: target?.scenarioID,
+      targetCohortID: target?.cohortID,
+      requiredSimulationMode: .personaModel,
+      summary:
+        "\(count) targeted \(targetDecision.rawValue) proof run(s) were inconclusive; retarget the scenario or rerun a sharper AI-user proof before deciding."
+    )
+  }
+
+  private static func target(
+    for summaries: [ProductizationEvidenceSummary],
+    experiment: ProductExperiment,
+    config: ProductizationConfig
+  ) -> OutcomeTarget? {
+    for summary in summaries {
+      let scenarioID = summary.scenarioID.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !scenarioID.isEmpty,
+        let scenario = config.scenarios.first(where: {
+          $0.id == scenarioID && $0.experimentID == experiment.id
+        })
+      else { continue }
+      return OutcomeTarget(
+        personaID: scenario.segmentID,
+        personaName: segmentName(for: scenario.segmentID, config: config),
+        scenarioID: scenario.id,
+        cohortID: executableCohortID(
+          forScenarioID: scenario.id,
+          experiment: experiment,
+          config: config
+        )
+      )
+    }
+    guard let summary = summaries.first else { return nil }
+    return OutcomeTarget(
+      personaID: summary.personaID,
+      personaName: segmentName(for: summary.personaID, config: config),
+      scenarioID: nil,
+      cohortID: nil
+    )
+  }
+
+  private static func allowedDecision(
+    _ decision: ProductExperimentDecision,
+    current: ProductExperimentDecision
+  ) -> ProductExperimentDecision? {
+    if decision == current { return decision }
+    return ProductizationDecisionTransitionValidator.allowedNextDecisions(from: current)
+      .contains(decision)
+      ? decision
+      : nil
+  }
+
+  private static func executableCohortID(
+    forScenarioID scenarioID: String,
+    experiment: ProductExperiment,
+    config: ProductizationConfig
+  ) -> String? {
+    config.scenarioCohorts
+      .filter {
+        $0.experimentID == experiment.id
+          && $0.enabled
+          && $0.scenarioIDs.contains(scenarioID)
+      }
+      .sorted {
+        if $0.scenarioIDs.count == $1.scenarioIDs.count { return $0.title < $1.title }
+        return $0.scenarioIDs.count < $1.scenarioIDs.count
+      }
+      .first?.id
+  }
+
+  private static func segmentName(for segmentID: String, config: ProductizationConfig) -> String {
+    let name = config.userSegments.first { $0.id == segmentID }?.name ?? segmentID
+    return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? segmentID : name
+  }
+}
+
 enum ProductFactoryRationaleSignalAdvisor {
   static func signals(
     config: ProductizationConfig,
@@ -1165,6 +1676,7 @@ enum ProductFactoryRationaleSignalAdvisor {
 
 enum ProductFactoryRevisionBriefSource: String, Equatable, Sendable {
   case aiUserRationale = "ai_user_rationale"
+  case targetedProofOutcome = "targeted_proof_outcome"
 }
 
 struct ProductFactoryRevisionBrief: Equatable, Sendable, Identifiable {
@@ -1318,6 +1830,13 @@ enum ProductFactoryRevisionBriefAdvisor {
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductFactoryRevisionBrief? {
+    if let proofOutcomeBrief = targetedProofOutcomeBrief(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return proofOutcomeBrief
+    }
     guard let signal = ProductFactoryRationaleSignalAdvisor.signal(
       for: experiment,
       config: config,
@@ -1339,9 +1858,7 @@ enum ProductFactoryRevisionBriefAdvisor {
     return ProductFactoryRevisionBrief(
       experimentID: experiment.id,
       source: .aiUserRationale,
-      title: isRetargeted
-        ? "Retarget product revision for AI-user rationale"
-        : "Revise prototype for AI-user rationale",
+      title: revision.title,
       priority: action?.priority ?? signal.urgencyScore,
       triggerSummary: signal.summary,
       prototypeChange: revision.prototypeChange,
@@ -1355,7 +1872,44 @@ enum ProductFactoryRevisionBriefAdvisor {
     )
   }
 
+  private static func targetedProofOutcomeBrief(
+    for experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryRevisionBrief? {
+    guard let signal = ProductFactoryTargetedProofOutcomeAdvisor.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ), signal.actionKind == .refineBet
+    else { return nil }
+    let action = ProductMarketFitNextActionAdvisor.nextAction(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    guard action?.title == signal.title else { return nil }
+    let revision = revisionPlan(for: signal)
+    return ProductFactoryRevisionBrief(
+      experimentID: experiment.id,
+      source: .targetedProofOutcome,
+      title: revision.title,
+      priority: action?.priority ?? signal.priority,
+      triggerSummary: signal.summary,
+      prototypeChange: revision.prototypeChange,
+      scenarioChange: revision.scenarioChange,
+      proofPlan: revision.proofPlan,
+      targetPersonaID: signal.targetPersonaID,
+      targetPersonaName: signal.targetPersonaName,
+      targetScenarioID: signal.targetScenarioID,
+      targetCohortID: signal.targetCohortID,
+      targetDecision: action?.targetDecision ?? signal.recommendedDecision
+        ?? signal.targetDecision
+    )
+  }
+
   private struct RevisionPlan: Equatable, Sendable {
+    var title: String
     var prototypeChange: String
     var scenarioChange: String
     var proofPlan: String
@@ -1372,6 +1926,9 @@ enum ProductFactoryRevisionBriefAdvisor {
       : ""
     if containsAny(rationale, ["csv", "import", "spreadsheet"]) {
       return RevisionPlan(
+        title: isRetargeted
+          ? "Retarget product revision for AI-user rationale"
+          : "Revise prototype for AI-user rationale",
         prototypeChange:
           "\(retargetPrefix)add a visible import or spreadsheet handoff path that proves the prototype can absorb real current-workflow data.",
         scenarioChange:
@@ -1382,6 +1939,9 @@ enum ProductFactoryRevisionBriefAdvisor {
     }
     if containsAny(rationale, ["roi", "cost", "risk", "budget", "sponsor"]) {
       return RevisionPlan(
+        title: isRetargeted
+          ? "Retarget product revision for AI-user rationale"
+          : "Revise prototype for AI-user rationale",
         prototypeChange:
           "\(retargetPrefix)add sponsor-facing proof of cost, risk reduction, or decision confidence directly in the prototype flow.",
         scenarioChange:
@@ -1392,6 +1952,9 @@ enum ProductFactoryRevisionBriefAdvisor {
     }
     if containsAny(rationale, ["trust", "proof", "evidence", "confidence"]) {
       return RevisionPlan(
+        title: isRetargeted
+          ? "Retarget product revision for AI-user rationale"
+          : "Revise prototype for AI-user rationale",
         prototypeChange:
           "\(retargetPrefix)make the proof artifact inspectable: show source context, decision criteria, and why the prototype beats the current workflow.",
         scenarioChange:
@@ -1402,6 +1965,9 @@ enum ProductFactoryRevisionBriefAdvisor {
     }
     if containsAny(rationale, ["switch", "switching", "manual", "alternative"]) {
       return RevisionPlan(
+        title: isRetargeted
+          ? "Retarget product revision for AI-user rationale"
+          : "Revise prototype for AI-user rationale",
         prototypeChange:
           "\(retargetPrefix)reduce switching friction by making the first successful workflow moment obvious and reversible.",
         scenarioChange:
@@ -1412,6 +1978,9 @@ enum ProductFactoryRevisionBriefAdvisor {
     }
     if containsAny(rationale, ["unclear", "confusing", "missing", "cannot", "can't"]) {
       return RevisionPlan(
+        title: isRetargeted
+          ? "Retarget product revision for AI-user rationale"
+          : "Revise prototype for AI-user rationale",
         prototypeChange:
           "\(retargetPrefix)remove ambiguity in the next action and expose the missing capability where the AI user got stuck.",
         scenarioChange:
@@ -1421,6 +1990,9 @@ enum ProductFactoryRevisionBriefAdvisor {
       )
     }
     return RevisionPlan(
+      title: isRetargeted
+        ? "Retarget product revision for AI-user rationale"
+        : "Revise prototype for AI-user rationale",
       prototypeChange:
         "\(retargetPrefix)turn the repeated rationale into a visible product affordance, not just a better explanation.",
       scenarioChange:
@@ -1428,6 +2000,64 @@ enum ProductFactoryRevisionBriefAdvisor {
       proofPlan:
         "Rerun targeted AI-user proof and require a current-alternative comparison that says whether the rationale is resolved."
     )
+  }
+
+  private static func revisionPlan(
+    for signal: ProductFactoryTargetedProofOutcomeSignal
+  ) -> RevisionPlan {
+    let targetName = signal.targetPersonaName ?? "the target AI user"
+    switch (signal.targetDecision, signal.outcome) {
+    case (.promote, .contradictsTarget), (.promoted, .contradictsTarget):
+      return RevisionPlan(
+        title: "Revise contradicted promotion proof",
+        prototypeChange:
+          "narrow the promoted promise to the workflow moment that can prove current-alternative advantage for \(targetName), and remove unsupported lift claims from the prototype.",
+        scenarioChange:
+          "Retarget the scenario so \(targetName) must compare the revised prototype against the current alternative before giving a promote, narrow, or kill rationale.",
+        proofPlan:
+          "Rerun targeted AI-user promotion proof and require alternative advantage, switching readiness, and continued-use pull to clear the contradiction."
+      )
+    case (.kill, .contradictsTarget), (.archived, .contradictsTarget):
+      return RevisionPlan(
+        title: "Revise contradicted stop proof",
+        prototypeChange:
+          "make the pull that contradicted killing visible in the first successful workflow moment, with explicit before/after value against the current alternative.",
+        scenarioChange:
+          "Retarget the scenario so \(targetName) tests whether that pull repeats or collapses under realistic switching objections.",
+        proofPlan:
+          "Rerun AI-user lift proof before cutting, and require the persona to choose continue, promote, narrow, or kill with reasons."
+      )
+    case (.narrow, .supportsTarget), (.pivot, .supportsTarget):
+      return RevisionPlan(
+        title: "Apply supported reshape proof",
+        prototypeChange:
+          "reshape the prototype around the smaller product bet that the targeted proof supported, preserving only the capabilities that created pull.",
+        scenarioChange:
+          "Retarget the scenario to the narrower workflow and require \(targetName) to judge whether the narrower promise beats the current alternative.",
+        proofPlan:
+          "Rerun targeted AI-user proof for the narrowed bet before considering lift/cut."
+      )
+    case (_, .inconclusive):
+      return RevisionPlan(
+        title: "Sharpen inconclusive PMF proof",
+        prototypeChange:
+          "make the decision criteria visible in the prototype so the AI user can judge pain recognition, alternative advantage, switching readiness, and continued-use pull.",
+        scenarioChange:
+          "Rewrite the scenario around a single forced PMF decision for \(targetName), with explicit current-alternative comparison.",
+        proofPlan:
+          "Rerun targeted AI-user proof and require the result to support or contradict \(signal.targetDecision.rawValue), not remain inconclusive."
+      )
+    default:
+      return RevisionPlan(
+        title: signal.title,
+        prototypeChange:
+          "translate the targeted proof outcome into a visible product change before the same PMF decision is tested again.",
+        scenarioChange:
+          "Retarget the scenario to the proof outcome and require \(targetName) to explain whether the product bet should continue, narrow, pivot, kill, or promote.",
+        proofPlan:
+          "Rerun targeted AI-user proof and compare the new outcome with \(signal.runIDs.prefix(3).joined(separator: ", "))."
+      )
+    }
   }
 
   private static func containsAny(_ text: String, _ terms: [String]) -> Bool {
@@ -3106,6 +3736,18 @@ enum ProductMarketFitNextActionAdvisor {
         priority: 85
       )
     }
+    if let proofOutcomeSignal = ProductFactoryTargetedProofOutcomeAdvisor.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return applyingRecentCycleGuards(
+        to: nextAction(for: proofOutcomeSignal),
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
     if readiness.completedRunCount < 2 || readiness.distinctPersonaCount < 2 {
       return applyingRecentCycleGuards(
         to: ProductMarketFitNextAction(
@@ -3374,6 +4016,31 @@ enum ProductMarketFitNextActionAdvisor {
       && (readiness.readinessScore <= 40
         || readiness.averageScore > 0 && readiness.averageScore <= 2.5
         || readiness.weakestVerdict == .rejected)
+  }
+
+  private static func nextAction(
+    for signal: ProductFactoryTargetedProofOutcomeSignal
+  ) -> ProductMarketFitNextAction {
+    let runnableCohortID: String?
+    switch signal.actionKind {
+    case .runCohort, .rerunCohort:
+      runnableCohortID = signal.targetCohortID
+    case .applyDecision, .repairFailures, .refineBet, .reviewDecision:
+      runnableCohortID = nil
+    }
+    return ProductMarketFitNextAction(
+      experimentID: signal.experimentID,
+      kind: signal.actionKind,
+      title: signal.title,
+      detail: signal.displayDetail,
+      priority: signal.priority,
+      cohortID: runnableCohortID,
+      requiredSimulationMode: signal.requiredSimulationMode,
+      targetPersonaID: signal.targetPersonaID,
+      targetPersonaName: signal.targetPersonaName,
+      targetScenarioID: signal.targetScenarioID,
+      targetDecision: signal.recommendedDecision ?? signal.targetDecision
+    )
   }
 
   private static func liftCutDecisionHint(
