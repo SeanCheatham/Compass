@@ -153,7 +153,7 @@ extension CompassProject {
       }
       sessions[sessionIndex].plan = nextState.immediate?.plan
       sessions[sessionIndex].verify = nextState.immediate?.verify
-      recordProductizationPlanMetadata(
+      recordProductTournamentPlanMetadata(
         for: nextState.immediate,
         productTournamentConfig: productTournamentConfigForPrompt,
         sessionIndex: sessionIndex
@@ -841,13 +841,13 @@ extension CompassProject {
     return updates.count
   }
 
-  func recordProductizationPlanMetadata(
+  func recordProductTournamentPlanMetadata(
     for immediate: PlanNext?,
     productTournamentConfig: ProductTournamentConfig,
     sessionIndex: Int
   ) {
     guard sessions.indices.contains(sessionIndex), let immediate else { return }
-    let experimentIDs = productizationExperimentIDs(
+    let experimentIDs = productTournamentExperimentIDs(
       mentionedIn: [
         immediate.plan,
         immediate.selectedBecause,
@@ -863,7 +863,7 @@ extension CompassProject {
 
     sessions[sessionIndex].productExperimentID = experiment.id
     sessions[sessionIndex].productSolutionID = experiment.solutionID
-    sessions[sessionIndex].productPainID = productizationPainID(
+    sessions[sessionIndex].productPainID = productTournamentPainID(
       forSolutionID: experiment.solutionID,
       config: productTournamentConfig
     )
@@ -886,7 +886,7 @@ extension CompassProject {
     let previousExperiment = previousConfig.experiments.first { $0.id == latest.experimentID }
     sessions[sessionIndex].productExperimentID = experiment.id
     sessions[sessionIndex].productSolutionID = experiment.solutionID
-    sessions[sessionIndex].productPainID = productizationPainID(
+    sessions[sessionIndex].productPainID = productTournamentPainID(
       forSolutionID: experiment.solutionID,
       config: nextConfig
     )
@@ -902,18 +902,18 @@ extension CompassProject {
     sessions[sessionIndex].productDecision = latest.decision
   }
 
-  private func productizationPainID(
+  private func productTournamentPainID(
     forSolutionID solutionID: String,
     config: ProductTournamentConfig
   ) -> String? {
     config.solutionHypotheses.first { $0.id == solutionID }?.painID
   }
 
-  private func productizationExperimentIDs(
+  private func productTournamentExperimentIDs(
     mentionedIn text: String,
     productTournamentConfig: ProductTournamentConfig
   ) -> [String] {
-    let normalizedText = normalizedProductizationMatchText(text)
+    let normalizedText = normalizedProductTournamentMatchText(text)
     guard !normalizedText.isEmpty else { return [] }
     var matches: [String] = []
     for experiment in productTournamentConfig.experiments {
@@ -923,7 +923,7 @@ extension CompassProject {
         experiment.worktreeID,
         experiment.title,
       ]
-      .map(normalizedProductizationMatchText)
+      .map(normalizedProductTournamentMatchText)
       .filter { $0.count >= 3 }
       if tokens.contains(where: { normalizedText.contains($0) }) {
         matches.append(experiment.id)
@@ -932,7 +932,7 @@ extension CompassProject {
     return Array(Set(matches)).sorted()
   }
 
-  private func normalizedProductizationMatchText(_ text: String) -> String {
+  private func normalizedProductTournamentMatchText(_ text: String) -> String {
     text
       .lowercased()
       .replacingOccurrences(of: #"[^a-z0-9/._-]+"#, with: " ", options: .regularExpression)

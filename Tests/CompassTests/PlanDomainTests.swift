@@ -129,7 +129,7 @@ struct PlanTransitionValidatorTests {
     let next = makeState(
       immediate: PlanNext(
         plan: executablePlan(
-          "Add shared experiment infrastructure for \(first.id) and \(second.id)"
+          "Add shared product tournament infrastructure for \(first.id) and \(second.id)"
         ),
         verify: "swift test --filter ProductTournamentLoopTests"
       ),

@@ -153,7 +153,7 @@ enum PlanTransitionValidator {
       )
     }
 
-    try validateProductizationScope(
+    try validateProductTournamentScope(
       immediate: immediate,
       productTournamentConfig: productTournamentConfig
     )
@@ -209,7 +209,7 @@ enum PlanTransitionValidator {
     return " " + details.joined(separator: " ")
   }
 
-  private static func validateProductizationScope(
+  private static func validateProductTournamentScope(
     immediate: PlanNext,
     productTournamentConfig: ProductTournamentConfig?
   ) throws {
@@ -222,7 +222,7 @@ enum PlanTransitionValidator {
     ]
     .compactMap { $0 }
     .joined(separator: "\n")
-    guard !isSharedProductizationInfrastructureScope(handoffText) else { return }
+    guard !isSharedProductTournamentInfrastructureScope(handoffText) else { return }
 
     let mentioned = mentionedExperimentIDs(
       in: handoffText,
@@ -242,7 +242,7 @@ enum PlanTransitionValidator {
     in text: String,
     productTournamentConfig: ProductTournamentConfig
   ) -> [String] {
-    let normalizedText = normalizedForProductizationMatch(text)
+    let normalizedText = normalizedForProductTournamentMatch(text)
     guard !normalizedText.isEmpty else { return [] }
 
     var matches: [String] = []
@@ -253,7 +253,7 @@ enum PlanTransitionValidator {
         experiment.worktreeID,
         experiment.title,
       ]
-      .map(normalizedForProductizationMatch)
+      .map(normalizedForProductTournamentMatch)
       .filter { $0.count >= 3 }
 
       if tokens.contains(where: { normalizedText.contains($0) }) {
@@ -263,22 +263,22 @@ enum PlanTransitionValidator {
     return Array(Set(matches)).sorted()
   }
 
-  private static func isSharedProductizationInfrastructureScope(_ text: String) -> Bool {
-    let normalized = normalizedForProductizationMatch(text)
+  private static func isSharedProductTournamentInfrastructureScope(_ text: String) -> Bool {
+    let normalized = normalizedForProductTournamentMatch(text)
     let sharedSignals = [
       "shared experiment infrastructure",
-      "shared productization infrastructure",
+      "shared product tournament infrastructure",
       "cross experiment infrastructure",
       "cross experiment",
       "common experiment infrastructure",
-      "common productization infrastructure",
+      "common product tournament infrastructure",
       "shared simulation harness",
       "common simulation harness",
     ]
     return sharedSignals.contains { normalized.contains($0) }
   }
 
-  private static func normalizedForProductizationMatch(_ value: String) -> String {
+  private static func normalizedForProductTournamentMatch(_ value: String) -> String {
     value
       .lowercased()
       .replacingOccurrences(of: #"[^a-z0-9/._-]+"#, with: " ", options: .regularExpression)
