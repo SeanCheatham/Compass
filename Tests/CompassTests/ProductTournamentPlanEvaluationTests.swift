@@ -65,6 +65,7 @@ struct ProductTournamentPlanEvaluationTests {
     try #require(digest.contains("buyer_sponsor_signals"))
     try #require(digest.contains("plan_proof_debt"))
     try #require(digest.contains("next_plan_proof"))
+    try #require(digest.contains("focused_plan_proof_action"))
   }
 
   @Test func modelFreeRoundOneCanFocusOneContenderProofTarget() throws {
@@ -154,6 +155,7 @@ struct ProductTournamentPlanEvaluationTests {
     try #require(beforeDigest.contains("commercial_proof"))
     try #require(beforeDigest.contains("next_plan_proof"))
     try #require(beforeDigest.contains("economic-buyer"))
+    try #require(beforeDigest.contains("focused_plan_proof_action Run Buyer Proof"))
 
     let outcome = try ProductTournamentPlanEvaluator.runPlanRound(
       tournamentID: tournament.id,
@@ -185,6 +187,11 @@ struct ProductTournamentPlanEvaluationTests {
     try #require(after.planProofDebt.focusedActionTitle == "Proof Complete")
     try #require(after.commercialProofSummary.contains("buyer/sponsor willingness to pay"))
     try #require(after.nextProofTargetSummary == "Round 2 feasibility transition")
+    let afterDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: try workspace.readProductTournamentConfig(),
+      evidenceIndex: workspace.readProductTournamentEvidenceIndex()
+    )
+    try #require(afterDigest.contains("focused_plan_proof_action Proof Complete"))
   }
 
   @Test func modelFreeRoundOneRewardsExplicitPricingAndROILanguage() throws {

@@ -143,11 +143,11 @@ feedback remains comparable across tournament rounds. The workbench can apply th
 best actionable Round 1 and Round 2 recommendations to stored tournament state.
 Plan and Reflect receive only a compact advisory summary:
 current tournament round, contender plans, Round 1 plan readiness and plan proof
-debt, buyer/sponsor signals, willingness-to-pay signals, Round 2 feasibility
-handoffs and evidence transitions, Round 3 prototype winner recommendations,
-latest evidence per active scenario, repeated objections, low-score clusters,
-verdict distribution, failures, current alternative comparisons, and
-generated-product willingness to pay or sponsor.
+debt, focused Round 1 proof actions, buyer/sponsor signals, willingness-to-pay
+signals, Round 2 feasibility handoffs and evidence transitions, Round 3 prototype
+winner recommendations, latest evidence per active scenario, repeated objections,
+low-score clusters, verdict distribution, failures, current alternative
+comparisons, and generated-product willingness to pay or sponsor.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 
