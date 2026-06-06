@@ -9,7 +9,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
   var userSegments: [UserSegment]
   var currentWorkflows: [CurrentWorkflow]
   var alternatives: [Alternative]
-  var solutionHypotheses: [SolutionHypothesis]
+  var productHypotheses: [ProductHypothesis]
   var experiments: [ProductExperiment]
   var tournaments: [ProductTournament]
   var tournamentContenders: [ProductTournamentContender]
@@ -25,7 +25,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     userSegments: [],
     currentWorkflows: [],
     alternatives: [],
-    solutionHypotheses: [],
+    productHypotheses: [],
     experiments: [],
     tournaments: [],
     tournamentContenders: [],
@@ -43,7 +43,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     case userSegments
     case currentWorkflows
     case alternatives
-    case solutionHypotheses
+    case productHypotheses
     case experiments
     case tournaments
     case tournamentContenders
@@ -61,7 +61,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     userSegments: [UserSegment],
     currentWorkflows: [CurrentWorkflow],
     alternatives: [Alternative],
-    solutionHypotheses: [SolutionHypothesis],
+    productHypotheses: [ProductHypothesis],
     experiments: [ProductExperiment],
     tournaments: [ProductTournament] = [],
     tournamentContenders: [ProductTournamentContender] = [],
@@ -77,7 +77,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     self.userSegments = userSegments
     self.currentWorkflows = currentWorkflows
     self.alternatives = alternatives
-    self.solutionHypotheses = solutionHypotheses
+    self.productHypotheses = productHypotheses
     self.experiments = experiments
     self.tournaments = tournaments
     self.tournamentContenders = tournamentContenders
@@ -106,8 +106,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       currentWorkflows: try container.decodeIfPresent(
         [CurrentWorkflow].self, forKey: .currentWorkflows) ?? [],
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
-      solutionHypotheses: try container.decodeIfPresent(
-        [SolutionHypothesis].self, forKey: .solutionHypotheses) ?? [],
+      productHypotheses: try container.decodeIfPresent(
+        [ProductHypothesis].self, forKey: .productHypotheses) ?? [],
       experiments: try container.decodeIfPresent([ProductExperiment].self, forKey: .experiments)
         ?? [],
       tournaments: try container.decodeIfPresent([ProductTournament].self, forKey: .tournaments)
@@ -137,7 +137,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       && userSegments.isEmpty
       && currentWorkflows.isEmpty
       && alternatives.isEmpty
-      && solutionHypotheses.isEmpty
+      && productHypotheses.isEmpty
       && experiments.isEmpty
       && tournaments.isEmpty
       && tournamentContenders.isEmpty
@@ -184,8 +184,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let doNothingAlternativeID = "\(slug)-do-nothing"
     let operatorSegmentID = "\(slug)-operator"
     let buyerSegmentID = "\(slug)-buyer"
-    let workflowSolutionID = "\(slug)-workflow-clarifier"
-    let proofSolutionID = "\(slug)-proof-assistant"
+    let workflowHypothesisID = "\(slug)-workflow-clarifier"
+    let proofHypothesisID = "\(slug)-proof-assistant"
     let tournamentID = "\(slug)-tournament"
     let workflowContenderID = "\(slug)-workflow-contender"
     let proofContenderID = "\(slug)-proof-contender"
@@ -331,9 +331,9 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ),
     ]
 
-    let solutions = [
-      SolutionHypothesis(
-        id: workflowSolutionID,
+    let productHypotheses = [
+      ProductHypothesis(
+        id: workflowHypothesisID,
         painID: painID,
         title: "\(title) workflow clarifier",
         promise: "Make the painful workflow visible, guided, and easier to complete.",
@@ -352,8 +352,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         ],
         status: .active
       ),
-      SolutionHypothesis(
-        id: proofSolutionID,
+      ProductHypothesis(
+        id: proofHypothesisID,
         painID: painID,
         title: "\(title) proof assistant",
         promise: "Help the user compare options and produce evidence for a product decision.",
@@ -377,7 +377,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let experiments = [
       ProductExperiment(
         id: workflowExperimentID,
-        solutionID: workflowSolutionID,
+        solutionID: workflowHypothesisID,
         title: "\(title) workflow prototype",
         branchName: "codex/\(slug)-workflow-prototype",
         worktreeID: "\(slug)-workflow-worktree",
@@ -392,7 +392,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ),
       ProductExperiment(
         id: proofExperimentID,
-        solutionID: proofSolutionID,
+        solutionID: proofHypothesisID,
         title: "\(title) proof prototype",
         branchName: "codex/\(slug)-proof-prototype",
         worktreeID: "\(slug)-proof-worktree",
@@ -496,7 +496,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ProductTournamentContender(
         id: workflowContenderID,
         tournamentID: tournamentID,
-        solutionID: workflowSolutionID,
+        solutionID: workflowHypothesisID,
         experimentID: workflowExperimentID,
         title: "\(title) workflow product",
         productPlan:
@@ -512,7 +512,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ProductTournamentContender(
         id: proofContenderID,
         tournamentID: tournamentID,
-        solutionID: proofSolutionID,
+        solutionID: proofHypothesisID,
         experimentID: proofExperimentID,
         title: "\(title) proof product",
         productPlan:
@@ -604,7 +604,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       userSegments: userSegments,
       currentWorkflows: [workflow],
       alternatives: alternatives,
-      solutionHypotheses: solutions,
+      productHypotheses: productHypotheses,
       experiments: experiments,
       tournaments: [tournament],
       tournamentContenders: contenders,
@@ -792,7 +792,7 @@ enum AlternativeKind: String, Codable, CaseIterable, Equatable, Sendable {
   case doNothing = "do_nothing"
 }
 
-struct SolutionHypothesis: Codable, Equatable, Identifiable, Sendable {
+struct ProductHypothesis: Codable, Equatable, Identifiable, Sendable {
   var id: String
   var painID: String
   var title: String
@@ -803,7 +803,7 @@ struct SolutionHypothesis: Codable, Equatable, Identifiable, Sendable {
   var whyThisCouldWin: String
   var whyThisMightFail: String
   var requiredProof: [String]
-  var status: SolutionHypothesisStatus
+  var status: ProductHypothesisStatus
 
   init(
     id: String,
@@ -816,9 +816,9 @@ struct SolutionHypothesis: Codable, Equatable, Identifiable, Sendable {
     whyThisCouldWin: String,
     whyThisMightFail: String,
     requiredProof: [String] = [],
-    status: SolutionHypothesisStatus
+    status: ProductHypothesisStatus
   ) {
-    self.id = ProductTournamentModelText.identifier(id, fallback: "solution")
+    self.id = ProductTournamentModelText.identifier(id, fallback: "product-hypothesis")
     self.painID = ProductTournamentModelText.identifier(painID, fallback: "pain")
     self.title = ProductTournamentModelText.cleanedText(
       title, fallback: "Product hypothesis", limit: 180)
@@ -840,7 +840,7 @@ struct SolutionHypothesis: Codable, Equatable, Identifiable, Sendable {
   }
 }
 
-enum SolutionHypothesisStatus: String, Codable, CaseIterable, Equatable, Sendable {
+enum ProductHypothesisStatus: String, Codable, CaseIterable, Equatable, Sendable {
   case candidate
   case active
   case promoted

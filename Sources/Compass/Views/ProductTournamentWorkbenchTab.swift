@@ -928,21 +928,21 @@ struct ProductTournamentWorkbenchTab: View {
 
         WorkbenchSection("Product Hypotheses", systemImage: "lightbulb") {
           VStack(alignment: .leading, spacing: 8) {
-            if config.solutionHypotheses.isEmpty {
+            if config.productHypotheses.isEmpty {
               WorkbenchEmptyLine("No product hypotheses yet.")
             } else {
-              ForEach(SolutionHypothesisStatus.allCases, id: \.rawValue) { status in
-                let solutions = config.solutionHypotheses.filter { $0.status == status }
-                if !solutions.isEmpty {
+              ForEach(ProductHypothesisStatus.allCases, id: \.rawValue) { status in
+                let hypotheses = config.productHypotheses.filter { $0.status == status }
+                if !hypotheses.isEmpty {
                   VStack(alignment: .leading, spacing: 6) {
                     Text(status.rawValue)
                       .font(.caption.weight(.semibold))
                       .foregroundStyle(.secondary)
-                    ForEach(solutions) { solution in
+                    ForEach(hypotheses) { hypothesis in
                       WorkbenchValueBlock(
-                        title: solution.title,
-                        subtitle: "pain \(solution.painID)",
-                        detail: solution.promise
+                        title: hypothesis.title,
+                        subtitle: "pain \(hypothesis.painID)",
+                        detail: hypothesis.promise
                       )
                     }
                   }

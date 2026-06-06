@@ -26,9 +26,13 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains("Name the user segment before naming the app"))
     try #require(prompt.contains("Round 1 compares product"))
     try #require(prompt.contains("candidateExperiments"))
+    try #require(prompt.contains("productHypotheses"))
+    try #require(prompt.contains("productHypothesisID"))
     try #require(prompt.contains("contenderPlan"))
     try #require(prompt.contains("product hypothesis"))
     try #require(!prompt.contains("reference a solution"))
+    try #require(!prompt.contains("solutionHypotheses"))
+    try #require(!prompt.contains("solutionHypothesisID"))
     try #require(!prompt.contains("workflowBet"))
     try #require(prompt.contains("current tournament state"))
     try #require(prompt.contains("Support leads lose escalation decisions"))
@@ -42,8 +46,8 @@ struct DiscoverPromptContractTests {
 
     try #require(config.rawPain.contains("customer-facing decisions"))
     try #require(config.painHypotheses.count == 1)
-    try #require(config.solutionHypotheses.count == 2)
-    try #require(config.solutionHypotheses[0].contenderPlan.contains("focused board"))
+    try #require(config.productHypotheses.count == 2)
+    try #require(config.productHypotheses[0].contenderPlan.contains("focused board"))
     try #require(config.experiments.count == 1)
     try #require(config.tournaments.count == 1)
     try #require(config.tournamentContenders.count == 2)
@@ -63,9 +67,9 @@ struct DiscoverPromptContractTests {
     }
   }
 
-  @Test func discoverValidationRejectsSolutionWithoutPain() throws {
+  @Test func discoverValidationRejectsProductHypothesisWithoutPain() throws {
     var output = makeDiscoverOutput()
-    output.stateEdits.solutionHypotheses[0] = SolutionHypothesis(
+    output.stateEdits.productHypotheses[0] = ProductHypothesis(
       id: "solution-bad",
       painID: "missing-pain",
       title: "Bad solution",
@@ -80,8 +84,8 @@ struct DiscoverPromptContractTests {
     )
 
     #expect(
-      throws: DiscoverPromptValidationError.solutionReferencesMissingPain(
-        solutionID: "solution-bad",
+      throws: DiscoverPromptValidationError.productHypothesisReferencesMissingPain(
+        productHypothesisID: "solution-bad",
         painID: "missing-pain"
       )
     ) {
@@ -92,7 +96,7 @@ struct DiscoverPromptContractTests {
   @Test func discoverValidationRejectsInvalidCandidateBranchSlug() throws {
     var output = makeDiscoverOutput()
     output.candidateExperiments[0] = DiscoveryCandidateExperiment(
-      solutionHypothesisID: "solution-command-board",
+      productHypothesisID: "solution-command-board",
       prototypeName: "Incident Command Board",
       branchSlug: "bad slug",
       smallestWorkflowToProve: "Draft a customer update",
@@ -188,7 +192,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     decisionCriteria: ["Clarity", "Speed"],
     skepticism: "Will stay in chat if the product is slower."
   )
-  let commandBoard = SolutionHypothesis(
+  let commandBoard = ProductHypothesis(
     id: "solution-command-board",
     painID: pain.id,
     title: "Incident Command Board",
@@ -201,7 +205,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     requiredProof: ["Persona drafts clearer update than chat"],
     status: .active
   )
-  let timeline = SolutionHypothesis(
+  let timeline = ProductHypothesis(
     id: "solution-timeline",
     painID: pain.id,
     title: "Incident Timeline",
@@ -332,7 +336,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
       userSegments: [segment],
       currentWorkflows: [workflow],
       alternatives: [alternative],
-      solutionHypotheses: [commandBoard, timeline],
+      productHypotheses: [commandBoard, timeline],
       experiments: [experiment],
       tournaments: [tournament],
       tournamentContenders: [commandBoardContender, timelineContender],
@@ -342,7 +346,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     ),
     candidateExperiments: [
       DiscoveryCandidateExperiment(
-        solutionHypothesisID: commandBoard.id,
+        productHypothesisID: commandBoard.id,
         prototypeName: "Incident Command Board",
         branchSlug: "incident-command-board",
         smallestWorkflowToProve: "Draft a customer update from owner and decision context.",

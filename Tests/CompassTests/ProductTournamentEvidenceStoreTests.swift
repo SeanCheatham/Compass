@@ -134,7 +134,7 @@ struct ProductTournamentEvidenceStoreTests {
       id: "intent-run",
       experimentID: experiment.id,
       solutionID: experiment.solutionID,
-      painID: config.solutionHypotheses[0].painID,
+      painID: config.productHypotheses[0].painID,
       branchName: experiment.branchName,
       commitSha: "abc123",
       scenarioID: config.scenarios[0].id,
@@ -514,7 +514,7 @@ struct ProductTournamentEvidenceStoreTests {
     let record = makeEvidenceRecord(
       id: "digest-run",
       experimentID: config.experiments[0].id,
-      solutionID: config.solutionHypotheses[0].id,
+      solutionID: config.productHypotheses[0].id,
       painID: config.painHypotheses[0].id,
       branchName: config.experiments[0].branchName,
       verdict: .promising,
@@ -581,7 +581,7 @@ struct ProductTournamentEvidenceStoreTests {
       makeEvidenceRecord(
         id: "rationale-one",
         experimentID: config.experiments[0].id,
-        solutionID: config.solutionHypotheses[0].id,
+        solutionID: config.productHypotheses[0].id,
         painID: config.painHypotheses[0].id,
         branchName: config.experiments[0].branchName,
         personaID: "operator",
@@ -593,7 +593,7 @@ struct ProductTournamentEvidenceStoreTests {
       makeEvidenceRecord(
         id: "rationale-two",
         experimentID: config.experiments[0].id,
-        solutionID: config.solutionHypotheses[0].id,
+        solutionID: config.productHypotheses[0].id,
         painID: config.painHypotheses[0].id,
         branchName: config.experiments[0].branchName,
         personaID: "buyer",
@@ -677,7 +677,7 @@ struct ProductTournamentEvidenceStoreTests {
     let first = makeEvidenceRecord(
       id: "prompt-run-one",
       experimentID: config.experiments[0].id,
-      solutionID: config.solutionHypotheses[0].id,
+      solutionID: config.productHypotheses[0].id,
       painID: config.painHypotheses[0].id,
       branchName: config.experiments[0].branchName,
       objections: ["The spreadsheet is already trusted"],
@@ -687,7 +687,7 @@ struct ProductTournamentEvidenceStoreTests {
     let second = makeEvidenceRecord(
       id: "prompt-run-two",
       experimentID: config.experiments[0].id,
-      solutionID: config.solutionHypotheses[0].id,
+      solutionID: config.productHypotheses[0].id,
       painID: config.painHypotheses[0].id,
       branchName: config.experiments[0].branchName,
       endedAt: 30,
@@ -764,7 +764,7 @@ struct ProductTournamentEvidenceStoreTests {
     let record = makeEvidenceRecord(
       id: "smoke-run",
       experimentID: config.experiments[0].id,
-      solutionID: config.solutionHypotheses[0].id,
+      solutionID: config.productHypotheses[0].id,
       painID: config.painHypotheses[0].id,
       branchName: config.experiments[0].branchName,
       commitSha: "head-sha",

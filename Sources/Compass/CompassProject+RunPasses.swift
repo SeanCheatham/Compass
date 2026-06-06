@@ -906,7 +906,7 @@ extension CompassProject {
     forSolutionID solutionID: String,
     config: ProductTournamentConfig
   ) -> String? {
-    config.solutionHypotheses.first { $0.id == solutionID }?.painID
+    config.productHypotheses.first { $0.id == solutionID }?.painID
   }
 
   private func productTournamentExperimentIDs(

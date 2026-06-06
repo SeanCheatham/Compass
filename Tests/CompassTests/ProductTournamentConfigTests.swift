@@ -53,7 +53,7 @@ struct ProductTournamentConfigTests {
         "userSegments": [],
         "currentWorkflows": [],
         "alternatives": [],
-        "solutionHypotheses": [],
+        "productHypotheses": [],
         "experiments": [],
         "scenarioCohorts": [],
         "decisions": []
@@ -150,7 +150,7 @@ struct ProductTournamentConfigTests {
     try #require(config.userSegments.count == 2)
     try #require(config.currentWorkflows.count == 1)
     try #require(config.alternatives.count == 2)
-    try #require(config.solutionHypotheses.count == 2)
+    try #require(config.productHypotheses.count == 2)
     try #require(config.experiments.count == 2)
     try #require(config.tournaments.count == 1)
     try #require(config.tournamentContenders.count == 2)
@@ -158,15 +158,15 @@ struct ProductTournamentConfigTests {
     try #require(config.scenarios.count == 4)
     try #require(config.scenarioCohorts.count == 2)
     try #require(Set(config.userSegments.map(\.id)).count == config.userSegments.count)
-    try #require(Set(config.solutionHypotheses.map(\.id)).count == config.solutionHypotheses.count)
+    try #require(Set(config.productHypotheses.map(\.id)).count == config.productHypotheses.count)
     try #require(Set(config.experiments.map(\.id)).count == config.experiments.count)
     try #require(
       Set(config.tournamentContenders.map(\.id)).count == config.tournamentContenders.count)
     try #require(Set(config.tournamentRounds.map(\.id)).count == config.tournamentRounds.count)
     try #require(Set(config.scenarios.map(\.id)).count == config.scenarios.count)
     try #require(config.painHypotheses[0].status == .active)
-    try #require(config.solutionHypotheses.contains { $0.status == .active })
-    try #require(config.solutionHypotheses.allSatisfy { $0.painID == config.painHypotheses[0].id })
+    try #require(config.productHypotheses.contains { $0.status == .active })
+    try #require(config.productHypotheses.allSatisfy { $0.painID == config.painHypotheses[0].id })
     try #require(config.experiments.allSatisfy { !$0.branchName.isEmpty })
     try #require(config.experiments.allSatisfy { !$0.worktreeID.isEmpty })
     let tournament = try #require(config.tournaments.first)
@@ -210,7 +210,7 @@ struct ProductTournamentConfigTests {
 
     try #require(!project.productTournamentConfig.isEmpty)
     try #require(project.productTournamentConfig.rawPain.contains("Support teams"))
-    try #require(project.productTournamentConfig.solutionHypotheses.count == 2)
+    try #require(project.productTournamentConfig.productHypotheses.count == 2)
     try #require(project.productTournamentConfig.tournaments.count == 1)
     try #require(project.productTournamentConfig.tournamentRounds.map(\.kind).contains(.productPlans))
   }
@@ -282,7 +282,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     decisionCriteria: ["Less follow-up"],
     skepticism: "Will keep chat if Compass feels heavier."
   )
-  let solution = SolutionHypothesis(
+  let solution = ProductHypothesis(
     id: "solution-handoff-desk",
     painID: pain.id,
     title: "Handoff Desk",
@@ -364,7 +364,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     userSegments: [segment],
     currentWorkflows: [workflow],
     alternatives: [alternative],
-    solutionHypotheses: [solution],
+    productHypotheses: [solution],
     experiments: [experiment],
     scenarios: [scenario],
     scenarioCohorts: [cohort],

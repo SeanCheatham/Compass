@@ -137,7 +137,9 @@ Tournament state and evidence use the product tournament storage namespace:
 contenders, rounds, product hypotheses, experiment branches, scenarios, and decisions;
 `.compass/product-tournament/` for `evidence-index.json` and separate run artifacts
 for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
-Tournament workbench lists pain hypotheses, contenders, rounds, implementation
+state schema stores product hypotheses under `productHypotheses`, and Discover
+candidate experiments reference them with `productHypothesisID`. The Tournament
+workbench lists pain hypotheses, contenders, rounds, implementation
 tracks, selectable Round 1 plan evaluations with buyer objections and
 willingness-to-pay rationale, per-plan commercial proof, scenario runs, feedback
 scores, objections, missing capabilities, failure kinds, decision history, and

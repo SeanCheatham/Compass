@@ -5,7 +5,7 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     maxPainHypotheses: Int = 3,
-    maxSolutionHypotheses: Int = 5,
+    maxProductHypotheses: Int = 5,
     maxExperiments: Int = 6,
     maxDecisions: Int = 4,
     maxEvidenceSignals: Int = 5
@@ -40,7 +40,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
-    lines += solutionLines(config: config, maxSolutionHypotheses: maxSolutionHypotheses)
+    lines += productHypothesisLines(config: config, maxProductHypotheses: maxProductHypotheses)
     lines += experimentLines(config: config, maxExperiments: maxExperiments)
     lines += evidenceSignalLines(
       config: config,
@@ -189,17 +189,17 @@ enum ProductTournamentPlanningDigestFormatter {
     return lines
   }
 
-  private static func solutionLines(
+  private static func productHypothesisLines(
     config: ProductTournamentConfig,
-    maxSolutionHypotheses: Int
+    maxProductHypotheses: Int
   ) -> [String] {
-    let solutions = config.solutionHypotheses
+    let hypotheses = config.productHypotheses
       .filter { $0.status == .active || $0.status == .candidate || $0.status == .promoted }
       .sorted { lhs, rhs in
         if lhs.status == rhs.status { return lhs.title < rhs.title }
-        return solutionStatusRank(lhs.status) < solutionStatusRank(rhs.status)
+        return productHypothesisStatusRank(lhs.status) < productHypothesisStatusRank(rhs.status)
       }
-    guard !solutions.isEmpty else {
+    guard !hypotheses.isEmpty else {
       return [
         "Product hypotheses:",
         "- No active or candidate product hypothesis is configured.",
@@ -207,22 +207,22 @@ enum ProductTournamentPlanningDigestFormatter {
     }
 
     var lines = ["Product hypotheses:"]
-    for solution in solutions.prefix(maxSolutionHypotheses) {
+    for hypothesis in hypotheses.prefix(maxProductHypotheses) {
       let segments =
-        solution.targetSegmentIDs.isEmpty
+        hypothesis.targetSegmentIDs.isEmpty
         ? "no target segment"
-        : solution.targetSegmentIDs.joined(separator: ", ")
+        : hypothesis.targetSegmentIDs.joined(separator: ", ")
       let proof =
-        solution.requiredProof.isEmpty
+        hypothesis.requiredProof.isEmpty
         ? "no required proof"
-        : bounded(solution.requiredProof.joined(separator: "; "), 160)
+        : bounded(hypothesis.requiredProof.joined(separator: "; "), 160)
       lines.append(
-        "- \(bounded(solution.title, 120)) [\(solution.status.rawValue), pain \(solution.painID), segments \(segments)]: \(bounded(solution.promise, 150)); proof \(proof)."
+        "- \(bounded(hypothesis.title, 120)) [\(hypothesis.status.rawValue), pain \(hypothesis.painID), segments \(segments)]: \(bounded(hypothesis.promise, 150)); proof \(proof)."
       )
     }
-    if solutions.count > maxSolutionHypotheses {
+    if hypotheses.count > maxProductHypotheses {
       lines.append(
-        "- \(solutions.count - maxSolutionHypotheses) more product hypothesis/hypotheses omitted.")
+        "- \(hypotheses.count - maxProductHypotheses) more product hypothesis/hypotheses omitted.")
     }
     return lines
   }
@@ -1002,7 +1002,7 @@ enum ProductTournamentPlanningDigestFormatter {
     return lines
   }
 
-  private static func solutionStatusRank(_ status: SolutionHypothesisStatus) -> Int {
+  private static func productHypothesisStatusRank(_ status: ProductHypothesisStatus) -> Int {
     switch status {
     case .promoted: return 0
     case .active: return 1

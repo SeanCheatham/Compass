@@ -203,7 +203,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     status: .active,
     createdAt: 1
   )
-  let solution = SolutionHypothesis(
+  let solution = ProductHypothesis(
     id: "solution-command-board",
     painID: pain.id,
     title: "Command Board",
@@ -248,7 +248,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     userSegments: [],
     currentWorkflows: [],
     alternatives: [],
-    solutionHypotheses: [solution],
+    productHypotheses: [solution],
     experiments: [first, second],
     scenarioCohorts: [],
     decisions: []

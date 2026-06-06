@@ -786,13 +786,13 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
   private static func updateSolution(
     for contenderID: String,
     in config: inout ProductTournamentConfig,
-    mutate: (inout SolutionHypothesis) -> Void
+    mutate: (inout ProductHypothesis) -> Void
   ) {
     guard
       let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
-      let index = config.solutionHypotheses.firstIndex(where: { $0.id == contender.solutionID })
+      let index = config.productHypotheses.firstIndex(where: { $0.id == contender.solutionID })
     else { return }
-    mutate(&config.solutionHypotheses[index])
+    mutate(&config.productHypotheses[index])
   }
 
   private static func average(_ values: [Double]) -> Double {

@@ -38,7 +38,7 @@ struct ProductTournamentGitRolloutTests {
     let experiment = try #require(
       promoted.experiments.first { $0.id == "experiment-fast-forward" }
     )
-    let solution = try #require(promoted.solutionHypotheses.first)
+    let solution = try #require(promoted.productHypotheses.first)
     let decision = try #require(promoted.decisions.last)
 
     try #require(result.preview.kind == .fastForwardPromotion)
@@ -190,7 +190,7 @@ struct ProductTournamentGitRolloutTests {
     )
     let saved = try workspace.readProductTournamentConfig()
     let experiment = try #require(saved.experiments.first { $0.id == "experiment-archive" })
-    let solution = try #require(saved.solutionHypotheses.first)
+    let solution = try #require(saved.productHypotheses.first)
     let decision = try #require(saved.decisions.last)
     let archiveBranch = try #require(result.archiveBranchName)
 
@@ -261,7 +261,7 @@ private func makeGitRolloutConfig(
     status: .active,
     createdAt: 1
   )
-  let solution = SolutionHypothesis(
+  let solution = ProductHypothesis(
     id: "solution-rollout",
     painID: pain.id,
     title: "Rollout Solution",
@@ -293,7 +293,7 @@ private func makeGitRolloutConfig(
     userSegments: [],
     currentWorkflows: [],
     alternatives: [],
-    solutionHypotheses: [solution],
+    productHypotheses: [solution],
     experiments: [experiment],
     scenarioCohorts: [],
     decisions: []
@@ -304,7 +304,7 @@ private func makeGitRolloutEvidence(config: ProductTournamentConfig) -> ProductT
   ProductTournamentEvidenceRecord(
     id: "rollout-run",
     experimentID: config.experiments[0].id,
-    solutionID: config.solutionHypotheses[0].id,
+    solutionID: config.productHypotheses[0].id,
     painID: config.painHypotheses[0].id,
     branchName: config.experiments[0].branchName,
     commitSha: config.experiments[0].currentSha ?? "unknown",

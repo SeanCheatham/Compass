@@ -486,7 +486,7 @@ enum ProductTournamentPlanEvaluator {
     tournament: ProductTournament,
     round: ProductTournamentRound,
     contender: ProductTournamentContender,
-    solution: SolutionHypothesis,
+    solution: ProductHypothesis,
     pain: PainHypothesis,
     segment: UserSegment,
     currentWorkflow: CurrentWorkflow?,
@@ -687,8 +687,8 @@ enum ProductTournamentPlanEvaluator {
   private static func solution(
     for contender: ProductTournamentContender,
     config: ProductTournamentConfig
-  ) throws -> SolutionHypothesis {
-    guard let solution = config.solutionHypotheses.first(where: { $0.id == contender.solutionID })
+  ) throws -> ProductHypothesis {
+    guard let solution = config.productHypotheses.first(where: { $0.id == contender.solutionID })
     else {
       throw ProductTournamentPlanEvaluationError.unknownSolution(contender.solutionID)
     }
@@ -696,7 +696,7 @@ enum ProductTournamentPlanEvaluator {
   }
 
   private static func pain(
-    for solution: SolutionHypothesis,
+    for solution: ProductHypothesis,
     config: ProductTournamentConfig
   ) throws -> PainHypothesis {
     guard let pain = config.painHypotheses.first(where: { $0.id == solution.painID }) else {
@@ -872,7 +872,7 @@ enum ProductTournamentPlanEvaluator {
   }
 
   private static func missingCapabilities(
-    solution: SolutionHypothesis,
+    solution: ProductHypothesis,
     workflowImprovement: Int,
     alternativeAdvantage: Int
   ) -> [String] {
@@ -938,7 +938,7 @@ enum ProductTournamentPlanEvaluator {
 
   private static func planStrengths(
     contender: ProductTournamentContender,
-    solution: SolutionHypothesis,
+    solution: ProductHypothesis,
     commercialSignals: ProductTournamentPlanCommercialSignals
   ) -> [String] {
     var strengths = [contender.valueProposition, solution.differentiator, solution.whyThisCouldWin]
@@ -950,7 +950,7 @@ enum ProductTournamentPlanEvaluator {
 
   private static func planRisks(
     contender: ProductTournamentContender,
-    solution: SolutionHypothesis
+    solution: ProductHypothesis
   ) -> [String] {
     [contender.primaryRisk, solution.whyThisMightFail]
   }

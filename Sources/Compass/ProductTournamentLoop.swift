@@ -4873,7 +4873,7 @@ enum ProductTournamentNextActionAdvisor {
     for experiment: ProductExperiment,
     config: ProductTournamentConfig
   ) -> [String] {
-    let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
+    let solution = config.productHypotheses.first { $0.id == experiment.solutionID }
     let painID = solution?.painID
     var segmentIDs: [String] = []
     if let solution {

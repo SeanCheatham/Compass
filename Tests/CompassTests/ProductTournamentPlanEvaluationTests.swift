@@ -224,12 +224,12 @@ struct ProductTournamentPlanEvaluationTests {
       "Make weekly reporting easier to review."
     let genericSolutionID = config.tournamentContenders[genericContenderIndex].solutionID
     let genericSolutionIndex = try #require(
-      config.solutionHypotheses.firstIndex { $0.id == genericSolutionID })
-    config.solutionHypotheses[genericSolutionIndex].differentiator =
+      config.productHypotheses.firstIndex { $0.id == genericSolutionID })
+    config.productHypotheses[genericSolutionIndex].differentiator =
       "Organizes reporting context in one workflow."
-    config.solutionHypotheses[genericSolutionIndex].whyThisCouldWin =
+    config.productHypotheses[genericSolutionIndex].whyThisCouldWin =
       "The user may prefer a clearer reporting workspace."
-    config.solutionHypotheses[genericSolutionIndex].requiredProof = [
+    config.productHypotheses[genericSolutionIndex].requiredProof = [
       "Show reporting steps are easier to review."
     ]
     try workspace.writeProductTournamentConfig(config)
@@ -299,7 +299,7 @@ private func makePlanEvaluationRecord(
   startedAt: Double,
   endedAt: Double
 ) throws -> ProductTournamentPlanEvaluationRecord {
-  let solution = try #require(config.solutionHypotheses.first { $0.id == contender.solutionID })
+  let solution = try #require(config.productHypotheses.first { $0.id == contender.solutionID })
   return ProductTournamentPlanEvaluationRecord(
     id: id,
     tournamentID: tournament.id,

@@ -396,9 +396,9 @@ enum ProductTournamentPlanTransitioner {
   ) {
     guard
       let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
-      let index = config.solutionHypotheses.firstIndex(where: { $0.id == contender.solutionID })
+      let index = config.productHypotheses.firstIndex(where: { $0.id == contender.solutionID })
     else { return }
-    config.solutionHypotheses[index].status = .active
+    config.productHypotheses[index].status = .active
   }
 
   private static func formatScore(_ value: Double) -> String {

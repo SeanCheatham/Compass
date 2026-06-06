@@ -34,7 +34,7 @@ extension Prompts {
       Candidate experiment rules:
       - `candidateExperiments` are implementation tracks for tournament
         contenders after the plan-only round; do not treat them as Round 1.
-      - `solutionHypothesisID` must reference a product hypothesis in `stateEdits` or
+      - `productHypothesisID` must reference a product hypothesis in `stateEdits` or
         current tournament state.
       - `branchSlug` must be a single safe git-ref component such as
         `runbook-desk-triage-board`; do not include `refs/`, spaces, or shell
@@ -204,18 +204,18 @@ struct DiscoverPromptOutput: Codable, Equatable {
       )
     }
 
-    let solutionIDs = Set(config.solutionHypotheses.map(\.id))
-    for solution in config.solutionHypotheses where !painIDs.contains(solution.painID) {
-      throw DiscoverPromptValidationError.solutionReferencesMissingPain(
-        solutionID: solution.id,
-        painID: solution.painID
+    let productHypothesisIDs = Set(config.productHypotheses.map(\.id))
+    for hypothesis in config.productHypotheses where !painIDs.contains(hypothesis.painID) {
+      throw DiscoverPromptValidationError.productHypothesisReferencesMissingPain(
+        productHypothesisID: hypothesis.id,
+        painID: hypothesis.painID
       )
     }
     for experiment in config.experiments {
-      guard solutionIDs.contains(experiment.solutionID) else {
-        throw DiscoverPromptValidationError.experimentReferencesMissingSolution(
+      guard productHypothesisIDs.contains(experiment.solutionID) else {
+        throw DiscoverPromptValidationError.experimentReferencesMissingProductHypothesis(
           experimentID: experiment.id,
-          solutionID: experiment.solutionID
+          productHypothesisID: experiment.solutionID
         )
       }
       guard DiscoverBranchName.isValidRef(experiment.branchName) else {
@@ -255,10 +255,10 @@ struct DiscoverPromptOutput: Codable, Equatable {
           tournamentID: contender.tournamentID
         )
       }
-      guard solutionIDs.contains(contender.solutionID) else {
-        throw DiscoverPromptValidationError.contenderReferencesMissingSolution(
+      guard productHypothesisIDs.contains(contender.solutionID) else {
+        throw DiscoverPromptValidationError.contenderReferencesMissingProductHypothesis(
           contenderID: contender.id,
-          solutionID: contender.solutionID
+          productHypothesisID: contender.solutionID
         )
       }
       if let experimentID = contender.experimentID, !experimentIDs.contains(experimentID) {
@@ -289,9 +289,9 @@ struct DiscoverPromptOutput: Codable, Equatable {
       }
     }
     for candidate in candidateExperiments {
-      guard solutionIDs.contains(candidate.solutionHypothesisID) else {
-        throw DiscoverPromptValidationError.candidateReferencesMissingSolution(
-          solutionID: candidate.solutionHypothesisID
+      guard productHypothesisIDs.contains(candidate.productHypothesisID) else {
+        throw DiscoverPromptValidationError.candidateReferencesMissingProductHypothesis(
+          productHypothesisID: candidate.productHypothesisID
         )
       }
       guard DiscoverBranchName.isValidComponent(candidate.branchSlug) else {
@@ -320,7 +320,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
   var userSegments: [UserSegment]
   var currentWorkflows: [CurrentWorkflow]
   var alternatives: [Alternative]
-  var solutionHypotheses: [SolutionHypothesis]
+  var productHypotheses: [ProductHypothesis]
   var experiments: [ProductExperiment]
   var tournaments: [ProductTournament]
   var tournamentContenders: [ProductTournamentContender]
@@ -334,7 +334,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     case userSegments
     case currentWorkflows
     case alternatives
-    case solutionHypotheses
+    case productHypotheses
     case experiments
     case tournaments
     case tournamentContenders
@@ -349,7 +349,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     userSegments: [UserSegment] = [],
     currentWorkflows: [CurrentWorkflow] = [],
     alternatives: [Alternative] = [],
-    solutionHypotheses: [SolutionHypothesis] = [],
+    productHypotheses: [ProductHypothesis] = [],
     experiments: [ProductExperiment] = [],
     tournaments: [ProductTournament] = [],
     tournamentContenders: [ProductTournamentContender] = [],
@@ -362,7 +362,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     self.userSegments = userSegments
     self.currentWorkflows = currentWorkflows
     self.alternatives = alternatives
-    self.solutionHypotheses = solutionHypotheses
+    self.productHypotheses = productHypotheses
     self.experiments = experiments
     self.tournaments = tournaments
     self.tournamentContenders = tournamentContenders
@@ -381,8 +381,8 @@ struct DiscoveryStateEdits: Codable, Equatable {
       currentWorkflows: try container.decodeIfPresent(
         [CurrentWorkflow].self, forKey: .currentWorkflows) ?? [],
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
-      solutionHypotheses: try container.decodeIfPresent(
-        [SolutionHypothesis].self, forKey: .solutionHypotheses) ?? [],
+      productHypotheses: try container.decodeIfPresent(
+        [ProductHypothesis].self, forKey: .productHypotheses) ?? [],
       experiments: try container.decodeIfPresent([ProductExperiment].self, forKey: .experiments)
         ?? [],
       tournaments: try container.decodeIfPresent([ProductTournament].self, forKey: .tournaments)
@@ -410,7 +410,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     upsert(&next.userSegments, edits: userSegments, id: \.id)
     upsert(&next.currentWorkflows, edits: currentWorkflows, id: \.id)
     upsert(&next.alternatives, edits: alternatives, id: \.id)
-    upsert(&next.solutionHypotheses, edits: solutionHypotheses, id: \.id)
+    upsert(&next.productHypotheses, edits: productHypotheses, id: \.id)
     upsert(&next.experiments, edits: experiments, id: \.id)
     upsert(&next.tournaments, edits: tournaments, id: \.id)
     upsert(&next.tournamentContenders, edits: tournamentContenders, id: \.id)
@@ -442,7 +442,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
 }
 
 struct DiscoveryCandidateExperiment: Codable, Equatable {
-  var solutionHypothesisID: String
+  var productHypothesisID: String
   var prototypeName: String
   var branchSlug: String
   var smallestWorkflowToProve: String
@@ -451,7 +451,7 @@ struct DiscoveryCandidateExperiment: Codable, Equatable {
   var killCriteria: String
 
   enum CodingKeys: String, CodingKey {
-    case solutionHypothesisID
+    case productHypothesisID
     case prototypeName
     case branchSlug
     case smallestWorkflowToProve
@@ -461,7 +461,7 @@ struct DiscoveryCandidateExperiment: Codable, Equatable {
   }
 
   init(
-    solutionHypothesisID: String,
+    productHypothesisID: String,
     prototypeName: String,
     branchSlug: String,
     smallestWorkflowToProve: String,
@@ -469,9 +469,9 @@ struct DiscoveryCandidateExperiment: Codable, Equatable {
     expectedEvidenceSignal: String,
     killCriteria: String
   ) {
-    self.solutionHypothesisID = ProductTournamentModelText.identifier(
-      solutionHypothesisID,
-      fallback: "solution"
+    self.productHypothesisID = ProductTournamentModelText.identifier(
+      productHypothesisID,
+      fallback: "product-hypothesis"
     )
     self.prototypeName = StringUtils.boundedText(prototypeName, limit: 160)
     self.branchSlug = StringUtils.boundedText(branchSlug, limit: 120)
@@ -483,7 +483,7 @@ struct DiscoveryCandidateExperiment: Codable, Equatable {
 
   var cleaned: DiscoveryCandidateExperiment {
     DiscoveryCandidateExperiment(
-      solutionHypothesisID: solutionHypothesisID,
+      productHypothesisID: productHypothesisID,
       prototypeName: prototypeName,
       branchSlug: branchSlug,
       smallestWorkflowToProve: smallestWorkflowToProve,
@@ -500,18 +500,19 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
   case workflowReferencesMissingPain(workflowID: String, painID: String)
   case alternativeReferencesMissingPain(alternativeID: String, painID: String)
   case segmentReferencesMissingPain(segmentID: String, painID: String)
-  case solutionReferencesMissingPain(solutionID: String, painID: String)
-  case experimentReferencesMissingSolution(experimentID: String, solutionID: String)
+  case productHypothesisReferencesMissingPain(productHypothesisID: String, painID: String)
+  case experimentReferencesMissingProductHypothesis(
+    experimentID: String, productHypothesisID: String)
   case tournamentReferencesMissingPain(tournamentID: String, painID: String)
   case tournamentReferencesMissingContender(tournamentID: String, contenderID: String)
   case tournamentReferencesMissingRound(tournamentID: String, roundID: String)
   case contenderReferencesMissingTournament(contenderID: String, tournamentID: String)
-  case contenderReferencesMissingSolution(contenderID: String, solutionID: String)
+  case contenderReferencesMissingProductHypothesis(contenderID: String, productHypothesisID: String)
   case contenderReferencesMissingExperiment(contenderID: String, experimentID: String)
   case roundReferencesMissingTournament(roundID: String, tournamentID: String)
   case roundReferencesMissingContender(roundID: String, contenderID: String)
   case roundReferencesMissingCohort(roundID: String, cohortID: String)
-  case candidateReferencesMissingSolution(solutionID: String)
+  case candidateReferencesMissingProductHypothesis(productHypothesisID: String)
   case invalidBranchSlug(String)
   case openQuestionsUsedInsteadOfActionableNextSteps(String)
   case stateUpdateTooLarge(Int)
@@ -528,10 +529,12 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
       return "Alternative \(alternativeID) references missing pain \(painID)."
     case .segmentReferencesMissingPain(let segmentID, let painID):
       return "User segment \(segmentID) references missing pain \(painID)."
-    case .solutionReferencesMissingPain(let solutionID, let painID):
-      return "Product hypothesis \(solutionID) references missing pain \(painID)."
-    case .experimentReferencesMissingSolution(let experimentID, let solutionID):
-      return "Product experiment \(experimentID) references missing product hypothesis \(solutionID)."
+    case .productHypothesisReferencesMissingPain(let productHypothesisID, let painID):
+      return "Product hypothesis \(productHypothesisID) references missing pain \(painID)."
+    case .experimentReferencesMissingProductHypothesis(
+      let experimentID, let productHypothesisID):
+      return
+        "Product experiment \(experimentID) references missing product hypothesis \(productHypothesisID)."
     case .tournamentReferencesMissingPain(let tournamentID, let painID):
       return "Product tournament \(tournamentID) references missing pain \(painID)."
     case .tournamentReferencesMissingContender(let tournamentID, let contenderID):
@@ -540,8 +543,9 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
       return "Product tournament \(tournamentID) references missing round \(roundID)."
     case .contenderReferencesMissingTournament(let contenderID, let tournamentID):
       return "Product contender \(contenderID) references missing tournament \(tournamentID)."
-    case .contenderReferencesMissingSolution(let contenderID, let solutionID):
-      return "Product contender \(contenderID) references missing product hypothesis \(solutionID)."
+    case .contenderReferencesMissingProductHypothesis(let contenderID, let productHypothesisID):
+      return
+        "Product contender \(contenderID) references missing product hypothesis \(productHypothesisID)."
     case .contenderReferencesMissingExperiment(let contenderID, let experimentID):
       return "Product contender \(contenderID) references missing experiment \(experimentID)."
     case .roundReferencesMissingTournament(let roundID, let tournamentID):
@@ -550,8 +554,8 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
       return "Product tournament round \(roundID) references missing contender \(contenderID)."
     case .roundReferencesMissingCohort(let roundID, let cohortID):
       return "Product tournament round \(roundID) references missing scenario cohort \(cohortID)."
-    case .candidateReferencesMissingSolution(let solutionID):
-      return "Candidate experiment references missing product hypothesis \(solutionID)."
+    case .candidateReferencesMissingProductHypothesis(let productHypothesisID):
+      return "Candidate experiment references missing product hypothesis \(productHypothesisID)."
     case .invalidBranchSlug(let slug):
       return "Invalid discovery branch slug or branch name: \(slug)."
     case .openQuestionsUsedInsteadOfActionableNextSteps(let text):

@@ -354,7 +354,7 @@ private func makeTournamentRequest(
     now: Date(timeIntervalSince1970: 1_700_000_000)
   )
   let pain = config.painHypotheses[0]
-  let solution = config.solutionHypotheses[0]
+  let solution = config.productHypotheses[0]
   var experiment = config.experiments[0]
   experiment.currentSha = "abc123"
   if targetDecision != nil {

@@ -183,14 +183,14 @@ enum ProductExperimentRolloutWorkflow {
     next.experiments[experimentIndex].evidenceSummary = summary
     next.experiments[experimentIndex].updatedAt = timestamp
 
-    if let solutionIndex = next.solutionHypotheses.firstIndex(where: { $0.id == experiment.solutionID }) {
+    if let solutionIndex = next.productHypotheses.firstIndex(where: { $0.id == experiment.solutionID }) {
       switch target {
       case .promoted:
-        next.solutionHypotheses[solutionIndex].status = .promoted
+        next.productHypotheses[solutionIndex].status = .promoted
       case .kill:
-        next.solutionHypotheses[solutionIndex].status = .rejected
+        next.productHypotheses[solutionIndex].status = .rejected
       case .archived:
-        next.solutionHypotheses[solutionIndex].status = .parked
+        next.productHypotheses[solutionIndex].status = .parked
       case .notRun, .keepGoing, .narrow, .pivot, .promote:
         break
       }
@@ -499,12 +499,12 @@ enum ProductExperimentGitRolloutWorkflow {
     next.experiments[experimentIndex].decision = target
     next.experiments[experimentIndex].evidenceSummary = summary
     next.experiments[experimentIndex].updatedAt = timestamp
-    if let solutionIndex = next.solutionHypotheses.firstIndex(where: { $0.id == experiment.solutionID }) {
+    if let solutionIndex = next.productHypotheses.firstIndex(where: { $0.id == experiment.solutionID }) {
       switch target {
       case .promoted:
-        next.solutionHypotheses[solutionIndex].status = .promoted
+        next.productHypotheses[solutionIndex].status = .promoted
       case .archived:
-        next.solutionHypotheses[solutionIndex].status = .parked
+        next.productHypotheses[solutionIndex].status = .parked
       case .notRun, .keepGoing, .narrow, .pivot, .kill, .promote:
         break
       }
@@ -530,7 +530,7 @@ enum ProductExperimentGitRolloutWorkflow {
     for experiment: ProductExperiment,
     in config: ProductTournamentConfig
   ) -> String {
-    let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
+    let solution = config.productHypotheses.first { $0.id == experiment.solutionID }
     let slug = ProductTournamentModelText.slug(
       solution?.title ?? experiment.solutionID,
       fallback: experiment.solutionID

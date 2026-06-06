@@ -8,7 +8,7 @@ struct ProductTournamentSimulationRequest {
   var segment: UserSegment
   var currentWorkflow: CurrentWorkflow
   var alternatives: [Alternative]
-  var solution: SolutionHypothesis
+  var solution: ProductHypothesis
   var experiment: ProductExperiment
   var scenarioID: String
   var scenarioTask: String
@@ -30,7 +30,7 @@ struct ProductTournamentSimulationRequest {
     segment: UserSegment,
     currentWorkflow: CurrentWorkflow,
     alternatives: [Alternative],
-    solution: SolutionHypothesis,
+    solution: ProductHypothesis,
     experiment: ProductExperiment,
     scenarioID: String,
     scenarioTask: String = "",
@@ -325,7 +325,7 @@ struct ProductTournamentSimulationRequestContext: Equatable, Sendable {
   var segment: UserSegment
   var currentWorkflow: CurrentWorkflow
   var alternatives: [Alternative]
-  var solution: SolutionHypothesis
+  var solution: ProductHypothesis
   var experiment: ProductExperiment
   var scenarioID: String
   var scenarioTask: String

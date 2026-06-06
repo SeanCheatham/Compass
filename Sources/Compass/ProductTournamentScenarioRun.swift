@@ -285,7 +285,7 @@ enum ProductTournamentScenarioCoordinator {
     in config: ProductTournamentConfig,
     now: Date = Date()
   ) -> ProductScenarioDraft {
-    let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
+    let solution = config.productHypotheses.first { $0.id == experiment.solutionID }
     let painID = solution?.painID ?? config.painHypotheses.first?.id ?? ""
     let segment =
       config.userSegments.first { segment in
@@ -444,7 +444,7 @@ enum ProductTournamentScenarioCoordinator {
       experimentID: experiment.id,
       in: config
     )
-    guard let solution = config.solutionHypotheses.first(where: { $0.id == experiment.solutionID })
+    guard let solution = config.productHypotheses.first(where: { $0.id == experiment.solutionID })
     else {
       throw ProductTournamentScenarioRunError.unknownSolution(experiment.solutionID)
     }

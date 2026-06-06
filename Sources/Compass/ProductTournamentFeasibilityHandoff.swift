@@ -84,7 +84,7 @@ enum ProductTournamentFeasibilityAdvisor {
       guard
         let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
         contender.status == .narrowed || contender.status == .needsRevision,
-        let solution = config.solutionHypotheses.first(where: { $0.id == contender.solutionID }),
+        let solution = config.productHypotheses.first(where: { $0.id == contender.solutionID }),
         let experimentID = contender.experimentID,
         let experiment = config.experiments.first(where: { $0.id == experimentID })
       else { return nil }
@@ -158,7 +158,7 @@ enum ProductTournamentFeasibilityAdvisor {
 
   private static func acceptanceSignals(
     for round: ProductTournamentRound,
-    solution: SolutionHypothesis
+    solution: ProductHypothesis
   ) -> [String] {
     let signals =
       round.evaluationFocus
@@ -172,7 +172,7 @@ enum ProductTournamentFeasibilityAdvisor {
 
   private static func coreTechnologyProof(
     contender: ProductTournamentContender,
-    solution: SolutionHypothesis,
+    solution: ProductHypothesis,
     experiment: ProductExperiment,
     round: ProductTournamentRound
   ) -> String {

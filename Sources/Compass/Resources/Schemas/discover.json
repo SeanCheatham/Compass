@@ -50,7 +50,7 @@
         "userSegments",
         "currentWorkflows",
         "alternatives",
-        "solutionHypotheses",
+        "productHypotheses",
         "experiments",
         "tournaments",
         "tournamentContenders",
@@ -85,10 +85,10 @@
           "maxItems": 8,
           "items": { "$ref": "#/$defs/alternative" }
         },
-        "solutionHypotheses": {
+        "productHypotheses": {
           "type": "array",
           "maxItems": 8,
-          "items": { "$ref": "#/$defs/solutionHypothesis" }
+          "items": { "$ref": "#/$defs/productHypothesis" }
         },
         "experiments": {
           "type": "array",
@@ -241,7 +241,7 @@
         "switchingCost": { "type": "string" }
       }
     },
-    "solutionHypothesis": {
+    "productHypothesis": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -453,7 +453,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "solutionHypothesisID",
+        "productHypothesisID",
         "prototypeName",
         "branchSlug",
         "smallestWorkflowToProve",
@@ -462,7 +462,7 @@
         "killCriteria"
       ],
       "properties": {
-        "solutionHypothesisID": { "type": "string" },
+        "productHypothesisID": { "type": "string" },
         "prototypeName": { "type": "string" },
         "branchSlug": { "type": "string" },
         "smallestWorkflowToProve": { "type": "string" },
