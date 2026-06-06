@@ -287,7 +287,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     painID: pain.id,
     title: "Handoff Desk",
     promise: "Preserve decisions and owners in one executable workflow.",
-    workflowBet: "A Rust desktop board can keep handoff context inspectable.",
+    contenderPlan: "A Rust desktop board can keep handoff context inspectable.",
     targetSegmentIDs: [segment.id],
     differentiator: "Optimized for decision carry-forward rather than generic status.",
     whyThisCouldWin: "The lead gets a clearer next action than chat.",

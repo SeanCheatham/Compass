@@ -26,6 +26,8 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains("Name the user segment before naming the app"))
     try #require(prompt.contains("Round 1 compares product"))
     try #require(prompt.contains("candidateExperiments"))
+    try #require(prompt.contains("contenderPlan"))
+    try #require(!prompt.contains("workflowBet"))
     try #require(prompt.contains("current tournament state"))
     try #require(prompt.contains("Support leads lose escalation decisions"))
     try #require(prompt.contains("Rust desktop"))
@@ -39,6 +41,7 @@ struct DiscoverPromptContractTests {
     try #require(config.rawPain.contains("customer-facing decisions"))
     try #require(config.painHypotheses.count == 1)
     try #require(config.solutionHypotheses.count == 2)
+    try #require(config.solutionHypotheses[0].contenderPlan.contains("focused board"))
     try #require(config.experiments.count == 1)
     try #require(config.tournaments.count == 1)
     try #require(config.tournamentContenders.count == 2)
@@ -65,7 +68,7 @@ struct DiscoverPromptContractTests {
       painID: "missing-pain",
       title: "Bad solution",
       promise: "Help somehow",
-      workflowBet: "Prototype something",
+      contenderPlan: "Prototype something",
       targetSegmentIDs: [],
       differentiator: "Unknown",
       whyThisCouldWin: "Unknown",
@@ -188,7 +191,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     painID: pain.id,
     title: "Incident Command Board",
     promise: "Preserve decisions, owners, and customer update status.",
-    workflowBet: "A focused board beats searching chat.",
+    contenderPlan: "A focused board beats searching chat.",
     targetSegmentIDs: [segment.id],
     differentiator: "Decision timeline plus update composer.",
     whyThisCouldWin: "Lead can draft a clearer update quickly.",
@@ -201,7 +204,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     painID: pain.id,
     title: "Incident Timeline",
     promise: "Turn noisy chat into an auditable timeline.",
-    workflowBet: "Timeline proof may reduce repeated context gathering.",
+    contenderPlan: "Timeline proof may reduce repeated context gathering.",
     targetSegmentIDs: [segment.id],
     differentiator: "Audit-first workflow.",
     whyThisCouldWin: "Teams need after-action clarity.",

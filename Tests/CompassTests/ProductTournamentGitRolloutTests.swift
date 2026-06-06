@@ -266,7 +266,7 @@ private func makeGitRolloutConfig(
     painID: pain.id,
     title: "Rollout Solution",
     promise: "Promote and archive product experiments deliberately.",
-    workflowBet: "Git-backed rollout preserves evidence and lineage.",
+    contenderPlan: "Git-backed rollout preserves evidence and lineage.",
     targetSegmentIDs: [],
     differentiator: "Evidence-linked branch decisions.",
     whyThisCouldWin: "Users can trust the accepted branch history.",

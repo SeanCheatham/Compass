@@ -337,7 +337,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         painID: painID,
         title: "\(title) workflow clarifier",
         promise: "Make the painful workflow visible, guided, and easier to complete.",
-        workflowBet:
+        contenderPlan:
           "A small desktop prototype can reduce confusion by turning the current workaround into explicit steps.",
         targetSegmentIDs: [operatorSegmentID],
         differentiator:
@@ -357,7 +357,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         painID: painID,
         title: "\(title) proof assistant",
         promise: "Help the user compare options and produce evidence for a product decision.",
-        workflowBet:
+        contenderPlan:
           "A prototype that captures assumptions, alternatives, and proof can make product investment decisions sharper.",
         targetSegmentIDs: [operatorSegmentID, buyerSegmentID],
         differentiator:
@@ -797,7 +797,7 @@ struct SolutionHypothesis: Codable, Equatable, Identifiable, Sendable {
   var painID: String
   var title: String
   var promise: String
-  var workflowBet: String
+  var contenderPlan: String
   var targetSegmentIDs: [String]
   var differentiator: String
   var whyThisCouldWin: String
@@ -810,7 +810,7 @@ struct SolutionHypothesis: Codable, Equatable, Identifiable, Sendable {
     painID: String,
     title: String,
     promise: String,
-    workflowBet: String,
+    contenderPlan: String,
     targetSegmentIDs: [String] = [],
     differentiator: String,
     whyThisCouldWin: String,
@@ -824,8 +824,8 @@ struct SolutionHypothesis: Codable, Equatable, Identifiable, Sendable {
       title, fallback: "Solution hypothesis", limit: 180)
     self.promise = ProductTournamentModelText.cleanedText(
       promise, fallback: "Relieve the target pain", limit: 500)
-    self.workflowBet = ProductTournamentModelText.cleanedText(
-      workflowBet, fallback: "A prototype can prove pain relief", limit: 700)
+    self.contenderPlan = ProductTournamentModelText.cleanedText(
+      contenderPlan, fallback: "A prototype can prove pain relief", limit: 700)
     self.targetSegmentIDs =
       ProductTournamentModelText.cleanedList(targetSegmentIDs, limit: 120)
       .map { ProductTournamentModelText.identifier($0, fallback: "segment") }

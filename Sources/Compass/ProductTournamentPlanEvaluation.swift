@@ -501,7 +501,7 @@ enum ProductTournamentPlanEvaluator {
       contender.valueProposition,
       contender.primaryRisk,
       solution.promise,
-      solution.workflowBet,
+      solution.contenderPlan,
       solution.differentiator,
       solution.whyThisCouldWin,
       solution.requiredProof.joined(separator: " "),

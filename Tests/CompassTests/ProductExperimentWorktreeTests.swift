@@ -208,7 +208,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     painID: pain.id,
     title: "Command Board",
     promise: "Keep incident decisions visible.",
-    workflowBet: "A board can beat chat.",
+    contenderPlan: "A board can beat chat.",
     targetSegmentIDs: [],
     differentiator: "Decision trail",
     whyThisCouldWin: "Faster customer updates",
