@@ -163,6 +163,7 @@ and advances them through rounds:
   revision brief whose generated validation scenario tells simulated users
   whether they are testing a direct proof stall or repeated still-present proof
   pressure, shows the same Validation label in the Workbench revision row,
+  queued revision prompt context, and completed revision-cycle audit history,
   repeats that acted-outcome signal in Plan/Reflect prompt context, feeds
   stalled or repeatedly still-present proof-run group outcomes back into
   the next-action guard so the planner retargets the scenario, product

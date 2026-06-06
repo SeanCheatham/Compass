@@ -606,6 +606,9 @@ enum ProductTournamentPlanningDigestFormatter {
         "source \(brief.source.rawValue)",
         "priority \(brief.priority)",
       ]
+      if let validationContextSummary = brief.validationContextSummary {
+        metadata.append("validation \(bounded(validationContextSummary, 100))")
+      }
       if let targetCohortID = brief.targetCohortID {
         metadata.append("cohort \(targetCohortID)")
       }

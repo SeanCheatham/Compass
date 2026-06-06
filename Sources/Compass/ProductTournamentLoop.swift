@@ -1778,6 +1778,9 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
       "source \(source.rawValue)",
       "priority \(priority)",
     ]
+    if let validationContextSummary {
+      parts.append("validation \(validationContextSummary)")
+    }
     if let targetDecision {
       parts.append("target_decision \(targetDecision.rawValue)")
     }

@@ -3525,6 +3525,25 @@ struct ProductTournamentLoopTests {
         records: [firstPassRecord]
       )
       .first { $0.experimentID == experiment.id })
+    let revisionAudit = TournamentAutomationCycleAudit(
+      id: "tournament-cycle-stalled-acted-revision",
+      startedAt: 140,
+      endedAt: 150,
+      executedStepIDs: [nextStep.id],
+      experimentIDs: [experiment.id],
+      messages: ["Applied acted proof-group revision."],
+      maxSteps: 1,
+      revisionBriefSummaries: [revisionBrief.auditSummary],
+      stopReason: .reachedStepLimit,
+      stopStepID: nextStep.id,
+      stopStepTitle: nextStep.title,
+      stopDetail: "Contender revision checkpoint recorded.",
+      userMessage: "Applied acted proof-group revision; validate next."
+    )
+    let postRevisionDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: config.recordingTournamentAutomationCycleAudit(revisionAudit),
+      evidenceIndex: evidenceIndex
+    )
 
     try #require(stalledGroup.audit.id == "tournament-cycle-stalled-acted-group")
     try #require(stalledGroup.outcome.isStalledProofRun)
@@ -3547,6 +3566,7 @@ struct ProductTournamentLoopTests {
     try #require(revisionBrief.proofPlan.contains("stalled proof pressure"))
     try #require(revisionBrief.targetScenarioID == targetScenarioID)
     try #require(revisionBrief.auditSummary.contains("source acted_proof_group"))
+    try #require(revisionBrief.auditSummary.contains("validation Direct proof stall"))
     try #require(revisionBrief.validationContextSummary == "Direct proof stall")
     try #require(
       revisionBrief.validationContextDetail?.contains(
@@ -3565,7 +3585,11 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("Retarget stalled proof group"))
     try #require(digest.contains("Tournament automation revision briefs"))
     try #require(digest.contains("source acted_proof_group"))
+    try #require(digest.contains("validation Direct proof stall"))
     try #require(digest.contains("Retarget contender revision for stalled proof group"))
+    try #require(postRevisionDigest.contains("tournament-cycle-stalled-acted-revision"))
+    try #require(postRevisionDigest.contains("revisions"))
+    try #require(postRevisionDigest.contains("validation Direct proof stall"))
     try #require(workbenchRevisionBrief.validationContextSummary == "Direct proof stall")
     try #require(
       workbenchRevisionBrief.validationContextDetail == revisionBrief.validationContextDetail)
@@ -3729,6 +3753,25 @@ struct ProductTournamentLoopTests {
         records: [firstPassRecord]
       )
       .first { $0.experimentID == experiment.id })
+    let revisionAudit = TournamentAutomationCycleAudit(
+      id: "tournament-cycle-repeated-acted-revision",
+      startedAt: 150,
+      endedAt: 160,
+      executedStepIDs: [nextStep.id],
+      experimentIDs: [experiment.id],
+      messages: ["Applied repeated acted proof-group revision."],
+      maxSteps: 1,
+      revisionBriefSummaries: [revisionBrief.auditSummary],
+      stopReason: .reachedStepLimit,
+      stopStepID: nextStep.id,
+      stopStepTitle: nextStep.title,
+      stopDetail: "Contender revision checkpoint recorded.",
+      userMessage: "Applied repeated acted proof-group revision; validate next."
+    )
+    let postRevisionDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: config.recordingTournamentAutomationCycleAudit(revisionAudit),
+      evidenceIndex: evidenceIndex
+    )
 
     try #require(repeatedGroup.audit.id == "tournament-cycle-still-acted-group-b")
     try #require(repeatedGroup.outcome.isStillProofRun)
@@ -3752,6 +3795,9 @@ struct ProductTournamentLoopTests {
     try #require(revisionBrief.targetScenarioID == targetScenarioID)
     try #require(revisionBrief.auditSummary.contains("source acted_proof_group"))
     try #require(
+      revisionBrief.auditSummary.contains(
+        "validation Repeated still-present proof pressure"))
+    try #require(
       revisionBrief.validationContextSummary == "Repeated still-present proof pressure")
     try #require(
       revisionBrief.validationContextDetail?.contains(
@@ -3774,7 +3820,11 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("Retarget repeated proof group"))
     try #require(digest.contains("Tournament automation revision briefs"))
     try #require(digest.contains("source acted_proof_group"))
+    try #require(digest.contains("validation Repeated still-present proof pressure"))
     try #require(digest.contains("Retarget contender revision for repeated proof group"))
+    try #require(postRevisionDigest.contains("tournament-cycle-repeated-acted-revision"))
+    try #require(postRevisionDigest.contains("revisions"))
+    try #require(postRevisionDigest.contains("validation Repeated still-present proof pressure"))
     try #require(
       workbenchRevisionBrief.validationContextSummary == revisionBrief.validationContextSummary)
     try #require(
