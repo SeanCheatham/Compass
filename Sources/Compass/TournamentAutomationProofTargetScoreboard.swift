@@ -46,6 +46,26 @@ struct TournamentAutomationProofTargetDebtMovement: Equatable, Sendable, Identif
     return "Latest audit left proof debt unchanged (\(startingProofDebtCount) -> \(endingProofDebtCount))"
   }
 
+  var lastRunSummary: String {
+    if proofDebtDelta < 0 {
+      return "Last run cleared \(abs(proofDebtDelta)) proof debt"
+    }
+    if proofDebtDelta > 0 {
+      return "Last run added \(proofDebtDelta) proof debt"
+    }
+    return "Last run left proof debt unchanged"
+  }
+
+  var lastRunContextSummary: String {
+    if proofDebtDelta < 0 {
+      return "cleared \(abs(proofDebtDelta)) proof debt"
+    }
+    if proofDebtDelta > 0 {
+      return "added \(proofDebtDelta) proof debt"
+    }
+    return "left proof debt unchanged"
+  }
+
   var contextSummary: String {
     var parts = [
       "latest_audit \(StringUtils.boundedText(auditID, limit: 80))",
@@ -53,12 +73,6 @@ struct TournamentAutomationProofTargetDebtMovement: Equatable, Sendable, Identif
     ]
     if !evidenceRunIDs.isEmpty {
       parts.append("evidence \(evidenceRunIDs.prefix(3).joined(separator: ", "))")
-    }
-    if let startingProofDebtSummary {
-      parts.append("starting \(StringUtils.boundedText(startingProofDebtSummary, limit: 140))")
-    }
-    if let endingProofDebtSummary {
-      parts.append("ending \(StringUtils.boundedText(endingProofDebtSummary, limit: 140))")
     }
     return parts.joined(separator: "; ")
   }
@@ -126,22 +140,23 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
       "contender \(contenderID ?? experimentID)",
       "target \(targetLabel)",
       "score \(readinessScore)/100",
-      "debt \(StringUtils.boundedText(debtSummary, limit: 120))",
     ]
     if let nextActionTitle {
       parts.append("next \(StringUtils.boundedText(nextActionTitle, limit: 80))")
-    }
-    if let tournamentPositionSummary {
-      parts.append("position \(StringUtils.boundedText(tournamentPositionSummary, limit: 120))")
     }
     if let nextStep {
       let status = nextStep.canExecute ? "ready" : "blocked"
       parts.append("step \(status) \(nextStep.kind.rawValue)")
     }
+    parts.append(runPairContextSummary)
     if let latestDebtMovement {
       parts.append(latestDebtMovement.contextSummary)
     } else {
       parts.append("latest_audit none")
+    }
+    parts.append("debt \(StringUtils.boundedText(debtSummary, limit: 120))")
+    if let tournamentPositionSummary {
+      parts.append("position \(StringUtils.boundedText(tournamentPositionSummary, limit: 120))")
     }
     return parts.joined(separator: "; ")
   }
@@ -150,10 +165,26 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
     latestDebtMovement?.displaySummary ?? "No audited proof-debt movement"
   }
 
+  var runPairSummary: String {
+    "\(lastRunSummary) -> \(nextStepSummary)"
+  }
+
+  var runPairContextSummary: String {
+    let lastRun =
+      latestDebtMovement
+      .map {
+        "\($0.lastRunContextSummary) audit \(StringUtils.boundedText($0.auditID, limit: 80))"
+      }
+      ?? "no audited proof run"
+    return
+      "run_pair last \(lastRun); next \(StringUtils.boundedText(nextStepSummary, limit: 140))"
+  }
+
   var helpSummary: String {
     var parts = [
       contenderTitle,
       displaySummary,
+      runPairSummary,
       "Debt: \(debtSummary)",
       "Next step: \(nextStepSummary)",
       nextStepDetail,
@@ -162,6 +193,10 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
       parts.append(latestDebtMovement.helpSummary)
     }
     return parts.joined(separator: "\n")
+  }
+
+  private var lastRunSummary: String {
+    latestDebtMovement?.lastRunSummary ?? "No audited proof run yet"
   }
 
   var nextStepSummary: String {

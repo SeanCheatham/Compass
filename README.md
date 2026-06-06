@@ -146,7 +146,8 @@ and advances them through rounds:
   plan, feasibility, or pay proof debt before narrowing or winner decisions; the
   Workbench scoreboard can run or prepare the top proof target through the same
   audited Tournament Automation single-step path, then show the latest
-  before/after proof-debt movement beside each contender row.
+  before/after proof-debt movement and a last-run/next-run pairing beside each
+  contender row.
   When the proof gates are met but the low-medium
   fidelity implementation still has weak pay intent, missing capabilities, or
   mixed pull, Compass queues a Round 3 implementation revision brief instead of
