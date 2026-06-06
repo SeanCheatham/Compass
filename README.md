@@ -155,8 +155,8 @@ contenders, rounds, product hypotheses, tournament experiment branches, scenario
 for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
 state schema stores product hypotheses under `productHypotheses`, and Discover
 state edits store tournament implementation tracks under `tournamentExperiments`;
-Discover candidate tournament experiments reference product hypotheses with
-`productHypothesisID`. The Tournament workbench lists pain hypotheses,
+Discover candidate tournament experiments reference tournament contenders with
+`contenderID`. The Tournament workbench lists pain hypotheses,
 contenders, rounds, implementation
 tracks, selectable Round 1 plan evaluations with buyer objections and
 willingness-to-pay rationale, per-plan commercial proof, evaluation mode/model

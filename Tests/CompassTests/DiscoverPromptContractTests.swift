@@ -30,13 +30,17 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains("tournamentExperiments"))
     try #require(prompt.contains("productHypotheses"))
     try #require(prompt.contains("productHypothesisID"))
+    try #require(prompt.contains("contenderID"))
+    try #require(prompt.contains("`contenderID` must reference a tournament contender"))
+    try #require(!prompt.contains("`productHypothesisID` must reference"))
     try #require(prompt.contains("contenderPlan"))
-    try #require(prompt.contains("product hypothesis"))
+    try #require(prompt.contains("product contenders"))
     try #require(!prompt.contains("reference a solution"))
     try #require(!prompt.contains("solutionHypotheses"))
     try #require(!prompt.contains("solutionHypothesisID"))
     try #require(!prompt.contains("workflowBet"))
-    try #require(prompt.contains("current tournament state"))
+    try #require(prompt.contains("current"))
+    try #require(prompt.contains("tournament state"))
     try #require(prompt.contains("Support leads lose escalation decisions"))
     try #require(prompt.contains("Rust desktop"))
   }
@@ -57,6 +61,7 @@ struct DiscoverPromptContractTests {
       config.tournamentRounds.map(\.kind) == [.productPlans, .coreTechnology, .prototype])
     try #require(config.tournamentRounds[0].requiresBuiltProduct == false)
     try #require(decoded.candidateTournamentExperiments[0].branchSlug == "incident-command-board")
+    try #require(decoded.candidateTournamentExperiments[0].contenderID == "contender-command-board")
     try #require(decoded.assumptions[0].text.contains("Incident leads"))
   }
 
@@ -71,6 +76,18 @@ struct DiscoverPromptContractTests {
     #expect(
       throws: DiscoverPromptValidationError.invalidJSON(
         "Use candidateTournamentExperiments instead of candidateExperiments."
+      )
+    ) {
+      _ = try Prompts.decodeDiscoverResponse(legacyJSON)
+    }
+  }
+
+  @Test func discoverResponseRejectsRetiredCandidateProductHypothesisID() throws {
+    let legacyJSON = try discoverJSONWithLegacyCandidateReference(makeDiscoverOutput())
+
+    #expect(
+      throws: DiscoverPromptValidationError.invalidJSON(
+        "Use contenderID instead of productHypothesisID for candidateTournamentExperiments."
       )
     ) {
       _ = try Prompts.decodeDiscoverResponse(legacyJSON)
@@ -115,7 +132,7 @@ struct DiscoverPromptContractTests {
   @Test func discoverValidationRejectsInvalidCandidateBranchSlug() throws {
     var output = makeDiscoverOutput()
     output.candidateTournamentExperiments[0] = DiscoveryCandidateTournamentExperiment(
-      productHypothesisID: "hypothesis-command-board",
+      contenderID: "contender-command-board",
       prototypeName: "Incident Command Board",
       branchSlug: "bad slug",
       smallestWorkflowToProve: "Draft a customer update",
@@ -125,6 +142,27 @@ struct DiscoverPromptContractTests {
     )
 
     #expect(throws: DiscoverPromptValidationError.invalidBranchSlug("bad slug")) {
+      _ = try Prompts.decodeDiscoverResponse(try encodeDiscoverJSON(output))
+    }
+  }
+
+  @Test func discoverValidationRejectsCandidateWithoutContender() throws {
+    var output = makeDiscoverOutput()
+    output.candidateTournamentExperiments[0] = DiscoveryCandidateTournamentExperiment(
+      contenderID: "missing-contender",
+      prototypeName: "Incident Command Board",
+      branchSlug: "incident-command-board",
+      smallestWorkflowToProve: "Draft a customer update",
+      targetScenarioCohort: "Incident lead cohort",
+      expectedEvidenceSignal: "Lead gets a clearer update than chat.",
+      killCriteria: "Persona still prefers chat."
+    )
+
+    #expect(
+      throws: DiscoverPromptValidationError.candidateReferencesMissingContender(
+        contenderID: "missing-contender"
+      )
+    ) {
       _ = try Prompts.decodeDiscoverResponse(try encodeDiscoverJSON(output))
     }
   }
@@ -365,7 +403,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     ),
     candidateTournamentExperiments: [
       DiscoveryCandidateTournamentExperiment(
-        productHypothesisID: commandBoard.id,
+        contenderID: commandBoardContender.id,
         prototypeName: "Incident Command Board",
         branchSlug: "incident-command-board",
         smallestWorkflowToProve: "Draft a customer update from owner and decision context.",
@@ -394,4 +432,18 @@ private func encodeDiscoverJSON(_ output: DiscoverPromptOutput) throws -> String
   encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
   let data = try encoder.encode(output)
   return String(decoding: data, as: UTF8.self)
+}
+
+private func discoverJSONWithLegacyCandidateReference(_ output: DiscoverPromptOutput) throws
+  -> String
+{
+  let data = Data(try encodeDiscoverJSON(output).utf8)
+  var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+  var candidates = try #require(object["candidateTournamentExperiments"] as? [[String: Any]])
+  var firstCandidate = try #require(candidates.first)
+  firstCandidate["productHypothesisID"] = firstCandidate.removeValue(forKey: "contenderID")
+  candidates[0] = firstCandidate
+  object["candidateTournamentExperiments"] = candidates
+  let legacyData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+  return String(decoding: legacyData, as: UTF8.self)
 }

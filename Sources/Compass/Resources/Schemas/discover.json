@@ -453,7 +453,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "productHypothesisID",
+        "contenderID",
         "prototypeName",
         "branchSlug",
         "smallestWorkflowToProve",
@@ -462,7 +462,7 @@
         "killCriteria"
       ],
       "properties": {
-        "productHypothesisID": { "type": "string" },
+        "contenderID": { "type": "string" },
         "prototypeName": { "type": "string" },
         "branchSlug": { "type": "string" },
         "smallestWorkflowToProve": { "type": "string" },

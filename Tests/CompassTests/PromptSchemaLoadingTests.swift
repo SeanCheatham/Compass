@@ -92,6 +92,16 @@ struct PromptSchemaLoadingTests {
     let candidateTournamentExperimentItems = try #require(
       candidateTournamentExperiments["items"] as? [String: Any]
     )
+    let candidateTournamentExperiment = try schemaDefinition(
+      try #require(candidateTournamentExperimentItems["$ref"] as? String),
+      in: Prompts.discoverSchema
+    )
+    let candidateTournamentExperimentProperties = try #require(
+      candidateTournamentExperiment["properties"] as? [String: Any]
+    )
+    let candidateTournamentExperimentRequired = try #require(
+      candidateTournamentExperiment["required"] as? [String]
+    )
     let defs = try schemaDefinitions(Prompts.discoverSchema)
 
     try #require(try additionalProperties(Prompts.discoverSchema) == false)
@@ -111,6 +121,10 @@ struct PromptSchemaLoadingTests {
     )
     try #require(defs.keys.contains("candidateTournamentExperiment"))
     try #require(!defs.keys.contains("candidateExperiment"))
+    try #require(candidateTournamentExperimentProperties.keys.contains("contenderID"))
+    try #require(!candidateTournamentExperimentProperties.keys.contains("productHypothesisID"))
+    try #require(candidateTournamentExperimentRequired.contains("contenderID"))
+    try #require(!candidateTournamentExperimentRequired.contains("productHypothesisID"))
     try #require(stateEditProperties.keys.contains("tournamentExperiments"))
     try #require(!stateEditProperties.keys.contains("experiments"))
     try #require(experimentItems["$ref"] as? String == "#/$defs/productTournamentExperiment")

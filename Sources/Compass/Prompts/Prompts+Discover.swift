@@ -34,8 +34,8 @@ extension Prompts {
       Candidate tournament experiment rules:
       - `candidateTournamentExperiments` are implementation tracks for tournament
         contenders after the plan-only round; do not treat them as Round 1.
-      - `productHypothesisID` must reference a product hypothesis in `stateEdits` or
-        current tournament state.
+      - `contenderID` must reference a tournament contender in `stateEdits` or current
+        tournament state.
       - `branchSlug` must be a single safe git-ref component such as
         `runbook-desk-triage-board`; do not include `refs/`, spaces, or shell
         punctuation.
@@ -300,9 +300,9 @@ struct DiscoverPromptOutput: Codable, Equatable {
       }
     }
     for candidate in candidateTournamentExperiments {
-      guard productHypothesisIDs.contains(candidate.productHypothesisID) else {
-        throw DiscoverPromptValidationError.candidateReferencesMissingProductHypothesis(
-          productHypothesisID: candidate.productHypothesisID
+      guard contenderIDs.contains(candidate.contenderID) else {
+        throw DiscoverPromptValidationError.candidateReferencesMissingContender(
+          contenderID: candidate.contenderID
         )
       }
       guard DiscoverBranchName.isValidComponent(candidate.branchSlug) else {
@@ -457,7 +457,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
 }
 
 struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
-  var productHypothesisID: String
+  var contenderID: String
   var prototypeName: String
   var branchSlug: String
   var smallestWorkflowToProve: String
@@ -466,7 +466,7 @@ struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
   var killCriteria: String
 
   enum CodingKeys: String, CodingKey {
-    case productHypothesisID
+    case contenderID
     case prototypeName
     case branchSlug
     case smallestWorkflowToProve
@@ -475,8 +475,12 @@ struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
     case killCriteria
   }
 
+  private enum LegacyCodingKeys: String, CodingKey {
+    case productHypothesisID
+  }
+
   init(
-    productHypothesisID: String,
+    contenderID: String,
     prototypeName: String,
     branchSlug: String,
     smallestWorkflowToProve: String,
@@ -484,9 +488,9 @@ struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
     expectedEvidenceSignal: String,
     killCriteria: String
   ) {
-    self.productHypothesisID = ProductTournamentModelText.identifier(
-      productHypothesisID,
-      fallback: "product-hypothesis"
+    self.contenderID = ProductTournamentModelText.identifier(
+      contenderID,
+      fallback: "contender"
     )
     self.prototypeName = StringUtils.boundedText(prototypeName, limit: 160)
     self.branchSlug = StringUtils.boundedText(branchSlug, limit: 120)
@@ -496,9 +500,32 @@ struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
     self.killCriteria = StringUtils.boundedText(killCriteria, limit: 500)
   }
 
+  init(from decoder: Decoder) throws {
+    let legacyContainer = try decoder.container(keyedBy: LegacyCodingKeys.self)
+    if legacyContainer.contains(.productHypothesisID) {
+      throw DiscoverPromptValidationError.invalidJSON(
+        "Use contenderID instead of productHypothesisID for candidateTournamentExperiments."
+      )
+    }
+
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      contenderID: try container.decode(String.self, forKey: .contenderID),
+      prototypeName: try container.decode(String.self, forKey: .prototypeName),
+      branchSlug: try container.decode(String.self, forKey: .branchSlug),
+      smallestWorkflowToProve: try container.decode(
+        String.self,
+        forKey: .smallestWorkflowToProve
+      ),
+      targetScenarioCohort: try container.decode(String.self, forKey: .targetScenarioCohort),
+      expectedEvidenceSignal: try container.decode(String.self, forKey: .expectedEvidenceSignal),
+      killCriteria: try container.decode(String.self, forKey: .killCriteria)
+    )
+  }
+
   var cleaned: DiscoveryCandidateTournamentExperiment {
     DiscoveryCandidateTournamentExperiment(
-      productHypothesisID: productHypothesisID,
+      contenderID: contenderID,
       prototypeName: prototypeName,
       branchSlug: branchSlug,
       smallestWorkflowToProve: smallestWorkflowToProve,
@@ -527,7 +554,7 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
   case roundReferencesMissingTournament(roundID: String, tournamentID: String)
   case roundReferencesMissingContender(roundID: String, contenderID: String)
   case roundReferencesMissingCohort(roundID: String, cohortID: String)
-  case candidateReferencesMissingProductHypothesis(productHypothesisID: String)
+  case candidateReferencesMissingContender(contenderID: String)
   case invalidBranchSlug(String)
   case openQuestionsUsedInsteadOfActionableNextSteps(String)
   case stateUpdateTooLarge(Int)
@@ -569,9 +596,8 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
       return "Product tournament round \(roundID) references missing contender \(contenderID)."
     case .roundReferencesMissingCohort(let roundID, let cohortID):
       return "Product tournament round \(roundID) references missing scenario cohort \(cohortID)."
-    case .candidateReferencesMissingProductHypothesis(let productHypothesisID):
-      return
-        "Candidate tournament experiment references missing product hypothesis \(productHypothesisID)."
+    case .candidateReferencesMissingContender(let contenderID):
+      return "Candidate tournament experiment references missing contender \(contenderID)."
     case .invalidBranchSlug(let slug):
       return "Invalid discovery branch slug or branch name: \(slug)."
     case .openQuestionsUsedInsteadOfActionableNextSteps(let text):
