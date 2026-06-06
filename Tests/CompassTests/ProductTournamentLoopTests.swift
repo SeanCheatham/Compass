@@ -3758,7 +3758,8 @@ struct ProductTournamentLoopTests {
       TournamentAutomationCycleWorkbenchFacts.latest(
         config: preparedConfig,
         evidenceIndex: .empty,
-        currentStep: queuedEvidenceStep
+        currentStep: queuedEvidenceStep,
+        isPersonaModelAvailable: false
       ))
 
     try #require(queuedEvidenceStep.kind == .runCohort)
@@ -3803,7 +3804,8 @@ struct ProductTournamentLoopTests {
       TournamentAutomationCycleWorkbenchFacts.latest(
         config: preparedConfig.recordingTournamentAutomationCycleAudit(evidenceAudit),
         evidenceIndex: evidenceIndex,
-        currentStep: queuedEvidenceStep
+        currentStep: queuedEvidenceStep,
+        isPersonaModelAvailable: false
       ))
 
     try #require(evidenceFacts.latestCycleSummary.contains("evidence 1 step(s)"))
@@ -3825,6 +3827,12 @@ struct ProductTournamentLoopTests {
     try #require(
       evidenceFacts.latestActedPressureGroupHelp?.contains("anchor round-1:\(experiment.id):buyer")
         == true)
+    try #require(
+      evidenceFacts.latestActedPressureGroupOutcomeSummary
+        == "cleared from proof scoreboard")
+    try #require(
+      evidenceFacts.latestActedPressureGroupOutcomeHelp?.contains(
+        "outcome cleared from proof scoreboard") == true)
     try #require(evidenceFacts.postPreparationEvidenceSummary == nil)
   }
 

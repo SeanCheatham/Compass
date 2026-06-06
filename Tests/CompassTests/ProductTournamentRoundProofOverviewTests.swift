@@ -404,6 +404,19 @@ struct ProductTournamentRoundProofOverviewTests {
     )
     let contenderID = try #require(step.contenderID)
     let roundID = try #require(step.roundID)
+    let preAuditItem = try #require(
+      TournamentAutomationProofTargetScoreboard.items(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: false
+      ).first
+    )
+    let preAuditRow = try #require(
+      preAuditItem.rows.first { $0.experimentID == step.experimentID }
+    )
+    let preAuditGroup = try #require(
+      preAuditItem.readinessGroup(containingRowSelectionID: preAuditRow.selectionID)
+    )
     config = config.recordingTournamentAutomationCycleAudit(
       TournamentAutomationCycleAudit(
         id: "scoreboard-proof-delta",
@@ -424,7 +437,7 @@ struct ProductTournamentRoundProofOverviewTests {
           "\(step.experimentID): contender \(contenderID), round \(roundID), Round 1 plan proof had 4 proof debt item(s).",
         proofTargetSummaries: [target.auditSummary],
         actedProofPressureGroupSummaries: [
-          "pressure_group Proof runs; anchor round-1:\(step.experimentID):buyer; contender Continue; status More proof; next Ready: Run Plan Proof"
+          preAuditGroup.actionAuditSummary(anchorRow: preAuditRow)
         ],
         stopReason: .reachedStepLimit,
         stopDetail: "Reached one proof scoreboard step.",
@@ -487,6 +500,14 @@ struct ProductTournamentRoundProofOverviewTests {
       config: config,
       evidenceIndex: evidenceIndex
     )
+    let workbenchFacts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        currentStep: step,
+        isPersonaModelAvailable: false
+      )
+    )
     let workbenchBody = try await workbenchBody(for: config)
 
     try #require(movement.auditID == "scoreboard-proof-delta")
@@ -515,6 +536,7 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(focus.planEvaluationID == nil)
     try #require(row.workbenchAccessibilityID.contains(row.selectionID))
     try #require(row.runPairSummary == "Last run cleared 2 proof debt -> Ready: Run Plan Proof")
+    try #require(row.selectionID == preAuditRow.selectionID)
     try #require(row.displaySummary.contains("Latest audit cleared 2 proof debt"))
     try #require(row.contextSummary.contains("latest_audit scoreboard-proof-delta"))
     try #require(row.contextSummary.contains("run_pair last cleared 2 proof debt"))
@@ -545,6 +567,15 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(item.topActionStatusSystemImage == "text.badge.checkmark")
     try #require(item.topActionDetail.contains("Latest audit cleared 2 proof debt"))
     try #require(item.topActionDetail.contains("Readiness: More proof"))
+    try #require(workbenchFacts.latestActedPressureGroupSummary?.contains("Proof runs") == true)
+    try #require(
+      workbenchFacts.latestActedPressureGroupSummary?.contains(row.contenderTitle) == true)
+    try #require(
+      workbenchFacts.latestActedPressureGroupOutcomeSummary
+        == "reduced but still Proof runs; More proof; next Ready: Run Plan Proof")
+    try #require(
+      workbenchFacts.latestActedPressureGroupOutcomeHelp?.contains("anchor \(row.selectionID)")
+        == true)
     try #require(context.contains("latest_audit scoreboard-proof-delta"))
     try #require(context.contains("proof_debt 6 -> 4 (-2)"))
     try #require(context.contains("pressure Proof runs 2"))
@@ -562,7 +593,9 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(digest.contains("top_action_status More proof"))
     try #require(workbenchBody.contains("Proof Scoreboard"))
     try #require(workbenchBody.contains("Last Group"))
-    try #require(workbenchBody.contains("Proof runs; Continue; More proof"))
+    try #require(workbenchBody.contains("Group Outcome"))
+    try #require(workbenchBody.contains("Proof runs; \(row.contenderTitle); More proof"))
+    try #require(workbenchBody.contains("reduced but still Proof runs; More proof"))
     try #require(workbenchBody.contains("WorkbenchStatusFact"))
     try #require(workbenchBody.contains("AccessibilityAttachmentModifier"))
   }

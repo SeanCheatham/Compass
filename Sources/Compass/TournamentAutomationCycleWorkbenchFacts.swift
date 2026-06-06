@@ -9,6 +9,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   var latestEvidenceHelp: String?
   var latestActedPressureGroupSummary: String?
   var latestActedPressureGroupHelp: String?
+  var latestActedPressureGroupOutcomeSummary: String?
+  var latestActedPressureGroupOutcomeHelp: String?
   var postPreparationEvidenceSummary: String?
   var postPreparationEvidenceHelp: String?
   var latestRoundTwoProofGapValidationSummary: String?
@@ -19,7 +21,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   static func latest(
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
-    currentStep: TournamentAutomationStep? = nil
+    currentStep: TournamentAutomationStep? = nil,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> TournamentAutomationCycleWorkbenchFacts? {
     let audits = sortedAudits(in: config)
     guard let latestAudit = audits.first else { return nil }
@@ -33,6 +36,15 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
         || audit.skippedScenarioCount > 0
     }
     let actedPressureGroupAudit = audits.first { !$0.actedProofPressureGroupSummaries.isEmpty }
+    let proofScoreboardItems =
+      actedPressureGroupAudit == nil
+      ? []
+      : TournamentAutomationProofTargetScoreboard.items(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        limit: Int.max,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      )
 
     let latestPreparationSummary: String?
     let latestPreparationHelp: String?
@@ -79,6 +91,18 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       latestActedPressureGroupHelp: actedPressureGroupAudit.map(
         makeActedPressureGroupHelp(for:)
       ),
+      latestActedPressureGroupOutcomeSummary: actedPressureGroupAudit.flatMap {
+        makeActedPressureGroupOutcomeSummary(
+          for: $0,
+          scoreboardItems: proofScoreboardItems
+        )
+      },
+      latestActedPressureGroupOutcomeHelp: actedPressureGroupAudit.map {
+        makeActedPressureGroupOutcomeHelp(
+          for: $0,
+          scoreboardItems: proofScoreboardItems
+        )
+      },
       postPreparationEvidenceSummary: postPreparationEvidence?.summary,
       postPreparationEvidenceHelp: postPreparationEvidence?.help,
       latestRoundTwoProofGapValidationSummary: roundTwoValidation.map(
@@ -166,6 +190,31 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       .joined(separator: " | ")
     return bounded(
       "audit \(audit.id); \(contexts); stop \(audit.stopReason.rawValue); \(audit.stopDetail)",
+      limit: 500
+    )
+  }
+
+  private static func makeActedPressureGroupOutcomeSummary(
+    for audit: TournamentAutomationCycleAudit,
+    scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
+  ) -> String? {
+    let outcomes = audit.actedProofPressureGroupSummaries.prefix(2)
+      .map(ActedPressureGroupContext.init(summary:))
+      .map { $0.outcomeSummary(after: audit, in: scoreboardItems) }
+    guard !outcomes.isEmpty else { return nil }
+    return bounded(outcomes.joined(separator: " | "), limit: 260)
+  }
+
+  private static func makeActedPressureGroupOutcomeHelp(
+    for audit: TournamentAutomationCycleAudit,
+    scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
+  ) -> String {
+    let outcomes = audit.actedProofPressureGroupSummaries.prefix(3)
+      .map(ActedPressureGroupContext.init(summary:))
+      .map { $0.outcomeHelpSummary(after: audit, in: scoreboardItems) }
+      .joined(separator: " | ")
+    return bounded(
+      "audit \(audit.id); \(outcomes); stop \(audit.stopReason.rawValue); \(audit.stopDetail)",
       limit: 500
     )
   }
@@ -279,6 +328,71 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
     var helpSummary: String {
       let anchorPart = anchor.map { "; anchor \($0)" } ?? ""
       return "\(displaySummary)\(anchorPart)"
+    }
+
+    func outcomeSummary(
+      after audit: TournamentAutomationCycleAudit,
+      in scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
+    ) -> String {
+      guard let anchor else { return "outcome unknown; no anchor" }
+      guard let match = currentMatch(for: anchor, in: scoreboardItems) else {
+        return "cleared from proof scoreboard"
+      }
+      let transition = outcomeTransition(
+        audit: audit,
+        currentGroup: match.group,
+        row: match.row
+      )
+      return [
+        transition,
+        match.row.nextStatusLabel,
+        "next \(match.row.nextStepSummary)",
+      ].joined(separator: "; ")
+    }
+
+    func outcomeHelpSummary(
+      after audit: TournamentAutomationCycleAudit,
+      in scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
+    ) -> String {
+      let anchorPart = anchor.map { "; anchor \($0)" } ?? ""
+      return "\(displaySummary); outcome \(outcomeSummary(after: audit, in: scoreboardItems))\(anchorPart)"
+    }
+
+    private func outcomeTransition(
+      audit: TournamentAutomationCycleAudit,
+      currentGroup: TournamentAutomationProofTargetScoreboardReadinessGroup,
+      row: TournamentAutomationProofTargetScoreboardRow
+    ) -> String {
+      guard let group, group == currentGroup.bucket else {
+        let source = group ?? "acted group"
+        return "moved \(source) -> \(currentGroup.bucket)"
+      }
+      guard let movement = row.latestDebtMovement, movement.auditID == audit.id else {
+        return "still \(currentGroup.bucket)"
+      }
+      if movement.proofDebtDelta < 0 {
+        return "reduced but still \(currentGroup.bucket)"
+      }
+      if movement.proofDebtDelta > 0 {
+        return "worsened in \(currentGroup.bucket)"
+      }
+      return "stalled in \(currentGroup.bucket)"
+    }
+
+    private func currentMatch(
+      for anchor: String,
+      in scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
+    ) -> (
+      row: TournamentAutomationProofTargetScoreboardRow,
+      group: TournamentAutomationProofTargetScoreboardReadinessGroup
+    )? {
+      for item in scoreboardItems {
+        guard let group = item.readinessGroup(containingRowSelectionID: anchor) else { continue }
+        if let row = group.rows.first(where: { $0.selectionID == anchor }) {
+          return (row, group)
+        }
+      }
+      return nil
     }
   }
 }
