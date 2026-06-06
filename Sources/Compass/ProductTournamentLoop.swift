@@ -4514,6 +4514,60 @@ enum TournamentAutomationPlanProofStepError: LocalizedError, Equatable {
   }
 }
 
+enum TournamentAutomationPrepareWorktreeStepError: LocalizedError, Equatable {
+  case invalidStep(String)
+
+  var errorDescription: String? {
+    switch self {
+    case .invalidStep(let id):
+      return "Tournament automation step \(id) is not an implementation worktree prepare step."
+    }
+  }
+}
+
+struct TournamentAutomationPrepareWorktreeStepOutcome: Equatable, Sendable {
+  var userMessage: String
+  var prepared: ProductTournamentExperimentWorktree
+  var config: ProductTournamentConfig
+
+  init(
+    userMessage: String,
+    prepared: ProductTournamentExperimentWorktree,
+    config: ProductTournamentConfig
+  ) {
+    self.userMessage = ProductTournamentModelText.cleanedText(
+      userMessage,
+      fallback: "Prepared implementation worktree.",
+      limit: 1_200
+    )
+    self.prepared = prepared
+    self.config = config
+  }
+}
+
+enum TournamentAutomationPrepareWorktreeStepExecutor {
+  static func run(
+    _ step: TournamentAutomationStep,
+    in workspace: CompassWorkspace
+  ) async throws -> TournamentAutomationPrepareWorktreeStepOutcome {
+    guard step.kind == .prepareWorktree, step.action.kind == .prepareWorktree else {
+      throw TournamentAutomationPrepareWorktreeStepError.invalidStep(step.id)
+    }
+
+    let prepared = try await workspace.prepareProductTournamentExperimentWorktree(
+      experimentID: step.experimentID
+    )
+    let config = try workspace.readProductTournamentConfig()
+    let shortCommit = String(prepared.currentSha.prefix(12))
+    return TournamentAutomationPrepareWorktreeStepOutcome(
+      userMessage:
+        "Prepared implementation worktree for \(step.experimentTitle) at \(shortCommit) on \(prepared.branchName).",
+      prepared: prepared,
+      config: config
+    )
+  }
+}
+
 enum TournamentAutomationRoundTransitionStepError: LocalizedError, Equatable {
   case invalidStep(String)
   case missingScope(String)

@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProductTournamentExperimentWorktree: Equatable {
+struct ProductTournamentExperimentWorktree: Equatable, Sendable {
   var experimentID: String
   var branchName: String
   var worktreeURL: URL

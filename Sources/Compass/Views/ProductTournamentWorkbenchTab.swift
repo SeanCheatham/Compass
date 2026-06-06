@@ -3344,17 +3344,15 @@ struct ProductTournamentWorkbenchTab: View {
           project.fail(AppModelError.noRepositorySelected)
           return nil
         }
-        let prepared = try await workspace.prepareProductTournamentExperimentWorktree(
-          experimentID: step.experimentID
+        let outcome = try await TournamentAutomationPrepareWorktreeStepExecutor.run(
+          step,
+          in: workspace
         )
-        project.productTournamentConfig = try workspace.readProductTournamentConfig()
+        project.productTournamentConfig = outcome.config
         project.productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
         loadScenarioDraft()
-        let shortCommit = String(prepared.currentSha.prefix(12))
-        let message =
-          "Prepared implementation worktree for \(step.experimentTitle) at \(shortCommit) on \(prepared.branchName)."
-        project.log(message, level: .success)
-        return TournamentAutomationStepResult(message: message)
+        project.log(outcome.userMessage, level: .success)
+        return TournamentAutomationStepResult(message: outcome.userMessage)
       } catch {
         project.fail(error)
         return nil

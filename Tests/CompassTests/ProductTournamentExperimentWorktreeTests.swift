@@ -170,6 +170,84 @@ struct ProductTournamentExperimentWorktreeTests {
     try #require(refreshedWorkbenchDraft.targetCommitSha == nil)
   }
 
+  @Test func prepareWorktreeAutomationExecutorBindsTargetsAndUnblocksEvidenceCohort()
+    async throws
+  {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try setupCommittedRepo(at: root)
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    try commitAll("Initialize Compass storage ignore", at: root)
+    var config = makeBranchingProductTournamentConfig()
+    let experimentID = "experiment-command-board"
+    let cohortID = "cohort-candidate-starter"
+    let scenarioID = "scenario-candidate-starter"
+    config.scenarios = [
+      ProductScenario(
+        id: scenarioID,
+        experimentID: experimentID,
+        segmentID: "segment-incident-lead",
+        currentWorkflowID: "workflow-chat-triage",
+        alternativeID: "alternative-chat",
+        title: "Candidate starter",
+        task: "Try the candidate implementation.",
+        successSignal: "Lead gets a clearer update.",
+        targetCommitSha: nil,
+        createdAt: 1
+      )
+    ]
+    config.scenarioCohorts = [
+      ProductScenarioCohort(
+        id: cohortID,
+        title: "Candidate starter cohort",
+        experimentID: experimentID,
+        scenarioIDs: [scenarioID],
+        tags: ["discover", "candidate-implementation-track"]
+      )
+    ]
+    try workspace.writeProductTournamentConfig(config)
+
+    let prepareStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+
+    try #require(prepareStep.kind == .prepareWorktree)
+
+    let outcome = try await TournamentAutomationPrepareWorktreeStepExecutor.run(
+      prepareStep,
+      in: workspace
+    )
+    let saved = try workspace.readProductTournamentConfig()
+    let savedExperiment = try #require(
+      saved.tournamentExperiments.first { $0.id == experimentID }
+    )
+    let savedScenario = try #require(saved.scenarios.first { $0.id == scenarioID })
+    let nextStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: saved,
+        evidenceIndex: .empty
+      ))
+    let nextReadiness = try #require(
+      ProductTournamentNextActionAdvisor.cohortRunReadiness(
+        for: nextStep.action,
+        experiment: savedExperiment,
+        config: saved
+      ))
+
+    try #require(outcome.prepared.currentSha == savedExperiment.currentSha)
+    try #require(outcome.config == saved)
+    try #require(outcome.userMessage.contains("Prepared implementation worktree"))
+    try #require(savedScenario.targetCommitSha == outcome.prepared.currentSha)
+    try #require(nextStep.kind == .runCohort)
+    try #require(nextStep.cohortID == cohortID)
+    try #require(nextReadiness.enabledScenarioCount == 1)
+    try #require(nextReadiness.missingTargetCommitCount == 0)
+    try #require(nextReadiness.blockedReason == nil)
+  }
+
   @Test func invalidTournamentExperimentBranchNameIsRejected() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
