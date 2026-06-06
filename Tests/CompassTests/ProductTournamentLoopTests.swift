@@ -68,8 +68,8 @@ struct ProductTournamentLoopTests {
 
   @Test func reflectDecisionApplierUpdatesExperimentAndDecisionTrail() throws {
     let config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     let experiment = config.experiments[0]
@@ -100,18 +100,18 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentDecisionAdvisorProposesValidatedProductTransitions() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
     config.experiments[1].decision = .keepGoing
     let badExperiment = ProductExperiment(
-      id: "factory-bad-bet",
+      id: "reporting-bad-bet",
       solutionID: config.solutionHypotheses[0].id,
-      title: "Factory bad bet",
-      branchName: "codex/factory-bad-bet",
-      worktreeID: "factory-bad-bet",
+      title: "Reporting bad bet",
+      branchName: "codex/reporting-bad-bet",
+      worktreeID: "reporting-bad-bet",
       baseSha: "base-sha",
       currentSha: "bad-sha",
       prototypeScope: "Try a product shape that may not beat the current workflow.",
@@ -266,8 +266,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentDecisionAdvisorDefersPromotionWhenEvidenceIsSplit() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -535,8 +535,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentDecisionAdvisorDefersKillWhenEvidenceIsSplit() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -642,8 +642,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -955,8 +955,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationStalledProofTargetRequiresMatchingDecisionIntent() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -1115,8 +1115,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationFailureBlockRequiresMatchingDecisionIntent() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -1190,8 +1190,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentDecisionAdvisorRequiresAIUserPersonaBreadthBeforeKill() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -1263,8 +1263,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentDecisionAdvisorRequiresCurrentAlternativeProofBeforeKill() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -1353,8 +1353,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -1417,8 +1417,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentDecisionAdvisorRequiresAIUserPersonaBreadthBeforePromotion() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -1459,8 +1459,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentDecisionAdvisorRequiresCurrentAlternativeProofBeforePromotion() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -1503,8 +1503,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentNextActionRunsTargetedAIUserRationaleSignalProof() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -1627,8 +1627,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentNextActionRetargetsStalledRationaleSignalAfterCycleAudit() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -2031,8 +2031,8 @@ struct ProductTournamentLoopTests {
 
   @Test func revisionBriefDoesNotCompeteWithReadyTournamentDecision() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -2077,8 +2077,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentNextActionRefinesRepeatedRationaleSignalBeforeGenericNarrowing() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .narrow
@@ -2189,8 +2189,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentNextActionNamesMissingAIUserSegmentInSuggestedCohort() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -2295,8 +2295,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentNextActionRedirectsMissingAIUserSegmentToRunnableCohort() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -2441,8 +2441,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentNextActionBlocksAIUserCohortWhenMissingSegmentHasNoScenario() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -2520,8 +2520,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationBlocksRequiredAIUserCohortWhenUnavailable() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -2584,8 +2584,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationProofTargetsFollowRoundTwoImplementationTarget() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     try #require(config.experiments.indices.contains(1))
@@ -2629,8 +2629,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationOmitsSiblingEvidenceDuringRoundTwoTarget() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     try #require(config.experiments.indices.contains(1))
@@ -2670,8 +2670,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationRankerPrioritizesActionableTournamentPressure() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     try #require(config.experiments.count >= 2)
@@ -2712,8 +2712,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationRankerSurfacesTournamentProofDebt() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -2744,8 +2744,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationChoosesExecutableTournamentDecision() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -2768,8 +2768,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationRunsRunnableCohortWhenEvidenceIsMissing() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -2805,8 +2805,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationBlocksRecentlyFailedStep() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -2881,8 +2881,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationClearsFailureBlockAfterCompletedEvidence() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -2946,8 +2946,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationRetargetsBroadCohortWhenProofDebtStalls() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -3138,8 +3138,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationFallsBackWhenStalledProofDebtHasNoAIUserTarget() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -3275,8 +3275,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationCyclePlanCapsExecutableSteps() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     for index in config.experiments.indices {
@@ -3304,8 +3304,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationCyclePlanReportsBlockedStep() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -3328,8 +3328,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationCycleOutcomeReportsRepeatStop() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -3360,8 +3360,8 @@ struct ProductTournamentLoopTests {
     throws
   {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -3419,8 +3419,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationCycleOutcomeCountsLiftAndCutDecisions() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -3499,8 +3499,8 @@ struct ProductTournamentLoopTests {
 
   @Test func targetedProofOutcomeContradictionQueuesProductRevision() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -3585,8 +3585,8 @@ struct ProductTournamentLoopTests {
 
   @Test func targetedProofOutcomeContradictedKillQueuesLiftProofRerun() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -3654,8 +3654,8 @@ struct ProductTournamentLoopTests {
 
   @Test func targetedProofOutcomeStallQueuesRetargetedRevision() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -3766,8 +3766,8 @@ struct ProductTournamentLoopTests {
 
   @Test func targetedProofOutcomeAppliedRevisionQueuesValidationRerun() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -3875,8 +3875,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationCycleOutcomeReportsFailureStop() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -3916,8 +3916,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentAutomationCycleOutcomeBuildsDurableAudit() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -4017,8 +4017,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -4059,8 +4059,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentDecisionAdvisorDoesNotPromoteFromStaleEvidence() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -4100,8 +4100,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentNextActionTargetsRunnableCohortBeforeEvidenceExists() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -4135,8 +4135,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentNextActionAsksForEvidenceCohortWhenNoneIsRunnable() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -4167,8 +4167,8 @@ struct ProductTournamentLoopTests {
 
   @Test func tournamentSuggestedCohortReadinessBlocksMissingTargetCommit() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need better product bet evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -4292,8 +4292,8 @@ struct ProductTournamentLoopTests {
 
 private func makeRolloutConfig(decision: ProductExperimentDecision) -> ProductTournamentConfig {
   var config = ProductTournamentConfig.seedDefaults(
-    projectTitle: "Factory",
-    rawPain: "Factory users need better product bet evidence.",
+    projectTitle: "Reporting Helper",
+    rawPain: "Reporting work needs evidence.",
     now: Date(timeIntervalSince1970: 10)
   )
   config.experiments[0].decision = decision

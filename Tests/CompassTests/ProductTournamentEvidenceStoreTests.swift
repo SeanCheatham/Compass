@@ -112,8 +112,8 @@ struct ProductTournamentEvidenceStoreTests {
 
   @Test func storePreservesDecisionIntentAcrossRecordIndexMarkdownAndDigest() throws {
     var config = ProductTournamentConfig.seedDefaults(
-      projectTitle: "Factory",
-      rawPain: "Factory users need targeted tournament evidence.",
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs targeted evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
