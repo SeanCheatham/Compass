@@ -262,9 +262,9 @@ struct ProductTournamentWorkbenchTab: View {
     return evidenceIndex.summaries(for: selectedExperiment)
   }
 
-  private var selectedPMFReadiness: ProductMarketFitReadiness? {
+  private var selectedTournamentReadiness: ProductTournamentReadiness? {
     guard let selectedExperiment else { return nil }
-    return evidenceIndex.currentPMFReadiness(for: selectedExperiment)
+    return evidenceIndex.currentTournamentReadiness(for: selectedExperiment)
   }
 
   private var selectedStaleEvidenceCount: Int {
@@ -272,29 +272,29 @@ struct ProductTournamentWorkbenchTab: View {
     return evidenceIndex.staleSummaryCount(for: selectedExperiment)
   }
 
-  private var selectedPMFDecisionProposal: ProductMarketFitDecisionProposal? {
+  private var selectedTournamentDecisionProposal: ProductTournamentDecisionProposal? {
     guard let experimentID = selectedExperiment?.id else { return nil }
-    return ProductMarketFitDecisionAdvisor.proposal(
+    return ProductTournamentDecisionAdvisor.proposal(
       experimentID: experimentID,
       config: config,
       evidenceIndex: evidenceIndex
     )
   }
 
-  private var selectedPMFNextAction: ProductMarketFitNextAction? {
+  private var selectedTournamentNextAction: ProductTournamentNextAction? {
     guard let selectedExperiment else { return nil }
-    return ProductMarketFitNextActionAdvisor.nextAction(
+    return ProductTournamentNextActionAdvisor.nextAction(
       for: selectedExperiment,
       config: config,
       evidenceIndex: evidenceIndex
     )
   }
 
-  private var selectedSuggestedCohortReadiness: ProductMarketFitCohortRunReadiness? {
+  private var selectedSuggestedCohortReadiness: ProductTournamentCohortRunReadiness? {
     guard let selectedExperiment,
-      let action = selectedPMFNextAction
+      let action = selectedTournamentNextAction
     else { return nil }
-    return ProductMarketFitNextActionAdvisor.cohortRunReadiness(
+    return ProductTournamentNextActionAdvisor.cohortRunReadiness(
       for: action,
       experiment: selectedExperiment,
       config: config
@@ -1093,7 +1093,7 @@ struct ProductTournamentWorkbenchTab: View {
           Spacer()
           WorkbenchStatusPill(text: experiment.decision.rawValue)
         }
-        WorkbenchFact(label: "Readiness", value: signal.pmfLabel)
+        WorkbenchFact(label: "Readiness", value: signal.readinessLabel)
         WorkbenchFact(label: "Next", value: signal.nextActionLabel)
         WorkbenchFact(label: "Branch", value: experiment.branchName)
         WorkbenchFact(label: "Worktree", value: experiment.worktreeID)
@@ -1730,7 +1730,7 @@ struct ProductTournamentWorkbenchTab: View {
         HStack(spacing: 6) {
           WorkbenchMetric(
             label: "Runs", value: "\(evidenceIndex.summaries.count)", systemImage: "number")
-          if let readiness = selectedPMFReadiness {
+          if let readiness = selectedTournamentReadiness {
             WorkbenchMetric(
               label: "Readiness", value: readiness.scoreLabel,
               systemImage: "chart.line.uptrend.xyaxis")
@@ -1746,7 +1746,7 @@ struct ProductTournamentWorkbenchTab: View {
             systemImage: "checklist"
           )
         }
-        if let readiness = selectedPMFReadiness {
+        if let readiness = selectedTournamentReadiness {
           WorkbenchFact(
             label: "Readiness",
             value:
@@ -1765,7 +1765,7 @@ struct ProductTournamentWorkbenchTab: View {
             value: "\(selectedStaleEvidenceCount) run(s) from older experiment commits ignored"
           )
         }
-        if let nextAction = selectedPMFNextAction {
+        if let nextAction = selectedTournamentNextAction {
           WorkbenchFact(label: "Next action", value: nextAction.title)
           WorkbenchFact(
             label: "Action",
@@ -2022,7 +2022,7 @@ struct ProductTournamentWorkbenchTab: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
-          if let proposal = selectedPMFDecisionProposal {
+          if let proposal = selectedTournamentDecisionProposal {
             WorkbenchFact(
               label: "Tournament advice",
               value:
@@ -2034,7 +2034,7 @@ struct ProductTournamentWorkbenchTab: View {
               .fixedSize(horizontal: false, vertical: true)
             Button {
               Task {
-                await project.applyProductMarketFitDecisionRecommendation(
+                await project.applyProductTournamentDecisionRecommendation(
                   experimentID: experiment.id
                 )
               }
@@ -2527,7 +2527,7 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private func runSuggestedCohort(mode: ProductTournamentSimulationMode) async {
-    guard let action = selectedPMFNextAction,
+    guard let action = selectedTournamentNextAction,
       let cohortID = action.cohortID
     else { return }
     if let targetScenarioID = action.targetScenarioID {
@@ -2647,7 +2647,7 @@ struct ProductTournamentWorkbenchTab: View {
     var failedEvidenceRunCount = 0
     var skippedScenarioCount = 0
     var touchedExperimentIDs: [String] = []
-    var startingProofDebts: [String: ProductMarketFitProofDebt] = [:]
+    var startingProofDebts: [String: ProductTournamentProofDebt] = [:]
     var decisionCandidateSummaries: [String] = []
     var evidenceTensionSummaries: [String] = []
     var proofTargetSummaries: [String] = []
@@ -2816,14 +2816,14 @@ struct ProductTournamentWorkbenchTab: View {
 
   private func productFactoryProofDebt(
     forExperimentID experimentID: String
-  ) -> ProductMarketFitProofDebt? {
+  ) -> ProductTournamentProofDebt? {
     guard
       let experiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
-    return project.productTournamentEvidenceIndex.currentPMFReadiness(for: experiment)?.proofDebt
-      ?? ProductMarketFitProofDebt(
+    return project.productTournamentEvidenceIndex.currentTournamentReadiness(for: experiment)?.proofDebt
+      ?? ProductTournamentProofDebt(
         completedRunCount: 0,
         distinctPersonaCount: 0,
         aiUserDistinctPersonaCount: 0,
@@ -2904,7 +2904,7 @@ struct ProductTournamentWorkbenchTab: View {
 
   private func productFactoryProofDebtSnapshot(
     experimentIDs: [String],
-    proofDebts: [String: ProductMarketFitProofDebt]? = nil
+    proofDebts: [String: ProductTournamentProofDebt]? = nil
   ) -> (count: Int, summary: String)? {
     var orderedExperimentIDs: [String] = []
     for experimentID in experimentIDs where !orderedExperimentIDs.contains(experimentID) {
@@ -2933,7 +2933,7 @@ struct ProductTournamentWorkbenchTab: View {
     switch step.kind {
     case .applyDecision:
       let decisionCount = project.productTournamentConfig.decisions.count
-      await project.applyProductMarketFitDecisionRecommendation(experimentID: step.experimentID)
+      await project.applyProductTournamentDecisionRecommendation(experimentID: step.experimentID)
       if project.productTournamentConfig.decisions.count > decisionCount {
         return ProductFactoryAutopilotStepResult(
           message: "Applied tournament advice for \(step.experimentTitle)."

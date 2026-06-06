@@ -276,7 +276,7 @@ struct ProductTournamentEvidenceStoreTests {
       })
   }
 
-  @Test func indexBuildsProductMarketFitReadinessRecommendations() throws {
+  @Test func indexBuildsProductTournamentReadinessRecommendations() throws {
     let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
@@ -368,7 +368,7 @@ struct ProductTournamentEvidenceStoreTests {
     ]
 
     let readiness = ProductTournamentEvidenceIndex.build(records: records)
-      .aggregate.pmfReadinessByExperiment
+      .aggregate.tournamentReadinessByExperiment
     let good = try #require(readiness.first { $0.experimentID == "good-experiment" })
     let bad = try #require(readiness.first { $0.experimentID == "bad-experiment" })
     let narrow = try #require(readiness.first { $0.experimentID == "narrow-experiment" })
@@ -450,14 +450,14 @@ struct ProductTournamentEvidenceStoreTests {
     ]
 
     let index = ProductTournamentEvidenceIndex.build(records: records)
-    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let readiness = try #require(index.currentTournamentReadiness(for: experiment))
 
     try #require(index.staleSummaryCount(for: experiment) == 2)
     try #require(index.summaries(for: experiment).map(\.runID) == ["current-a"])
     try #require(readiness.runCount == 1)
     try #require(readiness.evidenceRunIDs == ["current-a"])
     try #require(
-      index.aggregate.pmfReadinessByExperiment.first { $0.experimentID == experiment.id }?
+      index.aggregate.tournamentReadinessByExperiment.first { $0.experimentID == experiment.id }?
         .evidenceRunIDs.first == "old-a")
   }
 

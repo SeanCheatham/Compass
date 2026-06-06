@@ -443,7 +443,7 @@ enum ProductTournamentPlanningDigestFormatter {
     for signal in signals.prefix(4) {
       var metadata = [
         "pressure \(signal.pressure.rawValue)",
-        "pmf \(bounded(signal.pmfLabel, 80))",
+        "readiness \(bounded(signal.readinessLabel, 80))",
         "next \(bounded(signal.nextActionLabel, 120))",
       ]
       if signal.staleEvidenceCount > 0 {
@@ -684,7 +684,7 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
-    let actions = ProductMarketFitNextActionAdvisor.actions(
+    let actions = ProductTournamentNextActionAdvisor.actions(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -903,7 +903,7 @@ enum ProductTournamentPlanningDigestFormatter {
     }
 
     let currentReadiness = config.experiments
-      .compactMap { index.currentPMFReadiness(for: $0) }
+      .compactMap { index.currentTournamentReadiness(for: $0) }
       .sorted { lhs, rhs in
         if lhs.readinessScore == rhs.readinessScore {
           return lhs.experimentID < rhs.experimentID

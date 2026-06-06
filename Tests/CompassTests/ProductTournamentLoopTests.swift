@@ -98,7 +98,7 @@ struct ProductTournamentLoopTests {
     try #require(savedDecision.decidedBy == "Reflect")
   }
 
-  @Test func pmfDecisionAdvisorProposesValidatedProductTransitions() throws {
+  @Test func tournamentDecisionAdvisorProposesValidatedProductTransitions() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -218,7 +218,7 @@ struct ProductTournamentLoopTests {
       ]
     )
 
-    let proposals = ProductMarketFitDecisionAdvisor.proposals(
+    let proposals = ProductTournamentDecisionAdvisor.proposals(
       config: config,
       evidenceIndex: index
     )
@@ -264,7 +264,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("evidence kill-a"))
   }
 
-  @Test func pmfDecisionAdvisorDefersPromotionWhenEvidenceIsSplit() throws {
+  @Test func tournamentDecisionAdvisorDefersPromotionWhenEvidenceIsSplit() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -365,7 +365,7 @@ struct ProductTournamentLoopTests {
       ]
     )
 
-    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let tension = try #require(
       ProductFactoryEvidenceTensionAdvisor.tension(
         for: experiment,
@@ -373,7 +373,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -396,7 +396,7 @@ struct ProductTournamentLoopTests {
     try #require(tension.displaySubtitle.contains("decision promote"))
     try #require(tension.auditSummary.contains("target_decision promote"))
     try #require(
-      ProductMarketFitDecisionAdvisor.proposals(
+      ProductTournamentDecisionAdvisor.proposals(
         config: config,
         evidenceIndex: index
       ).isEmpty)
@@ -425,13 +425,13 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("target_decision promote"))
 
     do {
-      _ = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
+      _ = try ProductTournamentDecisionAdvisor.applyingRecommendedDecision(
         experimentID: experiment.id,
         to: config,
         evidenceIndex: index
       )
       #expect(Bool(false), "Expected split evidence to block automatic tournament promotion.")
-    } catch let error as ProductMarketFitDecisionAdvisorError {
+    } catch let error as ProductTournamentDecisionAdvisorError {
       try #require(error == .noProposal(experiment.id))
     }
 
@@ -493,7 +493,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let stalledAction = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: stalledConfig,
         evidenceIndex: index
@@ -533,7 +533,7 @@ struct ProductTournamentLoopTests {
     try #require(stalledDigest.contains("target_decision promote"))
   }
 
-  @Test func pmfDecisionAdvisorDefersKillWhenEvidenceIsSplit() throws {
+  @Test func tournamentDecisionAdvisorDefersKillWhenEvidenceIsSplit() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -603,7 +603,7 @@ struct ProductTournamentLoopTests {
       ]
     )
 
-    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let tension = try #require(
       ProductFactoryEvidenceTensionAdvisor.tension(
         for: experiment,
@@ -611,7 +611,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -629,7 +629,7 @@ struct ProductTournamentLoopTests {
     try #require(tension.targetDecision == .kill)
     try #require(tension.auditSummary.contains("target_decision kill"))
     try #require(
-      ProductMarketFitDecisionAdvisor.proposals(
+      ProductTournamentDecisionAdvisor.proposals(
         config: config,
         evidenceIndex: index
       ).isEmpty)
@@ -640,7 +640,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("target_decision kill"))
   }
 
-  @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {
+  @Test func tournamentDecisionAdvisorRequiresAIUserEvidenceBeforeKill() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -684,9 +684,9 @@ struct ProductTournamentLoopTests {
       ]
     )
 
-    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -714,7 +714,7 @@ struct ProductTournamentLoopTests {
         $0.contains("stopping requires simulated-user rejection")
       })
     try #require(
-      ProductMarketFitDecisionAdvisor.proposals(
+      ProductTournamentDecisionAdvisor.proposals(
         config: config,
         evidenceIndex: index
       ).isEmpty)
@@ -782,7 +782,7 @@ struct ProductTournamentLoopTests {
       ]
     )
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -905,7 +905,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
     let scenarioID = "\(experiment.id)-buyer-starter-scenario"
-    let promoteAction = ProductMarketFitNextAction(
+    let promoteAction = ProductTournamentNextAction(
       experimentID: experiment.id,
       kind: .runCohort,
       title: "Run AI-user validation cohort",
@@ -918,7 +918,7 @@ struct ProductTournamentLoopTests {
       targetScenarioID: scenarioID,
       targetDecision: .promote
     )
-    let killAction = ProductMarketFitNextAction(
+    let killAction = ProductTournamentNextAction(
       experimentID: experiment.id,
       kind: .runCohort,
       title: "Run AI-user rejection check",
@@ -969,7 +969,7 @@ struct ProductTournamentLoopTests {
       ) == nil)
   }
 
-  @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforeKill() throws {
+  @Test func tournamentDecisionAdvisorRequiresAIUserPersonaBreadthBeforeKill() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -1014,9 +1014,9 @@ struct ProductTournamentLoopTests {
       ]
     )
 
-    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1030,7 +1030,7 @@ struct ProductTournamentLoopTests {
         $0.contains("AI-user rejection evidence across at least 2 personas")
       })
     try #require(
-      ProductMarketFitDecisionAdvisor.proposals(
+      ProductTournamentDecisionAdvisor.proposals(
         config: config,
         evidenceIndex: index
       ).isEmpty)
@@ -1042,7 +1042,7 @@ struct ProductTournamentLoopTests {
     try #require(action.targetDecision == .kill)
   }
 
-  @Test func pmfDecisionAdvisorRequiresCurrentAlternativeProofBeforeKill() throws {
+  @Test func tournamentDecisionAdvisorRequiresCurrentAlternativeProofBeforeKill() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -1090,9 +1090,9 @@ struct ProductTournamentLoopTests {
       ]
     )
 
-    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1117,7 +1117,7 @@ struct ProductTournamentLoopTests {
         $0.contains("current-alternative rejection proof")
       })
     try #require(
-      ProductMarketFitDecisionAdvisor.proposals(
+      ProductTournamentDecisionAdvisor.proposals(
         config: config,
         evidenceIndex: index
       ).isEmpty)
@@ -1132,7 +1132,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("target run AI-user alternative rejection proof"))
   }
 
-  @Test func pmfDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {
+  @Test func tournamentDecisionAdvisorRequiresAIUserEvidenceBeforePromotion() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -1142,15 +1142,15 @@ struct ProductTournamentLoopTests {
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
-    let index = makePMFPromotionEvidenceIndex(
+    let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
       includeAIUserEvidence: false
     )
 
-    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1176,7 +1176,7 @@ struct ProductTournamentLoopTests {
     try #require(readiness.recommendation == .keepGoing)
     try #require(readiness.rationale.contains { $0.contains("No AI-user evidence") })
     try #require(
-      ProductMarketFitDecisionAdvisor.proposals(
+      ProductTournamentDecisionAdvisor.proposals(
         config: config,
         evidenceIndex: index
       ).isEmpty)
@@ -1196,7 +1196,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("target_decision promote"))
   }
 
-  @Test func pmfDecisionAdvisorRequiresAIUserPersonaBreadthBeforePromotion() throws {
+  @Test func tournamentDecisionAdvisorRequiresAIUserPersonaBreadthBeforePromotion() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -1206,16 +1206,16 @@ struct ProductTournamentLoopTests {
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
-    let index = makePMFPromotionEvidenceIndex(
+    let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
       includeAIUserEvidence: true,
       includeAIUserPersonaBreadth: false
     )
 
-    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1226,7 +1226,7 @@ struct ProductTournamentLoopTests {
     try #require(readiness.recommendation == .keepGoing)
     try #require(readiness.rationale.contains { $0.contains("at least 2 personas") })
     try #require(
-      ProductMarketFitDecisionAdvisor.proposals(
+      ProductTournamentDecisionAdvisor.proposals(
         config: config,
         evidenceIndex: index
       ).isEmpty)
@@ -1238,7 +1238,7 @@ struct ProductTournamentLoopTests {
     try #require(action.targetDecision == .promote)
   }
 
-  @Test func pmfDecisionAdvisorRequiresCurrentAlternativeProofBeforePromotion() throws {
+  @Test func tournamentDecisionAdvisorRequiresCurrentAlternativeProofBeforePromotion() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -1248,7 +1248,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
-    let index = makePMFPromotionEvidenceIndex(
+    let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
       includeAIUserEvidence: true,
@@ -1256,9 +1256,9 @@ struct ProductTournamentLoopTests {
       includeCurrentAlternativeProof: false
     )
 
-    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1270,7 +1270,7 @@ struct ProductTournamentLoopTests {
     try #require(readiness.recommendation == .keepGoing)
     try #require(readiness.rationale.contains { $0.contains("current-alternative proof") })
     try #require(
-      ProductMarketFitDecisionAdvisor.proposals(
+      ProductTournamentDecisionAdvisor.proposals(
         config: config,
         evidenceIndex: index
       ).isEmpty)
@@ -1282,7 +1282,7 @@ struct ProductTournamentLoopTests {
     try #require(action.targetDecision == .promote)
   }
 
-  @Test func pmfNextActionRunsTargetedAIUserRationaleSignalProof() throws {
+  @Test func tournamentNextActionRunsTargetedAIUserRationaleSignalProof() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -1344,7 +1344,7 @@ struct ProductTournamentLoopTests {
       ]
     )
 
-    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let signal = try #require(
       ProductFactoryRationaleSignalAdvisor.signal(
         for: experiment,
@@ -1352,7 +1352,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1406,7 +1406,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("rationale-buyer"))
   }
 
-  @Test func pmfNextActionRetargetsStalledRationaleSignalAfterCycleAudit() throws {
+  @Test func tournamentNextActionRetargetsStalledRationaleSignalAfterCycleAudit() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -1477,7 +1477,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1517,7 +1517,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let retarget = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1583,7 +1583,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let validationAction = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: revisedConfig,
         evidenceIndex: index
@@ -1656,7 +1656,7 @@ struct ProductTournamentLoopTests {
     )
     let validationConfig = revisedConfig.recordingFactoryCycleAudit(validationAudit)
     let postValidationAction = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: validationConfig,
         evidenceIndex: validationIndex
@@ -1697,7 +1697,7 @@ struct ProductTournamentLoopTests {
     )
     let secondRevisedConfig = validationConfig.recordingFactoryCycleAudit(secondRevisionAudit)
     let secondValidationAction = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: secondRevisedConfig,
         evidenceIndex: validationIndex
@@ -1767,7 +1767,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: secondValidationIndex
       ))
     let fatigueAction = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: fatiguedConfig,
         evidenceIndex: secondValidationIndex
@@ -1810,7 +1810,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("rationale signals"))
   }
 
-  @Test func revisionBriefDoesNotCompeteWithReadyPMFDecision() throws {
+  @Test func revisionBriefDoesNotCompeteWithReadyTournamentDecision() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -1820,7 +1820,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
-    let index = makePMFPromotionEvidenceIndex(
+    let index = makeTournamentPromotionEvidenceIndex(
       config: config,
       personaActionRationales: [
         "turn 1 choose valid action compare_current_alternative: Needed proof against the manual workflow before switching."
@@ -1834,7 +1834,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1856,7 +1856,7 @@ struct ProductTournamentLoopTests {
     try #require(!digest.contains("Product-factory revision briefs"))
   }
 
-  @Test func pmfNextActionRefinesRepeatedRationaleSignalBeforeGenericNarrowing() throws {
+  @Test func tournamentNextActionRefinesRepeatedRationaleSignalBeforeGenericNarrowing() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -1920,9 +1920,9 @@ struct ProductTournamentLoopTests {
       ]
     )
 
-    let readiness = try #require(index.currentPMFReadiness(for: experiment))
+    let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1968,7 +1968,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("target_decision narrow"))
   }
 
-  @Test func pmfNextActionNamesMissingAIUserSegmentInSuggestedCohort() throws {
+  @Test func tournamentNextActionNamesMissingAIUserSegmentInSuggestedCohort() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2049,7 +2049,7 @@ struct ProductTournamentLoopTests {
     )
 
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -2074,7 +2074,7 @@ struct ProductTournamentLoopTests {
     try #require(step.detail.contains("targeting \(buyer.name)"))
   }
 
-  @Test func pmfNextActionRedirectsMissingAIUserSegmentToRunnableCohort() throws {
+  @Test func tournamentNextActionRedirectsMissingAIUserSegmentToRunnableCohort() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2156,7 +2156,7 @@ struct ProductTournamentLoopTests {
         tags: ["ai-user"]
       )
     )
-    let index = makePMFPromotionEvidenceIndex(
+    let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
       includeAIUserEvidence: true,
@@ -2189,7 +2189,7 @@ struct ProductTournamentLoopTests {
     )
 
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -2220,7 +2220,7 @@ struct ProductTournamentLoopTests {
     try #require(step.id.contains(buyerScenarioID))
   }
 
-  @Test func pmfNextActionBlocksAIUserCohortWhenMissingSegmentHasNoScenario() throws {
+  @Test func tournamentNextActionBlocksAIUserCohortWhenMissingSegmentHasNoScenario() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2249,7 +2249,7 @@ struct ProductTournamentLoopTests {
         tags: cohort.tags
       )
     }
-    let index = makePMFPromotionEvidenceIndex(
+    let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
       includeAIUserEvidence: true,
@@ -2257,7 +2257,7 @@ struct ProductTournamentLoopTests {
     )
 
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -2311,7 +2311,7 @@ struct ProductTournamentLoopTests {
     for index in config.experiments.indices.dropFirst() {
       config.experiments[index].decision = .promoted
     }
-    let index = makePMFPromotionEvidenceIndex(
+    let index = makeTournamentPromotionEvidenceIndex(
       config: config,
       includeAIUserEvidence: false
     )
@@ -2449,7 +2449,7 @@ struct ProductTournamentLoopTests {
     try #require(plan.blockedSteps.isEmpty)
   }
 
-  @Test func productFactoryRankerPrioritizesActionablePMFPressure() throws {
+  @Test func productFactoryRankerPrioritizesActionableTournamentPressure() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2462,7 +2462,7 @@ struct ProductTournamentLoopTests {
     config.experiments[1].decision = .keepGoing
     config.experiments[1].baseSha = "base-sha"
     config.experiments[1].currentSha = "head-sha"
-    let index = makePMFPromotionEvidenceIndex(config: config)
+    let index = makeTournamentPromotionEvidenceIndex(config: config)
 
     let ranked = ProductFactoryExperimentRanker.rankedExperiments(
       config: config,
@@ -2484,14 +2484,14 @@ struct ProductTournamentLoopTests {
     try #require(firstSignal.readinessRecommendation == .promote)
     try #require(firstSignal.pressure == .lift)
     try #require(firstSignal.pressureLabel == "Lift pressure")
-    try #require(firstSignal.pmfLabel.contains("Promote"))
+    try #require(firstSignal.readinessLabel.contains("Promote"))
     try #require(firstSignal.urgencyScore > secondSignal.urgencyScore)
     try #require(secondSignal.nextActionKind == .runCohort)
     try #require(secondSignal.pressure == .learn)
-    try #require(secondSignal.pmfLabel == "No current tournament evidence")
+    try #require(secondSignal.readinessLabel == "No current tournament evidence")
   }
 
-  @Test func productFactoryRankerSurfacesPMFProofDebt() throws {
+  @Test func productFactoryRankerSurfacesTournamentProofDebt() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2500,7 +2500,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].decision = .keepGoing
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
-    let index = makePMFPromotionEvidenceIndex(
+    let index = makeTournamentPromotionEvidenceIndex(
       config: config,
       includeAIUserEvidence: false
     )
@@ -2510,7 +2510,7 @@ struct ProductTournamentLoopTests {
       config: config,
       evidenceIndex: index
     )
-    let readiness = try #require(index.currentPMFReadiness(for: config.experiments[0]))
+    let readiness = try #require(index.currentTournamentReadiness(for: config.experiments[0]))
 
     try #require(!readiness.proofDebt.isClear)
     try #require(readiness.proofDebt.aiUserPersonaDeficit == 2)
@@ -2523,7 +2523,7 @@ struct ProductTournamentLoopTests {
     try #require(signal.targetDecision == .promote)
   }
 
-  @Test func productFactoryAutopilotChoosesExecutablePMFDecision() throws {
+  @Test func productFactoryAutopilotChoosesExecutableTournamentDecision() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2532,7 +2532,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].decision = .keepGoing
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
-    let index = makePMFPromotionEvidenceIndex(config: config)
+    let index = makeTournamentPromotionEvidenceIndex(config: config)
 
     let step = try #require(
       ProductFactoryAutopilotPlanner.nextExecutableStep(
@@ -2624,7 +2624,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: .empty
       ))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: config.experiments[0],
         config: config,
         evidenceIndex: .empty
@@ -2789,7 +2789,7 @@ struct ProductTournamentLoopTests {
     )
 
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: evidenceIndex
@@ -2997,7 +2997,7 @@ struct ProductTournamentLoopTests {
     )
 
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: evidenceIndex
@@ -3142,7 +3142,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].decision = .keepGoing
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
-    let index = makePMFPromotionEvidenceIndex(
+    let index = makeTournamentPromotionEvidenceIndex(
       config: config,
       includeAIUserEvidence: false
     )
@@ -3201,7 +3201,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].decision = .keepGoing
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
-    let index = makePMFPromotionEvidenceIndex(config: config)
+    let index = makeTournamentPromotionEvidenceIndex(config: config)
     let step = try #require(
       ProductFactoryAutopilotPlanner.nextExecutableStep(
         config: config,
@@ -3315,7 +3315,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -3401,7 +3401,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -3469,7 +3469,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -3502,7 +3502,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let retarget = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: stalledConfig,
         evidenceIndex: index
@@ -3581,7 +3581,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -3624,7 +3624,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let validationAction = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: revisedConfig,
         evidenceIndex: index
@@ -3789,7 +3789,7 @@ struct ProductTournamentLoopTests {
       audit.userMessage.contains("Stopped because no executable product-factory step remains."))
   }
 
-  @Test func pmfDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
+  @Test func tournamentDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -3799,15 +3799,15 @@ struct ProductTournamentLoopTests {
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
-    let index = makePMFPromotionEvidenceIndex(config: config)
+    let index = makeTournamentPromotionEvidenceIndex(config: config)
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: index
       ))
 
-    let next = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
+    let next = try ProductTournamentDecisionAdvisor.applyingRecommendedDecision(
       experimentID: experiment.id,
       to: config,
       evidenceIndex: index,
@@ -3831,7 +3831,7 @@ struct ProductTournamentLoopTests {
     try #require(decision.afterSha == experiment.currentSha)
   }
 
-  @Test func pmfDecisionAdvisorDoesNotPromoteFromStaleEvidence() throws {
+  @Test func tournamentDecisionAdvisorDoesNotPromoteFromStaleEvidence() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -3842,14 +3842,14 @@ struct ProductTournamentLoopTests {
     config.experiments[0].currentSha = "head-sha"
     var staleExperiment = config.experiments[0]
     staleExperiment.currentSha = "old-sha"
-    let index = makePMFPromotionEvidenceIndex(experiment: staleExperiment, config: config)
+    let index = makeTournamentPromotionEvidenceIndex(experiment: staleExperiment, config: config)
 
-    let proposals = ProductMarketFitDecisionAdvisor.proposals(
+    let proposals = ProductTournamentDecisionAdvisor.proposals(
       config: config,
       evidenceIndex: index
     )
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: config.experiments[0],
         config: config,
         evidenceIndex: index
@@ -3861,18 +3861,18 @@ struct ProductTournamentLoopTests {
     try #require(action.detail.contains("stale run"))
     try #require(action.cohortID == config.scenarioCohorts[0].id)
     do {
-      _ = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
+      _ = try ProductTournamentDecisionAdvisor.applyingRecommendedDecision(
         experimentID: config.experiments[0].id,
         to: config,
         evidenceIndex: index
       )
       #expect(Bool(false), "Expected stale evidence to produce no tournament proposal.")
-    } catch let error as ProductMarketFitDecisionAdvisorError {
+    } catch let error as ProductTournamentDecisionAdvisorError {
       try #require(error == .noProposal(config.experiments[0].id))
     }
   }
 
-  @Test func pmfNextActionTargetsRunnableCohortBeforeEvidenceExists() throws {
+  @Test func tournamentNextActionTargetsRunnableCohortBeforeEvidenceExists() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -3884,7 +3884,7 @@ struct ProductTournamentLoopTests {
     let experiment = config.experiments[0]
 
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: .empty
@@ -3896,7 +3896,7 @@ struct ProductTournamentLoopTests {
     try #require(action.detail.contains(config.scenarioCohorts[0].id))
 
     let readiness = try #require(
-      ProductMarketFitNextActionAdvisor.cohortRunReadiness(
+      ProductTournamentNextActionAdvisor.cohortRunReadiness(
         for: action,
         experiment: experiment,
         config: config
@@ -3907,7 +3907,7 @@ struct ProductTournamentLoopTests {
     try #require(readiness.missingTargetCommitCount == 0)
   }
 
-  @Test func pmfNextActionAsksForEvidenceCohortWhenNoneIsRunnable() throws {
+  @Test func tournamentNextActionAsksForEvidenceCohortWhenNoneIsRunnable() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -3928,7 +3928,7 @@ struct ProductTournamentLoopTests {
     }
 
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: config.experiments[0],
         config: config,
         evidenceIndex: .empty
@@ -3939,7 +3939,7 @@ struct ProductTournamentLoopTests {
     try #require(action.cohortID == nil)
   }
 
-  @Test func pmfSuggestedCohortReadinessBlocksMissingTargetCommit() throws {
+  @Test func tournamentSuggestedCohortReadinessBlocksMissingTargetCommit() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -3949,13 +3949,13 @@ struct ProductTournamentLoopTests {
     let experiment = config.experiments[0]
 
     let action = try #require(
-      ProductMarketFitNextActionAdvisor.nextAction(
+      ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
         config: config,
         evidenceIndex: .empty
       ))
     let readiness = try #require(
-      ProductMarketFitNextActionAdvisor.cohortRunReadiness(
+      ProductTournamentNextActionAdvisor.cohortRunReadiness(
         for: action,
         experiment: experiment,
         config: config
@@ -4183,7 +4183,7 @@ private func makeRolloutEvidenceIndex(config: ProductTournamentConfig) -> Produc
   return ProductTournamentEvidenceIndex.build(records: [record])
 }
 
-private func makePMFPromotionEvidenceIndex(
+private func makeTournamentPromotionEvidenceIndex(
   experiment: ProductExperiment? = nil,
   config: ProductTournamentConfig,
   includeAIUserEvidence: Bool = true,

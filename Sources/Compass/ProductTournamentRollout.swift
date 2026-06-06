@@ -767,22 +767,22 @@ extension CompassProject {
     }
   }
 
-  func applyProductMarketFitDecisionRecommendation(experimentID: String) async {
+  func applyProductTournamentDecisionRecommendation(experimentID: String) async {
     do {
       guard let workspace else {
         fail(AppModelError.noRepositorySelected)
         return
       }
       guard
-        let proposal = ProductMarketFitDecisionAdvisor.proposal(
+        let proposal = ProductTournamentDecisionAdvisor.proposal(
           experimentID: experimentID,
           config: productTournamentConfig,
           evidenceIndex: productTournamentEvidenceIndex
         )
       else {
-        throw ProductMarketFitDecisionAdvisorError.noProposal(experimentID)
+        throw ProductTournamentDecisionAdvisorError.noProposal(experimentID)
       }
-      let next = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
+      let next = try ProductTournamentDecisionAdvisor.applyingRecommendedDecision(
         experimentID: experimentID,
         to: productTournamentConfig,
         evidenceIndex: productTournamentEvidenceIndex

@@ -32,7 +32,7 @@ enum ProductTournamentEvidenceVerdict: String, Codable, CaseIterable, Equatable,
   case rejected
 }
 
-enum ProductMarketFitRecommendation: String, Codable, CaseIterable, Equatable, Sendable {
+enum ProductTournamentReadinessRecommendation: String, Codable, CaseIterable, Equatable, Sendable {
   case gatherEvidence = "gather_evidence"
   case keepGoing = "continue"
   case narrow
@@ -52,7 +52,7 @@ enum ProductMarketFitRecommendation: String, Codable, CaseIterable, Equatable, S
   }
 }
 
-struct ProductMarketFitProofDebt: Codable, Equatable, Sendable {
+struct ProductTournamentProofDebt: Codable, Equatable, Sendable {
   var completedRunDeficit: Int
   var personaDeficit: Int
   var aiUserPersonaDeficit: Int
@@ -130,7 +130,7 @@ struct ProductMarketFitProofDebt: Codable, Equatable, Sendable {
   }
 }
 
-struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
+struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
   var id: String { experimentID }
 
   var experimentID: String
@@ -148,8 +148,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
   var averageScore: Double
   var strongestVerdict: ProductTournamentEvidenceVerdict
   var weakestVerdict: ProductTournamentEvidenceVerdict
-  var recommendation: ProductMarketFitRecommendation
-  var proofDebt: ProductMarketFitProofDebt
+  var recommendation: ProductTournamentReadinessRecommendation
+  var proofDebt: ProductTournamentProofDebt
   var rationale: [String]
   var evidenceRunIDs: [String]
 
@@ -237,11 +237,11 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
         forKey: .weakestVerdict
       ),
       recommendation: try container.decode(
-        ProductMarketFitRecommendation.self,
+        ProductTournamentReadinessRecommendation.self,
         forKey: .recommendation
       ),
       proofDebt: try container.decodeIfPresent(
-        ProductMarketFitProofDebt.self,
+        ProductTournamentProofDebt.self,
         forKey: .proofDebt
       ),
       rationale: try container.decodeIfPresent([String].self, forKey: .rationale) ?? [],
@@ -266,8 +266,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     averageScore: Double,
     strongestVerdict: ProductTournamentEvidenceVerdict,
     weakestVerdict: ProductTournamentEvidenceVerdict,
-    recommendation: ProductMarketFitRecommendation,
-    proofDebt: ProductMarketFitProofDebt? = nil,
+    recommendation: ProductTournamentReadinessRecommendation,
+    proofDebt: ProductTournamentProofDebt? = nil,
     rationale: [String],
     evidenceRunIDs: [String]
   ) {
@@ -292,7 +292,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     self.recommendation = recommendation
     self.proofDebt =
       proofDebt
-      ?? ProductMarketFitProofDebt(
+      ?? ProductTournamentProofDebt(
         completedRunCount: self.completedRunCount,
         distinctPersonaCount: self.distinctPersonaCount,
         aiUserDistinctPersonaCount: self.aiUserDistinctPersonaCount,
@@ -355,7 +355,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
       aiUserCurrentAlternativePersonaCount: aiUserCurrentAlternativePersonaCount,
       failedRunCount: failedCount
     )
-    let proofDebt = ProductMarketFitProofDebt(
+    let proofDebt = ProductTournamentProofDebt(
       completedRunCount: completed.count,
       distinctPersonaCount: personaCount,
       aiUserDistinctPersonaCount: aiUserPersonaCount,
@@ -444,7 +444,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     aiUserDistinctPersonaCount: Int,
     aiUserCurrentAlternativePersonaCount: Int,
     failedRunCount: Int
-  ) -> ProductMarketFitRecommendation {
+  ) -> ProductTournamentReadinessRecommendation {
     guard !completed.isEmpty else { return .gatherEvidence }
 
     let rejectedOrWeakCount = summaries.filter {
@@ -510,8 +510,8 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     aiUserCurrentAlternativePersonaCount: Int,
     modelFreeCompletedRunCount: Int,
     failedRunCount: Int,
-    recommendation: ProductMarketFitRecommendation,
-    proofDebt: ProductMarketFitProofDebt
+    recommendation: ProductTournamentReadinessRecommendation,
+    proofDebt: ProductTournamentProofDebt
   ) -> [String] {
     var lines = [
       "\(completed.count) completed of \(summaries.count) run(s) across \(distinctPersonaCount) persona(s)."
@@ -2147,17 +2147,17 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     return max(0, all.count - summaries(for: experiment).count)
   }
 
-  func currentPMFReadiness(for experiment: ProductExperiment) -> ProductMarketFitReadiness? {
+  func currentTournamentReadiness(for experiment: ProductExperiment) -> ProductTournamentReadiness? {
     let currentSummaries = summaries(for: experiment)
     guard !currentSummaries.isEmpty else { return nil }
-    return ProductMarketFitReadiness(summaries: currentSummaries)
+    return ProductTournamentReadiness(summaries: currentSummaries)
   }
 }
 
 struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
   static let empty = ProductTournamentEvidenceAggregateSummary(
     latestRunByExperiment: [:],
-    pmfReadinessByExperiment: [],
+    tournamentReadinessByExperiment: [],
     latestPlanEvaluationByContender: [:],
     planReadinessByContender: [],
     repeatedObjections: [],
@@ -2170,7 +2170,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
   )
 
   var latestRunByExperiment: [String: String]
-  var pmfReadinessByExperiment: [ProductMarketFitReadiness]
+  var tournamentReadinessByExperiment: [ProductTournamentReadiness]
   var latestPlanEvaluationByContender: [String: String]
   var planReadinessByContender: [ProductTournamentPlanReadiness]
   var repeatedObjections: [ProductTournamentEvidenceRepeatedObjection]
@@ -2184,7 +2184,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
 
   enum CodingKeys: String, CodingKey {
     case latestRunByExperiment
-    case pmfReadinessByExperiment
+    case tournamentReadinessByExperiment
     case latestPlanEvaluationByContender
     case planReadinessByContender
     case repeatedObjections
@@ -2199,7 +2199,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
 
   init(
     latestRunByExperiment: [String: String],
-    pmfReadinessByExperiment: [ProductMarketFitReadiness] = [],
+    tournamentReadinessByExperiment: [ProductTournamentReadiness] = [],
     latestPlanEvaluationByContender: [String: String] = [:],
     planReadinessByContender: [ProductTournamentPlanReadiness] = [],
     repeatedObjections: [ProductTournamentEvidenceRepeatedObjection],
@@ -2212,7 +2212,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     decisionIntentOutcomes: [ProductTournamentEvidenceDecisionIntentOutcomeCount] = []
   ) {
     self.latestRunByExperiment = latestRunByExperiment
-    self.pmfReadinessByExperiment = pmfReadinessByExperiment
+    self.tournamentReadinessByExperiment = tournamentReadinessByExperiment
     self.latestPlanEvaluationByContender = latestPlanEvaluationByContender
     self.planReadinessByContender = planReadinessByContender
     self.repeatedObjections = repeatedObjections
@@ -2232,9 +2232,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
         [String: String].self,
         forKey: .latestRunByExperiment
       ) ?? [:],
-      pmfReadinessByExperiment: try container.decodeIfPresent(
-        [ProductMarketFitReadiness].self,
-        forKey: .pmfReadinessByExperiment
+      tournamentReadinessByExperiment: try container.decodeIfPresent(
+        [ProductTournamentReadiness].self,
+        forKey: .tournamentReadinessByExperiment
       ) ?? [],
       latestPlanEvaluationByContender: try container.decodeIfPresent(
         [String: String].self,
@@ -2296,8 +2296,8 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
       }
     }
     latestRunByExperiment = latest.mapValues(\.runID)
-    pmfReadinessByExperiment = Dictionary(grouping: summaries, by: \.experimentID)
-      .map { _, group in ProductMarketFitReadiness(summaries: group) }
+    tournamentReadinessByExperiment = Dictionary(grouping: summaries, by: \.experimentID)
+      .map { _, group in ProductTournamentReadiness(summaries: group) }
       .sorted { lhs, rhs in
         if lhs.readinessScore == rhs.readinessScore {
           return lhs.experimentID < rhs.experimentID

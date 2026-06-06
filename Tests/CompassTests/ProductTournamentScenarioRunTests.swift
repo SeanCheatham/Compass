@@ -308,7 +308,7 @@ struct ProductTournamentScenarioRunTests {
     try #require(outcome.record.willingnessToPayScore == 4)
     try #require(outcome.record.sponsorshipIntent.contains("sponsor"))
     try #require(index.summaries.map(\.runID) == [outcome.record.id])
-    try #require(index.aggregate.pmfReadinessByExperiment.first?.averageScore == 4)
+    try #require(index.aggregate.tournamentReadinessByExperiment.first?.averageScore == 4)
     try #require(saved.experiments[0].evidenceSummary.contains("completed the scenario"))
   }
 
