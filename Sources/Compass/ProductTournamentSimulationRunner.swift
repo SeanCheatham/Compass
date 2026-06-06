@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-struct ProductizationSimulationRequest {
+struct ProductTournamentSimulationRequest {
   var projectID: UUID?
   var projectTitle: String
   var pain: PainHypothesis
@@ -17,8 +17,8 @@ struct ProductizationSimulationRequest {
   var generatedAppWorkingDirectory: URL
   var launchPlan: AgentExecutionLaunchPlan
   var settings: AgentRuntimeSettings
-  var mode: ProductizationSimulationMode
-  var decisionIntent: ProductizationSimulationDecisionIntent?
+  var mode: ProductTournamentSimulationMode
+  var decisionIntent: ProductTournamentSimulationDecisionIntent?
   var maxTurns: Int
   var fixtureActions: [ProductTournamentExperienceAction]
   var appCommandTimeout: TimeInterval?
@@ -39,9 +39,9 @@ struct ProductizationSimulationRequest {
     generatedAppWorkingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
-    mode: ProductizationSimulationMode = .modelFree,
+    mode: ProductTournamentSimulationMode = .modelFree,
     targetDecision: ProductExperimentDecision? = nil,
-    decisionIntent: ProductizationSimulationDecisionIntent? = nil,
+    decisionIntent: ProductTournamentSimulationDecisionIntent? = nil,
     maxTurns: Int = 8,
     fixtureActions: [ProductTournamentExperienceAction]? = nil,
     appCommandTimeout: TimeInterval? = 120
@@ -72,7 +72,7 @@ struct ProductizationSimulationRequest {
     self.decisionIntent =
       decisionIntent
       ?? targetDecision.map {
-        ProductizationSimulationDecisionIntent(
+        ProductTournamentSimulationDecisionIntent(
           currentDecision: experiment.decision,
           targetDecision: $0
         )
@@ -151,7 +151,7 @@ struct ProductizationSimulationRequest {
   }
 }
 
-struct ProductizationSimulationDecisionIntent: Codable, Equatable, Sendable {
+struct ProductTournamentSimulationDecisionIntent: Codable, Equatable, Sendable {
   var currentDecision: ProductExperimentDecision
   var targetDecision: ProductExperimentDecision
   var directive: String
@@ -221,7 +221,7 @@ struct ProductizationSimulationDecisionIntent: Codable, Equatable, Sendable {
   }
 }
 
-struct ProductizationRunResult: Codable, Equatable, Sendable {
+struct ProductTournamentRunResult: Codable, Equatable, Sendable {
   var projectID: UUID?
   var projectTitle: String
   var experimentID: String
@@ -231,25 +231,25 @@ struct ProductizationRunResult: Codable, Equatable, Sendable {
   var commitSha: String
   var scenarioID: String
   var personaID: String
-  var mode: ProductizationSimulationMode
-  var decisionIntent: ProductizationSimulationDecisionIntent?
+  var mode: ProductTournamentSimulationMode
+  var decisionIntent: ProductTournamentSimulationDecisionIntent?
   var routeIdentifier: String
   var modelProvider: String
   var model: String
-  var status: ProductizationRunStatus
+  var status: ProductTournamentRunStatus
   var actions: [ProductTournamentExperienceAction]
-  var rawPersonaActionTranscript: [ProductizationPersonaActionTranscriptEntry]
+  var rawPersonaActionTranscript: [ProductTournamentPersonaActionTranscriptEntry]
   var experienceTraceJSON: String?
   var experienceTraceHash: String?
   var tournamentTrace: ProductTournamentExperienceTrace?
-  var failure: ProductizationRunFailure?
+  var failure: ProductTournamentRunFailure?
 
   var isSuccess: Bool {
     status == .completed
   }
 }
 
-struct ProductizationPersonaActionTranscriptEntry: Codable, Equatable, Sendable {
+struct ProductTournamentPersonaActionTranscriptEntry: Codable, Equatable, Sendable {
   enum Phase: String, Codable, Equatable, Sendable {
     case modelFree = "model_free"
     case choose
@@ -268,7 +268,7 @@ struct ProductizationPersonaActionTranscriptEntry: Codable, Equatable, Sendable 
   init(
     turnIndex: Int,
     phase: Phase,
-    promptVersionID: String = "productization.persona_action.v1",
+    promptVersionID: String = "product_tournament.persona_action.v1",
     chosenActionID: String,
     wasValid: Bool,
     allowedActionIDs: [String],
@@ -286,14 +286,14 @@ struct ProductizationPersonaActionTranscriptEntry: Codable, Equatable, Sendable 
   }
 }
 
-struct ProductizationPersonaActionChoice: Equatable, Sendable {
+struct ProductTournamentPersonaActionChoice: Equatable, Sendable {
   var promptVersionID: String
   var action: ProductTournamentExperienceAction
   var rationale: String
   var rawResponse: String
 
   init(
-    promptVersionID: String = "productization.persona_action.v1",
+    promptVersionID: String = "product_tournament.persona_action.v1",
     action: ProductTournamentExperienceAction,
     rationale: String = "",
     rawResponse: String = ""
@@ -305,21 +305,21 @@ struct ProductizationPersonaActionChoice: Equatable, Sendable {
   }
 }
 
-struct ProductizationPersonaActionContext: Equatable, Sendable {
-  var request: ProductizationSimulationRequestContext
+struct ProductTournamentPersonaActionContext: Equatable, Sendable {
+  var request: ProductTournamentSimulationRequestContext
   var turnIndex: Int
   var trace: ProductTournamentExperienceTrace
   var allowedActions: [ProductTournamentExperienceAllowedAction]
   var actionPrefix: [ProductTournamentExperienceAction]
 }
 
-struct ProductizationPersonaActionRepairContext: Equatable, Sendable {
-  var actionContext: ProductizationPersonaActionContext
-  var invalidChoice: ProductizationPersonaActionChoice
+struct ProductTournamentPersonaActionRepairContext: Equatable, Sendable {
+  var actionContext: ProductTournamentPersonaActionContext
+  var invalidChoice: ProductTournamentPersonaActionChoice
   var allowedActionIDs: [String]
 }
 
-struct ProductizationSimulationRequestContext: Equatable, Sendable {
+struct ProductTournamentSimulationRequestContext: Equatable, Sendable {
   var projectTitle: String
   var pain: PainHypothesis
   var segment: UserSegment
@@ -331,20 +331,20 @@ struct ProductizationSimulationRequestContext: Equatable, Sendable {
   var scenarioTask: String
   var scenarioSuccessSignal: String
   var commitSha: String
-  var decisionIntent: ProductizationSimulationDecisionIntent?
+  var decisionIntent: ProductTournamentSimulationDecisionIntent?
   var settings: AgentRuntimeSettings
 }
 
-protocol ProductizationPersonaActionSelecting {
+protocol ProductTournamentPersonaActionSelecting {
   func chooseAction(
-    context: ProductizationPersonaActionContext
-  ) async throws -> ProductizationPersonaActionChoice
+    context: ProductTournamentPersonaActionContext
+  ) async throws -> ProductTournamentPersonaActionChoice
   func repairAction(
-    context: ProductizationPersonaActionRepairContext
-  ) async throws -> ProductizationPersonaActionChoice
+    context: ProductTournamentPersonaActionRepairContext
+  ) async throws -> ProductTournamentPersonaActionChoice
 }
 
-enum ProductizationPersonaActionModelError: LocalizedError, Equatable {
+enum ProductTournamentPersonaActionModelError: LocalizedError, Equatable {
   case unavailable
   case emptyResponse
   case invalidJSON(String)
@@ -365,7 +365,7 @@ enum ProductizationPersonaActionModelError: LocalizedError, Equatable {
   }
 }
 
-struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActionSelecting {
+struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPersonaActionSelecting {
   var streamText: @Sendable (_ prompt: String) async -> String?
 
   private static let defaultStreamText: @Sendable (_ prompt: String) async -> String? = { prompt in
@@ -383,29 +383,29 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
   }
 
   func chooseAction(
-    context: ProductizationPersonaActionContext
-  ) async throws -> ProductizationPersonaActionChoice {
+    context: ProductTournamentPersonaActionContext
+  ) async throws -> ProductTournamentPersonaActionChoice {
     try await selectAction(
       prompt: Self.choicePrompt(context: context),
-      promptVersionID: "productization.persona_action.foundation_models.v3"
+      promptVersionID: "product_tournament.persona_action.foundation_models.v3"
     )
   }
 
   func repairAction(
-    context: ProductizationPersonaActionRepairContext
-  ) async throws -> ProductizationPersonaActionChoice {
+    context: ProductTournamentPersonaActionRepairContext
+  ) async throws -> ProductTournamentPersonaActionChoice {
     try await selectAction(
       prompt: Self.repairPrompt(context: context),
-      promptVersionID: "productization.persona_action_repair.foundation_models.v3"
+      promptVersionID: "product_tournament.persona_action_repair.foundation_models.v3"
     )
   }
 
   private func selectAction(
     prompt: String,
     promptVersionID: String
-  ) async throws -> ProductizationPersonaActionChoice {
+  ) async throws -> ProductTournamentPersonaActionChoice {
     guard let response = await streamText(prompt) else {
-      throw ProductizationPersonaActionModelError.emptyResponse
+      throw ProductTournamentPersonaActionModelError.emptyResponse
     }
     return try Self.parseChoice(
       response,
@@ -415,24 +415,24 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
 
   static func parseChoice(
     _ response: String,
-    promptVersionID: String = "productization.persona_action.foundation_models.v3"
-  ) throws -> ProductizationPersonaActionChoice {
+    promptVersionID: String = "product_tournament.persona_action.foundation_models.v3"
+  ) throws -> ProductTournamentPersonaActionChoice {
     guard let json = firstJSONObject(in: response) else {
-      throw ProductizationPersonaActionModelError.invalidJSON(response)
+      throw ProductTournamentPersonaActionModelError.invalidJSON(response)
     }
     guard let data = json.data(using: .utf8) else {
-      throw ProductizationPersonaActionModelError.invalidJSON(response)
+      throw ProductTournamentPersonaActionModelError.invalidJSON(response)
     }
     let decoded: PersonaActionModelResponse
     do {
       decoded = try JSONDecoder().decode(PersonaActionModelResponse.self, from: data)
     } catch {
-      throw ProductizationPersonaActionModelError.invalidJSON(response)
+      throw ProductTournamentPersonaActionModelError.invalidJSON(response)
     }
     guard !decoded.actionID.isEmpty else {
-      throw ProductizationPersonaActionModelError.missingActionID
+      throw ProductTournamentPersonaActionModelError.missingActionID
     }
-    return ProductizationPersonaActionChoice(
+    return ProductTournamentPersonaActionChoice(
       promptVersionID: promptVersionID,
       action: ProductTournamentExperienceAction(id: decoded.actionID, params: decoded.params),
       rationale: decoded.rationale,
@@ -440,7 +440,7 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
     )
   }
 
-  private static func choicePrompt(context: ProductizationPersonaActionContext) -> String {
+  private static func choicePrompt(context: ProductTournamentPersonaActionContext) -> String {
     prompt(
       title: "Choose the next simulated-user action.",
       request: context.request,
@@ -452,7 +452,7 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
     )
   }
 
-  private static func repairPrompt(context: ProductizationPersonaActionRepairContext) -> String {
+  private static func repairPrompt(context: ProductTournamentPersonaActionRepairContext) -> String {
     let invalid = context.invalidChoice.action.id
     let allowed = context.allowedActionIDs.joined(separator: ", ")
     return prompt(
@@ -469,7 +469,7 @@ struct ProductizationFoundationModelsPersonaSelector: ProductizationPersonaActio
 
   private static func prompt(
     title: String,
-    request: ProductizationSimulationRequestContext,
+    request: ProductTournamentSimulationRequestContext,
     turnIndex: Int,
     trace: ProductTournamentExperienceTrace,
     allowedActions: [ProductTournamentExperienceAllowedAction],
@@ -683,17 +683,17 @@ struct ProductTournamentExperienceCLIAppRunner: ProductTournamentExperienceAppRu
 
 struct ProductTournamentSimulationRunner {
   var appRunner: ProductTournamentExperienceAppRunning
-  var personaSelector: ProductizationPersonaActionSelecting?
+  var personaSelector: ProductTournamentPersonaActionSelecting?
 
   init(
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
-    personaSelector: ProductizationPersonaActionSelecting? = nil
+    personaSelector: ProductTournamentPersonaActionSelecting? = nil
   ) {
     self.appRunner = appRunner
     self.personaSelector = personaSelector
   }
 
-  func run(_ request: ProductizationSimulationRequest) async -> ProductizationRunResult {
+  func run(_ request: ProductTournamentSimulationRequest) async -> ProductTournamentRunResult {
     guard
       await appRunner.productTournamentExperienceContractAvailable(
         workingDirectory: request.generatedAppWorkingDirectory
@@ -707,7 +707,7 @@ struct ProductTournamentSimulationRunner {
         traceJSON: nil,
         traceHash: nil,
         trace: nil,
-        failure: ProductizationRunFailure(
+        failure: ProductTournamentRunFailure(
           status: .appContractMissing,
           message: "The generated app is missing the product tournament experience CLI contract."
         )
@@ -715,7 +715,7 @@ struct ProductTournamentSimulationRunner {
     }
 
     var actions: [ProductTournamentExperienceAction] = []
-    var transcript: [ProductizationPersonaActionTranscriptEntry] = []
+    var transcript: [ProductTournamentPersonaActionTranscriptEntry] = []
 
     for turnIndex in 0..<request.maxTurns {
       let traceOutcome = await loadTrace(request: request, actions: actions)
@@ -752,7 +752,7 @@ struct ProductTournamentSimulationRunner {
             traceJSON: traceJSON,
             traceHash: nil,
             trace: trace,
-            failure: ProductizationRunFailure(
+            failure: ProductTournamentRunFailure(
               status: .noAllowedActions,
               message:
                 "The product tournament trace is still in progress but returned no allowed actions."
@@ -769,7 +769,7 @@ struct ProductTournamentSimulationRunner {
               actions: actions,
               transcript: transcript,
               fallbackTraceJSON: traceJSON,
-              failure: ProductizationRunFailure(
+              failure: ProductTournamentRunFailure(
                 status: .maxTurnsReached,
                 message: "Model-free fixture actions ended before a terminal app state."
               )
@@ -781,7 +781,7 @@ struct ProductTournamentSimulationRunner {
               transcriptEntry(
                 turnIndex: turnIndex,
                 phase: .modelFree,
-                choice: ProductizationPersonaActionChoice(
+                choice: ProductTournamentPersonaActionChoice(
                   action: action,
                   rationale: "Deterministic model-free fixture action."
                 ),
@@ -795,7 +795,7 @@ struct ProductTournamentSimulationRunner {
             transcriptEntry(
               turnIndex: turnIndex,
               phase: .modelFree,
-              choice: ProductizationPersonaActionChoice(action: action),
+              choice: ProductTournamentPersonaActionChoice(action: action),
               wasValid: false,
               allowedActions: allowedActions
             ))
@@ -807,7 +807,7 @@ struct ProductTournamentSimulationRunner {
             traceJSON: traceJSON,
             traceHash: nil,
             trace: trace,
-            failure: ProductizationRunFailure(
+            failure: ProductTournamentRunFailure(
               status: .invalidPersonaAction,
               message:
                 "Model-free fixture selected invalid action `\(action.id)`. Allowed actions: \(allowedActions.map(\.id).joined(separator: ", "))."
@@ -824,7 +824,7 @@ struct ProductTournamentSimulationRunner {
               traceJSON: traceJSON,
               traceHash: nil,
               trace: trace,
-              failure: ProductizationRunFailure(
+              failure: ProductTournamentRunFailure(
                 status: .personaCallFailed,
                 message: "Persona-model mode requires a persona action selector."
               )
@@ -837,7 +837,7 @@ struct ProductTournamentSimulationRunner {
             allowedActions: allowedActions,
             actionPrefix: actions
           )
-          let choice: ProductizationPersonaActionChoice
+          let choice: ProductTournamentPersonaActionChoice
           do {
             choice = try await personaSelector.chooseAction(context: context)
           } catch {
@@ -849,7 +849,7 @@ struct ProductTournamentSimulationRunner {
               traceJSON: traceJSON,
               traceHash: nil,
               trace: trace,
-              failure: ProductizationRunFailure(
+              failure: ProductTournamentRunFailure(
                 status: .personaCallFailed,
                 message: "Persona action selection failed: \(error.localizedDescription)"
               )
@@ -878,10 +878,10 @@ struct ProductTournamentSimulationRunner {
               allowedActions: allowedActions
             ))
 
-          let repairChoice: ProductizationPersonaActionChoice
+          let repairChoice: ProductTournamentPersonaActionChoice
           do {
             repairChoice = try await personaSelector.repairAction(
-              context: ProductizationPersonaActionRepairContext(
+              context: ProductTournamentPersonaActionRepairContext(
                 actionContext: context,
                 invalidChoice: choice,
                 allowedActionIDs: allowedActions.map(\.id)
@@ -895,7 +895,7 @@ struct ProductTournamentSimulationRunner {
               traceJSON: traceJSON,
               traceHash: nil,
               trace: trace,
-              failure: ProductizationRunFailure(
+              failure: ProductTournamentRunFailure(
                 status: .personaCallFailed,
                 message: "Persona action repair failed: \(error.localizedDescription)"
               )
@@ -931,7 +931,7 @@ struct ProductTournamentSimulationRunner {
             traceJSON: traceJSON,
             traceHash: nil,
             trace: trace,
-            failure: ProductizationRunFailure(
+            failure: ProductTournamentRunFailure(
               status: .invalidPersonaAction,
               message:
                 "Persona selected invalid action `\(repairChoice.action.id)`. Allowed actions: \(allowedActions.map(\.id).joined(separator: ", "))."
@@ -970,7 +970,7 @@ struct ProductTournamentSimulationRunner {
         actions: actions,
         transcript: transcript,
         fallbackTraceJSON: traceJSON,
-        failure: ProductizationRunFailure(
+        failure: ProductTournamentRunFailure(
           status: .maxTurnsReached,
           message: "The run reached the maximum turn budget before a terminal app state."
         )
@@ -979,13 +979,13 @@ struct ProductTournamentSimulationRunner {
   }
 
   private func deterministicResult(
-    request: ProductizationSimulationRequest,
-    status: ProductizationRunStatus,
+    request: ProductTournamentSimulationRequest,
+    status: ProductTournamentRunStatus,
     actions: [ProductTournamentExperienceAction],
-    transcript: [ProductizationPersonaActionTranscriptEntry],
+    transcript: [ProductTournamentPersonaActionTranscriptEntry],
     fallbackTraceJSON: String,
-    failure: ProductizationRunFailure? = nil
-  ) async -> ProductizationRunResult {
+    failure: ProductTournamentRunFailure? = nil
+  ) async -> ProductTournamentRunResult {
     let first = await loadTrace(request: request, actions: actions)
     let second = await loadTrace(request: request, actions: actions)
     switch (first, second) {
@@ -1026,7 +1026,7 @@ struct ProductTournamentSimulationRunner {
             traceJSON: firstNormalized,
             traceHash: firstHash,
             trace: trace,
-            failure: ProductizationRunFailure(
+            failure: ProductTournamentRunFailure(
               status: .nondeterministicExperienceTrace,
               message:
                 "The generated app returned different normalized trace hashes for the same action prefix: \(firstHash) != \(secondHash)."
@@ -1052,7 +1052,7 @@ struct ProductTournamentSimulationRunner {
           traceJSON: fallbackTraceJSON,
           traceHash: nil,
           trace: nil,
-          failure: ProductizationRunFailure(
+          failure: ProductTournamentRunFailure(
             status: .appOutputNotJSON,
             message:
               "Final product tournament trace could not be normalized: \(error.localizedDescription)"
@@ -1063,9 +1063,9 @@ struct ProductTournamentSimulationRunner {
   }
 
   private func loadTrace(
-    request: ProductizationSimulationRequest,
+    request: ProductTournamentSimulationRequest,
     actions: [ProductTournamentExperienceAction]
-  ) async -> ProductizationTraceLoadOutcome {
+  ) async -> ProductTournamentTraceLoadOutcome {
     let input = request.experienceInput(actions: actions)
     let result: ProcessResult
     do {
@@ -1077,7 +1077,7 @@ struct ProductTournamentSimulationRunner {
       )
     } catch {
       return .failure(
-        ProductizationRunFailure(
+        ProductTournamentRunFailure(
           status: .appCommandFailed,
           message: "Product tournament experience CLI command failed: \(error.localizedDescription)"
         ),
@@ -1087,7 +1087,7 @@ struct ProductTournamentSimulationRunner {
 
     guard result.exitCode == 0 else {
       return .failure(
-        ProductizationRunFailure(
+        ProductTournamentRunFailure(
           status: .appCommandFailed,
           message: "Product tournament experience CLI exited with code \(result.exitCode).",
           stdout: result.stdout,
@@ -1099,7 +1099,7 @@ struct ProductTournamentSimulationRunner {
 
     guard let data = result.stdout.data(using: .utf8) else {
       return .failure(
-        ProductizationRunFailure(
+        ProductTournamentRunFailure(
           status: .appOutputNotJSON,
           message: "Product tournament experience CLI stdout was not UTF-8."
         ),
@@ -1112,7 +1112,7 @@ struct ProductTournamentSimulationRunner {
       return .success(trace, traceJSON: result.stdout)
     } catch {
       return .failure(
-        ProductizationRunFailure(
+        ProductTournamentRunFailure(
           status: .appOutputNotJSON,
           message:
             "Product tournament experience CLI stdout was not a valid product tournament trace: \(error.localizedDescription).",
@@ -1125,14 +1125,14 @@ struct ProductTournamentSimulationRunner {
   }
 
   private func personaContext(
-    request: ProductizationSimulationRequest,
+    request: ProductTournamentSimulationRequest,
     turnIndex: Int,
     trace: ProductTournamentExperienceTrace,
     allowedActions: [ProductTournamentExperienceAllowedAction],
     actionPrefix: [ProductTournamentExperienceAction]
-  ) -> ProductizationPersonaActionContext {
-    ProductizationPersonaActionContext(
-      request: ProductizationSimulationRequestContext(
+  ) -> ProductTournamentPersonaActionContext {
+    ProductTournamentPersonaActionContext(
+      request: ProductTournamentSimulationRequestContext(
         projectTitle: request.projectTitle,
         pain: request.pain,
         segment: request.segment,
@@ -1163,12 +1163,12 @@ struct ProductTournamentSimulationRunner {
 
   private func transcriptEntry(
     turnIndex: Int,
-    phase: ProductizationPersonaActionTranscriptEntry.Phase,
-    choice: ProductizationPersonaActionChoice,
+    phase: ProductTournamentPersonaActionTranscriptEntry.Phase,
+    choice: ProductTournamentPersonaActionChoice,
     wasValid: Bool,
     allowedActions: [ProductTournamentExperienceAllowedAction]
-  ) -> ProductizationPersonaActionTranscriptEntry {
-    ProductizationPersonaActionTranscriptEntry(
+  ) -> ProductTournamentPersonaActionTranscriptEntry {
+    ProductTournamentPersonaActionTranscriptEntry(
       turnIndex: turnIndex,
       phase: phase,
       promptVersionID: choice.promptVersionID,
@@ -1181,16 +1181,16 @@ struct ProductTournamentSimulationRunner {
   }
 
   private func makeResult(
-    request: ProductizationSimulationRequest,
-    status: ProductizationRunStatus,
+    request: ProductTournamentSimulationRequest,
+    status: ProductTournamentRunStatus,
     actions: [ProductTournamentExperienceAction],
-    transcript: [ProductizationPersonaActionTranscriptEntry],
+    transcript: [ProductTournamentPersonaActionTranscriptEntry],
     traceJSON: String?,
     traceHash: String?,
     trace: ProductTournamentExperienceTrace?,
-    failure: ProductizationRunFailure?
-  ) -> ProductizationRunResult {
-    ProductizationRunResult(
+    failure: ProductTournamentRunFailure?
+  ) -> ProductTournamentRunResult {
+    ProductTournamentRunResult(
       projectID: request.projectID,
       projectTitle: request.projectTitle,
       experimentID: request.experiment.id,
@@ -1221,9 +1221,9 @@ struct ProductTournamentSimulationRunner {
   }
 }
 
-private enum ProductizationTraceLoadOutcome {
+private enum ProductTournamentTraceLoadOutcome {
   case success(ProductTournamentExperienceTrace, traceJSON: String)
-  case failure(ProductizationRunFailure, traceJSON: String?)
+  case failure(ProductTournamentRunFailure, traceJSON: String?)
 }
 
 struct ProductTournamentExperienceInput: Codable, Equatable, Sendable {
@@ -1280,7 +1280,7 @@ struct ProductTournamentExperienceDecisionIntent: Codable, Equatable, Sendable {
   var directive: String
   var scorecardFocus: [String]
 
-  init(_ intent: ProductizationSimulationDecisionIntent) {
+  init(_ intent: ProductTournamentSimulationDecisionIntent) {
     self.currentDecision = intent.currentDecision
     self.targetDecision = intent.targetDecision
     self.directive = intent.directive

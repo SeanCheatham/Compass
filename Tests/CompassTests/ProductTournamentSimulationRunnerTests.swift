@@ -8,7 +8,7 @@ struct ProductTournamentSimulationRunnerTests {
     let appRunner = MockProductTournamentExperienceAppRunner()
     let runner = ProductTournamentSimulationRunner(appRunner: appRunner)
 
-    let result = await runner.run(makeProductizationRequest(maxTurns: 6))
+    let result = await runner.run(makeTournamentRequest(maxTurns: 6))
 
     try #require(result.status == .completed)
     try #require(result.isSuccess)
@@ -72,7 +72,7 @@ struct ProductTournamentSimulationRunnerTests {
 
   @Test func personaModelRejectsInventedActionsAndAllowsOneRepair() async throws {
     let appRunner = MockProductTournamentExperienceAppRunner()
-    let selector = ScriptedProductizationPersonaSelector(
+    let selector = ScriptedProductTournamentPersonaSelector(
       choices: [
         .init(action: ProductTournamentExperienceAction(id: "invent_new_button"))
       ],
@@ -82,7 +82,7 @@ struct ProductTournamentSimulationRunnerTests {
     )
     let runner = ProductTournamentSimulationRunner(appRunner: appRunner, personaSelector: selector)
 
-    let result = await runner.run(makeProductizationRequest(mode: .personaModel, maxTurns: 1))
+    let result = await runner.run(makeTournamentRequest(mode: .personaModel, maxTurns: 1))
 
     try #require(result.status == .maxTurnsReached)
     try #require(result.actions.map(\.id) == ["inspect_pain"])
@@ -95,7 +95,7 @@ struct ProductTournamentSimulationRunnerTests {
 
   @Test func personaModelRunnerPassesDecisionIntentToInputAndSelector() async throws {
     let appRunner = MockProductTournamentExperienceAppRunner()
-    let selector = ScriptedProductizationPersonaSelector(
+    let selector = ScriptedProductTournamentPersonaSelector(
       choices: [
         .init(action: ProductTournamentExperienceAction(id: "inspect_pain"))
       ]
@@ -103,7 +103,7 @@ struct ProductTournamentSimulationRunnerTests {
     let runner = ProductTournamentSimulationRunner(appRunner: appRunner, personaSelector: selector)
 
     let result = await runner.run(
-      makeProductizationRequest(mode: .personaModel, targetDecision: .kill, maxTurns: 1)
+      makeTournamentRequest(mode: .personaModel, targetDecision: .kill, maxTurns: 1)
     )
 
     let inputIntent = try #require(appRunner.inputs.first?.decisionIntent)
@@ -122,13 +122,13 @@ struct ProductTournamentSimulationRunnerTests {
 
   @Test func personaModelFailsWhenRepairStillInventsAction() async throws {
     let appRunner = MockProductTournamentExperienceAppRunner()
-    let selector = ScriptedProductizationPersonaSelector(
+    let selector = ScriptedProductTournamentPersonaSelector(
       choices: [.init(action: ProductTournamentExperienceAction(id: "invent_new_button"))],
       repairs: [.init(action: ProductTournamentExperienceAction(id: "still_bad"))]
     )
     let runner = ProductTournamentSimulationRunner(appRunner: appRunner, personaSelector: selector)
 
-    let result = await runner.run(makeProductizationRequest(mode: .personaModel, maxTurns: 3))
+    let result = await runner.run(makeTournamentRequest(mode: .personaModel, maxTurns: 3))
 
     try #require(result.status == .invalidPersonaAction)
     try #require(result.actions.isEmpty)
@@ -146,12 +146,12 @@ struct ProductTournamentSimulationRunnerTests {
       try #require(input == nil)
       try #require(timeout == 99)
       return ProcessResult(
-        exitCode: 0, stdout: try encodeTrace(defaultProductizationTrace()), stderr: "")
+        exitCode: 0, stdout: try encodeTrace(defaultTournamentTrace()), stderr: "")
     }
 
     try #require(await appRunner.productTournamentExperienceContractAvailable(workingDirectory: root))
     _ = try await appRunner.runProductTournamentExperience(
-      input: makeProductizationRequest().experienceInput(actions: []),
+      input: makeTournamentRequest().experienceInput(actions: []),
       workingDirectory: root,
       launchPlan: .host(),
       timeout: 99
@@ -180,7 +180,7 @@ struct ProductTournamentSimulationRunnerTests {
 
     let runner = ProductTournamentSimulationRunner(appRunner: ProductTournamentExperienceCLIAppRunner())
     let result = await runner.run(
-      makeProductizationRequest(
+      makeTournamentRequest(
         generatedAppWorkingDirectory: root,
         maxTurns: 6,
         appCommandTimeout: 20 * 60
@@ -192,7 +192,7 @@ struct ProductTournamentSimulationRunnerTests {
   }
 
   @Test func foundationModelsPersonaSelectorParsesFencedJSONAliasesAndParams() throws {
-    let choice = try ProductizationFoundationModelsPersonaSelector.parseChoice(
+    let choice = try ProductTournamentFoundationModelsPersonaSelector.parseChoice(
       """
       ```json
       {"action_id":"inspect_pain","reason":"The user needs to see if this matches the pain.","params":{"depth":"quick"}}
@@ -214,14 +214,14 @@ struct ProductTournamentSimulationRunnerTests {
         #"{"actionID":"compare_current_alternative","rationale":"Now compare against the spreadsheet."}"#,
       ]
     )
-    let selector = ProductizationFoundationModelsPersonaSelector(
+    let selector = ProductTournamentFoundationModelsPersonaSelector(
       streamText: { prompt in await stream.stream(prompt) }
     )
     let context = makePersonaActionContext()
 
     let choice = try await selector.chooseAction(context: context)
     try #require(choice.action.id == "inspect_pain")
-    try #require(choice.promptVersionID == "productization.persona_action.foundation_models.v3")
+    try #require(choice.promptVersionID == "product_tournament.persona_action.foundation_models.v3")
     try #require(stream.prompts[0].contains("skeptical target user"))
     try #require(stream.prompts[0].contains("PMF scorecard to stress-test"))
     try #require(stream.prompts[0].contains("switching readiness"))
@@ -243,9 +243,9 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(stream.prompts[0].contains("Weekly reporting takes too long."))
 
     let repair = try await selector.repairAction(
-      context: ProductizationPersonaActionRepairContext(
+      context: ProductTournamentPersonaActionRepairContext(
         actionContext: context,
-        invalidChoice: ProductizationPersonaActionChoice(
+        invalidChoice: ProductTournamentPersonaActionChoice(
           action: ProductTournamentExperienceAction(id: "invent_new_button")
         ),
         allowedActionIDs: context.allowedActions.map(\.id)
@@ -253,7 +253,7 @@ struct ProductTournamentSimulationRunnerTests {
     )
     try #require(repair.action.id == "compare_current_alternative")
     try #require(
-      repair.promptVersionID == "productization.persona_action_repair.foundation_models.v3")
+      repair.promptVersionID == "product_tournament.persona_action_repair.foundation_models.v3")
     try #require(stream.prompts[1].contains("previous action `invent_new_button` was invalid"))
   }
 }
@@ -269,7 +269,7 @@ private final class MockProductTournamentExperienceAppRunner: ProductTournamentE
     handler: @escaping Handler = { input, _ in
       ProcessResult(
         exitCode: 0,
-        stdout: try encodeTrace(defaultProductizationTrace(for: input)),
+        stdout: try encodeTrace(defaultTournamentTrace(for: input)),
         stderr: ""
       )
     }
@@ -306,48 +306,48 @@ private final class PersonaTextStream: @unchecked Sendable {
   }
 }
 
-private final class ScriptedProductizationPersonaSelector: ProductizationPersonaActionSelecting {
-  var choices: [ProductizationPersonaActionChoice]
-  var repairs: [ProductizationPersonaActionChoice]
-  var chooseContexts: [ProductizationPersonaActionContext] = []
-  var repairContexts: [ProductizationPersonaActionRepairContext] = []
+private final class ScriptedProductTournamentPersonaSelector: ProductTournamentPersonaActionSelecting {
+  var choices: [ProductTournamentPersonaActionChoice]
+  var repairs: [ProductTournamentPersonaActionChoice]
+  var chooseContexts: [ProductTournamentPersonaActionContext] = []
+  var repairContexts: [ProductTournamentPersonaActionRepairContext] = []
 
   init(
-    choices: [ProductizationPersonaActionChoice],
-    repairs: [ProductizationPersonaActionChoice] = []
+    choices: [ProductTournamentPersonaActionChoice],
+    repairs: [ProductTournamentPersonaActionChoice] = []
   ) {
     self.choices = choices
     self.repairs = repairs
   }
 
   func chooseAction(
-    context: ProductizationPersonaActionContext
-  ) async throws -> ProductizationPersonaActionChoice {
+    context: ProductTournamentPersonaActionContext
+  ) async throws -> ProductTournamentPersonaActionChoice {
     chooseContexts.append(context)
     return choices.isEmpty
-      ? ProductizationPersonaActionChoice(
+      ? ProductTournamentPersonaActionChoice(
         action: ProductTournamentExperienceAction(id: "abandon_task"))
       : choices.removeFirst()
   }
 
   func repairAction(
-    context: ProductizationPersonaActionRepairContext
-  ) async throws -> ProductizationPersonaActionChoice {
+    context: ProductTournamentPersonaActionRepairContext
+  ) async throws -> ProductTournamentPersonaActionChoice {
     repairContexts.append(context)
     return repairs.isEmpty
-      ? ProductizationPersonaActionChoice(
+      ? ProductTournamentPersonaActionChoice(
         action: ProductTournamentExperienceAction(id: "abandon_task"))
       : repairs.removeFirst()
   }
 }
 
-private func makeProductizationRequest(
+private func makeTournamentRequest(
   generatedAppWorkingDirectory: URL = URL(fileURLWithPath: "/tmp/productization-runner-fixture"),
-  mode: ProductizationSimulationMode = .modelFree,
+  mode: ProductTournamentSimulationMode = .modelFree,
   targetDecision: ProductExperimentDecision? = nil,
   maxTurns: Int = 6,
   appCommandTimeout: TimeInterval? = 120
-) -> ProductizationSimulationRequest {
+) -> ProductTournamentSimulationRequest {
   let config = ProductizationConfig.seedDefaults(
     projectTitle: "Reporting Helper",
     rawPain: "Weekly reporting takes too long.",
@@ -362,7 +362,7 @@ private func makeProductizationRequest(
   }
   let segment = config.userSegments[0]
   let workflow = config.currentWorkflows[0]
-  return ProductizationSimulationRequest(
+  return ProductTournamentSimulationRequest(
     projectTitle: "Reporting Helper",
     pain: pain,
     segment: segment,
@@ -381,11 +381,11 @@ private func makeProductizationRequest(
   )
 }
 
-private func makePersonaActionContext() -> ProductizationPersonaActionContext {
-  let request = makeProductizationRequest(mode: .personaModel, targetDecision: .promote)
-  let trace = defaultProductizationTrace(for: request.experienceInput(actions: []))
-  return ProductizationPersonaActionContext(
-    request: ProductizationSimulationRequestContext(
+private func makePersonaActionContext() -> ProductTournamentPersonaActionContext {
+  let request = makeTournamentRequest(mode: .personaModel, targetDecision: .promote)
+  let trace = defaultTournamentTrace(for: request.experienceInput(actions: []))
+  return ProductTournamentPersonaActionContext(
+    request: ProductTournamentSimulationRequestContext(
       projectTitle: request.projectTitle,
       pain: request.pain,
       segment: request.segment,
@@ -407,8 +407,8 @@ private func makePersonaActionContext() -> ProductizationPersonaActionContext {
   )
 }
 
-private func defaultProductizationTrace(
-  for input: ProductTournamentExperienceInput = makeProductizationRequest().experienceInput(actions: []
+private func defaultTournamentTrace(
+  for input: ProductTournamentExperienceInput = makeTournamentRequest().experienceInput(actions: []
   )
 ) -> ProductTournamentExperienceTrace {
   let lastActionID = input.actions.last?.id
@@ -464,17 +464,17 @@ private func defaultProductizationTrace(
     painID: input.pain.id,
     solutionID: input.solution.id,
     experimentID: input.experiment.id,
-    initialState: productizationState(id: "initial"),
+    initialState: tournamentState(id: "initial"),
     turns: input.actions.enumerated().map { index, action in
       ProductTournamentExperienceTurn(
         index: index,
         action: action,
-        state: productizationState(id: "turn-\(index)-\(action.id)"),
+        state: tournamentState(id: "turn-\(index)-\(action.id)"),
         allowedNextActions: [],
         eventLog: ["turn:\(index):\(action.id)"]
       )
     },
-    allowedNextActions: allowedIDs.map(productizationAllowedAction),
+    allowedNextActions: allowedIDs.map(tournamentAllowedAction),
     terminalStatus: terminalStatus,
     eventLog: ["last:\(lastActionID ?? "initial")"],
     painReliefSignals: ProductizationPainReliefSignals(
@@ -500,7 +500,7 @@ private func defaultProductizationTrace(
   )
 }
 
-private func productizationState(id: String) -> ProductTournamentExperienceState {
+private func tournamentState(id: String) -> ProductTournamentExperienceState {
   ProductTournamentExperienceState(
     id: id,
     headline: "Headline \(id)",
@@ -513,7 +513,7 @@ private func productizationState(id: String) -> ProductTournamentExperienceState
   )
 }
 
-private func productizationAllowedAction(_ id: String) -> ProductTournamentExperienceAllowedAction {
+private func tournamentAllowedAction(_ id: String) -> ProductTournamentExperienceAllowedAction {
   ProductTournamentExperienceAllowedAction(
     id: id,
     label: id.replacingOccurrences(of: "_", with: " "),

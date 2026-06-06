@@ -2579,8 +2579,8 @@ struct ProductizationLoopTests {
       ProductFactoryAutopilotPlanner.cohortSimulationMode(isPersonaModelAvailable: false)
         == .modelFree
     )
-    try #require(ProductizationSimulationMode.personaModel.productFactoryLabel == "AI-user")
-    try #require(ProductizationSimulationMode.modelFree.productFactoryLabel == "Model-free")
+    try #require(ProductTournamentSimulationMode.personaModel.productFactoryLabel == "AI-user")
+    try #require(ProductTournamentSimulationMode.modelFree.productFactoryLabel == "Model-free")
   }
 
   @Test func productFactoryAutopilotBlocksRecentlyFailedStep() throws {
@@ -3301,7 +3301,7 @@ struct ProductizationLoopTests {
       scores: weakScores,
       currentAlternativeComparison: "The spreadsheet remained better.",
       scenarioID: scenario.id,
-      decisionIntent: ProductizationSimulationDecisionIntent(
+      decisionIntent: ProductTournamentSimulationDecisionIntent(
         currentDecision: .keepGoing,
         targetDecision: .promote
       )
@@ -3387,7 +3387,7 @@ struct ProductizationLoopTests {
       scores: strongScores,
       currentAlternativeComparison: "The prototype beat the spreadsheet.",
       scenarioID: scenario.id,
-      decisionIntent: ProductizationSimulationDecisionIntent(
+      decisionIntent: ProductTournamentSimulationDecisionIntent(
         currentDecision: .keepGoing,
         targetDecision: .kill
       )
@@ -3456,7 +3456,7 @@ struct ProductizationLoopTests {
       scores: strongScores,
       currentAlternativeComparison: "The prototype beat the spreadsheet.",
       scenarioID: scenario.id,
-      decisionIntent: ProductizationSimulationDecisionIntent(
+      decisionIntent: ProductTournamentSimulationDecisionIntent(
         currentDecision: .keepGoing,
         targetDecision: .kill
       )
@@ -3568,7 +3568,7 @@ struct ProductizationLoopTests {
       scores: weakScores,
       currentAlternativeComparison: "The spreadsheet remained better.",
       scenarioID: scenario.id,
-      decisionIntent: ProductizationSimulationDecisionIntent(
+      decisionIntent: ProductTournamentSimulationDecisionIntent(
         currentDecision: .keepGoing,
         targetDecision: .promote
       )
@@ -4248,7 +4248,7 @@ private func makeDecisionAdvisorRecord(
   experiment: ProductExperiment,
   config: ProductizationConfig,
   personaID: String,
-  mode: ProductizationSimulationMode = .modelFree,
+  mode: ProductTournamentSimulationMode = .modelFree,
   endedAt: Double,
   verdict: ProductizationEvidenceVerdict,
   scores: ProductizationEvidenceScores,
@@ -4257,7 +4257,7 @@ private func makeDecisionAdvisorRecord(
   currentAlternativeComparison: String = "Compared against the current workflow.",
   scenarioID: String? = nil,
   personaActionRationales: [String] = [],
-  decisionIntent: ProductizationSimulationDecisionIntent? = nil
+  decisionIntent: ProductTournamentSimulationDecisionIntent? = nil
 ) -> ProductizationEvidenceRecord {
   let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
   return ProductizationEvidenceRecord(

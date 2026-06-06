@@ -431,7 +431,7 @@ struct ProductTournamentWorkbenchTab: View {
     .first
   }
 
-  private var factoryAutopilotCohortMode: ProductizationSimulationMode {
+  private var factoryAutopilotCohortMode: ProductTournamentSimulationMode {
     factoryAutopilotStep?.action.requiredSimulationMode
       ?? ProductFactoryAutopilotPlanner.cohortSimulationMode(
         isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
@@ -1565,7 +1565,7 @@ struct ProductTournamentWorkbenchTab: View {
               selectedRoundTwoBlockedMessage
                 ?? (FoundationModelsAvailability.isAvailable
                   ? "Run with an AI simulated user"
-                  : ProductizationPersonaActionModelError.unavailable.localizedDescription)
+                  : ProductTournamentPersonaActionModelError.unavailable.localizedDescription)
             )
           }
           HStack(spacing: 8) {
@@ -1598,7 +1598,7 @@ struct ProductTournamentWorkbenchTab: View {
               selectedRoundTwoBlockedMessage
                 ?? (FoundationModelsAvailability.isAvailable
                   ? "Run the cohort with AI simulated users"
-                  : ProductizationPersonaActionModelError.unavailable.localizedDescription)
+                  : ProductTournamentPersonaActionModelError.unavailable.localizedDescription)
             )
           }
         }
@@ -1825,7 +1825,7 @@ struct ProductTournamentWorkbenchTab: View {
                 selectedRoundTwoBlockedMessage
                   ?? (FoundationModelsAvailability.isAvailable
                     ? "Run the suggested cohort with AI simulated users."
-                    : ProductizationPersonaActionModelError.unavailable.localizedDescription)
+                    : ProductTournamentPersonaActionModelError.unavailable.localizedDescription)
               )
             }
           }
@@ -2525,7 +2525,7 @@ struct ProductTournamentWorkbenchTab: View {
     await runScenarioCohort(mode: .personaModel)
   }
 
-  private func runSuggestedCohort(mode: ProductizationSimulationMode) async {
+  private func runSuggestedCohort(mode: ProductTournamentSimulationMode) async {
     guard let action = selectedPMFNextAction,
       let cohortID = action.cohortID
     else { return }
@@ -3044,7 +3044,7 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private func runScenario(
-    mode: ProductizationSimulationMode,
+    mode: ProductTournamentSimulationMode,
     scenarioID: String? = nil,
     saveDraftFirst: Bool = true,
     targetDecision: ProductExperimentDecision? = nil
@@ -3087,7 +3087,7 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private func runScenarioCohort(
-    mode: ProductizationSimulationMode,
+    mode: ProductTournamentSimulationMode,
     cohortID: String? = nil,
     saveDraftFirst: Bool = true,
     targetDecision: ProductExperimentDecision? = nil
@@ -3253,7 +3253,7 @@ struct ProductTournamentWorkbenchTab: View {
 
   private func evidenceIntentSummary(
     _ summary: ProductizationEvidenceSummary,
-    intent: ProductizationSimulationDecisionIntent
+    intent: ProductTournamentSimulationDecisionIntent
   ) -> String {
     var parts = [
       "target_decision \(intent.targetDecision.rawValue)",

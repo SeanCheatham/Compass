@@ -707,7 +707,7 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
   var detail: String
   var priority: Int
   var cohortID: String?
-  var requiredSimulationMode: ProductizationSimulationMode?
+  var requiredSimulationMode: ProductTournamentSimulationMode?
   var targetPersonaID: String?
   var targetPersonaName: String?
   var targetScenarioID: String?
@@ -720,7 +720,7 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
     detail: String,
     priority: Int,
     cohortID: String? = nil,
-    requiredSimulationMode: ProductizationSimulationMode? = nil,
+    requiredSimulationMode: ProductTournamentSimulationMode? = nil,
     targetPersonaID: String? = nil,
     targetPersonaName: String? = nil,
     targetScenarioID: String? = nil,
@@ -990,7 +990,7 @@ struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiab
   var targetPersonaName: String?
   var targetScenarioID: String?
   var targetCohortID: String?
-  var requiredSimulationMode: ProductizationSimulationMode?
+  var requiredSimulationMode: ProductTournamentSimulationMode?
   var summary: String
 
   var urgencyScore: Int {
@@ -1066,7 +1066,7 @@ struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiab
     targetPersonaName: String? = nil,
     targetScenarioID: String? = nil,
     targetCohortID: String? = nil,
-    requiredSimulationMode: ProductizationSimulationMode? = nil,
+    requiredSimulationMode: ProductTournamentSimulationMode? = nil,
     summary: String
   ) {
     self.experimentID = ProductizationModelText.identifier(
@@ -1154,7 +1154,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
 
   private struct OutcomeSource: Equatable, Sendable {
     var summary: ProductizationEvidenceSummary
-    var intent: ProductizationSimulationDecisionIntent
+    var intent: ProductTournamentSimulationDecisionIntent
     var evaluation: ProductizationDecisionIntentEvaluation
 
     init?(_ summary: ProductizationEvidenceSummary) {
@@ -2094,7 +2094,7 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
   var targetPersonaID: String?
   var targetPersonaName: String?
   var targetDecision: ProductExperimentDecision?
-  var requiredSimulationMode: ProductizationSimulationMode?
+  var requiredSimulationMode: ProductTournamentSimulationMode?
 
   var urgencyScore: Int {
     (nextActionPriority * 1_000) + readinessScore
@@ -3568,7 +3568,7 @@ enum ProductFactoryCycleLearningAdvisor {
 enum ProductFactoryAutopilotPlanner {
   static func cohortSimulationMode(
     isPersonaModelAvailable: Bool
-  ) -> ProductizationSimulationMode {
+  ) -> ProductTournamentSimulationMode {
     isPersonaModelAvailable ? .personaModel : .modelFree
   }
 

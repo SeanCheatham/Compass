@@ -1,6 +1,6 @@
 import Foundation
 
-enum ProductizationSimulationMode: String, Codable, CaseIterable, Equatable, Sendable {
+enum ProductTournamentSimulationMode: String, Codable, CaseIterable, Equatable, Sendable {
   case modelFree = "model_free"
   case personaModel = "persona_model"
 
@@ -12,7 +12,7 @@ enum ProductizationSimulationMode: String, Codable, CaseIterable, Equatable, Sen
   }
 }
 
-enum ProductizationRunStatus: String, Codable, Equatable, Sendable {
+enum ProductTournamentRunStatus: String, Codable, Equatable, Sendable {
   case completed
   case appContractMissing
   case appCommandFailed
@@ -673,14 +673,14 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
   }
 }
 
-struct ProductizationRunFailure: Codable, Equatable, Sendable {
-  var status: ProductizationRunStatus
+struct ProductTournamentRunFailure: Codable, Equatable, Sendable {
+  var status: ProductTournamentRunStatus
   var message: String
   var stdout: String
   var stderr: String
 
   init(
-    status: ProductizationRunStatus,
+    status: ProductTournamentRunStatus,
     message: String,
     stdout: String = "",
     stderr: String = ""
@@ -765,10 +765,10 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   var commitSha: String
   var scenarioID: String
   var personaID: String
-  var mode: ProductizationSimulationMode
-  var decisionIntent: ProductizationSimulationDecisionIntent?
+  var mode: ProductTournamentSimulationMode
+  var decisionIntent: ProductTournamentSimulationDecisionIntent?
   var decisionIntentEvaluation: ProductizationDecisionIntentEvaluation?
-  var status: ProductizationRunStatus
+  var status: ProductTournamentRunStatus
   var startedAt: Double
   var endedAt: Double
   var traceHash: String?
@@ -787,7 +787,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   var sponsorshipIntent: String
   var verdict: ProductizationEvidenceVerdict
   var summary: String
-  var failure: ProductizationRunFailure?
+  var failure: ProductTournamentRunFailure?
 
   private enum CodingKeys: String, CodingKey {
     case id
@@ -845,16 +845,16 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
       commitSha: try container.decode(String.self, forKey: .commitSha),
       scenarioID: try container.decode(String.self, forKey: .scenarioID),
       personaID: try container.decode(String.self, forKey: .personaID),
-      mode: try container.decode(ProductizationSimulationMode.self, forKey: .mode),
+      mode: try container.decode(ProductTournamentSimulationMode.self, forKey: .mode),
       decisionIntent: try container.decodeIfPresent(
-        ProductizationSimulationDecisionIntent.self,
+        ProductTournamentSimulationDecisionIntent.self,
         forKey: .decisionIntent
       ),
       decisionIntentEvaluation: try container.decodeIfPresent(
         ProductizationDecisionIntentEvaluation.self,
         forKey: .decisionIntentEvaluation
       ),
-      status: try container.decode(ProductizationRunStatus.self, forKey: .status),
+      status: try container.decode(ProductTournamentRunStatus.self, forKey: .status),
       startedAt: try container.decode(Double.self, forKey: .startedAt),
       endedAt: try container.decode(Double.self, forKey: .endedAt),
       traceHash: try container.decodeIfPresent(String.self, forKey: .traceHash),
@@ -900,7 +900,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
         forKey: .verdict
       ) ?? .unclear,
       summary: try container.decodeIfPresent(String.self, forKey: .summary) ?? "No summary.",
-      failure: try container.decodeIfPresent(ProductizationRunFailure.self, forKey: .failure)
+      failure: try container.decodeIfPresent(ProductTournamentRunFailure.self, forKey: .failure)
     )
   }
 
@@ -918,10 +918,10 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     commitSha: String,
     scenarioID: String,
     personaID: String,
-    mode: ProductizationSimulationMode,
-    decisionIntent: ProductizationSimulationDecisionIntent? = nil,
+    mode: ProductTournamentSimulationMode,
+    decisionIntent: ProductTournamentSimulationDecisionIntent? = nil,
     decisionIntentEvaluation: ProductizationDecisionIntentEvaluation? = nil,
-    status: ProductizationRunStatus,
+    status: ProductTournamentRunStatus,
     startedAt: Double,
     endedAt: Double,
     traceHash: String? = nil,
@@ -940,7 +940,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     personaActionRationales: [String] = [],
     verdict: ProductizationEvidenceVerdict = .unclear,
     summary: String,
-    failure: ProductizationRunFailure? = nil
+    failure: ProductTournamentRunFailure? = nil
   ) {
     self.id = Self.cleanedIdentifier(id, fallback: "productization-run")
     self.schemaVersion = schemaVersion
@@ -992,7 +992,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   }
 
   init(
-    runResult: ProductizationRunResult,
+    runResult: ProductTournamentRunResult,
     tournamentScope: ProductTournamentEvidenceScope? = nil,
     id: String = UUID().uuidString,
     startedAt: Double,
@@ -1062,7 +1062,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   }
 
   private static func personaActionRationales(
-    from transcript: [ProductizationPersonaActionTranscriptEntry]
+    from transcript: [ProductTournamentPersonaActionTranscriptEntry]
   ) -> [String] {
     let lines = transcript.compactMap { entry -> String? in
       let rationale = StringUtils.boundedText(entry.rationale, limit: 260)
@@ -1076,8 +1076,8 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   }
 
   private static func derivedDecisionIntentEvaluation(
-    intent: ProductizationSimulationDecisionIntent?,
-    status: ProductizationRunStatus,
+    intent: ProductTournamentSimulationDecisionIntent?,
+    status: ProductTournamentRunStatus,
     verdict: ProductizationEvidenceVerdict,
     scores: ProductizationEvidenceScores,
     missingCapabilities: [String],
@@ -1262,7 +1262,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   }
 
   private static func derivedScores(
-    status: ProductizationRunStatus,
+    status: ProductTournamentRunStatus,
     signals: ProductizationPainReliefSignals?
   ) -> ProductizationEvidenceScores {
     guard status == .completed, let signals else {
@@ -1293,7 +1293,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   }
 
   private static func derivedWillingnessToPayScore(
-    status: ProductizationRunStatus,
+    status: ProductTournamentRunStatus,
     signals: ProductizationPainReliefSignals?
   ) -> Int? {
     guard status == .completed, let signals else { return nil }
@@ -1337,7 +1337,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
   }
 
   private static func derivedVerdict(
-    status: ProductizationRunStatus,
+    status: ProductTournamentRunStatus,
     signals: ProductizationPainReliefSignals?
   ) -> ProductizationEvidenceVerdict {
     guard status == .completed, let signals else { return .unclear }
@@ -1360,10 +1360,10 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
   var commitSha: String
   var scenarioID: String
   var personaID: String
-  var mode: ProductizationSimulationMode
-  var decisionIntent: ProductizationSimulationDecisionIntent?
+  var mode: ProductTournamentSimulationMode
+  var decisionIntent: ProductTournamentSimulationDecisionIntent?
   var decisionIntentEvaluation: ProductizationDecisionIntentEvaluation?
-  var status: ProductizationRunStatus
+  var status: ProductTournamentRunStatus
   var startedAt: Double
   var endedAt: Double
   var model: String
@@ -1426,16 +1426,16 @@ struct ProductizationEvidenceSummary: Codable, Equatable, Identifiable, Sendable
     commitSha = try container.decode(String.self, forKey: .commitSha)
     scenarioID = try container.decode(String.self, forKey: .scenarioID)
     personaID = try container.decode(String.self, forKey: .personaID)
-    mode = try container.decode(ProductizationSimulationMode.self, forKey: .mode)
+    mode = try container.decode(ProductTournamentSimulationMode.self, forKey: .mode)
     decisionIntent = try container.decodeIfPresent(
-      ProductizationSimulationDecisionIntent.self,
+      ProductTournamentSimulationDecisionIntent.self,
       forKey: .decisionIntent
     )
     decisionIntentEvaluation = try container.decodeIfPresent(
       ProductizationDecisionIntentEvaluation.self,
       forKey: .decisionIntentEvaluation
     )
-    status = try container.decode(ProductizationRunStatus.self, forKey: .status)
+    status = try container.decode(ProductTournamentRunStatus.self, forKey: .status)
     startedAt = try container.decode(Double.self, forKey: .startedAt)
     endedAt = try container.decode(Double.self, forKey: .endedAt)
     model = try container.decodeIfPresent(String.self, forKey: .model) ?? ""
@@ -1831,8 +1831,8 @@ struct ProductTournamentPlanEvaluationRecord: Codable, Equatable, Identifiable, 
   var personaName: String
   var currentWorkflowID: String?
   var alternativeID: String?
-  var mode: ProductizationSimulationMode
-  var status: ProductizationRunStatus
+  var mode: ProductTournamentSimulationMode
+  var status: ProductTournamentRunStatus
   var startedAt: Double
   var endedAt: Double
   var model: String
@@ -1849,7 +1849,7 @@ struct ProductTournamentPlanEvaluationRecord: Codable, Equatable, Identifiable, 
   var planRisks: [String]
   var promptVersions: [String]
   var summaryArtifactPath: String?
-  var failure: ProductizationRunFailure?
+  var failure: ProductTournamentRunFailure?
 
   init(
     id: String,
@@ -1865,8 +1865,8 @@ struct ProductTournamentPlanEvaluationRecord: Codable, Equatable, Identifiable, 
     personaName: String,
     currentWorkflowID: String? = nil,
     alternativeID: String? = nil,
-    mode: ProductizationSimulationMode = .modelFree,
-    status: ProductizationRunStatus = .completed,
+    mode: ProductTournamentSimulationMode = .modelFree,
+    status: ProductTournamentRunStatus = .completed,
     startedAt: Double,
     endedAt: Double,
     model: String = "model-free-plan-evaluator",
@@ -1883,7 +1883,7 @@ struct ProductTournamentPlanEvaluationRecord: Codable, Equatable, Identifiable, 
     planRisks: [String] = [],
     promptVersions: [String] = [],
     summaryArtifactPath: String? = nil,
-    failure: ProductizationRunFailure? = nil
+    failure: ProductTournamentRunFailure? = nil
   ) {
     self.id = ProductizationEvidenceRecord.cleanedIdentifier(
       id,
@@ -1969,8 +1969,8 @@ struct ProductTournamentPlanEvaluationSummary: Codable, Equatable, Identifiable,
   var painID: String
   var personaID: String
   var personaName: String
-  var mode: ProductizationSimulationMode
-  var status: ProductizationRunStatus
+  var mode: ProductTournamentSimulationMode
+  var status: ProductTournamentRunStatus
   var startedAt: Double
   var endedAt: Double
   var model: String
@@ -2178,7 +2178,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
   var missingCapabilityFrequency: [ProductizationMissingCapabilityCount]
   var verdictCounts: [String: Int]
   var failuresByKind: [String: Int]
-  var personaRationaleSignals: [ProductizationPersonaRationaleSignal]
+  var personaRationaleSignals: [ProductTournamentPersonaRationaleSignal]
   var currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary]
   var decisionIntentOutcomes: [ProductizationDecisionIntentOutcomeCount]
 
@@ -2207,7 +2207,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
     missingCapabilityFrequency: [ProductizationMissingCapabilityCount],
     verdictCounts: [String: Int],
     failuresByKind: [String: Int],
-    personaRationaleSignals: [ProductizationPersonaRationaleSignal] = [],
+    personaRationaleSignals: [ProductTournamentPersonaRationaleSignal] = [],
     currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary],
     decisionIntentOutcomes: [ProductizationDecisionIntentOutcomeCount] = []
   ) {
@@ -2265,7 +2265,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
         forKey: .failuresByKind
       ) ?? [:],
       personaRationaleSignals: try container.decodeIfPresent(
-        [ProductizationPersonaRationaleSignal].self,
+        [ProductTournamentPersonaRationaleSignal].self,
         forKey: .personaRationaleSignals
       ) ?? [],
       currentAlternativeComparisons: try container.decodeIfPresent(
@@ -2378,7 +2378,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
     let rationaleGroups = Dictionary(
       grouping: summaries.flatMap { summary in
         summary.personaActionRationales.map { rationale in
-          ProductizationPersonaRationaleSignalSource(summary: summary, rationale: rationale)
+          ProductTournamentPersonaRationaleSignalSource(summary: summary, rationale: rationale)
         }
       },
       by: { Self.personaRationaleSignalText($0.rationale) }
@@ -2387,7 +2387,7 @@ struct ProductizationEvidenceAggregateSummary: Codable, Equatable, Sendable {
       rationaleGroups
       .filter { !$0.key.isEmpty && $0.value.count > 1 }
       .map { rationale, sources in
-        ProductizationPersonaRationaleSignal(
+        ProductTournamentPersonaRationaleSignal(
           rationale: rationale,
           count: sources.count,
           runIDs: sources.map(\.summary.runID),
@@ -2480,7 +2480,7 @@ struct ProductizationMissingCapabilityCount: Codable, Equatable, Sendable {
   var count: Int
 }
 
-struct ProductizationPersonaRationaleSignal: Codable, Equatable, Sendable {
+struct ProductTournamentPersonaRationaleSignal: Codable, Equatable, Sendable {
   var rationale: String
   var count: Int
   var runIDs: [String]
@@ -2511,7 +2511,7 @@ struct ProductizationPersonaRationaleSignal: Codable, Equatable, Sendable {
   }
 }
 
-private struct ProductizationPersonaRationaleSignalSource {
+private struct ProductTournamentPersonaRationaleSignalSource {
   var summary: ProductizationEvidenceSummary
   var rationale: String
 }
@@ -2553,7 +2553,7 @@ struct ProductizationDecisionIntentOutcomeCount: Codable, Equatable, Sendable {
 
 private struct ProductizationDecisionIntentOutcomeSource {
   var summary: ProductizationEvidenceSummary
-  var intent: ProductizationSimulationDecisionIntent
+  var intent: ProductTournamentSimulationDecisionIntent
   var evaluation: ProductizationDecisionIntentEvaluation
 
   init?(_ summary: ProductizationEvidenceSummary) {
@@ -2931,7 +2931,7 @@ enum ProductizationEvidenceMarkdownExporter {
   }
 
   private static func decisionIntentLine(
-    _ intent: ProductizationSimulationDecisionIntent
+    _ intent: ProductTournamentSimulationDecisionIntent
   ) -> String {
     var parts = [
       "target_decision \(intent.targetDecision.rawValue)",

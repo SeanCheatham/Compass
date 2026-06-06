@@ -78,8 +78,8 @@ struct ProductScenarioDraft: Equatable, Sendable {
 }
 
 struct ProductTournamentScenarioRunOutcome {
-  var request: ProductizationSimulationRequest
-  var result: ProductizationRunResult
+  var request: ProductTournamentSimulationRequest
+  var result: ProductTournamentRunResult
   var record: ProductizationEvidenceRecord
   var workingDirectory: URL
 
@@ -110,7 +110,7 @@ struct ProductTournamentScenarioRunOutcome {
 struct ProductTournamentScenarioCohortRunOutcome {
   var experimentID: String
   var cohortID: String
-  var mode: ProductizationSimulationMode
+  var mode: ProductTournamentSimulationMode
   var outcomes: [ProductTournamentScenarioRunOutcome]
   var skippedScenarioIDs: [String]
 
@@ -424,9 +424,9 @@ enum ProductTournamentScenarioCoordinator {
     generatedAppWorkingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
-    mode: ProductizationSimulationMode = .modelFree,
+    mode: ProductTournamentSimulationMode = .modelFree,
     targetDecision: ProductExperimentDecision? = nil
-  ) async throws -> ProductizationSimulationRequest {
+  ) async throws -> ProductTournamentSimulationRequest {
     guard let experiment = config.experiments.first(where: { $0.id == experimentID }) else {
       throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
@@ -481,7 +481,7 @@ enum ProductTournamentScenarioCoordinator {
         actual: actualHead
       )
     }
-    return ProductizationSimulationRequest(
+    return ProductTournamentSimulationRequest(
       projectID: projectID,
       projectTitle: projectTitle,
       pain: pain,
@@ -565,8 +565,8 @@ enum ProductTournamentScenarioCoordinator {
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
-    personaSelector: ProductizationPersonaActionSelecting =
-      ProductizationFoundationModelsPersonaSelector(),
+    personaSelector: ProductTournamentPersonaActionSelecting =
+      ProductTournamentFoundationModelsPersonaSelector(),
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioRunOutcome {
@@ -622,8 +622,8 @@ enum ProductTournamentScenarioCoordinator {
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
-    personaSelector: ProductizationPersonaActionSelecting =
-      ProductizationFoundationModelsPersonaSelector(),
+    personaSelector: ProductTournamentPersonaActionSelecting =
+      ProductTournamentFoundationModelsPersonaSelector(),
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioCohortRunOutcome {
@@ -651,9 +651,9 @@ enum ProductTournamentScenarioCoordinator {
     projectTitle: String,
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
-    mode: ProductizationSimulationMode,
+    mode: ProductTournamentSimulationMode,
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
-    personaSelector: ProductizationPersonaActionSelecting? = nil,
+    personaSelector: ProductTournamentPersonaActionSelecting? = nil,
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioCohortRunOutcome {
@@ -712,9 +712,9 @@ enum ProductTournamentScenarioCoordinator {
     projectTitle: String,
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
-    mode: ProductizationSimulationMode,
+    mode: ProductTournamentSimulationMode,
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
-    personaSelector: ProductizationPersonaActionSelecting? = nil,
+    personaSelector: ProductTournamentPersonaActionSelecting? = nil,
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioRunOutcome {
@@ -825,7 +825,7 @@ enum ProductTournamentScenarioCoordinator {
   }
 
   private static func transcriptJSONL(
-    _ transcript: [ProductizationPersonaActionTranscriptEntry]
+    _ transcript: [ProductTournamentPersonaActionTranscriptEntry]
   ) throws -> String? {
     guard !transcript.isEmpty else { return nil }
     let encoder = JSONEncoder()
@@ -895,7 +895,7 @@ extension CompassProject {
     targetDecision: ProductExperimentDecision? = nil
   ) async -> ProductTournamentScenarioRunOutcome? {
     guard FoundationModelsAvailability.isAvailable else {
-      fail(ProductizationPersonaActionModelError.unavailable)
+      fail(ProductTournamentPersonaActionModelError.unavailable)
       return nil
     }
     return await runProductTournamentScenario(
@@ -925,7 +925,7 @@ extension CompassProject {
     targetDecision: ProductExperimentDecision? = nil
   ) async -> ProductTournamentScenarioCohortRunOutcome? {
     guard FoundationModelsAvailability.isAvailable else {
-      fail(ProductizationPersonaActionModelError.unavailable)
+      fail(ProductTournamentPersonaActionModelError.unavailable)
       return nil
     }
     return await runProductTournamentScenarioCohort(
@@ -939,7 +939,7 @@ extension CompassProject {
   private func runProductTournamentScenario(
     experimentID: String,
     scenarioID: String,
-    mode: ProductizationSimulationMode,
+    mode: ProductTournamentSimulationMode,
     targetDecision: ProductExperimentDecision?
   ) async -> ProductTournamentScenarioRunOutcome? {
     do {
@@ -956,8 +956,8 @@ extension CompassProject {
         for: experiment,
         in: workspace
       )
-      let personaSelector: ProductizationPersonaActionSelecting? =
-        mode == .personaModel ? ProductizationFoundationModelsPersonaSelector() : nil
+      let personaSelector: ProductTournamentPersonaActionSelecting? =
+        mode == .personaModel ? ProductTournamentFoundationModelsPersonaSelector() : nil
       let outcome = try await ProductTournamentScenarioCoordinator.run(
         experimentID: experimentID,
         scenarioID: scenarioID,
@@ -982,7 +982,7 @@ extension CompassProject {
   private func runProductTournamentScenarioCohort(
     experimentID: String,
     cohortID: String,
-    mode: ProductizationSimulationMode,
+    mode: ProductTournamentSimulationMode,
     targetDecision: ProductExperimentDecision?
   ) async -> ProductTournamentScenarioCohortRunOutcome? {
     do {
@@ -999,8 +999,8 @@ extension CompassProject {
         for: experiment,
         in: workspace
       )
-      let personaSelector: ProductizationPersonaActionSelecting? =
-        mode == .personaModel ? ProductizationFoundationModelsPersonaSelector() : nil
+      let personaSelector: ProductTournamentPersonaActionSelecting? =
+        mode == .personaModel ? ProductTournamentFoundationModelsPersonaSelector() : nil
       let outcome = try await ProductTournamentScenarioCoordinator.runCohort(
         experimentID: experimentID,
         cohortID: cohortID,

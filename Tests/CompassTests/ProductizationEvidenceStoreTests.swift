@@ -109,7 +109,7 @@ struct ProductizationEvidenceStoreTests {
     config.experiments[0].decision = .keepGoing
     config.experiments[0].currentSha = "abc123"
     let experiment = config.experiments[0]
-    let intent = ProductizationSimulationDecisionIntent(
+    let intent = ProductTournamentSimulationDecisionIntent(
       currentDecision: .keepGoing,
       targetDecision: .promote
     )
@@ -175,11 +175,11 @@ struct ProductizationEvidenceStoreTests {
       switchingReadiness: 1,
       continuedUsePull: 1
     )
-    let promoteIntent = ProductizationSimulationDecisionIntent(
+    let promoteIntent = ProductTournamentSimulationDecisionIntent(
       currentDecision: .keepGoing,
       targetDecision: .promote
     )
-    let killIntent = ProductizationSimulationDecisionIntent(
+    let killIntent = ProductTournamentSimulationDecisionIntent(
       currentDecision: .keepGoing,
       targetDecision: .kill
     )
@@ -250,7 +250,7 @@ struct ProductizationEvidenceStoreTests {
       endedAt: 150,
       verdict: .rejected,
       missingCapabilities: ["runtime"],
-      failure: ProductizationRunFailure(
+      failure: ProductTournamentRunFailure(
         status: .appCommandFailed,
         message: "cargo failed"
       )
@@ -866,9 +866,9 @@ private func makeEvidenceRecord(
   commitSha: String = "abc123",
   scenarioID: String = "scenario-one",
   personaID: String = "segment-one",
-  mode: ProductizationSimulationMode = .modelFree,
-  decisionIntent: ProductizationSimulationDecisionIntent? = nil,
-  status: ProductizationRunStatus = .completed,
+  mode: ProductTournamentSimulationMode = .modelFree,
+  decisionIntent: ProductTournamentSimulationDecisionIntent? = nil,
+  status: ProductTournamentRunStatus = .completed,
   startedAt: Double = 10,
   endedAt: Double = 20,
   verdict: ProductizationEvidenceVerdict = .promising,
@@ -883,7 +883,7 @@ private func makeEvidenceRecord(
     switchingReadiness: 2,
     continuedUsePull: 3
   ),
-  failure: ProductizationRunFailure? = nil
+  failure: ProductTournamentRunFailure? = nil
 ) -> ProductizationEvidenceRecord {
   ProductizationEvidenceRecord(
     id: id,
@@ -900,7 +900,7 @@ private func makeEvidenceRecord(
     startedAt: startedAt,
     endedAt: endedAt,
     traceHash: "trace-\(id)",
-    promptVersions: ["productization.persona_action.v1"],
+    promptVersions: ["product_tournament.persona_action.v1"],
     model: mode == .modelFree ? "model-free" : "gpt-test",
     scores: scores,
     objections: objections,

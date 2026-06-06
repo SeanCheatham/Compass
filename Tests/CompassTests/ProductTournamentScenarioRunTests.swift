@@ -597,7 +597,7 @@ private final class MockScenarioExperienceAppRunner: ProductTournamentExperience
   }
 }
 
-private final class ScriptedScenarioPersonaSelector: ProductizationPersonaActionSelecting {
+private final class ScriptedScenarioPersonaSelector: ProductTournamentPersonaActionSelecting {
   private var actionIDs: [String]
 
   init(actionIDs: [String]) {
@@ -605,9 +605,9 @@ private final class ScriptedScenarioPersonaSelector: ProductizationPersonaAction
   }
 
   func chooseAction(
-    context: ProductizationPersonaActionContext
-  ) async throws -> ProductizationPersonaActionChoice {
-    ProductizationPersonaActionChoice(
+    context: ProductTournamentPersonaActionContext
+  ) async throws -> ProductTournamentPersonaActionChoice {
+    ProductTournamentPersonaActionChoice(
       promptVersionID: "test.persona_action",
       action: ProductTournamentExperienceAction(id: actionIDs.removeFirst()),
       rationale: "Scripted target user action.",
@@ -616,9 +616,9 @@ private final class ScriptedScenarioPersonaSelector: ProductizationPersonaAction
   }
 
   func repairAction(
-    context: ProductizationPersonaActionRepairContext
-  ) async throws -> ProductizationPersonaActionChoice {
-    ProductizationPersonaActionChoice(
+    context: ProductTournamentPersonaActionRepairContext
+  ) async throws -> ProductTournamentPersonaActionChoice {
+    ProductTournamentPersonaActionChoice(
       promptVersionID: "test.persona_repair",
       action: ProductTournamentExperienceAction(id: context.allowedActionIDs[0]),
       rationale: "Scripted repair action.",
