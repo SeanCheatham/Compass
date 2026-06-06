@@ -330,7 +330,7 @@ private struct RoundThreeFixture {
   var contender: ProductTournamentContender
   var losingContender: ProductTournamentContender
   var experiment: ProductTournamentExperiment
-  var hypothesis: ProductTournamentContenderPlan
+  var contenderPlan: ProductTournamentContenderPlan
 }
 
 private func roundThreeFixture() throws -> RoundThreeFixture {
@@ -347,7 +347,7 @@ private func roundThreeFixture() throws -> RoundThreeFixture {
   let losingContender = try #require(config.tournamentContenders.dropFirst().first)
   let experimentID = try #require(contender.experimentID)
   let experiment = try #require(config.tournamentExperiments.first { $0.id == experimentID })
-  let hypothesis = try #require(
+  let contenderPlan = try #require(
     config.contenderPlans.first { $0.id == contender.contenderPlanID })
 
   config.tournaments[0].currentRoundID = prototypeRound.id
@@ -373,7 +373,7 @@ private func roundThreeFixture() throws -> RoundThreeFixture {
     contender: contender,
     losingContender: losingContender,
     experiment: experiment,
-    hypothesis: hypothesis
+    contenderPlan: contenderPlan
   )
 }
 
@@ -397,7 +397,7 @@ private func prototypeEvidenceRecords(
       id: "\(fixture.contender.id)-round-3-\(index)",
       experimentID: fixture.experiment.id,
       contenderPlanID: fixture.contender.contenderPlanID,
-      painID: fixture.hypothesis.painID,
+      painID: fixture.contenderPlan.painID,
       tournamentID: fixture.tournament.id,
       roundID: fixture.prototypeRound.id,
       contenderID: fixture.contender.id,

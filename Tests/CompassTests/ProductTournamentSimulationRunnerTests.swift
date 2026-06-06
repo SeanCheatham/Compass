@@ -366,7 +366,7 @@ private func makeTournamentRequest(
     now: Date(timeIntervalSince1970: 1_700_000_000)
   )
   let pain = config.painHypotheses[0]
-  let hypothesis = config.contenderPlans[0]
+  let contenderPlan = config.contenderPlans[0]
   let contender = config.tournamentContenders[0]
   var experiment = config.tournamentExperiments[0]
   experiment.currentSha = "abc123"
@@ -382,7 +382,7 @@ private func makeTournamentRequest(
     currentWorkflow: workflow,
     alternatives: config.alternatives,
     contender: contender,
-    contenderPlan: hypothesis,
+    contenderPlan: contenderPlan,
     experiment: experiment,
     scenarioID: "scenario-reporting",
     scenarioTask: "Try the reporting helper against the weekly manual export.",

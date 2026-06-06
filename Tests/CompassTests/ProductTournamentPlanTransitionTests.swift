@@ -211,7 +211,7 @@ private func strongNonBuyerRecords(
   round: ProductTournamentRound,
   config: ProductTournamentConfig
 ) throws -> [ProductTournamentPlanEvaluationRecord] {
-  let hypothesis = try #require(
+  let contenderPlan = try #require(
     config.contenderPlans.first { $0.id == contender.contenderPlanID })
   return [
     ProductTournamentPlanEvaluationRecord(
@@ -221,7 +221,7 @@ private func strongNonBuyerRecords(
       contenderID: contender.id,
       contenderPlanID: contender.contenderPlanID,
       experimentID: contender.experimentID,
-      painID: hypothesis.painID,
+      painID: contenderPlan.painID,
       personaID: "operator-a",
       personaName: "Operations lead",
       startedAt: 0,
@@ -247,7 +247,7 @@ private func strongNonBuyerRecords(
       contenderID: contender.id,
       contenderPlanID: contender.contenderPlanID,
       experimentID: contender.experimentID,
-      painID: hypothesis.painID,
+      painID: contenderPlan.painID,
       personaID: "operator-b",
       personaName: "Reporting coordinator",
       startedAt: 2,
@@ -320,7 +320,7 @@ private func records(
   missingCapabilities: [String] = [],
   summary: String
 ) throws -> [ProductTournamentPlanEvaluationRecord] {
-  let hypothesis = try #require(
+  let contenderPlan = try #require(
     config.contenderPlans.first { $0.id == contender.contenderPlanID })
   let segments = config.userSegments.prefix(2)
   return segments.enumerated().map { index, segment in
@@ -331,7 +331,7 @@ private func records(
       contenderID: contender.id,
       contenderPlanID: contender.contenderPlanID,
       experimentID: contender.experimentID,
-      painID: hypothesis.painID,
+      painID: contenderPlan.painID,
       personaID: segment.id,
       personaName: segment.name,
       startedAt: Double(index),

@@ -4892,7 +4892,7 @@ private func makePlanProofRecord(
   config: ProductTournamentConfig,
   segment: UserSegment
 ) throws -> ProductTournamentPlanEvaluationRecord {
-  let hypothesis = try #require(
+  let contenderPlan = try #require(
     config.contenderPlans.first { $0.id == contender.contenderPlanID })
   return ProductTournamentPlanEvaluationRecord(
     id: id,
@@ -4901,7 +4901,7 @@ private func makePlanProofRecord(
     contenderID: contender.id,
     contenderPlanID: contender.contenderPlanID,
     experimentID: contender.experimentID,
-    painID: hypothesis.painID,
+    painID: contenderPlan.painID,
     personaID: segment.id,
     personaName: segment.name,
     currentWorkflowID: segment.currentWorkflowIDs.first,
@@ -5102,12 +5102,12 @@ private func makeDecisionAdvisorRecord(
   willingnessToPayScore: Int? = nil,
   sponsorshipIntent: String = ""
 ) -> ProductTournamentEvidenceRecord {
-  let hypothesis = config.contenderPlans.first { $0.id == experiment.contenderPlanID }
+  let contenderPlan = config.contenderPlans.first { $0.id == experiment.contenderPlanID }
   return ProductTournamentEvidenceRecord(
     id: id,
     experimentID: experiment.id,
     contenderPlanID: experiment.contenderPlanID,
-    painID: hypothesis?.painID ?? config.painHypotheses.first?.id ?? "pain",
+    painID: contenderPlan?.painID ?? config.painHypotheses.first?.id ?? "pain",
     tournamentID: tournamentID,
     roundID: roundID,
     contenderID: contenderID,

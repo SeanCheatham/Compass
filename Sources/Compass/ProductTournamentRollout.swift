@@ -547,9 +547,9 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     for experiment: ProductTournamentExperiment,
     in config: ProductTournamentConfig
   ) -> String {
-    let hypothesis = config.contenderPlans.first { $0.id == experiment.contenderPlanID }
+    let contenderPlan = config.contenderPlans.first { $0.id == experiment.contenderPlanID }
     let slug = ProductTournamentModelText.slug(
-      hypothesis?.title ?? experiment.contenderPlanID,
+      contenderPlan?.title ?? experiment.contenderPlanID,
       fallback: experiment.contenderPlanID
     )
     return "compass/archive/\(slug)"

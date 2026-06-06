@@ -958,23 +958,23 @@ struct ProductTournamentWorkbenchTab: View {
           }
         }
 
-        WorkbenchSection("Product Hypotheses", systemImage: "lightbulb") {
+        WorkbenchSection("Contender Plans", systemImage: "lightbulb") {
           VStack(alignment: .leading, spacing: 8) {
             if config.contenderPlans.isEmpty {
               WorkbenchEmptyLine("No contender plans yet.")
             } else {
               ForEach(ProductTournamentContenderPlanStatus.allCases, id: \.rawValue) { status in
-                let hypotheses = config.contenderPlans.filter { $0.status == status }
-                if !hypotheses.isEmpty {
+                let contenderPlans = config.contenderPlans.filter { $0.status == status }
+                if !contenderPlans.isEmpty {
                   VStack(alignment: .leading, spacing: 6) {
                     Text(status.rawValue)
                       .font(.caption.weight(.semibold))
                       .foregroundStyle(.secondary)
-                    ForEach(hypotheses) { hypothesis in
+                    ForEach(contenderPlans) { contenderPlan in
                       WorkbenchValueBlock(
-                        title: hypothesis.title,
-                        subtitle: "pain \(hypothesis.painID)",
-                        detail: hypothesis.promise
+                        title: contenderPlan.title,
+                        subtitle: "pain \(contenderPlan.painID)",
+                        detail: contenderPlan.promise
                       )
                     }
                   }

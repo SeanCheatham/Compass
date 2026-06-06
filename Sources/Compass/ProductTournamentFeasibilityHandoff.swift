@@ -84,7 +84,7 @@ enum ProductTournamentFeasibilityAdvisor {
       guard
         let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
         contender.status == .narrowed || contender.status == .needsRevision,
-        let hypothesis = config.contenderPlans.first(where: { $0.id == contender.contenderPlanID }),
+        let contenderPlan = config.contenderPlans.first(where: { $0.id == contender.contenderPlanID }),
         let experimentID = contender.experimentID,
         let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
       else { return nil }
@@ -94,15 +94,15 @@ enum ProductTournamentFeasibilityAdvisor {
       }
       let scenarioCohortIDs =
         round.scenarioCohortIDs.isEmpty ? experiment.scenarioCohortIDs : round.scenarioCohortIDs
-      let acceptanceSignals = acceptanceSignals(for: round, hypothesis: hypothesis)
+      let acceptanceSignals = acceptanceSignals(for: round, contenderPlan: contenderPlan)
       return ProductTournamentFeasibilityHandoff(
         tournamentID: tournament.id,
         roundID: round.id,
         roundTitle: round.title,
         contenderID: contender.id,
         contenderTitle: contender.title,
-        contenderPlanID: hypothesis.id,
-        contenderPlanTitle: hypothesis.title,
+        contenderPlanID: contenderPlan.id,
+        contenderPlanTitle: contenderPlan.title,
         experimentID: experiment.id,
         experimentTitle: experiment.title,
         branchName: experiment.branchName,
@@ -114,7 +114,7 @@ enum ProductTournamentFeasibilityAdvisor {
         feasibilityGoal: round.goal,
         coreTechnologyProof: coreTechnologyProof(
           contender: contender,
-          hypothesis: hypothesis,
+          contenderPlan: contenderPlan,
           experiment: experiment,
           round: round
         ),
@@ -158,11 +158,11 @@ enum ProductTournamentFeasibilityAdvisor {
 
   private static func acceptanceSignals(
     for round: ProductTournamentRound,
-    hypothesis: ProductTournamentContenderPlan
+    contenderPlan: ProductTournamentContenderPlan
   ) -> [String] {
     let signals =
       round.evaluationFocus
-      + hypothesis.requiredProof
+      + contenderPlan.requiredProof
       + [
         "The core technology proves the hard part before Round 3 prototype polish.",
         "The surviving contender is tested against the current workaround.",
@@ -172,11 +172,11 @@ enum ProductTournamentFeasibilityAdvisor {
 
   private static func coreTechnologyProof(
     contender: ProductTournamentContender,
-    hypothesis: ProductTournamentContenderPlan,
+    contenderPlan: ProductTournamentContenderPlan,
     experiment: ProductTournamentExperiment,
     round: ProductTournamentRound
   ) -> String {
-    let proof = hypothesis.requiredProof.first ?? round.evaluationFocus.first ?? round.goal
+    let proof = contenderPlan.requiredProof.first ?? round.evaluationFocus.first ?? round.goal
     return StringUtils.boundedText(
       "Build only \(experiment.title) for \(contender.title): \(experiment.prototypeScope). Prove \(proof) before adding Round 3 fidelity.",
       limit: 360

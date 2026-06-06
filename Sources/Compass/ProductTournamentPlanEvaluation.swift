@@ -313,8 +313,8 @@ enum ProductTournamentPlanEvaluator {
         skippedContenderIDs.append(contender.id)
         continue
       }
-      let hypothesis = try hypothesis(for: contender, config: config)
-      let pain = try pain(for: hypothesis, config: config)
+      let contenderPlan = try contenderPlan(for: contender, config: config)
+      let pain = try pain(for: contenderPlan, config: config)
       let plan = evaluationPlan(
         for: contender,
         pain: pain,
@@ -339,7 +339,7 @@ enum ProductTournamentPlanEvaluator {
           tournament: tournament,
           round: round,
           contender: contender,
-          hypothesis: hypothesis,
+          contenderPlan: contenderPlan,
           pain: pain,
           segment: segment,
           currentWorkflow: workflow,
@@ -412,8 +412,8 @@ enum ProductTournamentPlanEvaluator {
         skippedContenderIDs.append(contender.id)
         continue
       }
-      let hypothesis = try hypothesis(for: contender, config: config)
-      let pain = try pain(for: hypothesis, config: config)
+      let contenderPlan = try contenderPlan(for: contender, config: config)
+      let pain = try pain(for: contenderPlan, config: config)
       let plan = evaluationPlan(
         for: contender,
         pain: pain,
@@ -438,7 +438,7 @@ enum ProductTournamentPlanEvaluator {
           tournament: tournament,
           round: round,
           contender: contender,
-          hypothesis: hypothesis,
+          contenderPlan: contenderPlan,
           pain: pain,
           segment: segment,
           currentWorkflow: workflow,
@@ -622,7 +622,7 @@ enum ProductTournamentPlanEvaluator {
     tournament: ProductTournament,
     round: ProductTournamentRound,
     contender: ProductTournamentContender,
-    hypothesis: ProductTournamentContenderPlan,
+    contenderPlan: ProductTournamentContenderPlan,
     pain: PainHypothesis,
     segment: UserSegment,
     currentWorkflow: CurrentWorkflow?,
@@ -636,11 +636,11 @@ enum ProductTournamentPlanEvaluator {
       contender.productPlan,
       contender.valueProposition,
       contender.primaryRisk,
-      hypothesis.promise,
-      hypothesis.contenderPlan,
-      hypothesis.differentiator,
-      hypothesis.whyThisCouldWin,
-      hypothesis.requiredProof.joined(separator: " "),
+      contenderPlan.promise,
+      contenderPlan.contenderPlan,
+      contenderPlan.differentiator,
+      contenderPlan.whyThisCouldWin,
+      contenderPlan.requiredProof.joined(separator: " "),
     ].joined(separator: " ")
     let commercialSignals = ProductTournamentPlanCommercialSignals(text: text)
 
@@ -714,7 +714,7 @@ enum ProductTournamentPlanEvaluator {
       willingnessToPay: willingnessToPay
     )
     let missingCapabilities = missingCapabilities(
-      hypothesis: hypothesis,
+      contenderPlan: contenderPlan,
       workflowImprovement: workflowImprovement,
       alternativeAdvantage: alternativeAdvantage
     )
@@ -743,7 +743,7 @@ enum ProductTournamentPlanEvaluator {
       tournamentID: tournament.id,
       roundID: round.id,
       contenderID: contender.id,
-      contenderPlanID: hypothesis.id,
+      contenderPlanID: contenderPlan.id,
       experimentID: contender.experimentID,
       painID: pain.id,
       personaID: segment.id,
@@ -771,10 +771,10 @@ enum ProductTournamentPlanEvaluator {
       ),
       planStrengths: planStrengths(
         contender: contender,
-        hypothesis: hypothesis,
+        contenderPlan: contenderPlan,
         commercialSignals: commercialSignals
       ),
-      planRisks: planRisks(contender: contender, hypothesis: hypothesis),
+      planRisks: planRisks(contender: contender, contenderPlan: contenderPlan),
       promptVersions: [promptVersionID]
     )
   }
@@ -783,7 +783,7 @@ enum ProductTournamentPlanEvaluator {
     tournament: ProductTournament,
     round: ProductTournamentRound,
     contender: ProductTournamentContender,
-    hypothesis: ProductTournamentContenderPlan,
+    contenderPlan: ProductTournamentContenderPlan,
     pain: PainHypothesis,
     segment: UserSegment,
     currentWorkflow: CurrentWorkflow?,
@@ -797,7 +797,7 @@ enum ProductTournamentPlanEvaluator {
       tournament: tournament,
       round: round,
       contender: contender,
-      hypothesis: hypothesis,
+      contenderPlan: contenderPlan,
       pain: pain,
       segment: segment,
       currentWorkflow: currentWorkflow,
@@ -812,7 +812,7 @@ enum ProductTournamentPlanEvaluator {
           tournament: tournament,
           round: round,
           contender: contender,
-          hypothesis: hypothesis,
+          contenderPlan: contenderPlan,
           pain: pain,
           segment: segment,
           currentWorkflow: currentWorkflow,
@@ -873,7 +873,7 @@ enum ProductTournamentPlanEvaluator {
       tournamentID: tournament.id,
       roundID: round.id,
       contenderID: contender.id,
-      contenderPlanID: hypothesis.id,
+      contenderPlanID: contenderPlan.id,
       experimentID: contender.experimentID,
       painID: pain.id,
       personaID: segment.id,
@@ -915,7 +915,7 @@ enum ProductTournamentPlanEvaluator {
     tournament: ProductTournament,
     round: ProductTournamentRound,
     contender: ProductTournamentContender,
-    hypothesis: ProductTournamentContenderPlan,
+    contenderPlan: ProductTournamentContenderPlan,
     pain: PainHypothesis,
     segment: UserSegment,
     currentWorkflow: CurrentWorkflow?,
@@ -937,7 +937,7 @@ enum ProductTournamentPlanEvaluator {
     let criteria = segment.decisionCriteria.joined(separator: "; ")
     let goals = segment.goals.joined(separator: "; ")
     let constraints = segment.constraints.joined(separator: "; ")
-    let requiredProof = hypothesis.requiredProof.joined(separator: "; ")
+    let requiredProof = contenderPlan.requiredProof.joined(separator: "; ")
     return """
       Evaluate a Round 1 Product Tournament plan without assuming any built product exists.
       Simulate the target persona as a skeptical user or buyer deciding whether this
@@ -958,8 +958,8 @@ enum ProductTournamentPlanEvaluator {
       Plan: \(bounded(contender.productPlan, 900)).
       Value proposition: \(bounded(contender.valueProposition, 500)).
       Primary risk: \(bounded(contender.primaryRisk, 400)).
-      Contender plan promise: \(bounded(hypothesis.promise, 500)).
-      Differentiator: \(bounded(hypothesis.differentiator, 500)).
+      Contender plan promise: \(bounded(contenderPlan.promise, 500)).
+      Differentiator: \(bounded(contenderPlan.differentiator, 500)).
       Required proof: \(bounded(requiredProof, 500)).
       Baseline deterministic scorecard: pain \(baseline.scores.painRecognition ?? 0),
       workflow \(baseline.scores.workflowImprovement ?? 0),
@@ -1111,23 +1111,23 @@ enum ProductTournamentPlanEvaluator {
     return selected
   }
 
-  private static func hypothesis(
+  private static func contenderPlan(
     for contender: ProductTournamentContender,
     config: ProductTournamentConfig
   ) throws -> ProductTournamentContenderPlan {
-    guard let hypothesis = config.contenderPlans.first(where: { $0.id == contender.contenderPlanID })
+    guard let contenderPlan = config.contenderPlans.first(where: { $0.id == contender.contenderPlanID })
     else {
       throw ProductTournamentPlanEvaluationError.unknownContenderPlan(contender.contenderPlanID)
     }
-    return hypothesis
+    return contenderPlan
   }
 
   private static func pain(
-    for hypothesis: ProductTournamentContenderPlan,
+    for contenderPlan: ProductTournamentContenderPlan,
     config: ProductTournamentConfig
   ) throws -> PainHypothesis {
-    guard let pain = config.painHypotheses.first(where: { $0.id == hypothesis.painID }) else {
-      throw ProductTournamentPlanEvaluationError.unknownPain(hypothesis.painID)
+    guard let pain = config.painHypotheses.first(where: { $0.id == contenderPlan.painID }) else {
+      throw ProductTournamentPlanEvaluationError.unknownPain(contenderPlan.painID)
     }
     return pain
   }
@@ -1299,7 +1299,7 @@ enum ProductTournamentPlanEvaluator {
   }
 
   private static func missingCapabilities(
-    hypothesis: ProductTournamentContenderPlan,
+    contenderPlan: ProductTournamentContenderPlan,
     workflowImprovement: Int,
     alternativeAdvantage: Int
   ) -> [String] {
@@ -1310,7 +1310,7 @@ enum ProductTournamentPlanEvaluator {
     if alternativeAdvantage <= 2 {
       missing.append("current_alternative_proof")
     }
-    if hypothesis.requiredProof.isEmpty {
+    if contenderPlan.requiredProof.isEmpty {
       missing.append("required_proof")
     }
     return missing
@@ -1365,10 +1365,10 @@ enum ProductTournamentPlanEvaluator {
 
   private static func planStrengths(
     contender: ProductTournamentContender,
-    hypothesis: ProductTournamentContenderPlan,
+    contenderPlan: ProductTournamentContenderPlan,
     commercialSignals: ProductTournamentPlanCommercialSignals
   ) -> [String] {
-    var strengths = [contender.valueProposition, hypothesis.differentiator, hypothesis.whyThisCouldWin]
+    var strengths = [contender.valueProposition, contenderPlan.differentiator, contenderPlan.whyThisCouldWin]
     if commercialSignals.hasCommercialProof {
       strengths.append("Commercial proof: \(commercialSignals.summary)")
     }
@@ -1377,9 +1377,9 @@ enum ProductTournamentPlanEvaluator {
 
   private static func planRisks(
     contender: ProductTournamentContender,
-    hypothesis: ProductTournamentContenderPlan
+    contenderPlan: ProductTournamentContenderPlan
   ) -> [String] {
-    [contender.primaryRisk, hypothesis.whyThisMightFail]
+    [contender.primaryRisk, contenderPlan.whyThisMightFail]
   }
 
   private static func priceLabel(cents: Int) -> String {

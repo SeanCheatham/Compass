@@ -5381,11 +5381,11 @@ enum ProductTournamentNextActionAdvisor {
     for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> [String] {
-    let hypothesis = config.contenderPlans.first { $0.id == experiment.contenderPlanID }
-    let painID = hypothesis?.painID
+    let contenderPlan = config.contenderPlans.first { $0.id == experiment.contenderPlanID }
+    let painID = contenderPlan?.painID
     var segmentIDs: [String] = []
-    if let hypothesis {
-      segmentIDs.append(contentsOf: hypothesis.targetSegmentIDs)
+    if let contenderPlan {
+      segmentIDs.append(contentsOf: contenderPlan.targetSegmentIDs)
     }
     segmentIDs.append(
       contentsOf: config.userSegments

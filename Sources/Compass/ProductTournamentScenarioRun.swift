@@ -290,13 +290,13 @@ enum ProductTournamentScenarioCoordinator {
     in config: ProductTournamentConfig,
     now: Date = Date()
   ) -> ProductScenarioDraft {
-    let hypothesis = config.contenderPlans.first { $0.id == experiment.contenderPlanID }
-    let painID = hypothesis?.painID ?? config.painHypotheses.first?.id ?? ""
+    let contenderPlan = config.contenderPlans.first { $0.id == experiment.contenderPlanID }
+    let painID = contenderPlan?.painID ?? config.painHypotheses.first?.id ?? ""
     let segment =
       config.userSegments.first { segment in
         segment.painID == painID
-          && (hypothesis?.targetSegmentIDs.isEmpty != false
-            || hypothesis?.targetSegmentIDs.contains(segment.id) == true)
+          && (contenderPlan?.targetSegmentIDs.isEmpty != false
+            || contenderPlan?.targetSegmentIDs.contains(segment.id) == true)
       } ?? config.userSegments.first
     let workflow =
       config.currentWorkflows.first { workflow in
@@ -320,7 +320,7 @@ enum ProductTournamentScenarioCoordinator {
       title: "\(experiment.title) scenario",
       task:
         "Try \(experiment.title) against the current workflow and decide whether it relieves the pain.",
-      successSignal: hypothesis?.requiredProof.first
+      successSignal: contenderPlan?.requiredProof.first
         ?? "The target user can explain why this beats the current alternative.",
       targetCommitSha: experiment.currentSha ?? experiment.baseSha,
       maxTurns: 8,
@@ -453,7 +453,7 @@ enum ProductTournamentScenarioCoordinator {
       in: config
     )
     guard
-      let hypothesis = config.contenderPlans.first(where: {
+      let contenderPlan = config.contenderPlans.first(where: {
         $0.id == experiment.contenderPlanID
       })
     else {
@@ -465,8 +465,8 @@ enum ProductTournamentScenarioCoordinator {
     else {
       throw ProductTournamentScenarioRunError.unknownContenderForExperiment(experiment.id)
     }
-    guard let pain = config.painHypotheses.first(where: { $0.id == hypothesis.painID }) else {
-      throw ProductTournamentScenarioRunError.unknownPain(hypothesis.painID)
+    guard let pain = config.painHypotheses.first(where: { $0.id == contenderPlan.painID }) else {
+      throw ProductTournamentScenarioRunError.unknownPain(contenderPlan.painID)
     }
     guard let segment = config.userSegments.first(where: { $0.id == scenario.segmentID }) else {
       throw ProductTournamentScenarioRunError.unknownSegment(scenario.segmentID)
@@ -507,7 +507,7 @@ enum ProductTournamentScenarioCoordinator {
       currentWorkflow: currentWorkflow,
       alternatives: selectedAlternatives,
       contender: contender,
-      contenderPlan: hypothesis,
+      contenderPlan: contenderPlan,
       experiment: experiment,
       scenarioID: scenario.id,
       scenarioTask: scenario.task,

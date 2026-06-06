@@ -38,14 +38,14 @@ struct ProductTournamentGitRolloutTests {
     let experiment = try #require(
       promoted.tournamentExperiments.first { $0.id == "experiment-fast-forward" }
     )
-    let hypothesis = try #require(promoted.contenderPlans.first)
+    let contenderPlan = try #require(promoted.contenderPlans.first)
     let decision = try #require(promoted.decisions.last)
 
     try #require(result.preview.kind == .fastForwardPromotion)
     try #require(try await gitOutput(["rev-parse", "main"], in: root) == experimentSha)
     try #require(try await gitOutput(["rev-parse", branchName], in: root) == experimentSha)
     try #require(experiment.decision == .promoted)
-    try #require(hypothesis.status == .promoted)
+    try #require(contenderPlan.status == .promoted)
     try #require(decision.decision == .promoted)
     try #require(decision.beforeSha == baseSha)
     try #require(decision.afterSha == experimentSha)
@@ -190,7 +190,7 @@ struct ProductTournamentGitRolloutTests {
     )
     let saved = try workspace.readProductTournamentConfig()
     let experiment = try #require(saved.tournamentExperiments.first { $0.id == "experiment-archive" })
-    let hypothesis = try #require(saved.contenderPlans.first)
+    let contenderPlan = try #require(saved.contenderPlans.first)
     let decision = try #require(saved.decisions.last)
     let archiveBranch = try #require(result.archiveBranchName)
 
@@ -201,7 +201,7 @@ struct ProductTournamentGitRolloutTests {
     try #require(try await gitOutput(["rev-parse", "--abbrev-ref", "HEAD"], in: worktreeURL) == branchName)
     try #require(experiment.decision == .archived)
     try #require(experiment.worktreeID == "experiment-archive-worktree")
-    try #require(hypothesis.status == .parked)
+    try #require(contenderPlan.status == .parked)
     try #require(decision.decision == .archived)
     try #require(decision.branchName == branchName)
     try #require(decision.beforeSha == experimentSha)
@@ -261,7 +261,7 @@ private func makeGitRolloutConfig(
     status: .active,
     createdAt: 1
   )
-  let hypothesis = ProductTournamentContenderPlan(
+  let contenderPlan = ProductTournamentContenderPlan(
     id: "plan-rollout",
     painID: pain.id,
     title: "Rollout Plan",
@@ -276,7 +276,7 @@ private func makeGitRolloutConfig(
   )
   let experiment = ProductTournamentExperiment(
     id: experimentID,
-    contenderPlanID: hypothesis.id,
+    contenderPlanID: contenderPlan.id,
     title: "Rollout experiment",
     branchName: branchName,
     worktreeID: "\(experimentID)-worktree",
@@ -293,7 +293,7 @@ private func makeGitRolloutConfig(
     userSegments: [],
     currentWorkflows: [],
     alternatives: [],
-    contenderPlans: [hypothesis],
+    contenderPlans: [contenderPlan],
     tournamentExperiments: [experiment],
     scenarioCohorts: [],
     decisions: []

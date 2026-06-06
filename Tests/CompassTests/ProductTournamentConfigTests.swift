@@ -324,7 +324,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     decisionCriteria: ["Less follow-up"],
     skepticism: "Will keep chat if Compass feels heavier."
   )
-  let hypothesis = ProductTournamentContenderPlan(
+  let contenderPlan = ProductTournamentContenderPlan(
     id: "plan-handoff-desk",
     painID: pain.id,
     title: "Handoff Desk",
@@ -339,7 +339,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
   )
   let experiment = ProductTournamentExperiment(
     id: "experiment-handoff-desk",
-    contenderPlanID: hypothesis.id,
+    contenderPlanID: contenderPlan.id,
     title: "Handoff Desk prototype",
     branchName: "codex/handoff-desk",
     worktreeID: "handoff-desk-worktree",
@@ -406,7 +406,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     userSegments: [segment],
     currentWorkflows: [workflow],
     alternatives: [alternative],
-    contenderPlans: [hypothesis],
+    contenderPlans: [contenderPlan],
     tournamentExperiments: [experiment],
     scenarios: [scenario],
     scenarioCohorts: [cohort],

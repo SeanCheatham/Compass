@@ -243,8 +243,8 @@ enum ProductTournamentRoundEvidenceTransitioner {
       updateExperiment(for: proposal.contenderID, in: &next, timestamp: timestamp) { experiment in
         experiment.decision = .keepGoing
       }
-      updateProductTournamentContenderPlan(for: proposal.contenderID, in: &next) { hypothesis in
-        hypothesis.status = .active
+      updateProductTournamentContenderPlan(for: proposal.contenderID, in: &next) { contenderPlan in
+        contenderPlan.status = .active
       }
 
     case .reviseCoreTechnology:
@@ -284,8 +284,8 @@ enum ProductTournamentRoundEvidenceTransitioner {
       updateExperiment(for: proposal.contenderID, in: &next, timestamp: timestamp) { experiment in
         experiment.decision = .kill
       }
-      updateProductTournamentContenderPlan(for: proposal.contenderID, in: &next) { hypothesis in
-        hypothesis.status = .rejected
+      updateProductTournamentContenderPlan(for: proposal.contenderID, in: &next) { contenderPlan in
+        contenderPlan.status = .rejected
       }
 
     case .gatherEvidence:

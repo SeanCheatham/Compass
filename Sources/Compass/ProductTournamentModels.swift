@@ -192,8 +192,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let doNothingAlternativeID = "\(slug)-do-nothing"
     let operatorSegmentID = "\(slug)-operator"
     let buyerSegmentID = "\(slug)-buyer"
-    let workflowHypothesisID = "\(slug)-workflow-clarifier"
-    let proofHypothesisID = "\(slug)-proof-assistant"
+    let workflowContenderPlanID = "\(slug)-workflow-clarifier"
+    let proofContenderPlanID = "\(slug)-proof-assistant"
     let tournamentID = "\(slug)-tournament"
     let workflowContenderID = "\(slug)-workflow-contender"
     let proofContenderID = "\(slug)-proof-contender"
@@ -341,7 +341,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
 
     let contenderPlans = [
       ProductTournamentContenderPlan(
-        id: workflowHypothesisID,
+        id: workflowContenderPlanID,
         painID: painID,
         title: "\(title) workflow clarifier",
         promise: "Make the painful workflow visible, guided, and easier to complete.",
@@ -361,7 +361,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         status: .active
       ),
       ProductTournamentContenderPlan(
-        id: proofHypothesisID,
+        id: proofContenderPlanID,
         painID: painID,
         title: "\(title) proof assistant",
         promise: "Help the user compare options and produce evidence for a tournament decision.",
@@ -385,7 +385,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let experiments = [
       ProductTournamentExperiment(
         id: workflowExperimentID,
-        contenderPlanID: workflowHypothesisID,
+        contenderPlanID: workflowContenderPlanID,
         title: "\(title) workflow prototype",
         branchName: "codex/\(slug)-workflow-prototype",
         worktreeID: "\(slug)-workflow-worktree",
@@ -400,7 +400,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ),
       ProductTournamentExperiment(
         id: proofExperimentID,
-        contenderPlanID: proofHypothesisID,
+        contenderPlanID: proofContenderPlanID,
         title: "\(title) proof prototype",
         branchName: "codex/\(slug)-proof-prototype",
         worktreeID: "\(slug)-proof-worktree",
@@ -504,7 +504,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ProductTournamentContender(
         id: workflowContenderID,
         tournamentID: tournamentID,
-        contenderPlanID: workflowHypothesisID,
+        contenderPlanID: workflowContenderPlanID,
         experimentID: workflowExperimentID,
         title: "\(title) workflow product",
         productPlan:
@@ -520,7 +520,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ProductTournamentContender(
         id: proofContenderID,
         tournamentID: tournamentID,
-        contenderPlanID: proofHypothesisID,
+        contenderPlanID: proofContenderPlanID,
         experimentID: proofExperimentID,
         title: "\(title) proof product",
         productPlan:

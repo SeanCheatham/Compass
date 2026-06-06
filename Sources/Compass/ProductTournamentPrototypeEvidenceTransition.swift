@@ -249,15 +249,15 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
         updateExperiment(for: losingContender.id, in: &next, timestamp: timestamp) { experiment in
           experiment.decision = .kill
         }
-        updateProductTournamentContenderPlan(for: losingContender.id, in: &next) { hypothesis in
-          hypothesis.status = .rejected
+        updateProductTournamentContenderPlan(for: losingContender.id, in: &next) { contenderPlan in
+          contenderPlan.status = .rejected
         }
       }
       updateExperiment(for: proposal.contenderID, in: &next, timestamp: timestamp) { experiment in
         experiment.decision = .promote
       }
-      updateProductTournamentContenderPlan(for: proposal.contenderID, in: &next) { hypothesis in
-        hypothesis.status = .promoted
+      updateProductTournamentContenderPlan(for: proposal.contenderID, in: &next) { contenderPlan in
+        contenderPlan.status = .promoted
       }
 
     case .revisePrototype:
@@ -289,8 +289,8 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       updateExperiment(for: proposal.contenderID, in: &next, timestamp: timestamp) { experiment in
         experiment.decision = .kill
       }
-      updateProductTournamentContenderPlan(for: proposal.contenderID, in: &next) { hypothesis in
-        hypothesis.status = .rejected
+      updateProductTournamentContenderPlan(for: proposal.contenderID, in: &next) { contenderPlan in
+        contenderPlan.status = .rejected
       }
 
     case .gatherEvidence:

@@ -209,7 +209,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     status: .active,
     createdAt: 1
   )
-  let hypothesis = ProductTournamentContenderPlan(
+  let contenderPlan = ProductTournamentContenderPlan(
     id: "plan-command-board",
     painID: pain.id,
     title: "Command Board",
@@ -224,7 +224,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
   )
   let first = ProductTournamentExperiment(
     id: "experiment-command-board",
-    contenderPlanID: hypothesis.id,
+    contenderPlanID: contenderPlan.id,
     title: "Command board prototype",
     branchName: "compass/exp/command-board",
     worktreeID: "command-board-worktree",
@@ -237,7 +237,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
   )
   let second = ProductTournamentExperiment(
     id: "experiment-timeline",
-    contenderPlanID: hypothesis.id,
+    contenderPlanID: contenderPlan.id,
     title: "Timeline prototype",
     branchName: "compass/exp/timeline",
     worktreeID: "timeline-worktree",
@@ -254,7 +254,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     userSegments: [],
     currentWorkflows: [],
     alternatives: [],
-    contenderPlans: [hypothesis],
+    contenderPlans: [contenderPlan],
     tournamentExperiments: [first, second],
     scenarioCohorts: [],
     decisions: []

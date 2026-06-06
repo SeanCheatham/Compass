@@ -427,7 +427,7 @@ private func makePlanEvaluationRecord(
   startedAt: Double,
   endedAt: Double
 ) throws -> ProductTournamentPlanEvaluationRecord {
-  let hypothesis = try #require(
+  let contenderPlan = try #require(
     config.contenderPlans.first { $0.id == contender.contenderPlanID })
   return ProductTournamentPlanEvaluationRecord(
     id: id,
@@ -436,7 +436,7 @@ private func makePlanEvaluationRecord(
     contenderID: contender.id,
     contenderPlanID: contender.contenderPlanID,
     experimentID: contender.experimentID,
-    painID: hypothesis.painID,
+    painID: contenderPlan.painID,
     personaID: segment.id,
     personaName: segment.name,
     currentWorkflowID: segment.currentWorkflowIDs.first,
