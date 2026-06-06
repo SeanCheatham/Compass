@@ -2818,6 +2818,10 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
   var endingProofDebtCount: Int?
   var startingProofDebtSummary: String?
   var endingProofDebtSummary: String?
+  var startingPersonaModelPlanEvaluationCount: Int?
+  var endingPersonaModelPlanEvaluationCount: Int?
+  var startingModelFreePlanEvaluationCount: Int?
+  var endingModelFreePlanEvaluationCount: Int?
   var decisionCandidateSummaries: [String]
   var evidenceTensionSummaries: [String]
   var proofTargetSummaries: [String]
@@ -2838,6 +2842,10 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
     endingProofDebtCount: Int? = nil,
     startingProofDebtSummary: String? = nil,
     endingProofDebtSummary: String? = nil,
+    startingPersonaModelPlanEvaluationCount: Int? = nil,
+    endingPersonaModelPlanEvaluationCount: Int? = nil,
+    startingModelFreePlanEvaluationCount: Int? = nil,
+    endingModelFreePlanEvaluationCount: Int? = nil,
     decisionCandidateSummaries: [String] = [],
     evidenceTensionSummaries: [String] = [],
     proofTargetSummaries: [String] = [],
@@ -2863,6 +2871,14 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
       endingProofDebtSummary,
       limit: 500
     )
+    self.startingPersonaModelPlanEvaluationCount =
+      startingPersonaModelPlanEvaluationCount.map { max(0, $0) }
+    self.endingPersonaModelPlanEvaluationCount =
+      endingPersonaModelPlanEvaluationCount.map { max(0, $0) }
+    self.startingModelFreePlanEvaluationCount =
+      startingModelFreePlanEvaluationCount.map { max(0, $0) }
+    self.endingModelFreePlanEvaluationCount =
+      endingModelFreePlanEvaluationCount.map { max(0, $0) }
     self.decisionCandidateSummaries = ProductTournamentModelText.cleanedList(
       decisionCandidateSummaries,
       limit: 300
@@ -2947,6 +2963,9 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
     }
     if let proofDebtMessage {
       parts.append(proofDebtMessage)
+    }
+    if let planEvaluationModeMessage {
+      parts.append(planEvaluationModeMessage)
     }
     parts.append(stopReasonMessage)
     if let decisionCandidateMessage {
@@ -3038,6 +3057,10 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
       endingProofDebtCount: endingProofDebtCount,
       startingProofDebtSummary: startingProofDebtSummary,
       endingProofDebtSummary: endingProofDebtSummary,
+      startingPersonaModelPlanEvaluationCount: startingPersonaModelPlanEvaluationCount,
+      endingPersonaModelPlanEvaluationCount: endingPersonaModelPlanEvaluationCount,
+      startingModelFreePlanEvaluationCount: startingModelFreePlanEvaluationCount,
+      endingModelFreePlanEvaluationCount: endingModelFreePlanEvaluationCount,
       decisionCandidateSummaries: decisionCandidateSummaries,
       evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,
@@ -3127,6 +3150,19 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
       "Proof debt \(direction) (\(startingProofDebtCount) -> \(endingProofDebtCount))."
   }
 
+  private var planEvaluationModeMessage: String? {
+    guard hasPlanEvaluationModeCounts else { return nil }
+    return
+      "Plan evidence modes: persona-model \(startingPersonaModelPlanEvaluationCount ?? 0) -> \(endingPersonaModelPlanEvaluationCount ?? 0), model-free \(startingModelFreePlanEvaluationCount ?? 0) -> \(endingModelFreePlanEvaluationCount ?? 0)."
+  }
+
+  private var hasPlanEvaluationModeCounts: Bool {
+    startingPersonaModelPlanEvaluationCount != nil
+      || endingPersonaModelPlanEvaluationCount != nil
+      || startingModelFreePlanEvaluationCount != nil
+      || endingModelFreePlanEvaluationCount != nil
+  }
+
   private var stopReasonMessage: String {
     switch stopReason {
     case .reachedStepLimit:
@@ -3154,14 +3190,23 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
 struct TournamentAutomationProofDebtSnapshot: Equatable, Sendable {
   var count: Int
   var summary: String
+  var personaModelPlanEvaluationCount: Int
+  var modelFreePlanEvaluationCount: Int
 
-  init(count: Int, summary: String) {
+  init(
+    count: Int,
+    summary: String,
+    personaModelPlanEvaluationCount: Int = 0,
+    modelFreePlanEvaluationCount: Int = 0
+  ) {
     self.count = max(0, count)
     self.summary = ProductTournamentModelText.cleanedText(
       summary,
       fallback: "Proof debt unavailable.",
       limit: 500
     )
+    self.personaModelPlanEvaluationCount = max(0, personaModelPlanEvaluationCount)
+    self.modelFreePlanEvaluationCount = max(0, modelFreePlanEvaluationCount)
   }
 }
 
@@ -3179,6 +3224,8 @@ enum TournamentAutomationProofDebtSnapshotter {
     }
 
     var total = 0
+    var personaModelPlanEvaluationCount = 0
+    var modelFreePlanEvaluationCount = 0
     var parts: [String] = []
     for experimentID in orderedExperimentIDs {
       guard
@@ -3191,13 +3238,17 @@ enum TournamentAutomationProofDebtSnapshotter {
           )
       else { continue }
       total += snapshot.count
+      personaModelPlanEvaluationCount += snapshot.personaModelPlanEvaluationCount
+      modelFreePlanEvaluationCount += snapshot.modelFreePlanEvaluationCount
       parts.append(snapshot.summary)
     }
 
     guard !parts.isEmpty else { return nil }
     return TournamentAutomationProofDebtSnapshot(
       count: total,
-      summary: parts.joined(separator: "; ")
+      summary: parts.joined(separator: "; "),
+      personaModelPlanEvaluationCount: personaModelPlanEvaluationCount,
+      modelFreePlanEvaluationCount: modelFreePlanEvaluationCount
     )
   }
 
@@ -3291,11 +3342,14 @@ enum TournamentAutomationProofDebtSnapshotter {
 
     let completed = evidenceIndex.planEvaluations(for: tournament, round: round)
       .filter { $0.contenderID == contender.id && $0.isCompleted }
-    let proofDebt = ProductTournamentPlanReadiness(summaries: completed).planProofDebt
+    let readiness = ProductTournamentPlanReadiness(summaries: completed)
+    let proofDebt = readiness.planProofDebt
     return TournamentAutomationProofDebtSnapshot(
       count: proofDebt.blockingDebtCount,
       summary:
-        "\(experiment.id): contender \(contender.id) Round \(round.ordinal) plan proof \(proofDebt.summary)"
+        "\(experiment.id): contender \(contender.id) Round \(round.ordinal) plan proof \(proofDebt.summary)",
+      personaModelPlanEvaluationCount: readiness.personaModelEvaluationCount,
+      modelFreePlanEvaluationCount: readiness.modelFreeEvaluationCount
     )
   }
 }

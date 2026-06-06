@@ -1301,6 +1301,10 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
   var endingProofDebtCount: Int?
   var startingProofDebtSummary: String?
   var endingProofDebtSummary: String?
+  var startingPersonaModelPlanEvaluationCount: Int?
+  var endingPersonaModelPlanEvaluationCount: Int?
+  var startingModelFreePlanEvaluationCount: Int?
+  var endingModelFreePlanEvaluationCount: Int?
   var decisionCandidateSummaries: [String]
   var evidenceTensionSummaries: [String]
   var proofTargetSummaries: [String]
@@ -1330,6 +1334,8 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       : "; runs \(evidenceRunIDs.prefix(5).joined(separator: ", "))"
     let proofDebt =
       proofDebtSummary.map { "; \($0)" } ?? ""
+    let planModes =
+      planEvaluationModeSummary.map { "; \($0)" } ?? ""
     let targetedProof =
       targetedPromoteProofCount + targetedKillProofCount > 0
       ? "; targeted proof \(targetedPromoteProofCount) promote, \(targetedKillProofCount) kill"
@@ -1363,7 +1369,13 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       ? ""
       : "; revisions \(revisionBriefSummaries.prefix(3).joined(separator: " | "))"
     return
-      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill)\(roundTransitions)\(targetedProof); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedOutcomes)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
+      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill)\(roundTransitions)\(targetedProof); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(planModes)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedOutcomes)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
+  }
+
+  var planEvaluationModeContext: String? {
+    guard hasPlanEvaluationModeCounts else { return nil }
+    return
+      "plan_modes start_persona_model \(startingPersonaModelPlanEvaluationCount ?? 0) start_model_free \(startingModelFreePlanEvaluationCount ?? 0) end_persona_model \(endingPersonaModelPlanEvaluationCount ?? 0) end_model_free \(endingModelFreePlanEvaluationCount ?? 0)"
   }
 
   private var proofDebtSummary: String? {
@@ -1373,6 +1385,19 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     let sign = proofDebtDelta > 0 ? "+" : ""
     return
       "proof debt \(startingProofDebtCount) -> \(endingProofDebtCount) (\(sign)\(proofDebtDelta))"
+  }
+
+  private var planEvaluationModeSummary: String? {
+    guard hasPlanEvaluationModeCounts else { return nil }
+    return
+      "plan modes persona-model \(startingPersonaModelPlanEvaluationCount ?? 0) -> \(endingPersonaModelPlanEvaluationCount ?? 0), model-free \(startingModelFreePlanEvaluationCount ?? 0) -> \(endingModelFreePlanEvaluationCount ?? 0)"
+  }
+
+  private var hasPlanEvaluationModeCounts: Bool {
+    startingPersonaModelPlanEvaluationCount != nil
+      || endingPersonaModelPlanEvaluationCount != nil
+      || startingModelFreePlanEvaluationCount != nil
+      || endingModelFreePlanEvaluationCount != nil
   }
 
   init(
@@ -1398,6 +1423,10 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     endingProofDebtCount: Int? = nil,
     startingProofDebtSummary: String? = nil,
     endingProofDebtSummary: String? = nil,
+    startingPersonaModelPlanEvaluationCount: Int? = nil,
+    endingPersonaModelPlanEvaluationCount: Int? = nil,
+    startingModelFreePlanEvaluationCount: Int? = nil,
+    endingModelFreePlanEvaluationCount: Int? = nil,
     decisionCandidateSummaries: [String] = [],
     evidenceTensionSummaries: [String] = [],
     proofTargetSummaries: [String] = [],
@@ -1440,6 +1469,14 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       endingProofDebtSummary,
       limit: 500
     )
+    self.startingPersonaModelPlanEvaluationCount =
+      startingPersonaModelPlanEvaluationCount.map { max(0, $0) }
+    self.endingPersonaModelPlanEvaluationCount =
+      endingPersonaModelPlanEvaluationCount.map { max(0, $0) }
+    self.startingModelFreePlanEvaluationCount =
+      startingModelFreePlanEvaluationCount.map { max(0, $0) }
+    self.endingModelFreePlanEvaluationCount =
+      endingModelFreePlanEvaluationCount.map { max(0, $0) }
     self.decisionCandidateSummaries = ProductTournamentModelText.cleanedList(
       decisionCandidateSummaries,
       limit: 300
@@ -1503,6 +1540,10 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     case endingProofDebtCount
     case startingProofDebtSummary
     case endingProofDebtSummary
+    case startingPersonaModelPlanEvaluationCount
+    case endingPersonaModelPlanEvaluationCount
+    case startingModelFreePlanEvaluationCount
+    case endingModelFreePlanEvaluationCount
     case decisionCandidateSummaries
     case evidenceTensionSummaries
     case proofTargetSummaries
@@ -1583,6 +1624,22 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       endingProofDebtSummary: try container.decodeIfPresent(
         String.self,
         forKey: .endingProofDebtSummary
+      ),
+      startingPersonaModelPlanEvaluationCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .startingPersonaModelPlanEvaluationCount
+      ),
+      endingPersonaModelPlanEvaluationCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .endingPersonaModelPlanEvaluationCount
+      ),
+      startingModelFreePlanEvaluationCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .startingModelFreePlanEvaluationCount
+      ),
+      endingModelFreePlanEvaluationCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .endingModelFreePlanEvaluationCount
       ),
       decisionCandidateSummaries: try container.decodeIfPresent(
         [String].self,

@@ -808,8 +808,9 @@ enum ProductTournamentPlanningDigestFormatter {
           audit.revisionBriefSummaries.isEmpty
           ? ""
           : "; revisions \(bounded(revisionBriefList, 260))"
+        let planModes = audit.planEvaluationModeContext.map { "; \($0)" } ?? ""
         return
-          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedProofOutcomes)\(rationaleSignals)\(revisionBriefs)"
+          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(planModes)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedProofOutcomes)\(rationaleSignals)\(revisionBriefs)"
           + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
   }

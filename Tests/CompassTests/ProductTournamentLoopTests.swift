@@ -805,6 +805,8 @@ struct ProductTournamentLoopTests {
     try #require(startingProofDebtSnapshot.summary.contains("2 plan evaluation(s)"))
     try #require(startingProofDebtSnapshot.summary.contains("buyer/sponsor signal"))
     try #require(startingProofDebtSnapshot.summary.contains("willingness to pay"))
+    try #require(startingProofDebtSnapshot.personaModelPlanEvaluationCount == 0)
+    try #require(startingProofDebtSnapshot.modelFreePlanEvaluationCount == 0)
     try #require(initialDigest.contains("Tournament automation proof targets"))
     try #require(initialDigest.contains("plan_modes persona_model 0 model_free 0"))
     try #require(initialDigest.contains("target Run Plan Proof"))
@@ -844,6 +846,10 @@ struct ProductTournamentLoopTests {
     try #require(endingProofDebtSnapshot.count == 0)
     try #require(endingProofDebtSnapshot.summary.contains("Round 1 plan proof"))
     try #require(endingProofDebtSnapshot.summary.contains("plan proof complete"))
+    try #require(endingProofDebtSnapshot.personaModelPlanEvaluationCount == 0)
+    try #require(
+      endingProofDebtSnapshot.modelFreePlanEvaluationCount
+        == executionOutcome.completedEvaluationCount)
     let planProofAudit = TournamentAutomationCycleOutcome(
       executedSteps: [initialStep],
       messages: [executionOutcome.userMessage],
@@ -857,7 +863,14 @@ struct ProductTournamentLoopTests {
       startingProofDebtCount: startingProofDebtSnapshot.count,
       endingProofDebtCount: endingProofDebtSnapshot.count,
       startingProofDebtSummary: startingProofDebtSnapshot.summary,
-      endingProofDebtSummary: endingProofDebtSnapshot.summary
+      endingProofDebtSummary: endingProofDebtSnapshot.summary,
+      startingPersonaModelPlanEvaluationCount: startingProofDebtSnapshot
+        .personaModelPlanEvaluationCount,
+      endingPersonaModelPlanEvaluationCount: endingProofDebtSnapshot
+        .personaModelPlanEvaluationCount,
+      startingModelFreePlanEvaluationCount: startingProofDebtSnapshot
+        .modelFreePlanEvaluationCount,
+      endingModelFreePlanEvaluationCount: endingProofDebtSnapshot.modelFreePlanEvaluationCount
     ).audit(
       startedAt: Date(timeIntervalSince1970: 20),
       endedAt: Date(timeIntervalSince1970: 30)
@@ -865,7 +878,24 @@ struct ProductTournamentLoopTests {
     try #require(planProofAudit.proofDebtDelta == -6)
     try #require(planProofAudit.startingProofDebtSummary?.contains("Round 1 plan proof") == true)
     try #require(planProofAudit.endingProofDebtSummary?.contains("plan proof complete") == true)
+    try #require(planProofAudit.startingPersonaModelPlanEvaluationCount == 0)
+    try #require(planProofAudit.endingPersonaModelPlanEvaluationCount == 0)
+    try #require(planProofAudit.startingModelFreePlanEvaluationCount == 0)
+    try #require(
+      planProofAudit.endingModelFreePlanEvaluationCount
+        == executionOutcome.completedEvaluationCount)
+    try #require(
+      planProofAudit.planEvaluationModeContext?
+        .contains("plan_modes start_persona_model 0 start_model_free 0") == true)
+    try #require(
+      planProofAudit.planEvaluationModeContext?
+        .contains("end_persona_model 0 end_model_free 2") == true)
     try #require(planProofAudit.userMessage.contains("Proof debt improved by 6"))
+    try #require(
+      planProofAudit.userMessage.contains(
+        "Plan evidence modes: persona-model 0 -> 0, model-free 0 -> 2."))
+    try #require(
+      planProofAudit.summary.contains("plan modes persona-model 0 -> 0, model-free 0 -> 2"))
     let auditedPlanProofConfig = config.recordingTournamentAutomationCycleAudit(planProofAudit)
     let latestPlanProofDelta = try #require(
       TournamentAutomationPlanProofAuditDeltaFinder.latest(
@@ -875,6 +905,10 @@ struct ProductTournamentLoopTests {
     try #require(
       latestPlanProofDelta.contextSummary.contains(
         "latest_plan_proof_delta proof_debt 6 -> 0 (-6)"))
+    try #require(
+      latestPlanProofDelta.contextSummary.contains(
+        "plan_modes start_persona_model 0 start_model_free 0 end_persona_model 0 end_model_free 2"
+      ))
     try #require(latestPlanProofDelta.contextSummary.contains("audit \(planProofAudit.id)"))
     try #require(latestPlanProofDelta.displaySummary == "Proof debt cleared 6 (6 -> 0)")
     try #require(latestPlanProofDelta.displaySystemImage == "checkmark.seal")
@@ -916,6 +950,10 @@ struct ProductTournamentLoopTests {
     try #require(planProofDigest.contains("2 plan evaluation(s)"))
     try #require(planProofDigest.contains("ending_plan_proof_debt"))
     try #require(planProofDigest.contains("plan proof complete"))
+    try #require(
+      planProofDigest.contains(
+        "plan_modes start_persona_model 0 start_model_free 0 end_persona_model 0 end_model_free 2"
+      ))
     try #require(planProofDigest.contains(initialStep.id))
     try #require(planProofDigest.contains(executionOutcome.records[0].id))
     try #require(planProofDigest.contains("Round 1 plan-proof contender overview"))
@@ -3593,6 +3631,10 @@ struct ProductTournamentLoopTests {
       from: Data(legacyJSON.utf8)
     )
     try #require(legacyAudit.appliedRoundTransitionCount == 0)
+    try #require(legacyAudit.startingPersonaModelPlanEvaluationCount == nil)
+    try #require(legacyAudit.endingPersonaModelPlanEvaluationCount == nil)
+    try #require(legacyAudit.startingModelFreePlanEvaluationCount == nil)
+    try #require(legacyAudit.endingModelFreePlanEvaluationCount == nil)
   }
 
   @Test func targetedProofOutcomeContradictionQueuesProductRevision() throws {

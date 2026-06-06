@@ -2970,6 +2970,12 @@ struct ProductTournamentWorkbenchTab: View {
       endingProofDebtCount: endingProofDebtSnapshot?.count,
       startingProofDebtSummary: startingProofDebtSnapshot?.summary,
       endingProofDebtSummary: endingProofDebtSnapshot?.summary,
+      startingPersonaModelPlanEvaluationCount: startingProofDebtSnapshot?
+        .personaModelPlanEvaluationCount,
+      endingPersonaModelPlanEvaluationCount: endingProofDebtSnapshot?
+        .personaModelPlanEvaluationCount,
+      startingModelFreePlanEvaluationCount: startingProofDebtSnapshot?.modelFreePlanEvaluationCount,
+      endingModelFreePlanEvaluationCount: endingProofDebtSnapshot?.modelFreePlanEvaluationCount,
       decisionCandidateSummaries: decisionCandidateSummaries,
       evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,
@@ -3165,6 +3171,11 @@ struct ProductTournamentWorkbenchTab: View {
       endingProofDebtCount: endingProofDebt?.count,
       startingProofDebtSummary: startingProofDebt?.summary,
       endingProofDebtSummary: endingProofDebt?.summary,
+      startingPersonaModelPlanEvaluationCount: startingProofDebt?
+        .personaModelPlanEvaluationCount,
+      endingPersonaModelPlanEvaluationCount: endingProofDebt?.personaModelPlanEvaluationCount,
+      startingModelFreePlanEvaluationCount: startingProofDebt?.modelFreePlanEvaluationCount,
+      endingModelFreePlanEvaluationCount: endingProofDebt?.modelFreePlanEvaluationCount,
       decisionCandidateSummaries: decisionCandidateSummaries,
       evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,

@@ -13,6 +13,7 @@ struct TournamentAutomationPlanProofAuditDelta: Equatable, Sendable, Identifiabl
   var proofDebtDelta: Int?
   var startingProofDebtSummary: String?
   var endingProofDebtSummary: String?
+  var planEvaluationModeContext: String?
   var stopReason: TournamentAutomationCycleAuditStopReason
   var userMessage: String
 
@@ -27,6 +28,7 @@ struct TournamentAutomationPlanProofAuditDelta: Equatable, Sendable, Identifiabl
     self.proofDebtDelta = audit.proofDebtDelta
     self.startingProofDebtSummary = audit.startingProofDebtSummary
     self.endingProofDebtSummary = audit.endingProofDebtSummary
+    self.planEvaluationModeContext = audit.planEvaluationModeContext
     self.stopReason = audit.stopReason
     self.userMessage = audit.userMessage
   }
@@ -52,13 +54,17 @@ struct TournamentAutomationPlanProofAuditDelta: Equatable, Sendable, Identifiabl
       evidenceRunIDs.isEmpty
       ? ""
       : "; evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
+    let planModes = planEvaluationModeContext.map { "; \($0)" } ?? ""
     return
-      "- \(Self.bounded(auditID, limit: 100)): \(experiments); \(steps); \(proofDebtChangeSummary)\(startingSummary)\(endingSummary)\(runIDs); stop \(stopReason.rawValue); \(Self.bounded(userMessage, limit: 220))."
+      "- \(Self.bounded(auditID, limit: 100)): \(experiments); \(steps); \(proofDebtChangeSummary)\(planModes)\(startingSummary)\(endingSummary)\(runIDs); stop \(stopReason.rawValue); \(Self.bounded(userMessage, limit: 220))."
   }
 
   var contextSummary: String {
     var metadata = ["latest_plan_proof_delta \(proofDebtChangeSummary)"]
     metadata.append("audit \(Self.bounded(auditID, limit: 80))")
+    if let planEvaluationModeContext {
+      metadata.append(planEvaluationModeContext)
+    }
     if !evidenceRunIDs.isEmpty {
       metadata.append("evidence \(evidenceRunIDs.prefix(3).joined(separator: ", "))")
     }
@@ -111,6 +117,9 @@ struct TournamentAutomationPlanProofAuditDelta: Equatable, Sendable, Identifiabl
     }
     if let endingProofDebtSummary {
       parts.append("Ending: \(Self.bounded(endingProofDebtSummary, limit: 260))")
+    }
+    if let planEvaluationModeContext {
+      parts.append("Plan modes: \(planEvaluationModeContext)")
     }
     return parts.joined(separator: "\n")
   }
