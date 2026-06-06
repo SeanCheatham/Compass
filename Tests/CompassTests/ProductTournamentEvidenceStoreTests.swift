@@ -36,6 +36,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(read == stored)
     let summaries = workspace.readProductTournamentEvidenceIndex().summaries
     try #require(summaries.map(\.runID) == ["run-one"])
+    try #require(summaries.first?.completedUseProof == false)
     try #require(
       summaries.first?.personaActionRationales.first?.contains("inspect_pain") == true)
   }
@@ -564,6 +565,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(text.contains("cohort \(config.scenarioCohorts[0].id)"))
     try #require(text.contains("mode model_free"))
     try #require(text.contains("digest-run"))
+    try #require(text.contains("completed_use_proof no"))
     try #require(text.contains("persona_rationale"))
     try #require(text.contains("Wanted proof against the spreadsheet"))
     try #require(text.contains("csv_import"))

@@ -776,6 +776,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
   var feedbackArtifactPath: String?
   var transcriptArtifactPath: String?
   var summaryArtifactPath: String?
+  var completedUseProof: Bool
   var promptVersions: [String]
   var personaActionRationales: [String]
   var model: String
@@ -814,6 +815,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     case feedbackArtifactPath
     case transcriptArtifactPath
     case summaryArtifactPath
+    case completedUseProof
     case promptVersions
     case personaActionRationales
     case model
@@ -868,6 +870,8 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
         forKey: .transcriptArtifactPath
       ),
       summaryArtifactPath: try container.decodeIfPresent(String.self, forKey: .summaryArtifactPath),
+      completedUseProof: try container.decodeIfPresent(Bool.self, forKey: .completedUseProof)
+        ?? false,
       promptVersions: try container.decodeIfPresent([String].self, forKey: .promptVersions) ?? [],
       model: try container.decodeIfPresent(String.self, forKey: .model) ?? "",
       scores: try container.decodeIfPresent(
@@ -929,6 +933,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     feedbackArtifactPath: String? = nil,
     transcriptArtifactPath: String? = nil,
     summaryArtifactPath: String? = nil,
+    completedUseProof: Bool = false,
     promptVersions: [String] = [],
     model: String = "",
     scores: ProductTournamentEvidenceScores = ProductTournamentEvidenceScores(),
@@ -976,6 +981,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     self.feedbackArtifactPath = Self.optionalBounded(feedbackArtifactPath, limit: 500)
     self.transcriptArtifactPath = Self.optionalBounded(transcriptArtifactPath, limit: 500)
     self.summaryArtifactPath = Self.optionalBounded(summaryArtifactPath, limit: 500)
+    self.completedUseProof = status == .completed && completedUseProof
     self.promptVersions = Self.cleanedList(promptVersions, limit: 160)
     self.personaActionRationales = Self.cleanedList(personaActionRationales, limit: 360)
     self.model = StringUtils.boundedText(model, limit: 160)
@@ -1024,6 +1030,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
       startedAt: startedAt,
       endedAt: endedAt,
       traceHash: runResult.experienceTraceHash,
+      completedUseProof: Self.completedUseProof(from: runResult.tournamentTrace),
       promptVersions: runResult.rawPersonaActionTranscript.map(\.promptVersionID)
         .productTournamentEvidenceUniquedPreservingOrder(),
       model: runResult.model,
@@ -1073,6 +1080,40 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
         "turn \(max(0, entry.turnIndex)) \(entry.phase.rawValue) \(validity) action \(actionID): \(rationale)"
     }
     return Array(cleanedList(lines, limit: 360).prefix(8))
+  }
+
+  private static func completedUseProof(from trace: ProductTournamentExperienceTrace?) -> Bool {
+    guard let trace, trace.terminalStatus == .completed else { return false }
+    let actionIDs = trace.turns.map(\.action.id)
+    guard actionIDsContainCompletedUseSequence(actionIDs) else { return false }
+    let missingCapabilityIDs = Set(
+      trace.painReliefSignals.missingCapabilityIDs.map(\.normalizedProductTournamentEvidenceText)
+    )
+    return trace.painReliefSignals.painRecognized
+      && trace.painReliefSignals.workflowAdvanced
+      && trace.painReliefSignals.currentAlternativeAddressed
+      && trace.painReliefSignals.switchingObjectionReduced
+      && !missingCapabilityIDs.contains("workflow_advancement")
+      && !missingCapabilityIDs.contains("workflow_completion")
+  }
+
+  private static let completedUseActionSequence = [
+    "inspect_pain",
+    "compare_current_alternative",
+    "reduce_switching_objection",
+    "start_contender_workflow",
+    "provide_requested_input",
+  ]
+
+  private static func actionIDsContainCompletedUseSequence(_ actionIDs: [String]) -> Bool {
+    var nextIndex = completedUseActionSequence.startIndex
+    for actionID in actionIDs where actionID == completedUseActionSequence[nextIndex] {
+      nextIndex = completedUseActionSequence.index(after: nextIndex)
+      if nextIndex == completedUseActionSequence.endIndex {
+        return true
+      }
+    }
+    return false
   }
 
   private static func derivedDecisionIntentEvaluation(
@@ -1376,6 +1417,7 @@ struct ProductTournamentEvidenceSummary: Codable, Equatable, Identifiable, Senda
   var sponsorshipIntent: String
   var personaActionRationales: [String]
   var traceHash: String?
+  var completedUseProof: Bool
   var summary: String
   var failureKind: String?
 
@@ -1408,6 +1450,7 @@ struct ProductTournamentEvidenceSummary: Codable, Equatable, Identifiable, Senda
     case sponsorshipIntent
     case personaActionRationales
     case traceHash
+    case completedUseProof
     case summary
     case failureKind
   }
@@ -1456,6 +1499,8 @@ struct ProductTournamentEvidenceSummary: Codable, Equatable, Identifiable, Senda
     personaActionRationales =
       try container.decodeIfPresent([String].self, forKey: .personaActionRationales) ?? []
     traceHash = try container.decodeIfPresent(String.self, forKey: .traceHash)
+    completedUseProof = try container.decodeIfPresent(Bool.self, forKey: .completedUseProof)
+      ?? false
     summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? "No summary."
     failureKind = try container.decodeIfPresent(String.self, forKey: .failureKind)
   }
@@ -1489,6 +1534,7 @@ struct ProductTournamentEvidenceSummary: Codable, Equatable, Identifiable, Senda
     sponsorshipIntent = record.sponsorshipIntent
     personaActionRationales = record.personaActionRationales
     traceHash = record.traceHash
+    completedUseProof = record.completedUseProof
     summary = record.summary
     failureKind = record.failure?.status.rawValue
   }
@@ -3205,6 +3251,7 @@ enum ProductTournamentEvidenceMarkdownExporter {
       "- Mode: \(record.mode.rawValue)",
       "- Status: \(record.status.rawValue)",
       "- Verdict: \(record.verdict.rawValue)",
+      "- Completed Use Proof: \(record.completedUseProof ? "yes" : "no")",
       record.decisionIntent.map { "- Decision Intent: \(decisionIntentLine($0))" },
       record.decisionIntentEvaluation.map {
         "- Decision Intent Outcome: \(decisionIntentEvaluationLine($0))"

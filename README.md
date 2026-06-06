@@ -104,8 +104,9 @@ and advances them through rounds:
   Tournament Context. Scoped Round 2 scenario evidence then drives the next
   tournament transition: advance the contender to Round 3, mark the core
   technology for revision, or eliminate the contender before adding prototype
-  fidelity. Advancement requires completed evidence from two personas plus trace
-  or persona-action proof that simulated users actually exercised the contender.
+  fidelity. Advancement requires completed evidence from two personas plus two
+  stored completed-use proofs derived from traces that reach the required
+  product-use action sequence.
 - **Round 3: prototype.** Agentic users exercise low-medium fidelity product
   versions and evaluate workflow improvement, switching readiness, continued-use
   pull, and explicit price or sponsorship intent. Scoped prototype evidence can
@@ -115,8 +116,8 @@ and advances them through rounds:
   prototype-use proof, persona breadth, missing capabilities, and next
   transition recommendation visible in both the Workbench and Product
   Tournament Context until the tournament winner is selected. Winner selection
-  requires three completed prototype-use proofs along with current-alternative
-  comparison and willingness-to-pay evidence.
+  requires three completed prototype-use proofs derived from completed traces,
+  along with current-alternative comparison and willingness-to-pay evidence.
 
 Simulation is not user research, a sales forecast, or a Verify gate. It is a
 skeptical, repeatable product-pressure loop: a scenario works through the app's

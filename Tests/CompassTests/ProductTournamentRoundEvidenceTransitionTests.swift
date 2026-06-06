@@ -223,7 +223,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(proposal.recommendation == .gatherEvidence)
     try #require(proposal.experienceUseProofCount == 0)
     try #require(proposal.digestLine.contains("experience_use_proofs 0"))
-    try #require(proposal.detail.contains("2 use traces"))
+    try #require(proposal.detail.contains("2 completed-use traces"))
     try #require(
       ProductTournamentRoundEvidenceTransitioner.bestProposal(
         tournamentID: fixture.tournament.id,
@@ -232,6 +232,34 @@ struct ProductTournamentRoundEvidenceTransitionTests {
         evidenceIndex: index
       ) == nil
     )
+  }
+
+  @Test func traceHashAndRationaleWithoutCompletedUseProofDoNotAdvanceRoundTwo() throws {
+    let fixture = try roundTwoFixture()
+    let records = try evidenceRecords(
+      fixture: fixture,
+      score: 5,
+      verdict: .strongPull,
+      summary: "The run has trace artifacts, but no completed-use proof was derived.",
+      includeExperienceUseProof: true,
+      completedUseProof: false
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+
+    let proposal = try #require(
+      ProductTournamentRoundEvidenceTransitioner.proposals(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.coreRound.id,
+        config: fixture.config,
+        evidenceIndex: index
+      ).first
+    )
+
+    try #require(records.allSatisfy { $0.traceHash?.isEmpty == false })
+    try #require(records.allSatisfy { !$0.personaActionRationales.isEmpty })
+    try #require(proposal.recommendation == .gatherEvidence)
+    try #require(proposal.experienceUseProofCount == 0)
+    try #require(proposal.detail.contains("completed-use trace"))
   }
 
   @Test func roundTwoProofOverviewShowsActiveCoreTechnologyProofBeforeEvidence() throws {
@@ -333,9 +361,11 @@ private func evidenceRecords(
   objections: [String] = [],
   missingCapabilities: [String] = [],
   summary: String,
-  includeExperienceUseProof: Bool = true
+  includeExperienceUseProof: Bool = true,
+  completedUseProof: Bool? = nil
 ) throws -> [ProductTournamentEvidenceRecord] {
-  fixture.config.userSegments.prefix(2).enumerated().map { index, segment in
+  let completedUseProof = completedUseProof ?? includeExperienceUseProof
+  return fixture.config.userSegments.prefix(2).enumerated().map { index, segment in
     ProductTournamentEvidenceRecord(
       id: "\(fixture.contender.id)-round-2-\(index)",
       experimentID: fixture.experiment.id,
@@ -353,6 +383,7 @@ private func evidenceRecords(
       startedAt: Double(index),
       endedAt: Double(index + 1),
       traceHash: includeExperienceUseProof ? "round-2-trace-\(index)" : nil,
+      completedUseProof: completedUseProof,
       scores: ProductTournamentEvidenceScores(
         painRecognition: score,
         workflowImprovement: score,

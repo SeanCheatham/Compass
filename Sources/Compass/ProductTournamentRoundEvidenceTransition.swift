@@ -531,7 +531,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     case .gatherEvidence:
       return (
         "Gather More Evidence",
-        "\(completedRunCount) completed of \(runCount) run(s), \(distinctPersonaCount) persona(s), \(experienceUseProofCount) experience-use proof(s); Round 2 needs 2 personas and 2 use traces before transition."
+        "\(completedRunCount) completed of \(runCount) run(s), \(distinctPersonaCount) persona(s), \(experienceUseProofCount) completed-use proof(s); Round 2 needs 2 personas and 2 completed-use traces before transition."
       )
     }
   }
@@ -550,7 +550,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     var lines = [
       "\(completedRunCount) completed of \(runCount) Round 2 run(s) across \(distinctPersonaCount) persona(s)."
     ]
-    lines.append("\(experienceUseProofCount) run(s) include trace or persona-action proof that the contender was exercised.")
+    lines.append("\(experienceUseProofCount) run(s) completed the expected product-use trace before judging feasibility.")
     if averageScore > 0 {
       lines.append(
         "Average feasibility score \(format(averageScore))/5; readiness \(format(readinessScore))/100."
@@ -576,10 +576,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
   }
 
   private static func hasExperienceUseProof(_ summary: ProductTournamentEvidenceSummary) -> Bool {
-    if summary.traceHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-      return true
-    }
-    return !summary.personaActionRationales.isEmpty
+    summary.completedUseProof
   }
 
   private static func activeCoreTechnologyRounds(

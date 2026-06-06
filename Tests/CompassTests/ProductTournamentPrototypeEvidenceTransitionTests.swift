@@ -250,6 +250,36 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
     )
   }
 
+  @Test func traceHashAndRationaleWithoutCompletedUseProofDoNotSelectWinner() throws {
+    let fixture = try roundThreeFixture()
+    let records = prototypeEvidenceRecords(
+      fixture: fixture,
+      count: 3,
+      score: 5,
+      willingnessToPay: 5,
+      verdict: .strongPull,
+      summary: "The prototype has trace artifacts, but no completed-use proof was derived.",
+      includePrototypeUseProof: true,
+      completedUseProof: false
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+
+    let proposal = try #require(
+      ProductTournamentPrototypeEvidenceTransitioner.proposals(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.prototypeRound.id,
+        config: fixture.config,
+        evidenceIndex: index
+      ).first
+    )
+
+    try #require(records.allSatisfy { $0.traceHash?.isEmpty == false })
+    try #require(records.allSatisfy { !$0.personaActionRationales.isEmpty })
+    try #require(proposal.recommendation == .gatherEvidence)
+    try #require(proposal.prototypeUseProofCount == 0)
+    try #require(proposal.detail.contains("0 prototype-use proof"))
+  }
+
   @Test func roundThreePrototypeOverviewShowsActiveWinnerProofBeforeEvidence() throws {
     let fixture = try roundThreeFixture()
     let index = ProductTournamentEvidenceIndex.build(records: [])
@@ -353,8 +383,10 @@ private func prototypeEvidenceRecords(
   objections: [String] = [],
   missingCapabilities: [String] = [],
   summary: String,
-  includePrototypeUseProof: Bool = true
+  includePrototypeUseProof: Bool = true,
+  completedUseProof: Bool? = nil
 ) -> [ProductTournamentEvidenceRecord] {
+  let completedUseProof = completedUseProof ?? includePrototypeUseProof
   let segments = Array(fixture.config.userSegments)
   return (0..<count).map { index in
     let segment = segments[index % max(1, segments.count)]
@@ -375,6 +407,7 @@ private func prototypeEvidenceRecords(
       startedAt: Double(index),
       endedAt: Double(index + 1),
       traceHash: includePrototypeUseProof ? "round-3-trace-\(index)" : nil,
+      completedUseProof: completedUseProof,
       scores: ProductTournamentEvidenceScores(
         painRecognition: score,
         workflowImprovement: score,

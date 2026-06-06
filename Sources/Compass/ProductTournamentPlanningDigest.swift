@@ -900,6 +900,7 @@ enum ProductTournamentPlanningDigestFormatter {
         if !summary.sponsorshipIntent.isEmpty {
           parts.append("sponsorship_intent \(bounded(summary.sponsorshipIntent, 180))")
         }
+        parts.append("completed_use_proof \(summary.completedUseProof ? "yes" : "no")")
         if let objection = summary.objections.first, !objection.isEmpty {
           parts.append("objection \(bounded(objection, 180))")
         }

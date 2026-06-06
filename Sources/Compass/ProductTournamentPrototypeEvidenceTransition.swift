@@ -599,7 +599,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     ]
     lines.append("\(currentAlternativeProofCount) run(s) compare against the current alternative.")
     lines.append(
-      "\(prototypeUseProofCount) run(s) include trace or persona-action proof that the prototype was exercised."
+      "\(prototypeUseProofCount) run(s) completed the expected product-use trace before judging the prototype."
     )
     if averageScore > 0 {
       lines.append(
@@ -725,10 +725,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
   }
 
   private static func hasPrototypeUseProof(_ summary: ProductTournamentEvidenceSummary) -> Bool {
-    if summary.traceHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-      return true
-    }
-    return !summary.personaActionRationales.isEmpty
+    summary.completedUseProof
   }
 
   private static func repeatedObjectionCount(

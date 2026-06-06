@@ -40,6 +40,7 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(record.scores.willingnessToPay == 4)
     try #require(record.willingnessToPayScore == 4)
     try #require(record.sponsorshipIntent.contains("sponsor"))
+    try #require(record.completedUseProof)
     try #require(record.currentAlternativeComparison.contains("Shared spreadsheet"))
     try #require(
       record.personaActionRationales.contains {

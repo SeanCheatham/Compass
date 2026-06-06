@@ -307,7 +307,9 @@ struct ProductTournamentScenarioRunTests {
     try #require(outcome.record.scores.willingnessToPay == 4)
     try #require(outcome.record.willingnessToPayScore == 4)
     try #require(outcome.record.sponsorshipIntent.contains("sponsor"))
+    try #require(outcome.record.completedUseProof)
     try #require(index.summaries.map(\.runID) == [outcome.record.id])
+    try #require(index.summaries.first?.completedUseProof == true)
     try #require(index.aggregate.tournamentReadinessByExperiment.first?.averageScore == 4)
     try #require(saved.experiments[0].evidenceSummary.contains("completed the scenario"))
   }
@@ -403,6 +405,7 @@ struct ProductTournamentScenarioRunTests {
     try #require(stored.mode == .personaModel)
     try #require(stored.decisionIntent?.targetDecision == .promote)
     try #require(stored.decisionIntentEvaluation?.outcome == .supportsTarget)
+    try #require(stored.completedUseProof)
     try #require(stored.promptVersions == ["test.persona_action"])
     try #require(
       stored.personaActionRationales.contains {
@@ -415,6 +418,7 @@ struct ProductTournamentScenarioRunTests {
     try #require(summary?.mode == .personaModel)
     try #require(summary?.decisionIntent?.targetDecision == .promote)
     try #require(summary?.decisionIntentEvaluation?.outcome == .supportsTarget)
+    try #require(summary?.completedUseProof == true)
     try #require(summary?.personaActionRationales.first?.contains("inspect_pain") == true)
   }
 
