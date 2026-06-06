@@ -1686,6 +1686,12 @@ struct ProductTournamentWorkbenchTab: View {
               label: "Mode",
               value: "\(tournamentAutomationCohortMode.tournamentAutomationLabel) cohort"
             )
+          } else if step.kind == .applyRoundTransition {
+            WorkbenchFact(label: "Mode", value: "Apply round transition")
+            WorkbenchFact(
+              label: "Transition",
+              value: transitionScopeLabel(for: step)
+            )
           }
           if let tournamentAutomationRoundTwoBlockedMessage {
             WorkbenchFact(label: "Round 2", value: tournamentAutomationRoundTwoBlockedMessage)
@@ -3143,6 +3149,15 @@ struct ProductTournamentWorkbenchTab: View {
       config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
+  }
+
+  private func transitionScopeLabel(for step: TournamentAutomationStep) -> String {
+    let round = step.roundID.map { "round \($0)" } ?? "round unknown"
+    let contender = step.contenderID.map { "contender \($0)" } ?? "contender unknown"
+    if let tournamentID = step.tournamentID {
+      return "\(round), \(contender), tournament \(tournamentID)"
+    }
+    return "\(round), \(contender)"
   }
 
   private func tournamentAutomationDecisionCandidate(

@@ -3521,6 +3521,72 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("needed import proof before switching"))
   }
 
+  @Test func tournamentAutomationCycleOutcomeCountsRoundTransitions() throws {
+    let config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    let experiment = try #require(config.experiments.first)
+    let tournament = try #require(config.tournaments.first)
+    let round = try #require(config.tournamentRounds.first { $0.kind == .prototype })
+    let contender = try #require(
+      config.tournamentContenders.first { $0.experimentID == experiment.id })
+    let step = TournamentAutomationStep(
+      experiment: experiment,
+      action: ProductTournamentNextAction(
+        experimentID: experiment.id,
+        kind: .applyRoundTransition,
+        title: "Apply Round 3 transition",
+        detail: "Select the winner from prototype evidence.",
+        priority: 10_000,
+        tournamentID: tournament.id,
+        roundID: round.id,
+        contenderID: contender.id
+      ),
+      cohortReadiness: nil
+    )
+    let outcome = TournamentAutomationCycleOutcome(
+      executedSteps: [step],
+      messages: ["Selected \(contender.title) as the product tournament winner."],
+      maxSteps: 3,
+      stopReason: .noExecutableStep
+    )
+    let audit = outcome.audit(
+      startedAt: Date(timeIntervalSince1970: 360),
+      endedAt: Date(timeIntervalSince1970: 365)
+    )
+
+    try #require(outcome.appliedDecisionCount == 0)
+    try #require(outcome.appliedRoundTransitionCount == 1)
+    try #require(outcome.evidenceRunStepCount == 0)
+    try #require(outcome.userMessage.contains("1 round transition(s) applied"))
+    try #require(audit.appliedDecisionCount == 0)
+    try #require(audit.appliedRoundTransitionCount == 1)
+    try #require(audit.evidenceRunStepCount == 0)
+    try #require(audit.summary.contains("round transitions 1"))
+
+    let legacyJSON = """
+      {
+        "id": "legacy-cycle",
+        "startedAt": 1,
+        "endedAt": 2,
+        "executedStepIDs": [],
+        "experimentIDs": [],
+        "messages": [],
+        "maxSteps": 1,
+        "stopReason": "no_executable_step",
+        "stopDetail": "Stopped.",
+        "userMessage": "Stopped."
+      }
+      """
+    let legacyAudit = try JSONDecoder().decode(
+      TournamentAutomationCycleAudit.self,
+      from: Data(legacyJSON.utf8)
+    )
+    try #require(legacyAudit.appliedRoundTransitionCount == 0)
+  }
+
   @Test func targetedProofOutcomeContradictionQueuesProductRevision() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",

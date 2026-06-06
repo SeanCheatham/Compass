@@ -3024,6 +3024,7 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
       messages: messages,
       maxSteps: maxSteps,
       appliedDecisionCount: appliedDecisionCount,
+      appliedRoundTransitionCount: appliedRoundTransitionCount,
       promotedDecisionCount: promotedDecisionCount,
       killedDecisionCount: killedDecisionCount,
       targetedPromoteProofCount: targetedPromoteProofCount,

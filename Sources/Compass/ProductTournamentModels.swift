@@ -1287,6 +1287,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
   var messages: [String]
   var maxSteps: Int
   var appliedDecisionCount: Int
+  var appliedRoundTransitionCount: Int
   var promotedDecisionCount: Int
   var killedDecisionCount: Int
   var targetedPromoteProofCount: Int
@@ -1333,6 +1334,10 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       targetedPromoteProofCount + targetedKillProofCount > 0
       ? "; targeted proof \(targetedPromoteProofCount) promote, \(targetedKillProofCount) kill"
       : ""
+    let roundTransitions =
+      appliedRoundTransitionCount > 0
+      ? "; round transitions \(appliedRoundTransitionCount)"
+      : ""
     let decisionCandidates =
       decisionCandidateSummaries.isEmpty
       ? ""
@@ -1358,7 +1363,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       ? ""
       : "; revisions \(revisionBriefSummaries.prefix(3).joined(separator: " | "))"
     return
-      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill)\(targetedProof); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedOutcomes)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
+      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill)\(roundTransitions)\(targetedProof); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedOutcomes)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
   }
 
   private var proofDebtSummary: String? {
@@ -1379,6 +1384,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     messages: [String],
     maxSteps: Int,
     appliedDecisionCount: Int = 0,
+    appliedRoundTransitionCount: Int = 0,
     promotedDecisionCount: Int = 0,
     killedDecisionCount: Int = 0,
     targetedPromoteProofCount: Int = 0,
@@ -1414,6 +1420,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     self.messages = ProductTournamentModelText.cleanedList(messages, limit: 500)
     self.maxSteps = max(1, maxSteps)
     self.appliedDecisionCount = max(0, appliedDecisionCount)
+    self.appliedRoundTransitionCount = max(0, appliedRoundTransitionCount)
     self.promotedDecisionCount = max(0, promotedDecisionCount)
     self.killedDecisionCount = max(0, killedDecisionCount)
     self.targetedPromoteProofCount = max(0, targetedPromoteProofCount)
@@ -1482,6 +1489,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     case messages
     case maxSteps
     case appliedDecisionCount
+    case appliedRoundTransitionCount
     case promotedDecisionCount
     case killedDecisionCount
     case targetedPromoteProofCount
@@ -1521,6 +1529,10 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       appliedDecisionCount: try container.decodeIfPresent(
         Int.self,
         forKey: .appliedDecisionCount
+      ) ?? 0,
+      appliedRoundTransitionCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .appliedRoundTransitionCount
       ) ?? 0,
       promotedDecisionCount: try container.decodeIfPresent(
         Int.self,
