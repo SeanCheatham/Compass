@@ -167,6 +167,9 @@ Later-round scenario evidence is stamped with tournament, round, and contender
 IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
 feedback remains comparable across tournament rounds. The workbench can apply the
 best actionable Round 1 and Round 2 recommendations to stored tournament state.
+Only the proof overview for the active tournament round is shown at a time:
+Round 1 plan proof, Round 2 core-technology proof, or Round 3 prototype winner
+proof.
 Plan and Reflect receive only a compact advisory summary:
 current tournament round, contender plans, Round 1 plan readiness and plan proof
 debt, focused Round 1 proof actions, buyer/sponsor signals, willingness-to-pay
