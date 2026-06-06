@@ -184,7 +184,20 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(topActionStep.canExecute)
     try #require(item.topActionSummary.contains("Ready: Run Plan Proof"))
     try #require(item.topActionButtonTitle == "Run Top Proof")
+    try #require(item.topActionStatusLabel == "More proof")
+    try #require(item.topActionStatusSystemImage == "text.badge.checkmark")
+    try #require(
+      item.topActionStatusAccessibilityID
+        == "\(item.workbenchAccessibilityID)-top-action-status"
+    )
+    try #require(item.topActionDetail.contains("Readiness: More proof"))
     try #require(topActionRow.selectedActionButtonTitle == "Run Selected Proof")
+    try #require(topActionRow.nextStatusLabel == "More proof")
+    try #require(topActionRow.nextStatusSystemImage == "text.badge.checkmark")
+    try #require(
+      topActionRow.nextStatusAccessibilityID
+        == "\(topActionRow.workbenchAccessibilityID)-next-status"
+    )
     try #require(topActionRow.postMovementNextStatusLabel == "More proof")
     try #require(topActionRow.postMovementNextStatusSystemImage == "text.badge.checkmark")
     try #require(topActionRow.contextSummary.contains("step ready run_plan_proof"))
@@ -221,13 +234,16 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(contextLines.first == "Tournament automation proof scoreboard:")
     try #require(context.contains("proof_target_scoreboard"))
     try #require(context.contains("top_action"))
+    try #require(context.contains("top_action_status More proof"))
     try #require(context.contains("run_pair"))
     try #require(context.contains("Ready: Run Plan Proof"))
     try #require(digest.contains("Tournament automation proof scoreboard:"))
     try #require(digest.contains("proof_target_scoreboard"))
     try #require(digest.contains("top_action"))
+    try #require(digest.contains("top_action_status More proof"))
     try #require(digest.contains("run_pair"))
     try #require(workbenchBody.contains("Proof Scoreboard"))
+    try #require(workbenchBody.contains("WorkbenchStatusFact"))
     try #require(workbenchBody.contains("AccessibilityAttachmentModifier"))
   }
 
@@ -360,14 +376,21 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(row.displaySummary.contains("Latest audit cleared 2 proof debt"))
     try #require(row.contextSummary.contains("latest_audit scoreboard-proof-delta"))
     try #require(row.contextSummary.contains("run_pair last cleared 2 proof debt"))
+    try #require(item.topActionStatusLabel == "More proof")
+    try #require(item.topActionStatusSystemImage == "text.badge.checkmark")
     try #require(item.topActionDetail.contains("Latest audit cleared 2 proof debt"))
+    try #require(item.topActionDetail.contains("Readiness: More proof"))
     try #require(context.contains("latest_audit scoreboard-proof-delta"))
     try #require(context.contains("proof_debt 6 -> 4 (-2)"))
     try #require(context.contains("run_pair last cleared 2 proof debt"))
+    try #require(context.contains("next_status More proof"))
+    try #require(context.contains("top_action_status More proof"))
     try #require(digest.contains("latest_audit scoreboard-proof-delta"))
     try #require(digest.contains("proof_debt 6 -> 4 (-2)"))
     try #require(digest.contains("run_pair last cleared 2 proof debt"))
+    try #require(digest.contains("top_action_status More proof"))
     try #require(workbenchBody.contains("Proof Scoreboard"))
+    try #require(workbenchBody.contains("WorkbenchStatusFact"))
     try #require(workbenchBody.contains("AccessibilityAttachmentModifier"))
   }
 

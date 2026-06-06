@@ -262,6 +262,10 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
     "\(workbenchAccessibilityID)-proof-movement"
   }
 
+  var nextStatusAccessibilityID: String {
+    "\(workbenchAccessibilityID)-next-status"
+  }
+
   var runPairSummary: String {
     "\(lastRunSummary) -> \(nextStepSummary)"
   }
@@ -355,6 +359,14 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
     case .blocked:
       return "exclamationmark.triangle"
     }
+  }
+
+  var nextStatusLabel: String {
+    postMovementNextStatusLabel
+  }
+
+  var nextStatusSystemImage: String {
+    postMovementNextStatusSystemImage
   }
 
   private var lastRunSummary: String {
@@ -457,10 +469,23 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
     return "\(topActionRow.contenderTitle): \(topActionRow.nextStepSummary)"
   }
 
+  var topActionStatusLabel: String {
+    topActionRow?.nextStatusLabel ?? "No queued proof"
+  }
+
+  var topActionStatusSystemImage: String {
+    topActionRow?.nextStatusSystemImage ?? "checkmark.seal"
+  }
+
+  var topActionStatusAccessibilityID: String {
+    "\(workbenchAccessibilityID)-top-action-status"
+  }
+
   var topActionDetail: String {
     guard let topActionRow else { return "No automation step queued for this round." }
     return [
       "\(topActionRow.contenderTitle): \(topActionRow.nextStepDetail)",
+      "Readiness: \(topActionRow.nextStatusLabel)",
       topActionRow.latestDebtMovement?.helpSummary,
     ]
     .compactMap { $0 }
@@ -484,7 +509,7 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
     let topAction = topActionRow.map { row in
       let title = StringUtils.boundedText(row.contenderTitle, limit: 80)
       let summary = StringUtils.boundedText(row.nextStepSummary, limit: 140)
-      return "top_action \(title): \(summary)"
+      return "top_action \(title): \(summary); top_action_status \(row.nextStatusLabel)"
     } ?? "top_action none"
     let scope = [
       "tournament \(tournamentID ?? "unknown_tournament")",

@@ -147,17 +147,19 @@ and advances them through rounds:
   Workbench scoreboard can run or prepare the top proof target through the same
   audited Tournament Automation single-step path, then show the latest
   before/after proof-debt movement and a last-run/next-run pairing beside each
-  contender row. After a proof action completes, the Workbench resolves the new
-  audit back to the affected scoreboard contender and selects the matching
-  scenario evidence run or Round 1 plan-evaluation outcome when the evidence
-  index knows it; selecting a scoreboard contender applies the same proof-target
-  focus manually. The selected proof-target detail promotes the latest
-  before/after proof-debt movement into a compact result strip, names the
-  current next automation step after that result, badges whether the contender
-  still needs more proof or is ready for transition, promotion/kill decision, or
-  no queued proof action, and exposes the row's queued proof action, so
-  operators can run the selected contender's next proof without switching back
-  to the round-level top action.
+  contender row. The compact scoreboard badges each row and the round-level top
+  action as more proof, transition ready, promotion/kill ready, or no queued
+  proof, so operators can see when a contender has moved out of proof gathering
+  before opening the detail. After a proof action completes, the Workbench
+  resolves the new audit back to the affected scoreboard contender and selects
+  the matching scenario evidence run or Round 1 plan-evaluation outcome when the
+  evidence index knows it; selecting a scoreboard contender applies the same
+  proof-target focus manually. The selected proof-target detail promotes the
+  latest before/after proof-debt movement into a compact result strip, names the
+  current next automation step after that result, repeats the same readiness
+  badge, and exposes the row's queued proof action, so operators can run the
+  selected contender's next proof without switching back to the round-level top
+  action.
   When the proof gates are met but the low-medium
   fidelity implementation still has weak pay intent, missing capabilities, or
   mixed pull, Compass queues a Round 3 implementation revision brief instead of

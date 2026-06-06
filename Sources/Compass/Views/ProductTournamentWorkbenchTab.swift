@@ -1613,7 +1613,13 @@ struct ProductTournamentWorkbenchTab: View {
       if let tournamentID = item.tournamentID {
         WorkbenchFact(label: "Tournament", value: tournamentID)
       }
-      WorkbenchFact(label: "Top action", value: item.topActionSummary)
+      WorkbenchStatusFact(
+        label: "Top action",
+        value: item.topActionSummary,
+        statusText: item.topActionStatusLabel,
+        statusSystemImage: item.topActionStatusSystemImage,
+        statusAccessibilityID: item.topActionStatusAccessibilityID
+      )
         .help(item.topActionDetail)
       WorkbenchFact(label: "Targets", value: item.displayDetail)
       ForEach(item.rows.prefix(4)) { row in
@@ -1629,7 +1635,13 @@ struct ProductTournamentWorkbenchTab: View {
             }
             WorkbenchFact(label: "Latest delta", value: row.latestDebtMovementSummary)
               .help(row.helpSummary)
-            WorkbenchFact(label: "Last / Next", value: row.runPairSummary)
+            WorkbenchStatusFact(
+              label: "Last / Next",
+              value: row.runPairSummary,
+              statusText: row.nextStatusLabel,
+              statusSystemImage: row.nextStatusSystemImage,
+              statusAccessibilityID: row.nextStatusAccessibilityID
+            )
               .help(row.helpSummary)
           }
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -2174,22 +2186,12 @@ struct ProductTournamentWorkbenchTab: View {
             systemImage: movement.movementSystemImage
           )
         }
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-          Text("After result")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .frame(width: 86, alignment: .leading)
-          Text(row.postMovementNextSummary)
-            .font(.caption)
-            .textSelection(.enabled)
-            .fixedSize(horizontal: false, vertical: true)
-            .layoutPriority(1)
-          Spacer(minLength: 8)
-          WorkbenchStatusPill(
-            text: row.postMovementNextStatusLabel,
-            systemImage: row.postMovementNextStatusSystemImage
-          )
-        }
+        WorkbenchStatusFact(
+          label: "After result",
+          value: row.postMovementNextSummary,
+          statusText: row.nextStatusLabel,
+          statusSystemImage: row.nextStatusSystemImage
+        )
           .help(row.postMovementNextDetail)
       }
       .accessibilityIdentifier(row.proofMovementAccessibilityID)
@@ -4304,6 +4306,49 @@ private struct WorkbenchFact: View {
         .font(.caption)
         .textSelection(.enabled)
         .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+}
+
+private struct WorkbenchStatusFact: View {
+  var label: String
+  var value: String
+  var statusText: String
+  var statusSystemImage: String
+  var statusAccessibilityID: String?
+
+  init(
+    label: String,
+    value: String,
+    statusText: String,
+    statusSystemImage: String,
+    statusAccessibilityID: String? = nil
+  ) {
+    self.label = label
+    self.value = value
+    self.statusText = statusText
+    self.statusSystemImage = statusSystemImage
+    self.statusAccessibilityID = statusAccessibilityID
+  }
+
+  var body: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 8) {
+      Text(label)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .frame(width: 86, alignment: .leading)
+      Text(value.isEmpty ? "none" : value)
+        .font(.caption)
+        .textSelection(.enabled)
+        .fixedSize(horizontal: false, vertical: true)
+        .layoutPriority(1)
+      Spacer(minLength: 8)
+      if let statusAccessibilityID {
+        WorkbenchStatusPill(text: statusText, systemImage: statusSystemImage)
+          .accessibilityIdentifier(statusAccessibilityID)
+      } else {
+        WorkbenchStatusPill(text: statusText, systemImage: statusSystemImage)
+      }
     }
   }
 }
