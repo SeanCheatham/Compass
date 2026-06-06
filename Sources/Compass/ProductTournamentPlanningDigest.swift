@@ -243,7 +243,7 @@ enum ProductTournamentPlanningDigestFormatter {
     if !pausedSiblingExperimentIDs.isEmpty {
       lines.append(
         bounded(
-          "- round_2_evidence_lock selected_experiment \(target.experimentID) [tournament \(target.tournamentID), round \(target.roundID), only_contender \(target.contenderID), paused_sibling_experiments \(pausedSiblingExperimentIDs.joined(separator: ", "))]: sibling product-factory evidence is paused; run only the selected core_technology_proof \(target.coreTechnologyProof).",
+          "- round_2_evidence_lock selected_experiment \(target.experimentID) [tournament \(target.tournamentID), round \(target.roundID), only_contender \(target.contenderID), paused_sibling_experiments \(pausedSiblingExperimentIDs.joined(separator: ", "))]: sibling tournament automation evidence is paused; run only the selected core_technology_proof \(target.coreTechnologyProof).",
           760
         )
       )
@@ -357,7 +357,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     guard !candidates.isEmpty else { return [] }
-    var lines = ["Product-factory decision candidates:"]
+    var lines = ["Tournament automation decision candidates:"]
     for candidate in candidates.prefix(4) {
       let evidence =
         candidate.evidenceRunIDs.isEmpty
@@ -386,7 +386,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     guard !tensions.isEmpty else { return [] }
-    var lines = ["Product-factory evidence tensions:"]
+    var lines = ["Tournament automation evidence tensions:"]
     for tension in tensions.prefix(4) {
       var metadata = [
         "action resolve_signal_split",
@@ -439,7 +439,7 @@ enum ProductTournamentPlanningDigestFormatter {
       return lhs.urgencyScore > rhs.urgencyScore
     }
     guard !signals.isEmpty else { return [] }
-    var lines = ["Product-factory portfolio pressure:"]
+    var lines = ["Tournament automation portfolio pressure:"]
     for signal in signals.prefix(4) {
       var metadata = [
         "pressure \(signal.pressure.rawValue)",
@@ -469,7 +469,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     guard !signals.isEmpty else { return [] }
-    var lines = ["Product-factory rationale signals:"]
+    var lines = ["Tournament automation rationale signals:"]
     for signal in signals.prefix(4) {
       var metadata = [
         "action resolve_rationale_signal",
@@ -510,7 +510,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     guard !signals.isEmpty else { return [] }
-    var lines = ["Product-factory targeted proof outcomes:"]
+    var lines = ["Tournament automation targeted proof outcomes:"]
     for signal in signals.prefix(4) {
       var metadata = [
         "action \(signal.actionKind.rawValue)",
@@ -553,7 +553,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     guard !briefs.isEmpty else { return [] }
-    var lines = ["Product-factory revision briefs:"]
+    var lines = ["Tournament automation revision briefs:"]
     for brief in briefs.prefix(4) {
       var metadata = [
         "action revise_product_bet",
@@ -590,7 +590,7 @@ enum ProductTournamentPlanningDigestFormatter {
       config: config,
       evidenceIndex: evidenceIndex
     )
-    var lines = ["Product-factory proof targets:"]
+    var lines = ["Tournament automation proof targets:"]
     for target in targets.prefix(4) {
       var metadata = [
         "target \(target.label)",
@@ -673,7 +673,7 @@ enum ProductTournamentPlanningDigestFormatter {
       metadata.append("blocked \(bounded(blockedReason, 140))")
     }
     return [
-      "Factory autopilot step:",
+      "Tournament automation step:",
       "- \(metadata.joined(separator: "; ")); \(bounded(step.title, 120)); \(bounded(step.detail, 220)).",
       "- cycle executable \(cyclePlan.executableSteps.count); max \(cyclePlan.maxSteps); capped \(cyclePlan.capped); \(bounded(cyclePlan.summary, 180)).",
       "- cycle queue \(bounded(cyclePlan.queueSummary, 240)).",
@@ -689,7 +689,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     guard !actions.isEmpty else { return [] }
-    var lines = ["Next product-factory actions:"]
+    var lines = ["Next tournament automation actions:"]
     for action in actions.prefix(4) {
       var metadata = [
         "kind \(action.kind.rawValue)",
@@ -725,7 +725,7 @@ enum ProductTournamentPlanningDigestFormatter {
       }
       .prefix(3)
     guard !audits.isEmpty else { return [] }
-    return ["Recent product-factory cycle audits:"]
+    return ["Recent tournament automation cycle audits:"]
       + audits.map { audit in
         let experiments =
           audit.experimentIDs.isEmpty

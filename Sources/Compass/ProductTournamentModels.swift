@@ -1404,7 +1404,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     stopDetail: String,
     userMessage: String
   ) {
-    self.id = ProductTournamentModelText.identifier(id, fallback: "factory-cycle-audit")
+    self.id = ProductTournamentModelText.identifier(id, fallback: "tournament-cycle-audit")
     self.startedAt = startedAt
     self.endedAt = max(startedAt, endedAt)
     self.executedStepIDs = ProductTournamentModelText.cleanedList(executedStepIDs, limit: 260)
@@ -1462,7 +1462,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     self.stopStepTitle = ProductTournamentModelText.optionalCleanedText(stopStepTitle, limit: 180)
     let cleanedStopDetail = ProductTournamentModelText.cleanedText(
       stopDetail,
-      fallback: "Factory cycle stopped.",
+      fallback: "Tournament automation cycle stopped.",
       limit: 500
     )
     self.stopDetail = cleanedStopDetail

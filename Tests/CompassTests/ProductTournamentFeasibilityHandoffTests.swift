@@ -111,7 +111,7 @@ struct ProductTournamentFeasibilityHandoffTests {
     try #require(digest.contains("Round 2 implementation target"))
     try #require(digest.contains("round_2_evidence_lock"))
     try #require(digest.contains("paused_sibling_experiments \(siblingExperimentID)"))
-    try #require(digest.contains("sibling product-factory evidence is paused"))
+    try #require(digest.contains("sibling tournament automation evidence is paused"))
     try #require(digest.contains("Round 2 feasibility handoff"))
     try #require(digest.contains("round_2_feasibility contender \(contender.id)"))
     try #require(digest.contains("experiment \(experiment.id)"))

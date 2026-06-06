@@ -1105,7 +1105,7 @@ struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiab
     self.summary = ProductTournamentModelText.cleanedText(
       summary,
       fallback:
-        "A targeted tournament proof answered the requested decision; update the product-factory queue before rerunning the same proof.",
+        "A targeted tournament proof answered the requested decision; update the tournament automation queue before rerunning the same proof.",
       limit: 1_000
     )
   }
@@ -1936,7 +1936,7 @@ enum ProductFactoryRevisionBriefAdvisor {
     let targetName = signal.targetPersonaName ?? "the target AI user"
     let retargetPrefix =
       isRetargeted
-      ? "The same rationale survived a factory cycle; "
+      ? "The same rationale survived a tournament automation cycle; "
       : ""
     if containsAny(rationale, ["csv", "import", "spreadsheet"]) {
       return RevisionPlan(
@@ -2528,12 +2528,13 @@ struct ProductFactoryAutopilotCyclePlan: Equatable, Sendable {
   var summary: String {
     if executableSteps.isEmpty {
       if let nextBlockedStep {
-        return "No executable factory steps; next blocked action is \(nextBlockedStep.title)."
+        return
+          "No executable tournament automation steps; next blocked action is \(nextBlockedStep.title)."
       }
-      return "No product-factory action queued."
+      return "No tournament automation action queued."
     }
     let cappedText = capped ? ", capped at \(maxSteps)" : ""
-    return "\(executableSteps.count) executable factory step(s)\(cappedText)."
+    return "\(executableSteps.count) executable tournament automation step(s)\(cappedText)."
   }
 
   var queueSummary: String {
@@ -2542,7 +2543,7 @@ struct ProductFactoryAutopilotCyclePlan: Equatable, Sendable {
         return
           "Blocked: \(nextBlockedStep.experimentTitle): \(nextBlockedStep.queueTitle) - \(nextBlockedStep.detail)"
       }
-      return "No product-factory action queued."
+      return "No tournament automation action queued."
     }
     let queued =
       executableSteps
@@ -2587,7 +2588,7 @@ struct ProductFactoryAutopilotStepResult: Equatable, Sendable {
   ) {
     self.message = ProductTournamentModelText.cleanedText(
       message,
-      fallback: "Factory step completed.",
+      fallback: "Tournament automation step completed.",
       limit: 1_200
     )
     self.evidenceRunIDs = ProductTournamentModelText.cleanedList(evidenceRunIDs, limit: 120)
@@ -2721,8 +2722,8 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   var userMessage: String {
     var parts = [
       executedSteps.isEmpty
-        ? "Factory cycle ran no steps."
-        : "Factory cycle ran \(executedSteps.count) step(s)."
+        ? "Tournament automation cycle ran no steps."
+        : "Tournament automation cycle ran \(executedSteps.count) step(s)."
     ]
     if let outcomeMessage {
       parts.append(outcomeMessage)
@@ -2801,7 +2802,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       experimentIDs.append(step.experimentID)
     }
     return ProductFactoryCycleAudit(
-      id: "factory-cycle-\(Int(started))-\(Int(ended))-\(executedSteps.count)",
+      id: "tournament-cycle-\(Int(started))-\(Int(ended))-\(executedSteps.count)",
       startedAt: started,
       endedAt: ended,
       executedStepIDs: executedSteps.map(\.id),
@@ -2915,7 +2916,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     case .reachedStepLimit:
       return "Stopped after reaching the \(max(1, maxSteps))-step cycle limit."
     case .noExecutableStep:
-      return "Stopped because no executable product-factory step remains."
+      return "Stopped because no executable tournament automation step remains."
     case .repeatedStep(_, let title):
       return "Stopped before repeating \(bounded(title, limit: 120))."
     case .executionFailed(_, let title, let message):
@@ -3695,7 +3696,7 @@ enum ProductFactoryAutopilotPlanner {
     var blocked = step
     blocked.canExecute = false
     blocked.blockedReason =
-      "Recent factory cycle \(audit.id) failed while running this step; repair the generated app contract, runner, scenario, or cohort before retrying. \(audit.stopDetail)"
+      "Recent tournament automation cycle \(audit.id) failed while running this step; repair the generated app contract, runner, scenario, or cohort before retrying. \(audit.stopDetail)"
     return blocked
   }
 
@@ -3734,7 +3735,7 @@ enum ProductFactoryAutopilotPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent factory cycle \(audit.id) already applied this product revision; run fresh targeted AI-user evidence or change the prototype before applying it again."
+        "Recent tournament automation cycle \(audit.id) already applied this product revision; run fresh targeted AI-user evidence or change the prototype before applying it again."
       return blocked
     }
     if step.canExecute,
@@ -3748,7 +3749,7 @@ enum ProductFactoryAutopilotPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent factory cycle \(audit.id) already attempted this targeted tournament proof outcome and the same outcome is still present; revise the prototype, scenario, target persona, or decision criteria before retrying."
+        "Recent tournament automation cycle \(audit.id) already attempted this targeted tournament proof outcome and the same outcome is still present; revise the prototype, scenario, target persona, or decision criteria before retrying."
       return blocked
     }
     if step.canExecute,
@@ -3762,7 +3763,7 @@ enum ProductFactoryAutopilotPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent factory cycle \(audit.id) already attempted this split-evidence target and the current tournament evidence is still split; revise the scenario, persona, prototype, or decision criteria before retrying."
+        "Recent tournament automation cycle \(audit.id) already attempted this split-evidence target and the current tournament evidence is still split; revise the scenario, persona, prototype, or decision criteria before retrying."
       return blocked
     }
     if step.canExecute,
@@ -3776,7 +3777,7 @@ enum ProductFactoryAutopilotPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent factory cycle \(audit.id) already attempted this AI-user rationale signal and the same rationale is still present; revise the prototype, scenario, or current-alternative proof before retrying."
+        "Recent tournament automation cycle \(audit.id) already attempted this AI-user rationale signal and the same rationale is still present; revise the prototype, scenario, or current-alternative proof before retrying."
       return blocked
     }
     guard step.canExecute,
@@ -3790,7 +3791,7 @@ enum ProductFactoryAutopilotPlanner {
     var blocked = step
     blocked.canExecute = false
     blocked.blockedReason =
-      "Recent factory cycle \(audit.id) already attempted this proof target without reducing proof debt; inspect the run evidence, change the scenario or current-alternative proof, or choose a different AI-user target before retrying."
+      "Recent tournament automation cycle \(audit.id) already attempted this proof target without reducing proof debt; inspect the run evidence, change the scenario or current-alternative proof, or choose a different AI-user target before retrying."
     return blocked
   }
 
@@ -3904,7 +3905,7 @@ enum ProductTournamentNextActionAdvisor {
           kind: .refineBet,
           title: "Define evidence cohort",
           detail:
-            "No enabled scenario cohort is ready for this experiment; define an enabled cohort before the factory can gather tournament evidence.",
+            "No enabled scenario cohort is ready for this experiment; define an enabled cohort before tournament automation can gather evidence.",
           priority: staleCount > 0 ? 96 : 91
         )
       }
@@ -4537,7 +4538,7 @@ enum ProductTournamentNextActionAdvisor {
         kind: .refineBet,
         title: "Retarget tournament proof outcome",
         detail:
-          "Recent factory cycle \(audit.id) reran the same targeted tournament proof outcome and it is still present (\(audit.summary)); revise the prototype, scenario, target persona, or decision criteria before retrying.",
+          "Recent tournament automation cycle \(audit.id) reran the same targeted tournament proof outcome and it is still present (\(audit.summary)); revise the prototype, scenario, target persona, or decision criteria before retrying.",
         priority: min(98, max(action.priority + 1, 87)),
         requiredSimulationMode: .personaModel,
         targetPersonaID: action.targetPersonaID,
@@ -4557,7 +4558,7 @@ enum ProductTournamentNextActionAdvisor {
         kind: .refineBet,
         title: "Retarget split tournament evidence",
         detail:
-          "Recent factory cycle \(audit.id) reran the split-evidence target without resolving the contradiction (\(audit.summary)); revise the scenario, persona, prototype, or decision criteria before retrying.",
+          "Recent tournament automation cycle \(audit.id) reran the split-evidence target without resolving the contradiction (\(audit.summary)); revise the scenario, persona, prototype, or decision criteria before retrying.",
         priority: min(98, max(action.priority + 1, 86)),
         targetPersonaID: action.targetPersonaID,
         targetPersonaName: action.targetPersonaName,
@@ -4604,7 +4605,7 @@ enum ProductTournamentNextActionAdvisor {
         kind: .refineBet,
         title: "Retarget AI-user rationale signal",
         detail:
-          "Recent factory cycle \(audit.id) reran the same AI-user rationale target and the rationale is still present (\(audit.summary)); revise the prototype, scenario, current-alternative proof, or decision criteria before retrying.",
+          "Recent tournament automation cycle \(audit.id) reran the same AI-user rationale target and the rationale is still present (\(audit.summary)); revise the prototype, scenario, current-alternative proof, or decision criteria before retrying.",
         priority: min(98, max(action.priority + 1, 86)),
         requiredSimulationMode: .personaModel,
         targetPersonaID: action.targetPersonaID,
@@ -4640,7 +4641,7 @@ enum ProductTournamentNextActionAdvisor {
       kind: .refineBet,
       title: "Retarget stalled proof debt",
       detail:
-        "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt (\(audit.summary)); retarget the scenario cohort, persona, or current-alternative proof before rerunning broad evidence.",
+        "Recent tournament automation cycle \(audit.id) ran broad evidence without reducing proof debt (\(audit.summary)); retarget the scenario cohort, persona, or current-alternative proof before rerunning broad evidence.",
       priority: min(98, max(action.priority + 1, 84))
     )
   }
@@ -4669,7 +4670,7 @@ enum ProductTournamentNextActionAdvisor {
       kind: .rerunCohort,
       title: "Validate targeted tournament proof revision",
       detail:
-        "Recent factory cycle \(audit.id) applied a targeted tournament proof revision; rerun the persona-model scenario for \(targetName) before applying the same revision again.",
+        "Recent tournament automation cycle \(audit.id) applied a targeted tournament proof revision; rerun the persona-model scenario for \(targetName) before applying the same revision again.",
       priority: min(99, max(action.priority + 3, 90)),
       cohortID: cohortID,
       requiredSimulationMode: .personaModel,
@@ -4696,7 +4697,7 @@ enum ProductTournamentNextActionAdvisor {
         "Review whether to mark the bet \($0.rawValue) before more product revisions."
       } ?? "Review whether to narrow, pivot, or kill before more product revisions."
     let detail = [
-      "Recent factory cycle \(audit.id) repeated a product revision validation.",
+      "Recent tournament automation cycle \(audit.id) repeated a product revision validation.",
       "The same AI-user rationale still survived (\(audit.summary)).",
       targetDetail,
     ].joined(separator: " ")
@@ -4757,7 +4758,7 @@ enum ProductTournamentNextActionAdvisor {
       kind: .rerunCohort,
       title: "Validate product revision",
       detail:
-        "Recent factory cycle \(revisionAudit.id) applied a product revision after stalled rationale audit \(stalledAudit.id); rerun the targeted persona-model scenario for \(targetName) before revising again.",
+        "Recent tournament automation cycle \(revisionAudit.id) applied a product revision after stalled rationale audit \(stalledAudit.id); rerun the targeted persona-model scenario for \(targetName) before revising again.",
       priority: min(99, max(action.priority + 3, 90)),
       cohortID: cohortID,
       requiredSimulationMode: .personaModel,
@@ -4848,14 +4849,14 @@ enum ProductTournamentNextActionAdvisor {
     let detail: String
     if canRunTarget {
       detail =
-        "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt; run a targeted persona-model scenario for \(targetName) to pay down \(proofNeed). Remaining proof debt: \(debtSummary)."
+        "Recent tournament automation cycle \(audit.id) ran broad evidence without reducing proof debt; run a targeted persona-model scenario for \(targetName) to pay down \(proofNeed). Remaining proof debt: \(debtSummary)."
     } else if let selectedCohort {
       let cohortTitle = StringUtils.boundedText(selectedCohort.title, limit: 80)
       detail =
-        "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt; cohort \(cohortTitle) does not cover a runnable AI-user target for \(proofNeed). \(guidance) Remaining proof debt: \(debtSummary)."
+        "Recent tournament automation cycle \(audit.id) ran broad evidence without reducing proof debt; cohort \(cohortTitle) does not cover a runnable AI-user target for \(proofNeed). \(guidance) Remaining proof debt: \(debtSummary)."
     } else {
       detail =
-        "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt; define an enabled AI-user scenario cohort for \(proofNeed).\(guidance) Remaining proof debt: \(debtSummary)."
+        "Recent tournament automation cycle \(audit.id) ran broad evidence without reducing proof debt; define an enabled AI-user scenario cohort for \(proofNeed).\(guidance) Remaining proof debt: \(debtSummary)."
     }
     return ProductTournamentNextAction(
       experimentID: experiment.id,
@@ -4889,9 +4890,9 @@ enum ProductTournamentNextActionAdvisor {
     return ProductTournamentNextAction(
       experimentID: experiment.id,
       kind: .repairFailures,
-      title: "Repair factory cycle failure",
+      title: "Repair tournament automation failure",
       detail:
-        "Recent factory cycle \(audit.id) failed while running the suggested cohort; repair the generated app contract, runner, scenario, or cohort before retrying. \(audit.stopDetail)",
+        "Recent tournament automation cycle \(audit.id) failed while running the suggested cohort; repair the generated app contract, runner, scenario, or cohort before retrying. \(audit.stopDetail)",
       priority: min(99, max(action.priority + 1, 86))
     )
   }

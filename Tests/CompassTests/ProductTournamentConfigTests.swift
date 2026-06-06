@@ -91,7 +91,7 @@ struct ProductTournamentConfigTests {
   @Test func recordingFactoryCycleAuditKeepsLatestBoundedHistory() throws {
     let base = ProductTournamentConfig.empty
     let first = ProductFactoryCycleAudit(
-      id: "factory-cycle-first",
+      id: "tournament-cycle-first",
       startedAt: 10,
       endedAt: 11,
       executedStepIDs: ["step-one"],
@@ -103,7 +103,7 @@ struct ProductTournamentConfigTests {
       userMessage: "First."
     )
     let second = ProductFactoryCycleAudit(
-      id: "factory-cycle-second",
+      id: "tournament-cycle-second",
       startedAt: 20,
       endedAt: 21,
       executedStepIDs: ["step-two"],
@@ -115,7 +115,7 @@ struct ProductTournamentConfigTests {
       userMessage: "Second."
     )
     let third = ProductFactoryCycleAudit(
-      id: "factory-cycle-third",
+      id: "tournament-cycle-third",
       startedAt: 30,
       endedAt: 31,
       executedStepIDs: ["step-three"],
@@ -134,7 +134,7 @@ struct ProductTournamentConfigTests {
       .recordingFactoryCycleAudit(third, limit: 2)
 
     try #require(
-      next.factoryCycleAudits.map(\.id) == ["factory-cycle-second", "factory-cycle-third"])
+      next.factoryCycleAudits.map(\.id) == ["tournament-cycle-second", "tournament-cycle-third"])
   }
 
   @Test func seedDefaultsCreateProductTournamentContendersRoundsAndCohorts() throws {
@@ -343,7 +343,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     decidedBy: "Reflect"
   )
   let audit = ProductFactoryCycleAudit(
-    id: "factory-cycle-handoff",
+    id: "tournament-cycle-handoff",
     startedAt: 400,
     endedAt: 405,
     executedStepIDs: ["experiment-handoff-desk:run_cohort:cohort-handoff"],
@@ -354,9 +354,9 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
       "experiment-handoff-desk: resolve split tournament evidence; target Delivery lead"
     ],
     stopReason: .noExecutableStep,
-    stopDetail: "Stopped because no executable product-factory step remains.",
+    stopDetail: "Stopped because no executable tournament automation step remains.",
     userMessage:
-      "Factory cycle ran 1 step(s). Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped. Stopped because no executable product-factory step remains."
+      "Tournament automation cycle ran 1 step(s). Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped. Stopped because no executable tournament automation step remains."
   )
   return ProductTournamentConfig(
     rawPain: pain.rawPain,

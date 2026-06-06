@@ -469,7 +469,7 @@ struct ProductTournamentEvidenceStoreTests {
     )
     config = config.recordingFactoryCycleAudit(
       ProductFactoryCycleAudit(
-        id: "factory-cycle-digest",
+        id: "tournament-cycle-digest",
         startedAt: 40,
         endedAt: 45,
         executedStepIDs: ["step-run-cohort"],
@@ -498,7 +498,7 @@ struct ProductTournamentEvidenceStoreTests {
         stopReason: .executionFailed,
         stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
         userMessage:
-          "Factory cycle ran 1 step(s). Model-free cohort ran 1 scenario(s): 0 completed, 1 needing review, 0 skipped. Stopped because Run evidence cohort failed: contract missing."
+          "Tournament automation cycle ran 1 step(s). Model-free cohort ran 1 scenario(s): 0 completed, 1 needing review, 0 skipped. Stopped because Run evidence cohort failed: contract missing."
       )
     )
     let record = makeEvidenceRecord(
@@ -528,14 +528,14 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(text.contains("2 AI-user persona(s)"))
     try #require(text.contains("ai-user 0"))
     try #require(text.contains("model-free 1"))
-    try #require(text.contains("Factory autopilot step"))
-    try #require(text.contains("Product-factory portfolio pressure"))
+    try #require(text.contains("Tournament automation step"))
+    try #require(text.contains("Tournament automation portfolio pressure"))
     try #require(text.contains("pressure learn"))
     try #require(text.contains("executable false"))
     try #require(text.contains("cycle executable 0"))
     try #require(text.contains("cycle queue Blocked"))
-    try #require(text.contains("Recent product-factory cycle audits"))
-    try #require(text.contains("factory-cycle-digest"))
+    try #require(text.contains("Recent tournament automation cycle audits"))
+    try #require(text.contains("tournament-cycle-digest"))
     try #require(text.contains("decisions 0"))
     try #require(text.contains("evidence 1"))
     try #require(text.contains("runs digest-run"))
@@ -549,7 +549,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(text.contains("1 needing review"))
     try #require(text.contains("execution_failed"))
     try #require(text.contains("contract missing"))
-    try #require(text.contains("Next product-factory actions"))
+    try #require(text.contains("Next tournament automation actions"))
     try #require(text.contains("kind run_cohort"))
     try #require(text.contains("cohort \(config.scenarioCohorts[0].id)"))
     try #require(text.contains("mode model_free"))
@@ -624,7 +624,7 @@ struct ProductTournamentEvidenceStoreTests {
       ))
     config = config.recordingFactoryCycleAudit(
       ProductFactoryCycleAudit(
-        id: "factory-cycle-failed-step",
+        id: "tournament-cycle-failed-step",
         startedAt: 50,
         endedAt: 55,
         executedStepIDs: [],
@@ -636,7 +636,7 @@ struct ProductTournamentEvidenceStoreTests {
         stopStepTitle: runnable.title,
         stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
         userMessage:
-          "Factory cycle ran no steps. Stopped because Run evidence cohort failed: contract missing."
+          "Tournament automation cycle ran no steps. Stopped because Run evidence cohort failed: contract missing."
       )
     )
 
@@ -645,15 +645,15 @@ struct ProductTournamentEvidenceStoreTests {
       evidenceIndex: .empty
     )
 
-    try #require(text.contains("Factory autopilot step"))
-    try #require(text.contains("Product-factory portfolio pressure"))
+    try #require(text.contains("Tournament automation step"))
+    try #require(text.contains("Tournament automation portfolio pressure"))
     try #require(text.contains("pressure repair"))
     try #require(text.contains("executable false"))
     try #require(text.contains("cycle executable 0"))
-    try #require(text.contains("factory-cycle-failed-step"))
-    try #require(text.contains("Recent factory cycle"))
+    try #require(text.contains("tournament-cycle-failed-step"))
+    try #require(text.contains("Recent tournament automation cycle"))
     try #require(text.contains("kind repair_failures"))
-    try #require(text.contains("Repair factory cycle failure"))
+    try #require(text.contains("Repair tournament automation failure"))
     try #require(text.contains("contract missing"))
   }
 
@@ -713,7 +713,7 @@ struct ProductTournamentEvidenceStoreTests {
     for prompt in [plan, reflect] {
       try #require(prompt.contains("## Product Tournament Context"))
       try #require(prompt.contains(config.experiments[0].branchName))
-      try #require(prompt.contains("Factory autopilot step"))
+      try #require(prompt.contains("Tournament automation step"))
       try #require(prompt.contains("executable false"))
       try #require(prompt.contains("cycle executable 0"))
       try #require(prompt.contains("cycle queue Blocked"))

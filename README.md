@@ -81,7 +81,7 @@ and advances them through rounds:
   that target before running, blocking accidental evidence collection against
   sibling contenders once Round 2 has narrowed to one implementation track; the
   Workbench also preselects that track and visibly locks sibling scenario/cohort
-  run controls, while product-factory/autopilot planning omits sibling proof
+  run controls, while tournament automation planning omits sibling proof
   targets and evidence steps. Plan/Reflect prompts also receive a
   `round_2_evidence_lock` line naming the paused sibling experiments so the next
   handoff stays focused on the single core-technology proof. Scoped Round 2

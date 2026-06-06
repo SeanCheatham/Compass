@@ -254,7 +254,7 @@ struct ProductTournamentLoopTests {
     try #require(cutCandidate.displayTitle == "continue -> kill")
     try #require(cutCandidate.displaySubtitle.contains("Cut"))
     try #require(cutCandidate.displayDetail.contains("kill-a"))
-    try #require(digest.contains("Product-factory decision candidates"))
+    try #require(digest.contains("Tournament automation decision candidates"))
     try #require(digest.contains("action apply_decision"))
     try #require(digest.contains("target_decision promote"))
     try #require(digest.contains("pressure lift"))
@@ -416,7 +416,7 @@ struct ProductTournamentLoopTests {
     try #require(action.detail.contains("pull signal"))
     try #require(action.detail.contains("rejection signal"))
     try #require(action.detail.contains(buyerScenario.id))
-    try #require(digest.contains("Product-factory evidence tensions"))
+    try #require(digest.contains("Tournament automation evidence tensions"))
     try #require(digest.contains("action resolve_signal_split"))
     try #require(digest.contains("pull split-promote-a"))
     try #require(digest.contains("reject split-reject-a"))
@@ -436,7 +436,7 @@ struct ProductTournamentLoopTests {
     }
 
     let stalledAudit = ProductFactoryCycleAudit(
-      id: "factory-cycle-split-stalled",
+      id: "tournament-cycle-split-stalled",
       startedAt: 700,
       endedAt: 710,
       executedStepIDs: [ProductFactoryCycleFailureAdvisor.stepID(for: action)],
@@ -450,12 +450,12 @@ struct ProductTournamentLoopTests {
       skippedScenarioCount: 0,
       evidenceTensionSummaries: [tension.auditSummary],
       stopReason: .noExecutableStep,
-      stopDetail: "Stopped because no executable product-factory step remains.",
-      userMessage: "Factory cycle ran 1 step(s). Evidence tensions remained split."
+      stopDetail: "Stopped because no executable tournament automation step remains.",
+      userMessage: "Tournament automation cycle ran 1 step(s). Evidence tensions remained split."
     )
     let stalledConfig = config.recordingFactoryCycleAudit(stalledAudit)
     let mismatchedDecisionAudit = ProductFactoryCycleAudit(
-      id: "factory-cycle-split-wrong-decision",
+      id: "tournament-cycle-split-wrong-decision",
       startedAt: 720,
       endedAt: 730,
       executedStepIDs: [ProductFactoryCycleFailureAdvisor.stepID(for: action)],
@@ -474,8 +474,8 @@ struct ProductTournamentLoopTests {
         )
       ],
       stopReason: .noExecutableStep,
-      stopDetail: "Stopped because no executable product-factory step remains.",
-      userMessage: "Factory cycle ran 1 step(s). Evidence tensions remained split."
+      stopDetail: "Stopped because no executable tournament automation step remains.",
+      userMessage: "Tournament automation cycle ran 1 step(s). Evidence tensions remained split."
     )
     let mismatchedDecisionConfig = config.recordingFactoryCycleAudit(mismatchedDecisionAudit)
     try #require(
@@ -730,7 +730,7 @@ struct ProductTournamentLoopTests {
     try #require(proofTarget.targetDecision == .kill)
     try #require(proofTarget.displaySubtitle.contains("decision kill"))
     try #require(proofTarget.auditSummary.contains("target_decision kill"))
-    try #require(digest.contains("Product-factory proof targets"))
+    try #require(digest.contains("Tournament automation proof targets"))
     try #require(digest.contains("target_decision kill"))
   }
 
@@ -813,8 +813,8 @@ struct ProductTournamentLoopTests {
         endingProofDebtCount: 4,
         proofTargetSummaries: [proofTargetSummary],
         stopReason: .noExecutableStep,
-        stopDetail: "Stopped because no executable product-factory step remains.",
-        userMessage: "Factory cycle ran 1 step(s). Proof debt held steady (4 -> 4)."
+        stopDetail: "Stopped because no executable tournament automation step remains.",
+        userMessage: "Tournament automation cycle ran 1 step(s). Proof debt held steady (4 -> 4)."
       )
     }
 
@@ -824,12 +824,12 @@ struct ProductTournamentLoopTests {
     )
     let mismatchedConfig = config.recordingFactoryCycleAudit(
       stalledAudit(
-        id: "factory-cycle-wrong-decision-target",
+        id: "tournament-cycle-wrong-decision-target",
         proofTargetSummary: mismatchedSummary
       )
     )
     let matchedAudit = stalledAudit(
-      id: "factory-cycle-matching-decision-target",
+      id: "tournament-cycle-matching-decision-target",
       proofTargetSummary: proofTarget.auditSummary
     )
     let matchedConfig = config.recordingFactoryCycleAudit(
@@ -886,7 +886,7 @@ struct ProductTournamentLoopTests {
         experiment: experiment,
         config: matchedConfig,
         evidenceIndex: index
-      )?.id == "factory-cycle-matching-decision-target")
+      )?.id == "tournament-cycle-matching-decision-target")
     try #require(matchedDigest.contains("target_decision kill"))
     try #require(matchedDigest.contains(targetScenarioID))
     try #require(mismatchedStep.canExecute)
@@ -935,7 +935,7 @@ struct ProductTournamentLoopTests {
     let killStepID = ProductFactoryCycleFailureAdvisor.stepID(for: killAction)
     config = config.recordingFactoryCycleAudit(
       ProductFactoryCycleAudit(
-        id: "factory-cycle-promote-proof-failed",
+        id: "tournament-cycle-promote-proof-failed",
         startedAt: 500,
         endedAt: 505,
         executedStepIDs: [],
@@ -946,7 +946,7 @@ struct ProductTournamentLoopTests {
         stopStepID: promoteStepID,
         stopStepTitle: "Run AI-user validation cohort",
         stopDetail: "Stopped because promote proof failed: runner crashed.",
-        userMessage: "Factory cycle ran no steps."
+        userMessage: "Tournament automation cycle ran no steps."
       )
     )
 
@@ -959,7 +959,7 @@ struct ProductTournamentLoopTests {
         experiment: experiment,
         config: config,
         evidenceIndex: .empty
-      )?.id == "factory-cycle-promote-proof-failed")
+      )?.id == "tournament-cycle-promote-proof-failed")
     try #require(
       ProductFactoryCycleFailureAdvisor.blockingAudit(
         forStepID: killStepID,
@@ -1192,7 +1192,7 @@ struct ProductTournamentLoopTests {
     try #require(proofTarget.targetDecision == .promote)
     try #require(proofTarget.displaySubtitle.contains("decision promote"))
     try #require(proofTarget.auditSummary.contains("target_decision promote"))
-    try #require(digest.contains("Product-factory proof targets"))
+    try #require(digest.contains("Tournament automation proof targets"))
     try #require(digest.contains("target_decision promote"))
   }
 
@@ -1398,8 +1398,8 @@ struct ProductTournamentLoopTests {
     try #require(revisionBrief.prototypeChange.contains("proof artifact"))
     try #require(revisionBrief.scenarioChange.contains("Budget owner"))
     try #require(revisionBrief.proofPlan.contains("current alternative"))
-    try #require(digest.contains("Product-factory rationale signals"))
-    try #require(digest.contains("Product-factory revision briefs"))
+    try #require(digest.contains("Tournament automation rationale signals"))
+    try #require(digest.contains("Tournament automation revision briefs"))
     try #require(digest.contains("action revise_product_bet"))
     try #require(digest.contains("prototype"))
     try #require(digest.contains("resolve_rationale_signal"))
@@ -1490,7 +1490,7 @@ struct ProductTournamentLoopTests {
       ))
     config = config.recordingFactoryCycleAudit(
       ProductFactoryCycleAudit(
-        id: "factory-cycle-stalled-rationale",
+        id: "tournament-cycle-stalled-rationale",
         startedAt: 350,
         endedAt: 360,
         executedStepIDs: [step.id],
@@ -1504,8 +1504,8 @@ struct ProductTournamentLoopTests {
         skippedScenarioCount: 0,
         personaRationaleSignalSummaries: [signal.auditSummary],
         stopReason: .noExecutableStep,
-        stopDetail: "Stopped because no executable product-factory step remains.",
-        userMessage: "Factory cycle ran 1 step(s). AI-user rationale signal still present."
+        stopDetail: "Stopped because no executable tournament automation step remains.",
+        userMessage: "Tournament automation cycle ran 1 step(s). AI-user rationale signal still present."
       )
     )
 
@@ -1539,10 +1539,10 @@ struct ProductTournamentLoopTests {
       evidenceIndex: index
     )
 
-    try #require(audit.id == "factory-cycle-stalled-rationale")
+    try #require(audit.id == "tournament-cycle-stalled-rationale")
     try #require(retarget.kind == .refineBet)
     try #require(retarget.title == "Retarget AI-user rationale signal")
-    try #require(retarget.detail.contains("factory-cycle-stalled-rationale"))
+    try #require(retarget.detail.contains("tournament-cycle-stalled-rationale"))
     try #require(retarget.detail.contains("same AI-user rationale target"))
     try #require(retarget.targetPersonaID == buyer.id)
     try #require(retarget.targetScenarioID == buyerScenario.id)
@@ -1560,7 +1560,7 @@ struct ProductTournamentLoopTests {
     try #require(revisionBrief.prototypeChange.contains("same rationale survived"))
     try #require(revisionBrief.proofPlan.contains("current alternative"))
     let revisionAudit = ProductFactoryCycleAudit(
-      id: "factory-cycle-applied-revision",
+      id: "tournament-cycle-applied-revision",
       startedAt: 370,
       endedAt: 380,
       executedStepIDs: [revisionStep.id],
@@ -1572,7 +1572,7 @@ struct ProductTournamentLoopTests {
       stopStepID: revisionStep.id,
       stopStepTitle: revisionStep.title,
       stopDetail: "Stopped before repeating Apply product revision.",
-      userMessage: "Factory cycle ran 1 step(s). Product revision applied."
+      userMessage: "Tournament automation cycle ran 1 step(s). Product revision applied."
     )
     let revisedConfig = config.recordingFactoryCycleAudit(revisionAudit)
     let appliedAudit = try #require(
@@ -1636,7 +1636,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: validationIndex
       ))
     let validationAudit = ProductFactoryCycleAudit(
-      id: "factory-cycle-validation-rationale",
+      id: "tournament-cycle-validation-rationale",
       startedAt: 400,
       endedAt: 410,
       executedStepIDs: [validationStep.id],
@@ -1650,9 +1650,9 @@ struct ProductTournamentLoopTests {
       skippedScenarioCount: 0,
       personaRationaleSignalSummaries: [validationSignal.auditSummary],
       stopReason: .noExecutableStep,
-      stopDetail: "Stopped because no executable product-factory step remains.",
+      stopDetail: "Stopped because no executable tournament automation step remains.",
       userMessage:
-        "Factory cycle ran 1 step(s). Product revision validation still showed the rationale."
+        "Tournament automation cycle ran 1 step(s). Product revision validation still showed the rationale."
     )
     let validationConfig = revisedConfig.recordingFactoryCycleAudit(validationAudit)
     let postValidationAction = try #require(
@@ -1681,7 +1681,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: validationIndex
       ))
     let secondRevisionAudit = ProductFactoryCycleAudit(
-      id: "factory-cycle-second-applied-revision",
+      id: "tournament-cycle-second-applied-revision",
       startedAt: 420,
       endedAt: 430,
       executedStepIDs: [postValidationStep.id],
@@ -1693,7 +1693,7 @@ struct ProductTournamentLoopTests {
       stopStepID: postValidationStep.id,
       stopStepTitle: postValidationStep.title,
       stopDetail: "Stopped before repeating Apply product revision.",
-      userMessage: "Factory cycle ran 1 step(s). Second product revision applied."
+      userMessage: "Tournament automation cycle ran 1 step(s). Second product revision applied."
     )
     let secondRevisedConfig = validationConfig.recordingFactoryCycleAudit(secondRevisionAudit)
     let secondValidationAction = try #require(
@@ -1740,7 +1740,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: secondValidationIndex
       ))
     let secondValidationAudit = ProductFactoryCycleAudit(
-      id: "factory-cycle-second-validation-rationale",
+      id: "tournament-cycle-second-validation-rationale",
       startedAt: 450,
       endedAt: 460,
       executedStepIDs: [secondValidationStep.id],
@@ -1754,9 +1754,9 @@ struct ProductTournamentLoopTests {
       skippedScenarioCount: 0,
       personaRationaleSignalSummaries: [secondValidationSignal.auditSummary],
       stopReason: .noExecutableStep,
-      stopDetail: "Stopped because no executable product-factory step remains.",
+      stopDetail: "Stopped because no executable tournament automation step remains.",
       userMessage:
-        "Factory cycle ran 1 step(s). Second product revision validation still showed the rationale."
+        "Tournament automation cycle ran 1 step(s). Second product revision validation still showed the rationale."
     )
     let fatiguedConfig = secondRevisedConfig.recordingFactoryCycleAudit(secondValidationAudit)
     let fatigueAudit = try #require(
@@ -1806,7 +1806,7 @@ struct ProductTournamentLoopTests {
     try #require(fatigueDigest.contains("target_decision narrow"))
     try #require(digest.contains("Retarget AI-user rationale signal"))
     try #require(digest.contains("Retarget product revision for AI-user rationale"))
-    try #require(digest.contains("factory-cycle-stalled-rationale"))
+    try #require(digest.contains("tournament-cycle-stalled-rationale"))
     try #require(digest.contains("rationale signals"))
   }
 
@@ -1853,7 +1853,7 @@ struct ProductTournamentLoopTests {
         config: config,
         evidenceIndex: index
       ) == nil)
-    try #require(!digest.contains("Product-factory revision briefs"))
+    try #require(!digest.contains("Tournament automation revision briefs"))
   }
 
   @Test func tournamentNextActionRefinesRepeatedRationaleSignalBeforeGenericNarrowing() throws {
@@ -2164,7 +2164,7 @@ struct ProductTournamentLoopTests {
     )
     config = config.recordingFactoryCycleAudit(
       ProductFactoryCycleAudit(
-        id: "factory-cycle-stalled-broad-ai-user",
+        id: "tournament-cycle-stalled-broad-ai-user",
         startedAt: 340,
         endedAt: 350,
         executedStepIDs: ["\(experiment.id):run_cohort:\(buyerCohortID)"],
@@ -2183,8 +2183,8 @@ struct ProductTournamentLoopTests {
         endingProofDebtSummary:
           "\(experiment.id): 3 completed run(s), 2 persona(s), 1 AI-user persona(s), 1 AI-user current-alternative proof(s)",
         stopReason: .noExecutableStep,
-        stopDetail: "Stopped because no executable product-factory step remains.",
-        userMessage: "Factory cycle ran 1 step(s). Proof debt held steady (4 -> 4)."
+        stopDetail: "Stopped because no executable tournament automation step remains.",
+        userMessage: "Tournament automation cycle ran 1 step(s). Proof debt held steady (4 -> 4)."
       )
     )
 
@@ -2602,7 +2602,7 @@ struct ProductTournamentLoopTests {
       ))
     config = config.recordingFactoryCycleAudit(
       ProductFactoryCycleAudit(
-        id: "factory-cycle-failed-step",
+        id: "tournament-cycle-failed-step",
         startedAt: 100,
         endedAt: 110,
         executedStepIDs: [],
@@ -2614,7 +2614,7 @@ struct ProductTournamentLoopTests {
         stopStepTitle: runnable.title,
         stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
         userMessage:
-          "Factory cycle ran no steps. Stopped because Run evidence cohort failed: contract missing."
+          "Tournament automation cycle ran no steps. Stopped because Run evidence cohort failed: contract missing."
       )
     )
 
@@ -2647,10 +2647,10 @@ struct ProductTournamentLoopTests {
     try #require(!step.canExecute)
     try #require(step.action.kind == .repairFailures)
     try #require(action.kind == .repairFailures)
-    try #require(action.title == "Repair factory cycle failure")
-    try #require(action.detail.contains("factory-cycle-failed-step"))
+    try #require(action.title == "Repair tournament automation failure")
+    try #require(action.detail.contains("tournament-cycle-failed-step"))
     try #require(action.detail.contains("contract missing"))
-    try #require(step.blockedReason?.contains("factory-cycle-failed-step") == true)
+    try #require(step.blockedReason?.contains("tournament-cycle-failed-step") == true)
     try #require(step.blockedReason?.contains("contract missing") == true)
     try #require(signal.pressure == .repair)
     try #require(signal.nextActionKind == .repairFailures)
@@ -2677,7 +2677,7 @@ struct ProductTournamentLoopTests {
       ))
     config = config.recordingFactoryCycleAudit(
       ProductFactoryCycleAudit(
-        id: "factory-cycle-failed-step",
+        id: "tournament-cycle-failed-step",
         startedAt: 100,
         endedAt: 110,
         executedStepIDs: [],
@@ -2689,7 +2689,7 @@ struct ProductTournamentLoopTests {
         stopStepTitle: runnable.title,
         stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
         userMessage:
-          "Factory cycle ran no steps. Stopped because Run evidence cohort failed: contract missing."
+          "Tournament automation cycle ran no steps. Stopped because Run evidence cohort failed: contract missing."
       )
     )
     let evidenceIndex = ProductTournamentEvidenceIndex.build(
@@ -2762,7 +2762,7 @@ struct ProductTournamentLoopTests {
     try #require(broadStep.action.targetScenarioID == nil)
     config = config.recordingFactoryCycleAudit(
       ProductFactoryCycleAudit(
-        id: "factory-cycle-stalled-proof",
+        id: "tournament-cycle-stalled-proof",
         startedAt: 100,
         endedAt: 110,
         executedStepIDs: [broadStep.id],
@@ -2783,8 +2783,8 @@ struct ProductTournamentLoopTests {
         endingProofDebtSummary:
           "\(experiment.id): 1 completed run(s), 1 persona(s), 0 AI-user persona(s), 0 AI-user current-alternative proof(s)",
         stopReason: .noExecutableStep,
-        stopDetail: "Stopped because no executable product-factory step remains.",
-        userMessage: "Factory cycle ran 1 step(s). Proof debt held steady (6 -> 6)."
+        stopDetail: "Stopped because no executable tournament automation step remains.",
+        userMessage: "Tournament automation cycle ran 1 step(s). Proof debt held steady (6 -> 6)."
       )
     )
 
@@ -2818,10 +2818,10 @@ struct ProductTournamentLoopTests {
       evidenceIndex: evidenceIndex
     )
 
-    try #require(audit.id == "factory-cycle-stalled-proof")
+    try #require(audit.id == "tournament-cycle-stalled-proof")
     try #require(action.kind == .runCohort)
     try #require(action.title == "Retarget AI-user proof debt")
-    try #require(action.detail.contains("factory-cycle-stalled-proof"))
+    try #require(action.detail.contains("tournament-cycle-stalled-proof"))
     try #require(action.detail.contains("without reducing proof debt"))
     try #require(action.detail.contains("targeted persona-model scenario"))
     try #require(action.detail.contains("Remaining proof debt"))
@@ -2851,10 +2851,10 @@ struct ProductTournamentLoopTests {
     try #require(step.action.kind == .runCohort)
     try #require(step.action.targetDecision == nil)
     try #require(step.targetScenarioID == targetScenarioID)
-    try #require(digest.contains("Product-factory proof targets"))
+    try #require(digest.contains("Tournament automation proof targets"))
     try #require(digest.contains("target run targeted AI-user persona proof"))
     try #require(digest.contains("Retarget AI-user proof debt"))
-    try #require(digest.contains("factory-cycle-stalled-proof"))
+    try #require(digest.contains("tournament-cycle-stalled-proof"))
     try #require(digest.contains("target_scenario \(targetScenarioID)"))
     try #require(digest.contains("target_name Budget owner"))
     try #require(digest.contains("required_mode persona_model"))
@@ -2862,7 +2862,7 @@ struct ProductTournamentLoopTests {
 
     config = config.recordingFactoryCycleAudit(
       ProductFactoryCycleAudit(
-        id: "factory-cycle-stalled-target",
+        id: "tournament-cycle-stalled-target",
         startedAt: 120,
         endedAt: 130,
         executedStepIDs: [step.id],
@@ -2882,8 +2882,8 @@ struct ProductTournamentLoopTests {
           "\(experiment.id): 1 completed run(s), 1 persona(s), 0 AI-user persona(s), 0 AI-user current-alternative proof(s)",
         proofTargetSummaries: [proofTarget.auditSummary],
         stopReason: .noExecutableStep,
-        stopDetail: "Stopped because no executable product-factory step remains.",
-        userMessage: "Factory cycle ran 1 step(s). Proof debt held steady (6 -> 6)."
+        stopDetail: "Stopped because no executable tournament automation step remains.",
+        userMessage: "Tournament automation cycle ran 1 step(s). Proof debt held steady (6 -> 6)."
       )
     )
 
@@ -2901,7 +2901,7 @@ struct ProductTournamentLoopTests {
         isPersonaModelAvailable: true
       ))
 
-    try #require(stalledTargetAudit.id == "factory-cycle-stalled-target")
+    try #require(stalledTargetAudit.id == "tournament-cycle-stalled-target")
     try #require(
       ProductFactoryAutopilotPlanner.nextExecutableStep(
         config: config,
@@ -2972,7 +2972,7 @@ struct ProductTournamentLoopTests {
       ))
     config = config.recordingFactoryCycleAudit(
       ProductFactoryCycleAudit(
-        id: "factory-cycle-stalled-no-target",
+        id: "tournament-cycle-stalled-no-target",
         startedAt: 100,
         endedAt: 110,
         executedStepIDs: [broadStep.id],
@@ -2991,8 +2991,8 @@ struct ProductTournamentLoopTests {
         endingProofDebtSummary:
           "\(experiment.id): 1 completed run(s), 1 persona(s), 1 AI-user persona(s), 1 AI-user current-alternative proof(s)",
         stopReason: .noExecutableStep,
-        stopDetail: "Stopped because no executable product-factory step remains.",
-        userMessage: "Factory cycle ran 1 step(s). Proof debt held steady (4 -> 4)."
+        stopDetail: "Stopped because no executable tournament automation step remains.",
+        userMessage: "Tournament automation cycle ran 1 step(s). Proof debt held steady (4 -> 4)."
       )
     )
 
@@ -3023,7 +3023,7 @@ struct ProductTournamentLoopTests {
     try #require(action.targetPersonaID == buyer.id)
     try #require(action.targetScenarioID == nil)
     try #require(action.targetDecision == nil)
-    try #require(action.detail.contains("factory-cycle-stalled-no-target"))
+    try #require(action.detail.contains("tournament-cycle-stalled-no-target"))
     try #require(action.detail.contains("does not cover a runnable AI-user target"))
     try #require(action.detail.contains("add an enabled scenario"))
     try #require(proofTarget.label == "add or enable runnable AI-user proof")
@@ -3044,7 +3044,7 @@ struct ProductTournamentLoopTests {
     try #require(step.kind == .blocked)
     try #require(step.action.kind == .refineBet)
     try #require(step.action.targetDecision == nil)
-    try #require(digest.contains("Product-factory proof targets"))
+    try #require(digest.contains("Tournament automation proof targets"))
     try #require(digest.contains("target add or enable runnable AI-user proof"))
     try #require(digest.contains("target_persona \(buyer.id)"))
     try #require(digest.contains("target_name Budget owner"))
@@ -3097,7 +3097,7 @@ struct ProductTournamentLoopTests {
     let blocked = try #require(plan.nextBlockedStep)
     try #require(blocked.kind == .runCohort)
     try #require(blocked.blockedReason?.contains("target commit") == true)
-    try #require(plan.summary.contains("No executable factory steps"))
+    try #require(plan.summary.contains("No executable tournament automation steps"))
     try #require(plan.queueSummary.contains("Blocked:"))
     try #require(plan.queueSummary.contains("target commit"))
   }
@@ -3124,7 +3124,7 @@ struct ProductTournamentLoopTests {
       stopReason: .repeatedStep(stepID: step.id, title: step.title)
     )
 
-    try #require(outcome.userMessage.contains("Factory cycle ran 1 step(s)."))
+    try #require(outcome.userMessage.contains("Tournament automation cycle ran 1 step(s)."))
     try #require(outcome.userMessage.contains("0 tournament decision(s) applied"))
     try #require(outcome.userMessage.contains("1 evidence step(s)"))
     try #require(outcome.userMessage.contains("Model-free cohort ran 1 scenario(s)"))
@@ -3264,7 +3264,7 @@ struct ProductTournamentLoopTests {
       config: config.recordingFactoryCycleAudit(audit),
       evidenceIndex: index
     )
-    try #require(digest.contains("Recent product-factory cycle audits"))
+    try #require(digest.contains("Recent tournament automation cycle audits"))
     try #require(digest.contains("decision candidates"))
     try #require(digest.contains("pressure lift"))
     try #require(digest.contains("continue -> promote"))
@@ -3353,7 +3353,7 @@ struct ProductTournamentLoopTests {
     try #require(step.kind == .applyRevision)
     try #require(step.canExecute)
     try #require(step.action.targetDecision == .narrow)
-    try #require(digest.contains("Product-factory targeted proof outcomes"))
+    try #require(digest.contains("Tournament automation targeted proof outcomes"))
     try #require(digest.contains("outcome contradicts_target"))
     try #require(digest.contains("recommended_decision narrow"))
   }
@@ -3475,7 +3475,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let stalledAudit = ProductFactoryCycleAudit(
-      id: "factory-cycle-stalled-targeted-proof",
+      id: "tournament-cycle-stalled-targeted-proof",
       startedAt: 220,
       endedAt: 230,
       executedStepIDs: [ProductFactoryCycleFailureAdvisor.stepID(for: action)],
@@ -3489,8 +3489,8 @@ struct ProductTournamentLoopTests {
       skippedScenarioCount: 0,
       targetedProofOutcomeSummaries: [signal.auditSummary],
       stopReason: .noExecutableStep,
-      stopDetail: "Stopped because no executable product-factory step remains.",
-      userMessage: "Factory cycle ran 1 step(s). Targeted proof outcome persisted."
+      stopDetail: "Stopped because no executable tournament automation step remains.",
+      userMessage: "Tournament automation cycle ran 1 step(s). Targeted proof outcome persisted."
     )
     let stalledConfig = config.recordingFactoryCycleAudit(stalledAudit)
 
@@ -3536,7 +3536,7 @@ struct ProductTournamentLoopTests {
     try #require(revisionStep.canExecute)
     try #require(revisionStep.targetScenarioID == scenario.id)
     try #require(digest.contains("targeted proof outcomes"))
-    try #require(digest.contains("factory-cycle-stalled-targeted-proof"))
+    try #require(digest.contains("tournament-cycle-stalled-targeted-proof"))
   }
 
   @Test func targetedProofOutcomeAppliedRevisionQueuesValidationRerun() throws {
@@ -3599,7 +3599,7 @@ struct ProductTournamentLoopTests {
         isPersonaModelAvailable: true
       ))
     let revisionAudit = ProductFactoryCycleAudit(
-      id: "factory-cycle-targeted-proof-revision",
+      id: "tournament-cycle-targeted-proof-revision",
       startedAt: 220,
       endedAt: 230,
       executedStepIDs: [revisionStep.id],
@@ -3674,7 +3674,7 @@ struct ProductTournamentLoopTests {
       )
     )
 
-    try #require(outcome.userMessage.contains("Factory cycle ran no steps."))
+    try #require(outcome.userMessage.contains("Tournament automation cycle ran no steps."))
     try #require(
       outcome.userMessage.contains(
         "Stopped because Run evidence cohort failed: Command timed out while simulating the buyer."
@@ -3766,7 +3766,7 @@ struct ProductTournamentLoopTests {
     try #require(audit.revisionBriefSummaries.count == 1)
     try #require(audit.revisionBriefSummaries[0].contains("Retarget product revision"))
     try #require(audit.stopReason == .noExecutableStep)
-    try #require(audit.userMessage.contains("Factory cycle ran 1 step(s)."))
+    try #require(audit.userMessage.contains("Tournament automation cycle ran 1 step(s)."))
     try #require(audit.userMessage.contains("evidence runs 1 completed, 0 needing review"))
     try #require(audit.userMessage.contains("Evidence tensions:"))
     try #require(audit.userMessage.contains("Proof targets:"))
@@ -3786,7 +3786,7 @@ struct ProductTournamentLoopTests {
     try #require(audit.summary.contains("revisions"))
     try #require(audit.summary.contains("Retarget product revision"))
     try #require(
-      audit.userMessage.contains("Stopped because no executable product-factory step remains."))
+      audit.userMessage.contains("Stopped because no executable tournament automation step remains."))
   }
 
   @Test func tournamentDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {

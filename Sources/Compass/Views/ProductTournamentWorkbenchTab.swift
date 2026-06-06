@@ -1387,7 +1387,7 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private var factoryAutopilot: some View {
-    WorkbenchSection("Factory Autopilot", systemImage: "sparkles") {
+    WorkbenchSection("Tournament Automation", systemImage: "sparkles") {
       VStack(alignment: .leading, spacing: 8) {
         if let step = factoryAutopilotStep {
           WorkbenchFact(label: "Experiment", value: step.experimentTitle)
@@ -1440,7 +1440,7 @@ struct ProductTournamentWorkbenchTab: View {
             .disabled(!factoryAutopilotCycleCanRun)
           }
         } else {
-          WorkbenchEmptyLine("No product-factory action queued.")
+          WorkbenchEmptyLine("No tournament automation action queued.")
         }
       }
     }
@@ -2461,7 +2461,7 @@ struct ProductTournamentWorkbenchTab: View {
         for: brief,
         scenarioID: scenarioID,
         startedAt: startedAt,
-        idPrefix: "factory-cycle-manual-revision",
+        idPrefix: "tournament-cycle-manual-revision",
         targetedProofOutcomeSummaries: targetedProofOutcomeSummaries,
         stopDetail: "Manual product revision applied; run targeted validation evidence next.",
         userMessage:
@@ -2763,7 +2763,7 @@ struct ProductTournamentWorkbenchTab: View {
           for: stepRevisionBrief,
           scenarioID: scenarioID,
           startedAt: Date(),
-          idPrefix: "factory-cycle-revision-checkpoint",
+          idPrefix: "tournament-cycle-revision-checkpoint",
           targetedProofOutcomeSummaries:
             productFactoryTargetedProofOutcomeSignal(
               forExperimentID: stepRevisionBrief.experimentID
