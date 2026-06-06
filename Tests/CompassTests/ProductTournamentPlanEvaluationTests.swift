@@ -67,6 +67,41 @@ struct ProductTournamentPlanEvaluationTests {
     try #require(digest.contains("next_plan_proof"))
   }
 
+  @Test func modelFreeRoundOneCanFocusOneContenderProofTarget() throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    let config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "LedgerLift",
+      rawPain: "Finance operators lose weekly reporting context between Slack and spreadsheets.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    try workspace.writeProductTournamentConfig(config)
+
+    let tournament = try #require(config.tournaments.first)
+    let round = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let focusedContender = try #require(config.tournamentContenders.first)
+
+    let outcome = try ProductTournamentPlanEvaluator.runPlanRound(
+      tournamentID: tournament.id,
+      roundID: round.id,
+      contenderID: focusedContender.id,
+      in: workspace,
+      now: Date(timeIntervalSince1970: 2_500)
+    )
+
+    try #require(outcome.focusedContenderID == focusedContender.id)
+    try #require(outcome.completedEvaluationCount == 2)
+    try #require(outcome.records.allSatisfy { $0.contenderID == focusedContender.id })
+    try #require(outcome.targetedBuyerOrSponsorContenderIDs == [focusedContender.id])
+    try #require(outcome.userMessage.contains("Focused contender: \(focusedContender.id)"))
+
+    let index = workspace.readProductTournamentEvidenceIndex()
+    try #require(index.planEvaluationSummaries.count == 2)
+    try #require(index.aggregate.planReadinessByContender.map(\.contenderID) == [focusedContender.id])
+  }
+
   @Test func modelFreeRoundOneTargetsBuyerSponsorDebtAfterOperatorOnlyEvidence() throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }

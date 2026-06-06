@@ -30,6 +30,7 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var isSavingScenario = false
   @State private var isRunningScenario = false
   @State private var isRunningPlanEvaluation = false
+  @State private var runningPlanEvaluationContenderID: String?
   @State private var isApplyingPlanTransition = false
   @State private var isApplyingRoundEvidenceTransition = false
   @State private var isApplyingPrototypeEvidenceTransition = false
@@ -144,6 +145,49 @@ struct ProductTournamentWorkbenchTab: View {
       && !isRunningTournamentStep
       && !isRunningTournamentAutomationCycle
       && !isRunningScenario
+  }
+
+  private var activePlanRoundContenderIDs: Set<String> {
+    guard let tournament = activeTournamentForPlanEvaluation,
+      let round = activePlanRoundForEvaluation
+    else { return [] }
+    return Set(round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs)
+  }
+
+  private func planReadiness(
+    for contender: ProductTournamentContender
+  ) -> ProductTournamentPlanReadiness? {
+    evidenceIndex.aggregate.planReadinessByContender.first { $0.contenderID == contender.id }
+  }
+
+  private func planEvaluationCanRun(
+    for contender: ProductTournamentContender
+  ) -> Bool {
+    planEvaluationCanRun
+      && activePlanRoundContenderIDs.contains(contender.id)
+      && (contender.status == .competing || contender.status == .narrowed
+        || contender.status == .needsRevision)
+  }
+
+  private func planProofTargetSummary(
+    for contender: ProductTournamentContender,
+    readiness: ProductTournamentPlanReadiness?
+  ) -> String {
+    if let readiness {
+      return readiness.nextProofTargetSummary
+    }
+    if activePlanRoundContenderIDs.contains(contender.id) {
+      return "operator and economic-buyer plan evaluations"
+    }
+    return "not in the active plan round"
+  }
+
+  private func planProofTargetHelp(
+    for contender: ProductTournamentContender,
+    readiness: ProductTournamentPlanReadiness?
+  ) -> String {
+    let target = planProofTargetSummary(for: contender, readiness: readiness)
+    return "Run Round 1 simulated-user proof for \(contender.title): \(target)."
   }
 
   private var planTransitionProposal: ProductTournamentPlanTransitionProposal? {
@@ -698,7 +742,7 @@ struct ProductTournamentWorkbenchTab: View {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
               Button {
-                Task { await runPlanEvaluationRound() }
+                Task { await runPlanEvaluationRound(contenderID: nil) }
               } label: {
                 Label(
                   isRunningPlanEvaluation ? "Running Round 1" : "Run Round 1",
@@ -939,72 +983,85 @@ struct ProductTournamentWorkbenchTab: View {
     let experiment = contender.experimentID.flatMap { experimentID in
       config.experiments.first { $0.id == experimentID }
     }
-    let planReadiness = evidenceIndex.aggregate.planReadinessByContender.first {
-      $0.contenderID == contender.id
+    let planReadiness = planReadiness(for: contender)
+    let nextProofTarget = planProofTargetSummary(for: contender, readiness: planReadiness)
+    return VStack(alignment: .leading, spacing: 7) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text(contender.title)
+          .font(.callout.weight(.semibold))
+          .lineLimit(2)
+        Spacer()
+        WorkbenchStatusPill(text: contender.status.rawValue)
+      }
+      WorkbenchFact(label: "Solution", value: contender.solutionID)
+      WorkbenchFact(label: "Track", value: contender.experimentID ?? "plan only")
+      if let experiment {
+        WorkbenchFact(label: "Decision", value: experiment.decision.rawValue)
+      }
+      if let planReadiness {
+        WorkbenchFact(
+          label: "Plan",
+          value:
+            "\(planReadiness.scoreLabel)/100, \(planReadiness.recommendation.title), pay \(scoreLabel(planReadiness.averageWillingnessToPayScore))/5"
+        )
+        WorkbenchFact(label: "Plan proof", value: planReadiness.planProofDebt.summary)
+        WorkbenchFact(label: "Commercial proof", value: planReadiness.commercialProofSummary)
+        WorkbenchFact(label: "Next proof", value: nextProofTarget)
+        WorkbenchFact(
+          label: "Buyer signals",
+          value: "\(planReadiness.buyerOrSponsorPersonaCount)"
+        )
+        if let price = planReadiness.estimatedMonthlyPriceCents {
+          WorkbenchFact(label: "Price", value: priceLabel(cents: price))
+        }
+      } else {
+        WorkbenchFact(label: "Plan", value: "not evaluated")
+        WorkbenchFact(label: "Commercial proof", value: "no willingness-to-pay proof yet")
+        WorkbenchFact(label: "Next proof", value: nextProofTarget)
+      }
+      WorkbenchFact(
+        label: "Segments",
+        value: contender.targetSegmentIDs.isEmpty
+          ? "none"
+          : contender.targetSegmentIDs.joined(separator: ", ")
+      )
+      Text(contender.valueProposition)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
+      Text("Risk: \(contender.primaryRisk)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
+      if activePlanRoundContenderIDs.contains(contender.id) {
+        HStack {
+          Button {
+            Task { await runPlanEvaluationRound(contenderID: contender.id) }
+          } label: {
+            Label(
+              runningPlanEvaluationContenderID == contender.id ? "Running Proof" : "Run Proof Target",
+              systemImage: "target"
+            )
+          }
+          .buttonStyle(.bordered)
+          .disabled(!planEvaluationCanRun(for: contender))
+          .help(planProofTargetHelp(for: contender, readiness: planReadiness))
+          Spacer()
+        }
+      }
     }
-    return Button {
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .contentShape(Rectangle())
+    .onTapGesture {
       if let experimentID = contender.experimentID {
         selectedExperimentID = experimentID
       }
-    } label: {
-      VStack(alignment: .leading, spacing: 7) {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-          Text(contender.title)
-            .font(.callout.weight(.semibold))
-            .lineLimit(2)
-          Spacer()
-          WorkbenchStatusPill(text: contender.status.rawValue)
-        }
-        WorkbenchFact(label: "Solution", value: contender.solutionID)
-        WorkbenchFact(label: "Track", value: contender.experimentID ?? "plan only")
-        if let experiment {
-          WorkbenchFact(label: "Decision", value: experiment.decision.rawValue)
-        }
-        if let planReadiness {
-          WorkbenchFact(
-            label: "Plan",
-            value:
-              "\(planReadiness.scoreLabel)/100, \(planReadiness.recommendation.title), pay \(scoreLabel(planReadiness.averageWillingnessToPayScore))/5"
-          )
-          WorkbenchFact(label: "Plan proof", value: planReadiness.planProofDebt.summary)
-          WorkbenchFact(label: "Commercial proof", value: planReadiness.commercialProofSummary)
-          WorkbenchFact(label: "Next proof", value: planReadiness.nextProofTargetSummary)
-          WorkbenchFact(
-            label: "Buyer signals",
-            value: "\(planReadiness.buyerOrSponsorPersonaCount)"
-          )
-          if let price = planReadiness.estimatedMonthlyPriceCents {
-            WorkbenchFact(label: "Price", value: priceLabel(cents: price))
-          }
-        } else {
-          WorkbenchFact(label: "Plan", value: "not evaluated")
-          WorkbenchFact(label: "Commercial proof", value: "no willingness-to-pay proof yet")
-          WorkbenchFact(
-            label: "Next proof",
-            value: "operator and economic-buyer plan evaluations"
-          )
-        }
-        WorkbenchFact(
-          label: "Segments",
-          value: contender.targetSegmentIDs.isEmpty
-            ? "none"
-            : contender.targetSegmentIDs.joined(separator: ", ")
-        )
-        Text(contender.valueProposition)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .lineLimit(2)
-        Text("Risk: \(contender.primaryRisk)")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .lineLimit(2)
+      if let latestEvaluationID = planReadiness?.latestEvaluationID {
+        selectedPlanEvaluationID = latestEvaluationID
       }
-      .padding(10)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
-    .buttonStyle(.plain)
-    .disabled(contender.experimentID == nil)
     .help(contender.productPlan)
   }
 
@@ -3153,15 +3210,20 @@ struct ProductTournamentWorkbenchTab: View {
     await loadContractStatus()
   }
 
-  private func runPlanEvaluationRound() async {
+  private func runPlanEvaluationRound(contenderID: String?) async {
     guard let tournament = activeTournamentForPlanEvaluation,
       let round = activePlanRoundForEvaluation
     else { return }
     isRunningPlanEvaluation = true
-    defer { isRunningPlanEvaluation = false }
+    runningPlanEvaluationContenderID = contenderID
+    defer {
+      isRunningPlanEvaluation = false
+      runningPlanEvaluationContenderID = nil
+    }
     let outcome = await project.runProductTournamentPlanRoundModelFree(
       tournamentID: tournament.id,
-      roundID: round.id
+      roundID: round.id,
+      contenderID: contenderID
     )
     if let outcome {
       planEvaluationMessage = outcome.userMessage

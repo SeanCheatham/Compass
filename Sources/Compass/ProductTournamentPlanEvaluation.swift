@@ -3,6 +3,7 @@ import Foundation
 struct ProductTournamentPlanEvaluationOutcome {
   var tournamentID: String
   var roundID: String
+  var focusedContenderID: String?
   var records: [ProductTournamentPlanEvaluationRecord]
   var skippedContenderIDs: [String]
   var targetedBuyerOrSponsorContenderIDs: [String]
@@ -31,6 +32,9 @@ struct ProductTournamentPlanEvaluationOutcome {
   var userMessage: String {
     var message =
       "Round 1 plan evaluation recorded \(completedEvaluationCount) simulated-user evaluation(s) for \(records.map(\.contenderID).uniquedCount) contender(s), \(skippedContenderIDs.count) skipped."
+    if let focusedContenderID {
+      message += " Focused contender: \(focusedContenderID)."
+    }
     if buyerOrSponsorEvaluationCount > 0 {
       message += " Included \(buyerOrSponsorEvaluationCount) buyer/sponsor signal(s)."
     }
@@ -230,6 +234,7 @@ enum ProductTournamentPlanEvaluator {
   static func runPlanRound(
     tournamentID: String,
     roundID: String? = nil,
+    contenderID focusedContenderID: String? = nil,
     in workspace: CompassWorkspace,
     projectID: UUID? = nil,
     now: Date = Date()
@@ -240,7 +245,16 @@ enum ProductTournamentPlanEvaluator {
       throw ProductTournamentPlanEvaluationError.unknownTournament(tournamentID)
     }
     let round = try planRound(roundID: roundID, tournament: tournament, config: config)
-    let contenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
+    let roundContenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
+    let contenderIDs: [String]
+    if let focusedContenderID {
+      guard roundContenderIDs.contains(focusedContenderID) else {
+        throw ProductTournamentPlanEvaluationError.unknownContender(focusedContenderID)
+      }
+      contenderIDs = [focusedContenderID]
+    } else {
+      contenderIDs = roundContenderIDs
+    }
     let existingEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
     var records: [ProductTournamentPlanEvaluationRecord] = []
     var skippedContenderIDs: [String] = []
@@ -302,6 +316,7 @@ enum ProductTournamentPlanEvaluator {
     return ProductTournamentPlanEvaluationOutcome(
       tournamentID: tournament.id,
       roundID: round.id,
+      focusedContenderID: focusedContenderID,
       records: records,
       skippedContenderIDs: skippedContenderIDs,
       targetedBuyerOrSponsorContenderIDs: targetedBuyerOrSponsorContenderIDs
@@ -937,7 +952,8 @@ enum ProductTournamentPlanEvaluator {
 extension CompassProject {
   func runProductTournamentPlanRoundModelFree(
     tournamentID: String,
-    roundID: String? = nil
+    roundID: String? = nil,
+    contenderID: String? = nil
   ) async -> ProductTournamentPlanEvaluationOutcome? {
     do {
       guard let workspace else {
@@ -947,6 +963,7 @@ extension CompassProject {
       let outcome = try ProductTournamentPlanEvaluator.runPlanRound(
         tournamentID: tournamentID,
         roundID: roundID,
+        contenderID: contenderID,
         in: workspace,
         projectID: id
       )
