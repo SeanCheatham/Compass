@@ -602,6 +602,43 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     }
   }
 
+  @Test func roundThreeImplementationRevisionValidationOverviewQueuesWorktreePreparation()
+    throws
+  {
+    let validationFixture = try roundThreeRevisionValidationFixture(
+      hasPreparedValidationTarget: false
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: validationFixture.preRevisionRecords)
+    let validationItem = try #require(
+      ProductTournamentRoundThreeImplementationRevisionValidationOverview.items(
+        config: validationFixture.config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ).first
+    )
+    let nextStep = try #require(validationItem.nextStep)
+    let cohortID = "\(validationFixture.fixture.experiment.id)-round-3-validation-cohort"
+
+    try #require(validationItem.outcome == .pendingValidation)
+    try #require(nextStep.kind == .prepareWorktree)
+    try #require(nextStep.action.kind == .prepareWorktree)
+    try #require(nextStep.action.title == "Prepare implementation worktree")
+    try #require(nextStep.action.cohortID == cohortID)
+    try #require(nextStep.canExecute)
+    try #require(validationItem.nextStepSummary == "Ready: Prepare implementation worktree")
+    try #require(validationItem.nextStepSystemImage == "hammer")
+    try #require(validationItem.nextStepDetail.contains(validationFixture.fixture.experiment.title))
+    try #require(validationItem.nextStepDetail.contains("Prepare implementation worktree"))
+    try #require(
+      nextStep.action.detail.contains(
+        "Round 3 implementation revision validation scenario needs"
+      ))
+    try #require(nextStep.action.detail.contains("target commit"))
+    try #require(nextStep.action.detail.contains(cohortID))
+    try #require(
+      validationItem.helpSummary.contains("Next step: Ready: Prepare implementation worktree"))
+  }
+
   @Test func twoStrongProductImplementationRunsOnlyGatherMoreEvidence() throws {
     let fixture = try roundThreeFixture()
     let records = productImplementationEvidenceRecords(
@@ -892,7 +929,9 @@ private func roundThreeFixture() throws -> RoundThreeFixture {
   )
 }
 
-private func roundThreeRevisionValidationFixture() throws -> RoundThreeRevisionValidationFixture {
+private func roundThreeRevisionValidationFixture(
+  hasPreparedValidationTarget: Bool = true
+) throws -> RoundThreeRevisionValidationFixture {
   let fixture = try roundThreeFixture()
   let revisionScenarioID = "\(fixture.experiment.id)-round-3-validation-operator"
   let siblingScenarioID = "\(fixture.experiment.id)-round-3-validation-buyer"
@@ -900,11 +939,13 @@ private func roundThreeRevisionValidationFixture() throws -> RoundThreeRevisionV
   let secondSegment = try #require(fixture.config.userSegments.dropFirst().first)
   let workflow = try #require(fixture.config.currentWorkflows.first)
   var config = fixture.config
+  let targetCommitSha = hasPreparedValidationTarget ? "def456" : nil
   if let experimentIndex = config.tournamentExperiments.firstIndex(where: {
     $0.id == fixture.experiment.id
   }) {
-    config.tournamentExperiments[experimentIndex].baseSha = "base-sha"
-    config.tournamentExperiments[experimentIndex].currentSha = "def456"
+    config.tournamentExperiments[experimentIndex].baseSha =
+      hasPreparedValidationTarget ? "base-sha" : nil
+    config.tournamentExperiments[experimentIndex].currentSha = targetCommitSha
   }
   config.scenarios.append(
     ProductScenario(
@@ -916,7 +957,7 @@ private func roundThreeRevisionValidationFixture() throws -> RoundThreeRevisionV
       task: "Validate the revised low-medium fidelity implementation as the first user.",
       successSignal:
         "The revised implementation is exercised, beats the spreadsheet, and earns sponsor intent.",
-      targetCommitSha: "def456",
+      targetCommitSha: targetCommitSha,
       createdAt: 100
     ))
   config.scenarios.append(
@@ -929,7 +970,7 @@ private func roundThreeRevisionValidationFixture() throws -> RoundThreeRevisionV
       task: "Validate the revised low-medium fidelity implementation as the second user.",
       successSignal:
         "The revised implementation earns explicit willingness-to-pay from another persona.",
-      targetCommitSha: "def456",
+      targetCommitSha: targetCommitSha,
       createdAt: 100
     ))
   config.scenarioCohorts.append(
