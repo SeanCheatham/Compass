@@ -274,6 +274,18 @@ struct ProductTournamentRoundProofOverviewTests {
     )
     let row = try #require(item.rows.first { $0.experimentID == step.experimentID })
     let movement = try #require(row.latestDebtMovement)
+    let audit = try #require(
+      config.tournamentAutomationCycleAudits.first { $0.id == "scoreboard-proof-delta" }
+    )
+    let focus = try #require(
+      TournamentAutomationProofTargetScoreboard.focus(
+        after: audit,
+        config: config,
+        evidenceIndex: evidenceIndex,
+        preferredStep: step,
+        isPersonaModelAvailable: false
+      )
+    )
     let context = TournamentAutomationProofTargetScoreboard.contextLines(
       config: config,
       evidenceIndex: evidenceIndex,
@@ -290,6 +302,10 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(movement.displaySummary == "Latest audit cleared 2 proof debt (6 -> 4)")
     try #require(movement.lastRunSummary == "Last run cleared 2 proof debt")
     try #require(row.firstEvidenceRunID == "scoreboard-proof-run")
+    try #require(focus.auditID == "scoreboard-proof-delta")
+    try #require(focus.row.selectionID == row.selectionID)
+    try #require(focus.evidenceRunID == nil)
+    try #require(focus.planEvaluationID == nil)
     try #require(row.workbenchAccessibilityID.contains(row.selectionID))
     try #require(row.runPairSummary == "Last run cleared 2 proof debt -> Ready: Run Plan Proof")
     try #require(row.displaySummary.contains("Latest audit cleared 2 proof debt"))
@@ -304,6 +320,106 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(digest.contains("run_pair last cleared 2 proof debt"))
     try #require(workbenchBody.contains("Proof Scoreboard"))
     try #require(workbenchBody.contains("AccessibilityAttachmentModifier"))
+  }
+
+  @Test func proofTargetFocusResolvesPlanEvaluationOutcomeIDs() throws {
+    var config = try roundOneConfig()
+    let tournament = try #require(config.tournaments.first)
+    let round = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let step = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: ProductTournamentEvidenceIndex.build(records: []),
+        isPersonaModelAvailable: false
+      )
+    )
+    let contenderID = try #require(step.contenderID)
+    let contender = try #require(
+      config.tournamentContenders.first { $0.id == contenderID }
+    )
+    let contenderPlan = try #require(
+      config.contenderPlans.first { $0.id == contender.contenderPlanID }
+    )
+    let persona = try #require(config.userSegments.first)
+    let planEvaluation = ProductTournamentPlanEvaluationRecord(
+      id: "scoreboard-plan-evaluation-run",
+      tournamentID: tournament.id,
+      roundID: round.id,
+      contenderID: contender.id,
+      contenderPlanID: contender.contenderPlanID,
+      experimentID: contender.experimentID,
+      painID: contenderPlan.painID,
+      personaID: persona.id,
+      personaName: persona.name,
+      currentWorkflowID: persona.currentWorkflowIDs.first,
+      alternativeID: persona.alternativeIDs.first,
+      startedAt: 20,
+      endedAt: 30,
+      scores: ProductTournamentEvidenceScores(
+        painRecognition: 4,
+        workflowImprovement: 4,
+        alternativeAdvantage: 3,
+        switchingReadiness: 3,
+        continuedUsePull: 4,
+        willingnessToPay: 4
+      ),
+      willingnessToPayScore: 4,
+      estimatedMonthlyPriceCents: 4900,
+      commercialProofSummary: "Budget owner would sponsor the first plan proof.",
+      currentAlternativeComparison: "The plan beats manual reporting for this persona.",
+      verdict: .promising,
+      summary: "The simulated user sees enough plan value to sponsor a trial."
+    )
+    let evidenceIndex = ProductTournamentEvidenceIndex.build(
+      records: [],
+      planEvaluationRecords: [planEvaluation]
+    )
+    let target = try #require(
+      TournamentAutomationProofTargetAdvisor.targets(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: false
+      ).first { $0.experimentID == step.experimentID }
+    )
+    let audit = TournamentAutomationCycleAudit(
+      id: "scoreboard-plan-evaluation-audit",
+      startedAt: 40,
+      endedAt: 45,
+      executedStepIDs: [step.id],
+      experimentIDs: [step.experimentID],
+      messages: ["Focused Round 1 plan proof recorded a plan-evaluation outcome."],
+      maxSteps: 1,
+      evidenceRunStepCount: 1,
+      evidenceRunIDs: [planEvaluation.id],
+      completedEvidenceRunCount: 1,
+      startingProofDebtCount: 5,
+      endingProofDebtCount: 3,
+      startingProofDebtSummary:
+        "\(step.experimentID): contender \(contender.id), round \(round.id), plan proof had 5 proof debt item(s).",
+      endingProofDebtSummary:
+        "\(step.experimentID): contender \(contender.id), round \(round.id), plan proof had 3 proof debt item(s).",
+      proofTargetSummaries: [target.auditSummary],
+      stopReason: .reachedStepLimit,
+      stopDetail: "Reached one focused plan-proof step.",
+      userMessage: "Focused plan proof reduced Round 1 proof debt."
+    )
+    config = config.recordingTournamentAutomationCycleAudit(audit)
+
+    let focus = try #require(
+      TournamentAutomationProofTargetScoreboard.focus(
+        after: audit,
+        config: config,
+        evidenceIndex: evidenceIndex,
+        preferredStep: step,
+        isPersonaModelAvailable: false
+      )
+    )
+
+    try #require(focus.row.experimentID == step.experimentID)
+    try #require(focus.row.contenderID == contender.id)
+    try #require(focus.auditID == audit.id)
+    try #require(focus.evidenceRunID == nil)
+    try #require(focus.planEvaluationID == planEvaluation.id)
   }
 }
 

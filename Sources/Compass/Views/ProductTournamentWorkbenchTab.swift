@@ -2105,7 +2105,7 @@ struct ProductTournamentWorkbenchTab: View {
             WorkbenchFact(label: "Audit", value: latestDebtMovement.auditID)
             if !latestDebtMovement.evidenceRunIDs.isEmpty {
               WorkbenchFact(
-                label: "Evidence",
+                label: "Outcome IDs",
                 value: latestDebtMovement.evidenceRunIDs.prefix(4).joined(separator: ", ")
               )
             }
@@ -3348,6 +3348,7 @@ struct ProductTournamentWorkbenchTab: View {
     await project.saveProductTournamentConfig(
       project.productTournamentConfig.recordingTournamentAutomationCycleAudit(audit)
     )
+    focusProofTarget(after: audit, preferredStep: step)
     await loadContractStatus()
   }
 
@@ -3553,6 +3554,7 @@ struct ProductTournamentWorkbenchTab: View {
     await project.saveProductTournamentConfig(
       project.productTournamentConfig.recordingTournamentAutomationCycleAudit(audit)
     )
+    focusProofTarget(after: audit, preferredStep: executedSteps.last)
     await loadContractStatus()
   }
 
@@ -4048,7 +4050,10 @@ struct ProductTournamentWorkbenchTab: View {
       selectedScenarioID = targetScenarioID
     }
 
-    if let evidenceRunID = firstKnownEvidenceRunID(for: row) {
+    if let evidenceRunID = TournamentAutomationProofTargetScoreboard.firstKnownEvidenceRunID(
+      for: row,
+      evidenceIndex: evidenceIndex
+    ) {
       selectedRunID = evidenceRunID
       if row.targetScenarioID == nil,
         let summary = evidenceIndex.summaries.first(where: { $0.runID == evidenceRunID })
@@ -4061,18 +4066,43 @@ struct ProductTournamentWorkbenchTab: View {
       loadSelectedRecord()
     }
 
+    if let planEvaluationID = TournamentAutomationProofTargetScoreboard
+      .firstKnownPlanEvaluationID(for: row, evidenceIndex: evidenceIndex)
+    {
+      selectedPlanEvaluationID = planEvaluationID
+      loadSelectedPlanEvaluationRecord()
+    }
+
     if !experimentChanged {
       loadScenarioDraft()
     }
   }
 
-  private func firstKnownEvidenceRunID(
-    for row: TournamentAutomationProofTargetScoreboardRow
-  ) -> String? {
-    row.latestDebtMovement?.evidenceRunIDs.first { runID in
-      evidenceIndex.summaries.contains { summary in
-        summary.runID == runID && summary.experimentID == row.experimentID
+  private func focusProofTarget(
+    after audit: TournamentAutomationCycleAudit,
+    preferredStep: TournamentAutomationStep?
+  ) {
+    guard
+      let focus = TournamentAutomationProofTargetScoreboard.focus(
+        after: audit,
+        config: project.productTournamentConfig,
+        evidenceIndex: evidenceIndex,
+        preferredStep: preferredStep,
+        isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+      )
+    else { return }
+
+    selectProofScoreboardRow(focus.row)
+    if let evidenceRunID = focus.evidenceRunID {
+      selectedRunID = evidenceRunID
+      if let summary = evidenceIndex.summaries.first(where: { $0.runID == evidenceRunID }) {
+        selectedScenarioID = summary.scenarioID
       }
+      loadSelectedRecord()
+    }
+    if let planEvaluationID = focus.planEvaluationID {
+      selectedPlanEvaluationID = planEvaluationID
+      loadSelectedPlanEvaluationRecord()
     }
   }
 

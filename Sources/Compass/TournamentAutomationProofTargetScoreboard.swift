@@ -103,6 +103,13 @@ struct TournamentAutomationProofTargetDebtMovement: Equatable, Sendable, Identif
   }
 }
 
+struct TournamentAutomationProofTargetFocus: Equatable, Sendable {
+  var row: TournamentAutomationProofTargetScoreboardRow
+  var auditID: String
+  var evidenceRunID: String?
+  var planEvaluationID: String?
+}
+
 struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identifiable {
   var id: String { selectionID }
 
@@ -423,6 +430,94 @@ enum TournamentAutomationProofTargetScoreboard {
     return ["Tournament automation proof scoreboard:"] + items.map(\.contextLine)
   }
 
+  static func focus(
+    after audit: TournamentAutomationCycleAudit,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    preferredStep: TournamentAutomationStep? = nil,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
+  ) -> TournamentAutomationProofTargetFocus? {
+    guard
+      let row = rowMatchingLatestAudit(
+        audit,
+        config: config,
+        evidenceIndex: evidenceIndex,
+        preferredStep: preferredStep,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      )
+    else { return nil }
+    let outcomeIDs = row.latestDebtMovement?.evidenceRunIDs ?? audit.evidenceRunIDs
+    return TournamentAutomationProofTargetFocus(
+      row: row,
+      auditID: audit.id,
+      evidenceRunID: firstKnownEvidenceRunID(
+        in: outcomeIDs,
+        row: row,
+        evidenceIndex: evidenceIndex
+      ),
+      planEvaluationID: firstKnownPlanEvaluationID(
+        in: outcomeIDs,
+        row: row,
+        evidenceIndex: evidenceIndex
+      )
+    )
+  }
+
+  static func rowMatchingLatestAudit(
+    _ audit: TournamentAutomationCycleAudit,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    preferredStep: TournamentAutomationStep? = nil,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
+  ) -> TournamentAutomationProofTargetScoreboardRow? {
+    let rows = items(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      limit: Int.max,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    )
+    .flatMap(\.rows)
+    let candidates = rows.filter { row in
+      row.latestDebtMovement?.auditID == audit.id
+    }
+    guard !candidates.isEmpty else { return nil }
+    if let preferredStep,
+      let preferred = candidates.first(where: { row in
+        scoreboardRow(row, matches: preferredStep)
+      })
+    {
+      return preferred
+    }
+    if let experimentID = audit.experimentIDs.first,
+      let experimentMatch = candidates.first(where: { $0.experimentID == experimentID })
+    {
+      return experimentMatch
+    }
+    return candidates.first
+  }
+
+  static func firstKnownEvidenceRunID(
+    for row: TournamentAutomationProofTargetScoreboardRow,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> String? {
+    firstKnownEvidenceRunID(
+      in: row.latestDebtMovement?.evidenceRunIDs ?? [],
+      row: row,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
+  static func firstKnownPlanEvaluationID(
+    for row: TournamentAutomationProofTargetScoreboardRow,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> String? {
+    firstKnownPlanEvaluationID(
+      in: row.latestDebtMovement?.evidenceRunIDs ?? [],
+      row: row,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private struct ScopeKey: Hashable {
     var tournamentID: String?
     var roundID: String?
@@ -662,6 +757,112 @@ enum TournamentAutomationProofTargetScoreboard {
       || target.targetPersonaName != nil
       || target.targetDecision != nil
       || target.requiredSimulationMode != nil
+  }
+
+  private static func scoreboardRow(
+    _ row: TournamentAutomationProofTargetScoreboardRow,
+    matches step: TournamentAutomationStep
+  ) -> Bool {
+    guard row.experimentID == step.experimentID else { return false }
+    if let stepRoundID = step.roundID,
+      let rowRoundID = row.roundID,
+      rowRoundID != stepRoundID
+    {
+      return false
+    }
+    if let stepContenderID = step.contenderID,
+      let rowContenderID = row.contenderID,
+      rowContenderID != stepContenderID
+    {
+      return false
+    }
+    if let stepScenarioID = step.targetScenarioID,
+      let rowScenarioID = row.targetScenarioID,
+      rowScenarioID != stepScenarioID
+    {
+      return false
+    }
+    if let stepCohortID = step.cohortID,
+      let rowCohortID = row.cohortID,
+      rowCohortID != stepCohortID
+    {
+      return false
+    }
+    if let stepTargetDecision = step.action.targetDecision,
+      let rowTargetDecision = row.targetDecision,
+      rowTargetDecision != stepTargetDecision
+    {
+      return false
+    }
+    return true
+  }
+
+  private static func firstKnownEvidenceRunID(
+    in outcomeIDs: [String],
+    row: TournamentAutomationProofTargetScoreboardRow,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> String? {
+    outcomeIDs.first { runID in
+      evidenceIndex.summaries.contains { summary in
+        summary.runID == runID && evidenceSummary(summary, matches: row)
+      }
+    }
+  }
+
+  private static func firstKnownPlanEvaluationID(
+    in outcomeIDs: [String],
+    row: TournamentAutomationProofTargetScoreboardRow,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> String? {
+    outcomeIDs.first { evaluationID in
+      evidenceIndex.planEvaluationSummaries.contains { summary in
+        summary.evaluationID == evaluationID && planEvaluationSummary(summary, matches: row)
+      }
+    }
+  }
+
+  private static func evidenceSummary(
+    _ summary: ProductTournamentEvidenceSummary,
+    matches row: TournamentAutomationProofTargetScoreboardRow
+  ) -> Bool {
+    guard summary.experimentID == row.experimentID else { return false }
+    if let rowRoundID = row.roundID,
+      let summaryRoundID = summary.roundID,
+      summaryRoundID != rowRoundID
+    {
+      return false
+    }
+    if let rowContenderID = row.contenderID,
+      let summaryContenderID = summary.contenderID,
+      summaryContenderID != rowContenderID
+    {
+      return false
+    }
+    if let rowScenarioID = row.targetScenarioID, summary.scenarioID != rowScenarioID {
+      return false
+    }
+    if let rowTargetDecision = row.targetDecision,
+      summary.decisionIntent?.targetDecision != rowTargetDecision
+    {
+      return false
+    }
+    return true
+  }
+
+  private static func planEvaluationSummary(
+    _ summary: ProductTournamentPlanEvaluationSummary,
+    matches row: TournamentAutomationProofTargetScoreboardRow
+  ) -> Bool {
+    if let experimentID = summary.experimentID, experimentID != row.experimentID {
+      return false
+    }
+    if let rowRoundID = row.roundID, summary.roundID != rowRoundID {
+      return false
+    }
+    if let rowContenderID = row.contenderID, summary.contenderID != rowContenderID {
+      return false
+    }
+    return true
   }
 
   private static func scopeKey(
