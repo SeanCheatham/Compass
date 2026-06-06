@@ -66,8 +66,11 @@ and advances them through rounds:
 - **Round 1: product plans.** No product exists yet. Model-free simulated users
   inspect the plans, compare them with the current alternative, and judge pain
   recognition, sponsorship, and willingness to pay. Accumulated plan readiness
-  can advance a contender to Round 2, mark a plan for revision, or eliminate a
-  weak contender before implementation spend.
+  tracks plan proof debt: enough completed simulated-user evaluations, at least
+  two distinct personas, a buyer/sponsor signal, and a viable willingness-to-pay
+  score. Compass only advances a contender to Round 2 when that debt is clear;
+  otherwise it gathers more plan evidence, marks a plan for revision, or
+  eliminates a weak contender before implementation spend.
 - **Round 2: core technology.** Surviving contenders get the smallest technical
   proof that demonstrates the hard part can work. After Round 1 advances a
   contender, Compass emits a Round 2 feasibility handoff that names the narrowed
@@ -126,12 +129,12 @@ IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
 feedback remains comparable across tournament rounds. The workbench can apply the
 best actionable Round 1 and Round 2 recommendations to stored tournament state.
 Plan and Reflect receive only a compact advisory summary:
-current tournament round, contender plans, Round 1 plan readiness,
-willingness-to-pay signals, Round 2 feasibility handoffs and evidence
-transitions, Round 3 prototype winner recommendations, latest evidence per active
-scenario, repeated objections, low-score clusters, verdict distribution,
-failures, current alternative comparisons, and generated-product willingness to
-pay or sponsor.
+current tournament round, contender plans, Round 1 plan readiness and plan proof
+debt, buyer/sponsor signals, willingness-to-pay signals, Round 2 feasibility
+handoffs and evidence transitions, Round 3 prototype winner recommendations,
+latest evidence per active scenario, repeated objections, low-score clusters,
+verdict distribution, failures, current alternative comparisons, and
+generated-product willingness to pay or sponsor.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 

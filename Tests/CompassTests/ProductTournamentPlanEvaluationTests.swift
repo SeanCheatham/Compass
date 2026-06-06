@@ -46,6 +46,10 @@ struct ProductTournamentPlanEvaluationTests {
     try #require(index.aggregate.planReadinessByContender.count == 2)
     try #require(
       index.aggregate.planReadinessByContender.contains {
+        $0.buyerOrSponsorPersonaCount == 1 && $0.planProofDebt.isClear
+      })
+    try #require(
+      index.aggregate.planReadinessByContender.contains {
         $0.recommendation == .advanceToFeasibility || $0.recommendation == .gatherEvidence
       })
     let digest = ProductTournamentPlanningDigestFormatter.promptText(
@@ -54,6 +58,8 @@ struct ProductTournamentPlanEvaluationTests {
     )
     try #require(digest.contains("plan_readiness"))
     try #require(digest.contains("willingness_to_pay"))
+    try #require(digest.contains("buyer_sponsor_signals"))
+    try #require(digest.contains("plan_proof_debt"))
   }
 
   @Test func planEvaluationRejectsBuiltProductRounds() throws {

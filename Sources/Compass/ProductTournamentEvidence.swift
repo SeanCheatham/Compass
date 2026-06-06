@@ -1514,6 +1514,80 @@ enum ProductTournamentPlanRecommendation: String, Codable, CaseIterable, Equatab
   }
 }
 
+struct ProductTournamentPlanProofDebt: Codable, Equatable, Sendable {
+  var evaluationDeficit: Int
+  var personaDeficit: Int
+  var buyerOrSponsorDeficit: Int
+  var willingnessToPayDeficit: Int
+
+  var isClear: Bool {
+    blockingDebtCount == 0
+  }
+
+  var hasCoverageDebt: Bool {
+    evaluationDeficit + personaDeficit + buyerOrSponsorDeficit > 0
+  }
+
+  var blockingDebtCount: Int {
+    evaluationDeficit + personaDeficit + buyerOrSponsorDeficit + willingnessToPayDeficit
+  }
+
+  var summary: String {
+    let labels = debtLabels
+    guard !labels.isEmpty else { return "plan proof complete" }
+    return labels.joined(separator: ", ")
+  }
+
+  var debtLabels: [String] {
+    var labels: [String] = []
+    if evaluationDeficit > 0 {
+      labels.append("\(evaluationDeficit) plan evaluation(s)")
+    }
+    if personaDeficit > 0 {
+      labels.append("\(personaDeficit) simulated-user persona(s)")
+    }
+    if buyerOrSponsorDeficit > 0 {
+      labels.append("\(buyerOrSponsorDeficit) buyer/sponsor signal(s)")
+    }
+    if willingnessToPayDeficit > 0 {
+      labels.append("willingness to pay at least 3.2/5")
+    }
+    return labels
+  }
+
+  init(
+    completedEvaluationCount: Int,
+    distinctPersonaCount: Int,
+    buyerOrSponsorPersonaCount: Int,
+    averageWillingnessToPayScore: Double,
+    minimumCompletedEvaluations: Int = 2,
+    minimumPersonaCount: Int = 2,
+    minimumBuyerOrSponsorPersonaCount: Int = 1,
+    minimumWillingnessToPayScore: Double = 3.2
+  ) {
+    self.evaluationDeficit = max(0, minimumCompletedEvaluations - completedEvaluationCount)
+    self.personaDeficit = max(0, minimumPersonaCount - distinctPersonaCount)
+    self.buyerOrSponsorDeficit = max(
+      0,
+      minimumBuyerOrSponsorPersonaCount - buyerOrSponsorPersonaCount
+    )
+    self.willingnessToPayDeficit =
+      averageWillingnessToPayScore >= minimumWillingnessToPayScore ? 0 : 1
+  }
+
+  init(
+    evaluationDeficit: Int,
+    personaDeficit: Int,
+    buyerOrSponsorDeficit: Int,
+    willingnessToPayDeficit: Int
+  ) {
+    self.evaluationDeficit = max(0, evaluationDeficit)
+    self.personaDeficit = max(0, personaDeficit)
+    self.buyerOrSponsorDeficit = max(0, buyerOrSponsorDeficit)
+    self.willingnessToPayDeficit = max(0, willingnessToPayDeficit)
+  }
+}
+
 struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendable {
   var id: String { contenderID }
 
@@ -1523,6 +1597,7 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
   var evaluationCount: Int
   var completedEvaluationCount: Int
   var distinctPersonaCount: Int
+  var buyerOrSponsorPersonaCount: Int
   var latestEvaluationID: String?
   var readinessScore: Double
   var averageScore: Double
@@ -1531,6 +1606,7 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
   var strongestVerdict: ProductTournamentEvidenceVerdict
   var weakestVerdict: ProductTournamentEvidenceVerdict
   var recommendation: ProductTournamentPlanRecommendation
+  var planProofDebt: ProductTournamentPlanProofDebt
   var rationale: [String]
   var evaluationIDs: [String]
 
@@ -1545,6 +1621,7 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     evaluationCount: Int,
     completedEvaluationCount: Int,
     distinctPersonaCount: Int,
+    buyerOrSponsorPersonaCount: Int,
     latestEvaluationID: String?,
     readinessScore: Double,
     averageScore: Double,
@@ -1553,6 +1630,7 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     strongestVerdict: ProductTournamentEvidenceVerdict,
     weakestVerdict: ProductTournamentEvidenceVerdict,
     recommendation: ProductTournamentPlanRecommendation,
+    planProofDebt: ProductTournamentPlanProofDebt? = nil,
     rationale: [String],
     evaluationIDs: [String]
   ) {
@@ -1568,6 +1646,7 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     self.evaluationCount = max(0, evaluationCount)
     self.completedEvaluationCount = max(0, completedEvaluationCount)
     self.distinctPersonaCount = max(0, distinctPersonaCount)
+    self.buyerOrSponsorPersonaCount = max(0, buyerOrSponsorPersonaCount)
     self.latestEvaluationID = ProductTournamentEvidenceRecord.optionalBounded(
       latestEvaluationID,
       limit: 96
@@ -1582,8 +1661,84 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     self.strongestVerdict = strongestVerdict
     self.weakestVerdict = weakestVerdict
     self.recommendation = recommendation
+    self.planProofDebt =
+      planProofDebt
+      ?? ProductTournamentPlanProofDebt(
+        completedEvaluationCount: self.completedEvaluationCount,
+        distinctPersonaCount: self.distinctPersonaCount,
+        buyerOrSponsorPersonaCount: self.buyerOrSponsorPersonaCount,
+        averageWillingnessToPayScore: self.averageWillingnessToPayScore
+      )
     self.rationale = ProductTournamentEvidenceRecord.cleanedList(rationale, limit: 260)
     self.evaluationIDs = ProductTournamentEvidenceRecord.cleanedList(evaluationIDs, limit: 96)
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case contenderID
+    case tournamentID
+    case roundID
+    case evaluationCount
+    case completedEvaluationCount
+    case distinctPersonaCount
+    case buyerOrSponsorPersonaCount
+    case latestEvaluationID
+    case readinessScore
+    case averageScore
+    case averageWillingnessToPayScore
+    case estimatedMonthlyPriceCents
+    case strongestVerdict
+    case weakestVerdict
+    case recommendation
+    case planProofDebt
+    case rationale
+    case evaluationIDs
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let completedEvaluationCount =
+      try container.decodeIfPresent(Int.self, forKey: .completedEvaluationCount) ?? 0
+    let distinctPersonaCount =
+      try container.decodeIfPresent(Int.self, forKey: .distinctPersonaCount) ?? 0
+    let buyerOrSponsorPersonaCount =
+      try container.decodeIfPresent(Int.self, forKey: .buyerOrSponsorPersonaCount) ?? 0
+    let averageWillingnessToPayScore =
+      try container.decodeIfPresent(Double.self, forKey: .averageWillingnessToPayScore) ?? 0
+    self.init(
+      contenderID: try container.decode(String.self, forKey: .contenderID),
+      tournamentID: try container.decode(String.self, forKey: .tournamentID),
+      roundID: try container.decode(String.self, forKey: .roundID),
+      evaluationCount: try container.decodeIfPresent(Int.self, forKey: .evaluationCount) ?? 0,
+      completedEvaluationCount: completedEvaluationCount,
+      distinctPersonaCount: distinctPersonaCount,
+      buyerOrSponsorPersonaCount: buyerOrSponsorPersonaCount,
+      latestEvaluationID: try container.decodeIfPresent(String.self, forKey: .latestEvaluationID),
+      readinessScore: try container.decodeIfPresent(Double.self, forKey: .readinessScore) ?? 0,
+      averageScore: try container.decodeIfPresent(Double.self, forKey: .averageScore) ?? 0,
+      averageWillingnessToPayScore: averageWillingnessToPayScore,
+      estimatedMonthlyPriceCents: try container.decodeIfPresent(
+        Int.self,
+        forKey: .estimatedMonthlyPriceCents
+      ),
+      strongestVerdict: try container.decodeIfPresent(
+        ProductTournamentEvidenceVerdict.self,
+        forKey: .strongestVerdict
+      ) ?? .unclear,
+      weakestVerdict: try container.decodeIfPresent(
+        ProductTournamentEvidenceVerdict.self,
+        forKey: .weakestVerdict
+      ) ?? .unclear,
+      recommendation: try container.decodeIfPresent(
+        ProductTournamentPlanRecommendation.self,
+        forKey: .recommendation
+      ) ?? .gatherEvidence,
+      planProofDebt: try container.decodeIfPresent(
+        ProductTournamentPlanProofDebt.self,
+        forKey: .planProofDebt
+      ),
+      rationale: try container.decodeIfPresent([String].self, forKey: .rationale) ?? [],
+      evaluationIDs: try container.decodeIfPresent([String].self, forKey: .evaluationIDs) ?? []
+    )
   }
 
   init(summaries rawSummaries: [ProductTournamentPlanEvaluationSummary]) {
@@ -1605,6 +1760,13 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     let averageScore = Self.average(scoreValues)
     let willingnessValues = completed.compactMap(\.willingnessToPayScore).map(Double.init)
     let averageWillingness = Self.average(willingnessValues)
+    let buyerOrSponsorPersonaCount = Self.buyerOrSponsorPersonaCount(in: completed)
+    let planProofDebt = ProductTournamentPlanProofDebt(
+      completedEvaluationCount: completed.count,
+      distinctPersonaCount: personaCount,
+      buyerOrSponsorPersonaCount: buyerOrSponsorPersonaCount,
+      averageWillingnessToPayScore: averageWillingness
+    )
     let readinessScore = Self.readinessScore(
       completed: completed,
       averageScore: averageScore,
@@ -1622,7 +1784,8 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
       readinessScore: readinessScore,
       averageScore: averageScore,
       averageWillingnessToPayScore: averageWillingness,
-      distinctPersonaCount: personaCount
+      distinctPersonaCount: personaCount,
+      planProofDebt: planProofDebt
     )
 
     self.init(
@@ -1632,6 +1795,7 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
       evaluationCount: summaries.count,
       completedEvaluationCount: completed.count,
       distinctPersonaCount: personaCount,
+      buyerOrSponsorPersonaCount: buyerOrSponsorPersonaCount,
       latestEvaluationID: summaries.first?.evaluationID,
       readinessScore: readinessScore,
       averageScore: averageScore,
@@ -1640,12 +1804,15 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
       strongestVerdict: strongest,
       weakestVerdict: weakest,
       recommendation: recommendation,
+      planProofDebt: planProofDebt,
       rationale: Self.rationale(
         completed: completed,
         readinessScore: readinessScore,
         averageScore: averageScore,
         averageWillingnessToPayScore: averageWillingness,
         distinctPersonaCount: personaCount,
+        buyerOrSponsorPersonaCount: buyerOrSponsorPersonaCount,
+        planProofDebt: planProofDebt,
         recommendation: recommendation
       ),
       evaluationIDs: summaries.prefix(8).map(\.evaluationID)
@@ -1688,7 +1855,8 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     readinessScore: Double,
     averageScore: Double,
     averageWillingnessToPayScore: Double,
-    distinctPersonaCount: Int
+    distinctPersonaCount: Int,
+    planProofDebt: ProductTournamentPlanProofDebt
   ) -> ProductTournamentPlanRecommendation {
     guard !completed.isEmpty else { return .gatherEvidence }
     let weakCount = completed.filter { $0.verdict == .weak || $0.verdict == .rejected }.count
@@ -1699,8 +1867,12 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     {
       return .eliminate
     }
+    if planProofDebt.hasCoverageDebt {
+      return .gatherEvidence
+    }
     if completed.count >= 2
       && distinctPersonaCount >= 2
+      && planProofDebt.isClear
       && readinessScore >= 66
       && averageWillingnessToPayScore >= 3.2
       && strongCount >= 2
@@ -1719,6 +1891,8 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     averageScore: Double,
     averageWillingnessToPayScore: Double,
     distinctPersonaCount: Int,
+    buyerOrSponsorPersonaCount: Int,
+    planProofDebt: ProductTournamentPlanProofDebt,
     recommendation: ProductTournamentPlanRecommendation
   ) -> [String] {
     var lines = [
@@ -1731,6 +1905,10 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     }
     if averageWillingnessToPayScore > 0 {
       lines.append("Average willingness to pay \(Self.format(averageWillingnessToPayScore))/5.")
+    }
+    lines.append("\(buyerOrSponsorPersonaCount) buyer/sponsor simulated-user signal(s).")
+    if !planProofDebt.isClear {
+      lines.append("Plan proof debt: \(planProofDebt.summary).")
     }
     let repeated = Self.repeatedObjections(in: completed)
     if !repeated.isEmpty {
@@ -1755,6 +1933,32 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     let prices = summaries.compactMap(\.estimatedMonthlyPriceCents).filter { $0 > 0 }
     guard !prices.isEmpty else { return nil }
     return prices.reduce(0, +) / prices.count
+  }
+
+  private static func buyerOrSponsorPersonaCount(
+    in summaries: [ProductTournamentPlanEvaluationSummary]
+  ) -> Int {
+    let personas = summaries.filter(Self.isBuyerOrSponsorSignal)
+      .map(\.personaID)
+      .filter { !$0.isEmpty }
+    return Set(personas).count
+  }
+
+  private static func isBuyerOrSponsorSignal(
+    _ summary: ProductTournamentPlanEvaluationSummary
+  ) -> Bool {
+    let text = [
+      summary.personaID,
+      summary.personaName,
+    ]
+    .joined(separator: " ")
+    .lowercased()
+    return text.contains("buyer")
+      || text.contains("budget")
+      || text.contains("sponsor")
+      || text.contains("economic")
+      || text.contains("pay")
+      || text.contains("roi")
   }
 
   private static func repeatedObjectionCount(

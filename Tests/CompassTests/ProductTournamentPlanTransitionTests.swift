@@ -133,6 +133,49 @@ struct ProductTournamentPlanTransitionTests {
     try #require(outcome.toRoundID == nil)
     try #require(outcome.userMessage.contains("revision"))
   }
+
+  @Test func strongPlanReadinessWithoutBuyerSignalGathersEvidence() throws {
+    let config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Weekly reporting takes too long.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let tournament = try #require(config.tournaments.first)
+    let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let contender = try #require(config.tournamentContenders.first)
+    let records = try strongNonBuyerRecords(
+      for: contender,
+      tournament: tournament,
+      round: planRound,
+      config: config
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: [], planEvaluationRecords: records)
+    let readiness = try #require(index.aggregate.planReadinessByContender.first)
+    let proposal = try #require(
+      ProductTournamentPlanTransitioner.proposals(
+        tournamentID: tournament.id,
+        roundID: planRound.id,
+        config: config,
+        evidenceIndex: index
+      ).first
+    )
+
+    try #require(readiness.completedEvaluationCount == 2)
+    try #require(readiness.distinctPersonaCount == 2)
+    try #require(readiness.buyerOrSponsorPersonaCount == 0)
+    try #require(readiness.planProofDebt.summary.contains("buyer/sponsor signal"))
+    try #require(readiness.recommendation == .gatherEvidence)
+    try #require(!proposal.isActionable)
+    try #require(proposal.detail.contains("buyer/sponsor signal"))
+    try #require(
+      ProductTournamentPlanTransitioner.bestProposal(
+        tournamentID: tournament.id,
+        roundID: planRound.id,
+        config: config,
+        evidenceIndex: index
+      ) == nil
+    )
+  }
 }
 
 private func strongRecords(
@@ -151,6 +194,69 @@ private func strongRecords(
     verdict: .strongPull,
     summary: "The plan clearly beats the reporting workaround."
   )
+}
+
+private func strongNonBuyerRecords(
+  for contender: ProductTournamentContender,
+  tournament: ProductTournament,
+  round: ProductTournamentRound,
+  config: ProductTournamentConfig
+) throws -> [ProductTournamentPlanEvaluationRecord] {
+  let solution = try #require(config.solutionHypotheses.first { $0.id == contender.solutionID })
+  return [
+    ProductTournamentPlanEvaluationRecord(
+      id: "\(contender.id)-operator-a",
+      tournamentID: tournament.id,
+      roundID: round.id,
+      contenderID: contender.id,
+      solutionID: contender.solutionID,
+      experimentID: contender.experimentID,
+      painID: solution.painID,
+      personaID: "operator-a",
+      personaName: "Operations lead",
+      startedAt: 0,
+      endedAt: 1,
+      scores: ProductTournamentEvidenceScores(
+        painRecognition: 5,
+        workflowImprovement: 5,
+        alternativeAdvantage: 5,
+        switchingReadiness: 5,
+        continuedUsePull: 5,
+        willingnessToPay: 5
+      ),
+      willingnessToPayScore: 5,
+      estimatedMonthlyPriceCents: 9900,
+      currentAlternativeComparison: "The plan clearly beats the current reporting workaround.",
+      verdict: .strongPull,
+      summary: "The operator would use the plan."
+    ),
+    ProductTournamentPlanEvaluationRecord(
+      id: "\(contender.id)-operator-b",
+      tournamentID: tournament.id,
+      roundID: round.id,
+      contenderID: contender.id,
+      solutionID: contender.solutionID,
+      experimentID: contender.experimentID,
+      painID: solution.painID,
+      personaID: "operator-b",
+      personaName: "Reporting coordinator",
+      startedAt: 2,
+      endedAt: 3,
+      scores: ProductTournamentEvidenceScores(
+        painRecognition: 5,
+        workflowImprovement: 5,
+        alternativeAdvantage: 5,
+        switchingReadiness: 5,
+        continuedUsePull: 5,
+        willingnessToPay: 5
+      ),
+      willingnessToPayScore: 5,
+      estimatedMonthlyPriceCents: 9900,
+      currentAlternativeComparison: "The plan clearly beats the current reporting workaround.",
+      verdict: .strongPull,
+      summary: "Another operator would use the plan."
+    ),
+  ]
 }
 
 private func weakRecords(

@@ -127,7 +127,7 @@ enum ProductTournamentPlanningDigestFormatter {
         }
         let planEvidence =
           planReadiness.map {
-            "plan_readiness \($0.scoreLabel)/100, recommendation \($0.recommendation.rawValue), willingness_to_pay \(bounded(formatScore($0.averageWillingnessToPayScore), 20))/5"
+            "plan_readiness \($0.scoreLabel)/100, recommendation \($0.recommendation.rawValue), willingness_to_pay \(bounded(formatScore($0.averageWillingnessToPayScore), 20))/5, buyer_sponsor_signals \($0.buyerOrSponsorPersonaCount), plan_proof_debt \($0.planProofDebt.summary)"
           } ?? "no plan evidence"
         lines.append(
           "- Contender \(contender.id) [\(contender.status.rawValue), sol \(contender.solutionID), exp \(experiment), seg \(segments), \(planEvidence)]: \(bounded(contender.valueProposition, 100)); risk \(bounded(contender.primaryRisk, 60))."

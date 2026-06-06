@@ -964,6 +964,11 @@ struct ProductTournamentWorkbenchTab: View {
             value:
               "\(planReadiness.scoreLabel)/100, \(planReadiness.recommendation.title), pay \(scoreLabel(planReadiness.averageWillingnessToPayScore))/5"
           )
+          WorkbenchFact(label: "Plan proof", value: planReadiness.planProofDebt.summary)
+          WorkbenchFact(
+            label: "Buyer signals",
+            value: "\(planReadiness.buyerOrSponsorPersonaCount)"
+          )
           if let price = planReadiness.estimatedMonthlyPriceCents {
             WorkbenchFact(label: "Price", value: priceLabel(cents: price))
           }

@@ -262,7 +262,7 @@ enum ProductTournamentPlanTransitioner {
     case .gatherEvidence:
       title = "Gather More Evidence"
       detail =
-        "Readiness \(readiness.scoreLabel)/100 needs more plan evaluations before a transition."
+        "Readiness \(readiness.scoreLabel)/100 needs more plan evaluations before a transition: \(readiness.planProofDebt.summary)."
     }
     return ProductTournamentPlanTransitionProposal(
       tournamentID: readiness.tournamentID,
