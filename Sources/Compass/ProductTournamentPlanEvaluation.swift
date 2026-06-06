@@ -124,8 +124,108 @@ enum ProductTournamentPlanPersonaSignals {
     ]
 }
 
+private struct ProductTournamentPlanCommercialSignals {
+  var explicitMonthlyPriceCents: Int?
+  var hasROIProof: Bool
+  var hasSponsorshipProof: Bool
+  var hasQuantifiedValueProof: Bool
+
+  var hasCommercialProof: Bool {
+    explicitMonthlyPriceCents != nil
+      || hasROIProof
+      || hasSponsorshipProof
+      || hasQuantifiedValueProof
+  }
+
+  var willingnessToPayAdjustment: Int {
+    var adjustment = 0
+    if explicitMonthlyPriceCents != nil { adjustment += 1 }
+    if hasROIProof || hasSponsorshipProof { adjustment += 1 }
+    if hasQuantifiedValueProof { adjustment += 1 }
+    return min(2, adjustment)
+  }
+
+  var summary: String {
+    var signals: [String] = []
+    if let explicitMonthlyPriceCents {
+      signals.append("priced at \(priceLabel(cents: explicitMonthlyPriceCents))")
+    }
+    if hasROIProof {
+      signals.append("ROI/payback proof")
+    }
+    if hasSponsorshipProof {
+      signals.append("budget or sponsor proof")
+    }
+    if hasQuantifiedValueProof {
+      signals.append("quantified value proof")
+    }
+    return signals.isEmpty ? "no explicit price, ROI, or sponsorship proof" : signals.joined(
+      separator: ", ")
+  }
+
+  init(text: String) {
+    let lowercased = text.lowercased()
+    self.explicitMonthlyPriceCents = Self.monthlyPriceCents(in: text)
+    self.hasROIProof =
+      lowercased.contains("roi")
+      || lowercased.contains("return on investment")
+      || lowercased.contains("payback")
+      || lowercased.contains("business case")
+      || lowercased.contains("economic case")
+    self.hasSponsorshipProof =
+      lowercased.contains("sponsor")
+      || lowercased.contains("budget")
+      || lowercased.contains("procurement")
+      || lowercased.contains("finance approval")
+      || lowercased.contains("economic buyer")
+    self.hasQuantifiedValueProof =
+      lowercased.contains("save ")
+      || lowercased.contains("saves ")
+      || lowercased.contains("saving ")
+      || lowercased.contains("hours")
+      || lowercased.contains("%")
+      || lowercased.contains("reduce cost")
+      || lowercased.contains("risk reduction")
+  }
+
+  private static func monthlyPriceCents(in text: String) -> Int? {
+    guard let regex = try? NSRegularExpression(pattern: #"\$\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)"#)
+    else { return nil }
+    let nsText = text as NSString
+    let fullRange = NSRange(location: 0, length: nsText.length)
+    let matches = regex.matches(in: text, range: fullRange)
+    for match in matches {
+      guard match.numberOfRanges > 1 else { continue }
+      let contextStart = max(0, match.range.location - 36)
+      let contextEnd = min(nsText.length, match.range.location + match.range.length + 36)
+      let context = nsText.substring(
+        with: NSRange(location: contextStart, length: contextEnd - contextStart)
+      )
+      .lowercased()
+      guard
+        context.contains("month")
+          || context.contains("/mo")
+          || context.contains("per user")
+          || context.contains("per seat")
+          || context.contains("price")
+          || context.contains("subscription")
+          || context.contains("charge")
+      else { continue }
+      let amountText = nsText.substring(with: match.range(at: 1))
+        .replacingOccurrences(of: ",", with: "")
+      guard let dollars = Double(amountText), dollars > 0 else { continue }
+      return min(1_000_000, Int((dollars * 100).rounded()))
+    }
+    return nil
+  }
+
+  private func priceLabel(cents: Int) -> String {
+    String(format: "$%.0f/month", Double(max(0, cents)) / 100)
+  }
+}
+
 enum ProductTournamentPlanEvaluator {
-  static let promptVersionID = "product_tournament.plan_evaluator.model_free.v2"
+  static let promptVersionID = "product_tournament.plan_evaluator.model_free.v3"
 
   static func runPlanRound(
     tournamentID: String,
@@ -378,6 +478,7 @@ enum ProductTournamentPlanEvaluator {
       solution.whyThisCouldWin,
       solution.requiredProof.joined(separator: " "),
     ].joined(separator: " ")
+    let commercialSignals = ProductTournamentPlanCommercialSignals(text: text)
 
     let painRecognition = score(
       text: text,
@@ -411,6 +512,7 @@ enum ProductTournamentPlanEvaluator {
     let willingnessToPay = willingnessToPayScore(
       pain: pain,
       segment: segment,
+      commercialSignals: commercialSignals,
       scores: [
         painRecognition,
         workflowImprovement,
@@ -436,12 +538,14 @@ enum ProductTournamentPlanEvaluator {
     let price = estimatedMonthlyPriceCents(
       pain: pain,
       segment: segment,
+      commercialSignals: commercialSignals,
       willingnessToPayScore: willingnessToPay
     )
     let objections = objections(
       contender: contender,
       segment: segment,
       alternative: alternative,
+      commercialSignals: commercialSignals,
       switchingReadiness: switchingReadiness,
       willingnessToPay: willingnessToPay
     )
@@ -490,10 +594,15 @@ enum ProductTournamentPlanEvaluator {
         contender: contender,
         segment: segment,
         scores: scores,
+        commercialSignals: commercialSignals,
         willingnessToPay: willingnessToPay,
         verdict: verdict
       ),
-      planStrengths: planStrengths(contender: contender, solution: solution),
+      planStrengths: planStrengths(
+        contender: contender,
+        solution: solution,
+        commercialSignals: commercialSignals
+      ),
       planRisks: planRisks(contender: contender, solution: solution),
       promptVersions: [promptVersionID]
     )
@@ -652,6 +761,7 @@ enum ProductTournamentPlanEvaluator {
   private static func willingnessToPayScore(
     pain: PainHypothesis,
     segment: UserSegment,
+    commercialSignals: ProductTournamentPlanCommercialSignals,
     scores: [Int]
   ) -> Int {
     let average = Double(scores.reduce(0, +)) / Double(max(1, scores.count))
@@ -662,12 +772,17 @@ enum ProductTournamentPlanEvaluator {
     .lowercased()
     let painText = [pain.painSeverity, pain.costOfInaction].joined(separator: " ").lowercased()
     var score = Int(average.rounded())
-    if buyerText.contains("buyer") || buyerText.contains("budget") || buyerText.contains("sponsor")
-    {
+    let isBuyerOrSponsor =
+      buyerText.contains("buyer") || buyerText.contains("budget") || buyerText.contains("sponsor")
+    if isBuyerOrSponsor {
       score += 1
     }
     if painText.contains("high") || painText.contains("cost") || painText.contains("hour") {
       score += 1
+    }
+    score += commercialSignals.willingnessToPayAdjustment
+    if isBuyerOrSponsor && !commercialSignals.hasCommercialProof {
+      score -= 1
     }
     return min(5, max(1, score))
   }
@@ -675,9 +790,13 @@ enum ProductTournamentPlanEvaluator {
   private static func estimatedMonthlyPriceCents(
     pain: PainHypothesis,
     segment: UserSegment,
+    commercialSignals: ProductTournamentPlanCommercialSignals,
     willingnessToPayScore: Int
   ) -> Int? {
     guard willingnessToPayScore >= 3 else { return nil }
+    if let explicitMonthlyPriceCents = commercialSignals.explicitMonthlyPriceCents {
+      return explicitMonthlyPriceCents
+    }
     let buyerText = [segment.role, segment.context].joined(separator: " ").lowercased()
     let multiplier = buyerText.contains("buyer") || buyerText.contains("sponsor") ? 2 : 1
     let severe = [pain.painSeverity, pain.costOfInaction].joined(separator: " ").lowercased()
@@ -701,6 +820,7 @@ enum ProductTournamentPlanEvaluator {
     contender: ProductTournamentContender,
     segment: UserSegment,
     alternative: Alternative?,
+    commercialSignals: ProductTournamentPlanCommercialSignals,
     switchingReadiness: Int,
     willingnessToPay: Int
   ) -> [String] {
@@ -710,6 +830,11 @@ enum ProductTournamentPlanEvaluator {
     }
     if willingnessToPay <= 2 {
       objections.append("\(segment.name) would need clearer ROI before paying.")
+    }
+    if ProductTournamentPlanPersonaSignals.isBuyerOrSponsor(segment)
+      && !commercialSignals.hasCommercialProof
+    {
+      objections.append("\(segment.name) needs explicit price, ROI, or sponsorship proof.")
     }
     if let alternative, !alternative.strengths.isEmpty {
       objections.append("Current alternative strength: \(alternative.strengths[0])")
@@ -769,12 +894,14 @@ enum ProductTournamentPlanEvaluator {
     contender: ProductTournamentContender,
     segment: UserSegment,
     scores: ProductTournamentEvidenceScores,
+    commercialSignals: ProductTournamentPlanCommercialSignals,
     willingnessToPay: Int,
     verdict: ProductTournamentEvidenceVerdict
   ) -> [String] {
     [
       "\(segment.name) evaluated the plan without a built product.",
       "The plan promise was: \(contender.valueProposition)",
+      "Commercial plan signal: \(commercialSignals.summary).",
       "Scorecard pain \(scores.painRecognition ?? 0), workflow \(scores.workflowImprovement ?? 0), alternative \(scores.alternativeAdvantage ?? 0), switching \(scores.switchingReadiness ?? 0), pull \(scores.continuedUsePull ?? 0), pay \(willingnessToPay).",
       "Verdict \(verdict.rawValue) reflects plan evidence only.",
     ]
@@ -782,9 +909,14 @@ enum ProductTournamentPlanEvaluator {
 
   private static func planStrengths(
     contender: ProductTournamentContender,
-    solution: SolutionHypothesis
+    solution: SolutionHypothesis,
+    commercialSignals: ProductTournamentPlanCommercialSignals
   ) -> [String] {
-    [contender.valueProposition, solution.differentiator, solution.whyThisCouldWin]
+    var strengths = [contender.valueProposition, solution.differentiator, solution.whyThisCouldWin]
+    if commercialSignals.hasCommercialProof {
+      strengths.append("Commercial proof: \(commercialSignals.summary)")
+    }
+    return strengths
   }
 
   private static func planRisks(

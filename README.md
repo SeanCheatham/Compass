@@ -77,7 +77,10 @@ and advances them through rounds:
   target so the next run is aimed at the missing evidence instead of merely
   reporting a generic readiness score. They also surface commercial proof so
   low willingness-to-pay evidence points to price, ROI, and sponsorship work
-  instead of a vague plan revision.
+  instead of a vague plan revision. Plan-only scoring rewards explicit monthly
+  pricing, ROI or payback claims, sponsorship language, and quantified savings,
+  and buyer/sponsor personas discount generic plans that lack those commercial
+  signals.
 - **Round 2: core technology.** Surviving contenders get the smallest technical
   proof that demonstrates the hard part can work. After Round 1 advances a
   contender, Compass emits a Round 2 feasibility handoff that names the narrowed

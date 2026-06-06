@@ -146,6 +146,72 @@ struct ProductTournamentPlanEvaluationTests {
     try #require(after.nextProofTargetSummary == "Round 2 feasibility transition")
   }
 
+  @Test func modelFreeRoundOneRewardsExplicitPricingAndROILanguage() throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "LedgerLift",
+      rawPain: "Finance operators lose weekly reporting context.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    config.painHypotheses[0].painSeverity = "Moderate recurring pain."
+    config.painHypotheses[0].costOfInaction = "Manual follow-up continues."
+    let tournament = try #require(config.tournaments.first)
+    let round = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let buyerSegment = try #require(
+      config.userSegments.first { ProductTournamentPlanPersonaSignals.isBuyerOrSponsor($0) })
+    let commercialContenderIndex = 0
+    let genericContenderIndex = 1
+    config.tournamentContenders[commercialContenderIndex].targetSegmentIDs = [buyerSegment.id]
+    config.tournamentContenders[commercialContenderIndex].productPlan =
+      "Sell a $199/month subscription with an ROI calculator, budget-owner sponsorship, and a one-month payback from saving 8 reporting hours per month."
+    config.tournamentContenders[commercialContenderIndex].valueProposition =
+      "Show finance a priced reporting product with ROI proof and sponsor-ready savings."
+    config.tournamentContenders[genericContenderIndex].targetSegmentIDs = [buyerSegment.id]
+    config.tournamentContenders[genericContenderIndex].productPlan =
+      "Offer a clearer reporting workspace that organizes updates and reminders."
+    config.tournamentContenders[genericContenderIndex].valueProposition =
+      "Make weekly reporting easier to review."
+    let genericSolutionID = config.tournamentContenders[genericContenderIndex].solutionID
+    let genericSolutionIndex = try #require(
+      config.solutionHypotheses.firstIndex { $0.id == genericSolutionID })
+    config.solutionHypotheses[genericSolutionIndex].differentiator =
+      "Organizes reporting context in one workflow."
+    config.solutionHypotheses[genericSolutionIndex].whyThisCouldWin =
+      "The user may prefer a clearer reporting workspace."
+    config.solutionHypotheses[genericSolutionIndex].requiredProof = [
+      "Show reporting steps are easier to review."
+    ]
+    try workspace.writeProductTournamentConfig(config)
+
+    let outcome = try ProductTournamentPlanEvaluator.runPlanRound(
+      tournamentID: tournament.id,
+      roundID: round.id,
+      in: workspace,
+      now: Date(timeIntervalSince1970: 4_000)
+    )
+
+    let commercialContender = config.tournamentContenders[commercialContenderIndex]
+    let genericContender = config.tournamentContenders[genericContenderIndex]
+    let commercialRecord = try #require(
+      outcome.records.first { $0.contenderID == commercialContender.id })
+    let genericRecord = try #require(
+      outcome.records.first { $0.contenderID == genericContender.id })
+
+    try #require(
+      (commercialRecord.willingnessToPayScore ?? 0)
+        > (genericRecord.willingnessToPayScore ?? 0))
+    try #require(commercialRecord.estimatedMonthlyPriceCents == 19_900)
+    try #require(
+      commercialRecord.rationale.contains {
+        $0.contains("Commercial plan signal") && $0.contains("$199/month")
+      })
+    try #require(commercialRecord.planStrengths.contains { $0.contains("Commercial proof") })
+    try #require(genericRecord.objections.contains { $0.contains("explicit price, ROI") })
+  }
+
   @Test func planEvaluationRejectsBuiltProductRounds() throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
