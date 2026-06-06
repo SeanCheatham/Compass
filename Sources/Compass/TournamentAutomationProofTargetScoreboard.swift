@@ -169,6 +169,23 @@ struct TournamentAutomationProofTargetFocus: Equatable, Sendable {
   var planEvaluationID: String?
 }
 
+struct TournamentAutomationProofTargetScoreboardReadinessGroup: Equatable, Sendable, Identifiable {
+  var id: String { bucket }
+
+  var bucket: String
+  var rows: [TournamentAutomationProofTargetScoreboardRow]
+
+  var count: Int { rows.count }
+
+  var displaySummary: String {
+    "\(bucket) \(count)"
+  }
+
+  var accessibilitySuffix: String {
+    bucket.lowercased().replacingOccurrences(of: " ", with: "-")
+  }
+}
+
 struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identifiable {
   static let nextStatusSummaryBucketOrder = [
     "Ready decisions",
@@ -516,18 +533,46 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
   }
 
   var readinessSummaryParts: [String] {
-    guard !rows.isEmpty else { return ["No proof pressure"] }
-    let counts = Dictionary(grouping: rows, by: \.nextStatusSummaryBucket)
-      .mapValues(\.count)
-    return TournamentAutomationProofTargetScoreboardRow.nextStatusSummaryBucketOrder
-      .compactMap { bucket in
-        guard let count = counts[bucket], count > 0 else { return nil }
-        return "\(bucket) \(count)"
-      }
+    let parts = readinessGroups.map(\.displaySummary)
+    return parts.isEmpty ? ["No proof pressure"] : parts
   }
 
   var readinessSummary: String {
     readinessSummaryParts.joined(separator: ", ")
+  }
+
+  var readinessGroups: [TournamentAutomationProofTargetScoreboardReadinessGroup] {
+    guard !rows.isEmpty else { return [] }
+    let grouped = Dictionary(grouping: rows, by: \.nextStatusSummaryBucket)
+    return TournamentAutomationProofTargetScoreboardRow.nextStatusSummaryBucketOrder
+      .compactMap { bucket in
+        guard let bucketRows = grouped[bucket], !bucketRows.isEmpty else { return nil }
+        return TournamentAutomationProofTargetScoreboardReadinessGroup(
+          bucket: bucket,
+          rows: bucketRows.sorted { $0.scoreboardSortsBefore($1) }
+        )
+      }
+  }
+
+  func displayReadinessGroups(
+    limit: Int = 4
+  ) -> [TournamentAutomationProofTargetScoreboardReadinessGroup] {
+    guard limit > 0 else { return [] }
+    var remaining = limit
+    var groups: [TournamentAutomationProofTargetScoreboardReadinessGroup] = []
+    for group in readinessGroups {
+      guard remaining > 0 else { break }
+      let visibleRows = Array(group.rows.prefix(remaining))
+      guard !visibleRows.isEmpty else { continue }
+      groups.append(
+        TournamentAutomationProofTargetScoreboardReadinessGroup(
+          bucket: group.bucket,
+          rows: visibleRows
+        )
+      )
+      remaining -= visibleRows.count
+    }
+    return groups
   }
 
   var displayDetail: String {

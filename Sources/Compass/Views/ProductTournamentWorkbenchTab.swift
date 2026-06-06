@@ -1625,34 +1625,49 @@ struct ProductTournamentWorkbenchTab: View {
       )
         .help(item.topActionDetail)
       WorkbenchFact(label: "Targets", value: item.displayDetail)
-      ForEach(item.rows.prefix(4)) { row in
-        Button {
-          selectProofScoreboardRow(row)
-        } label: {
-          VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-              WorkbenchFact(label: row.contenderTitle, value: row.displaySummary)
-              if selectedProofScoreboardRowID == row.selectionID {
-                WorkbenchStatusPill(text: "selected")
-              }
-            }
-            WorkbenchFact(label: "Latest delta", value: row.latestDebtMovementSummary)
-              .help(row.helpSummary)
-            WorkbenchStatusFact(
-              label: "Last / Next",
-              value: row.runPairSummary,
-              statusText: row.nextStatusLabel,
-              statusSystemImage: row.nextStatusSystemImage,
-              statusAccessibilityID: row.nextStatusAccessibilityID
-            )
-              .help(row.helpSummary)
+      ForEach(item.displayReadinessGroups()) { group in
+        VStack(alignment: .leading, spacing: 5) {
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(group.bucket)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            Spacer()
+            WorkbenchStatusPill(text: "\(group.count)")
           }
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .contentShape(Rectangle())
+          ForEach(group.rows) { row in
+            Button {
+              selectProofScoreboardRow(row)
+            } label: {
+              VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  WorkbenchFact(label: row.contenderTitle, value: row.displaySummary)
+                  if selectedProofScoreboardRowID == row.selectionID {
+                    WorkbenchStatusPill(text: "selected")
+                  }
+                }
+                WorkbenchFact(label: "Latest delta", value: row.latestDebtMovementSummary)
+                  .help(row.helpSummary)
+                WorkbenchStatusFact(
+                  label: "Last / Next",
+                  value: row.runPairSummary,
+                  statusText: row.nextStatusLabel,
+                  statusSystemImage: row.nextStatusSystemImage,
+                  statusAccessibilityID: row.nextStatusAccessibilityID
+                )
+                  .help(row.helpSummary)
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(row.workbenchAccessibilityID)
+            .help(row.helpSummary)
+          }
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(row.workbenchAccessibilityID)
-        .help(row.helpSummary)
+        .padding(.vertical, 2)
+        .accessibilityIdentifier(
+          "\(item.workbenchAccessibilityID)-group-\(group.accessibilitySuffix)"
+        )
       }
       if let topActionRow = item.topActionRow, let topStep = topActionRow.nextStep {
         let roundTwoBlockedMessage =

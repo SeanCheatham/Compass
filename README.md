@@ -150,7 +150,7 @@ and advances them through rounds:
   contender row. The compact scoreboard badges each row and the round-level top
   action as more proof, transition ready, promotion/kill ready, or no queued
   proof, shows a round-level pressure summary such as ready decisions, ready
-  transitions, and proof runs, and sorts
+  transitions, and proof runs, groups rows under those pressure headers, and sorts
   transition/decision/revision/worktree-ready contenders above ordinary proof
   gathering so operators can see when a contender has moved out of evidence
   collection before opening the detail. After a proof action completes, the

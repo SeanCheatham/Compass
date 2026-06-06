@@ -173,6 +173,9 @@ struct ProductTournamentRoundProofOverviewTests {
     )
     try #require(item.readinessSummaryParts == ["Proof runs 2"])
     try #require(item.readinessSummary == "Proof runs 2")
+    try #require(item.readinessGroups.map(\.displaySummary) == ["Proof runs 2"])
+    try #require(item.displayReadinessGroups().map(\.displaySummary) == ["Proof runs 2"])
+    try #require(item.readinessGroups.first?.accessibilitySuffix == "proof-runs")
     try #require(topActionRow.experimentID == topActionStep.experimentID)
     try #require(topActionRow.selectionID.contains(topActionStep.experimentID))
     try #require(topActionRow.selectionID.contains(item.roundID ?? "unknown-round"))
@@ -260,6 +263,21 @@ struct ProductTournamentRoundProofOverviewTests {
       priorityItem.readinessSummary
         == "Ready decisions 1, Ready transitions 1, Proof runs 1, No queued proof 1"
     )
+    try #require(
+      priorityItem.readinessGroups.map(\.displaySummary) == [
+        "Ready decisions 1",
+        "Ready transitions 1",
+        "Proof runs 1",
+        "No queued proof 1",
+      ]
+    )
+    try #require(
+      priorityItem.displayReadinessGroups(limit: 2).map(\.displaySummary) == [
+        "Ready decisions 1",
+        "Ready transitions 1",
+      ]
+    )
+    try #require(priorityItem.readinessGroups.first?.accessibilitySuffix == "ready-decisions")
     try #require(priorityItem.topActionRow?.nextStatusLabel == "Promotion ready")
     try #require(priorityItem.topActionStep?.kind == .applyDecision)
     try #require(includesAllRivalPositions)
