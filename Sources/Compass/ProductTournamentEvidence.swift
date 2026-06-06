@@ -1524,6 +1524,10 @@ struct ProductTournamentPlanProofDebt: Codable, Equatable, Sendable {
     blockingDebtCount == 0
   }
 
+  var hasActionableFocusedProof: Bool {
+    !isClear
+  }
+
   var hasCoverageDebt: Bool {
     evaluationDeficit + personaDeficit + buyerOrSponsorDeficit > 0
   }
@@ -1538,11 +1542,33 @@ struct ProductTournamentPlanProofDebt: Codable, Equatable, Sendable {
     return labels.joined(separator: ", ")
   }
 
+  var focusedActionTitle: String {
+    if isClear {
+      return "Proof Complete"
+    }
+    if evaluationDeficit > 1 && personaDeficit > 1 && buyerOrSponsorDeficit > 0 {
+      return "Run Plan Proof"
+    }
+    if buyerOrSponsorDeficit > 0 {
+      return "Run Buyer Proof"
+    }
+    if personaDeficit > 0 {
+      return "Run Persona Proof"
+    }
+    if evaluationDeficit > 0 {
+      return "Run Plan Proof"
+    }
+    if willingnessToPayDeficit > 0 {
+      return "Run Price/ROI Proof"
+    }
+    return "Run Proof Target"
+  }
+
   var nextProofTargetSummary: String {
     if isClear {
       return "Round 2 feasibility transition"
     }
-    if evaluationDeficit > 0 && personaDeficit > 0 && buyerOrSponsorDeficit > 0 {
+    if evaluationDeficit > 1 && personaDeficit > 1 && buyerOrSponsorDeficit > 0 {
       return "operator and economic-buyer plan evaluations"
     }
     if buyerOrSponsorDeficit > 0 {

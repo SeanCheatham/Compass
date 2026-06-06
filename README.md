@@ -134,9 +134,9 @@ Tournament workbench lists pain hypotheses, contenders, rounds, implementation
 tracks, selectable Round 1 plan evaluations with buyer objections and
 willingness-to-pay rationale, per-plan commercial proof, scenario runs, feedback
 scores, objections, missing capabilities, failure kinds, decision history, and
-copyable Markdown summaries. Contender rows in the active plan-only round can
-run a focused proof target for that contender when the next missing Round 1
-signal is buyer/sponsor, price, ROI, or persona coverage.
+copyable Markdown summaries. Contender rows in the active plan-only round label
+the exact focused proof action, such as buyer, price/ROI, persona, or plan proof,
+and disable it once the contender is ready for the Round 2 feasibility transition.
 Later-round scenario evidence is stamped with tournament, round, and contender
 IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
 feedback remains comparable across tournament rounds. The workbench can apply the

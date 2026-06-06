@@ -165,8 +165,24 @@ struct ProductTournamentWorkbenchTab: View {
   ) -> Bool {
     planEvaluationCanRun
       && activePlanRoundContenderIDs.contains(contender.id)
+      && planProofIsActionable(for: contender)
       && (contender.status == .competing || contender.status == .narrowed
         || contender.status == .needsRevision)
+  }
+
+  private func planProofIsActionable(
+    for contender: ProductTournamentContender
+  ) -> Bool {
+    guard let readiness = planReadiness(for: contender) else {
+      return activePlanRoundContenderIDs.contains(contender.id)
+    }
+    return readiness.planProofDebt.hasActionableFocusedProof
+  }
+
+  private func planProofActionTitle(
+    readiness: ProductTournamentPlanReadiness?
+  ) -> String {
+    readiness?.planProofDebt.focusedActionTitle ?? "Run Plan Proof"
   }
 
   private func planProofTargetSummary(
@@ -187,6 +203,9 @@ struct ProductTournamentWorkbenchTab: View {
     readiness: ProductTournamentPlanReadiness?
   ) -> String {
     let target = planProofTargetSummary(for: contender, readiness: readiness)
+    if readiness?.planProofDebt.hasActionableFocusedProof == false {
+      return "\(contender.title) is ready for the Round 2 feasibility transition."
+    }
     return "Run Round 1 simulated-user proof for \(contender.title): \(target)."
   }
 
@@ -1039,7 +1058,8 @@ struct ProductTournamentWorkbenchTab: View {
             Task { await runPlanEvaluationRound(contenderID: contender.id) }
           } label: {
             Label(
-              runningPlanEvaluationContenderID == contender.id ? "Running Proof" : "Run Proof Target",
+              runningPlanEvaluationContenderID == contender.id
+                ? "Running Proof" : planProofActionTitle(readiness: planReadiness),
               systemImage: "target"
             )
           }

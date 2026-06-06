@@ -4,6 +4,7 @@ struct ProductTournamentPlanEvaluationOutcome {
   var tournamentID: String
   var roundID: String
   var focusedContenderID: String?
+  var focusedProofTargetSummary: String?
   var records: [ProductTournamentPlanEvaluationRecord]
   var skippedContenderIDs: [String]
   var targetedBuyerOrSponsorContenderIDs: [String]
@@ -34,6 +35,9 @@ struct ProductTournamentPlanEvaluationOutcome {
       "Round 1 plan evaluation recorded \(completedEvaluationCount) simulated-user evaluation(s) for \(records.map(\.contenderID).uniquedCount) contender(s), \(skippedContenderIDs.count) skipped."
     if let focusedContenderID {
       message += " Focused contender: \(focusedContenderID)."
+    }
+    if let focusedProofTargetSummary {
+      message += " Focused target: \(focusedProofTargetSummary)."
     }
     if buyerOrSponsorEvaluationCount > 0 {
       message += " Included \(buyerOrSponsorEvaluationCount) buyer/sponsor signal(s)."
@@ -259,6 +263,7 @@ enum ProductTournamentPlanEvaluator {
     var records: [ProductTournamentPlanEvaluationRecord] = []
     var skippedContenderIDs: [String] = []
     var targetedBuyerOrSponsorContenderIDs: [String] = []
+    var focusedProofTargetSummary: String?
 
     for contenderID in contenderIDs {
       guard let contender = config.tournamentContenders.first(where: { $0.id == contenderID })
@@ -282,6 +287,9 @@ enum ProductTournamentPlanEvaluator {
         config: config,
         evidenceIndex: existingEvidenceIndex
       )
+      if contender.id == focusedContenderID {
+        focusedProofTargetSummary = plan.proofTargetSummary
+      }
       if plan.targetedBuyerOrSponsorProof
         && !targetedBuyerOrSponsorContenderIDs.contains(contender.id)
       {
@@ -317,6 +325,7 @@ enum ProductTournamentPlanEvaluator {
       tournamentID: tournament.id,
       roundID: round.id,
       focusedContenderID: focusedContenderID,
+      focusedProofTargetSummary: focusedProofTargetSummary,
       records: records,
       skippedContenderIDs: skippedContenderIDs,
       targetedBuyerOrSponsorContenderIDs: targetedBuyerOrSponsorContenderIDs
@@ -330,7 +339,11 @@ enum ProductTournamentPlanEvaluator {
     round: ProductTournamentRound,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
-  ) -> (segments: [UserSegment], targetedBuyerOrSponsorProof: Bool) {
+  ) -> (
+    segments: [UserSegment],
+    targetedBuyerOrSponsorProof: Bool,
+    proofTargetSummary: String
+  ) {
     var baseSegments = targetSegments(for: contender, painID: pain.id, config: config)
     if baseSegments.isEmpty {
       baseSegments = [inferredOperatorSegment(pain: pain, config: config)]
@@ -369,7 +382,7 @@ enum ProductTournamentPlanEvaluator {
     if segments.isEmpty {
       segments = baseSegments
     }
-    return (segments, targetedBuyerOrSponsorProof)
+    return (segments, targetedBuyerOrSponsorProof, proofDebt.nextProofTargetSummary)
   }
 
   private static func preferredBuyerOrSponsorSegment(

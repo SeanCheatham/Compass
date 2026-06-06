@@ -92,10 +92,12 @@ struct ProductTournamentPlanEvaluationTests {
     )
 
     try #require(outcome.focusedContenderID == focusedContender.id)
+    try #require(outcome.focusedProofTargetSummary == "operator and economic-buyer plan evaluations")
     try #require(outcome.completedEvaluationCount == 2)
     try #require(outcome.records.allSatisfy { $0.contenderID == focusedContender.id })
     try #require(outcome.targetedBuyerOrSponsorContenderIDs == [focusedContender.id])
     try #require(outcome.userMessage.contains("Focused contender: \(focusedContender.id)"))
+    try #require(outcome.userMessage.contains("Focused target: operator and economic-buyer"))
 
     let index = workspace.readProductTournamentEvidenceIndex()
     try #require(index.planEvaluationSummaries.count == 2)
@@ -141,6 +143,8 @@ struct ProductTournamentPlanEvaluationTests {
       workspace.readProductTournamentEvidenceIndex().aggregate.planReadinessByContender.first)
     try #require(before.buyerOrSponsorPersonaCount == 0)
     try #require(before.planProofDebt.buyerOrSponsorDeficit == 1)
+    try #require(before.planProofDebt.hasActionableFocusedProof)
+    try #require(before.planProofDebt.focusedActionTitle == "Run Buyer Proof")
     try #require(before.commercialProofSummary.contains("buyer/sponsor price and ROI"))
     try #require(before.nextProofTargetSummary.contains("economic-buyer"))
     let beforeDigest = ProductTournamentPlanningDigestFormatter.promptText(
@@ -177,6 +181,8 @@ struct ProductTournamentPlanEvaluationTests {
     try #require(after.buyerOrSponsorPersonaCount == 1)
     try #require(after.planProofDebt.buyerOrSponsorDeficit == 0)
     try #require(after.planProofDebt.isClear)
+    try #require(!after.planProofDebt.hasActionableFocusedProof)
+    try #require(after.planProofDebt.focusedActionTitle == "Proof Complete")
     try #require(after.commercialProofSummary.contains("buyer/sponsor willingness to pay"))
     try #require(after.nextProofTargetSummary == "Round 2 feasibility transition")
   }

@@ -110,6 +110,7 @@ struct ProductTournamentPlanTransitionTests {
     let records = try revisionRecords(
       for: contender, tournament: tournament, round: planRound, config: config)
     let index = ProductTournamentEvidenceIndex.build(records: [], planEvaluationRecords: records)
+    let readiness = try #require(index.aggregate.planReadinessByContender.first)
 
     let outcome = try ProductTournamentPlanTransitioner.applyBestProposal(
       tournamentID: tournament.id,
@@ -127,6 +128,7 @@ struct ProductTournamentPlanTransitionTests {
       outcome.config.tournaments.first { $0.id == tournament.id })
 
     try #require(outcome.proposal.recommendation == .revisePlan)
+    try #require(readiness.planProofDebt.focusedActionTitle == "Run Price/ROI Proof")
     try #require(outcome.proposal.detail.contains("Commercial proof"))
     try #require(outcome.proposal.detail.contains("stronger price and ROI proof"))
     try #require(updatedContender.status == .needsRevision)
