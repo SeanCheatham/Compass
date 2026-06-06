@@ -113,15 +113,15 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       outcome.config.tournamentRounds.first { $0.id == fixture.prototypeRound.id })
     let updatedExperiment = try #require(
       outcome.config.tournamentExperiments.first { $0.id == fixture.experiment.id })
-    let updatedProductHypothesis = try #require(
-      outcome.config.productHypotheses.first { $0.id == fixture.contender.productHypothesisID })
+    let updatedProductTournamentContenderPlan = try #require(
+      outcome.config.contenderPlans.first { $0.id == fixture.contender.contenderPlanID })
 
     try #require(outcome.proposal.recommendation == .eliminate)
     try #require(updatedTournament.currentRoundID == fixture.coreRound.id)
     try #require(updatedContender.status == .eliminated)
     try #require(!updatedPrototypeRound.contenderIDs.contains(fixture.contender.id))
     try #require(updatedExperiment.decision == .kill)
-    try #require(updatedProductHypothesis.status == .rejected)
+    try #require(updatedProductTournamentContenderPlan.status == .rejected)
     try #require(outcome.toRoundID == nil)
     try #require(outcome.userMessage.contains("Eliminated"))
   }
@@ -310,7 +310,7 @@ private struct RoundTwoFixture {
   var prototypeRound: ProductTournamentRound
   var contender: ProductTournamentContender
   var experiment: ProductTournamentExperiment
-  var hypothesis: ProductHypothesis
+  var hypothesis: ProductTournamentContenderPlan
 }
 
 private func roundTwoFixture() throws -> RoundTwoFixture {
@@ -327,7 +327,7 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
   let experimentID = try #require(contender.experimentID)
   let experiment = try #require(config.tournamentExperiments.first { $0.id == experimentID })
   let hypothesis = try #require(
-    config.productHypotheses.first { $0.id == contender.productHypothesisID })
+    config.contenderPlans.first { $0.id == contender.contenderPlanID })
 
   config.tournaments[0].currentRoundID = coreRound.id
   if let index = config.tournamentRounds.firstIndex(where: { $0.id == planRound.id }) {
@@ -370,7 +370,7 @@ private func evidenceRecords(
     ProductTournamentEvidenceRecord(
       id: "\(fixture.contender.id)-round-2-\(index)",
       experimentID: fixture.experiment.id,
-      productHypothesisID: fixture.contender.productHypothesisID,
+      contenderPlanID: fixture.contender.contenderPlanID,
       painID: fixture.hypothesis.painID,
       tournamentID: fixture.tournament.id,
       roundID: fixture.coreRound.id,

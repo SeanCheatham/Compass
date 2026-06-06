@@ -766,7 +766,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
   var schemaVersion: Int
   var projectID: String?
   var experimentID: String
-  var productHypothesisID: String
+  var contenderPlanID: String
   var painID: String
   var tournamentID: String?
   var roundID: String?
@@ -805,7 +805,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     case schemaVersion
     case projectID
     case experimentID
-    case productHypothesisID
+    case contenderPlanID
     case painID
     case tournamentID
     case roundID
@@ -848,7 +848,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
         ?? Self.supportedSchemaVersion,
       projectID: try container.decodeIfPresent(String.self, forKey: .projectID),
       experimentID: try container.decode(String.self, forKey: .experimentID),
-      productHypothesisID: try container.decode(String.self, forKey: .productHypothesisID),
+      contenderPlanID: try container.decode(String.self, forKey: .contenderPlanID),
       painID: try container.decode(String.self, forKey: .painID),
       tournamentID: try container.decodeIfPresent(String.self, forKey: .tournamentID),
       roundID: try container.decodeIfPresent(String.self, forKey: .roundID),
@@ -923,7 +923,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     schemaVersion: Int = Self.supportedSchemaVersion,
     projectID: String? = nil,
     experimentID: String,
-    productHypothesisID: String,
+    contenderPlanID: String,
     painID: String,
     tournamentID: String? = nil,
     roundID: String? = nil,
@@ -961,8 +961,8 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     self.schemaVersion = schemaVersion
     self.projectID = Self.optionalBounded(projectID, limit: 80)
     self.experimentID = Self.cleanedIdentifier(experimentID, fallback: "experiment")
-    self.productHypothesisID = Self.cleanedIdentifier(
-      productHypothesisID, fallback: "product-hypothesis")
+    self.contenderPlanID = Self.cleanedIdentifier(
+      contenderPlanID, fallback: "contender-plan")
     self.painID = Self.cleanedIdentifier(painID, fallback: "pain")
     self.tournamentID = Self.optionalIdentifier(tournamentID, fallback: "tournament")
     self.roundID = Self.optionalIdentifier(roundID, fallback: "round")
@@ -1026,7 +1026,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
       id: id,
       projectID: runResult.projectID?.uuidString,
       experimentID: runResult.experimentID,
-      productHypothesisID: runResult.productHypothesisID,
+      contenderPlanID: runResult.contenderPlanID,
       painID: runResult.painID,
       tournamentID: tournamentScope?.tournamentID,
       roundID: tournamentScope?.roundID,
@@ -1403,7 +1403,7 @@ struct ProductTournamentEvidenceSummary: Codable, Equatable, Identifiable, Senda
   var id: String
   var runID: String
   var experimentID: String
-  var productHypothesisID: String
+  var contenderPlanID: String
   var painID: String
   var tournamentID: String?
   var roundID: String?
@@ -1436,7 +1436,7 @@ struct ProductTournamentEvidenceSummary: Codable, Equatable, Identifiable, Senda
     case id
     case runID
     case experimentID
-    case productHypothesisID
+    case contenderPlanID
     case painID
     case tournamentID
     case roundID
@@ -1471,7 +1471,7 @@ struct ProductTournamentEvidenceSummary: Codable, Equatable, Identifiable, Senda
     id = try container.decode(String.self, forKey: .id)
     runID = try container.decodeIfPresent(String.self, forKey: .runID) ?? id
     experimentID = try container.decode(String.self, forKey: .experimentID)
-    productHypothesisID = try container.decode(String.self, forKey: .productHypothesisID)
+    contenderPlanID = try container.decode(String.self, forKey: .contenderPlanID)
     painID = try container.decode(String.self, forKey: .painID)
     tournamentID = try container.decodeIfPresent(String.self, forKey: .tournamentID)
     roundID = try container.decodeIfPresent(String.self, forKey: .roundID)
@@ -1521,7 +1521,7 @@ struct ProductTournamentEvidenceSummary: Codable, Equatable, Identifiable, Senda
     id = record.id
     runID = record.id
     experimentID = record.experimentID
-    productHypothesisID = record.productHypothesisID
+    contenderPlanID = record.contenderPlanID
     painID = record.painID
     tournamentID = record.tournamentID
     roundID = record.roundID
@@ -2210,7 +2210,7 @@ struct ProductTournamentPlanEvaluationRecord: Codable, Equatable, Identifiable, 
   var tournamentID: String
   var roundID: String
   var contenderID: String
-  var productHypothesisID: String
+  var contenderPlanID: String
   var experimentID: String?
   var painID: String
   var personaID: String
@@ -2245,7 +2245,7 @@ struct ProductTournamentPlanEvaluationRecord: Codable, Equatable, Identifiable, 
     tournamentID: String,
     roundID: String,
     contenderID: String,
-    productHypothesisID: String,
+    contenderPlanID: String,
     experimentID: String? = nil,
     painID: String,
     personaID: String,
@@ -2288,9 +2288,9 @@ struct ProductTournamentPlanEvaluationRecord: Codable, Equatable, Identifiable, 
       contenderID,
       fallback: "contender"
     )
-    self.productHypothesisID = ProductTournamentEvidenceRecord.cleanedIdentifier(
-      productHypothesisID,
-      fallback: "product-hypothesis"
+    self.contenderPlanID = ProductTournamentEvidenceRecord.cleanedIdentifier(
+      contenderPlanID,
+      fallback: "contender-plan"
     )
     self.experimentID = ProductTournamentEvidenceRecord.optionalBounded(experimentID, limit: 96)
     self.painID = ProductTournamentEvidenceRecord.cleanedIdentifier(painID, fallback: "pain")
@@ -2356,7 +2356,7 @@ struct ProductTournamentPlanEvaluationSummary: Codable, Equatable, Identifiable,
   var tournamentID: String
   var roundID: String
   var contenderID: String
-  var productHypothesisID: String
+  var contenderPlanID: String
   var experimentID: String?
   var painID: String
   var personaID: String
@@ -2384,7 +2384,7 @@ struct ProductTournamentPlanEvaluationSummary: Codable, Equatable, Identifiable,
     tournamentID = record.tournamentID
     roundID = record.roundID
     contenderID = record.contenderID
-    productHypothesisID = record.productHypothesisID
+    contenderPlanID = record.contenderPlanID
     experimentID = record.experimentID
     painID = record.painID
     personaID = record.personaID
@@ -3229,7 +3229,7 @@ enum ProductTournamentEvidenceMarkdownExporter {
       "- Tournament: \(record.tournamentID)",
       "- Round: \(record.roundID)",
       "- Contender: \(record.contenderID)",
-      "- Product hypothesis: \(record.productHypothesisID)",
+      "- Contender plan: \(record.contenderPlanID)",
       record.experimentID.map { "- Implementation Track: \($0)" },
       "- Pain: \(record.painID)",
       "- Persona: \(record.personaName) (`\(record.personaID)`)",
@@ -3286,7 +3286,7 @@ enum ProductTournamentEvidenceMarkdownExporter {
       "# Product Tournament Evidence \(record.id)",
       "",
       "- Experiment: \(record.experimentID)",
-      "- Product hypothesis: \(record.productHypothesisID)",
+      "- Contender plan: \(record.contenderPlanID)",
       "- Pain: \(record.painID)",
       record.tournamentID.map { "- Tournament: \($0)" },
       record.roundID.map { "- Tournament Round: \($0)" },

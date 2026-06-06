@@ -960,11 +960,11 @@ struct ProductTournamentWorkbenchTab: View {
 
         WorkbenchSection("Product Hypotheses", systemImage: "lightbulb") {
           VStack(alignment: .leading, spacing: 8) {
-            if config.productHypotheses.isEmpty {
-              WorkbenchEmptyLine("No product hypotheses yet.")
+            if config.contenderPlans.isEmpty {
+              WorkbenchEmptyLine("No contender plans yet.")
             } else {
-              ForEach(ProductHypothesisStatus.allCases, id: \.rawValue) { status in
-                let hypotheses = config.productHypotheses.filter { $0.status == status }
+              ForEach(ProductTournamentContenderPlanStatus.allCases, id: \.rawValue) { status in
+                let hypotheses = config.contenderPlans.filter { $0.status == status }
                 if !hypotheses.isEmpty {
                   VStack(alignment: .leading, spacing: 6) {
                     Text(status.rawValue)
@@ -1092,7 +1092,7 @@ struct ProductTournamentWorkbenchTab: View {
         Spacer()
         WorkbenchStatusPill(text: contender.status.rawValue)
       }
-      WorkbenchFact(label: "Hypothesis", value: contender.productHypothesisID)
+      WorkbenchFact(label: "Hypothesis", value: contender.contenderPlanID)
       WorkbenchFact(label: "Track", value: contender.experimentID ?? "plan only")
       if let experiment {
         WorkbenchFact(label: "Decision", value: experiment.decision.rawValue)
@@ -2305,7 +2305,7 @@ struct ProductTournamentWorkbenchTab: View {
           WorkbenchFact(label: "Tournament", value: record.tournamentID)
           WorkbenchFact(label: "Round", value: record.roundID)
           WorkbenchFact(label: "Contender", value: record.contenderID)
-          WorkbenchFact(label: "Hypothesis", value: record.productHypothesisID)
+          WorkbenchFact(label: "Hypothesis", value: record.contenderPlanID)
           if let experimentID = record.experimentID {
             WorkbenchFact(label: "Track", value: experimentID)
           }

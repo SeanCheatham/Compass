@@ -195,7 +195,7 @@ enum ProductTournamentPlanTransitioner {
       updateContender(proposal.contenderID, in: &next, timestamp: timestamp) { contender in
         contender.status = .narrowed
       }
-      activateProductHypothesis(for: proposal.contenderID, in: &next, timestamp: timestamp)
+      activateProductTournamentContenderPlan(for: proposal.contenderID, in: &next, timestamp: timestamp)
 
     case .revisePlan:
       destinationRoundID = nil
@@ -389,18 +389,18 @@ enum ProductTournamentPlanTransitioner {
     config.tournamentContenders[index].updatedAt = timestamp
   }
 
-  private static func activateProductHypothesis(
+  private static func activateProductTournamentContenderPlan(
     for contenderID: String,
     in config: inout ProductTournamentConfig,
     timestamp _: Double
   ) {
     guard
       let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
-      let index = config.productHypotheses.firstIndex(where: {
-        $0.id == contender.productHypothesisID
+      let index = config.contenderPlans.firstIndex(where: {
+        $0.id == contender.contenderPlanID
       })
     else { return }
-    config.productHypotheses[index].status = .active
+    config.contenderPlans[index].status = .active
   }
 
   private static func formatScore(_ value: Double) -> String {

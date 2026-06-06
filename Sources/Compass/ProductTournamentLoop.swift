@@ -5113,7 +5113,7 @@ enum ProductTournamentNextActionAdvisor {
         kind: .refineContender,
         title: "Prepare a pivot",
         detail:
-          "Users recognize the pain, but current contender pull is weak; reshape the hypothesis before more cohort runs.",
+          "Users recognize the pain, but current contender pull is weak; reshape the contender plan before more cohort runs.",
         priority: 74
       )
     case .kill:
@@ -5381,7 +5381,7 @@ enum ProductTournamentNextActionAdvisor {
     for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> [String] {
-    let hypothesis = config.productHypotheses.first { $0.id == experiment.productHypothesisID }
+    let hypothesis = config.contenderPlans.first { $0.id == experiment.contenderPlanID }
     let painID = hypothesis?.painID
     var segmentIDs: [String] = []
     if let hypothesis {

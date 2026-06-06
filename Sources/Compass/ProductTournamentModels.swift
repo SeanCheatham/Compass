@@ -1,7 +1,7 @@
 import Foundation
 
 struct ProductTournamentConfig: Codable, Equatable, Sendable {
-  static let supportedSchemaVersion = 2
+  static let supportedSchemaVersion = 3
 
   var schemaVersion: Int
   var rawPain: String
@@ -9,7 +9,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
   var userSegments: [UserSegment]
   var currentWorkflows: [CurrentWorkflow]
   var alternatives: [Alternative]
-  var productHypotheses: [ProductHypothesis]
+  var contenderPlans: [ProductTournamentContenderPlan]
   var tournamentExperiments: [ProductTournamentExperiment]
   var tournaments: [ProductTournament]
   var tournamentContenders: [ProductTournamentContender]
@@ -25,7 +25,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     userSegments: [],
     currentWorkflows: [],
     alternatives: [],
-    productHypotheses: [],
+    contenderPlans: [],
     tournamentExperiments: [],
     tournaments: [],
     tournamentContenders: [],
@@ -36,14 +36,14 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     tournamentAutomationCycleAudits: []
   )
 
-  enum CodingKeys: String, CodingKey {
+  enum CodingKeys: String, CodingKey, CaseIterable {
     case schemaVersion
     case rawPain
     case painHypotheses
     case userSegments
     case currentWorkflows
     case alternatives
-    case productHypotheses
+    case contenderPlans
     case tournamentExperiments
     case tournaments
     case tournamentContenders
@@ -61,7 +61,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     userSegments: [UserSegment],
     currentWorkflows: [CurrentWorkflow],
     alternatives: [Alternative],
-    productHypotheses: [ProductHypothesis],
+    contenderPlans: [ProductTournamentContenderPlan],
     tournamentExperiments: [ProductTournamentExperiment],
     tournaments: [ProductTournament] = [],
     tournamentContenders: [ProductTournamentContender] = [],
@@ -77,7 +77,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     self.userSegments = userSegments
     self.currentWorkflows = currentWorkflows
     self.alternatives = alternatives
-    self.productHypotheses = productHypotheses
+    self.contenderPlans = contenderPlans
     self.tournamentExperiments = tournamentExperiments
     self.tournaments = tournaments
     self.tournamentContenders = tournamentContenders
@@ -96,6 +96,13 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     guard schemaVersion == Self.supportedSchemaVersion else {
       throw ProductTournamentConfigError.unsupportedSchemaVersion(schemaVersion)
     }
+    let rawContainer = try decoder.container(keyedBy: ProductTournamentDynamicCodingKey.self)
+    let supportedKeys = Set(CodingKeys.allCases.map(\.stringValue))
+    if let unsupportedKey = rawContainer.allKeys.first(where: {
+      !supportedKeys.contains($0.stringValue)
+    }) {
+      throw ProductTournamentConfigError.unsupportedKey(unsupportedKey.stringValue)
+    }
 
     self.init(
       schemaVersion: schemaVersion,
@@ -106,8 +113,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       currentWorkflows: try container.decodeIfPresent(
         [CurrentWorkflow].self, forKey: .currentWorkflows) ?? [],
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
-      productHypotheses: try container.decodeIfPresent(
-        [ProductHypothesis].self, forKey: .productHypotheses) ?? [],
+      contenderPlans: try container.decodeIfPresent(
+        [ProductTournamentContenderPlan].self, forKey: .contenderPlans) ?? [],
       tournamentExperiments: try container.decodeIfPresent([ProductTournamentExperiment].self, forKey: .tournamentExperiments)
         ?? [],
       tournaments: try container.decodeIfPresent([ProductTournament].self, forKey: .tournaments)
@@ -138,7 +145,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       && userSegments.isEmpty
       && currentWorkflows.isEmpty
       && alternatives.isEmpty
-      && productHypotheses.isEmpty
+      && contenderPlans.isEmpty
       && tournamentExperiments.isEmpty
       && tournaments.isEmpty
       && tournamentContenders.isEmpty
@@ -332,8 +339,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ),
     ]
 
-    let productHypotheses = [
-      ProductHypothesis(
+    let contenderPlans = [
+      ProductTournamentContenderPlan(
         id: workflowHypothesisID,
         painID: painID,
         title: "\(title) workflow clarifier",
@@ -353,7 +360,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         ],
         status: .active
       ),
-      ProductHypothesis(
+      ProductTournamentContenderPlan(
         id: proofHypothesisID,
         painID: painID,
         title: "\(title) proof assistant",
@@ -378,7 +385,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let experiments = [
       ProductTournamentExperiment(
         id: workflowExperimentID,
-        productHypothesisID: workflowHypothesisID,
+        contenderPlanID: workflowHypothesisID,
         title: "\(title) workflow prototype",
         branchName: "codex/\(slug)-workflow-prototype",
         worktreeID: "\(slug)-workflow-worktree",
@@ -393,7 +400,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ),
       ProductTournamentExperiment(
         id: proofExperimentID,
-        productHypothesisID: proofHypothesisID,
+        contenderPlanID: proofHypothesisID,
         title: "\(title) proof prototype",
         branchName: "codex/\(slug)-proof-prototype",
         worktreeID: "\(slug)-proof-worktree",
@@ -497,7 +504,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ProductTournamentContender(
         id: workflowContenderID,
         tournamentID: tournamentID,
-        productHypothesisID: workflowHypothesisID,
+        contenderPlanID: workflowHypothesisID,
         experimentID: workflowExperimentID,
         title: "\(title) workflow product",
         productPlan:
@@ -513,7 +520,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ProductTournamentContender(
         id: proofContenderID,
         tournamentID: tournamentID,
-        productHypothesisID: proofHypothesisID,
+        contenderPlanID: proofHypothesisID,
         experimentID: proofExperimentID,
         title: "\(title) proof product",
         productPlan:
@@ -605,7 +612,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       userSegments: userSegments,
       currentWorkflows: [workflow],
       alternatives: alternatives,
-      productHypotheses: productHypotheses,
+      contenderPlans: contenderPlans,
       tournamentExperiments: experiments,
       tournaments: [tournament],
       tournamentContenders: contenders,
@@ -793,7 +800,7 @@ enum AlternativeKind: String, Codable, CaseIterable, Equatable, Sendable {
   case doNothing = "do_nothing"
 }
 
-struct ProductHypothesis: Codable, Equatable, Identifiable, Sendable {
+struct ProductTournamentContenderPlan: Codable, Equatable, Identifiable, Sendable {
   var id: String
   var painID: String
   var title: String
@@ -804,7 +811,7 @@ struct ProductHypothesis: Codable, Equatable, Identifiable, Sendable {
   var whyThisCouldWin: String
   var whyThisMightFail: String
   var requiredProof: [String]
-  var status: ProductHypothesisStatus
+  var status: ProductTournamentContenderPlanStatus
 
   init(
     id: String,
@@ -817,12 +824,12 @@ struct ProductHypothesis: Codable, Equatable, Identifiable, Sendable {
     whyThisCouldWin: String,
     whyThisMightFail: String,
     requiredProof: [String] = [],
-    status: ProductHypothesisStatus
+    status: ProductTournamentContenderPlanStatus
   ) {
-    self.id = ProductTournamentModelText.identifier(id, fallback: "product-hypothesis")
+    self.id = ProductTournamentModelText.identifier(id, fallback: "contender-plan")
     self.painID = ProductTournamentModelText.identifier(painID, fallback: "pain")
     self.title = ProductTournamentModelText.cleanedText(
-      title, fallback: "Product hypothesis", limit: 180)
+      title, fallback: "Contender plan", limit: 180)
     self.promise = ProductTournamentModelText.cleanedText(
       promise, fallback: "Relieve the target pain", limit: 500)
     self.contenderPlan = ProductTournamentModelText.cleanedText(
@@ -841,7 +848,7 @@ struct ProductHypothesis: Codable, Equatable, Identifiable, Sendable {
   }
 }
 
-enum ProductHypothesisStatus: String, Codable, CaseIterable, Equatable, Sendable {
+enum ProductTournamentContenderPlanStatus: String, Codable, CaseIterable, Equatable, Sendable {
   case candidate
   case active
   case promoted
@@ -851,7 +858,7 @@ enum ProductHypothesisStatus: String, Codable, CaseIterable, Equatable, Sendable
 
 struct ProductTournamentExperiment: Codable, Equatable, Identifiable, Sendable {
   var id: String
-  var productHypothesisID: String
+  var contenderPlanID: String
   var title: String
   var branchName: String
   var worktreeID: String
@@ -866,7 +873,7 @@ struct ProductTournamentExperiment: Codable, Equatable, Identifiable, Sendable {
 
   init(
     id: String,
-    productHypothesisID: String,
+    contenderPlanID: String,
     title: String,
     branchName: String,
     worktreeID: String,
@@ -880,7 +887,7 @@ struct ProductTournamentExperiment: Codable, Equatable, Identifiable, Sendable {
     updatedAt: Double? = nil
   ) {
     self.id = ProductTournamentModelText.identifier(id, fallback: "experiment")
-    self.productHypothesisID = ProductTournamentModelText.identifier(productHypothesisID, fallback: "product-hypothesis")
+    self.contenderPlanID = ProductTournamentModelText.identifier(contenderPlanID, fallback: "contender-plan")
     self.title = ProductTournamentModelText.cleanedText(
       title, fallback: "Tournament experiment", limit: 180)
     self.branchName = ProductTournamentModelText.cleanedText(
@@ -974,7 +981,7 @@ enum ProductTournamentStatus: String, Codable, CaseIterable, Equatable, Sendable
 struct ProductTournamentContender: Codable, Equatable, Identifiable, Sendable {
   var id: String
   var tournamentID: String
-  var productHypothesisID: String
+  var contenderPlanID: String
   var experimentID: String?
   var title: String
   var productPlan: String
@@ -988,7 +995,7 @@ struct ProductTournamentContender: Codable, Equatable, Identifiable, Sendable {
   init(
     id: String,
     tournamentID: String,
-    productHypothesisID: String,
+    contenderPlanID: String,
     experimentID: String? = nil,
     title: String,
     productPlan: String,
@@ -1001,7 +1008,7 @@ struct ProductTournamentContender: Codable, Equatable, Identifiable, Sendable {
   ) {
     self.id = ProductTournamentModelText.identifier(id, fallback: "contender")
     self.tournamentID = ProductTournamentModelText.identifier(tournamentID, fallback: "tournament")
-    self.productHypothesisID = ProductTournamentModelText.identifier(productHypothesisID, fallback: "product-hypothesis")
+    self.contenderPlanID = ProductTournamentModelText.identifier(contenderPlanID, fallback: "contender-plan")
     self.experimentID = ProductTournamentModelText.optionalIdentifier(
       experimentID,
       fallback: "experiment"
@@ -1676,13 +1683,30 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
   }
 }
 
+struct ProductTournamentDynamicCodingKey: CodingKey {
+  var stringValue: String
+  var intValue: Int?
+
+  init?(stringValue: String) {
+    self.stringValue = stringValue
+  }
+
+  init?(intValue: Int) {
+    self.stringValue = String(intValue)
+    self.intValue = intValue
+  }
+}
+
 enum ProductTournamentConfigError: LocalizedError, Equatable {
   case unsupportedSchemaVersion(Int)
+  case unsupportedKey(String)
 
   var errorDescription: String? {
     switch self {
     case .unsupportedSchemaVersion(let version):
       return "Unsupported product tournament config schema version \(version)."
+    case .unsupportedKey(let key):
+      return "Unsupported product tournament config key \(key)."
     }
   }
 }

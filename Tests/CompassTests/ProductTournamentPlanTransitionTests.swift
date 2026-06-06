@@ -41,8 +41,8 @@ struct ProductTournamentPlanTransitionTests {
       outcome.config.tournamentRounds.first { $0.id == feasibilityRound.id })
     let updatedContender = try #require(
       outcome.config.tournamentContenders.first { $0.id == contender.id })
-    let updatedProductHypothesis = try #require(
-      outcome.config.productHypotheses.first { $0.id == contender.productHypothesisID })
+    let updatedProductTournamentContenderPlan = try #require(
+      outcome.config.contenderPlans.first { $0.id == contender.contenderPlanID })
 
     try #require(proposal.recommendation == .advanceToFeasibility)
     try #require(updatedTournament.currentRoundID == feasibilityRound.id)
@@ -50,7 +50,7 @@ struct ProductTournamentPlanTransitionTests {
     try #require(updatedFeasibilityRound.status == .active)
     try #require(updatedFeasibilityRound.contenderIDs == [contender.id])
     try #require(updatedContender.status == .narrowed)
-    try #require(updatedProductHypothesis.status == .active)
+    try #require(updatedProductTournamentContenderPlan.status == .active)
     try #require(outcome.toRoundID == feasibilityRound.id)
     try #require(outcome.userMessage.contains("Advanced"))
     try #require(
@@ -212,14 +212,14 @@ private func strongNonBuyerRecords(
   config: ProductTournamentConfig
 ) throws -> [ProductTournamentPlanEvaluationRecord] {
   let hypothesis = try #require(
-    config.productHypotheses.first { $0.id == contender.productHypothesisID })
+    config.contenderPlans.first { $0.id == contender.contenderPlanID })
   return [
     ProductTournamentPlanEvaluationRecord(
       id: "\(contender.id)-operator-a",
       tournamentID: tournament.id,
       roundID: round.id,
       contenderID: contender.id,
-      productHypothesisID: contender.productHypothesisID,
+      contenderPlanID: contender.contenderPlanID,
       experimentID: contender.experimentID,
       painID: hypothesis.painID,
       personaID: "operator-a",
@@ -245,7 +245,7 @@ private func strongNonBuyerRecords(
       tournamentID: tournament.id,
       roundID: round.id,
       contenderID: contender.id,
-      productHypothesisID: contender.productHypothesisID,
+      contenderPlanID: contender.contenderPlanID,
       experimentID: contender.experimentID,
       painID: hypothesis.painID,
       personaID: "operator-b",
@@ -321,7 +321,7 @@ private func records(
   summary: String
 ) throws -> [ProductTournamentPlanEvaluationRecord] {
   let hypothesis = try #require(
-    config.productHypotheses.first { $0.id == contender.productHypothesisID })
+    config.contenderPlans.first { $0.id == contender.contenderPlanID })
   let segments = config.userSegments.prefix(2)
   return segments.enumerated().map { index, segment in
     ProductTournamentPlanEvaluationRecord(
@@ -329,7 +329,7 @@ private func records(
       tournamentID: tournament.id,
       roundID: round.id,
       contenderID: contender.id,
-      productHypothesisID: contender.productHypothesisID,
+      contenderPlanID: contender.contenderPlanID,
       experimentID: contender.experimentID,
       painID: hypothesis.painID,
       personaID: segment.id,

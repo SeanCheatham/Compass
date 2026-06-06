@@ -28,11 +28,11 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains("candidateTournamentExperiments"))
     try #require(!prompt.contains("candidateExperiments"))
     try #require(prompt.contains("tournamentExperiments"))
-    try #require(prompt.contains("productHypotheses"))
-    try #require(prompt.contains("productHypothesisID"))
+    try #require(prompt.contains("contenderPlans"))
+    try #require(prompt.contains("contenderPlanID"))
     try #require(prompt.contains("contenderID"))
     try #require(prompt.contains("`contenderID` must reference a tournament contender"))
-    try #require(!prompt.contains("`productHypothesisID` must reference"))
+    try #require(!prompt.contains("`contenderPlanID` must reference"))
     try #require(prompt.contains("contenderPlan"))
     try #require(prompt.contains("product contenders"))
     try #require(!prompt.contains("reference a solution"))
@@ -52,8 +52,8 @@ struct DiscoverPromptContractTests {
 
     try #require(config.rawPain.contains("customer-facing decisions"))
     try #require(config.painHypotheses.count == 1)
-    try #require(config.productHypotheses.count == 2)
-    try #require(config.productHypotheses[0].contenderPlan.contains("focused board"))
+    try #require(config.contenderPlans.count == 2)
+    try #require(config.contenderPlans[0].contenderPlan.contains("focused board"))
     try #require(config.tournamentExperiments.count == 1)
     try #require(config.tournaments.count == 1)
     try #require(config.tournamentContenders.count == 2)
@@ -82,15 +82,27 @@ struct DiscoverPromptContractTests {
     }
   }
 
-  @Test func discoverResponseRejectsRetiredCandidateProductHypothesisID() throws {
-    let legacyJSON = try discoverJSONWithLegacyCandidateReference(makeDiscoverOutput())
+  @Test func discoverResponseRejectsCandidateContenderPlanReference() throws {
+    let invalidJSON = try discoverJSONWithCandidateContenderPlanReference(makeDiscoverOutput())
 
     #expect(
       throws: DiscoverPromptValidationError.invalidJSON(
-        "Use contenderID instead of productHypothesisID for candidateTournamentExperiments."
+        "Use contenderID instead of contenderPlanID for candidateTournamentExperiments."
       )
     ) {
-      _ = try Prompts.decodeDiscoverResponse(legacyJSON)
+      _ = try Prompts.decodeDiscoverResponse(invalidJSON)
+    }
+  }
+
+  @Test func discoverResponseRejectsUnsupportedStateEditKey() throws {
+    let invalidJSON = try discoverJSONWithUnsupportedStateEditKey(makeDiscoverOutput())
+
+    #expect(
+      throws: DiscoverPromptValidationError.invalidJSON(
+        "Unsupported stateEdits key retiredPlanIdeas."
+      )
+    ) {
+      _ = try Prompts.decodeDiscoverResponse(invalidJSON)
     }
   }
 
@@ -103,12 +115,12 @@ struct DiscoverPromptContractTests {
     }
   }
 
-  @Test func discoverValidationRejectsProductHypothesisWithoutPain() throws {
+  @Test func discoverValidationRejectsProductTournamentContenderPlanWithoutPain() throws {
     var output = makeDiscoverOutput()
-    output.stateEdits.productHypotheses[0] = ProductHypothesis(
-      id: "hypothesis-bad",
+    output.stateEdits.contenderPlans[0] = ProductTournamentContenderPlan(
+      id: "plan-bad",
       painID: "missing-pain",
-      title: "Bad hypothesis",
+      title: "Bad contender plan",
       promise: "Help somehow",
       contenderPlan: "Prototype something",
       targetSegmentIDs: [],
@@ -120,8 +132,8 @@ struct DiscoverPromptContractTests {
     )
 
     #expect(
-      throws: DiscoverPromptValidationError.productHypothesisReferencesMissingPain(
-        productHypothesisID: "hypothesis-bad",
+      throws: DiscoverPromptValidationError.contenderPlanReferencesMissingPain(
+        contenderPlanID: "plan-bad",
         painID: "missing-pain"
       )
     ) {
@@ -249,8 +261,8 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     decisionCriteria: ["Clarity", "Speed"],
     skepticism: "Will stay in chat if the product is slower."
   )
-  let commandBoard = ProductHypothesis(
-    id: "hypothesis-command-board",
+  let commandBoard = ProductTournamentContenderPlan(
+    id: "plan-command-board",
     painID: pain.id,
     title: "Incident Command Board",
     promise: "Preserve decisions, owners, and customer update status.",
@@ -262,8 +274,8 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     requiredProof: ["Persona drafts clearer update than chat"],
     status: .active
   )
-  let timeline = ProductHypothesis(
-    id: "hypothesis-timeline",
+  let timeline = ProductTournamentContenderPlan(
+    id: "plan-timeline",
     painID: pain.id,
     title: "Incident Timeline",
     promise: "Turn noisy chat into an auditable timeline.",
@@ -277,7 +289,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
   )
   let experiment = ProductTournamentExperiment(
     id: "experiment-command-board",
-    productHypothesisID: commandBoard.id,
+    contenderPlanID: commandBoard.id,
     title: "Incident command board prototype",
     branchName: "codex/incident-command-board",
     worktreeID: "incident-command-board-worktree",
@@ -316,7 +328,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
   let commandBoardContender = ProductTournamentContender(
     id: "contender-command-board",
     tournamentID: tournament.id,
-    productHypothesisID: commandBoard.id,
+    contenderPlanID: commandBoard.id,
     experimentID: experiment.id,
     title: "Incident command board",
     productPlan: "Use owner and decision context to draft a customer update during triage.",
@@ -330,7 +342,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
   let timelineContender = ProductTournamentContender(
     id: "contender-timeline",
     tournamentID: tournament.id,
-    productHypothesisID: timeline.id,
+    contenderPlanID: timeline.id,
     experimentID: nil,
     title: "Incident timeline",
     productPlan: "Turn chat and ticket context into an auditable incident timeline.",
@@ -393,7 +405,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
       userSegments: [segment],
       currentWorkflows: [workflow],
       alternatives: [alternative],
-      productHypotheses: [commandBoard, timeline],
+      contenderPlans: [commandBoard, timeline],
       tournamentExperiments: [experiment],
       tournaments: [tournament],
       tournamentContenders: [commandBoardContender, timelineContender],
@@ -434,16 +446,28 @@ private func encodeDiscoverJSON(_ output: DiscoverPromptOutput) throws -> String
   return String(decoding: data, as: UTF8.self)
 }
 
-private func discoverJSONWithLegacyCandidateReference(_ output: DiscoverPromptOutput) throws
+private func discoverJSONWithCandidateContenderPlanReference(_ output: DiscoverPromptOutput) throws
   -> String
 {
   let data = Data(try encodeDiscoverJSON(output).utf8)
   var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
   var candidates = try #require(object["candidateTournamentExperiments"] as? [[String: Any]])
   var firstCandidate = try #require(candidates.first)
-  firstCandidate["productHypothesisID"] = firstCandidate.removeValue(forKey: "contenderID")
+  firstCandidate["contenderPlanID"] = firstCandidate.removeValue(forKey: "contenderID")
   candidates[0] = firstCandidate
   object["candidateTournamentExperiments"] = candidates
-  let legacyData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
-  return String(decoding: legacyData, as: UTF8.self)
+  let invalidData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+  return String(decoding: invalidData, as: UTF8.self)
+}
+
+private func discoverJSONWithUnsupportedStateEditKey(_ output: DiscoverPromptOutput) throws
+  -> String
+{
+  let data = Data(try encodeDiscoverJSON(output).utf8)
+  var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+  var stateEdits = try #require(object["stateEdits"] as? [String: Any])
+  stateEdits["retiredPlanIdeas"] = []
+  object["stateEdits"] = stateEdits
+  let invalidData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+  return String(decoding: invalidData, as: UTF8.self)
 }

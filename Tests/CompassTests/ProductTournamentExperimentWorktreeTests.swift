@@ -59,7 +59,7 @@ struct ProductTournamentExperimentWorktreeTests {
     try workspace.initialize()
     let experiment = ProductTournamentExperiment(
       id: "experiment-bad",
-      productHypothesisID: "hypothesis-command-board",
+      contenderPlanID: "plan-command-board",
       title: "Bad branch",
       branchName: "bad branch",
       worktreeID: "bad-worktree",
@@ -147,7 +147,7 @@ struct ProductTournamentExperimentWorktreeTests {
       verifyOutput: nil,
       feedback: nil,
       tournamentExperimentID: "experiment-command-board",
-      tournamentProductHypothesisID: "hypothesis-command-board",
+      tournamentContenderPlanID: "plan-command-board",
       tournamentPainID: "pain-command-board",
       tournamentExperimentBranchName: "compass/exp/command-board",
       tournamentExperimentCommitSha: "abc123",
@@ -162,12 +162,12 @@ struct ProductTournamentExperimentWorktreeTests {
     let decoded = try JSONDecoder().decode(SessionRecord.self, from: data)
 
     try #require(payload.contains("\"tournamentExperimentID\""))
-    try #require(payload.contains("\"tournamentProductHypothesisID\""))
+    try #require(payload.contains("\"tournamentContenderPlanID\""))
     try #require(!payload.contains("\"productExperimentID\""))
     try #require(!payload.contains("\"productTournamentExperimentID\""))
-    try #require(!payload.contains("\"productHypothesisID\""))
+    try #require(!payload.contains("\"contenderPlanID\""))
     try #require(decoded.tournamentExperimentID == "experiment-command-board")
-    try #require(decoded.tournamentProductHypothesisID == "hypothesis-command-board")
+    try #require(decoded.tournamentContenderPlanID == "plan-command-board")
     try #require(decoded.tournamentPainID == "pain-command-board")
     try #require(decoded.tournamentExperimentBranchName == "compass/exp/command-board")
     try #require(decoded.tournamentExperimentCommitSha == "abc123")
@@ -209,8 +209,8 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     status: .active,
     createdAt: 1
   )
-  let hypothesis = ProductHypothesis(
-    id: "hypothesis-command-board",
+  let hypothesis = ProductTournamentContenderPlan(
+    id: "plan-command-board",
     painID: pain.id,
     title: "Command Board",
     promise: "Keep incident decisions visible.",
@@ -224,7 +224,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
   )
   let first = ProductTournamentExperiment(
     id: "experiment-command-board",
-    productHypothesisID: hypothesis.id,
+    contenderPlanID: hypothesis.id,
     title: "Command board prototype",
     branchName: "compass/exp/command-board",
     worktreeID: "command-board-worktree",
@@ -237,7 +237,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
   )
   let second = ProductTournamentExperiment(
     id: "experiment-timeline",
-    productHypothesisID: hypothesis.id,
+    contenderPlanID: hypothesis.id,
     title: "Timeline prototype",
     branchName: "compass/exp/timeline",
     worktreeID: "timeline-worktree",
@@ -254,7 +254,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     userSegments: [],
     currentWorkflows: [],
     alternatives: [],
-    productHypotheses: [hypothesis],
+    contenderPlans: [hypothesis],
     tournamentExperiments: [first, second],
     scenarioCohorts: [],
     decisions: []

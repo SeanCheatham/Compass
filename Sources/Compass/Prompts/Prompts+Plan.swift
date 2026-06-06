@@ -150,7 +150,7 @@ extension Prompts {
         it or rescope so Develop can make progress.
       - Treat product tournament evidence as advisory product pressure, not an
         engineering failure or Verify bypass. It can motivate product changes,
-        reprioritize roadmap work, challenge the pain or product hypothesis,
+        reprioritize roadmap work, challenge the pain or contender plan,
         or expose evidence gaps, but normal build/test/verify discipline still
         applies.
       - Start tournament planning from the active pain hypotheses, product

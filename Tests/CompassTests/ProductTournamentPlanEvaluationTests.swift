@@ -349,15 +349,15 @@ struct ProductTournamentPlanEvaluationTests {
       "Offer a clearer reporting workspace that organizes updates and reminders."
     config.tournamentContenders[genericContenderIndex].valueProposition =
       "Make weekly reporting easier to review."
-    let genericProductHypothesisID = config.tournamentContenders[genericContenderIndex]
-      .productHypothesisID
-    let genericProductHypothesisIndex = try #require(
-      config.productHypotheses.firstIndex { $0.id == genericProductHypothesisID })
-    config.productHypotheses[genericProductHypothesisIndex].differentiator =
+    let genericProductTournamentContenderPlanID = config.tournamentContenders[genericContenderIndex]
+      .contenderPlanID
+    let genericProductTournamentContenderPlanIndex = try #require(
+      config.contenderPlans.firstIndex { $0.id == genericProductTournamentContenderPlanID })
+    config.contenderPlans[genericProductTournamentContenderPlanIndex].differentiator =
       "Organizes reporting context in one workflow."
-    config.productHypotheses[genericProductHypothesisIndex].whyThisCouldWin =
+    config.contenderPlans[genericProductTournamentContenderPlanIndex].whyThisCouldWin =
       "The user may prefer a clearer reporting workspace."
-    config.productHypotheses[genericProductHypothesisIndex].requiredProof = [
+    config.contenderPlans[genericProductTournamentContenderPlanIndex].requiredProof = [
       "Show reporting steps are easier to review."
     ]
     try workspace.writeProductTournamentConfig(config)
@@ -428,13 +428,13 @@ private func makePlanEvaluationRecord(
   endedAt: Double
 ) throws -> ProductTournamentPlanEvaluationRecord {
   let hypothesis = try #require(
-    config.productHypotheses.first { $0.id == contender.productHypothesisID })
+    config.contenderPlans.first { $0.id == contender.contenderPlanID })
   return ProductTournamentPlanEvaluationRecord(
     id: id,
     tournamentID: tournament.id,
     roundID: round.id,
     contenderID: contender.id,
-    productHypothesisID: contender.productHypothesisID,
+    contenderPlanID: contender.contenderPlanID,
     experimentID: contender.experimentID,
     painID: hypothesis.painID,
     personaID: segment.id,

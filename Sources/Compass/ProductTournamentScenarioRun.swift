@@ -147,7 +147,7 @@ enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
   case unknownExperiment(String)
   case unknownCohort(String)
   case unknownScenario(String)
-  case unknownProductHypothesis(String)
+  case unknownContenderPlan(String)
   case unknownContenderForExperiment(String)
   case unknownPain(String)
   case unknownSegment(String)
@@ -177,8 +177,8 @@ enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
       return "Product scenario cohort \(id) was not found in product tournament state."
     case .unknownScenario(let id):
       return "Product scenario \(id) was not found in product tournament state."
-    case .unknownProductHypothesis(let id):
-      return "Product hypothesis \(id) was not found in product tournament state."
+    case .unknownContenderPlan(let id):
+      return "Contender plan \(id) was not found in product tournament state."
     case .unknownContenderForExperiment(let id):
       return "No tournament contender was found for experiment \(id)."
     case .unknownPain(let id):
@@ -290,7 +290,7 @@ enum ProductTournamentScenarioCoordinator {
     in config: ProductTournamentConfig,
     now: Date = Date()
   ) -> ProductScenarioDraft {
-    let hypothesis = config.productHypotheses.first { $0.id == experiment.productHypothesisID }
+    let hypothesis = config.contenderPlans.first { $0.id == experiment.contenderPlanID }
     let painID = hypothesis?.painID ?? config.painHypotheses.first?.id ?? ""
     let segment =
       config.userSegments.first { segment in
@@ -453,12 +453,12 @@ enum ProductTournamentScenarioCoordinator {
       in: config
     )
     guard
-      let hypothesis = config.productHypotheses.first(where: {
-        $0.id == experiment.productHypothesisID
+      let hypothesis = config.contenderPlans.first(where: {
+        $0.id == experiment.contenderPlanID
       })
     else {
-      throw ProductTournamentScenarioRunError.unknownProductHypothesis(
-        experiment.productHypothesisID)
+      throw ProductTournamentScenarioRunError.unknownContenderPlan(
+        experiment.contenderPlanID)
     }
     guard
       let contender = config.tournamentContenders.first(where: { $0.experimentID == experiment.id })
@@ -507,7 +507,7 @@ enum ProductTournamentScenarioCoordinator {
       currentWorkflow: currentWorkflow,
       alternatives: selectedAlternatives,
       contender: contender,
-      productHypothesis: hypothesis,
+      contenderPlan: hypothesis,
       experiment: experiment,
       scenarioID: scenario.id,
       scenarioTask: scenario.task,

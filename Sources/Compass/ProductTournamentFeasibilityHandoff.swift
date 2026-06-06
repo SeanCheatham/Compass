@@ -8,8 +8,8 @@ struct ProductTournamentFeasibilityHandoff: Codable, Equatable, Identifiable, Se
   var roundTitle: String
   var contenderID: String
   var contenderTitle: String
-  var productHypothesisID: String
-  var productHypothesisTitle: String
+  var contenderPlanID: String
+  var contenderPlanTitle: String
   var experimentID: String
   var experimentTitle: String
   var branchName: String
@@ -40,7 +40,7 @@ struct ProductTournamentFeasibilityHandoff: Codable, Equatable, Identifiable, Se
       ? "no plan evaluations"
       : "plan_evidence \(planEvaluationIDs.prefix(4).joined(separator: ", "))"
     return
-      "- round_2_feasibility contender \(contenderID) [hypothesis \(productHypothesisID), experiment \(experimentID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), \(plan), \(evaluations)]: proof \(coreTechnologyProof); acceptance \(acceptanceSignals.prefix(4).joined(separator: "; ")); risk \(riskFocus)."
+      "- round_2_feasibility contender \(contenderID) [contender_plan \(contenderPlanID), experiment \(experimentID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), \(plan), \(evaluations)]: proof \(coreTechnologyProof); acceptance \(acceptanceSignals.prefix(4).joined(separator: "; ")); risk \(riskFocus)."
   }
 
   var implementationTargetLine: String {
@@ -51,7 +51,7 @@ struct ProductTournamentFeasibilityHandoff: Codable, Equatable, Identifiable, Se
       ? "no acceptance signals"
       : acceptanceSignals.prefix(4).joined(separator: "; ")
     return
-      "- round_2_implementation_target selected_experiment \(experimentID) [tournament \(tournamentID), round \(roundID), only_contender \(contenderID), hypothesis \(productHypothesisID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), do_not_build_competing_contenders true]: core_technology_proof \(coreTechnologyProof); acceptance \(acceptance); risk \(riskFocus)."
+      "- round_2_implementation_target selected_experiment \(experimentID) [tournament \(tournamentID), round \(roundID), only_contender \(contenderID), contender_plan \(contenderPlanID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), do_not_build_competing_contenders true]: core_technology_proof \(coreTechnologyProof); acceptance \(acceptance); risk \(riskFocus)."
   }
 }
 
@@ -84,7 +84,7 @@ enum ProductTournamentFeasibilityAdvisor {
       guard
         let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
         contender.status == .narrowed || contender.status == .needsRevision,
-        let hypothesis = config.productHypotheses.first(where: { $0.id == contender.productHypothesisID }),
+        let hypothesis = config.contenderPlans.first(where: { $0.id == contender.contenderPlanID }),
         let experimentID = contender.experimentID,
         let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
       else { return nil }
@@ -101,8 +101,8 @@ enum ProductTournamentFeasibilityAdvisor {
         roundTitle: round.title,
         contenderID: contender.id,
         contenderTitle: contender.title,
-        productHypothesisID: hypothesis.id,
-        productHypothesisTitle: hypothesis.title,
+        contenderPlanID: hypothesis.id,
+        contenderPlanTitle: hypothesis.title,
         experimentID: experiment.id,
         experimentTitle: experiment.title,
         branchName: experiment.branchName,
@@ -158,7 +158,7 @@ enum ProductTournamentFeasibilityAdvisor {
 
   private static func acceptanceSignals(
     for round: ProductTournamentRound,
-    hypothesis: ProductHypothesis
+    hypothesis: ProductTournamentContenderPlan
   ) -> [String] {
     let signals =
       round.evaluationFocus
@@ -172,7 +172,7 @@ enum ProductTournamentFeasibilityAdvisor {
 
   private static func coreTechnologyProof(
     contender: ProductTournamentContender,
-    hypothesis: ProductHypothesis,
+    hypothesis: ProductTournamentContenderPlan,
     experiment: ProductTournamentExperiment,
     round: ProductTournamentRound
   ) -> String {

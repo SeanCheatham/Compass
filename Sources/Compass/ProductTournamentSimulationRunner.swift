@@ -9,7 +9,7 @@ struct ProductTournamentSimulationRequest {
   var currentWorkflow: CurrentWorkflow
   var alternatives: [Alternative]
   var contender: ProductTournamentContender
-  var productHypothesis: ProductHypothesis
+  var contenderPlan: ProductTournamentContenderPlan
   var experiment: ProductTournamentExperiment
   var scenarioID: String
   var scenarioTask: String
@@ -32,7 +32,7 @@ struct ProductTournamentSimulationRequest {
     currentWorkflow: CurrentWorkflow,
     alternatives: [Alternative],
     contender: ProductTournamentContender,
-    productHypothesis: ProductHypothesis,
+    contenderPlan: ProductTournamentContenderPlan,
     experiment: ProductTournamentExperiment,
     scenarioID: String,
     scenarioTask: String = "",
@@ -55,7 +55,7 @@ struct ProductTournamentSimulationRequest {
     self.currentWorkflow = currentWorkflow
     self.alternatives = alternatives
     self.contender = contender
-    self.productHypothesis = productHypothesis
+    self.contenderPlan = contenderPlan
     self.experiment = experiment
     self.scenarioID = ProductTournamentModelText.identifier(scenarioID, fallback: "scenario")
     self.scenarioTask = ProductTournamentModelText.cleanedText(scenarioTask, limit: 800)
@@ -112,7 +112,7 @@ struct ProductTournamentSimulationRequest {
         id: experiment.id,
         branchName: experiment.branchName,
         successSignal: scenarioSuccessSignal.isEmpty
-          ? (productHypothesis.requiredProof.first ?? experiment.prototypeScope)
+          ? (contenderPlan.requiredProof.first ?? experiment.prototypeScope)
           : scenarioSuccessSignal
       ),
       scenario: ProductTournamentExperienceScenario(
@@ -127,7 +127,7 @@ struct ProductTournamentSimulationRequest {
           scenarioTask,
           scenarioSuccessSignal.isEmpty ? "" : "Success signal: \(scenarioSuccessSignal)",
           experiment.prototypeScope,
-          "Desired pain relief: \(productHypothesis.promise)",
+          "Desired pain relief: \(contenderPlan.promise)",
           "Decision criteria: \(segment.decisionCriteria.joined(separator: "; "))",
         ].filter { !$0.isEmpty }.joined(separator: ". ")
       ),
@@ -231,7 +231,7 @@ struct ProductTournamentRunResult: Codable, Equatable, Sendable {
   var projectTitle: String
   var experimentID: String
   var contenderID: String
-  var productHypothesisID: String
+  var contenderPlanID: String
   var painID: String
   var branchName: String
   var commitSha: String
@@ -332,7 +332,7 @@ struct ProductTournamentSimulationRequestContext: Equatable, Sendable {
   var currentWorkflow: CurrentWorkflow
   var alternatives: [Alternative]
   var contender: ProductTournamentContender
-  var productHypothesis: ProductHypothesis
+  var contenderPlan: ProductTournamentContenderPlan
   var experiment: ProductTournamentExperiment
   var scenarioID: String
   var scenarioTask: String
@@ -508,7 +508,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
       + request.currentWorkflow.workarounds).prefix(6).joined(separator: "; ")
     let decisionCriteria = request.segment.decisionCriteria.prefix(6).joined(separator: "; ")
     let constraints = request.segment.constraints.prefix(6).joined(separator: "; ")
-    let requiredProof = request.productHypothesis.requiredProof.prefix(6).joined(separator: "; ")
+    let requiredProof = request.contenderPlan.requiredProof.prefix(6).joined(separator: "; ")
     let decisionIntent =
       request.decisionIntent.map { intent in
         let focus = intent.scorecardFocus.joined(separator: ", ")
@@ -1146,7 +1146,7 @@ struct ProductTournamentSimulationRunner {
         currentWorkflow: request.currentWorkflow,
         alternatives: request.alternatives,
         contender: request.contender,
-        productHypothesis: request.productHypothesis,
+        contenderPlan: request.contenderPlan,
         experiment: request.experiment,
         scenarioID: request.scenarioID,
         scenarioTask: request.scenarioTask,
@@ -1203,7 +1203,7 @@ struct ProductTournamentSimulationRunner {
       projectTitle: request.projectTitle,
       experimentID: request.experiment.id,
       contenderID: request.contender.id,
-      productHypothesisID: request.productHypothesis.id,
+      contenderPlanID: request.contenderPlan.id,
       painID: request.pain.id,
       branchName: request.experiment.branchName,
       commitSha: request.commitSha,

@@ -5,7 +5,7 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     maxPainHypotheses: Int = 3,
-    maxProductHypotheses: Int = 5,
+    maxContenderPlans: Int = 5,
     maxExperiments: Int = 6,
     maxDecisions: Int = 4,
     maxEvidenceSignals: Int = 5
@@ -40,7 +40,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
-    lines += productHypothesisLines(config: config, maxProductHypotheses: maxProductHypotheses)
+    lines += contenderPlanLines(config: config, maxContenderPlans: maxContenderPlans)
     lines += experimentLines(config: config, maxExperiments: maxExperiments)
     lines += evidenceSignalLines(
       config: config,
@@ -152,7 +152,7 @@ enum ProductTournamentPlanningDigestFormatter {
         .compactMap { $0 }
         .joined(separator: ", ")
         lines.append(
-          "- Contender \(contender.id) [\(contender.status.rawValue), hypothesis \(contender.productHypothesisID), exp \(experiment), seg \(segments), \(planEvidence)]: \(bounded(contender.valueProposition, 100)); risk \(bounded(contender.primaryRisk, 60))."
+          "- Contender \(contender.id) [\(contender.status.rawValue), contender_plan \(contender.contenderPlanID), exp \(experiment), seg \(segments), \(planEvidence)]: \(bounded(contender.valueProposition, 100)); risk \(bounded(contender.primaryRisk, 60))."
         )
       }
 
@@ -189,40 +189,40 @@ enum ProductTournamentPlanningDigestFormatter {
     return lines
   }
 
-  private static func productHypothesisLines(
+  private static func contenderPlanLines(
     config: ProductTournamentConfig,
-    maxProductHypotheses: Int
+    maxContenderPlans: Int
   ) -> [String] {
-    let hypotheses = config.productHypotheses
+    let contenderPlans = config.contenderPlans
       .filter { $0.status == .active || $0.status == .candidate || $0.status == .promoted }
       .sorted { lhs, rhs in
         if lhs.status == rhs.status { return lhs.title < rhs.title }
-        return productHypothesisStatusRank(lhs.status) < productHypothesisStatusRank(rhs.status)
+        return contenderPlanStatusRank(lhs.status) < contenderPlanStatusRank(rhs.status)
       }
-    guard !hypotheses.isEmpty else {
+    guard !contenderPlans.isEmpty else {
       return [
-        "Product hypotheses:",
-        "- No active or candidate product hypothesis is configured.",
+        "Contender plans:",
+        "- No active or candidate contender plan is configured.",
       ]
     }
 
-    var lines = ["Product hypotheses:"]
-    for hypothesis in hypotheses.prefix(maxProductHypotheses) {
+    var lines = ["Contender plans:"]
+    for contenderPlan in contenderPlans.prefix(maxContenderPlans) {
       let segments =
-        hypothesis.targetSegmentIDs.isEmpty
+        contenderPlan.targetSegmentIDs.isEmpty
         ? "no target segment"
-        : hypothesis.targetSegmentIDs.joined(separator: ", ")
+        : contenderPlan.targetSegmentIDs.joined(separator: ", ")
       let proof =
-        hypothesis.requiredProof.isEmpty
+        contenderPlan.requiredProof.isEmpty
         ? "no required proof"
-        : bounded(hypothesis.requiredProof.joined(separator: "; "), 160)
+        : bounded(contenderPlan.requiredProof.joined(separator: "; "), 160)
       lines.append(
-        "- \(bounded(hypothesis.title, 120)) [\(hypothesis.status.rawValue), pain \(hypothesis.painID), segments \(segments)]: \(bounded(hypothesis.promise, 150)); proof \(proof)."
+        "- \(bounded(contenderPlan.title, 120)) [\(contenderPlan.status.rawValue), pain \(contenderPlan.painID), segments \(segments)]: \(bounded(contenderPlan.promise, 150)); proof \(proof)."
       )
     }
-    if hypotheses.count > maxProductHypotheses {
+    if contenderPlans.count > maxContenderPlans {
       lines.append(
-        "- \(hypotheses.count - maxProductHypotheses) more product hypothesis/hypotheses omitted.")
+        "- \(contenderPlans.count - maxContenderPlans) more contender plan(s) omitted.")
     }
     return lines
   }
@@ -327,7 +327,7 @@ enum ProductTournamentPlanningDigestFormatter {
         ? "no evidence recorded"
         : bounded(experiment.evidenceSummary, 120)
       lines.append(
-        "- \(bounded(experiment.title, 120)) [\(experiment.decision.rawValue)]: hypothesis \(experiment.productHypothesisID), branch \(bounded(experiment.branchName, 140)), sha \(sha); scope \(bounded(experiment.prototypeScope, 140)); evidence \(evidenceSummary)."
+        "- \(bounded(experiment.title, 120)) [\(experiment.decision.rawValue)]: contender_plan \(experiment.contenderPlanID), branch \(bounded(experiment.branchName, 140)), sha \(sha); scope \(bounded(experiment.prototypeScope, 140)); evidence \(evidenceSummary)."
       )
     }
     if experiments.count > maxExperiments {
@@ -1008,7 +1008,7 @@ enum ProductTournamentPlanningDigestFormatter {
     return lines
   }
 
-  private static func productHypothesisStatusRank(_ status: ProductHypothesisStatus) -> Int {
+  private static func contenderPlanStatusRank(_ status: ProductTournamentContenderPlanStatus) -> Int {
     switch status {
     case .promoted: return 0
     case .active: return 1

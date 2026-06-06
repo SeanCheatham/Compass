@@ -52,7 +52,7 @@ struct ProductTournamentEvidenceStoreTests {
       tournamentID: "tournament-reporting",
       roundID: "round-reporting-plans",
       contenderID: "contender-reporting-desk",
-      productHypothesisID: "hypothesis-reporting-desk",
+      contenderPlanID: "plan-reporting-desk",
       experimentID: "experiment-reporting-desk",
       painID: "pain-reporting",
       personaID: "segment-operator",
@@ -136,8 +136,8 @@ struct ProductTournamentEvidenceStoreTests {
     let record = makeEvidenceRecord(
       id: "intent-run",
       experimentID: experiment.id,
-      productHypothesisID: experiment.productHypothesisID,
-      painID: config.productHypotheses[0].painID,
+      contenderPlanID: experiment.contenderPlanID,
+      painID: config.contenderPlans[0].painID,
       branchName: experiment.branchName,
       commitSha: "abc123",
       scenarioID: config.scenarios[0].id,
@@ -520,7 +520,7 @@ struct ProductTournamentEvidenceStoreTests {
     let record = makeEvidenceRecord(
       id: "digest-run",
       experimentID: config.tournamentExperiments[0].id,
-      productHypothesisID: config.productHypotheses[0].id,
+      contenderPlanID: config.contenderPlans[0].id,
       painID: config.painHypotheses[0].id,
       branchName: config.tournamentExperiments[0].branchName,
       verdict: .promising,
@@ -588,7 +588,7 @@ struct ProductTournamentEvidenceStoreTests {
       makeEvidenceRecord(
         id: "rationale-one",
         experimentID: config.tournamentExperiments[0].id,
-        productHypothesisID: config.productHypotheses[0].id,
+        contenderPlanID: config.contenderPlans[0].id,
         painID: config.painHypotheses[0].id,
         branchName: config.tournamentExperiments[0].branchName,
         personaID: "operator",
@@ -600,7 +600,7 @@ struct ProductTournamentEvidenceStoreTests {
       makeEvidenceRecord(
         id: "rationale-two",
         experimentID: config.tournamentExperiments[0].id,
-        productHypothesisID: config.productHypotheses[0].id,
+        contenderPlanID: config.contenderPlans[0].id,
         painID: config.painHypotheses[0].id,
         branchName: config.tournamentExperiments[0].branchName,
         personaID: "buyer",
@@ -684,7 +684,7 @@ struct ProductTournamentEvidenceStoreTests {
     let first = makeEvidenceRecord(
       id: "prompt-run-one",
       experimentID: config.tournamentExperiments[0].id,
-      productHypothesisID: config.productHypotheses[0].id,
+      contenderPlanID: config.contenderPlans[0].id,
       painID: config.painHypotheses[0].id,
       branchName: config.tournamentExperiments[0].branchName,
       objections: ["The spreadsheet is already trusted"],
@@ -694,7 +694,7 @@ struct ProductTournamentEvidenceStoreTests {
     let second = makeEvidenceRecord(
       id: "prompt-run-two",
       experimentID: config.tournamentExperiments[0].id,
-      productHypothesisID: config.productHypotheses[0].id,
+      contenderPlanID: config.contenderPlans[0].id,
       painID: config.painHypotheses[0].id,
       branchName: config.tournamentExperiments[0].branchName,
       endedAt: 30,
@@ -771,7 +771,7 @@ struct ProductTournamentEvidenceStoreTests {
     let record = makeEvidenceRecord(
       id: "smoke-run",
       experimentID: config.tournamentExperiments[0].id,
-      productHypothesisID: config.productHypotheses[0].id,
+      contenderPlanID: config.contenderPlans[0].id,
       painID: config.painHypotheses[0].id,
       branchName: config.tournamentExperiments[0].branchName,
       commitSha: "head-sha",
@@ -793,7 +793,7 @@ struct ProductTournamentEvidenceStoreTests {
       tournamentID: tournament.id,
       roundID: planRound.id,
       contenderID: contender.id,
-      productHypothesisID: contender.productHypothesisID,
+      contenderPlanID: contender.contenderPlanID,
       experimentID: contender.experimentID,
       painID: config.painHypotheses[0].id,
       personaID: config.userSegments[0].id,
@@ -883,7 +883,7 @@ struct ProductTournamentEvidenceStoreTests {
 private func makeEvidenceRecord(
   id: String,
   experimentID: String = "experiment-one",
-  productHypothesisID: String = "hypothesis-one",
+  contenderPlanID: String = "plan-one",
   painID: String = "pain-one",
   branchName: String = "codex/experiment-one",
   commitSha: String = "abc123",
@@ -912,7 +912,7 @@ private func makeEvidenceRecord(
   ProductTournamentEvidenceRecord(
     id: id,
     experimentID: experimentID,
-    productHypothesisID: productHypothesisID,
+    contenderPlanID: contenderPlanID,
     painID: painID,
     branchName: branchName,
     commitSha: commitSha,

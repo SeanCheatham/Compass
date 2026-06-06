@@ -84,6 +84,11 @@ struct PromptSchemaLoadingTests {
     let tournamentExperiments = try #require(
       stateEditProperties["tournamentExperiments"] as? [String: Any])
     let experimentItems = try #require(tournamentExperiments["items"] as? [String: Any])
+    let experiment = try schemaDefinition(
+      try #require(experimentItems["$ref"] as? String),
+      in: Prompts.discoverSchema
+    )
+    let experimentProperties = try #require(experiment["properties"] as? [String: Any])
     let decisions = try #require(stateEditProperties["decisions"] as? [String: Any])
     let decisionItems = try #require(decisions["items"] as? [String: Any])
     let candidateTournamentExperiments = try #require(
@@ -121,12 +126,18 @@ struct PromptSchemaLoadingTests {
     )
     try #require(defs.keys.contains("candidateTournamentExperiment"))
     try #require(!defs.keys.contains("candidateExperiment"))
+    try #require(stateEditProperties.keys.contains("contenderPlans"))
+    try #require(!stateEditProperties.keys.contains("product" + "Hypotheses"))
+    try #require(defs.keys.contains("contenderPlan"))
+    try #require(!defs.keys.contains("product" + "Hypothesis"))
     try #require(candidateTournamentExperimentProperties.keys.contains("contenderID"))
-    try #require(!candidateTournamentExperimentProperties.keys.contains("productHypothesisID"))
+    try #require(!candidateTournamentExperimentProperties.keys.contains("contenderPlanID"))
     try #require(candidateTournamentExperimentRequired.contains("contenderID"))
-    try #require(!candidateTournamentExperimentRequired.contains("productHypothesisID"))
+    try #require(!candidateTournamentExperimentRequired.contains("contenderPlanID"))
     try #require(stateEditProperties.keys.contains("tournamentExperiments"))
     try #require(!stateEditProperties.keys.contains("experiments"))
+    try #require(experimentProperties.keys.contains("contenderPlanID"))
+    try #require(!experimentProperties.keys.contains("product" + "HypothesisID"))
     try #require(experimentItems["$ref"] as? String == "#/$defs/productTournamentExperiment")
     try #require(defs.keys.contains("productTournamentExperiment"))
     try #require(!defs.keys.contains("productExperiment"))

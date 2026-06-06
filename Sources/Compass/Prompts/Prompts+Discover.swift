@@ -215,18 +215,18 @@ struct DiscoverPromptOutput: Codable, Equatable {
       )
     }
 
-    let productHypothesisIDs = Set(config.productHypotheses.map(\.id))
-    for hypothesis in config.productHypotheses where !painIDs.contains(hypothesis.painID) {
-      throw DiscoverPromptValidationError.productHypothesisReferencesMissingPain(
-        productHypothesisID: hypothesis.id,
-        painID: hypothesis.painID
+    let contenderPlanIDs = Set(config.contenderPlans.map(\.id))
+    for contenderPlan in config.contenderPlans where !painIDs.contains(contenderPlan.painID) {
+      throw DiscoverPromptValidationError.contenderPlanReferencesMissingPain(
+        contenderPlanID: contenderPlan.id,
+        painID: contenderPlan.painID
       )
     }
     for experiment in config.tournamentExperiments {
-      guard productHypothesisIDs.contains(experiment.productHypothesisID) else {
-        throw DiscoverPromptValidationError.experimentReferencesMissingProductHypothesis(
+      guard contenderPlanIDs.contains(experiment.contenderPlanID) else {
+        throw DiscoverPromptValidationError.experimentReferencesMissingContenderPlan(
           experimentID: experiment.id,
-          productHypothesisID: experiment.productHypothesisID
+          contenderPlanID: experiment.contenderPlanID
         )
       }
       guard DiscoverBranchName.isValidRef(experiment.branchName) else {
@@ -266,10 +266,10 @@ struct DiscoverPromptOutput: Codable, Equatable {
           tournamentID: contender.tournamentID
         )
       }
-      guard productHypothesisIDs.contains(contender.productHypothesisID) else {
-        throw DiscoverPromptValidationError.contenderReferencesMissingProductHypothesis(
+      guard contenderPlanIDs.contains(contender.contenderPlanID) else {
+        throw DiscoverPromptValidationError.contenderReferencesMissingContenderPlan(
           contenderID: contender.id,
-          productHypothesisID: contender.productHypothesisID
+          contenderPlanID: contender.contenderPlanID
         )
       }
       if let experimentID = contender.experimentID, !experimentIDs.contains(experimentID) {
@@ -331,7 +331,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
   var userSegments: [UserSegment]
   var currentWorkflows: [CurrentWorkflow]
   var alternatives: [Alternative]
-  var productHypotheses: [ProductHypothesis]
+  var contenderPlans: [ProductTournamentContenderPlan]
   var tournamentExperiments: [ProductTournamentExperiment]
   var tournaments: [ProductTournament]
   var tournamentContenders: [ProductTournamentContender]
@@ -339,13 +339,13 @@ struct DiscoveryStateEdits: Codable, Equatable {
   var scenarioCohorts: [ProductScenarioCohort]
   var decisions: [ProductTournamentDecision]
 
-  enum CodingKeys: String, CodingKey {
+  enum CodingKeys: String, CodingKey, CaseIterable {
     case rawPain
     case painHypotheses
     case userSegments
     case currentWorkflows
     case alternatives
-    case productHypotheses
+    case contenderPlans
     case tournamentExperiments
     case tournaments
     case tournamentContenders
@@ -360,7 +360,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     userSegments: [UserSegment] = [],
     currentWorkflows: [CurrentWorkflow] = [],
     alternatives: [Alternative] = [],
-    productHypotheses: [ProductHypothesis] = [],
+    contenderPlans: [ProductTournamentContenderPlan] = [],
     tournamentExperiments: [ProductTournamentExperiment] = [],
     tournaments: [ProductTournament] = [],
     tournamentContenders: [ProductTournamentContender] = [],
@@ -373,7 +373,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     self.userSegments = userSegments
     self.currentWorkflows = currentWorkflows
     self.alternatives = alternatives
-    self.productHypotheses = productHypotheses
+    self.contenderPlans = contenderPlans
     self.tournamentExperiments = tournamentExperiments
     self.tournaments = tournaments
     self.tournamentContenders = tournamentContenders
@@ -383,6 +383,16 @@ struct DiscoveryStateEdits: Codable, Equatable {
   }
 
   init(from decoder: Decoder) throws {
+    let rawContainer = try decoder.container(keyedBy: ProductTournamentDynamicCodingKey.self)
+    let supportedKeys = Set(CodingKeys.allCases.map(\.stringValue))
+    if let unsupportedKey = rawContainer.allKeys.first(where: {
+      !supportedKeys.contains($0.stringValue)
+    }) {
+      throw DiscoverPromptValidationError.invalidJSON(
+        "Unsupported stateEdits key \(unsupportedKey.stringValue)."
+      )
+    }
+
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.init(
       rawPain: try container.decodeIfPresent(String.self, forKey: .rawPain),
@@ -392,8 +402,8 @@ struct DiscoveryStateEdits: Codable, Equatable {
       currentWorkflows: try container.decodeIfPresent(
         [CurrentWorkflow].self, forKey: .currentWorkflows) ?? [],
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
-      productHypotheses: try container.decodeIfPresent(
-        [ProductHypothesis].self, forKey: .productHypotheses) ?? [],
+      contenderPlans: try container.decodeIfPresent(
+        [ProductTournamentContenderPlan].self, forKey: .contenderPlans) ?? [],
       tournamentExperiments: try container.decodeIfPresent(
         [ProductTournamentExperiment].self, forKey: .tournamentExperiments)
         ?? [],
@@ -425,7 +435,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     upsert(&next.userSegments, edits: userSegments, id: \.id)
     upsert(&next.currentWorkflows, edits: currentWorkflows, id: \.id)
     upsert(&next.alternatives, edits: alternatives, id: \.id)
-    upsert(&next.productHypotheses, edits: productHypotheses, id: \.id)
+    upsert(&next.contenderPlans, edits: contenderPlans, id: \.id)
     upsert(&next.tournamentExperiments, edits: tournamentExperiments, id: \.id)
     upsert(&next.tournaments, edits: tournaments, id: \.id)
     upsert(&next.tournamentContenders, edits: tournamentContenders, id: \.id)
@@ -476,7 +486,7 @@ struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
   }
 
   private enum LegacyCodingKeys: String, CodingKey {
-    case productHypothesisID
+    case contenderPlanID
   }
 
   init(
@@ -502,9 +512,9 @@ struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
 
   init(from decoder: Decoder) throws {
     let legacyContainer = try decoder.container(keyedBy: LegacyCodingKeys.self)
-    if legacyContainer.contains(.productHypothesisID) {
+    if legacyContainer.contains(.contenderPlanID) {
       throw DiscoverPromptValidationError.invalidJSON(
-        "Use contenderID instead of productHypothesisID for candidateTournamentExperiments."
+        "Use contenderID instead of contenderPlanID for candidateTournamentExperiments."
       )
     }
 
@@ -542,14 +552,14 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
   case workflowReferencesMissingPain(workflowID: String, painID: String)
   case alternativeReferencesMissingPain(alternativeID: String, painID: String)
   case segmentReferencesMissingPain(segmentID: String, painID: String)
-  case productHypothesisReferencesMissingPain(productHypothesisID: String, painID: String)
-  case experimentReferencesMissingProductHypothesis(
-    experimentID: String, productHypothesisID: String)
+  case contenderPlanReferencesMissingPain(contenderPlanID: String, painID: String)
+  case experimentReferencesMissingContenderPlan(
+    experimentID: String, contenderPlanID: String)
   case tournamentReferencesMissingPain(tournamentID: String, painID: String)
   case tournamentReferencesMissingContender(tournamentID: String, contenderID: String)
   case tournamentReferencesMissingRound(tournamentID: String, roundID: String)
   case contenderReferencesMissingTournament(contenderID: String, tournamentID: String)
-  case contenderReferencesMissingProductHypothesis(contenderID: String, productHypothesisID: String)
+  case contenderReferencesMissingContenderPlan(contenderID: String, contenderPlanID: String)
   case contenderReferencesMissingExperiment(contenderID: String, experimentID: String)
   case roundReferencesMissingTournament(roundID: String, tournamentID: String)
   case roundReferencesMissingContender(roundID: String, contenderID: String)
@@ -571,12 +581,12 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
       return "Alternative \(alternativeID) references missing pain \(painID)."
     case .segmentReferencesMissingPain(let segmentID, let painID):
       return "User segment \(segmentID) references missing pain \(painID)."
-    case .productHypothesisReferencesMissingPain(let productHypothesisID, let painID):
-      return "Product hypothesis \(productHypothesisID) references missing pain \(painID)."
-    case .experimentReferencesMissingProductHypothesis(
-      let experimentID, let productHypothesisID):
+    case .contenderPlanReferencesMissingPain(let contenderPlanID, let painID):
+      return "Contender plan \(contenderPlanID) references missing pain \(painID)."
+    case .experimentReferencesMissingContenderPlan(
+      let experimentID, let contenderPlanID):
       return
-        "Tournament experiment \(experimentID) references missing product hypothesis \(productHypothesisID)."
+        "Tournament experiment \(experimentID) references missing contender plan \(contenderPlanID)."
     case .tournamentReferencesMissingPain(let tournamentID, let painID):
       return "Product tournament \(tournamentID) references missing pain \(painID)."
     case .tournamentReferencesMissingContender(let tournamentID, let contenderID):
@@ -585,9 +595,9 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
       return "Product tournament \(tournamentID) references missing round \(roundID)."
     case .contenderReferencesMissingTournament(let contenderID, let tournamentID):
       return "Product contender \(contenderID) references missing tournament \(tournamentID)."
-    case .contenderReferencesMissingProductHypothesis(let contenderID, let productHypothesisID):
+    case .contenderReferencesMissingContenderPlan(let contenderID, let contenderPlanID):
       return
-        "Product contender \(contenderID) references missing product hypothesis \(productHypothesisID)."
+        "Product contender \(contenderID) references missing contender plan \(contenderPlanID)."
     case .contenderReferencesMissingExperiment(let contenderID, let experimentID):
       return "Product contender \(contenderID) references missing experiment \(experimentID)."
     case .roundReferencesMissingTournament(let roundID, let tournamentID):

@@ -16,6 +16,9 @@ struct ProductTournamentConfigTests {
     try #require(FileManager.default.fileExists(atPath: workspace.productTournamentConfigURL.path))
     try #require(FileManager.default.fileExists(atPath: workspace.productTournamentURL.path))
     let payload = try String(contentsOf: workspace.productTournamentConfigURL, encoding: .utf8)
+    let retiredPlanKey = "\"product" + "Hypotheses\""
+    try #require(payload.contains("\"contenderPlans\""))
+    try #require(!payload.contains(retiredPlanKey))
     try #require(payload.contains("\"tournamentExperiments\""))
     try #require(!payload.contains("\"experiments\""))
     try #require(try workspace.readProductTournamentConfig() == config)
@@ -56,7 +59,7 @@ struct ProductTournamentConfigTests {
         "userSegments": [],
         "currentWorkflows": [],
         "alternatives": [],
-        "productHypotheses": [],
+        "contenderPlans": [],
         "tournamentExperiments": [],
         "scenarioCohorts": [],
         "decisions": []
@@ -73,6 +76,42 @@ struct ProductTournamentConfigTests {
     } catch let error as ProductTournamentConfigError {
       try #require(error == .unsupportedSchemaVersion(99))
       try #require(error.localizedDescription.contains("99"))
+    }
+  }
+
+  @Test func unsupportedProductTournamentConfigKeyThrowsClearError() throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let workspace = CompassWorkspace(repoURL: root)
+    let payload = """
+      {
+        "schemaVersion": 3,
+        "rawPain": "Pain",
+        "painHypotheses": [],
+        "userSegments": [],
+        "currentWorkflows": [],
+        "alternatives": [],
+        "contenderPlans": [],
+        "tournamentExperiments": [],
+        "tournaments": [],
+        "tournamentContenders": [],
+        "tournamentRounds": [],
+        "scenarioCohorts": [],
+        "decisions": [],
+        "retiredPlanIdeas": []
+      }
+      """
+
+    try FileManager.default.createDirectory(
+      at: workspace.compassURL, withIntermediateDirectories: true)
+    try payload.write(to: workspace.productTournamentConfigURL, atomically: true, encoding: .utf8)
+
+    do {
+      _ = try workspace.readProductTournamentConfig()
+      #expect(Bool(false), "Expected unsupported config key.")
+    } catch let error as ProductTournamentConfigError {
+      try #require(error == .unsupportedKey("retiredPlanIdeas"))
+      try #require(error.localizedDescription.contains("retiredPlanIdeas"))
     }
   }
 
@@ -147,13 +186,13 @@ struct ProductTournamentConfigTests {
       now: Date(timeIntervalSince1970: 1_700_000_000)
     )
 
-    try #require(config.schemaVersion == 2)
+    try #require(config.schemaVersion == 3)
     try #require(config.rawPain.contains("Finance operators"))
     try #require(config.painHypotheses.count == 1)
     try #require(config.userSegments.count == 2)
     try #require(config.currentWorkflows.count == 1)
     try #require(config.alternatives.count == 2)
-    try #require(config.productHypotheses.count == 2)
+    try #require(config.contenderPlans.count == 2)
     try #require(config.tournamentExperiments.count == 2)
     try #require(config.tournaments.count == 1)
     try #require(config.tournamentContenders.count == 2)
@@ -161,15 +200,15 @@ struct ProductTournamentConfigTests {
     try #require(config.scenarios.count == 4)
     try #require(config.scenarioCohorts.count == 2)
     try #require(Set(config.userSegments.map(\.id)).count == config.userSegments.count)
-    try #require(Set(config.productHypotheses.map(\.id)).count == config.productHypotheses.count)
+    try #require(Set(config.contenderPlans.map(\.id)).count == config.contenderPlans.count)
     try #require(Set(config.tournamentExperiments.map(\.id)).count == config.tournamentExperiments.count)
     try #require(
       Set(config.tournamentContenders.map(\.id)).count == config.tournamentContenders.count)
     try #require(Set(config.tournamentRounds.map(\.id)).count == config.tournamentRounds.count)
     try #require(Set(config.scenarios.map(\.id)).count == config.scenarios.count)
     try #require(config.painHypotheses[0].status == .active)
-    try #require(config.productHypotheses.contains { $0.status == .active })
-    try #require(config.productHypotheses.allSatisfy { $0.painID == config.painHypotheses[0].id })
+    try #require(config.contenderPlans.contains { $0.status == .active })
+    try #require(config.contenderPlans.allSatisfy { $0.painID == config.painHypotheses[0].id })
     try #require(config.tournamentExperiments.allSatisfy { !$0.branchName.isEmpty })
     try #require(config.tournamentExperiments.allSatisfy { !$0.worktreeID.isEmpty })
     let tournament = try #require(config.tournaments.first)
@@ -213,7 +252,7 @@ struct ProductTournamentConfigTests {
 
     try #require(!project.productTournamentConfig.isEmpty)
     try #require(project.productTournamentConfig.rawPain.contains("Support teams"))
-    try #require(project.productTournamentConfig.productHypotheses.count == 2)
+    try #require(project.productTournamentConfig.contenderPlans.count == 2)
     try #require(project.productTournamentConfig.tournaments.count == 1)
     try #require(project.productTournamentConfig.tournamentRounds.map(\.kind).contains(.productPlans))
   }
@@ -285,8 +324,8 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     decisionCriteria: ["Less follow-up"],
     skepticism: "Will keep chat if Compass feels heavier."
   )
-  let hypothesis = ProductHypothesis(
-    id: "hypothesis-handoff-desk",
+  let hypothesis = ProductTournamentContenderPlan(
+    id: "plan-handoff-desk",
     painID: pain.id,
     title: "Handoff Desk",
     promise: "Preserve decisions and owners in one executable workflow.",
@@ -300,7 +339,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
   )
   let experiment = ProductTournamentExperiment(
     id: "experiment-handoff-desk",
-    productHypothesisID: hypothesis.id,
+    contenderPlanID: hypothesis.id,
     title: "Handoff Desk prototype",
     branchName: "codex/handoff-desk",
     worktreeID: "handoff-desk-worktree",
@@ -367,7 +406,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     userSegments: [segment],
     currentWorkflows: [workflow],
     alternatives: [alternative],
-    productHypotheses: [hypothesis],
+    contenderPlans: [hypothesis],
     tournamentExperiments: [experiment],
     scenarios: [scenario],
     scenarioCohorts: [cohort],

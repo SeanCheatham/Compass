@@ -38,7 +38,7 @@ struct ProductTournamentGitRolloutTests {
     let experiment = try #require(
       promoted.tournamentExperiments.first { $0.id == "experiment-fast-forward" }
     )
-    let hypothesis = try #require(promoted.productHypotheses.first)
+    let hypothesis = try #require(promoted.contenderPlans.first)
     let decision = try #require(promoted.decisions.last)
 
     try #require(result.preview.kind == .fastForwardPromotion)
@@ -190,11 +190,11 @@ struct ProductTournamentGitRolloutTests {
     )
     let saved = try workspace.readProductTournamentConfig()
     let experiment = try #require(saved.tournamentExperiments.first { $0.id == "experiment-archive" })
-    let hypothesis = try #require(saved.productHypotheses.first)
+    let hypothesis = try #require(saved.contenderPlans.first)
     let decision = try #require(saved.decisions.last)
     let archiveBranch = try #require(result.archiveBranchName)
 
-    try #require(archiveBranch == "compass/archive/rollout-hypothesis")
+    try #require(archiveBranch == "compass/archive/rollout-plan")
     try #require(try await gitOutput(["rev-parse", archiveBranch], in: root) == experimentSha)
     try #require(try await gitOutput(["rev-parse", branchName], in: root) == experimentSha)
     try #require(FileManager.default.fileExists(atPath: worktreeURL.path))
@@ -261,10 +261,10 @@ private func makeGitRolloutConfig(
     status: .active,
     createdAt: 1
   )
-  let hypothesis = ProductHypothesis(
-    id: "hypothesis-rollout",
+  let hypothesis = ProductTournamentContenderPlan(
+    id: "plan-rollout",
     painID: pain.id,
-    title: "Rollout Hypothesis",
+    title: "Rollout Plan",
     promise: "Promote and archive tournament experiments deliberately.",
     contenderPlan: "Git-backed rollout preserves evidence and lineage.",
     targetSegmentIDs: [],
@@ -276,7 +276,7 @@ private func makeGitRolloutConfig(
   )
   let experiment = ProductTournamentExperiment(
     id: experimentID,
-    productHypothesisID: hypothesis.id,
+    contenderPlanID: hypothesis.id,
     title: "Rollout experiment",
     branchName: branchName,
     worktreeID: "\(experimentID)-worktree",
@@ -293,7 +293,7 @@ private func makeGitRolloutConfig(
     userSegments: [],
     currentWorkflows: [],
     alternatives: [],
-    productHypotheses: [hypothesis],
+    contenderPlans: [hypothesis],
     tournamentExperiments: [experiment],
     scenarioCohorts: [],
     decisions: []
@@ -304,7 +304,7 @@ private func makeGitRolloutEvidence(config: ProductTournamentConfig) -> ProductT
   ProductTournamentEvidenceRecord(
     id: "rollout-run",
     experimentID: config.tournamentExperiments[0].id,
-    productHypothesisID: config.productHypotheses[0].id,
+    contenderPlanID: config.contenderPlans[0].id,
     painID: config.painHypotheses[0].id,
     branchName: config.tournamentExperiments[0].branchName,
     commitSha: config.tournamentExperiments[0].currentSha ?? "unknown",

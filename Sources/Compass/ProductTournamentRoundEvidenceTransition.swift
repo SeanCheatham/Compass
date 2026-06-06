@@ -243,7 +243,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
       updateExperiment(for: proposal.contenderID, in: &next, timestamp: timestamp) { experiment in
         experiment.decision = .keepGoing
       }
-      updateProductHypothesis(for: proposal.contenderID, in: &next) { hypothesis in
+      updateProductTournamentContenderPlan(for: proposal.contenderID, in: &next) { hypothesis in
         hypothesis.status = .active
       }
 
@@ -284,7 +284,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
       updateExperiment(for: proposal.contenderID, in: &next, timestamp: timestamp) { experiment in
         experiment.decision = .kill
       }
-      updateProductHypothesis(for: proposal.contenderID, in: &next) { hypothesis in
+      updateProductTournamentContenderPlan(for: proposal.contenderID, in: &next) { hypothesis in
         hypothesis.status = .rejected
       }
 
@@ -755,16 +755,16 @@ enum ProductTournamentRoundEvidenceTransitioner {
     config.tournamentExperiments[index].updatedAt = timestamp
   }
 
-  private static func updateProductHypothesis(
+  private static func updateProductTournamentContenderPlan(
     for contenderID: String,
     in config: inout ProductTournamentConfig,
-    mutate: (inout ProductHypothesis) -> Void
+    mutate: (inout ProductTournamentContenderPlan) -> Void
   ) {
     guard
       let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
-      let index = config.productHypotheses.firstIndex(where: { $0.id == contender.productHypothesisID })
+      let index = config.contenderPlans.firstIndex(where: { $0.id == contender.contenderPlanID })
     else { return }
-    mutate(&config.productHypotheses[index])
+    mutate(&config.contenderPlans[index])
   }
 
   private static func average(_ values: [Double]) -> Double {

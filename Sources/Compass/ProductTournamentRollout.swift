@@ -8,7 +8,7 @@ enum ProductTournamentExperimentGitRolloutKind: String, Equatable, Sendable {
 
 struct ProductTournamentExperimentGitRolloutPreview: Equatable, Sendable {
   var experimentID: String
-  var productHypothesisID: String
+  var contenderPlanID: String
   var experimentBranchName: String
   var acceptedBranchName: String
   var archiveBranchName: String?
@@ -187,16 +187,16 @@ enum ProductTournamentExperimentRolloutWorkflow {
     next.tournamentExperiments[experimentIndex].evidenceSummary = summary
     next.tournamentExperiments[experimentIndex].updatedAt = timestamp
 
-    if let productHypothesisIndex = next.productHypotheses.firstIndex(where: {
-      $0.id == experiment.productHypothesisID
+    if let contenderPlanIndex = next.contenderPlans.firstIndex(where: {
+      $0.id == experiment.contenderPlanID
     }) {
       switch target {
       case .promoted:
-        next.productHypotheses[productHypothesisIndex].status = .promoted
+        next.contenderPlans[contenderPlanIndex].status = .promoted
       case .kill:
-        next.productHypotheses[productHypothesisIndex].status = .rejected
+        next.contenderPlans[contenderPlanIndex].status = .rejected
       case .archived:
-        next.productHypotheses[productHypothesisIndex].status = .parked
+        next.contenderPlans[contenderPlanIndex].status = .parked
       case .notRun, .keepGoing, .narrow, .pivot, .promote:
         break
       }
@@ -309,7 +309,7 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     )
     return ProductTournamentExperimentGitRolloutPreview(
       experimentID: experiment.id,
-      productHypothesisID: experiment.productHypothesisID,
+      contenderPlanID: experiment.contenderPlanID,
       experimentBranchName: experiment.branchName,
       acceptedBranchName: acceptedBranch,
       archiveBranchName: archiveBranchName,
@@ -514,14 +514,14 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     next.tournamentExperiments[experimentIndex].decision = target
     next.tournamentExperiments[experimentIndex].evidenceSummary = summary
     next.tournamentExperiments[experimentIndex].updatedAt = timestamp
-    if let productHypothesisIndex = next.productHypotheses.firstIndex(where: {
-      $0.id == experiment.productHypothesisID
+    if let contenderPlanIndex = next.contenderPlans.firstIndex(where: {
+      $0.id == experiment.contenderPlanID
     }) {
       switch target {
       case .promoted:
-        next.productHypotheses[productHypothesisIndex].status = .promoted
+        next.contenderPlans[contenderPlanIndex].status = .promoted
       case .archived:
-        next.productHypotheses[productHypothesisIndex].status = .parked
+        next.contenderPlans[contenderPlanIndex].status = .parked
       case .notRun, .keepGoing, .narrow, .pivot, .kill, .promote:
         break
       }
@@ -547,10 +547,10 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     for experiment: ProductTournamentExperiment,
     in config: ProductTournamentConfig
   ) -> String {
-    let hypothesis = config.productHypotheses.first { $0.id == experiment.productHypothesisID }
+    let hypothesis = config.contenderPlans.first { $0.id == experiment.contenderPlanID }
     let slug = ProductTournamentModelText.slug(
-      hypothesis?.title ?? experiment.productHypothesisID,
-      fallback: experiment.productHypothesisID
+      hypothesis?.title ?? experiment.contenderPlanID,
+      fallback: experiment.contenderPlanID
     )
     return "compass/archive/\(slug)"
   }

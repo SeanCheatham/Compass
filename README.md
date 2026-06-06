@@ -150,10 +150,10 @@ tests.
 
 Tournament state and evidence use the product tournament storage namespace:
 `.compass/product-tournament.json` for pain hypotheses, tournaments,
-contenders, rounds, product hypotheses, tournament experiment branches, scenarios, and decisions;
+contenders, rounds, contender plans, tournament experiment branches, scenarios, and decisions;
 `.compass/product-tournament/` for `evidence-index.json` and separate run artifacts
 for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
-state schema stores product hypotheses under `productHypotheses`, and Discover
+state schema stores contender plans under `contenderPlans`, and Discover
 state edits store tournament implementation tracks under `tournamentExperiments`;
 Discover candidate tournament experiments reference tournament contenders with
 `contenderID`. The Tournament workbench lists pain hypotheses,
@@ -213,7 +213,7 @@ app.
 Interpret subjective feedback carefully. Repeated objections across personas or
 tasks can justify product work; a single persona-specific complaint should be
 treated as a signal to investigate. Tournament evidence can motivate the next
-Plan increment, suggest better scenarios, or challenge the hypothesis, but it
+Plan increment, suggest better scenarios, or challenge the pain model, but it
 never bypasses normal build/test/Verify discipline.
 
 Tournament prompts use the same model/provider settings already configured for
