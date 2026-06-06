@@ -69,6 +69,7 @@ struct ProductTournamentEvidenceStoreTests {
       ),
       willingnessToPayScore: 4,
       estimatedMonthlyPriceCents: 9900,
+      commercialProofSummary: "priced at $99/month with buyer ROI proof",
       objections: ["Spreadsheet is already familiar"],
       currentAlternativeComparison: "The plan is clearer than the spreadsheet for review.",
       verdict: .promising,
@@ -90,6 +91,9 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(index.summaries.isEmpty)
     try #require(index.planEvaluationSummaries.map(\.evaluationID) == ["plan-eval-one"])
     try #require(
+      index.planEvaluationSummaries.first?.commercialProofSummary
+        == "priced at $99/month with buyer ROI proof")
+    try #require(
       index.aggregate.latestPlanEvaluationByContender["contender-reporting-desk"] == "plan-eval-one"
     )
     let readiness = try #require(index.aggregate.planReadinessByContender.first)
@@ -103,6 +107,7 @@ struct ProductTournamentEvidenceStoreTests {
     let markdown = ProductTournamentEvidenceMarkdownExporter.markdown(planEvaluation: stored)
     try #require(markdown.contains("Willingness To Pay: 4/5"))
     try #require(markdown.contains("$99/month"))
+    try #require(markdown.contains("Commercial Proof: priced at $99/month with buyer ROI proof"))
   }
 
   @Test func storePreservesDecisionIntentAcrossRecordIndexMarkdownAndDigest() throws {

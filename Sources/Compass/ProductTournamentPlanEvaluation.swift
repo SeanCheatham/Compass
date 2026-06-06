@@ -585,6 +585,7 @@ enum ProductTournamentPlanEvaluator {
       scores: scores,
       willingnessToPayScore: willingnessToPay,
       estimatedMonthlyPriceCents: price,
+      commercialProofSummary: commercialSignals.summary,
       objections: objections,
       missingCapabilities: missingCapabilities,
       currentAlternativeComparison: comparison,

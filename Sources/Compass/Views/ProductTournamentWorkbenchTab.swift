@@ -1924,6 +1924,9 @@ struct ProductTournamentWorkbenchTab: View {
         if let estimatedMonthlyPriceCents = summary.estimatedMonthlyPriceCents {
           WorkbenchFact(label: "Price", value: priceLabel(cents: estimatedMonthlyPriceCents))
         }
+        if let commercialProofSummary = summary.commercialProofSummary {
+          WorkbenchFact(label: "Commercial proof", value: commercialProofSummary)
+        }
         if let objection = summary.objections.first {
           WorkbenchFact(label: "Objection", value: objection)
         }
@@ -1987,6 +1990,9 @@ struct ProductTournamentWorkbenchTab: View {
           WorkbenchFact(label: "Model", value: record.model)
           if let estimatedMonthlyPriceCents = record.estimatedMonthlyPriceCents {
             WorkbenchFact(label: "Price", value: priceLabel(cents: estimatedMonthlyPriceCents))
+          }
+          if let commercialProofSummary = record.commercialProofSummary {
+            WorkbenchFact(label: "Commercial proof", value: commercialProofSummary)
           }
           if !record.currentAlternativeComparison.isEmpty {
             WorkbenchFact(label: "Alternative", value: record.currentAlternativeComparison)

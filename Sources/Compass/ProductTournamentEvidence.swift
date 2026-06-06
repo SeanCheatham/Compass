@@ -2114,6 +2114,7 @@ struct ProductTournamentPlanEvaluationRecord: Codable, Equatable, Identifiable, 
   var scores: ProductTournamentEvidenceScores
   var willingnessToPayScore: Int?
   var estimatedMonthlyPriceCents: Int?
+  var commercialProofSummary: String?
   var objections: [String]
   var missingCapabilities: [String]
   var currentAlternativeComparison: String
@@ -2148,6 +2149,7 @@ struct ProductTournamentPlanEvaluationRecord: Codable, Equatable, Identifiable, 
     scores: ProductTournamentEvidenceScores,
     willingnessToPayScore: Int?,
     estimatedMonthlyPriceCents: Int?,
+    commercialProofSummary: String? = nil,
     objections: [String] = [],
     missingCapabilities: [String] = [],
     currentAlternativeComparison: String,
@@ -2202,6 +2204,10 @@ struct ProductTournamentPlanEvaluationRecord: Codable, Equatable, Identifiable, 
     self.scores = scores
     self.willingnessToPayScore = Self.clampedScore(willingnessToPayScore)
     self.estimatedMonthlyPriceCents = estimatedMonthlyPriceCents.map { max(0, $0) }
+    self.commercialProofSummary = ProductTournamentEvidenceRecord.optionalBounded(
+      commercialProofSummary,
+      limit: 500
+    )
     self.objections = ProductTournamentEvidenceRecord.cleanedList(objections, limit: 500)
     self.missingCapabilities = ProductTournamentEvidenceRecord.cleanedList(
       missingCapabilities,
@@ -2253,6 +2259,7 @@ struct ProductTournamentPlanEvaluationSummary: Codable, Equatable, Identifiable,
   var scores: ProductTournamentEvidenceScores
   var willingnessToPayScore: Int?
   var estimatedMonthlyPriceCents: Int?
+  var commercialProofSummary: String?
   var objections: [String]
   var missingCapabilities: [String]
   var currentAlternativeComparison: String
@@ -2280,6 +2287,7 @@ struct ProductTournamentPlanEvaluationSummary: Codable, Equatable, Identifiable,
     scores = record.scores
     willingnessToPayScore = record.willingnessToPayScore
     estimatedMonthlyPriceCents = record.estimatedMonthlyPriceCents
+    commercialProofSummary = record.commercialProofSummary
     objections = record.objections
     missingCapabilities = record.missingCapabilities
     currentAlternativeComparison = record.currentAlternativeComparison
@@ -3116,6 +3124,7 @@ enum ProductTournamentEvidenceMarkdownExporter {
       record.estimatedMonthlyPriceCents.map {
         "- Estimated Monthly Price: \(Self.priceLabel(cents: $0))"
       },
+      record.commercialProofSummary.map { "- Commercial Proof: \($0)" },
       "",
       "## Summary",
       "",

@@ -132,8 +132,9 @@ contenders, rounds, solution bets, experiment branches, scenarios, and decisions
 for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
 Tournament workbench lists pain hypotheses, contenders, rounds, implementation
 tracks, selectable Round 1 plan evaluations with buyer objections and
-willingness-to-pay rationale, scenario runs, feedback scores, objections, missing
-capabilities, failure kinds, decision history, and copyable Markdown summaries.
+willingness-to-pay rationale, per-plan commercial proof, scenario runs, feedback
+scores, objections, missing capabilities, failure kinds, decision history, and
+copyable Markdown summaries.
 Later-round scenario evidence is stamped with tournament, round, and contender
 IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
 feedback remains comparable across tournament rounds. The workbench can apply the

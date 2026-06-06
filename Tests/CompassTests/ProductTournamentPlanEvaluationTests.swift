@@ -204,11 +204,13 @@ struct ProductTournamentPlanEvaluationTests {
       (commercialRecord.willingnessToPayScore ?? 0)
         > (genericRecord.willingnessToPayScore ?? 0))
     try #require(commercialRecord.estimatedMonthlyPriceCents == 19_900)
+    try #require(commercialRecord.commercialProofSummary?.contains("$199/month") == true)
     try #require(
       commercialRecord.rationale.contains {
         $0.contains("Commercial plan signal") && $0.contains("$199/month")
       })
     try #require(commercialRecord.planStrengths.contains { $0.contains("Commercial proof") })
+    try #require(genericRecord.commercialProofSummary?.contains("no explicit price") == true)
     try #require(genericRecord.objections.contains { $0.contains("explicit price, ROI") })
   }
 
