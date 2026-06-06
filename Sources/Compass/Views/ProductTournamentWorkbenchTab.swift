@@ -8,6 +8,7 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var selectedRecord: ProductTournamentEvidenceRecord?
   @State private var recordError: String?
   @State private var selectedProofScoreboardRowID: String?
+  @State private var selectedProofScoreboardGroupAnchorRowID: String?
   @State private var selectedPlanEvaluationID: String?
   @State private var selectedPlanEvaluationRecord: ProductTournamentPlanEvaluationRecord?
   @State private var planEvaluationRecordError: String?
@@ -555,6 +556,12 @@ struct ProductTournamentWorkbenchTab: View {
       .first { $0.selectionID == selectedProofScoreboardRowID }
   }
 
+  private func isSelectedProofScoreboardGroup(
+    _ group: TournamentAutomationProofTargetScoreboardReadinessGroup
+  ) -> Bool {
+    group.containsRow(selectionID: selectedProofScoreboardGroupAnchorRowID)
+  }
+
   private var tournamentAutomationCohortMode: ProductTournamentSimulationMode {
     tournamentAutomationStep?.action.requiredSimulationMode
       ?? TournamentAutomationPlanner.cohortSimulationMode(
@@ -620,6 +627,7 @@ struct ProductTournamentWorkbenchTab: View {
     .onChange(of: selectedExperimentID) { _, _ in
       if selectedProofScoreboardRow?.experimentID != selectedExperimentID {
         selectedProofScoreboardRowID = nil
+        selectedProofScoreboardGroupAnchorRowID = nil
       }
       if selectedRunID == nil
         || !runsForSelectedExperiment.contains(where: { $0.runID == selectedRunID })
@@ -1707,6 +1715,10 @@ struct ProductTournamentWorkbenchTab: View {
         .foregroundStyle(.secondary)
       Spacer()
       WorkbenchStatusPill(text: "\(group.count)")
+      if isSelectedProofScoreboardGroup(group) {
+        WorkbenchStatusPill(text: "selected group")
+          .accessibilityIdentifier(item.readinessGroupSelectionAccessibilityID(group))
+      }
       if let actionRow = group.primaryActionRow, let actionStep = group.primaryActionStep {
         let roundTwoBlockedMessage =
           roundTwoLaunchBlockedMessage(experimentID: actionStep.experimentID)
@@ -1719,8 +1731,13 @@ struct ProductTournamentWorkbenchTab: View {
           isRunningTournamentStep || isRunningTournamentAutomationCycle || isRunningScenario
           || !actionStep.canExecute || roundTwoBlockedMessage != nil
         Button {
-          selectProofScoreboardRow(actionRow)
-          Task { await runTournamentAutomationStep(actionStep) }
+          selectProofScoreboardGroup(group, preferredRow: actionRow)
+          Task {
+            await runTournamentAutomationStep(
+              actionStep,
+              groupAnchorRowID: actionRow.selectionID
+            )
+          }
         } label: {
           Label(
             isRunningTournamentStep ? "Running" : group.actionButtonTitle,
@@ -1731,9 +1748,9 @@ struct ProductTournamentWorkbenchTab: View {
         .disabled(isDisabled)
         .accessibilityIdentifier(item.readinessGroupActionAccessibilityID(group))
         .help(helpText)
-      } else if let primaryRow = group.primaryRow {
+      } else if group.primaryRow != nil {
         Button {
-          selectProofScoreboardRow(primaryRow)
+          selectProofScoreboardGroup(group)
         } label: {
           Label(group.actionButtonTitle, systemImage: group.actionSystemImage)
         }
@@ -3409,8 +3426,12 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
-  private func runTournamentAutomationStep(_ explicitStep: TournamentAutomationStep? = nil) async {
+  private func runTournamentAutomationStep(
+    _ explicitStep: TournamentAutomationStep? = nil,
+    groupAnchorRowID: String? = nil
+  ) async {
     guard let step = explicitStep ?? tournamentAutomationStep, step.canExecute else { return }
+    selectedProofScoreboardGroupAnchorRowID = groupAnchorRowID
     if let blockedMessage = roundTwoLaunchBlockedMessage(experimentID: step.experimentID) {
       selectedExperimentID = step.experimentID
       scenarioRunMessage = blockedMessage
@@ -4198,9 +4219,13 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private func selectProofScoreboardRow(
-    _ row: TournamentAutomationProofTargetScoreboardRow
+    _ row: TournamentAutomationProofTargetScoreboardRow,
+    preserveGroupSelection: Bool = false
   ) {
     let experimentChanged = selectedExperimentID != row.experimentID
+    if !preserveGroupSelection {
+      selectedProofScoreboardGroupAnchorRowID = nil
+    }
     selectedProofScoreboardRowID = row.selectionID
     selectedExperimentID = row.experimentID
 
@@ -4236,6 +4261,15 @@ struct ProductTournamentWorkbenchTab: View {
     }
   }
 
+  private func selectProofScoreboardGroup(
+    _ group: TournamentAutomationProofTargetScoreboardReadinessGroup,
+    preferredRow: TournamentAutomationProofTargetScoreboardRow? = nil
+  ) {
+    guard let row = preferredRow ?? group.primaryActionRow ?? group.primaryRow else { return }
+    selectedProofScoreboardGroupAnchorRowID = row.selectionID
+    selectProofScoreboardRow(row, preserveGroupSelection: true)
+  }
+
   private func focusProofTarget(
     after audit: TournamentAutomationCycleAudit,
     preferredStep: TournamentAutomationStep?
@@ -4247,10 +4281,10 @@ struct ProductTournamentWorkbenchTab: View {
         evidenceIndex: evidenceIndex,
         preferredStep: preferredStep,
         isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
-      )
+    )
     else { return }
 
-    selectProofScoreboardRow(focus.row)
+    selectProofScoreboardRow(focus.row, preserveGroupSelection: true)
     if let evidenceRunID = focus.evidenceRunID {
       selectedRunID = evidenceRunID
       if let summary = evidenceIndex.summaries.first(where: { $0.runID == evidenceRunID }) {

@@ -198,6 +198,17 @@ struct ProductTournamentRoundProofOverviewTests {
       item.readinessGroupResultAccessibilityID(proofRunGroup)
         == "\(item.workbenchAccessibilityID)-group-proof-runs-result"
     )
+    try #require(
+      item.readinessGroupSelectionAccessibilityID(proofRunGroup)
+        == "\(item.workbenchAccessibilityID)-group-proof-runs-selection"
+    )
+    try #require(proofRunGroup.containsRow(selectionID: topActionRow.selectionID))
+    try #require(!proofRunGroup.containsRow(selectionID: nil))
+    try #require(
+      item.readinessGroup(containingRowSelectionID: topActionRow.selectionID)?.bucket
+        == "Proof runs"
+    )
+    try #require(item.readinessGroup(containingRowSelectionID: "missing-row") == nil)
     try #require(item.readinessGroupActionSummary.contains("Proof runs"))
     try #require(item.readinessGroupResultSummary.contains("Proof runs: latest_result none"))
     try #require(topActionRow.experimentID == topActionStep.experimentID)
@@ -315,6 +326,21 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(noQueuedGroup.primaryRow?.selectionID == noQueuedRow.selectionID)
     try #require(noQueuedGroup.actionButtonTitle == "Select")
     try #require(noQueuedGroup.actionSystemImage == "scope")
+    var refreshedAfterGroupActionItem = item
+    refreshedAfterGroupActionItem.rows = [promoteRow]
+    let refreshedSelectedGroup = try #require(
+      refreshedAfterGroupActionItem.readinessGroup(
+        containingRowSelectionID: topActionRow.selectionID
+      )
+    )
+    try #require(refreshedSelectedGroup.bucket == "Ready decisions")
+    try #require(refreshedSelectedGroup.containsRow(selectionID: topActionRow.selectionID))
+    try #require(
+      refreshedAfterGroupActionItem.readinessGroupSelectionAccessibilityID(
+        refreshedSelectedGroup
+      )
+        == "\(item.workbenchAccessibilityID)-group-ready-decisions-selection"
+    )
     var secondProofRunRow = topActionRow
     secondProofRunRow.experimentID = "overflow-proof-b"
     secondProofRunRow.contenderTitle = "Overflow proof B"

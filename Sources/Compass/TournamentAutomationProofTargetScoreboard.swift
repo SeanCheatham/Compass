@@ -312,6 +312,13 @@ struct TournamentAutomationProofTargetScoreboardReadinessGroup: Equatable, Senda
       "next \(StringUtils.boundedText(latestMovementRow.nextStepSummary, limit: 120))",
     ].joined(separator: "; ")
   }
+
+  func containsRow(
+    selectionID: String?
+  ) -> Bool {
+    guard let selectionID else { return false }
+    return rows.contains { $0.selectionID == selectionID }
+  }
 }
 
 struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identifiable {
@@ -729,6 +736,19 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
     _ group: TournamentAutomationProofTargetScoreboardReadinessGroup
   ) -> String {
     "\(workbenchAccessibilityID)-group-\(group.accessibilitySuffix)-result"
+  }
+
+  func readinessGroupSelectionAccessibilityID(
+    _ group: TournamentAutomationProofTargetScoreboardReadinessGroup
+  ) -> String {
+    "\(workbenchAccessibilityID)-group-\(group.accessibilitySuffix)-selection"
+  }
+
+  func readinessGroup(
+    containingRowSelectionID selectionID: String?
+  ) -> TournamentAutomationProofTargetScoreboardReadinessGroup? {
+    guard let selectionID else { return nil }
+    return readinessGroups.first { $0.containsRow(selectionID: selectionID) }
   }
 
   var readinessGroupActionSummary: String {
