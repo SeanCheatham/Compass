@@ -2666,7 +2666,12 @@ struct ProductTournamentWorkbenchTab: View {
     isRunningTournamentStep = true
     defer { isRunningTournamentStep = false }
     let stepStartedAt = Date()
-    let startingProofDebt = tournamentAutomationProofDebt(forExperimentID: step.experimentID)
+    let startingProofDebtSnapshot = TournamentAutomationProofDebtSnapshotter.snapshot(
+      experimentIDs: [step.experimentID],
+      config: project.productTournamentConfig,
+      evidenceIndex: project.productTournamentEvidenceIndex,
+      preferredSteps: [step.experimentID: step]
+    )
     let decisionCandidateSummaries =
       tournamentAutomationDecisionCandidate(forExperimentID: step.experimentID)
       .map { [$0.auditSummary] } ?? []
@@ -2699,12 +2704,11 @@ struct ProductTournamentWorkbenchTab: View {
       personaRationaleSignalSummaries = []
     }
     let result = await executeTournamentAutomationStep(step)
-    let startingProofDebtSnapshot = tournamentAutomationProofDebtSnapshot(
+    let endingProofDebtSnapshot = TournamentAutomationProofDebtSnapshotter.snapshot(
       experimentIDs: [step.experimentID],
-      proofDebts: startingProofDebt.map { [step.experimentID: $0] }
-    )
-    let endingProofDebtSnapshot = tournamentAutomationProofDebtSnapshot(
-      experimentIDs: [step.experimentID]
+      config: project.productTournamentConfig,
+      evidenceIndex: project.productTournamentEvidenceIndex,
+      preferredSteps: [step.experimentID: step]
     )
     let stopReason: TournamentAutomationCycleStopReason =
       result == nil
@@ -2755,7 +2759,8 @@ struct ProductTournamentWorkbenchTab: View {
     var failedEvidenceRunCount = 0
     var skippedScenarioCount = 0
     var touchedExperimentIDs: [String] = []
-    var startingProofDebts: [String: ProductTournamentProofDebt] = [:]
+    var touchedStepsByExperiment: [String: TournamentAutomationStep] = [:]
+    var startingProofDebtSnapshots: [String: TournamentAutomationProofDebtSnapshot] = [:]
     var decisionCandidateSummaries: [String] = []
     var evidenceTensionSummaries: [String] = []
     var proofTargetSummaries: [String] = []
@@ -2801,10 +2806,18 @@ struct ProductTournamentWorkbenchTab: View {
       if !touchedExperimentIDs.contains(step.experimentID) {
         touchedExperimentIDs.append(step.experimentID)
       }
-      if startingProofDebts[step.experimentID] == nil {
-        startingProofDebts[step.experimentID] = tournamentAutomationProofDebt(
-          forExperimentID: step.experimentID
-        )
+      if touchedStepsByExperiment[step.experimentID] == nil {
+        touchedStepsByExperiment[step.experimentID] = step
+      }
+      if startingProofDebtSnapshots[step.experimentID] == nil {
+        startingProofDebtSnapshots[step.experimentID] =
+          TournamentAutomationProofDebtSnapshotter
+          .snapshot(
+            experimentIDs: [step.experimentID],
+            config: project.productTournamentConfig,
+            evidenceIndex: project.productTournamentEvidenceIndex,
+            preferredSteps: [step.experimentID: step]
+          )
       }
       if step.action.kind == .applyDecision,
         let candidate = tournamentAutomationDecisionCandidate(forExperimentID: step.experimentID),
@@ -2887,12 +2900,18 @@ struct ProductTournamentWorkbenchTab: View {
         )
       }
     }
-    let startingProofDebt = tournamentAutomationProofDebtSnapshot(
+    let startingProofDebt = TournamentAutomationProofDebtSnapshotter.snapshot(
       experimentIDs: touchedExperimentIDs,
-      proofDebts: startingProofDebts
+      config: project.productTournamentConfig,
+      evidenceIndex: project.productTournamentEvidenceIndex,
+      storedSnapshots: startingProofDebtSnapshots,
+      preferredSteps: touchedStepsByExperiment
     )
-    let endingProofDebt = tournamentAutomationProofDebtSnapshot(
-      experimentIDs: touchedExperimentIDs
+    let endingProofDebt = TournamentAutomationProofDebtSnapshotter.snapshot(
+      experimentIDs: touchedExperimentIDs,
+      config: project.productTournamentConfig,
+      evidenceIndex: project.productTournamentEvidenceIndex,
+      preferredSteps: touchedStepsByExperiment
     )
     let outcome = TournamentAutomationCycleOutcome(
       executedSteps: executedSteps,
@@ -2920,24 +2939,6 @@ struct ProductTournamentWorkbenchTab: View {
       project.productTournamentConfig.recordingTournamentAutomationCycleAudit(audit)
     )
     await loadContractStatus()
-  }
-
-  private func tournamentAutomationProofDebt(
-    forExperimentID experimentID: String
-  ) -> ProductTournamentProofDebt? {
-    guard
-      let experiment = project.productTournamentConfig.experiments.first(where: {
-        $0.id == experimentID
-      })
-    else { return nil }
-    return project.productTournamentEvidenceIndex.currentTournamentReadiness(for: experiment)?.proofDebt
-      ?? ProductTournamentProofDebt(
-        completedRunCount: 0,
-        distinctPersonaCount: 0,
-        aiUserDistinctPersonaCount: 0,
-        aiUserCurrentAlternativePersonaCount: 0,
-        failedRunCount: 0
-      )
   }
 
   private func tournamentAutomationProofTarget(
@@ -3007,31 +3008,6 @@ struct ProductTournamentWorkbenchTab: View {
       for: experiment,
       config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
-    )
-  }
-
-  private func tournamentAutomationProofDebtSnapshot(
-    experimentIDs: [String],
-    proofDebts: [String: ProductTournamentProofDebt]? = nil
-  ) -> (count: Int, summary: String)? {
-    var orderedExperimentIDs: [String] = []
-    for experimentID in experimentIDs where !orderedExperimentIDs.contains(experimentID) {
-      orderedExperimentIDs.append(experimentID)
-    }
-    var total = 0
-    var parts: [String] = []
-    for experimentID in orderedExperimentIDs {
-      guard
-        let debt = proofDebts?[experimentID]
-          ?? tournamentAutomationProofDebt(forExperimentID: experimentID)
-      else { continue }
-      total += debt.blockingDebtCount
-      parts.append("\(experimentID): \(debt.summary)")
-    }
-    guard !parts.isEmpty else { return nil }
-    return (
-      total,
-      StringUtils.boundedText(parts.joined(separator: "; "), limit: 500)
     )
   }
 

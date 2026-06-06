@@ -3133,6 +3133,155 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
   }
 }
 
+struct TournamentAutomationProofDebtSnapshot: Equatable, Sendable {
+  var count: Int
+  var summary: String
+
+  init(count: Int, summary: String) {
+    self.count = max(0, count)
+    self.summary = ProductTournamentModelText.cleanedText(
+      summary,
+      fallback: "Proof debt unavailable.",
+      limit: 500
+    )
+  }
+}
+
+enum TournamentAutomationProofDebtSnapshotter {
+  static func snapshot(
+    experimentIDs: [String],
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    storedSnapshots: [String: TournamentAutomationProofDebtSnapshot] = [:],
+    preferredSteps: [String: TournamentAutomationStep] = [:]
+  ) -> TournamentAutomationProofDebtSnapshot? {
+    var orderedExperimentIDs: [String] = []
+    for experimentID in experimentIDs where !orderedExperimentIDs.contains(experimentID) {
+      orderedExperimentIDs.append(experimentID)
+    }
+
+    var total = 0
+    var parts: [String] = []
+    for experimentID in orderedExperimentIDs {
+      guard
+        let snapshot = storedSnapshots[experimentID]
+          ?? snapshot(
+            forExperimentID: experimentID,
+            config: config,
+            evidenceIndex: evidenceIndex,
+            preferredStep: preferredSteps[experimentID]
+          )
+      else { continue }
+      total += snapshot.count
+      parts.append(snapshot.summary)
+    }
+
+    guard !parts.isEmpty else { return nil }
+    return TournamentAutomationProofDebtSnapshot(
+      count: total,
+      summary: parts.joined(separator: "; ")
+    )
+  }
+
+  static func snapshot(
+    forExperimentID experimentID: String,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    preferredStep: TournamentAutomationStep? = nil
+  ) -> TournamentAutomationProofDebtSnapshot? {
+    guard
+      let experiment = config.experiments.first(where: { $0.id == experimentID })
+    else { return nil }
+
+    if let preferredStep,
+      let planSnapshot = planProofSnapshot(
+        for: experiment,
+        tournamentID: preferredStep.tournamentID,
+        roundID: preferredStep.roundID,
+        contenderID: preferredStep.contenderID,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    {
+      return planSnapshot
+    }
+
+    if let readiness = evidenceIndex.currentTournamentReadiness(for: experiment) {
+      return generatedProductSnapshot(for: experiment, proofDebt: readiness.proofDebt)
+    }
+
+    if let target = TournamentAutomationProofTargetAdvisor.target(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ),
+      let planSnapshot = planProofSnapshot(
+        for: experiment,
+        tournamentID: target.tournamentID,
+        roundID: target.roundID,
+        contenderID: target.contenderID,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    {
+      return planSnapshot
+    }
+
+    return generatedProductSnapshot(
+      for: experiment,
+      proofDebt: ProductTournamentProofDebt(
+        completedRunCount: 0,
+        distinctPersonaCount: 0,
+        aiUserDistinctPersonaCount: 0,
+        aiUserCurrentAlternativePersonaCount: 0,
+        failedRunCount: 0
+      )
+    )
+  }
+
+  private static func generatedProductSnapshot(
+    for experiment: ProductExperiment,
+    proofDebt: ProductTournamentProofDebt
+  ) -> TournamentAutomationProofDebtSnapshot {
+    TournamentAutomationProofDebtSnapshot(
+      count: proofDebt.blockingDebtCount,
+      summary: "\(experiment.id): \(proofDebt.summary)"
+    )
+  }
+
+  private static func planProofSnapshot(
+    for experiment: ProductExperiment,
+    tournamentID: String?,
+    roundID: String?,
+    contenderID: String?,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> TournamentAutomationProofDebtSnapshot? {
+    guard
+      let tournamentID,
+      let roundID,
+      let contenderID,
+      let tournament = config.tournaments.first(where: { $0.id == tournamentID }),
+      let round = config.tournamentRounds.first(where: {
+        $0.id == roundID && $0.tournamentID == tournament.id && $0.kind == .productPlans
+      }),
+      let contender = config.tournamentContenders.first(where: {
+        $0.id == contenderID && $0.tournamentID == tournament.id
+          && $0.experimentID == experiment.id
+      })
+    else { return nil }
+
+    let completed = evidenceIndex.planEvaluations(for: tournament, round: round)
+      .filter { $0.contenderID == contender.id && $0.isCompleted }
+    let proofDebt = ProductTournamentPlanReadiness(summaries: completed).planProofDebt
+    return TournamentAutomationProofDebtSnapshot(
+      count: proofDebt.blockingDebtCount,
+      summary:
+        "\(experiment.id): contender \(contender.id) Round \(round.ordinal) plan proof \(proofDebt.summary)"
+    )
+  }
+}
+
 enum TournamentAutomationCycleFailureAdvisor {
   static func stepID(for action: ProductTournamentNextAction) -> String {
     let decisionSuffix = action.targetDecision.map { ":target_decision:\($0.rawValue)" } ?? ""

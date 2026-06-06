@@ -786,6 +786,18 @@ struct ProductTournamentLoopTests {
     try #require(initialStep.id.contains("run_plan_proof"))
     try #require(initialStep.id.contains(contender.id))
     try #require(initialCyclePlan.executableSteps.contains(initialStep))
+    let startingProofDebtSnapshot = try #require(
+      TournamentAutomationProofDebtSnapshotter.snapshot(
+        experimentIDs: [experiment.id],
+        config: config,
+        evidenceIndex: emptyIndex,
+        preferredSteps: [experiment.id: initialStep]
+      ))
+    try #require(startingProofDebtSnapshot.count == 6)
+    try #require(startingProofDebtSnapshot.summary.contains("Round 1 plan proof"))
+    try #require(startingProofDebtSnapshot.summary.contains("2 plan evaluation(s)"))
+    try #require(startingProofDebtSnapshot.summary.contains("buyer/sponsor signal"))
+    try #require(startingProofDebtSnapshot.summary.contains("willingness to pay"))
     try #require(initialDigest.contains("Tournament automation proof targets"))
     try #require(initialDigest.contains("target Run Plan Proof"))
     try #require(initialDigest.contains("kind run_plan_proof"))
@@ -813,6 +825,39 @@ struct ProductTournamentLoopTests {
     try #require(executedIndex.planEvaluationSummaries.count == executionOutcome.records.count)
     try #require(
       executedIndex.aggregate.planReadinessByContender.map(\.contenderID) == [contender.id])
+    let endingProofDebtSnapshot = try #require(
+      TournamentAutomationProofDebtSnapshotter.snapshot(
+        experimentIDs: [experiment.id],
+        config: config,
+        evidenceIndex: executedIndex,
+        preferredSteps: [experiment.id: initialStep]
+      ))
+    try #require(endingProofDebtSnapshot.count < startingProofDebtSnapshot.count)
+    try #require(endingProofDebtSnapshot.count == 0)
+    try #require(endingProofDebtSnapshot.summary.contains("Round 1 plan proof"))
+    try #require(endingProofDebtSnapshot.summary.contains("plan proof complete"))
+    let planProofAudit = TournamentAutomationCycleOutcome(
+      executedSteps: [initialStep],
+      messages: [executionOutcome.userMessage],
+      maxSteps: 1,
+      stopReason: .reachedStepLimit,
+      evidenceRunIDs: executionOutcome.records.map(\.id),
+      completedEvidenceRunCount: executionOutcome.completedEvaluationCount,
+      failedEvidenceRunCount: executionOutcome.records.count
+        - executionOutcome.completedEvaluationCount,
+      skippedScenarioCount: executionOutcome.skippedContenderIDs.count,
+      startingProofDebtCount: startingProofDebtSnapshot.count,
+      endingProofDebtCount: endingProofDebtSnapshot.count,
+      startingProofDebtSummary: startingProofDebtSnapshot.summary,
+      endingProofDebtSummary: endingProofDebtSnapshot.summary
+    ).audit(
+      startedAt: Date(timeIntervalSince1970: 20),
+      endedAt: Date(timeIntervalSince1970: 30)
+    )
+    try #require(planProofAudit.proofDebtDelta == -6)
+    try #require(planProofAudit.startingProofDebtSummary?.contains("Round 1 plan proof") == true)
+    try #require(planProofAudit.endingProofDebtSummary?.contains("plan proof complete") == true)
+    try #require(planProofAudit.userMessage.contains("Proof debt improved by 6"))
 
     let operatorSegment = try #require(
       config.userSegments.first { $0.id == contender.targetSegmentIDs.first })

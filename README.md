@@ -142,7 +142,10 @@ with contender and round IDs, so Plan/Reflect can queue plan-only proof before a
 prototype or core-technology artifact exists. While the active tournament has no
 generated-product evidence yet, automation turns that target into a runnable
 `run_plan_proof` step that executes the focused model-free plan evaluator and
-writes Round 1 plan-evaluation evidence for that contender.
+writes Round 1 plan-evaluation evidence for that contender. Cycle audits report
+the before/after Round 1 plan-proof debt for those steps directly, so a focused
+plan run shows whether it cleared buyer/sponsor, persona, evaluation, or
+willingness-to-pay debt before any generated-product evidence exists.
 Later-round scenario evidence is stamped with tournament, round, and contender
 IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
 feedback remains comparable across tournament rounds. The workbench can apply the
