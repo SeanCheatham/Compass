@@ -9,9 +9,11 @@ struct ProductTournamentRoundProofOverviewTests {
     let cases = try [
       ProofOverviewCase(
         name: "round-1-plan",
+        activeKind: .productPlans,
         config: roundOneConfig(),
         expectedDigestHeading: "Round 1 plan-proof contender overview",
         expectedWorkbenchHeading: "Round 1 Proof Deltas",
+        expectedWorkbenchAccessibilityIDPrefix: "round-1-proof-overview-",
         absentDigestHeadings: [
           "Round 2 core-technology proof overview",
           "Round 3 prototype proof overview",
@@ -23,9 +25,11 @@ struct ProductTournamentRoundProofOverviewTests {
       ),
       ProofOverviewCase(
         name: "round-2-core-technology",
+        activeKind: .coreTechnology,
         config: roundTwoConfig(),
         expectedDigestHeading: "Round 2 core-technology proof overview",
         expectedWorkbenchHeading: "Core Technology Proof",
+        expectedWorkbenchAccessibilityIDPrefix: "round-2-proof-overview-",
         absentDigestHeadings: [
           "Round 1 plan-proof contender overview",
           "Round 3 prototype proof overview",
@@ -37,9 +41,11 @@ struct ProductTournamentRoundProofOverviewTests {
       ),
       ProofOverviewCase(
         name: "round-3-prototype",
+        activeKind: .prototype,
         config: roundThreeConfig(),
         expectedDigestHeading: "Round 3 prototype proof overview",
         expectedWorkbenchHeading: "Prototype Winner Proof",
+        expectedWorkbenchAccessibilityIDPrefix: "round-3-proof-overview-",
         absentDigestHeadings: [
           "Round 1 plan-proof contender overview",
           "Round 2 core-technology proof overview",
@@ -67,6 +73,24 @@ struct ProductTournamentRoundProofOverviewTests {
         workbenchBody.contains(proofCase.expectedWorkbenchHeading),
         "Expected \(proofCase.name) Workbench to include \(proofCase.expectedWorkbenchHeading)."
       )
+      try #require(
+        workbenchBody.contains("AccessibilityAttachmentModifier"),
+        "Expected \(proofCase.name) Workbench proof rows to expose accessibility attachments."
+      )
+      for snippet in try proofCase.expectedDigestRowSnippets(evidenceIndex: evidenceIndex) {
+        try #require(
+          digest.contains(snippet),
+          "Expected \(proofCase.name) context row to include \(snippet)."
+        )
+      }
+      for accessibilityID in try proofCase.expectedWorkbenchAccessibilityIDs(
+        evidenceIndex: evidenceIndex)
+      {
+        try #require(
+          accessibilityID.hasPrefix(proofCase.expectedWorkbenchAccessibilityIDPrefix),
+          "Expected \(proofCase.name) Workbench row id to start with \(proofCase.expectedWorkbenchAccessibilityIDPrefix)."
+        )
+      }
       for absentHeading in proofCase.absentDigestHeadings {
         try #require(
           !digest.contains(absentHeading),
@@ -85,11 +109,81 @@ struct ProductTournamentRoundProofOverviewTests {
 
 private struct ProofOverviewCase {
   var name: String
+  var activeKind: ProductTournamentRoundKind
   var config: ProductTournamentConfig
   var expectedDigestHeading: String
   var expectedWorkbenchHeading: String
+  var expectedWorkbenchAccessibilityIDPrefix: String
   var absentDigestHeadings: [String]
   var absentWorkbenchHeadings: [String]
+
+  func expectedDigestRowSnippets(
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) throws -> [String] {
+    switch activeKind {
+    case .productPlans:
+      let item = try #require(
+        TournamentPlanProofDeltaOverview.items(
+          config: config,
+          evidenceIndex: evidenceIndex
+        ).first
+      )
+      return [item.contextLine]
+    case .coreTechnology:
+      let item = try #require(
+        ProductTournamentRoundTwoProofOverview.items(
+          config: config,
+          evidenceIndex: evidenceIndex
+        ).first
+      )
+      return [item.contextLine]
+    case .prototype:
+      let item = try #require(
+        ProductTournamentRoundThreePrototypeOverview.items(
+          config: config,
+          evidenceIndex: evidenceIndex
+        ).first
+      )
+      return [item.contextLine]
+    }
+  }
+
+  func expectedWorkbenchAccessibilityIDs(
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) throws -> [String] {
+    switch activeKind {
+    case .productPlans:
+      let item = try #require(
+        TournamentPlanProofDeltaOverview.items(
+          config: config,
+          evidenceIndex: evidenceIndex
+        ).first
+      )
+      return [
+        item.workbenchAccessibilityID,
+      ]
+    case .coreTechnology:
+      let item = try #require(
+        ProductTournamentRoundTwoProofOverview.items(
+          config: config,
+          evidenceIndex: evidenceIndex
+        ).first
+      )
+      return [
+        item.workbenchAccessibilityID,
+      ]
+    case .prototype:
+      let item = try #require(
+        ProductTournamentRoundThreePrototypeOverview.items(
+          config: config,
+          evidenceIndex: evidenceIndex
+        ).first
+      )
+      return [
+        item.workbenchAccessibilityID,
+      ]
+    }
+  }
 }
 
 private func roundOneConfig() throws -> ProductTournamentConfig {

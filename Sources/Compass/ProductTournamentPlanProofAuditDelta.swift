@@ -176,6 +176,10 @@ struct TournamentPlanProofDeltaOverviewItem: Equatable, Sendable, Identifiable {
     latestDelta?.displaySystemImage ?? "circle"
   }
 
+  var workbenchAccessibilityID: String {
+    "round-1-proof-overview-\(id)"
+  }
+
   var helpSummary: String {
     var parts = [
       contenderTitle,

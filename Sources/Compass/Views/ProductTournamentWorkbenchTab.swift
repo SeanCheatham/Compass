@@ -1175,6 +1175,7 @@ struct ProductTournamentWorkbenchTab: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .accessibilityIdentifier(item.workbenchAccessibilityID)
     .help(item.helpSummary)
   }
 
@@ -1294,6 +1295,7 @@ struct ProductTournamentWorkbenchTab: View {
       .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
     .buttonStyle(.plain)
+    .accessibilityIdentifier(item.workbenchAccessibilityID)
     .help(item.helpSummary)
   }
 
@@ -1336,6 +1338,7 @@ struct ProductTournamentWorkbenchTab: View {
       .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
     .buttonStyle(.plain)
+    .accessibilityIdentifier(item.workbenchAccessibilityID)
     .help(item.helpSummary)
   }
 

@@ -63,6 +63,10 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
     }
   }
 
+  var workbenchAccessibilityID: String {
+    "round-2-proof-overview-\(id)"
+  }
+
   var helpSummary: String {
     var parts = [
       contenderTitle,

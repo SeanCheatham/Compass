@@ -59,6 +59,10 @@ struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Id
     }
   }
 
+  var workbenchAccessibilityID: String {
+    "round-3-proof-overview-\(id)"
+  }
+
   var helpSummary: String {
     var parts = [
       contenderTitle,
