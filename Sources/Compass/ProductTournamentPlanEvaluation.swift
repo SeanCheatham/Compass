@@ -77,7 +77,10 @@ enum ProductTournamentPlanEvaluator {
       else {
         throw ProductTournamentPlanEvaluationError.unknownContender(contenderID)
       }
-      guard contender.status == .competing || contender.status == .narrowed else {
+      guard
+        contender.status == .competing || contender.status == .narrowed
+          || contender.status == .needsRevision
+      else {
         skippedContenderIDs.append(contender.id)
         continue
       }
@@ -583,6 +586,34 @@ extension CompassProject {
       productizationConfig = try workspace.readProductizationConfig()
       productizationEvidenceIndex = workspace.readProductizationEvidenceIndex()
       log(outcome.userMessage, level: outcome.isSuccess ? .success : .warning)
+      return outcome
+    } catch {
+      fail(error)
+      return nil
+    }
+  }
+
+  func applyBestProductTournamentPlanTransition(
+    tournamentID: String? = nil,
+    roundID: String? = nil
+  ) async -> ProductTournamentPlanTransitionOutcome? {
+    do {
+      guard let workspace else {
+        fail(AppModelError.noRepositorySelected)
+        return nil
+      }
+      let config = try workspace.readProductizationConfig()
+      let evidenceIndex = workspace.readProductizationEvidenceIndex()
+      let outcome = try ProductTournamentPlanTransitioner.applyBestProposal(
+        tournamentID: tournamentID,
+        roundID: roundID,
+        to: config,
+        evidenceIndex: evidenceIndex
+      )
+      try workspace.writeProductizationConfig(outcome.config)
+      productizationConfig = outcome.config
+      productizationEvidenceIndex = evidenceIndex
+      log(outcome.userMessage, level: .success)
       return outcome
     } catch {
       fail(error)

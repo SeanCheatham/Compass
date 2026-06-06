@@ -67,7 +67,9 @@ and advances them through rounds:
 
 - **Round 1: product plans.** No product exists yet. Model-free simulated users
   inspect the plans, compare them with the current alternative, and judge pain
-  recognition, sponsorship, and willingness to pay.
+  recognition, sponsorship, and willingness to pay. Accumulated plan readiness
+  can advance a contender to Round 2, mark a plan for revision, or eliminate a
+  weak contender before implementation spend.
 - **Round 2: core technology.** Surviving contenders get the smallest technical
   proof that demonstrates the hard part can work.
 - **Round 3: prototype.** Agentic users exercise low-medium fidelity product
@@ -102,10 +104,12 @@ for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
 Tournament workbench lists pain hypotheses, contenders, rounds, implementation
 tracks, Round 1 plan evaluations, scenario runs, feedback scores, objections,
 missing capabilities, failure kinds, decision history, and copyable Markdown
-summaries. Plan and Reflect receive only a compact advisory summary: current
-tournament round, contender plans, Round 1 plan readiness, willingness-to-pay
-signals, latest evidence per active scenario, repeated objections, low-score
-clusters, verdict distribution, failures, and current alternative comparisons.
+summaries. It can also apply the best actionable Round 1 recommendation to
+stored tournament state. Plan and Reflect receive only a compact advisory
+summary: current tournament round, contender plans, Round 1 plan readiness,
+willingness-to-pay signals, latest evidence per active scenario, repeated
+objections, low-score clusters, verdict distribution, failures, and current
+alternative comparisons.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 

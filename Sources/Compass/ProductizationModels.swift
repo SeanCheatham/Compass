@@ -1037,6 +1037,7 @@ struct ProductTournamentContender: Codable, Equatable, Identifiable, Sendable {
 enum ProductTournamentContenderStatus: String, Codable, CaseIterable, Equatable, Sendable {
   case competing
   case narrowed
+  case needsRevision = "needs_revision"
   case eliminated
   case winner
   case archived

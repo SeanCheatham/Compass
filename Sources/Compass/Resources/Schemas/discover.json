@@ -367,7 +367,7 @@
         "targetSegmentIDs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
         "status": {
           "type": "string",
-          "enum": ["competing", "narrowed", "eliminated", "winner", "archived"]
+          "enum": ["competing", "narrowed", "needs_revision", "eliminated", "winner", "archived"]
         },
         "createdAt": { "type": "number" },
         "updatedAt": { "type": "number" }

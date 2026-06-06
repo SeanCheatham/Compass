@@ -27,10 +27,12 @@ struct ProductizationWorkbenchTab: View {
   @State private var isSavingScenario = false
   @State private var isRunningScenario = false
   @State private var isRunningPlanEvaluation = false
+  @State private var isApplyingPlanTransition = false
   @State private var isRunningFactoryStep = false
   @State private var isRunningFactoryCycle = false
   @State private var scenarioRunMessage: String?
   @State private var planEvaluationMessage: String?
+  @State private var planTransitionMessage: String?
   @State private var contractAvailable: Bool?
 
   private var config: ProductizationConfig { project.productizationConfig }
@@ -65,12 +67,15 @@ struct ProductizationWorkbenchTab: View {
     guard let tournament = activeTournamentForPlanEvaluation else { return nil }
     if let currentRoundID = tournament.currentRoundID,
       let current = config.tournamentRounds.first(where: { $0.id == currentRoundID }),
-      current.kind == .productPlans
+      current.kind == .productPlans,
+      current.status != .completed
     {
       return current
     }
     return config.tournamentRounds
-      .filter { $0.tournamentID == tournament.id && $0.kind == .productPlans }
+      .filter {
+        $0.tournamentID == tournament.id && $0.kind == .productPlans && $0.status != .completed
+      }
       .sorted { lhs, rhs in
         if lhs.ordinal == rhs.ordinal { return lhs.title < rhs.title }
         return lhs.ordinal < rhs.ordinal
@@ -81,6 +86,25 @@ struct ProductizationWorkbenchTab: View {
   private var planEvaluationCanRun: Bool {
     activeTournamentForPlanEvaluation != nil
       && activePlanRoundForEvaluation != nil
+      && !isRunningPlanEvaluation
+      && !isApplyingPlanTransition
+      && !isRunningFactoryStep
+      && !isRunningFactoryCycle
+      && !isRunningScenario
+  }
+
+  private var planTransitionProposal: ProductTournamentPlanTransitionProposal? {
+    ProductTournamentPlanTransitioner.bestProposal(
+      tournamentID: activeTournamentForPlanEvaluation?.id,
+      roundID: activePlanRoundForEvaluation?.id,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
+  private var planTransitionCanApply: Bool {
+    planTransitionProposal != nil
+      && !isApplyingPlanTransition
       && !isRunningPlanEvaluation
       && !isRunningFactoryStep
       && !isRunningFactoryCycle
@@ -493,8 +517,26 @@ struct ProductizationWorkbenchTab: View {
               .disabled(!planEvaluationCanRun)
               .help("Run model-free simulated-user evaluation for the plan-only round.")
 
+              Button {
+                Task { await applyPlanTransition() }
+              } label: {
+                Label(
+                  isApplyingPlanTransition ? "Applying" : "Apply Round 1",
+                  systemImage: "arrow.turn.down.right"
+                )
+              }
+              .buttonStyle(.bordered)
+              .disabled(!planTransitionCanApply)
+              .help(planTransitionProposal?.detail ?? "No actionable Round 1 recommendation yet.")
+
               if let planEvaluationMessage {
                 Text(planEvaluationMessage)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+              }
+              if let planTransitionMessage {
+                Text(planTransitionMessage)
                   .font(.caption)
                   .foregroundStyle(.secondary)
                   .lineLimit(2)
@@ -2477,6 +2519,23 @@ struct ProductizationWorkbenchTab: View {
     }
   }
 
+  private func applyPlanTransition() async {
+    guard let tournament = activeTournamentForPlanEvaluation,
+      let round = activePlanRoundForEvaluation
+    else { return }
+    isApplyingPlanTransition = true
+    defer { isApplyingPlanTransition = false }
+    let outcome = await project.applyBestProductTournamentPlanTransition(
+      tournamentID: tournament.id,
+      roundID: round.id
+    )
+    if let outcome {
+      planTransitionMessage = outcome.userMessage
+    } else {
+      planTransitionMessage = project.errorMessage
+    }
+  }
+
   private func loadContractStatus() async {
     guard let experiment = selectedExperiment else {
       contractAvailable = nil
@@ -2554,9 +2613,10 @@ private func contenderStatusRank(_ status: ProductTournamentContenderStatus) -> 
   switch status {
   case .competing: return 0
   case .narrowed: return 1
-  case .winner: return 2
-  case .eliminated: return 3
-  case .archived: return 4
+  case .needsRevision: return 2
+  case .winner: return 3
+  case .eliminated: return 4
+  case .archived: return 5
   }
 }
 

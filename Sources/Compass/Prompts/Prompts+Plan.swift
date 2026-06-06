@@ -160,6 +160,10 @@ extension Prompts {
       - Round 1 is plan-only: do not implement product code just to compare
         product plans. Improve the plan, scenario, simulated-user prompt, or
         evaluation rubric when the current round is `product_plans`.
+      - If Round 1 plan readiness has already been applied, respect contender
+        statuses: build Round 2 only for narrowed survivors, revise
+        `needs_revision` contenders before more implementation, and do not spend
+        implementation work on eliminated contenders.
       - Round 2 should prove the core technology for a surviving contender.
         Round 3 should exercise a low-medium fidelity product version.
       - Preserve contender and experiment branch isolation. Do not plan one
