@@ -642,8 +642,8 @@ struct ProductizationExperienceCLIAppRunner: ProductizationExperienceAppRunning 
       "Cargo.toml",
       "crates/app-cli/Cargo.toml",
       "crates/app-core/Cargo.toml",
-      "schemas/productization-experience-input.schema.json",
-      "schemas/productization-experience-trace.schema.json",
+      "schemas/product-tournament-experience-input.schema.json",
+      "schemas/product-tournament-experience-trace.schema.json",
     ]
     return requiredRelativePaths.allSatisfy {
       fm.fileExists(atPath: workingDirectory.appending(path: $0).path)
@@ -669,7 +669,7 @@ struct ProductizationExperienceCLIAppRunner: ProductizationExperienceAppRunning 
 
   static func productizationExperienceCommand(inputJSON: String) -> String {
     RustVerifyCommands.cargo([
-      "run", "-p", "app-cli", "--", "productization-experience", "--input", inputJSON,
+      "run", "-p", "app-cli", "--", "product-tournament-experience", "--input", inputJSON,
     ])
   }
 
@@ -709,7 +709,7 @@ struct ProductizationSimulationRunner {
         trace: nil,
         failure: ProductizationRunFailure(
           status: .appContractMissing,
-          message: "The generated app is missing the productization experience CLI contract."
+          message: "The generated app is missing the product tournament experience CLI contract."
         )
       )
     }

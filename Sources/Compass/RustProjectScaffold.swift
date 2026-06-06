@@ -46,11 +46,11 @@ struct RustProjectScaffold: Equatable, Sendable {
       ScaffoldFile(path: "schemas/simulation-input.schema.json", contents: simulationInputSchema()),
       ScaffoldFile(path: "schemas/gui-replay-trace.schema.json", contents: guiReplayTraceSchema()),
       ScaffoldFile(
-        path: "schemas/productization-experience-input.schema.json",
+        path: "schemas/product-tournament-experience-input.schema.json",
         contents: productizationExperienceInputSchema()
       ),
       ScaffoldFile(
-        path: "schemas/productization-experience-trace.schema.json",
+        path: "schemas/product-tournament-experience-trace.schema.json",
         contents: productizationExperienceTraceSchema()
       ),
       ScaffoldFile(path: "crates/app-core/Cargo.toml", contents: appCoreManifest()),
@@ -207,20 +207,20 @@ struct RustProjectScaffold: Equatable, Sendable {
     ProductizationExperienceTrace` as a semantic app journey. The input carries
     the pain, solution, experiment, current workflow, alternatives, and PMF
     decision intent being evaluated. The generated app owns the allowed action list for each state,
-    and `app-cli productization-experience --input '<json>'` deterministically
+    and `app-cli product-tournament-experience --input '<json>'` deterministically
     replays a supplied action prefix. Persona agents may choose only from the
     latest `allowedNextActions`; screenshots are optional supporting proof, not
     the assertion surface.
 
     Product Tournament evidence is product pressure, not a release gate. Use
-    `productization-smoke` to prove this generated app can replay a deterministic
+    `product-tournament-smoke` to prove this generated app can replay a deterministic
     model-free product journey, then use a live persona model only for manual
     product review. Treat repeated objections and low scores as signals to
     investigate, not as automatic proof that the product is good or bad.
 
     Manual product tournament simulation checklist:
-    - Confirm `app-cli productization-experience-schema` prints the expected contract.
-    - Run `xtask productization-smoke` before involving a live model.
+    - Confirm `app-cli product-tournament-experience-schema` prints the expected contract.
+    - Run `xtask product-tournament-smoke` before involving a live model.
     - For live review, verify persona actions come only from `allowedNextActions`.
     - Keep feedback skeptical and structured; avoid optimizing for praise.
     - Inspect pain-relief summaries in Compass before changing the roadmap.
@@ -235,9 +235,9 @@ struct RustProjectScaffold: Equatable, Sendable {
     - Run CLI: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "status"]))`
     - Run simulation fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "simulate", "--input", #"{"seed":"demo","ticks":3,"action":"advance"}"#]))`
     - Run GUI replay fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "gui-replay", "--input", #"{"seed":"demo","steps":[{"action":"advance","ticks":2},{"action":"visual_input","value":"space"}]}"#]))`
-    - Run productization experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "productization-experience", "--input", #"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"solution":{"id":"solution-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"productization/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"start_solution_workflow","params":{}}]}"#]))`
-    - Print productization experience schema: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "productization-experience-schema"]))`
-    - Productization smoke: `\(RustVerifyCommands.cargo(RustVerifyCommands.productizationSmoke))`
+    - Run product tournament experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience", "--input", #"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"solution":{"id":"solution-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"start_solution_workflow","params":{}}]}"#]))`
+    - Print product tournament experience schema: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience-schema"]))`
+    - Product tournament smoke: `\(RustVerifyCommands.cargo(RustVerifyCommands.productTournamentSmoke))`
     - Run desktop: `\(RustVerifyCommands.cargo(RustVerifyCommands.runDesktop))`
     - Fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
     - Visual verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerifyNoBase64))`
@@ -874,7 +874,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 },
                 experiment: ProductizationExperiment {
                     id: "experiment-reporting".to_owned(),
-                    branch_name: "productization/reporting".to_owned(),
+                    branch_name: "product-tournament/reporting".to_owned(),
                     success_signal:
                         "Persona completes a report draft and sees why it beats the current workflow"
                             .to_owned(),
@@ -1739,7 +1739,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     use app_core::{
         run_gui_replay, run_productization_experience, run_simulation, DemoState, GuiReplayAction,
         GuiReplayStep, GuiReplayTrace, ProductizationAlternative, ProductizationCurrentWorkflow,
-        ProductizationExperienceAction, ProductizationExperienceInput,
+        ProductizationDecisionIntent, ProductizationExperienceAction, ProductizationExperienceInput,
         ProductizationExperienceTerminalStatus, ProductizationExperiment, ProductizationPain,
         ProductizationScenario, ProductizationSolution, SimulationAction, SimulationInput,
     };
@@ -1817,7 +1817,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             },
             experiment: ProductizationExperiment {
                 id: "experiment-reporting".to_owned(),
-                branch_name: "productization/reporting".to_owned(),
+                branch_name: "product-tournament/reporting".to_owned(),
                 success_signal: "Persona completes a report draft".to_owned(),
             },
             scenario: ProductizationScenario {
@@ -1940,7 +1940,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                     serde_json::to_string_pretty(&gui_replay_trace_schema())?
                 );
             }
-            Some("productization-experience-schema") => {
+            Some("product-tournament-experience-schema") => {
                 println!(
                     "{}",
                     serde_json::to_string_pretty(&productization_experience_contract_schema())?
@@ -1954,7 +1954,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 let trace = parse_gui_replay_trace(args)?;
                 println!("{}", serde_json::to_string_pretty(&run_gui_replay(trace))?);
             }
-            Some("productization-experience") => {
+            Some("product-tournament-experience") => {
                 let input = parse_productization_experience_input(args)?;
                 println!(
                     "{}",
@@ -1963,7 +1963,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             }
             Some(other) => {
                 eprintln!("unknown command: {other}");
-                eprintln!("usage: app-cli [status|schema|simulation-schema|gui-replay-schema|productization-experience-schema|simulate --input <json>|gui-replay --input <json>|productization-experience --input <json>]");
+                eprintln!("usage: app-cli [status|schema|simulation-schema|gui-replay-schema|product-tournament-experience-schema|simulate --input <json>|gui-replay --input <json>|product-tournament-experience --input <json>]");
                 std::process::exit(2);
             }
         }
@@ -2020,7 +2020,9 @@ struct RustProjectScaffold: Equatable, Sendable {
                     input_json = args.next();
                 }
                 other => {
-                    return Err(format!("unknown productization-experience argument: {other}").into());
+                    return Err(
+                        format!("unknown product-tournament-experience argument: {other}").into(),
+                    );
                 }
             }
         }
@@ -2398,7 +2400,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "build" => \(xtaskCargoRunExpression(RustVerifyCommands.build)),
             "run" => \(xtaskCargoRunExpression(RustVerifyCommands.runDesktop)),
             "verify" => verify_all(),
-            "productization-smoke" => productization_smoke(),
+            "product-tournament-smoke" => product_tournament_smoke(),
             "factory-smoke" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
             "engine-parity-check" => factory_smoke(args.iter().any(|arg| arg == "--emit-base64")),
             "visual-verify" => visual_verify(args.iter().any(|arg| arg == "--emit-base64")),
@@ -2432,15 +2434,21 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     fn factory_smoke(emit_base64: bool) -> Result<()> {
         verify_all()?;
-        productization_smoke()?;
+        product_tournament_smoke()?;
         visual_verify(emit_base64)?;
         Ok(())
     }
 
-    fn productization_smoke() -> Result<()> {
+    fn product_tournament_smoke() -> Result<()> {
         let demo = run_capture(
             "cargo",
-            &["run", "-p", "app-cli", "--", "productization-experience"],
+            &[
+                "run",
+                "-p",
+                "app-cli",
+                "--",
+                "product-tournament-experience",
+            ],
         )?;
         let demo_json: serde_json::Value = serde_json::from_slice(&demo)?;
         let initial_allowed = demo_json
@@ -2451,7 +2459,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             return Err("productization trace did not expose any initial allowed actions".into());
         }
 
-        let input = r#"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"solution":{"id":"solution-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"productization/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_solution_workflow","params":{}}]}"#;
+        let input = r#"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"solution":{"id":"solution-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_solution_workflow","params":{}}]}"#;
         let first = run_capture(
             "cargo",
             &[
@@ -2459,7 +2467,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 "-p",
                 "app-cli",
                 "--",
-                "productization-experience",
+                "product-tournament-experience",
                 "--input",
                 input,
             ],
@@ -2471,7 +2479,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 "-p",
                 "app-cli",
                 "--",
-                "productization-experience",
+                "product-tournament-experience",
                 "--input",
                 input,
             ],

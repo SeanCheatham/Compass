@@ -160,7 +160,7 @@ struct ProductizationSimulationRunnerTests {
     let invocation = try #require(capturedInvocation)
     try #require(invocation.executable == "/bin/zsh")
     let shell = try #require(invocation.arguments.last)
-    try #require(shell.contains("cargo run -p app-cli -- productization-experience --input"))
+    try #require(shell.contains("cargo run -p app-cli -- product-tournament-experience --input"))
     try #require(shell.contains("weekly-reporting-takes-too-long-pain"))
   }
 
@@ -541,8 +541,8 @@ private func writeProductizationExperienceContractMarkers(to root: URL) throws {
     "Cargo.toml",
     "crates/app-cli/Cargo.toml",
     "crates/app-core/Cargo.toml",
-    "schemas/productization-experience-input.schema.json",
-    "schemas/productization-experience-trace.schema.json",
+    "schemas/product-tournament-experience-input.schema.json",
+    "schemas/product-tournament-experience-trace.schema.json",
   ]
   for path in paths {
     let url = root.appending(path: path)

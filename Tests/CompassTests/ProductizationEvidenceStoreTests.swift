@@ -733,7 +733,7 @@ struct ProductizationEvidenceStoreTests {
   }
 
   @MainActor
-  @Test func productizationSmokeConnectsWorkspaceWorkbenchPromptAndRollout() async throws {
+  @Test func productTournamentSmokeConnectsWorkspaceWorkbenchPromptAndRollout() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
     try initGitRepo(at: root)
