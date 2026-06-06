@@ -75,13 +75,19 @@ struct PromptSchemaLoadingTests {
   }
 
   @Test
-  func testDiscoverSchemaDescribesStructuredProductizationEdits() throws {
+  func testDiscoverSchemaDescribesStructuredProductTournamentEdits() throws {
     let properties = try schemaProperties(Prompts.discoverSchema)
 
     try #require(try additionalProperties(Prompts.discoverSchema) == false)
     try #require(propertyDescription("summary", in: properties).contains("pain model"))
     try #require(properties.keys.contains("stateEdits"))
     try #require(properties.keys.contains("candidateExperiments"))
+    try #require(propertyDescription("stateEdits", in: properties).contains("Product Tournament"))
+    try #require(propertyDescription("stateEdits", in: properties).contains("tournament rounds"))
+    try #require(
+      propertyDescription("candidateExperiments", in: properties)
+        .contains("after the plan-only round")
+    )
   }
 
   @Test

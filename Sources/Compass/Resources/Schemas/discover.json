@@ -14,9 +14,13 @@
       "type": "string",
       "description": "Concise explanation of the discovered pain model and product bets."
     },
-    "stateEdits": { "$ref": "#/$defs/stateEdits" },
+    "stateEdits": {
+      "$ref": "#/$defs/stateEdits",
+      "description": "Structured Product Tournament state edits that seed pain hypotheses, contenders, tournament rounds, and implementation tracks."
+    },
     "candidateExperiments": {
       "type": "array",
+      "description": "Implementation tracks for Product Tournament contenders after the plan-only round.",
       "maxItems": 6,
       "items": { "$ref": "#/$defs/candidateExperiment" }
     },

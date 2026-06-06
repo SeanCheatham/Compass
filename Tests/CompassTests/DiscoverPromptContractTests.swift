@@ -32,7 +32,7 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains("Rust desktop"))
   }
 
-  @Test func validDiscoverResponseAppliesStructuredProductizationEdits() throws {
+  @Test func validDiscoverResponseAppliesStructuredProductTournamentEdits() throws {
     let output = makeDiscoverOutput()
     let decoded = try Prompts.decodeDiscoverResponse(try encodeDiscoverJSON(output))
     let config = try decoded.validatedProductTournamentConfig(applyingTo: .empty)
