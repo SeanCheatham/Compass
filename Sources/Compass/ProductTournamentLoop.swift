@@ -222,6 +222,7 @@ struct ProductTournamentDecisionProposal: Equatable, Sendable {
 
 enum ProductTournamentNextActionKind: String, Equatable, Sendable {
   case applyDecision = "apply_decision"
+  case runPlanProof = "run_plan_proof"
   case runCohort = "run_cohort"
   case rerunCohort = "rerun_cohort"
   case repairFailures = "repair_failures"
@@ -706,6 +707,9 @@ struct ProductTournamentNextAction: Equatable, Sendable {
   var title: String
   var detail: String
   var priority: Int
+  var tournamentID: String?
+  var roundID: String?
+  var contenderID: String?
   var cohortID: String?
   var requiredSimulationMode: ProductTournamentSimulationMode?
   var targetPersonaID: String?
@@ -719,6 +723,9 @@ struct ProductTournamentNextAction: Equatable, Sendable {
     title: String,
     detail: String,
     priority: Int,
+    tournamentID: String? = nil,
+    roundID: String? = nil,
+    contenderID: String? = nil,
     cohortID: String? = nil,
     requiredSimulationMode: ProductTournamentSimulationMode? = nil,
     targetPersonaID: String? = nil,
@@ -734,6 +741,15 @@ struct ProductTournamentNextAction: Equatable, Sendable {
     self.title = StringUtils.boundedText(title, limit: 160)
     self.detail = StringUtils.boundedText(detail, limit: 500)
     self.priority = max(0, priority)
+    self.tournamentID = ProductTournamentModelText.optionalIdentifier(
+      tournamentID,
+      fallback: "tournament"
+    )
+    self.roundID = ProductTournamentModelText.optionalIdentifier(roundID, fallback: "round")
+    self.contenderID = ProductTournamentModelText.optionalIdentifier(
+      contenderID,
+      fallback: "contender"
+    )
     self.cohortID = ProductTournamentModelText.optionalIdentifier(cohortID, fallback: "cohort")
     self.requiredSimulationMode = requiredSimulationMode
     self.targetPersonaID = ProductTournamentModelText.optionalIdentifier(
@@ -2089,6 +2105,7 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
   var nextActionTitle: String?
   var nextActionKind: ProductTournamentNextActionKind?
   var nextActionPriority: Int
+  var tournamentID: String?
   var contenderID: String?
   var roundID: String?
   var cohortID: String?
@@ -2126,6 +2143,9 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
     if let nextActionTitle {
       parts.append("Next: \(nextActionTitle)")
     }
+    if let tournamentID {
+      parts.append("Tournament: \(tournamentID)")
+    }
     if let targetDecision {
       parts.append("Decision: \(targetDecision.rawValue)")
     }
@@ -2153,6 +2173,9 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
     if let targetPersonaName {
       parts.append("target \(targetPersonaName)")
     }
+    if let tournamentID {
+      parts.append("tournament \(tournamentID)")
+    }
     if let targetScenarioID {
       parts.append("scenario \(targetScenarioID)")
     } else if let cohortID {
@@ -2173,6 +2196,7 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
     readinessScore: Int,
     debtSummary: String,
     nextAction: ProductTournamentNextAction?,
+    tournamentID: String? = nil,
     contenderID: String? = nil,
     roundID: String? = nil,
     planProofActionTitle: String? = nil,
@@ -2193,11 +2217,16 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
     self.nextActionTitle = nextAction?.title ?? planProofActionTitle
     self.nextActionKind = nextAction?.kind
     self.nextActionPriority = nextAction?.priority ?? planProofPriority
+    self.tournamentID =
+      nextAction?.tournamentID
+      ?? ProductTournamentModelText.optionalIdentifier(tournamentID, fallback: "tournament")
     self.contenderID = ProductTournamentModelText.optionalIdentifier(
-      contenderID,
+      nextAction?.contenderID ?? contenderID,
       fallback: "contender"
     )
-    self.roundID = ProductTournamentModelText.optionalIdentifier(roundID, fallback: "round")
+    self.roundID =
+      nextAction?.roundID
+      ?? ProductTournamentModelText.optionalIdentifier(roundID, fallback: "round")
     self.cohortID = nextAction?.cohortID
     self.targetScenarioID = nextAction?.targetScenarioID
     self.targetPersonaID = nextAction?.targetPersonaID
@@ -2287,6 +2316,7 @@ enum TournamentAutomationProofTargetAdvisor {
       readinessScore: Int((readiness?.readinessScore ?? 0).rounded()),
       debtSummary: proofDebt.summary,
       nextAction: nil,
+      tournamentID: planScope.tournament.id,
       contenderID: contender.id,
       roundID: planScope.round.id,
       planProofActionTitle: proofDebt.focusedActionTitle,
@@ -2433,27 +2463,50 @@ enum TournamentAutomationExperimentRanker {
       config: config,
       evidenceIndex: evidenceIndex
     )
+    let planProofTarget =
+      evidenceIndex.summaries.isEmpty && readiness == nil
+      ? TournamentAutomationProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      : nil
+    let planProofNextActionKind: ProductTournamentNextActionKind? =
+      planProofTarget?.contenderID == nil ? nil : .runPlanProof
+    let effectiveNextActionKind = planProofNextActionKind ?? nextAction?.kind
+    let effectiveNextActionTitle = planProofTarget?.nextActionTitle ?? nextAction?.title
+    let effectiveNextActionPriority = planProofTarget?.nextActionPriority ?? nextAction?.priority ?? 0
     return TournamentAutomationExperimentSignal(
       experimentID: experiment.id,
       readinessScore: readiness.map { Int($0.readinessScore.rounded()) },
       readinessRecommendation: readiness?.recommendation,
-      nextActionKind: nextAction?.kind,
-      nextActionTitle: nextAction?.title,
-      nextActionPriority: nextAction?.priority ?? 0,
+      nextActionKind: effectiveNextActionKind,
+      nextActionTitle: effectiveNextActionTitle,
+      nextActionPriority: effectiveNextActionPriority,
       targetDecision: nextAction?.targetDecision,
-      pressure: pressure(for: experiment, readiness: readiness, nextAction: nextAction),
+      pressure: pressure(
+        for: experiment,
+        readiness: readiness,
+        nextActionKind: effectiveNextActionKind,
+        targetDecision: nextAction?.targetDecision
+      ),
       staleEvidenceCount: evidenceIndex.staleSummaryCount(for: experiment),
-      proofDebtCount: readiness?.proofDebt.blockingDebtCount ?? 0,
-      proofDebtSummary: readiness?.proofDebt.isClear == false ? readiness?.proofDebt.summary : nil
+      proofDebtCount: readiness?.proofDebt.blockingDebtCount
+        ?? planProofBlockingDebtCount(planProofTarget)
+        ?? 0,
+      proofDebtSummary: readiness?.proofDebt.isClear == false
+        ? readiness?.proofDebt.summary
+        : planProofTarget?.debtSummary
     )
   }
 
   private static func pressure(
     for experiment: ProductExperiment,
     readiness: ProductTournamentReadiness?,
-    nextAction: ProductTournamentNextAction?
+    nextActionKind: ProductTournamentNextActionKind?,
+    targetDecision: ProductExperimentDecision?
   ) -> TournamentAutomationPortfolioPressure {
-    if nextAction?.kind == .repairFailures {
+    if nextActionKind == .repairFailures {
       return .repair
     }
     if let readiness {
@@ -2464,7 +2517,7 @@ enum TournamentAutomationExperimentRanker {
       case .gatherEvidence, .keepGoing: break
       }
     }
-    switch nextAction?.targetDecision {
+    switch targetDecision {
     case .promote:
       return .lift
     case .kill:
@@ -2472,7 +2525,7 @@ enum TournamentAutomationExperimentRanker {
     case .notRun, .keepGoing, .narrow, .pivot, .archived, .promoted, nil:
       break
     }
-    switch nextAction?.kind {
+    switch nextActionKind {
     case .applyDecision:
       switch readiness?.recommendation {
       case .promote: return .lift
@@ -2480,6 +2533,8 @@ enum TournamentAutomationExperimentRanker {
       case .pivot, .narrow: return .reshape
       case .gatherEvidence, .keepGoing, nil: return .learn
       }
+    case .runPlanProof:
+      return .learn
     case .runCohort, .rerunCohort:
       return .learn
     case .refineBet, .reviewDecision:
@@ -2495,10 +2550,20 @@ enum TournamentAutomationExperimentRanker {
       }
     }
   }
+
+  private static func planProofBlockingDebtCount(
+    _ target: TournamentAutomationProofTarget?
+  ) -> Int? {
+    guard let target, target.contenderID != nil else { return nil }
+    let matches = target.debtSummary.matches(of: #/\d+/#)
+    let total = matches.compactMap { Int($0.output) }.reduce(0, +)
+    return total > 0 ? total : 1
+  }
 }
 
 enum TournamentAutomationStepKind: String, Equatable, Sendable {
   case applyDecision = "apply_decision"
+  case runPlanProof = "run_plan_proof"
   case runCohort = "run_cohort"
   case applyRevision = "apply_revision"
   case blocked = "blocked"
@@ -2506,7 +2571,7 @@ enum TournamentAutomationStepKind: String, Equatable, Sendable {
 
 struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
   var id: String {
-    "\(experimentID):\(idKind):\(targetScenarioID ?? cohortID ?? "none")\(idDecisionSuffix)"
+    "\(experimentID):\(idKind):\(idTarget)\(idDecisionSuffix)"
   }
 
   var experimentID: String
@@ -2519,6 +2584,10 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
 
   var cohortID: String? { action.cohortID }
   var targetScenarioID: String? { action.targetScenarioID }
+
+  var tournamentID: String? { action.tournamentID }
+  var roundID: String? { action.roundID }
+  var contenderID: String? { action.contenderID }
 
   var decisionIntentSummary: String? {
     guard let targetDecision = action.targetDecision else { return nil }
@@ -2538,15 +2607,21 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
     switch kind {
     case .applyRevision:
       return TournamentAutomationStepKind.applyRevision.rawValue
-    case .applyDecision, .runCohort, .blocked:
+    case .applyDecision, .runPlanProof, .runCohort, .blocked:
       return action.kind.rawValue
     }
+  }
+
+  private var idTarget: String {
+    targetScenarioID ?? cohortID ?? contenderID ?? roundID ?? "none"
   }
 
   var title: String {
     switch kind {
     case .applyDecision:
       return "Apply tournament decision"
+    case .runPlanProof:
+      return action.title
     case .runCohort:
       return action.kind == .rerunCohort ? "Rerun evidence cohort" : "Run evidence cohort"
     case .applyRevision:
@@ -2583,6 +2658,14 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
       self.kind = .applyDecision
       self.canExecute = true
       self.blockedReason = nil
+    case .runPlanProof:
+      self.kind = .runPlanProof
+      self.canExecute = action.tournamentID != nil && action.roundID != nil
+        && action.contenderID != nil
+      self.blockedReason =
+        self.canExecute
+        ? nil
+        : "Round 1 plan-proof target is missing tournament, round, or contender scope."
     case .runCohort, .rerunCohort:
       self.kind = .runCohort
       let modeBlockedReason = Self.simulationModeBlockedReason(
@@ -2823,7 +2906,10 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
   }
 
   var evidenceRunStepCount: Int {
-    executedSteps.filter { $0.action.kind == .runCohort || $0.action.kind == .rerunCohort }.count
+    executedSteps.filter {
+      $0.action.kind == .runPlanProof || $0.action.kind == .runCohort
+        || $0.action.kind == .rerunCohort
+    }.count
   }
 
   var proofDebtDelta: Int? {
@@ -3694,6 +3780,14 @@ enum TournamentAutomationPlanner {
       config: config,
       evidenceIndex: evidenceIndex
     ).compactMap { experiment in
+      if let planProofStep = planProofStep(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: isPersonaModelAvailable
+      ) {
+        return planProofStep
+      }
       guard
         let action = ProductTournamentNextActionAdvisor.nextAction(
           for: experiment,
@@ -3737,6 +3831,43 @@ enum TournamentAutomationPlanner {
         evidenceIndex: evidenceIndex
       )
     }
+  }
+
+  private static func planProofStep(
+    for experiment: ProductExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
+  ) -> TournamentAutomationStep? {
+    guard evidenceIndex.summaries.isEmpty else { return nil }
+    guard
+      let target = TournamentAutomationProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      let tournamentID = target.tournamentID,
+      let roundID = target.roundID,
+      let contenderID = target.contenderID
+    else { return nil }
+    let actionTitle = target.nextActionTitle ?? target.label
+    let action = ProductTournamentNextAction(
+      experimentID: experiment.id,
+      kind: .runPlanProof,
+      title: actionTitle,
+      detail:
+        "Run focused Round 1 model-free simulated-user plan proof for contender `\(contenderID)` in round `\(roundID)`. Remaining plan proof debt: \(target.debtSummary).",
+      priority: target.nextActionPriority,
+      tournamentID: tournamentID,
+      roundID: roundID,
+      contenderID: contenderID
+    )
+    return TournamentAutomationStep(
+      experiment: experiment,
+      action: action,
+      cohortReadiness: nil,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    )
   }
 
   static func nextExecutableStep(
@@ -3951,6 +4082,48 @@ enum TournamentAutomationPlanner {
       return false
     }
     return true
+  }
+}
+
+enum TournamentAutomationPlanProofStepError: LocalizedError, Equatable {
+  case invalidStep(String)
+  case missingScope(String)
+
+  var errorDescription: String? {
+    switch self {
+    case .invalidStep(let id):
+      return "Tournament automation step \(id) is not a Round 1 plan-proof step."
+    case .missingScope(let id):
+      return "Tournament automation plan-proof step \(id) is missing tournament, round, or contender scope."
+    }
+  }
+}
+
+enum TournamentAutomationPlanProofStepExecutor {
+  static func run(
+    _ step: TournamentAutomationStep,
+    in workspace: CompassWorkspace,
+    projectID: UUID? = nil,
+    now: Date = Date()
+  ) throws -> ProductTournamentPlanEvaluationOutcome {
+    guard step.kind == .runPlanProof, step.action.kind == .runPlanProof else {
+      throw TournamentAutomationPlanProofStepError.invalidStep(step.id)
+    }
+    guard
+      let tournamentID = step.tournamentID,
+      let roundID = step.roundID,
+      let contenderID = step.contenderID
+    else {
+      throw TournamentAutomationPlanProofStepError.missingScope(step.id)
+    }
+    return try ProductTournamentPlanEvaluator.runPlanRound(
+      tournamentID: tournamentID,
+      roundID: roundID,
+      contenderID: contenderID,
+      in: workspace,
+      projectID: projectID,
+      now: now
+    )
   }
 }
 
@@ -4341,7 +4514,7 @@ enum ProductTournamentNextActionAdvisor {
     switch signal.actionKind {
     case .runCohort, .rerunCohort:
       runnableCohortID = signal.targetCohortID
-    case .applyDecision, .repairFailures, .refineBet, .reviewDecision:
+    case .applyDecision, .runPlanProof, .repairFailures, .refineBet, .reviewDecision:
       runnableCohortID = nil
     }
     return ProductTournamentNextAction(

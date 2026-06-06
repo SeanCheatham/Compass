@@ -601,6 +601,9 @@ enum ProductTournamentPlanningDigestFormatter {
       if let nextActionTitle = target.nextActionTitle {
         metadata.append("next \(bounded(nextActionTitle, 100))")
       }
+      if let tournamentID = target.tournamentID {
+        metadata.append("tournament \(tournamentID)")
+      }
       if let contenderID = target.contenderID {
         metadata.append("contender \(contenderID)")
       }
@@ -656,6 +659,15 @@ enum ProductTournamentPlanningDigestFormatter {
     if let cohortID = step.cohortID {
       metadata.append("cohort \(cohortID)")
     }
+    if let tournamentID = step.tournamentID {
+      metadata.append("tournament \(tournamentID)")
+    }
+    if let roundID = step.roundID {
+      metadata.append("round \(roundID)")
+    }
+    if let contenderID = step.contenderID {
+      metadata.append("contender \(contenderID)")
+    }
     if let targetScenarioID = step.targetScenarioID {
       metadata.append("target_scenario \(targetScenarioID)")
     }
@@ -668,7 +680,9 @@ enum ProductTournamentPlanningDigestFormatter {
     if let requiredMode = step.action.requiredSimulationMode {
       metadata.append("required_mode \(requiredMode.rawValue)")
     }
-    if step.kind == .runCohort {
+    if step.kind == .runPlanProof {
+      metadata.append("mode model_free_plan")
+    } else if step.kind == .runCohort {
       let mode =
         step.action.requiredSimulationMode
         ?? TournamentAutomationPlanner.cohortSimulationMode(

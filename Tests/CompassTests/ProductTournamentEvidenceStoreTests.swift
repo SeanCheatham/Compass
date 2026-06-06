@@ -627,6 +627,7 @@ struct ProductTournamentEvidenceStoreTests {
     for index in config.experiments.indices.dropFirst() {
       config.experiments[index].decision = .promoted
     }
+    try completePlanOnlyRound(in: &config)
     let runnable = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
         config: config,
@@ -921,6 +922,16 @@ private func makeEvidenceRecord(
     summary: "Evidence summary for \(id).",
     failure: failure
   )
+}
+
+private func completePlanOnlyRound(in config: inout ProductTournamentConfig) throws {
+  let tournamentIndex = try #require(config.tournaments.indices.first)
+  let tournamentID = config.tournaments[tournamentIndex].id
+  let planRoundIndex = try #require(
+    config.tournamentRounds.firstIndex {
+      $0.tournamentID == tournamentID && $0.kind == .productPlans
+    })
+  config.tournamentRounds[planRoundIndex].status = .completed
 }
 
 private func makeTempDir() throws -> URL {

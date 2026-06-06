@@ -1235,6 +1235,9 @@ struct ProductTournamentWorkbenchTab: View {
         if let nextActionTitle = target.nextActionTitle {
           WorkbenchFact(label: "Next", value: nextActionTitle)
         }
+        if let tournamentID = target.tournamentID {
+          WorkbenchFact(label: "Tournament", value: tournamentID)
+        }
         if let contenderID = target.contenderID {
           WorkbenchFact(label: "Contender", value: contenderID)
         }
@@ -1497,7 +1500,9 @@ struct ProductTournamentWorkbenchTab: View {
           }
           WorkbenchFact(label: "Cycle", value: tournamentAutomationCyclePlan.summary)
           WorkbenchFact(label: "Queue", value: tournamentAutomationCyclePlan.queueSummary)
-          if step.kind == .runCohort {
+          if step.kind == .runPlanProof {
+            WorkbenchFact(label: "Mode", value: "Model-free plan proof")
+          } else if step.kind == .runCohort {
             WorkbenchFact(
               label: "Mode",
               value: "\(tournamentAutomationCohortMode.tournamentAutomationLabel) cohort"
@@ -3043,6 +3048,35 @@ struct ProductTournamentWorkbenchTab: View {
         )
       }
       return nil
+    case .runPlanProof:
+      do {
+        guard let workspace = project.workspace else {
+          project.fail(AppModelError.noRepositorySelected)
+          return nil
+        }
+        let outcome = try TournamentAutomationPlanProofStepExecutor.run(
+          step,
+          in: workspace,
+          projectID: project.id
+        )
+        project.productTournamentConfig = try workspace.readProductTournamentConfig()
+        project.productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
+        project.log(outcome.userMessage, level: outcome.isSuccess ? .success : .warning)
+        if let latestRecordID = outcome.latestRecordID {
+          selectedPlanEvaluationID = latestRecordID
+          loadSelectedPlanEvaluationRecord()
+        }
+        return TournamentAutomationStepResult(
+          message: outcome.userMessage,
+          evidenceRunIDs: outcome.records.map(\.id),
+          completedEvidenceRunCount: outcome.completedEvaluationCount,
+          failedEvidenceRunCount: outcome.records.count - outcome.completedEvaluationCount,
+          skippedScenarioCount: outcome.skippedContenderIDs.count
+        )
+      } catch {
+        project.fail(error)
+        return nil
+      }
     case .runCohort:
       guard let cohortID = step.cohortID else { return nil }
       if let blockedMessage = roundTwoLaunchBlockedMessage(experimentID: step.experimentID) {

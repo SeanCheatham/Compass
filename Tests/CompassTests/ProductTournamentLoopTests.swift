@@ -757,18 +757,62 @@ struct ProductTournamentLoopTests {
       config: config,
       evidenceIndex: emptyIndex
     )
+    let initialSteps = TournamentAutomationPlanner.steps(
+      config: config,
+      evidenceIndex: emptyIndex
+    )
+    let initialStep = try #require(initialSteps.first { $0.contenderID == contender.id })
+    let initialCyclePlan = TournamentAutomationPlanner.cyclePlan(
+      config: config,
+      evidenceIndex: emptyIndex
+    )
 
     try #require(initialTarget.label == "Run Plan Proof")
     try #require(initialTarget.nextActionTitle == "Run Plan Proof")
+    try #require(initialTarget.tournamentID == tournament.id)
     try #require(initialTarget.contenderID == contender.id)
     try #require(initialTarget.roundID == planRound.id)
     try #require(initialTarget.displaySubtitle.contains("contender \(contender.id)"))
+    try #require(initialTarget.displayDetail.contains("Tournament: \(tournament.id)"))
     try #require(initialTarget.displayDetail.contains("Round: \(planRound.id)"))
+    try #require(initialTarget.auditSummary.contains("tournament \(tournament.id)"))
     try #require(initialTarget.auditSummary.contains("contender \(contender.id)"))
+    try #require(initialStep.kind == .runPlanProof)
+    try #require(initialStep.action.kind == .runPlanProof)
+    try #require(initialStep.action.title == "Run Plan Proof")
+    try #require(initialStep.tournamentID == tournament.id)
+    try #require(initialStep.contenderID == contender.id)
+    try #require(initialStep.roundID == planRound.id)
+    try #require(initialStep.id.contains("run_plan_proof"))
+    try #require(initialStep.id.contains(contender.id))
+    try #require(initialCyclePlan.executableSteps.contains(initialStep))
     try #require(initialDigest.contains("Tournament automation proof targets"))
     try #require(initialDigest.contains("target Run Plan Proof"))
+    try #require(initialDigest.contains("kind run_plan_proof"))
+    try #require(initialDigest.contains("mode model_free_plan"))
+    try #require(initialDigest.contains("tournament \(tournament.id)"))
     try #require(initialDigest.contains("contender \(contender.id)"))
     try #require(initialDigest.contains("round \(planRound.id)"))
+
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    try workspace.writeProductTournamentConfig(config)
+    let executionOutcome = try TournamentAutomationPlanProofStepExecutor.run(
+      initialStep,
+      in: workspace,
+      now: Date(timeIntervalSince1970: 20)
+    )
+    let executedIndex = workspace.readProductTournamentEvidenceIndex()
+
+    try #require(executionOutcome.focusedContenderID == contender.id)
+    try #require(executionOutcome.focusedProofTargetSummary?.contains("economic-buyer") == true)
+    try #require(executionOutcome.records.allSatisfy { $0.contenderID == contender.id })
+    try #require(executionOutcome.completedEvaluationCount == executionOutcome.records.count)
+    try #require(executedIndex.planEvaluationSummaries.count == executionOutcome.records.count)
+    try #require(
+      executedIndex.aggregate.planReadinessByContender.map(\.contenderID) == [contender.id])
 
     let operatorSegment = try #require(
       config.userSegments.first { $0.id == contender.targetSegmentIDs.first })
@@ -795,6 +839,7 @@ struct ProductTournamentLoopTests {
     try #require(followUpTarget.label == "Run Buyer Proof")
     try #require(followUpTarget.nextActionTitle == "Run Buyer Proof")
     try #require(followUpTarget.debtSummary.contains("buyer/sponsor signal"))
+    try #require(followUpTarget.tournamentID == tournament.id)
     try #require(followUpTarget.contenderID == contender.id)
     try #require(followUpTarget.roundID == planRound.id)
   }
@@ -2621,6 +2666,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].decision = .keepGoing
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
+    try completePlanOnlyRound(in: &config)
 
     let step = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
@@ -2660,6 +2706,7 @@ struct ProductTournamentLoopTests {
     for index in config.experiments.indices.dropFirst() {
       config.experiments[index].decision = .promoted
     }
+    try completePlanOnlyRound(in: &config)
     let runnable = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
         config: config,
@@ -2735,6 +2782,7 @@ struct ProductTournamentLoopTests {
     for index in config.experiments.indices.dropFirst() {
       config.experiments[index].decision = .promoted
     }
+    try completePlanOnlyRound(in: &config)
     let runnable = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
         config: config,
@@ -3127,6 +3175,7 @@ struct ProductTournamentLoopTests {
       config.experiments[index].baseSha = "base-\(index)"
       config.experiments[index].currentSha = "head-\(index)"
     }
+    try completePlanOnlyRound(in: &config)
 
     let plan = TournamentAutomationPlanner.cyclePlan(
       config: config,
@@ -3151,6 +3200,7 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
+    try completePlanOnlyRound(in: &config)
 
     let plan = TournamentAutomationPlanner.cyclePlan(
       config: config,
@@ -3176,6 +3226,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].decision = .keepGoing
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
+    try completePlanOnlyRound(in: &config)
     let step = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
         config: config,
@@ -3722,6 +3773,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].decision = .keepGoing
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
+    try completePlanOnlyRound(in: &config)
     let step = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
         config: config,
@@ -4175,6 +4227,16 @@ private func activateRoundTwoImplementationTarget(
     contenderID: contenderID,
     experimentID: experimentID
   )
+}
+
+private func completePlanOnlyRound(in config: inout ProductTournamentConfig) throws {
+  let tournamentIndex = try #require(config.tournaments.indices.first)
+  let tournamentID = config.tournaments[tournamentIndex].id
+  let planRoundIndex = try #require(
+    config.tournamentRounds.firstIndex {
+      $0.tournamentID == tournamentID && $0.kind == .productPlans
+    })
+  config.tournamentRounds[planRoundIndex].status = .completed
 }
 
 private func makeProofDebtEvidenceIndex(
