@@ -133,7 +133,9 @@ enum ProductTournamentPlanningDigestFormatter {
           ?? "no plan evidence, commercial_proof no willingness-to-pay proof yet, next_plan_proof operator and economic-buyer plan evaluations, focused_plan_proof_action Run Plan Proof"
         let planEvidence = [
           planEvidenceBase,
-          latestPlanProofAuditDelta(for: contender, config: config),
+          TournamentAutomationPlanProofAuditDeltaFinder
+            .latest(for: contender, in: config)?
+            .contextSummary,
         ]
         .compactMap { $0 }
         .joined(separator: ", ")
@@ -803,121 +805,11 @@ enum ProductTournamentPlanningDigestFormatter {
   private static func tournamentAutomationPlanProofAuditLines(
     config: ProductTournamentConfig
   ) -> [String] {
-    let audits = config.tournamentAutomationCycleAudits
-      .sorted { lhs, rhs in
-        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
-        return lhs.endedAt > rhs.endedAt
-      }
-      .filter(isPlanProofAutomationAudit)
-      .prefix(3)
-    guard !audits.isEmpty else { return [] }
+    let deltas = TournamentAutomationPlanProofAuditDeltaFinder.recent(in: config, limit: 3)
+    guard !deltas.isEmpty else { return [] }
 
     return ["Round 1 plan-proof automation deltas:"]
-      + audits.map { audit in
-        let experiments =
-          audit.experimentIDs.isEmpty
-          ? "no experiments"
-          : "experiments \(audit.experimentIDs.joined(separator: ", "))"
-        let steps =
-          audit.executedStepIDs.isEmpty
-          ? "no steps"
-          : "steps \(audit.executedStepIDs.prefix(3).joined(separator: ", "))"
-        let proofDebtChange: String
-        if let starting = audit.startingProofDebtCount,
-          let ending = audit.endingProofDebtCount,
-          let delta = audit.proofDebtDelta
-        {
-          let sign = delta > 0 ? "+" : ""
-          proofDebtChange = "proof_debt \(starting) -> \(ending) (\(sign)\(delta))"
-        } else {
-          proofDebtChange = "proof_debt unavailable"
-        }
-        let startingSummary =
-          audit.startingProofDebtSummary.map {
-            "; starting_plan_proof_debt \(bounded($0, 260))"
-          } ?? ""
-        let endingSummary =
-          audit.endingProofDebtSummary.map {
-            "; ending_plan_proof_debt \(bounded($0, 260))"
-          } ?? ""
-        let runIDs =
-          audit.evidenceRunIDs.isEmpty
-          ? ""
-          : "; evidence \(audit.evidenceRunIDs.prefix(4).joined(separator: ", "))"
-        return
-          "- \(bounded(audit.id, 100)): \(experiments); \(steps); \(proofDebtChange)\(startingSummary)\(endingSummary)\(runIDs); stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 220))."
-      }
-  }
-
-  private static func isPlanProofAutomationAudit(_ audit: TournamentAutomationCycleAudit) -> Bool {
-    audit.executedStepIDs.contains {
-      $0.contains(ProductTournamentNextActionKind.runPlanProof.rawValue)
-    }
-      || audit.startingProofDebtSummary?.localizedCaseInsensitiveContains("plan proof") == true
-      || audit.endingProofDebtSummary?.localizedCaseInsensitiveContains("plan proof") == true
-  }
-
-  private static func latestPlanProofAuditDelta(
-    for contender: ProductTournamentContender,
-    config: ProductTournamentConfig
-  ) -> String? {
-    guard
-      let audit = config.tournamentAutomationCycleAudits
-        .sorted(by: recentAuditSort)
-        .first(where: { matchesPlanProofAudit($0, contender: contender) })
-    else { return nil }
-
-    var metadata: [String] = []
-    if let starting = audit.startingProofDebtCount,
-      let ending = audit.endingProofDebtCount,
-      let delta = audit.proofDebtDelta
-    {
-      let sign = delta > 0 ? "+" : ""
-      metadata.append(
-        "latest_plan_proof_delta proof_debt \(starting) -> \(ending) (\(sign)\(delta))")
-    } else {
-      metadata.append("latest_plan_proof_delta proof_debt unavailable")
-    }
-    metadata.append("audit \(bounded(audit.id, 80))")
-    if !audit.evidenceRunIDs.isEmpty {
-      metadata.append("evidence \(audit.evidenceRunIDs.prefix(3).joined(separator: ", "))")
-    }
-    if let startingSummary = audit.startingProofDebtSummary {
-      metadata.append("starting \(bounded(startingSummary, 160))")
-    }
-    if let endingSummary = audit.endingProofDebtSummary {
-      metadata.append("ending \(bounded(endingSummary, 160))")
-    }
-    return metadata.joined(separator: ", ")
-  }
-
-  private static func matchesPlanProofAudit(
-    _ audit: TournamentAutomationCycleAudit,
-    contender: ProductTournamentContender
-  ) -> Bool {
-    guard isPlanProofAutomationAudit(audit) else { return false }
-    let stepMatches = audit.executedStepIDs.contains {
-      $0.contains(ProductTournamentNextActionKind.runPlanProof.rawValue)
-        && $0.contains(contender.id)
-    }
-    let summaryMatches =
-      audit.startingProofDebtSummary?.contains("contender \(contender.id)") == true
-      || audit.endingProofDebtSummary?.contains("contender \(contender.id)") == true
-    guard stepMatches || summaryMatches else { return false }
-
-    guard let experimentID = contender.experimentID else { return true }
-    return audit.experimentIDs.contains(experimentID)
-      || audit.executedStepIDs.contains { $0.hasPrefix("\(experimentID):") }
-      || audit.startingProofDebtSummary?.contains(experimentID) == true
-      || audit.endingProofDebtSummary?.contains(experimentID) == true
-  }
-
-  private static func recentAuditSort(
-    lhs: TournamentAutomationCycleAudit,
-    rhs: TournamentAutomationCycleAudit
-  ) -> Bool {
-    if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
-    return lhs.endedAt > rhs.endedAt
+      + deltas.map(\.auditLine)
   }
 
   private static func evidenceSignalLines(

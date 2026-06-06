@@ -858,8 +858,26 @@ struct ProductTournamentLoopTests {
     try #require(planProofAudit.startingProofDebtSummary?.contains("Round 1 plan proof") == true)
     try #require(planProofAudit.endingProofDebtSummary?.contains("plan proof complete") == true)
     try #require(planProofAudit.userMessage.contains("Proof debt improved by 6"))
+    let auditedPlanProofConfig = config.recordingTournamentAutomationCycleAudit(planProofAudit)
+    let latestPlanProofDelta = try #require(
+      TournamentAutomationPlanProofAuditDeltaFinder.latest(
+        for: contender,
+        in: auditedPlanProofConfig
+      ))
+    try #require(
+      latestPlanProofDelta.contextSummary.contains(
+        "latest_plan_proof_delta proof_debt 6 -> 0 (-6)"))
+    try #require(latestPlanProofDelta.contextSummary.contains("audit \(planProofAudit.id)"))
+    try #require(latestPlanProofDelta.displaySummary == "Proof debt cleared 6 (6 -> 0)")
+    try #require(latestPlanProofDelta.displaySystemImage == "checkmark.seal")
+    try #require(
+      latestPlanProofDelta.helpSummary.contains(
+        "Starting: \(experiment.id): contender \(contender.id)"))
+    try #require(
+      latestPlanProofDelta.helpSummary.contains(
+        "Ending: \(experiment.id): contender \(contender.id)"))
     let planProofDigest = ProductTournamentPlanningDigestFormatter.promptText(
-      config: config.recordingTournamentAutomationCycleAudit(planProofAudit),
+      config: auditedPlanProofConfig,
       evidenceIndex: executedIndex
     )
     try #require(planProofDigest.contains("Round 1 plan-proof automation deltas"))

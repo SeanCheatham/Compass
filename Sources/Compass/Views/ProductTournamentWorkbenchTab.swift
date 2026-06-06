@@ -1004,6 +1004,10 @@ struct ProductTournamentWorkbenchTab: View {
     }
     let planReadiness = planReadiness(for: contender)
     let nextProofTarget = planProofTargetSummary(for: contender, readiness: planReadiness)
+    let latestPlanProofDelta = TournamentAutomationPlanProofAuditDeltaFinder.latest(
+      for: contender,
+      in: config
+    )
     return VStack(alignment: .leading, spacing: 7) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Text(contender.title)
@@ -1066,6 +1070,17 @@ struct ProductTournamentWorkbenchTab: View {
           .buttonStyle(.bordered)
           .disabled(!planEvaluationCanRun(for: contender))
           .help(planProofTargetHelp(for: contender, readiness: planReadiness))
+          if let latestPlanProofDelta {
+            Label(
+              latestPlanProofDelta.displaySummary,
+              systemImage: latestPlanProofDelta.displaySystemImage
+            )
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .help(latestPlanProofDelta.helpSummary)
+          }
           Spacer()
         }
       }
