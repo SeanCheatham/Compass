@@ -278,6 +278,13 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
+  private var roundTwoProofOverview: [ProductTournamentRoundTwoProofOverviewItem] {
+    ProductTournamentRoundTwoProofOverview.items(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var defaultRoundTwoImplementationTarget: ProductTournamentRoundImplementationTarget? {
     ProductTournamentRoundImplementationTargetResolver.defaultActiveRoundTwoTarget(in: config)
   }
@@ -851,6 +858,14 @@ struct ProductTournamentWorkbenchTab: View {
             if feasibilityHandoffs.isEmpty {
               WorkbenchEmptyLine("No narrowed contender is active in Round 2 yet.")
             } else {
+              if !roundTwoProofOverview.isEmpty {
+                Text("Core Technology Proof")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+              }
+              ForEach(roundTwoProofOverview.prefix(3)) { item in
+                roundTwoProofOverviewRow(item)
+              }
               ForEach(feasibilityHandoffs.prefix(3)) { handoff in
                 feasibilityHandoffRow(handoff)
               }
@@ -1224,6 +1239,47 @@ struct ProductTournamentWorkbenchTab: View {
     }
     .buttonStyle(.plain)
     .help(handoff.feasibilityGoal)
+  }
+
+  private func roundTwoProofOverviewRow(
+    _ item: ProductTournamentRoundTwoProofOverviewItem
+  ) -> some View {
+    Button {
+      selectedExperimentID = item.experimentID
+    } label: {
+      HStack(alignment: .top, spacing: 9) {
+        Image(systemName: item.displaySystemImage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .frame(width: 16, alignment: .center)
+          .padding(.top, 2)
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(item.contenderTitle)
+              .font(.callout.weight(.semibold))
+              .lineLimit(2)
+            Spacer()
+            WorkbenchStatusPill(text: item.recommendation.title)
+          }
+          Text(item.displaySubtitle)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          WorkbenchFact(label: "Track", value: item.experimentID)
+          WorkbenchFact(label: "Proof", value: item.coreTechnologyProof)
+          Text(item.displayDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .help(item.helpSummary)
   }
 
   private func experimentRow(_ experiment: ProductExperiment) -> some View {

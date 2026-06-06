@@ -42,8 +42,29 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       config: fixture.config,
       evidenceIndex: index
     )
+    let proofOverview = ProductTournamentRoundTwoProofOverview.items(
+      config: fixture.config,
+      evidenceIndex: index
+    )
+    let proofOverviewItem = try #require(proofOverview.first)
+    let postTransitionProofOverview = ProductTournamentRoundTwoProofOverview.items(
+      config: outcome.config,
+      evidenceIndex: index
+    )
+    let postTransitionDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: outcome.config,
+      evidenceIndex: index
+    )
 
     try #require(proposal.recommendation == .advanceToPrototype)
+    try #require(proofOverview.count == 1)
+    try #require(proofOverviewItem.recommendation == .advanceToPrototype)
+    try #require(proofOverviewItem.completedRunCount == 2)
+    try #require(proofOverviewItem.distinctPersonaCount == 2)
+    try #require(proofOverviewItem.evidenceRunIDs.contains("\(fixture.contender.id)-round-2-0"))
+    try #require(proofOverviewItem.contextLine.contains("round_2_proof contender"))
+    try #require(proofOverviewItem.contextLine.contains("core_technology_proof"))
+    try #require(proofOverviewItem.contextLine.contains("recommendation advance_to_prototype"))
     try #require(updatedTournament.currentRoundID == fixture.prototypeRound.id)
     try #require(updatedCoreRound.status == .completed)
     try #require(updatedPrototypeRound.status == .active)
@@ -52,8 +73,14 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(updatedExperiment.decision == .keepGoing)
     try #require(outcome.toRoundID == fixture.prototypeRound.id)
     try #require(outcome.userMessage.contains("Round 3"))
+    try #require(digest.contains("Round 2 core-technology proof overview"))
+    try #require(digest.contains("round_2_proof contender \(fixture.contender.id)"))
+    try #require(digest.contains("recommendation advance_to_prototype"))
+    try #require(digest.contains("core_technology_proof"))
     try #require(digest.contains("Round 2 evidence transition"))
     try #require(digest.contains("recommendation advance_to_prototype"))
+    try #require(postTransitionProofOverview.isEmpty)
+    try #require(!postTransitionDigest.contains("Round 2 core-technology proof overview"))
   }
 
   @Test func weakFeasibilityEvidenceEliminatesContender() throws {
@@ -169,6 +196,46 @@ struct ProductTournamentRoundEvidenceTransitionTests {
         evidenceIndex: index
       ) == nil
     )
+  }
+
+  @Test func roundTwoProofOverviewShowsActiveCoreTechnologyProofBeforeEvidence() throws {
+    let fixture = try roundTwoFixture()
+    let index = ProductTournamentEvidenceIndex.build(records: [])
+
+    let overview = ProductTournamentRoundTwoProofOverview.items(
+      config: fixture.config,
+      evidenceIndex: index
+    )
+    let item = try #require(overview.first)
+    let contextLines = ProductTournamentRoundTwoProofOverview.contextLines(
+      config: fixture.config,
+      evidenceIndex: index
+    )
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: fixture.config,
+      evidenceIndex: index
+    )
+
+    try #require(overview.count == 1)
+    try #require(item.tournamentID == fixture.tournament.id)
+    try #require(item.roundID == fixture.coreRound.id)
+    try #require(item.contenderID == fixture.contender.id)
+    try #require(item.experimentID == fixture.experiment.id)
+    try #require(item.recommendation == .gatherEvidence)
+    try #require(item.completedRunCount == 0)
+    try #require(item.runCount == 0)
+    try #require(item.distinctPersonaCount == 0)
+    try #require(item.displaySubtitle.contains("Gather Evidence"))
+    try #require(item.contextLine.contains("no scoped evidence"))
+    try #require(item.contextLine.contains("core_technology_proof"))
+    try #require(item.contextLine.contains(fixture.experiment.id))
+    try #require(item.helpSummary.contains(fixture.experiment.branchName))
+    try #require(contextLines.first == "Round 2 core-technology proof overview:")
+    try #require(contextLines.joined(separator: "\n").contains("recommendation gather_evidence"))
+    try #require(digest.contains("Round 2 core-technology proof overview"))
+    try #require(digest.contains("round_2_proof contender \(fixture.contender.id)"))
+    try #require(digest.contains("recommendation gather_evidence"))
+    try #require(digest.contains("no scoped evidence"))
   }
 }
 

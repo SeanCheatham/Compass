@@ -95,10 +95,13 @@ and advances them through rounds:
   run controls, while tournament automation planning omits sibling proof
   targets and evidence steps. Plan/Reflect prompts also receive a
   `round_2_evidence_lock` line naming the paused sibling experiments so the next
-  handoff stays focused on the single core-technology proof. Scoped Round 2
-  scenario evidence then drives the next tournament transition: advance the
-  contender to Round 3, mark the core technology for revision, or eliminate the
-  contender before adding prototype fidelity.
+  handoff stays focused on the single core-technology proof. A Round 2
+  core-technology proof overview summarizes that active target's readiness,
+  scoped evidence, persona breadth, missing capabilities, and next transition
+  recommendation in both the Workbench and Product Tournament Context. Scoped
+  Round 2 scenario evidence then drives the next tournament transition: advance
+  the contender to Round 3, mark the core technology for revision, or eliminate
+  the contender before adding prototype fidelity.
 - **Round 3: prototype.** Agentic users exercise low-medium fidelity product
   versions and evaluate workflow improvement, switching readiness, continued-use
   pull, and explicit price or sponsorship intent. Scoped prototype evidence can
@@ -163,10 +166,11 @@ best actionable Round 1 and Round 2 recommendations to stored tournament state.
 Plan and Reflect receive only a compact advisory summary:
 current tournament round, contender plans, Round 1 plan readiness and plan proof
 debt, focused Round 1 proof actions, buyer/sponsor signals, willingness-to-pay
-signals, Round 2 feasibility handoffs and evidence transitions, Round 3 prototype
-winner recommendations, latest evidence per active scenario, repeated objections,
-low-score clusters, verdict distribution, failures, current alternative
-comparisons, and generated-product willingness to pay or sponsor.
+signals, Round 2 feasibility handoffs, core-technology proof overview, and
+evidence transitions, Round 3 prototype winner recommendations, latest evidence
+per active scenario, repeated objections, low-score clusters, verdict
+distribution, failures, current alternative comparisons, and generated-product
+willingness to pay or sponsor.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 

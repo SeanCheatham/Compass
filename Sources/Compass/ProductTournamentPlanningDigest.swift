@@ -23,6 +23,10 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += tournamentLines(config: config, evidenceIndex: evidenceIndex)
     lines += roundTwoImplementationTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += feasibilityHandoffLines(config: config, evidenceIndex: evidenceIndex)
+    lines += ProductTournamentRoundTwoProofOverview.contextLines(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
     lines += roundEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += prototypeEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationCycleAuditLines(config: config)
