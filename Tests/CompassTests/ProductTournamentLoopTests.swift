@@ -3360,7 +3360,7 @@ struct ProductTournamentLoopTests {
     try #require(blockedStep.blockedReason?.contains("change the scenario") == true)
   }
 
-  @Test func tournamentAutomationRetargetsStalledActedProofGroup() throws {
+  @MainActor @Test func tournamentAutomationRetargetsStalledActedProofGroup() async throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Reporting work needs evidence.",
@@ -3373,24 +3373,23 @@ struct ProductTournamentLoopTests {
       config.tournamentExperiments[index].decision = .promoted
     }
     let experiment = config.tournamentExperiments[0]
+    let firstPassRecord = makeDecisionAdvisorRecord(
+      id: "first-pass",
+      experiment: experiment,
+      config: config,
+      personaID: config.userSegments[0].id,
+      endedAt: 30,
+      verdict: .promising,
+      scores: ProductTournamentEvidenceScores(
+        painRecognition: 4,
+        workflowImprovement: 4,
+        alternativeAdvantage: 3,
+        switchingReadiness: 3,
+        continuedUsePull: 3
+      )
+    )
     let evidenceIndex = ProductTournamentEvidenceIndex.build(
-      records: [
-        makeDecisionAdvisorRecord(
-          id: "first-pass",
-          experiment: experiment,
-          config: config,
-          personaID: config.userSegments[0].id,
-          endedAt: 30,
-          verdict: .promising,
-          scores: ProductTournamentEvidenceScores(
-            painRecognition: 4,
-            workflowImprovement: 4,
-            alternativeAdvantage: 3,
-            switchingReadiness: 3,
-            continuedUsePull: 3
-          )
-        )
-      ])
+      records: [firstPassRecord])
     let broadStep = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
         config: config,
@@ -3520,6 +3519,12 @@ struct ProductTournamentLoopTests {
       config: config,
       evidenceIndex: evidenceIndex
     )
+    let workbenchRevisionBrief = try #require(
+      try await productTournamentLoopWorkbenchRevisionBriefs(
+        for: config,
+        records: [firstPassRecord]
+      )
+      .first { $0.experimentID == experiment.id })
 
     try #require(stalledGroup.audit.id == "tournament-cycle-stalled-acted-group")
     try #require(stalledGroup.outcome.isStalledProofRun)
@@ -3542,6 +3547,10 @@ struct ProductTournamentLoopTests {
     try #require(revisionBrief.proofPlan.contains("stalled proof pressure"))
     try #require(revisionBrief.targetScenarioID == targetScenarioID)
     try #require(revisionBrief.auditSummary.contains("source acted_proof_group"))
+    try #require(revisionBrief.validationContextSummary == "Direct proof stall")
+    try #require(
+      revisionBrief.validationContextDetail?.contains(
+        "direct stalled proof pressure cleared") == true)
     try #require(
       facts.latestActedPressureGroupLearningSummary
         == "stalled Proof runs; next Retarget stalled proof group")
@@ -3557,6 +3566,11 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("Tournament automation revision briefs"))
     try #require(digest.contains("source acted_proof_group"))
     try #require(digest.contains("Retarget contender revision for stalled proof group"))
+    try #require(workbenchRevisionBrief.validationContextSummary == "Direct proof stall")
+    try #require(
+      workbenchRevisionBrief.validationContextDetail == revisionBrief.validationContextDetail)
+    try #require(workbenchRevisionBrief.displayDetail.contains("Validation:"))
+    try #require(workbenchRevisionBrief.displayDetail.contains("direct stalled proof pressure"))
   }
 
   @MainActor @Test func tournamentAutomationRetargetsRepeatedStillActedProofGroup() async throws {
@@ -3572,24 +3586,23 @@ struct ProductTournamentLoopTests {
       config.tournamentExperiments[index].decision = .promoted
     }
     let experiment = config.tournamentExperiments[0]
+    let firstPassRecord = makeDecisionAdvisorRecord(
+      id: "first-pass",
+      experiment: experiment,
+      config: config,
+      personaID: config.userSegments[0].id,
+      endedAt: 30,
+      verdict: .promising,
+      scores: ProductTournamentEvidenceScores(
+        painRecognition: 4,
+        workflowImprovement: 4,
+        alternativeAdvantage: 3,
+        switchingReadiness: 3,
+        continuedUsePull: 3
+      )
+    )
     let evidenceIndex = ProductTournamentEvidenceIndex.build(
-      records: [
-        makeDecisionAdvisorRecord(
-          id: "first-pass",
-          experiment: experiment,
-          config: config,
-          personaID: config.userSegments[0].id,
-          endedAt: 30,
-          verdict: .promising,
-          scores: ProductTournamentEvidenceScores(
-            painRecognition: 4,
-            workflowImprovement: 4,
-            alternativeAdvantage: 3,
-            switchingReadiness: 3,
-            continuedUsePull: 3
-          )
-        )
-      ])
+      records: [firstPassRecord])
     let broadStep = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
         config: config,
@@ -3710,7 +3723,12 @@ struct ProductTournamentLoopTests {
       config: config,
       evidenceIndex: evidenceIndex
     )
-    let workbenchBody = try await productTournamentLoopWorkbenchBody(for: config)
+    let workbenchRevisionBrief = try #require(
+      try await productTournamentLoopWorkbenchRevisionBriefs(
+        for: config,
+        records: [firstPassRecord]
+      )
+      .first { $0.experimentID == experiment.id })
 
     try #require(repeatedGroup.audit.id == "tournament-cycle-still-acted-group-b")
     try #require(repeatedGroup.outcome.isStillProofRun)
@@ -3734,6 +3752,11 @@ struct ProductTournamentLoopTests {
     try #require(revisionBrief.targetScenarioID == targetScenarioID)
     try #require(revisionBrief.auditSummary.contains("source acted_proof_group"))
     try #require(
+      revisionBrief.validationContextSummary == "Repeated still-present proof pressure")
+    try #require(
+      revisionBrief.validationContextDetail?.contains(
+        "repeated still-present proof pressure cleared") == true)
+    try #require(
       facts.latestActedPressureGroupLearningSummary
         == "repeated still-present Proof runs; 2 recent attempts; next Retarget repeated proof group"
     )
@@ -3752,8 +3775,13 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("Tournament automation revision briefs"))
     try #require(digest.contains("source acted_proof_group"))
     try #require(digest.contains("Retarget contender revision for repeated proof group"))
-    try #require(workbenchBody.contains("Group Learning"))
-    try #require(workbenchBody.contains("repeated still-present Proof runs"))
+    try #require(
+      workbenchRevisionBrief.validationContextSummary == revisionBrief.validationContextSummary)
+    try #require(
+      workbenchRevisionBrief.validationContextDetail == revisionBrief.validationContextDetail)
+    try #require(workbenchRevisionBrief.displayDetail.contains("Validation:"))
+    try #require(
+      workbenchRevisionBrief.displayDetail.contains("repeated still-present proof pressure"))
   }
 
   @Test func tournamentAutomationFallsBackWhenStalledProofDebtHasNoPersonaModelTarget() throws {
@@ -6092,17 +6120,24 @@ private func makeDecisionAdvisorRecord(
 }
 
 @MainActor
-private func productTournamentLoopWorkbenchBody(
-  for config: ProductTournamentConfig
-) async throws -> String {
+private func productTournamentLoopWorkbenchRevisionBriefs(
+  for config: ProductTournamentConfig,
+  records: [ProductTournamentEvidenceRecord] = []
+) async throws -> [TournamentAutomationRevisionBrief] {
   let root = try makeTempDir()
   defer { try? FileManager.default.removeItem(at: root) }
   try initGitRepo(at: root)
   let workspace = CompassWorkspace(repoURL: root)
   try workspace.initialize()
   try workspace.writeProductTournamentConfig(config)
+  for record in records {
+    _ = try workspace.writeProductTournamentEvidenceRecord(record)
+  }
 
   let project = CompassProject(repoURL: root)
   await project.refresh()
-  return String(reflecting: ProductTournamentWorkbenchTab(project: project).body)
+  return TournamentAutomationRevisionBriefAdvisor.briefs(
+    config: project.productTournamentConfig,
+    evidenceIndex: project.productTournamentEvidenceIndex
+  )
 }

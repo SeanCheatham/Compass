@@ -1746,10 +1746,30 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
       "Scenario: \(scenarioChange)",
       "Proof: \(proofPlan)",
     ]
+    if let validationContextDetail {
+      parts.append("Validation: \(validationContextDetail)")
+    }
     if let targetDecision {
       parts.append("Decision: \(targetDecision.rawValue)")
     }
     return parts.joined(separator: " ")
+  }
+
+  var validationContextSummary: String? {
+    guard source == .actedProofGroup else { return nil }
+    return isRepeatedActedProofGroup
+      ? "Repeated still-present proof pressure"
+      : "Direct proof stall"
+  }
+
+  var validationContextDetail: String? {
+    guard source == .actedProofGroup else { return nil }
+    if isRepeatedActedProofGroup {
+      return
+        "The generated validation scenario asks the simulated user whether repeated still-present proof pressure cleared, moved to a different proof bucket, or still blocks willingness to continue or pay."
+    }
+    return
+      "The generated validation scenario asks the simulated user whether the direct stalled proof pressure cleared, moved to a different proof bucket, or still blocks willingness to continue or pay."
   }
 
   var auditSummary: String {
@@ -1773,6 +1793,11 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
     parts.append("implementation \(implementationChange)")
     parts.append("proof \(proofPlan)")
     return StringUtils.boundedText(parts.joined(separator: "; "), limit: 700)
+  }
+
+  private var isRepeatedActedProofGroup: Bool {
+    let marker = "\(title) \(triggerSummary) \(implementationChange)".lowercased()
+    return marker.contains("repeated") || marker.contains("still-present")
   }
 
   init(

@@ -1932,6 +1932,10 @@ struct ProductTournamentWorkbenchTab: View {
           }
           WorkbenchFact(label: "Experiment", value: brief.experimentID)
           WorkbenchFact(label: "Source", value: brief.displaySubtitle)
+          if let validationContextSummary = brief.validationContextSummary {
+            WorkbenchFact(label: "Validation", value: validationContextSummary)
+              .help(brief.validationContextDetail ?? validationContextSummary)
+          }
           WorkbenchFact(label: "Implementation", value: brief.implementationChange)
           WorkbenchFact(label: "Scenario", value: brief.scenarioChange)
           WorkbenchFact(label: "Proof", value: brief.proofPlan)

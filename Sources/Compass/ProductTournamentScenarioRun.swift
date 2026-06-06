@@ -297,7 +297,7 @@ enum ProductTournamentScenarioCoordinator {
           "The simulated user can say whether the revision resolved the original rationale."
       )
     }
-    if isRepeatedActedProofGroupBrief(brief) {
+    if brief.validationContextSummary == "Repeated still-present proof pressure" {
       return (
         taskLead:
           "Revise the product contender for \(targetName) to validate repeated still-present proof pressure.",
@@ -311,14 +311,6 @@ enum ProductTournamentScenarioCoordinator {
       successSignalLead:
         "The simulated user can say whether the direct stalled proof pressure cleared, moved to a different proof bucket, or still blocks willingness to continue or pay."
     )
-  }
-
-  private static func isRepeatedActedProofGroupBrief(
-    _ brief: TournamentAutomationRevisionBrief
-  ) -> Bool {
-    let marker = "\(brief.title) \(brief.triggerSummary) \(brief.implementationChange)"
-      .lowercased()
-    return marker.contains("repeated") || marker.contains("still-present")
   }
 
   static func defaultDraft(

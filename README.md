@@ -162,8 +162,9 @@ and advances them through rounds:
   still-present proof-group learning into an `acted_proof_group` contender
   revision brief whose generated validation scenario tells simulated users
   whether they are testing a direct proof stall or repeated still-present proof
-  pressure, repeats that acted-outcome signal in Plan/Reflect prompt context,
-  feeds stalled or repeatedly still-present proof-run group outcomes back into
+  pressure, shows the same Validation label in the Workbench revision row,
+  repeats that acted-outcome signal in Plan/Reflect prompt context, feeds
+  stalled or repeatedly still-present proof-run group outcomes back into
   the next-action guard so the planner retargets the scenario, product
   revision, current-alternative proof, or proof bucket before repeating the same
   run, and sorts
