@@ -5,9 +5,19 @@ struct ProductTournamentPlanEvaluationOutcome {
   var roundID: String
   var records: [ProductTournamentPlanEvaluationRecord]
   var skippedContenderIDs: [String]
+  var targetedBuyerOrSponsorContenderIDs: [String]
 
   var completedEvaluationCount: Int {
     records.filter { $0.status == .completed }.count
+  }
+
+  var buyerOrSponsorEvaluationCount: Int {
+    records.filter {
+      ProductTournamentPlanPersonaSignals.isBuyerOrSponsor(
+        personaID: $0.personaID,
+        personaName: $0.personaName
+      )
+    }.count
   }
 
   var latestRecordID: String? {
@@ -19,7 +29,16 @@ struct ProductTournamentPlanEvaluationOutcome {
   }
 
   var userMessage: String {
-    "Round 1 plan evaluation recorded \(completedEvaluationCount) simulated-user evaluation(s) for \(records.map(\.contenderID).uniquedCount) contender(s), \(skippedContenderIDs.count) skipped."
+    var message =
+      "Round 1 plan evaluation recorded \(completedEvaluationCount) simulated-user evaluation(s) for \(records.map(\.contenderID).uniquedCount) contender(s), \(skippedContenderIDs.count) skipped."
+    if buyerOrSponsorEvaluationCount > 0 {
+      message += " Included \(buyerOrSponsorEvaluationCount) buyer/sponsor signal(s)."
+    }
+    if !targetedBuyerOrSponsorContenderIDs.isEmpty {
+      message +=
+        " Targeted buyer/sponsor proof for \(targetedBuyerOrSponsorContenderIDs.count) contender(s)."
+    }
+    return message
   }
 }
 
@@ -52,8 +71,61 @@ enum ProductTournamentPlanEvaluationError: LocalizedError, Equatable {
   }
 }
 
+enum ProductTournamentPlanPersonaSignals {
+  static func isBuyerOrSponsor(_ segment: UserSegment) -> Bool {
+    let identityText = [
+      segment.id,
+      segment.name,
+    ]
+    .joined(separator: " ")
+    .lowercased()
+    let contextText = [
+      segment.role,
+      segment.context,
+      segment.decisionCriteria.joined(separator: " "),
+      segment.goals.joined(separator: " "),
+    ]
+    .joined(separator: " ")
+    .lowercased()
+    return personaIdentityBuyerSponsorTokens.contains { identityText.contains($0) }
+      || segmentContextBuyerSponsorTokens.contains { contextText.contains($0) }
+  }
+
+  static func isBuyerOrSponsor(
+    personaID: String,
+    personaName: String
+  ) -> Bool {
+    let text = [
+      personaID,
+      personaName,
+    ]
+    .joined(separator: " ")
+    .lowercased()
+    return personaIdentityBuyerSponsorTokens.contains { text.contains($0) }
+  }
+
+  private static let personaIdentityBuyerSponsorTokens: [String] = [
+    "buyer",
+    "budget",
+    "sponsor",
+    "economic",
+    "pay",
+    "roi",
+  ]
+
+  private static let segmentContextBuyerSponsorTokens: [String] =
+    personaIdentityBuyerSponsorTokens + [
+      "approver",
+      "decision maker",
+      "decision-maker",
+      "finance",
+      "procurement",
+      "purchasing",
+    ]
+}
+
 enum ProductTournamentPlanEvaluator {
-  static let promptVersionID = "product_tournament.plan_evaluator.model_free.v1"
+  static let promptVersionID = "product_tournament.plan_evaluator.model_free.v2"
 
   static func runPlanRound(
     tournamentID: String,
@@ -69,8 +141,10 @@ enum ProductTournamentPlanEvaluator {
     }
     let round = try planRound(roundID: roundID, tournament: tournament, config: config)
     let contenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
+    let existingEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
     var records: [ProductTournamentPlanEvaluationRecord] = []
     var skippedContenderIDs: [String] = []
+    var targetedBuyerOrSponsorContenderIDs: [String] = []
 
     for contenderID in contenderIDs {
       guard let contender = config.tournamentContenders.first(where: { $0.id == contenderID })
@@ -86,8 +160,20 @@ enum ProductTournamentPlanEvaluator {
       }
       let solution = try solution(for: contender, config: config)
       let pain = try pain(for: solution, config: config)
-      let segments = targetSegments(for: contender, painID: pain.id, config: config)
-      for segment in segments {
+      let plan = evaluationPlan(
+        for: contender,
+        pain: pain,
+        tournament: tournament,
+        round: round,
+        config: config,
+        evidenceIndex: existingEvidenceIndex
+      )
+      if plan.targetedBuyerOrSponsorProof
+        && !targetedBuyerOrSponsorContenderIDs.contains(contender.id)
+      {
+        targetedBuyerOrSponsorContenderIDs.append(contender.id)
+      }
+      for segment in plan.segments {
         let workflow = currentWorkflow(for: segment, painID: pain.id, config: config)
         let alternative = currentAlternative(for: segment, painID: pain.id, config: config)
         let endedAt = Date().timeIntervalSince1970
@@ -117,8 +203,155 @@ enum ProductTournamentPlanEvaluator {
       tournamentID: tournament.id,
       roundID: round.id,
       records: records,
-      skippedContenderIDs: skippedContenderIDs
+      skippedContenderIDs: skippedContenderIDs,
+      targetedBuyerOrSponsorContenderIDs: targetedBuyerOrSponsorContenderIDs
     )
+  }
+
+  private static func evaluationPlan(
+    for contender: ProductTournamentContender,
+    pain: PainHypothesis,
+    tournament: ProductTournament,
+    round: ProductTournamentRound,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> (segments: [UserSegment], targetedBuyerOrSponsorProof: Bool) {
+    var baseSegments = targetSegments(for: contender, painID: pain.id, config: config)
+    if baseSegments.isEmpty {
+      baseSegments = [inferredOperatorSegment(pain: pain, config: config)]
+    }
+    let completedSummaries = evidenceIndex.planEvaluations(for: tournament, round: round)
+      .filter { $0.contenderID == contender.id && $0.isCompleted }
+    let proofDebt = ProductTournamentPlanReadiness(summaries: completedSummaries).planProofDebt
+    let evaluatedPersonaIDs = Set(completedSummaries.map(\.personaID).filter { !$0.isEmpty })
+    var segments = completedSummaries.isEmpty ? baseSegments : []
+    var targetedBuyerOrSponsorProof = false
+
+    if proofDebt.buyerOrSponsorDeficit > 0 {
+      if !segments.contains(where: ProductTournamentPlanPersonaSignals.isBuyerOrSponsor) {
+        appendUnique(
+          preferredBuyerOrSponsorSegment(
+            pain: pain,
+            config: config,
+            excluding: Set(segments.map(\.id)).union(evaluatedPersonaIDs)
+          ),
+          to: &segments
+        )
+      }
+      targetedBuyerOrSponsorProof = segments.contains(
+        where: ProductTournamentPlanPersonaSignals.isBuyerOrSponsor
+      )
+    }
+
+    if !completedSummaries.isEmpty
+      && (proofDebt.evaluationDeficit > 0 || proofDebt.personaDeficit > 0)
+    {
+      for segment in baseSegments where !evaluatedPersonaIDs.contains(segment.id) {
+        appendUnique(segment, to: &segments)
+      }
+    }
+
+    if segments.isEmpty {
+      segments = baseSegments
+    }
+    return (segments, targetedBuyerOrSponsorProof)
+  }
+
+  private static func preferredBuyerOrSponsorSegment(
+    pain: PainHypothesis,
+    config: ProductTournamentConfig,
+    excluding excludedIDs: Set<String>
+  ) -> UserSegment {
+    let buyerSegments = config.userSegments.filter {
+      $0.painID == pain.id && ProductTournamentPlanPersonaSignals.isBuyerOrSponsor($0)
+    }
+    if let segment = buyerSegments.first(where: { !excludedIDs.contains($0.id) }) {
+      return segment
+    }
+    if let segment = buyerSegments.first {
+      return segment
+    }
+    return inferredBuyerOrSponsorSegment(pain: pain, config: config)
+  }
+
+  private static func inferredBuyerOrSponsorSegment(
+    pain: PainHypothesis,
+    config: ProductTournamentConfig
+  ) -> UserSegment {
+    let workflowIDs = config.currentWorkflows
+      .filter { $0.painID == pain.id }
+      .prefix(1)
+      .map(\.id)
+    let alternativeIDs = config.alternatives
+      .filter { $0.painID == pain.id }
+      .prefix(2)
+      .map(\.id)
+    return UserSegment(
+      id: "\(pain.id)-economic-buyer",
+      painID: pain.id,
+      name: "Economic buyer",
+      role: "Economic buyer or sponsor",
+      context: "Evaluates whether the pain is expensive enough to fund a product bet.",
+      goals: [
+        "Understand the cost of the pain.",
+        "Decide whether the product plan is worth implementation spend.",
+      ],
+      constraints: [
+        "Needs credible ROI, risk reduction, or sponsorship evidence before paying."
+      ],
+      currentWorkflowIDs: Array(workflowIDs),
+      alternativeIDs: Array(alternativeIDs),
+      decisionCriteria: [
+        "Budget impact",
+        "Pain severity",
+        "Adoption risk",
+        "Evidence quality",
+      ],
+      skepticism:
+        "Will not sponsor implementation from operator enthusiasm without payment proof."
+    )
+  }
+
+  private static func inferredOperatorSegment(
+    pain: PainHypothesis,
+    config: ProductTournamentConfig
+  ) -> UserSegment {
+    let workflowIDs = config.currentWorkflows
+      .filter { $0.painID == pain.id }
+      .prefix(1)
+      .map(\.id)
+    let alternativeIDs = config.alternatives
+      .filter { $0.painID == pain.id }
+      .prefix(2)
+      .map(\.id)
+    return UserSegment(
+      id: "\(pain.id)-operator",
+      painID: pain.id,
+      name: "Hands-on operator",
+      role: "Primary user responsible for getting through the painful workflow",
+      context:
+        "Evaluates whether the product plan helps in the actual moment of work.",
+      goals: [
+        "Reduce the painful workflow step.",
+        "See a clearer next action than the current workaround.",
+      ],
+      constraints: [
+        "Has limited time to try new product ideas."
+      ],
+      currentWorkflowIDs: Array(workflowIDs),
+      alternativeIDs: Array(alternativeIDs),
+      decisionCriteria: [
+        "Less effort than the current workaround",
+        "Clear next action",
+        "Trustworthy workflow detail",
+      ],
+      skepticism: "Will reject a generic plan that does not fit the real workflow."
+    )
+  }
+
+  private static func appendUnique(_ segment: UserSegment, to segments: inout [UserSegment]) {
+    guard !segments.contains(where: { $0.id == segment.id }) else { return }
+    segments.append(segment)
   }
 
   private static func evaluate(

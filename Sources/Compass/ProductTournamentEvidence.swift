@@ -1947,18 +1947,10 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
   private static func isBuyerOrSponsorSignal(
     _ summary: ProductTournamentPlanEvaluationSummary
   ) -> Bool {
-    let text = [
-      summary.personaID,
-      summary.personaName,
-    ]
-    .joined(separator: " ")
-    .lowercased()
-    return text.contains("buyer")
-      || text.contains("budget")
-      || text.contains("sponsor")
-      || text.contains("economic")
-      || text.contains("pay")
-      || text.contains("roi")
+    ProductTournamentPlanPersonaSignals.isBuyerOrSponsor(
+      personaID: summary.personaID,
+      personaName: summary.personaName
+    )
   }
 
   private static func repeatedObjectionCount(

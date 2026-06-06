@@ -707,7 +707,9 @@ struct ProductTournamentWorkbenchTab: View {
               }
               .buttonStyle(.bordered)
               .disabled(!planEvaluationCanRun)
-              .help("Run model-free simulated-user evaluation for the plan-only round.")
+              .help(
+                "Run model-free simulated-user evaluation for the plan-only round. Missing buyer/sponsor proof is targeted automatically."
+              )
 
               Button {
                 Task { await applyPlanTransition() }

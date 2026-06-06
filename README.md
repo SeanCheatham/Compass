@@ -70,7 +70,9 @@ and advances them through rounds:
   two distinct personas, a buyer/sponsor signal, and a viable willingness-to-pay
   score. Compass only advances a contender to Round 2 when that debt is clear;
   otherwise it gathers more plan evidence, marks a plan for revision, or
-  eliminates a weak contender before implementation spend.
+  eliminates a weak contender before implementation spend. When buyer/sponsor
+  debt remains, Round 1 plan evaluation targets an economic-buyer simulated user
+  for that contender, even if the plan was originally aimed at an operator.
 - **Round 2: core technology.** Surviving contenders get the smallest technical
   proof that demonstrates the hard part can work. After Round 1 advances a
   contender, Compass emits a Round 2 feasibility handoff that names the narrowed
