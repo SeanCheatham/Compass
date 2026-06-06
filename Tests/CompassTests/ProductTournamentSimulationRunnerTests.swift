@@ -15,6 +15,9 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(result.isSuccess)
     try #require(result.mode == .modelFree)
     try #require(result.contenderID == request.contender.id)
+    let seededInput = request.experienceInput(actions: [])
+    try #require(seededInput.schemaVersion == 2)
+    try #require(seededInput.experiment.targetCommitSha == request.commitSha)
     try #require(
       result.actions.map(\.id) == [
         "inspect_pain",
@@ -25,8 +28,11 @@ struct ProductTournamentSimulationRunnerTests {
       ])
     try #require(result.experienceTraceHash != nil)
     try #require(result.tournamentTrace?.painReliefSignals.currentAlternativeAddressed == true)
+    try #require(result.tournamentTrace?.branchName == request.experiment.branchName)
+    try #require(result.tournamentTrace?.targetCommitSha == request.commitSha)
     try #require(appRunner.inputs.filter { $0.actions.count == 5 }.count == 3)
     try #require(appRunner.inputs.last?.contender.id == request.contender.id)
+    try #require(appRunner.inputs.last?.experiment.targetCommitSha == request.commitSha)
     let firstTranscriptEntry = try #require(result.rawPersonaActionTranscript.first)
     try #require(firstTranscriptEntry.experimentID == request.experiment.id)
     try #require(firstTranscriptEntry.branchName == request.experiment.branchName)
@@ -126,6 +132,7 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(inputIntent.targetDecision == .kill)
     try #require(inputIntent.directive.contains("should be killed"))
     try #require(inputIntent.scorecardFocus.contains("refusal to switch"))
+    try #require(appRunner.inputs.first?.experiment.targetCommitSha == request.commitSha)
     try #require(contextIntent.currentDecision == .keepGoing)
     try #require(contextIntent.targetDecision == .kill)
     try #require(contextIntent.scorecardFocus.contains("current alternative dominance"))
@@ -177,6 +184,8 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(invocation.executable == "/bin/zsh")
     let shell = try #require(invocation.arguments.last)
     try #require(shell.contains("cargo run -p app-cli -- product-tournament-experience --input"))
+    try #require(shell.contains(#""schemaVersion":2"#))
+    try #require(shell.contains(#""targetCommitSha":"abc123""#))
     try #require(shell.contains("weekly-reporting-takes-too-long-pain"))
   }
 
@@ -485,10 +494,12 @@ private func defaultTournamentTrace(
 
   let actionIDs = Set(input.actions.map(\.id))
   return ProductTournamentExperienceTrace(
-    schemaVersion: 1,
+    schemaVersion: 2,
     painID: input.pain.id,
     contenderID: input.contender.id,
     experimentID: input.experiment.id,
+    branchName: input.experiment.branchName,
+    targetCommitSha: input.experiment.targetCommitSha,
     initialState: tournamentState(id: "initial"),
     turns: input.actions.enumerated().map { index, action in
       ProductTournamentExperienceTurn(

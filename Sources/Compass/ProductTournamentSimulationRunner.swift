@@ -97,7 +97,7 @@ struct ProductTournamentSimulationRequest {
     -> ProductTournamentExperienceInput
   {
     ProductTournamentExperienceInput(
-      schemaVersion: 1,
+      schemaVersion: 2,
       pain: ProductTournamentExperiencePain(
         id: pain.id,
         summary: pain.rawPain,
@@ -111,6 +111,7 @@ struct ProductTournamentSimulationRequest {
       experiment: ProductTournamentExperienceExperiment(
         id: experiment.id,
         branchName: experiment.branchName,
+        targetCommitSha: commitSha,
         successSignal: scenarioSuccessSignal.isEmpty
           ? (contenderPlan.requiredProof.first ?? experiment.implementationScope)
           : scenarioSuccessSignal
@@ -1289,6 +1290,7 @@ struct ProductTournamentExperienceContender: Codable, Equatable, Sendable {
 struct ProductTournamentExperienceExperiment: Codable, Equatable, Sendable {
   var id: String
   var branchName: String
+  var targetCommitSha: String
   var successSignal: String
 }
 
@@ -1352,6 +1354,8 @@ struct ProductTournamentExperienceTrace: Codable, Equatable, Sendable {
   var painID: String
   var contenderID: String
   var experimentID: String
+  var branchName: String
+  var targetCommitSha: String
   var initialState: ProductTournamentExperienceState
   var turns: [ProductTournamentExperienceTurn]
   var allowedNextActions: [ProductTournamentExperienceAllowedAction]

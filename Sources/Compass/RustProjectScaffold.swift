@@ -208,8 +208,8 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     Tournament experiments use `run_product_tournament_experience(ProductTournamentExperienceInput) ->
     ProductTournamentExperienceTrace` as a semantic app journey. The input carries
-    the pain, contender, experiment, current workflow, alternatives, and tournament
-    decision intent being evaluated. The generated app owns the allowed action list for each state,
+    the pain, contender, experiment branch, target commit, current workflow,
+    alternatives, and tournament decision intent being evaluated. The generated app owns the allowed action list for each state,
     and `app-cli product-tournament-experience --input '<json>'` deterministically
     replays a supplied action prefix. Persona agents may choose only from the
     latest `allowedNextActions`; screenshots are optional supporting proof, not
@@ -241,7 +241,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     - Run CLI: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "status"]))`
     - Run simulation fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "simulate", "--input", #"{"seed":"demo","ticks":3,"action":"advance"}"#]))`
     - Run GUI replay fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "gui-replay", "--input", #"{"seed":"demo","steps":[{"action":"advance","ticks":2},{"action":"visual_input","value":"space"}]}"#]))`
-    - Run product tournament experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience", "--input", #"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"contender":{"id":"contender-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_contender_workflow","params":{}},{"id":"provide_requested_input","params":{}}]}"#]))`
+    - Run product tournament experience fixture: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience", "--input", #"{"schemaVersion":2,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"contender":{"id":"contender-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","targetCommitSha":"demo-target-commit","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_contender_workflow","params":{}},{"id":"provide_requested_input","params":{}}]}"#]))`
     - Print product tournament experience schema: `\(RustVerifyCommands.cargo(["run", "-p", "app-cli", "--", "product-tournament-experience-schema"]))`
     - Run desktop: `\(RustVerifyCommands.cargo(RustVerifyCommands.runDesktop))`
     - Fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
@@ -338,7 +338,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         "actions"
       ],
       "properties": {
-        "schemaVersion": { "type": "integer", "const": 1 },
+        "schemaVersion": { "type": "integer", "const": 2 },
         "pain": {
           "type": "object",
           "required": ["id", "summary", "impact"],
@@ -359,10 +359,11 @@ struct RustProjectScaffold: Equatable, Sendable {
         },
         "experiment": {
           "type": "object",
-          "required": ["id", "branchName", "successSignal"],
+          "required": ["id", "branchName", "targetCommitSha", "successSignal"],
           "properties": {
             "id": { "type": "string" },
             "branchName": { "type": "string" },
+            "targetCommitSha": { "type": "string" },
             "successSignal": { "type": "string" }
           }
         },
@@ -445,6 +446,8 @@ struct RustProjectScaffold: Equatable, Sendable {
         "painID",
         "contenderID",
         "experimentID",
+        "branchName",
+        "targetCommitSha",
         "initialState",
         "turns",
         "allowedNextActions",
@@ -453,10 +456,12 @@ struct RustProjectScaffold: Equatable, Sendable {
         "painReliefSignals"
       ],
       "properties": {
-        "schemaVersion": { "type": "integer", "const": 1 },
+        "schemaVersion": { "type": "integer", "const": 2 },
         "painID": { "type": "string" },
         "contenderID": { "type": "string" },
         "experimentID": { "type": "string" },
+        "branchName": { "type": "string" },
+        "targetCommitSha": { "type": "string" },
         "initialState": { "type": "object" },
         "turns": { "type": "array" },
         "allowedNextActions": { "type": "array" },
@@ -625,6 +630,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     pub struct ProductTournamentExperiment {
         pub id: String,
         pub branch_name: String,
+        pub target_commit_sha: String,
         pub success_signal: String,
     }
 
@@ -730,6 +736,8 @@ struct RustProjectScaffold: Equatable, Sendable {
         pub contender_id: String,
         #[serde(rename = "experimentID")]
         pub experiment_id: String,
+        pub branch_name: String,
+        pub target_commit_sha: String,
         pub initial_state: ProductTournamentExperienceState,
         pub turns: Vec<ProductTournamentExperienceTurn>,
         pub allowed_next_actions: Vec<ProductTournamentExperienceAllowedAction>,
@@ -867,7 +875,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     impl Default for ProductTournamentExperienceInput {
         fn default() -> Self {
             Self {
-                schema_version: 1,
+                schema_version: 2,
                 pain: ProductTournamentPain {
                     id: "pain-reporting".to_owned(),
                     summary: "Weekly reporting takes too long".to_owned(),
@@ -882,6 +890,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 experiment: ProductTournamentExperiment {
                     id: "experiment-reporting".to_owned(),
                     branch_name: "product-tournament/reporting".to_owned(),
+                    target_commit_sha: "demo-target-commit".to_owned(),
                     success_signal:
                         "Persona completes a report draft and sees why it beats the current workflow"
                             .to_owned(),
@@ -931,6 +940,8 @@ struct RustProjectScaffold: Equatable, Sendable {
                 format!("pain:{}", input.pain.id),
                 format!("contender:{}", input.contender.id),
                 format!("experiment:{}", input.experiment.id),
+                format!("branch:{}", input.experiment.branch_name),
+                format!("target_commit:{}", input.experiment.target_commit_sha),
                 format!("scenario_seed:{}", input.scenario.seed),
             ],
             pain_recognized: false,
@@ -976,10 +987,12 @@ struct RustProjectScaffold: Equatable, Sendable {
 
         let pain_relief_signals = pain_relief_signals(&runtime, &input);
         ProductTournamentExperienceTrace {
-            schema_version: 1,
+            schema_version: 2,
             pain_id: input.pain.id,
             contender_id: input.contender.id,
             experiment_id: input.experiment.id,
+            branch_name: input.experiment.branch_name,
+            target_commit_sha: input.experiment.target_commit_sha,
             initial_state,
             turns,
             allowed_next_actions: allowed_product_tournament_experience_actions(&runtime),
@@ -1015,6 +1028,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             ),
             vec![
                 format!("pain visible: {}", input.pain.summary),
+                format!("implementation target: {} @ {}", input.experiment.branch_name, input.experiment.target_commit_sha),
                 "contender workflow entry point visible".to_owned(),
                 format!("alternatives available: {}", input.alternatives.len()),
                 format!("decision intent: {decision_intent}"),
@@ -1553,7 +1567,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 "actions"
             ],
             "properties": {
-                "schemaVersion": { "type": "integer", "const": 1 },
+                "schemaVersion": { "type": "integer", "const": 2 },
                 "pain": {
                     "type": "object",
                     "required": ["id", "summary", "impact"],
@@ -1574,10 +1588,11 @@ struct RustProjectScaffold: Equatable, Sendable {
                 },
                 "experiment": {
                     "type": "object",
-                    "required": ["id", "branchName", "successSignal"],
+                    "required": ["id", "branchName", "targetCommitSha", "successSignal"],
                     "properties": {
                         "id": { "type": "string" },
                         "branchName": { "type": "string" },
+                        "targetCommitSha": { "type": "string" },
                         "successSignal": { "type": "string" }
                     }
                 },
@@ -1681,6 +1696,8 @@ struct RustProjectScaffold: Equatable, Sendable {
                 "painID",
                 "contenderID",
                 "experimentID",
+                "branchName",
+                "targetCommitSha",
                 "initialState",
                 "turns",
                 "allowedNextActions",
@@ -1689,10 +1706,12 @@ struct RustProjectScaffold: Equatable, Sendable {
                 "painReliefSignals"
             ],
             "properties": {
-                "schemaVersion": { "type": "integer", "const": 1 },
+                "schemaVersion": { "type": "integer", "const": 2 },
                 "painID": { "type": "string" },
                 "contenderID": { "type": "string" },
                 "experimentID": { "type": "string" },
+                "branchName": { "type": "string" },
+                "targetCommitSha": { "type": "string" },
                 "initialState": { "type": "object" },
                 "turns": { "type": "array" },
                 "allowedNextActions": { "type": "array" },
@@ -1738,7 +1757,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     pub fn product_tournament_experience_contract_schema() -> Value {
         json!({
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "input": product_tournament_experience_input_schema(),
             "trace": product_tournament_experience_trace_schema()
         })
@@ -1818,7 +1837,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     #[test]
     fn product_tournament_experience_fixture_replays_allowed_actions_deterministically() {
         let input = ProductTournamentExperienceInput {
-            schema_version: 1,
+            schema_version: 2,
             pain: ProductTournamentPain {
                 id: "pain-reporting".to_owned(),
                 summary: "Weekly reporting takes too long".to_owned(),
@@ -1832,6 +1851,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             experiment: ProductTournamentExperiment {
                 id: "experiment-reporting".to_owned(),
                 branch_name: "product-tournament/reporting".to_owned(),
+                target_commit_sha: "fixture-target-commit".to_owned(),
                 success_signal: "Persona completes a report draft".to_owned(),
             },
             scenario: ProductTournamentScenario {
@@ -1887,8 +1907,10 @@ struct RustProjectScaffold: Equatable, Sendable {
         let second = run_product_tournament_experience(input);
 
         assert_eq!(first, second);
-        assert_eq!(first.schema_version, 1);
+        assert_eq!(first.schema_version, 2);
         assert_eq!(first.pain_id, "pain-reporting");
+        assert_eq!(first.branch_name, "product-tournament/reporting");
+        assert_eq!(first.target_commit_sha, "fixture-target-commit");
         let action_ids: Vec<&str> = first
             .turns
             .iter()
@@ -2490,7 +2512,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             return Err("product tournament trace did not expose any initial allowed actions".into());
         }
 
-        let input = r#"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"contender":{"id":"contender-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_contender_workflow","params":{}},{"id":"provide_requested_input","params":{}}]}"#;
+        let input = r#"{"schemaVersion":2,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"contender":{"id":"contender-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","targetCommitSha":"demo-target-commit","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_contender_workflow","params":{}},{"id":"provide_requested_input","params":{}}]}"#;
         let first = run_capture(
             "cargo",
             &[

@@ -59,6 +59,7 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains("app-cli gui-replay --input"))
     try #require(readme.contains("Deterministic Product Tournament Experience Contract"))
     try #require(readme.contains("Tournament experiments use"))
+    try #require(readme.contains("target commit"))
     try #require(
       readme.contains("run_product_tournament_experience(ProductTournamentExperienceInput) ->"))
     try #require(readme.contains("app-cli product-tournament-experience --input"))
@@ -95,6 +96,14 @@ struct RustProjectScaffoldTests {
     let tests = try #require(
       RustProjectScaffold.files().first { $0.path == "crates/app-core/tests/state_tests.rs" }?
         .contents)
+    let inputSchema = try #require(
+      RustProjectScaffold.files().first {
+        $0.path == "schemas/product-tournament-experience-input.schema.json"
+      }?.contents)
+    let traceSchema = try #require(
+      RustProjectScaffold.files().first {
+        $0.path == "schemas/product-tournament-experience-trace.schema.json"
+      }?.contents)
 
     try #require(core.contains("pub struct SimulationInput"))
     try #require(core.contains("pub struct SimulationSnapshot"))
@@ -110,6 +119,7 @@ struct RustProjectScaffoldTests {
     try #require(!core.contains("ProductTournamentProductTournamentContenderPlan"))
     try #require(core.contains("pub contender: ProductTournamentContender"))
     try #require(core.contains("pub struct ProductTournamentExperiment"))
+    try #require(core.contains("pub target_commit_sha: String"))
     try #require(core.contains("pub struct ProductTournamentScenario"))
     try #require(core.contains("pub struct ProductTournamentCurrentWorkflow"))
     try #require(core.contains("pub struct ProductTournamentAlternative"))
@@ -123,6 +133,8 @@ struct RustProjectScaffoldTests {
     try #require(core.contains("pub struct ProductTournamentExperienceAllowedAction"))
     try #require(core.contains("pub struct ProductTournamentExperienceTrace"))
     try #require(core.contains(#"#[serde(rename = "contenderID")]"#))
+    try #require(core.contains("format!(\"target_commit:{}\""))
+    try #require(core.contains("target_commit_sha: input.experiment.target_commit_sha"))
     try #require(!core.contains(#"#[serde(rename = "contenderPlanID")]"#))
     try #require(!core.contains("product_hypothesis"))
     try #require(core.contains("pub struct PainReliefSignals"))
@@ -149,7 +161,15 @@ struct RustProjectScaffoldTests {
         "product_tournament_experience_fixture_replays_allowed_actions_deterministically"))
     try #require(tests.contains("provide_requested_input"))
     try #require(tests.contains("ProductTournamentExperienceTerminalStatus::Completed"))
+    try #require(tests.contains("schema_version: 2"))
+    try #require(tests.contains("target_commit_sha: \"fixture-target-commit\""))
+    try #require(tests.contains("assert_eq!(first.target_commit_sha, \"fixture-target-commit\")"))
     try #require(tests.contains("first.allowed_next_actions.is_empty()"))
+    try #require(inputSchema.contains(#""const": 2"#))
+    try #require(inputSchema.contains(#""targetCommitSha""#))
+    try #require(traceSchema.contains(#""const": 2"#))
+    try #require(traceSchema.contains(#""branchName""#))
+    try #require(traceSchema.contains(#""targetCommitSha""#))
   }
 
   @Test func desktopTemplateHasStableVisualVerificationLabels() throws {

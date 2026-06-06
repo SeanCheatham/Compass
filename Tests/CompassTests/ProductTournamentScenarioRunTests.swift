@@ -406,6 +406,7 @@ struct ProductTournamentScenarioRunTests {
     try #require(outcome.result.decisionIntent?.targetDecision == .promote)
     try #require(outcome.request.decisionIntent?.targetDecision == .promote)
     try #require(appRunner.inputs.first?.decisionIntent?.targetDecision == .promote)
+    try #require(appRunner.inputs.first?.experiment.targetCommitSha == head)
     try #require(outcome.userMessage.contains("Persona-model"))
     try #require(stored.mode == .personaModel)
     try #require(stored.decisionIntent?.targetDecision == .promote)
@@ -747,10 +748,12 @@ private func defaultScenarioTrace(
   }
   let actionIDs = Set(input.actions.map(\.id))
   return ProductTournamentExperienceTrace(
-    schemaVersion: 1,
+    schemaVersion: 2,
     painID: input.pain.id,
     contenderID: input.contender.id,
     experimentID: input.experiment.id,
+    branchName: input.experiment.branchName,
+    targetCommitSha: input.experiment.targetCommitSha,
     initialState: scenarioState(id: "initial"),
     turns: input.actions.enumerated().map { index, action in
       ProductTournamentExperienceTurn(
