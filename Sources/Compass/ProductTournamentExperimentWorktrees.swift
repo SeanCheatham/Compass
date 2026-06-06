@@ -242,12 +242,68 @@ extension CompassWorkspace {
       for: config.tournamentExperiments[index],
       in: self
     )
+    let previousCommit =
+      config.tournamentExperiments[index].currentSha
+      ?? config.tournamentExperiments[index].baseSha
+    let timestamp = Date().timeIntervalSince1970
     if config.tournamentExperiments[index].baseSha == nil {
       config.tournamentExperiments[index].baseSha = prepared.baseSha
     }
     config.tournamentExperiments[index].currentSha = prepared.currentSha
-    config.tournamentExperiments[index].updatedAt = Date().timeIntervalSince1970
+    config.tournamentExperiments[index].updatedAt = timestamp
+    config.refreshCandidateStarterScenarioTargets(
+      experimentID: experimentID,
+      previousCommit: previousCommit,
+      currentCommit: prepared.currentSha,
+      timestamp: timestamp
+    )
     try writeProductTournamentConfig(config)
     return prepared
+  }
+}
+
+private extension ProductTournamentConfig {
+  mutating func refreshCandidateStarterScenarioTargets(
+    experimentID: String,
+    previousCommit: String?,
+    currentCommit: String,
+    timestamp: Double
+  ) {
+    guard let currentCommit = normalizedCommit(currentCommit) else { return }
+    let candidateScenarioIDs = Set(
+      scenarioCohorts
+        .filter {
+          $0.experimentID == experimentID
+            && $0.tags.contains("discover")
+            && $0.tags.contains("candidate-implementation-track")
+        }
+        .flatMap(\.scenarioIDs)
+    )
+    guard !candidateScenarioIDs.isEmpty else { return }
+    let previousCommit = normalizedCommit(previousCommit)
+    for index in scenarios.indices {
+      guard scenarios[index].experimentID == experimentID,
+        candidateScenarioIDs.contains(scenarios[index].id),
+        shouldRefreshCandidateScenarioTarget(
+          scenarios[index].targetCommitSha,
+          previousCommit: previousCommit
+        )
+      else { continue }
+      scenarios[index].targetCommitSha = currentCommit
+      scenarios[index].updatedAt = timestamp
+    }
+  }
+
+  private func shouldRefreshCandidateScenarioTarget(
+    _ targetCommit: String?,
+    previousCommit: String?
+  ) -> Bool {
+    guard let targetCommit = normalizedCommit(targetCommit) else { return true }
+    return previousCommit.map { targetCommit == $0 } ?? false
+  }
+
+  private func normalizedCommit(_ commit: String?) -> String? {
+    let trimmed = commit?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return trimmed.isEmpty ? nil : trimmed
   }
 }

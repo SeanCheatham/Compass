@@ -163,8 +163,10 @@ starter scenario, starter scenario cohort, and built-product round cohort link
 when the Discover output is applied. Candidate-derived expected evidence and kill criteria are
 split back out in Round 2 handoffs, Product Tournament Context, and Workbench
 implementation-track rows so the next implementation slice is judged against the
-right simulated-user signal. The Tournament workbench lists pain hypotheses,
-contenders, rounds, implementation
+right simulated-user signal. When a candidate-derived implementation worktree is
+prepared or refreshed, Compass binds its starter scenario target to the current
+branch commit unless the scenario is pinned to a different commit. The
+Tournament workbench lists pain hypotheses, contenders, rounds, implementation
 tracks, selectable Round 1 plan evaluations with buyer objections and
 willingness-to-pay rationale, per-plan commercial proof, evaluation mode/model
 and prompt-version provenance, scenario runs, feedback scores, objections,

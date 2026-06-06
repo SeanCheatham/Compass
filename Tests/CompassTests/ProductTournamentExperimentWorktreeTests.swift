@@ -51,6 +51,125 @@ struct ProductTournamentExperimentWorktreeTests {
     )
   }
 
+  @Test func preparingWorktreeRefreshesCandidateStarterScenarioTargets() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try setupCommittedRepo(at: root)
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    try commitAll("Initialize Compass storage ignore", at: root)
+    var config = makeBranchingProductTournamentConfig()
+    config.scenarios = [
+      ProductScenario(
+        id: "scenario-candidate-starter",
+        experimentID: "experiment-command-board",
+        segmentID: "segment-incident-lead",
+        currentWorkflowID: "workflow-chat-triage",
+        alternativeID: "alternative-chat",
+        title: "Candidate starter",
+        task: "Try the candidate implementation.",
+        successSignal: "Lead gets a clearer update.",
+        targetCommitSha: nil,
+        createdAt: 1
+      ),
+      ProductScenario(
+        id: "scenario-explicit-target",
+        experimentID: "experiment-command-board",
+        segmentID: "segment-incident-lead",
+        currentWorkflowID: "workflow-chat-triage",
+        alternativeID: "alternative-chat",
+        title: "Explicit target",
+        task: "Try the explicit target.",
+        successSignal: "Explicit target stays pinned.",
+        targetCommitSha: "manual-target-sha",
+        createdAt: 1
+      ),
+      ProductScenario(
+        id: "scenario-workbench-draft",
+        experimentID: "experiment-command-board",
+        segmentID: "segment-incident-lead",
+        currentWorkflowID: "workflow-chat-triage",
+        alternativeID: "alternative-chat",
+        title: "Workbench draft",
+        task: "Try the manually drafted scenario.",
+        successSignal: "Manual draft remains unbound.",
+        targetCommitSha: nil,
+        createdAt: 1
+      ),
+    ]
+    config.scenarioCohorts = [
+      ProductScenarioCohort(
+        id: "cohort-candidate-starter",
+        title: "Candidate starter cohort",
+        experimentID: "experiment-command-board",
+        scenarioIDs: ["scenario-candidate-starter", "scenario-explicit-target"],
+        tags: ["discover", "candidate-implementation-track"]
+      ),
+      ProductScenarioCohort(
+        id: "cohort-workbench-draft",
+        title: "Workbench draft cohort",
+        experimentID: "experiment-command-board",
+        scenarioIDs: ["scenario-workbench-draft"],
+        tags: ["workbench"]
+      ),
+    ]
+    try workspace.writeProductTournamentConfig(config)
+    let initialMainSha = try await gitOutput(["rev-parse", "HEAD"], in: root)
+
+    let prepared = try await workspace.prepareProductTournamentExperimentWorktree(
+      experimentID: "experiment-command-board"
+    )
+    let firstSaved = try workspace.readProductTournamentConfig()
+    let firstStarter = try #require(
+      firstSaved.scenarios.first { $0.id == "scenario-candidate-starter" }
+    )
+    let firstExplicit = try #require(
+      firstSaved.scenarios.first { $0.id == "scenario-explicit-target" }
+    )
+    let firstWorkbenchDraft = try #require(
+      firstSaved.scenarios.first { $0.id == "scenario-workbench-draft" }
+    )
+
+    try #require(prepared.currentSha == initialMainSha)
+    try #require(firstStarter.targetCommitSha == initialMainSha)
+    try #require(firstExplicit.targetCommitSha == "manual-target-sha")
+    try #require(firstWorkbenchDraft.targetCommitSha == nil)
+
+    try writeFile(
+      "candidate-implementation.txt",
+      contents: "branch implementation\n",
+      at: prepared.worktreeURL
+    )
+    try await git(["add", "candidate-implementation.txt"], in: prepared.worktreeURL)
+    try await git(
+      [
+        "-c", "user.email=t@t",
+        "-c", "user.name=t",
+        "commit", "-q", "-m", "Candidate implementation",
+      ],
+      in: prepared.worktreeURL
+    )
+
+    let refreshed = try await workspace.prepareProductTournamentExperimentWorktree(
+      experimentID: "experiment-command-board"
+    )
+    let refreshedSaved = try workspace.readProductTournamentConfig()
+    let refreshedStarter = try #require(
+      refreshedSaved.scenarios.first { $0.id == "scenario-candidate-starter" }
+    )
+    let refreshedExplicit = try #require(
+      refreshedSaved.scenarios.first { $0.id == "scenario-explicit-target" }
+    )
+    let refreshedWorkbenchDraft = try #require(
+      refreshedSaved.scenarios.first { $0.id == "scenario-workbench-draft" }
+    )
+
+    try #require(refreshed.currentSha != initialMainSha)
+    try #require(refreshedStarter.targetCommitSha == refreshed.currentSha)
+    try #require(refreshedExplicit.targetCommitSha == "manual-target-sha")
+    try #require(refreshedWorkbenchDraft.targetCommitSha == nil)
+  }
+
   @Test func invalidTournamentExperimentBranchNameIsRejected() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
