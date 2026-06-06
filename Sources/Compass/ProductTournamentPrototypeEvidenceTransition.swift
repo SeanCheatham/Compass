@@ -599,7 +599,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     ]
     lines.append("\(currentAlternativeProofCount) run(s) compare against the current alternative.")
     lines.append(
-      "\(prototypeUseProofCount) run(s) completed the expected product-use trace before judging the prototype."
+      "\(prototypeUseProofCount) run(s) completed the expected tournament experience trace before judging the prototype."
     )
     if averageScore > 0 {
       lines.append(

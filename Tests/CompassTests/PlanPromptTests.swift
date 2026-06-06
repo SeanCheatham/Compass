@@ -313,6 +313,9 @@ struct PlanPromptTests {
     try #require(prompt.contains("copy the full current immediate"))
     try #require(prompt.contains("Do not include completed"))
     try #require(prompt.contains("product tournament evidence"))
+    try #require(prompt.contains("advisory tournament evidence"))
+    try #require(!prompt.contains("advisory product evidence"))
+    try #require(prompt.contains("tournament evidence and normal Verify"))
     try #require(prompt.contains("update tournament state"))
   }
 

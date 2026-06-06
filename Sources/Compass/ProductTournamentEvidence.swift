@@ -1180,7 +1180,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
         return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .supportsTarget,
           rationale:
-            "The run produced \(verdict.rawValue) evidence with weak product pull, supporting the targeted stop decision."
+            "The run produced \(verdict.rawValue) evidence with weak contender pull, supporting the targeted stop decision."
         )
       }
       if strongVerdict && !hasMissingCapabilities

@@ -94,8 +94,8 @@ extension Prompts {
       Preserve Compass's pivot: generated-output projects are Rust/Cargo only.
       Swift/TypeScript/JavaScript state is legacy imported-repo context unless
       the repository being reflected is Compass itself.
-      Treat product tournament evidence as advisory product evidence. Extract
-      durable product lessons only from repeated or clearly consequential
+      Treat product tournament evidence as advisory tournament evidence. Extract
+      durable tournament lessons only from repeated or clearly consequential
       findings, distinguish persona-specific objections from cross-cohort risks,
       and suggest pain, contender, round, experiment, or scenario edits only
       when the evidence supports them. Product risk should not automatically
@@ -104,7 +104,7 @@ extension Prompts {
       attention to repeated objections across scenarios, separate pain validity
       from contender validity, recommend eliminating contenders that repeatedly
       fail to beat current alternatives, and recommend promotion only when both
-      product evidence and normal Verify support it.
+      tournament evidence and normal Verify support it.
       When Product Tournament Context includes `round_2_evidence_lock`, treat
       `paused_sibling_experiments` as intentionally paused while the selected
       Round 2 contender proves core technology. Do not recommend planning

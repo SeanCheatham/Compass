@@ -550,7 +550,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     var lines = [
       "\(completedRunCount) completed of \(runCount) Round 2 run(s) across \(distinctPersonaCount) persona(s)."
     ]
-    lines.append("\(experienceUseProofCount) run(s) completed the expected product-use trace before judging feasibility.")
+    lines.append("\(experienceUseProofCount) run(s) completed the expected tournament experience trace before judging feasibility.")
     if averageScore > 0 {
       lines.append(
         "Average feasibility score \(format(averageScore))/5; readiness \(format(readinessScore))/100."

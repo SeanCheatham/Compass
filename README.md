@@ -166,14 +166,14 @@ and disable it once the contender is ready for the Round 2 feasibility transitio
 Tournament automation proof targets also surface those focused Round 1 actions
 with contender and round IDs, so Plan/Reflect can queue plan-only proof before a
 prototype or core-technology artifact exists. While the active tournament has no
-generated-product evidence yet, automation turns that target into a runnable
+tournament experience evidence yet, automation turns that target into a runnable
 `run_plan_proof` step that executes focused model-free plan evidence first, then
 prefers Foundation Models persona-model plan proof before Round 1 transition
 when the contender only has deterministic plan evaluations. Both write Round 1
 plan-evaluation evidence for that contender. Cycle audits report the before/after
 Round 1 plan-proof debt for automation steps directly, so a focused plan run
 shows whether it cleared buyer/sponsor, persona, evaluation, or
-willingness-to-pay debt before any generated-product evidence exists. Product
+willingness-to-pay debt before any tournament experience evidence exists. Product
 Tournament Context also includes recent Round 1 plan-proof automation deltas so
 Plan and Reflect can see the exact debt labels that changed after automation;
 matching context rows repeat the latest delta beside the plan-readiness state.
@@ -203,7 +203,7 @@ signals, persona-model/model-free plan evidence counts, Round 2 feasibility
 handoffs, core-technology proof overview, experience-use proof counts, evidence
 transitions, Round 3 prototype proof overview and winner recommendations, latest
 evidence per active scenario, repeated objections, low-score clusters, verdict
-distribution, failures, current alternative comparisons, and generated-product
+distribution, failures, current alternative comparisons, and tournament evidence-backed
 willingness to pay or sponsor.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.

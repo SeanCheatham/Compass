@@ -241,7 +241,7 @@ enum ProductExperimentRolloutWorkflow {
           "Archived \(experiment.title) while preserving branch \(experiment.branchName), worktree \(experiment.worktreeID), and evidence."
       }
       return
-        "Killed \(experiment.title) because the current product evidence does not justify continued investment."
+        "Killed \(experiment.title) because the current tournament evidence does not justify continued investment."
     }
   }
 }

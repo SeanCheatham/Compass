@@ -451,7 +451,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         alternativeID: manualAlternativeID,
         title: "\(title) evidence operator proof",
         task:
-          "Use the proof assistant during the current workflow and decide whether it makes product evidence easier to capture.",
+          "Use the proof assistant during the current workflow and decide whether it makes tournament evidence easier to capture.",
         successSignal:
           "The operator can capture reusable evidence with less rework than the manual workaround.",
         targetCommitSha: nil,

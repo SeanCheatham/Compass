@@ -952,7 +952,7 @@ struct TournamentAutomationRationaleSignal: Equatable, Sendable, Identifiable {
     )
     self.rationale = ProductTournamentModelText.cleanedText(
       rationale,
-      fallback: "Repeated AI-user rationale needs product proof.",
+      fallback: "Repeated AI-user rationale needs tournament experience proof.",
       limit: 260
     )
     self.count = max(0, count)
@@ -3314,7 +3314,7 @@ enum TournamentAutomationProofDebtSnapshotter {
     }
 
     if let readiness = evidenceIndex.currentTournamentReadiness(for: experiment) {
-      return generatedProductSnapshot(for: experiment, proofDebt: readiness.proofDebt)
+      return tournamentExperienceSnapshot(for: experiment, proofDebt: readiness.proofDebt)
     }
 
     if let target = TournamentAutomationProofTargetAdvisor.target(
@@ -3334,7 +3334,7 @@ enum TournamentAutomationProofDebtSnapshotter {
       return planSnapshot
     }
 
-    return generatedProductSnapshot(
+    return tournamentExperienceSnapshot(
       for: experiment,
       proofDebt: ProductTournamentProofDebt(
         completedRunCount: 0,
@@ -3346,7 +3346,7 @@ enum TournamentAutomationProofDebtSnapshotter {
     )
   }
 
-  private static func generatedProductSnapshot(
+  private static func tournamentExperienceSnapshot(
     for experiment: ProductExperiment,
     proofDebt: ProductTournamentProofDebt
   ) -> TournamentAutomationProofDebtSnapshot {
@@ -5096,7 +5096,7 @@ enum ProductTournamentNextActionAdvisor {
         kind: .refineContender,
         title: "Prepare a pivot",
         detail:
-          "Users recognize the pain, but current product pull is weak; reshape the hypothesis before more cohort runs.",
+          "Users recognize the pain, but current contender pull is weak; reshape the hypothesis before more cohort runs.",
         priority: 74
       )
     case .kill:
