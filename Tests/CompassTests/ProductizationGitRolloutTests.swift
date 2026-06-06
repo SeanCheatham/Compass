@@ -50,6 +50,7 @@ struct ProductizationGitRolloutTests {
     try #require(decision.beforeSha == baseSha)
     try #require(decision.afterSha == experimentSha)
     try #require(decision.evidenceRunIDs == ["rollout-run"])
+    try #require(decision.decidedBy == "Product Tournament Workbench")
   }
 
   @Test func mergePromotionRecordsMergeCommitWhenAcceptedBranchDiverged() async throws {
@@ -98,6 +99,7 @@ struct ProductizationGitRolloutTests {
     try #require(parents.count == 3)
     try #require(decision.beforeSha == acceptedBeforeSha)
     try #require(decision.afterSha == mergeSha)
+    try #require(decision.decidedBy == "Product Tournament Workbench")
   }
 
   @Test func promotionRejectsStaleExperimentShaAndLeavesAcceptedBranchUntouched() async throws {
@@ -205,6 +207,7 @@ struct ProductizationGitRolloutTests {
     try #require(decision.beforeSha == experimentSha)
     try #require(decision.afterSha == experimentSha)
     try #require(decision.evidenceRunIDs == ["rollout-run"])
+    try #require(decision.decidedBy == "Product Tournament Workbench")
   }
 }
 

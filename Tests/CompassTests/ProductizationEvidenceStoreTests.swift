@@ -817,7 +817,7 @@ struct ProductizationEvidenceStoreTests {
     try #require(
       try project.readProductTournamentPlanEvaluationRecord(id: "smoke-plan-eval")
         == storedPlanEvaluation)
-    let workbenchBody = String(reflecting: ProductizationWorkbenchTab(project: project).body)
+    let workbenchBody = String(reflecting: ProductTournamentWorkbenchTab(project: project).body)
 
     let prompt = try Prompts.planPrompt(
       state: .empty,

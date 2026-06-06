@@ -1071,7 +1071,7 @@ struct WorkspaceContent: View {
       case .lessons:
         LessonsTab(project: project)
       case .productization:
-        ProductizationWorkbenchTab(project: project)
+        ProductTournamentWorkbenchTab(project: project)
       case .world:
         WorldTab(
           repoURL: project.repoURL,

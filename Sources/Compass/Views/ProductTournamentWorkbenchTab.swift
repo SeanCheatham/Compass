@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct ProductizationWorkbenchTab: View {
+struct ProductTournamentWorkbenchTab: View {
   @ObservedObject var project: CompassProject
   @State private var selectedExperimentID: String?
   @State private var selectedRunID: String?

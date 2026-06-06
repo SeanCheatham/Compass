@@ -157,7 +157,7 @@ enum ProductExperimentRolloutWorkflow {
     to config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex,
     now: Date = Date(),
-    decidedBy: String = "Productization Workbench"
+    decidedBy: String = "Product Tournament Workbench"
   ) throws -> ProductizationConfig {
     var next = config
     guard let experimentIndex = next.experiments.firstIndex(where: { $0.id == experimentID })
@@ -321,7 +321,7 @@ enum ProductExperimentGitRolloutWorkflow {
     evidenceIndex: ProductizationEvidenceIndex,
     acceptedBranchName: String? = nil,
     now: Date = Date(),
-    decidedBy: String = "Productization Workbench"
+    decidedBy: String = "Product Tournament Workbench"
   ) async throws -> ProductExperimentGitRolloutResult {
     guard let experimentIndex = config.experiments.firstIndex(where: { $0.id == experimentID })
     else {
@@ -413,7 +413,7 @@ enum ProductExperimentGitRolloutWorkflow {
     evidenceIndex: ProductizationEvidenceIndex,
     acceptedBranchName: String? = nil,
     now: Date = Date(),
-    decidedBy: String = "Productization Workbench"
+    decidedBy: String = "Product Tournament Workbench"
   ) async throws -> ProductExperimentGitRolloutResult {
     guard CompassWorkspace.isGitRepository(repoURL) else {
       throw ProductExperimentGitRolloutError.missingGitRepository(repoURL)
