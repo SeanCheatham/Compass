@@ -870,6 +870,15 @@ struct ProductTournamentLoopTests {
     try #require(planProofDigest.contains("plan proof complete"))
     try #require(planProofDigest.contains(initialStep.id))
     try #require(planProofDigest.contains(executionOutcome.records[0].id))
+    let planProofContenderLine = try #require(
+      planProofDigest.split(separator: "\n").map(String.init).first {
+        $0.contains("Contender \(contender.id)")
+      })
+    try #require(
+      planProofContenderLine.contains("latest_plan_proof_delta proof_debt 6 -> 0 (-6)"))
+    try #require(planProofContenderLine.contains("audit \(planProofAudit.id)"))
+    try #require(planProofContenderLine.contains("starting \(experiment.id): contender \(contender.id)"))
+    try #require(planProofContenderLine.contains("ending \(experiment.id): contender \(contender.id)"))
 
     let operatorSegment = try #require(
       config.userSegments.first { $0.id == contender.targetSegmentIDs.first })

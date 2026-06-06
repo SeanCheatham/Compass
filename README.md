@@ -147,7 +147,8 @@ the before/after Round 1 plan-proof debt for those steps directly, so a focused
 plan run shows whether it cleared buyer/sponsor, persona, evaluation, or
 willingness-to-pay debt before any generated-product evidence exists. Product
 Tournament Context also includes recent Round 1 plan-proof automation deltas so
-Plan and Reflect can see the exact debt labels that changed after automation.
+Plan and Reflect can see the exact debt labels that changed after automation;
+matching contender rows repeat the latest delta beside the plan-readiness state.
 Later-round scenario evidence is stamped with tournament, round, and contender
 IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
 feedback remains comparable across tournament rounds. The workbench can apply the
