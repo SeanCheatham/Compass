@@ -1317,6 +1317,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
   var decisionCandidateSummaries: [String]
   var evidenceTensionSummaries: [String]
   var proofTargetSummaries: [String]
+  var actedProofPressureGroupSummaries: [String]
   var targetedProofOutcomeSummaries: [String]
   var personaRationaleSignalSummaries: [String]
   var revisionBriefSummaries: [String]
@@ -1369,6 +1370,10 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       proofTargetSummaries.isEmpty
       ? ""
       : "; targets \(proofTargetSummaries.prefix(3).joined(separator: " | "))"
+    let actedPressureGroups =
+      actedProofPressureGroupSummaries.isEmpty
+      ? ""
+      : "; pressure groups \(actedProofPressureGroupSummaries.prefix(3).joined(separator: " | "))"
     let targetedOutcomes =
       targetedProofOutcomeSummaries.isEmpty
       ? ""
@@ -1382,7 +1387,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       ? ""
       : "; revisions \(revisionBriefSummaries.prefix(3).joined(separator: " | "))"
     return
-      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill)\(roundTransitions)\(targetedProof)\(worktreePrep); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(planModes)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedOutcomes)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
+      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill)\(roundTransitions)\(targetedProof)\(worktreePrep); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(planModes)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(actedPressureGroups)\(targetedOutcomes)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
   }
 
   var planEvaluationModeContext: String? {
@@ -1444,6 +1449,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     decisionCandidateSummaries: [String] = [],
     evidenceTensionSummaries: [String] = [],
     proofTargetSummaries: [String] = [],
+    actedProofPressureGroupSummaries: [String] = [],
     targetedProofOutcomeSummaries: [String] = [],
     personaRationaleSignalSummaries: [String] = [],
     revisionBriefSummaries: [String] = [],
@@ -1502,6 +1508,10 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     )
     self.proofTargetSummaries = ProductTournamentModelText.cleanedList(
       proofTargetSummaries,
+      limit: 360
+    )
+    self.actedProofPressureGroupSummaries = ProductTournamentModelText.cleanedList(
+      actedProofPressureGroupSummaries,
       limit: 360
     )
     self.targetedProofOutcomeSummaries = ProductTournamentModelText.cleanedList(
@@ -1563,6 +1573,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     case decisionCandidateSummaries
     case evidenceTensionSummaries
     case proofTargetSummaries
+    case actedProofPressureGroupSummaries
     case targetedProofOutcomeSummaries
     case personaRationaleSignalSummaries
     case revisionBriefSummaries
@@ -1672,6 +1683,10 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       proofTargetSummaries: try container.decodeIfPresent(
         [String].self,
         forKey: .proofTargetSummaries
+      ) ?? [],
+      actedProofPressureGroupSummaries: try container.decodeIfPresent(
+        [String].self,
+        forKey: .actedProofPressureGroupSummaries
       ) ?? [],
       targetedProofOutcomeSummaries: try container.decodeIfPresent(
         [String].self,

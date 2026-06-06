@@ -250,6 +250,21 @@ struct TournamentAutomationProofTargetScoreboardReadinessGroup: Equatable, Senda
     return "\(bucket): none"
   }
 
+  func actionAuditSummary(
+    anchorRow: TournamentAutomationProofTargetScoreboardRow? = nil
+  ) -> String {
+    guard let row = anchorRow ?? primaryActionRow ?? primaryRow else {
+      return "pressure_group \(bucket); anchor none"
+    }
+    return [
+      "pressure_group \(bucket)",
+      "anchor \(StringUtils.boundedText(row.selectionID, limit: 220))",
+      "contender \(StringUtils.boundedText(row.contenderTitle, limit: 80))",
+      "status \(StringUtils.boundedText(row.nextStatusLabel, limit: 80))",
+      "next \(StringUtils.boundedText(row.nextStepSummary, limit: 120))",
+    ].joined(separator: "; ")
+  }
+
   var latestMovementRow: TournamentAutomationProofTargetScoreboardRow? {
     rows
       .compactMap { row -> (

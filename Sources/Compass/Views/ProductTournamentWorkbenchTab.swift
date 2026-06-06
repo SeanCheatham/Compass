@@ -1735,7 +1735,8 @@ struct ProductTournamentWorkbenchTab: View {
           Task {
             await runTournamentAutomationStep(
               actionStep,
-              groupAnchorRowID: actionRow.selectionID
+              groupAnchorRowID: actionRow.selectionID,
+              actedPressureGroupSummary: group.actionAuditSummary(anchorRow: actionRow)
             )
           }
         } label: {
@@ -3428,7 +3429,8 @@ struct ProductTournamentWorkbenchTab: View {
 
   private func runTournamentAutomationStep(
     _ explicitStep: TournamentAutomationStep? = nil,
-    groupAnchorRowID: String? = nil
+    groupAnchorRowID: String? = nil,
+    actedPressureGroupSummary: String? = nil
   ) async {
     guard let step = explicitStep ?? tournamentAutomationStep, step.canExecute else { return }
     selectedProofScoreboardGroupAnchorRowID = groupAnchorRowID
@@ -3518,6 +3520,7 @@ struct ProductTournamentWorkbenchTab: View {
       decisionCandidateSummaries: decisionCandidateSummaries,
       evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,
+      actedProofPressureGroupSummaries: actedPressureGroupSummary.map { [$0] } ?? [],
       targetedProofOutcomeSummaries: targetedProofOutcomeSummaries,
       personaRationaleSignalSummaries: personaRationaleSignalSummaries,
       revisionBriefSummaries: revisionBriefSummaries

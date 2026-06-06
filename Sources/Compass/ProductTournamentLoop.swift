@@ -3398,6 +3398,7 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
   var decisionCandidateSummaries: [String]
   var evidenceTensionSummaries: [String]
   var proofTargetSummaries: [String]
+  var actedProofPressureGroupSummaries: [String]
   var targetedProofOutcomeSummaries: [String]
   var personaRationaleSignalSummaries: [String]
   var revisionBriefSummaries: [String]
@@ -3423,6 +3424,7 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
     decisionCandidateSummaries: [String] = [],
     evidenceTensionSummaries: [String] = [],
     proofTargetSummaries: [String] = [],
+    actedProofPressureGroupSummaries: [String] = [],
     targetedProofOutcomeSummaries: [String] = [],
     personaRationaleSignalSummaries: [String] = [],
     revisionBriefSummaries: [String] = []
@@ -3467,6 +3469,10 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
     )
     self.proofTargetSummaries = ProductTournamentModelText.cleanedList(
       proofTargetSummaries,
+      limit: 360
+    )
+    self.actedProofPressureGroupSummaries = ProductTournamentModelText.cleanedList(
+      actedProofPressureGroupSummaries,
       limit: 360
     )
     self.targetedProofOutcomeSummaries = ProductTournamentModelText.cleanedList(
@@ -3559,6 +3565,9 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
     if let proofTargetMessage {
       parts.append(proofTargetMessage)
     }
+    if let actedPressureGroupMessage {
+      parts.append(actedPressureGroupMessage)
+    }
     if let targetedProofOutcomeMessage {
       parts.append(targetedProofOutcomeMessage)
     }
@@ -3647,6 +3656,7 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
       decisionCandidateSummaries: decisionCandidateSummaries,
       evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,
+      actedProofPressureGroupSummaries: actedProofPressureGroupSummaries,
       targetedProofOutcomeSummaries: targetedProofOutcomeSummaries,
       personaRationaleSignalSummaries: personaRationaleSignalSummaries,
       revisionBriefSummaries: revisionBriefSummaries,
@@ -3701,6 +3711,12 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
     guard !proofTargetSummaries.isEmpty else { return nil }
     let targets = proofTargetSummaries.prefix(3).joined(separator: " | ")
     return "Proof targets: \(StringUtils.boundedText(targets, limit: 360))."
+  }
+
+  private var actedPressureGroupMessage: String? {
+    guard !actedProofPressureGroupSummaries.isEmpty else { return nil }
+    let groups = actedProofPressureGroupSummaries.prefix(3).joined(separator: " | ")
+    return "Acted pressure groups: \(StringUtils.boundedText(groups, limit: 360))."
   }
 
   private var targetedProofOutcomeMessage: String? {

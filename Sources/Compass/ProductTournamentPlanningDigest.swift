@@ -823,6 +823,12 @@ enum ProductTournamentPlanningDigestFormatter {
           audit.proofTargetSummaries.isEmpty
           ? ""
           : "; proof targets \(bounded(proofTargetList, 260))"
+        let actedPressureGroupList = audit.actedProofPressureGroupSummaries.prefix(3)
+          .joined(separator: " | ")
+        let actedPressureGroups =
+          audit.actedProofPressureGroupSummaries.isEmpty
+          ? ""
+          : "; acted pressure groups \(bounded(actedPressureGroupList, 260))"
         let targetedProofOutcomeList = audit.targetedProofOutcomeSummaries.prefix(3)
           .joined(separator: " | ")
         let targetedProofOutcomes =
@@ -844,7 +850,7 @@ enum ProductTournamentPlanningDigestFormatter {
         let planModes = audit.planEvaluationModeContext.map { "; \($0)" } ?? ""
         return
           "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(planModes)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedProofOutcomes)\(rationaleSignals)\(revisionBriefs)"
-          + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
+          + "\(actedPressureGroups); stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
   }
 

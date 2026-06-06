@@ -3608,7 +3608,10 @@ struct ProductTournamentLoopTests {
       maxSteps: 3,
       stopReason: .noExecutableStep,
       evidenceRunIDs: ["ai-validation-run"],
-      completedEvidenceRunCount: 1
+      completedEvidenceRunCount: 1,
+      actedProofPressureGroupSummaries: [
+        "pressure_group Proof runs; anchor round-1:\(step.experimentID):buyer; contender Continue; status More proof; next Ready: Run Plan Proof"
+      ]
     )
     let audit = outcome.audit(
       startedAt: Date(timeIntervalSince1970: 330),
@@ -3627,19 +3630,28 @@ struct ProductTournamentLoopTests {
       outcome.userMessage.contains("0 tournament decision(s) applied (0 promote, 0 kill)"))
     try #require(outcome.userMessage.contains("targeted proof 1 promote, 0 kill"))
     try #require(outcome.userMessage.contains("1 evidence step(s)"))
+    try #require(outcome.userMessage.contains("Acted pressure groups:"))
+    try #require(outcome.userMessage.contains("pressure_group Proof runs"))
     try #require(audit.appliedDecisionCount == 0)
     try #require(audit.promotedDecisionCount == 0)
     try #require(audit.killedDecisionCount == 0)
     try #require(audit.targetedPromoteProofCount == 1)
     try #require(audit.targetedKillProofCount == 0)
     try #require(audit.evidenceRunStepCount == 1)
+    try #require(audit.actedProofPressureGroupSummaries.count == 1)
+    try #require(audit.actedProofPressureGroupSummaries[0].contains("pressure_group Proof runs"))
     try #require(audit.userMessage.contains("targeted proof 1 promote, 0 kill"))
+    try #require(audit.userMessage.contains("Acted pressure groups:"))
     try #require(audit.summary.contains("targeted proof 1 promote, 0 kill"))
+    try #require(audit.summary.contains("pressure groups"))
+    try #require(audit.summary.contains("pressure_group Proof runs"))
     let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: config.recordingTournamentAutomationCycleAudit(audit),
       evidenceIndex: index
     )
     try #require(digest.contains("targeted proof 1 promote, 0 kill"))
+    try #require(digest.contains("acted pressure groups"))
+    try #require(digest.contains("pressure_group Proof runs"))
   }
 
   @Test func tournamentAutomationCycleOutcomeCountsPrepareWorktreeSeparatelyFromEvidence() throws {

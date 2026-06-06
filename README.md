@@ -154,9 +154,10 @@ and advances them through rounds:
   each pressure group a first-row action for running or selecting that bucket,
   surfaces the group's latest audited proof-debt movement in the header, keeps a
   selected-group marker on the acted-on row even if it moves into a new pressure
-  bucket, and sorts transition/decision/revision/worktree-ready contenders above
-  ordinary proof gathering so operators can see when a contender has moved out
-  of evidence collection before opening the detail. After a proof action
+  bucket, records acted pressure-group context in the audit trail for
+  Plan/Reflect, and sorts transition/decision/revision/worktree-ready contenders
+  above ordinary proof gathering so operators can see when a contender has moved
+  out of evidence collection before opening the detail. After a proof action
   completes, the Workbench resolves the new audit back to the affected
   scoreboard contender and selects the matching scenario evidence run or Round 1
   plan-evaluation outcome when the evidence index knows it; selecting a
