@@ -140,9 +140,9 @@ enum ProductTournamentPlanningDigestFormatter {
         }
         let planEvidenceBase =
           planReadiness.map {
-            "plan_readiness \($0.scoreLabel)/100, recommendation \($0.recommendation.rawValue), willingness_to_pay \(bounded(formatScore($0.averageWillingnessToPayScore), 20))/5, commercial_proof \($0.commercialProofSummary), buyer_sponsor_signals \($0.buyerOrSponsorPersonaCount), plan_proof_debt \($0.planProofDebt.summary), next_plan_proof \($0.nextProofTargetSummary), focused_plan_proof_action \($0.planProofDebt.focusedActionTitle)"
+            "plan_readiness \($0.scoreLabel)/100, recommendation \($0.recommendation.rawValue), willingness_to_pay \(bounded(formatScore($0.averageWillingnessToPayScore), 20))/5, commercial_proof \($0.commercialProofSummary), buyer_sponsor_signals \($0.buyerOrSponsorPersonaCount), plan_modes persona_model \($0.personaModelEvaluationCount) model_free \($0.modelFreeEvaluationCount), plan_proof_debt \($0.planProofDebt.summary), next_plan_proof \($0.nextProofTargetSummary), focused_plan_proof_action \($0.planProofDebt.focusedActionTitle)"
           }
-          ?? "no plan evidence, commercial_proof no willingness-to-pay proof yet, next_plan_proof operator and economic-buyer plan evaluations, focused_plan_proof_action Run Plan Proof"
+          ?? "no plan evidence, commercial_proof no willingness-to-pay proof yet, plan_modes persona_model 0 model_free 0, next_plan_proof operator and economic-buyer plan evaluations, focused_plan_proof_action Run Plan Proof"
         let planEvidence = [
           planEvidenceBase,
           TournamentAutomationPlanProofAuditDeltaFinder

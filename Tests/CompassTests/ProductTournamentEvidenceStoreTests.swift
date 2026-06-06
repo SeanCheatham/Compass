@@ -856,6 +856,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(prompt.contains(config.experiments[0].branchName))
     try #require(prompt.contains("csv_import"))
     try #require(prompt.contains("completed_use_proof yes"))
+    try #require(prompt.contains("plan_modes persona_model 0 model_free 1"))
     try #require(!prompt.contains("persona transcript should stay out of prompts"))
 
     await project.applyProductExperimentRolloutAction(

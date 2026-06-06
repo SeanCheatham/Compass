@@ -1690,6 +1690,8 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
   var roundID: String
   var evaluationCount: Int
   var completedEvaluationCount: Int
+  var personaModelEvaluationCount: Int
+  var modelFreeEvaluationCount: Int
   var distinctPersonaCount: Int
   var buyerOrSponsorPersonaCount: Int
   var latestEvaluationID: String?
@@ -1728,6 +1730,8 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     roundID: String,
     evaluationCount: Int,
     completedEvaluationCount: Int,
+    personaModelEvaluationCount: Int = 0,
+    modelFreeEvaluationCount: Int = 0,
     distinctPersonaCount: Int,
     buyerOrSponsorPersonaCount: Int,
     latestEvaluationID: String?,
@@ -1753,6 +1757,8 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     self.roundID = ProductTournamentEvidenceRecord.cleanedIdentifier(roundID, fallback: "round")
     self.evaluationCount = max(0, evaluationCount)
     self.completedEvaluationCount = max(0, completedEvaluationCount)
+    self.personaModelEvaluationCount = max(0, personaModelEvaluationCount)
+    self.modelFreeEvaluationCount = max(0, modelFreeEvaluationCount)
     self.distinctPersonaCount = max(0, distinctPersonaCount)
     self.buyerOrSponsorPersonaCount = max(0, buyerOrSponsorPersonaCount)
     self.latestEvaluationID = ProductTournamentEvidenceRecord.optionalBounded(
@@ -1787,6 +1793,8 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     case roundID
     case evaluationCount
     case completedEvaluationCount
+    case personaModelEvaluationCount
+    case modelFreeEvaluationCount
     case distinctPersonaCount
     case buyerOrSponsorPersonaCount
     case latestEvaluationID
@@ -1818,6 +1826,14 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
       roundID: try container.decode(String.self, forKey: .roundID),
       evaluationCount: try container.decodeIfPresent(Int.self, forKey: .evaluationCount) ?? 0,
       completedEvaluationCount: completedEvaluationCount,
+      personaModelEvaluationCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .personaModelEvaluationCount
+      ) ?? 0,
+      modelFreeEvaluationCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .modelFreeEvaluationCount
+      ) ?? 0,
       distinctPersonaCount: distinctPersonaCount,
       buyerOrSponsorPersonaCount: buyerOrSponsorPersonaCount,
       latestEvaluationID: try container.decodeIfPresent(String.self, forKey: .latestEvaluationID),
@@ -1855,6 +1871,8 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
       return lhs.endedAt > rhs.endedAt
     }
     let completed = summaries.filter(\.isCompleted)
+    let personaModelEvaluationCount = completed.filter { $0.mode == .personaModel }.count
+    let modelFreeEvaluationCount = completed.filter { $0.mode == .modelFree }.count
     let personaCount = Set(completed.map(\.personaID).filter { !$0.isEmpty }).count
     let scoreValues = completed.flatMap { summary in
       [
@@ -1903,6 +1921,8 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
       roundID: summaries.first?.roundID ?? "round",
       evaluationCount: summaries.count,
       completedEvaluationCount: completed.count,
+      personaModelEvaluationCount: personaModelEvaluationCount,
+      modelFreeEvaluationCount: modelFreeEvaluationCount,
       distinctPersonaCount: personaCount,
       buyerOrSponsorPersonaCount: buyerOrSponsorPersonaCount,
       latestEvaluationID: summaries.first?.evaluationID,
@@ -1921,6 +1941,8 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
         averageWillingnessToPayScore: averageWillingness,
         distinctPersonaCount: personaCount,
         buyerOrSponsorPersonaCount: buyerOrSponsorPersonaCount,
+        personaModelEvaluationCount: personaModelEvaluationCount,
+        modelFreeEvaluationCount: modelFreeEvaluationCount,
         estimatedMonthlyPriceCents: estimatedMonthlyPriceCents,
         planProofDebt: planProofDebt,
         recommendation: recommendation
@@ -2002,6 +2024,8 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     averageWillingnessToPayScore: Double,
     distinctPersonaCount: Int,
     buyerOrSponsorPersonaCount: Int,
+    personaModelEvaluationCount: Int,
+    modelFreeEvaluationCount: Int,
     estimatedMonthlyPriceCents: Int?,
     planProofDebt: ProductTournamentPlanProofDebt,
     recommendation: ProductTournamentPlanRecommendation
@@ -2017,6 +2041,9 @@ struct ProductTournamentPlanReadiness: Codable, Equatable, Identifiable, Sendabl
     if averageWillingnessToPayScore > 0 {
       lines.append("Average willingness to pay \(Self.format(averageWillingnessToPayScore))/5.")
     }
+    lines.append(
+      "\(personaModelEvaluationCount) persona-model and \(modelFreeEvaluationCount) model-free plan evaluation(s)."
+    )
     lines.append("\(buyerOrSponsorPersonaCount) buyer/sponsor simulated-user signal(s).")
     let commercialProof = Self.commercialProofSummary(
       completedEvaluationCount: completed.count,

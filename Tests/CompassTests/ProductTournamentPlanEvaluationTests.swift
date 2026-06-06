@@ -49,6 +49,10 @@ struct ProductTournamentPlanEvaluationTests {
     try #require(index.aggregate.planReadinessByContender.count == 2)
     try #require(
       index.aggregate.planReadinessByContender.allSatisfy {
+        $0.personaModelEvaluationCount == 0 && $0.modelFreeEvaluationCount == 2
+      })
+    try #require(
+      index.aggregate.planReadinessByContender.allSatisfy {
         $0.buyerOrSponsorPersonaCount == 1 && $0.planProofDebt.buyerOrSponsorDeficit == 0
       })
     try #require(
@@ -63,6 +67,7 @@ struct ProductTournamentPlanEvaluationTests {
     try #require(digest.contains("willingness_to_pay"))
     try #require(digest.contains("commercial_proof"))
     try #require(digest.contains("buyer_sponsor_signals"))
+    try #require(digest.contains("plan_modes persona_model 0 model_free 2"))
     try #require(digest.contains("plan_proof_debt"))
     try #require(digest.contains("next_plan_proof"))
     try #require(digest.contains("focused_plan_proof_action"))
@@ -180,8 +185,15 @@ struct ProductTournamentPlanEvaluationTests {
     let index = workspace.readProductTournamentEvidenceIndex()
     try #require(index.planEvaluationSummaries.count == 2)
     try #require(index.planEvaluationSummaries.allSatisfy { $0.mode == .personaModel })
-    try #require(
-      index.aggregate.planReadinessByContender.first?.averageWillingnessToPayScore == 5)
+    let readiness = try #require(index.aggregate.planReadinessByContender.first)
+    try #require(readiness.averageWillingnessToPayScore == 5)
+    try #require(readiness.personaModelEvaluationCount == 2)
+    try #require(readiness.modelFreeEvaluationCount == 0)
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: try workspace.readProductTournamentConfig(),
+      evidenceIndex: index
+    )
+    try #require(digest.contains("plan_modes persona_model 2 model_free 0"))
   }
 
   @Test func personaModelRoundOneRejectsMalformedResponsesWithoutWritingEvidence() async throws {

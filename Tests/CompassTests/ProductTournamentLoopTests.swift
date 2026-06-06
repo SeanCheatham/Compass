@@ -806,6 +806,7 @@ struct ProductTournamentLoopTests {
     try #require(startingProofDebtSnapshot.summary.contains("buyer/sponsor signal"))
     try #require(startingProofDebtSnapshot.summary.contains("willingness to pay"))
     try #require(initialDigest.contains("Tournament automation proof targets"))
+    try #require(initialDigest.contains("plan_modes persona_model 0 model_free 0"))
     try #require(initialDigest.contains("target Run Plan Proof"))
     try #require(initialDigest.contains("kind run_plan_proof"))
     try #require(initialDigest.contains("mode model_free_plan"))

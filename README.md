@@ -197,11 +197,12 @@ proof.
 Plan and Reflect receive only a compact advisory summary:
 current tournament round, contender plans, Round 1 plan readiness and plan proof
 debt, focused Round 1 proof actions, buyer/sponsor signals, willingness-to-pay
-signals, Round 2 feasibility handoffs, core-technology proof overview,
-experience-use proof counts, evidence transitions, Round 3 prototype proof
-overview and winner recommendations, latest evidence per active scenario,
-repeated objections, low-score clusters, verdict distribution, failures, current
-alternative comparisons, and generated-product willingness to pay or sponsor.
+signals, persona-model/model-free plan evidence counts, Round 2 feasibility
+handoffs, core-technology proof overview, experience-use proof counts, evidence
+transitions, Round 3 prototype proof overview and winner recommendations, latest
+evidence per active scenario, repeated objections, low-score clusters, verdict
+distribution, failures, current alternative comparisons, and generated-product
+willingness to pay or sponsor.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 

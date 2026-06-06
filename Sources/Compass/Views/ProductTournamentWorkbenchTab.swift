@@ -1101,6 +1101,11 @@ struct ProductTournamentWorkbenchTab: View {
         WorkbenchFact(label: "Commercial proof", value: planReadiness.commercialProofSummary)
         WorkbenchFact(label: "Next proof", value: nextProofTarget)
         WorkbenchFact(
+          label: "Plan modes",
+          value:
+            "persona-model \(planReadiness.personaModelEvaluationCount), model-free \(planReadiness.modelFreeEvaluationCount)"
+        )
+        WorkbenchFact(
           label: "Buyer signals",
           value: "\(planReadiness.buyerOrSponsorPersonaCount)"
         )
