@@ -7,6 +7,7 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var selectedRunID: String?
   @State private var selectedRecord: ProductTournamentEvidenceRecord?
   @State private var recordError: String?
+  @State private var selectedProofScoreboardRowID: String?
   @State private var selectedPlanEvaluationID: String?
   @State private var selectedPlanEvaluationRecord: ProductTournamentPlanEvaluationRecord?
   @State private var planEvaluationRecordError: String?
@@ -547,6 +548,13 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
+  private var selectedProofScoreboardRow: TournamentAutomationProofTargetScoreboardRow? {
+    guard let selectedProofScoreboardRowID else { return nil }
+    return tournamentAutomationProofTargetScoreboard
+      .flatMap(\.rows)
+      .first { $0.selectionID == selectedProofScoreboardRowID }
+  }
+
   private var tournamentAutomationCohortMode: ProductTournamentSimulationMode {
     tournamentAutomationStep?.action.requiredSimulationMode
       ?? TournamentAutomationPlanner.cohortSimulationMode(
@@ -610,9 +618,20 @@ struct ProductTournamentWorkbenchTab: View {
       loadSelectedPlanEvaluationRecord()
     }
     .onChange(of: selectedExperimentID) { _, _ in
-      selectedRunID = runsForSelectedExperiment.first?.runID
+      if selectedProofScoreboardRow?.experimentID != selectedExperimentID {
+        selectedProofScoreboardRowID = nil
+      }
+      if selectedRunID == nil
+        || !runsForSelectedExperiment.contains(where: { $0.runID == selectedRunID })
+      {
+        selectedRunID = runsForSelectedExperiment.first?.runID
+      }
       loadSelectedRecord()
-      selectedScenarioID = scenariosForSelectedExperiment.first?.id
+      if selectedScenarioID == nil
+        || !scenariosForSelectedExperiment.contains(where: { $0.id == selectedScenarioID })
+      {
+        selectedScenarioID = scenariosForSelectedExperiment.first?.id
+      }
       loadScenarioDraft()
       scenarioRunMessage = nil
       Task { await loadGitPreview() }
@@ -1598,11 +1617,27 @@ struct ProductTournamentWorkbenchTab: View {
         .help(item.topActionDetail)
       WorkbenchFact(label: "Targets", value: item.displayDetail)
       ForEach(item.rows.prefix(4)) { row in
-        WorkbenchFact(label: row.contenderTitle, value: row.displaySummary)
-        WorkbenchFact(label: "Latest delta", value: row.latestDebtMovementSummary)
-          .help(row.helpSummary)
-        WorkbenchFact(label: "Last / Next", value: row.runPairSummary)
-          .help(row.helpSummary)
+        Button {
+          selectProofScoreboardRow(row)
+        } label: {
+          VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              WorkbenchFact(label: row.contenderTitle, value: row.displaySummary)
+              if selectedProofScoreboardRowID == row.selectionID {
+                WorkbenchStatusPill(text: "selected")
+              }
+            }
+            WorkbenchFact(label: "Latest delta", value: row.latestDebtMovementSummary)
+              .help(row.helpSummary)
+            WorkbenchFact(label: "Last / Next", value: row.runPairSummary)
+              .help(row.helpSummary)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(row.workbenchAccessibilityID)
+        .help(row.helpSummary)
       }
       if let topActionRow = item.topActionRow, let topStep = topActionRow.nextStep {
         let roundTwoBlockedMessage =
@@ -1899,6 +1934,7 @@ struct ProductTournamentWorkbenchTab: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
         tournamentAutomation
+        selectedProofScoreboardDetail
         aggregateEvidence
         planEvaluationEvidence
         selectedPlanEvaluationDetail
@@ -2027,6 +2063,57 @@ struct ProductTournamentWorkbenchTab: View {
           }
         } else {
           WorkbenchEmptyLine("No tournament automation action queued.")
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var selectedProofScoreboardDetail: some View {
+    if let row = selectedProofScoreboardRow {
+      WorkbenchSection("Selected Proof Target", systemImage: "scope") {
+        VStack(alignment: .leading, spacing: 8) {
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(row.contenderTitle)
+              .font(.callout.weight(.semibold))
+              .lineLimit(2)
+            Spacer()
+            WorkbenchStatusPill(text: "\(row.readinessScore)/100")
+          }
+          WorkbenchFact(label: "Experiment", value: row.experimentID)
+          if let contenderID = row.contenderID {
+            WorkbenchFact(label: "Contender", value: contenderID)
+          }
+          if let roundID = row.roundID {
+            WorkbenchFact(label: "Round", value: roundID)
+          }
+          if let targetScenarioID = row.targetScenarioID {
+            WorkbenchFact(label: "Scenario", value: targetScenarioID)
+          } else if let cohortID = row.cohortID {
+            WorkbenchFact(label: "Cohort", value: cohortID)
+          }
+          if let targetPersonaName = row.targetPersonaName {
+            WorkbenchFact(label: "Persona", value: targetPersonaName)
+          }
+          if let targetDecision = row.targetDecision {
+            WorkbenchFact(label: "Decision", value: targetDecision.rawValue)
+          }
+          WorkbenchFact(label: "Last / Next", value: row.runPairSummary)
+          WorkbenchFact(label: "Latest delta", value: row.latestDebtMovementSummary)
+            .help(row.helpSummary)
+          if let latestDebtMovement = row.latestDebtMovement {
+            WorkbenchFact(label: "Audit", value: latestDebtMovement.auditID)
+            if !latestDebtMovement.evidenceRunIDs.isEmpty {
+              WorkbenchFact(
+                label: "Evidence",
+                value: latestDebtMovement.evidenceRunIDs.prefix(4).joined(separator: ", ")
+              )
+            }
+          }
+          Text(row.nextStepDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
       }
     }
@@ -3948,6 +4035,45 @@ struct ProductTournamentWorkbenchTab: View {
     _ target: ProductTournamentRoundImplementationTarget
   ) -> String {
     config.tournamentContenders.first { $0.id == target.contenderID }?.title ?? target.contenderID
+  }
+
+  private func selectProofScoreboardRow(
+    _ row: TournamentAutomationProofTargetScoreboardRow
+  ) {
+    let experimentChanged = selectedExperimentID != row.experimentID
+    selectedProofScoreboardRowID = row.selectionID
+    selectedExperimentID = row.experimentID
+
+    if let targetScenarioID = row.targetScenarioID {
+      selectedScenarioID = targetScenarioID
+    }
+
+    if let evidenceRunID = firstKnownEvidenceRunID(for: row) {
+      selectedRunID = evidenceRunID
+      if row.targetScenarioID == nil,
+        let summary = evidenceIndex.summaries.first(where: { $0.runID == evidenceRunID })
+      {
+        selectedScenarioID = summary.scenarioID
+      }
+      loadSelectedRecord()
+    } else if !experimentChanged {
+      selectedRunID = nil
+      loadSelectedRecord()
+    }
+
+    if !experimentChanged {
+      loadScenarioDraft()
+    }
+  }
+
+  private func firstKnownEvidenceRunID(
+    for row: TournamentAutomationProofTargetScoreboardRow
+  ) -> String? {
+    row.latestDebtMovement?.evidenceRunIDs.first { runID in
+      evidenceIndex.summaries.contains { summary in
+        summary.runID == runID && summary.experimentID == row.experimentID
+      }
+    }
   }
 
   private func score(_ value: Int?) -> String {

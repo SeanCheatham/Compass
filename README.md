@@ -147,7 +147,8 @@ and advances them through rounds:
   Workbench scoreboard can run or prepare the top proof target through the same
   audited Tournament Automation single-step path, then show the latest
   before/after proof-debt movement and a last-run/next-run pairing beside each
-  contender row.
+  contender row; selecting a scoreboard contender focuses the Workbench on that
+  proof target, its latest audit, and any backing evidence run.
   When the proof gates are met but the low-medium
   fidelity implementation still has weak pay intent, missing capabilities, or
   mixed pull, Compass queues a Round 3 implementation revision brief instead of

@@ -104,12 +104,19 @@ struct TournamentAutomationProofTargetDebtMovement: Equatable, Sendable, Identif
 }
 
 struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identifiable {
-  var id: String { experimentID }
+  var id: String { selectionID }
 
   var experimentID: String
+  var tournamentID: String?
+  var roundID: String?
   var contenderID: String?
   var contenderTitle: String
   var targetLabel: String
+  var cohortID: String?
+  var targetScenarioID: String?
+  var targetPersonaID: String?
+  var targetPersonaName: String?
+  var targetDecision: ProductTournamentExperimentDecision?
   var readinessScore: Int
   var urgencyScore: Int
   var debtSummary: String
@@ -163,6 +170,22 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
 
   var latestDebtMovementSummary: String {
     latestDebtMovement?.displaySummary ?? "No audited proof-debt movement"
+  }
+
+  var firstEvidenceRunID: String? {
+    latestDebtMovement?.evidenceRunIDs.first
+  }
+
+  var selectionID: String {
+    [
+      roundID ?? "unknown-round",
+      experimentID,
+      targetScenarioID ?? cohortID ?? targetPersonaID ?? contenderID ?? targetLabel,
+    ].joined(separator: ":")
+  }
+
+  var workbenchAccessibilityID: String {
+    "proof-target-scoreboard-row-\(selectionID)"
   }
 
   var runPairSummary: String {
@@ -457,9 +480,16 @@ enum TournamentAutomationProofTargetScoreboard {
     }
     return TournamentAutomationProofTargetScoreboardRow(
       experimentID: target.experimentID,
+      tournamentID: target.tournamentID,
+      roundID: target.roundID,
       contenderID: target.contenderID,
       contenderTitle: contender?.title ?? target.contenderID ?? target.experimentID,
       targetLabel: target.label,
+      cohortID: target.cohortID,
+      targetScenarioID: target.targetScenarioID,
+      targetPersonaID: target.targetPersonaID,
+      targetPersonaName: target.targetPersonaName,
+      targetDecision: target.targetDecision,
       readinessScore: target.readinessScore,
       urgencyScore: target.urgencyScore,
       debtSummary: target.debtSummary,

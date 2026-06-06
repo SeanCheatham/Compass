@@ -169,6 +169,12 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(item.workbenchAccessibilityID.hasPrefix("proof-target-scoreboard-"))
     try #require(item.runTopStepAccessibilityID == "\(item.workbenchAccessibilityID)-run-top-step")
     try #require(topActionRow.experimentID == topActionStep.experimentID)
+    try #require(topActionRow.selectionID.contains(topActionStep.experimentID))
+    try #require(topActionRow.selectionID.contains(item.roundID ?? "unknown-round"))
+    try #require(
+      topActionRow.workbenchAccessibilityID
+        == "proof-target-scoreboard-row-\(topActionRow.selectionID)"
+    )
     try #require(topActionStep.id == plannerStep.id)
     try #require(topActionStep.kind == .runPlanProof)
     try #require(topActionStep.canExecute)
@@ -283,6 +289,8 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(movement.auditID == "scoreboard-proof-delta")
     try #require(movement.displaySummary == "Latest audit cleared 2 proof debt (6 -> 4)")
     try #require(movement.lastRunSummary == "Last run cleared 2 proof debt")
+    try #require(row.firstEvidenceRunID == "scoreboard-proof-run")
+    try #require(row.workbenchAccessibilityID.contains(row.selectionID))
     try #require(row.runPairSummary == "Last run cleared 2 proof debt -> Ready: Run Plan Proof")
     try #require(row.displaySummary.contains("Latest audit cleared 2 proof debt"))
     try #require(row.contextSummary.contains("latest_audit scoreboard-proof-delta"))
