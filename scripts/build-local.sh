@@ -9,7 +9,9 @@
 #   ./scripts/build-local.sh --clean  # wipe DerivedData/ first
 #
 # Team id: set COMPASS_DEVELOPMENT_TEAM or App/LocalSigning.xcconfig
-# (see App/LocalSigning.example.xcconfig).
+# (see App/LocalSigning.example.xcconfig). Command-line signing allows Xcode to
+# create or refresh the local Mac App Development provisioning profile by
+# default; set COMPASS_ALLOW_PROVISIONING_UPDATES=NO to disable that.
 
 set -euo pipefail
 
@@ -74,6 +76,19 @@ EOF
   exit 1
 fi
 
+PROVISIONING_ARGS=()
+case "${COMPASS_ALLOW_PROVISIONING_UPDATES:-YES}" in
+  YES|yes|1|true|TRUE)
+    PROVISIONING_ARGS=(-allowProvisioningUpdates)
+    ;;
+  NO|no|0|false|FALSE)
+    ;;
+  *)
+    echo "error: COMPASS_ALLOW_PROVISIONING_UPDATES must be YES or NO" >&2
+    exit 1
+    ;;
+esac
+
 if [[ "${CLEAN}" -eq 1 ]]; then
   echo "Removing ${DERIVED_DATA}"
   rm -rf "${DERIVED_DATA}"
@@ -85,6 +100,7 @@ xcodebuild \
   -scheme Compass \
   -configuration "${CONFIGURATION}" \
   -derivedDataPath "${DERIVED_DATA}" \
+  "${PROVISIONING_ARGS[@]}" \
   COMPASS_DEVELOPMENT_TEAM="${TEAM}" \
   build
 

@@ -280,7 +280,9 @@ install helper sees a signed app outside DerivedData without overwriting a real
 
 `build-local.sh` runs `xcodebuild` with a repo-local `DerivedData/` folder and
 copies the Debug app to `/Applications/CompassLocal.app`. Team id comes from
-`App/LocalSigning.xcconfig` or `COMPASS_DEVELOPMENT_TEAM`.
+`App/LocalSigning.xcconfig` or `COMPASS_DEVELOPMENT_TEAM`. Command-line builds
+allow Xcode to create or refresh the local Mac App Development provisioning
+profile by default; set `COMPASS_ALLOW_PROVISIONING_UPDATES=NO` to disable that.
 
 **Optional — Xcode:**
 
