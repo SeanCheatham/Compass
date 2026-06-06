@@ -195,7 +195,7 @@ enum ProductTournamentPlanTransitioner {
       updateContender(proposal.contenderID, in: &next, timestamp: timestamp) { contender in
         contender.status = .narrowed
       }
-      activateSolution(for: proposal.contenderID, in: &next, timestamp: timestamp)
+      activateProductHypothesis(for: proposal.contenderID, in: &next, timestamp: timestamp)
 
     case .revisePlan:
       destinationRoundID = nil
@@ -389,14 +389,16 @@ enum ProductTournamentPlanTransitioner {
     config.tournamentContenders[index].updatedAt = timestamp
   }
 
-  private static func activateSolution(
+  private static func activateProductHypothesis(
     for contenderID: String,
     in config: inout ProductTournamentConfig,
     timestamp _: Double
   ) {
     guard
       let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
-      let index = config.productHypotheses.firstIndex(where: { $0.id == contender.productHypothesisID })
+      let index = config.productHypotheses.firstIndex(where: {
+        $0.id == contender.productHypothesisID
+      })
     else { return }
     config.productHypotheses[index].status = .active
   }

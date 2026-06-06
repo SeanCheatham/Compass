@@ -113,7 +113,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       outcome.config.tournamentRounds.first { $0.id == fixture.prototypeRound.id })
     let updatedExperiment = try #require(
       outcome.config.tournamentExperiments.first { $0.id == fixture.experiment.id })
-    let updatedSolution = try #require(
+    let updatedProductHypothesis = try #require(
       outcome.config.productHypotheses.first { $0.id == fixture.contender.productHypothesisID })
 
     try #require(outcome.proposal.recommendation == .eliminate)
@@ -121,7 +121,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(updatedContender.status == .eliminated)
     try #require(!updatedPrototypeRound.contenderIDs.contains(fixture.contender.id))
     try #require(updatedExperiment.decision == .kill)
-    try #require(updatedSolution.status == .rejected)
+    try #require(updatedProductHypothesis.status == .rejected)
     try #require(outcome.toRoundID == nil)
     try #require(outcome.userMessage.contains("Eliminated"))
   }
@@ -326,7 +326,8 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
   let contender = try #require(config.tournamentContenders.first)
   let experimentID = try #require(contender.experimentID)
   let experiment = try #require(config.tournamentExperiments.first { $0.id == experimentID })
-  let hypothesis = try #require(config.productHypotheses.first { $0.id == contender.productHypothesisID })
+  let hypothesis = try #require(
+    config.productHypotheses.first { $0.id == contender.productHypothesisID })
 
   config.tournaments[0].currentRoundID = coreRound.id
   if let index = config.tournamentRounds.firstIndex(where: { $0.id == planRound.id }) {

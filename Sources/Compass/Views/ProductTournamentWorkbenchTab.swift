@@ -44,7 +44,9 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var contractAvailable: Bool?
 
   private var config: ProductTournamentConfig { project.productTournamentConfig }
-  private var evidenceIndex: ProductTournamentEvidenceIndex { project.productTournamentEvidenceIndex }
+  private var evidenceIndex: ProductTournamentEvidenceIndex {
+    project.productTournamentEvidenceIndex
+  }
 
   private var tournamentsForBoard: [ProductTournament] {
     config.tournaments.sorted { lhs, rhs in
@@ -341,7 +343,8 @@ struct ProductTournamentWorkbenchTab: View {
 
   private var selectedExperiment: ProductTournamentExperiment? {
     guard let selectedExperimentID else { return config.tournamentExperiments.first }
-    return config.tournamentExperiments.first { $0.id == selectedExperimentID } ?? config.tournamentExperiments.first
+    return config.tournamentExperiments.first { $0.id == selectedExperimentID }
+      ?? config.tournamentExperiments.first
   }
 
   private var runsForSelectedExperiment: [ProductTournamentEvidenceSummary] {
@@ -444,7 +447,9 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
-  private var tournamentAutomationTargetedProofOutcomeSignals: [TournamentAutomationTargetedProofOutcomeSignal] {
+  private var tournamentAutomationTargetedProofOutcomeSignals:
+    [TournamentAutomationTargetedProofOutcomeSignal]
+  {
     TournamentAutomationTargetedProofOutcomeAdvisor.signals(
       config: config,
       evidenceIndex: evidenceIndex
@@ -545,7 +550,7 @@ struct ProductTournamentWorkbenchTab: View {
           painMap
             .frame(width: 300)
           Divider()
-          solutionAndExperimentBoard
+          contenderAndExperimentBoard
             .frame(minWidth: 360, idealWidth: 460, maxWidth: 560)
           Divider()
           evidenceAndDecisionPane
@@ -771,7 +776,7 @@ struct ProductTournamentWorkbenchTab: View {
     .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
-  private var solutionAndExperimentBoard: some View {
+  private var contenderAndExperimentBoard: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
         WorkbenchSection("Contender Plans", systemImage: "rectangle.3.group") {
@@ -1659,7 +1664,8 @@ struct ProductTournamentWorkbenchTab: View {
     .help(tension.displayDetail)
   }
 
-  private func decisionCandidateRow(_ candidate: TournamentAutomationDecisionCandidate) -> some View {
+  private func decisionCandidateRow(_ candidate: TournamentAutomationDecisionCandidate) -> some View
+  {
     Button {
       selectedExperimentID = candidate.experimentID
     } label: {
@@ -2397,7 +2403,8 @@ struct ProductTournamentWorkbenchTab: View {
   ) -> some View {
     Button {
       Task {
-        await project.applyProductTournamentExperimentRolloutAction(action, experimentID: experiment.id)
+        await project.applyProductTournamentExperimentRolloutAction(
+          action, experimentID: experiment.id)
       }
     } label: {
       Label(
@@ -2681,7 +2688,8 @@ struct ProductTournamentWorkbenchTab: View {
     isLoadingGitPreview = true
     defer { isLoadingGitPreview = false }
     do {
-      gitPreview = try await project.productTournamentExperimentGitRolloutPreview(experimentID: experiment.id)
+      gitPreview = try await project.productTournamentExperimentGitRolloutPreview(
+        experimentID: experiment.id)
       gitPreviewError = nil
     } catch {
       gitPreview = nil
@@ -2926,7 +2934,9 @@ struct ProductTournamentWorkbenchTab: View {
       .map { [$0.auditSummary] } ?? []
     let revisionBriefSummaries =
       step.kind == .applyRevision
-      ? tournamentAutomationRevisionBrief(forExperimentID: step.experimentID).map { [$0.auditSummary] }
+      ? tournamentAutomationRevisionBrief(forExperimentID: step.experimentID).map {
+        [$0.auditSummary]
+      }
         ?? []
       : []
     let personaRationaleSignalSummaries: [String]
@@ -3071,7 +3081,8 @@ struct ProductTournamentWorkbenchTab: View {
       {
         decisionCandidateSummaries.append(candidate.auditSummary)
       }
-      if let evidenceTension = tournamentAutomationEvidenceTension(forExperimentID: step.experimentID),
+      if let evidenceTension = tournamentAutomationEvidenceTension(
+        forExperimentID: step.experimentID),
         !evidenceTensionSummaries.contains(evidenceTension.auditSummary)
       {
         evidenceTensionSummaries.append(evidenceTension.auditSummary)
@@ -3641,7 +3652,8 @@ struct ProductTournamentWorkbenchTab: View {
   private func roundTwoTargetExperimentTitle(
     _ target: ProductTournamentRoundImplementationTarget
   ) -> String {
-    config.tournamentExperiments.first { $0.id == target.experimentID }?.title ?? target.experimentID
+    config.tournamentExperiments.first { $0.id == target.experimentID }?.title
+      ?? target.experimentID
   }
 
   private func roundTwoTargetContenderTitle(

@@ -237,8 +237,10 @@ struct ProductTournamentLoopTests {
       config: config,
       evidenceIndex: index
     )
-    let promote = try #require(proposals.first { $0.experimentID == config.tournamentExperiments[0].id })
-    let narrow = try #require(proposals.first { $0.experimentID == config.tournamentExperiments[1].id })
+    let promote = try #require(
+      proposals.first { $0.experimentID == config.tournamentExperiments[0].id })
+    let narrow = try #require(
+      proposals.first { $0.experimentID == config.tournamentExperiments[1].id })
     let kill = try #require(proposals.first { $0.experimentID == weakExperiment.id })
 
     try #require(promote.update.decision == .promote)
@@ -484,7 +486,8 @@ struct ProductTournamentLoopTests {
       stopDetail: "Stopped because no executable tournament automation step remains.",
       userMessage: "Tournament automation cycle ran 1 step(s). Evidence tensions remained split."
     )
-    let mismatchedDecisionConfig = config.recordingTournamentAutomationCycleAudit(mismatchedDecisionAudit)
+    let mismatchedDecisionConfig = config.recordingTournamentAutomationCycleAudit(
+      mismatchedDecisionAudit)
     try #require(
       TournamentAutomationCycleLearningAdvisor.stalledEvidenceTensionAudit(
         for: action,
@@ -966,8 +969,10 @@ struct ProductTournamentLoopTests {
     try #require(
       planProofContenderLine.contains("latest_plan_proof_delta proof_debt 6 -> 0 (-6)"))
     try #require(planProofContenderLine.contains("audit \(planProofAudit.id)"))
-    try #require(planProofContenderLine.contains("starting \(experiment.id): contender \(contender.id)"))
-    try #require(planProofContenderLine.contains("ending \(experiment.id): contender \(contender.id)"))
+    try #require(
+      planProofContenderLine.contains("starting \(experiment.id): contender \(contender.id)"))
+    try #require(
+      planProofContenderLine.contains("ending \(experiment.id): contender \(contender.id)"))
     let roundTwoOutcome = try ProductTournamentPlanTransitioner.applyBestProposal(
       tournamentID: tournament.id,
       roundID: planRound.id,
@@ -1926,7 +1931,8 @@ struct ProductTournamentLoopTests {
         personaRationaleSignalSummaries: [signal.auditSummary],
         stopReason: .noExecutableStep,
         stopDetail: "Stopped because no executable tournament automation step remains.",
-        userMessage: "Tournament automation cycle ran 1 step(s). AI-user rationale signal still present."
+        userMessage:
+          "Tournament automation cycle ran 1 step(s). AI-user rationale signal still present."
       )
     )
 
@@ -2116,7 +2122,8 @@ struct ProductTournamentLoopTests {
       stopDetail: "Stopped before repeating Apply product revision.",
       userMessage: "Tournament automation cycle ran 1 step(s). Second product revision applied."
     )
-    let secondRevisedConfig = validationConfig.recordingTournamentAutomationCycleAudit(secondRevisionAudit)
+    let secondRevisedConfig = validationConfig.recordingTournamentAutomationCycleAudit(
+      secondRevisionAudit)
     let secondValidationAction = try #require(
       ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
@@ -2179,7 +2186,8 @@ struct ProductTournamentLoopTests {
       userMessage:
         "Tournament automation cycle ran 1 step(s). Second product revision validation still showed the rationale."
     )
-    let fatiguedConfig = secondRevisedConfig.recordingTournamentAutomationCycleAudit(secondValidationAudit)
+    let fatiguedConfig = secondRevisedConfig.recordingTournamentAutomationCycleAudit(
+      secondValidationAudit)
     let fatigueAudit = try #require(
       TournamentAutomationCycleLearningAdvisor.revisionFatigueAudit(
         for: action,
@@ -2220,7 +2228,8 @@ struct ProductTournamentLoopTests {
     try #require(!fatigueStep.canExecute)
     try #require(fatigueStep.action.targetDecision == .narrow)
     try #require(
-      fatigueStep.blockedReason == "Review the decision path before Tournament Automation changes state.")
+      fatigueStep.blockedReason
+        == "Review the decision path before Tournament Automation changes state.")
     try #require(fatigueSignal.pressure == .reshape)
     try #require(fatigueSignal.targetDecision == .narrow)
     try #require(fatigueDigest.contains("Review revision fatigue"))
@@ -2931,7 +2940,8 @@ struct ProductTournamentLoopTests {
       config: config,
       evidenceIndex: index
     )
-    let readiness = try #require(index.currentTournamentReadiness(for: config.tournamentExperiments[0]))
+    let readiness = try #require(
+      index.currentTournamentReadiness(for: config.tournamentExperiments[0]))
 
     try #require(!readiness.proofDebt.isClear)
     try #require(readiness.proofDebt.aiUserPersonaDeficit == 2)
@@ -3001,8 +3011,10 @@ struct ProductTournamentLoopTests {
       TournamentAutomationPlanner.cohortSimulationMode(isPersonaModelAvailable: false)
         == .modelFree
     )
-    try #require(ProductTournamentSimulationMode.personaModel.tournamentAutomationLabel == "AI-user")
-    try #require(ProductTournamentSimulationMode.modelFree.tournamentAutomationLabel == "Model-free")
+    try #require(
+      ProductTournamentSimulationMode.personaModel.tournamentAutomationLabel == "AI-user")
+    try #require(
+      ProductTournamentSimulationMode.modelFree.tournamentAutomationLabel == "Model-free")
   }
 
   @Test func tournamentAutomationBlocksRecentlyFailedStep() throws {
@@ -3601,7 +3613,8 @@ struct ProductTournamentLoopTests {
     try #require(outcome.targetedPromoteProofCount == 1)
     try #require(outcome.targetedKillProofCount == 0)
     try #require(outcome.evidenceRunStepCount == 1)
-    try #require(outcome.userMessage.contains("0 tournament decision(s) applied (0 promote, 0 kill)"))
+    try #require(
+      outcome.userMessage.contains("0 tournament decision(s) applied (0 promote, 0 kill)"))
     try #require(outcome.userMessage.contains("targeted proof 1 promote, 0 kill"))
     try #require(outcome.userMessage.contains("1 evidence step(s)"))
     try #require(audit.appliedDecisionCount == 0)
@@ -3661,7 +3674,8 @@ struct ProductTournamentLoopTests {
     try #require(outcome.promotedDecisionCount == 1)
     try #require(outcome.killedDecisionCount == 0)
     try #require(outcome.evidenceRunStepCount == 0)
-    try #require(outcome.userMessage.contains("1 tournament decision(s) applied (1 promote, 0 kill)"))
+    try #require(
+      outcome.userMessage.contains("1 tournament decision(s) applied (1 promote, 0 kill)"))
     try #require(outcome.userMessage.contains("Decision candidates:"))
     try #require(outcome.userMessage.contains("continue -> promote"))
     try #require(outcome.userMessage.contains("AI-user rationale signals:"))
@@ -4258,7 +4272,8 @@ struct ProductTournamentLoopTests {
     try #require(audit.proofTargetSummaries[0].contains("target_decision promote"))
     try #require(audit.proofTargetSummaries[0].contains(longScenarioID))
     try #require(audit.targetedProofOutcomeSummaries.count == 1)
-    try #require(audit.targetedProofOutcomeSummaries[0].contains("targeted tournament proof outcome"))
+    try #require(
+      audit.targetedProofOutcomeSummaries[0].contains("targeted tournament proof outcome"))
     try #require(audit.targetedProofOutcomeSummaries[0].contains("outcome contradicts_target"))
     try #require(audit.targetedProofOutcomeSummaries[0].contains("recommended_decision promote"))
     try #require(audit.revisionBriefSummaries.count == 1)
@@ -4284,7 +4299,8 @@ struct ProductTournamentLoopTests {
     try #require(audit.summary.contains("revisions"))
     try #require(audit.summary.contains("Retarget product revision"))
     try #require(
-      audit.userMessage.contains("Stopped because no executable tournament automation step remains."))
+      audit.userMessage.contains(
+        "Stopped because no executable tournament automation step remains."))
   }
 
   @Test func tournamentDecisionAdvisorAppliesRecommendedDecisionThroughReflectRules() throws {
@@ -4349,7 +4365,8 @@ struct ProductTournamentLoopTests {
       ))
     let contenderID = try #require(planProofStep.contenderID)
     let contender = try #require(config.tournamentContenders.first { $0.id == contenderID })
-    let experiment = try #require(config.tournamentExperiments.first { $0.id == contender.experimentID })
+    let experiment = try #require(
+      config.tournamentExperiments.first { $0.id == contender.experimentID })
     _ = try TournamentAutomationPlanProofStepExecutor.run(
       planProofStep,
       in: workspace,
@@ -4394,7 +4411,8 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 10)
     )
     let target = try activateRoundTwoImplementationTarget(in: &config)
-    let experiment = try #require(config.tournamentExperiments.first { $0.id == target.experimentID })
+    let experiment = try #require(
+      config.tournamentExperiments.first { $0.id == target.experimentID })
     let records = scopedTournamentEvidenceRecords(
       prefix: "automation-round-2",
       experiment: experiment,
@@ -4449,7 +4467,8 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 10)
     )
     let target = try activateRoundThreePrototypeTarget(in: &config)
-    let experiment = try #require(config.tournamentExperiments.first { $0.id == target.experimentID })
+    let experiment = try #require(
+      config.tournamentExperiments.first { $0.id == target.experimentID })
     let records = scopedTournamentEvidenceRecords(
       prefix: "automation-round-3",
       experiment: experiment,
@@ -4490,7 +4509,8 @@ struct ProductTournamentLoopTests {
     let savedTournament = try #require(saved.tournaments.first { $0.id == target.tournamentID })
     let savedContender = try #require(
       saved.tournamentContenders.first { $0.id == target.contenderID })
-    let savedExperiment = try #require(saved.tournamentExperiments.first { $0.id == target.experimentID })
+    let savedExperiment = try #require(
+      saved.tournamentExperiments.first { $0.id == target.experimentID })
 
     try #require(outcome.roundKind == .prototype)
     try #require(outcome.userMessage.contains("winner"))
@@ -4641,7 +4661,8 @@ struct ProductTournamentLoopTests {
     let experiment = config.tournamentExperiments[0]
     let evidenceIndex = makeRolloutEvidenceIndex(config: config)
 
-    try #require(ProductTournamentExperimentRolloutWorkflow.canApply(.promoteOrConfirm, to: experiment))
+    try #require(
+      ProductTournamentExperimentRolloutWorkflow.canApply(.promoteOrConfirm, to: experiment))
 
     let marked = try ProductTournamentExperimentRolloutWorkflow.applying(
       .promoteOrConfirm,
@@ -4651,7 +4672,8 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 50),
       decidedBy: "Workbench"
     )
-    let readyExperiment = try #require(marked.tournamentExperiments.first { $0.id == experiment.id })
+    let readyExperiment = try #require(
+      marked.tournamentExperiments.first { $0.id == experiment.id })
     let readyDecision = try #require(marked.decisions.last)
 
     try #require(readyExperiment.decision == .promote)
@@ -4670,14 +4692,15 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 60),
       decidedBy: "Workbench"
     )
-    let promotedExperiment = try #require(promoted.tournamentExperiments.first { $0.id == experiment.id })
-    let promotedSolution = try #require(
+    let promotedExperiment = try #require(
+      promoted.tournamentExperiments.first { $0.id == experiment.id })
+    let promotedProductHypothesis = try #require(
       promoted.productHypotheses.first { $0.id == experiment.productHypothesisID }
     )
     let promotedDecision = try #require(promoted.decisions.last)
 
     try #require(promotedExperiment.decision == .promoted)
-    try #require(promotedSolution.status == .promoted)
+    try #require(promotedProductHypothesis.status == .promoted)
     try #require(promotedDecision.decision == .promoted)
     try #require(promotedDecision.evidenceRunIDs == ["rollout-run"])
   }
@@ -4687,7 +4710,8 @@ struct ProductTournamentLoopTests {
     let experiment = config.tournamentExperiments[0]
     let evidenceIndex = makeRolloutEvidenceIndex(config: config)
 
-    try #require(ProductTournamentExperimentRolloutWorkflow.canApply(.killOrArchive, to: experiment))
+    try #require(
+      ProductTournamentExperimentRolloutWorkflow.canApply(.killOrArchive, to: experiment))
 
     let killed = try ProductTournamentExperimentRolloutWorkflow.applying(
       .killOrArchive,
@@ -4697,15 +4721,16 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 70),
       decidedBy: "Workbench"
     )
-    let killedExperiment = try #require(killed.tournamentExperiments.first { $0.id == experiment.id })
-    let rejectedSolution = try #require(
+    let killedExperiment = try #require(
+      killed.tournamentExperiments.first { $0.id == experiment.id })
+    let rejectedProductHypothesis = try #require(
       killed.productHypotheses.first { $0.id == experiment.productHypothesisID }
     )
 
     try #require(killedExperiment.decision == .kill)
     try #require(killedExperiment.branchName == experiment.branchName)
     try #require(killedExperiment.worktreeID == experiment.worktreeID)
-    try #require(rejectedSolution.status == .rejected)
+    try #require(rejectedProductHypothesis.status == .rejected)
 
     let archived = try ProductTournamentExperimentRolloutWorkflow.applying(
       .killOrArchive,
@@ -4715,8 +4740,9 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 80),
       decidedBy: "Workbench"
     )
-    let archivedExperiment = try #require(archived.tournamentExperiments.first { $0.id == experiment.id })
-    let parkedSolution = try #require(
+    let archivedExperiment = try #require(
+      archived.tournamentExperiments.first { $0.id == experiment.id })
+    let parkedProductHypothesis = try #require(
       archived.productHypotheses.first { $0.id == experiment.productHypothesisID }
     )
     let archiveDecision = try #require(archived.decisions.last)
@@ -4724,7 +4750,7 @@ struct ProductTournamentLoopTests {
     try #require(archivedExperiment.decision == .archived)
     try #require(archivedExperiment.branchName == experiment.branchName)
     try #require(archivedExperiment.worktreeID == experiment.worktreeID)
-    try #require(parkedSolution.status == .parked)
+    try #require(parkedProductHypothesis.status == .parked)
     try #require(archiveDecision.decision == .archived)
     try #require(archiveDecision.branchName == experiment.branchName)
     try #require(archiveDecision.beforeSha == experiment.currentSha)
@@ -4732,7 +4758,9 @@ struct ProductTournamentLoopTests {
   }
 }
 
-private func makeRolloutConfig(decision: ProductTournamentExperimentDecision) -> ProductTournamentConfig {
+private func makeRolloutConfig(decision: ProductTournamentExperimentDecision)
+  -> ProductTournamentConfig
+{
   var config = ProductTournamentConfig.seedDefaults(
     projectTitle: "Reporting Helper",
     rawPain: "Reporting work needs evidence.",
@@ -4796,7 +4824,8 @@ private func activateRoundThreePrototypeTarget(
   config.tournamentRounds[coreRoundIndex].status = .completed
   config.tournamentRounds[prototypeRoundIndex].status = .active
   config.tournamentRounds[prototypeRoundIndex].contenderIDs = [roundTwoTarget.contenderID]
-  config.tournaments[tournamentIndex].currentRoundID = config.tournamentRounds[prototypeRoundIndex].id
+  config.tournaments[tournamentIndex].currentRoundID =
+    config.tournamentRounds[prototypeRoundIndex].id
 
   return ProductTournamentRoundImplementationTarget(
     tournamentID: roundTwoTarget.tournamentID,
@@ -4863,7 +4892,8 @@ private func makePlanProofRecord(
   config: ProductTournamentConfig,
   segment: UserSegment
 ) throws -> ProductTournamentPlanEvaluationRecord {
-  let hypothesis = try #require(config.productHypotheses.first { $0.id == contender.productHypothesisID })
+  let hypothesis = try #require(
+    config.productHypotheses.first { $0.id == contender.productHypothesisID })
   return ProductTournamentPlanEvaluationRecord(
     id: id,
     tournamentID: tournament.id,
@@ -4913,7 +4943,9 @@ private actor TournamentAutomationPlanEvaluationModelStream {
   }
 }
 
-private func makeRolloutEvidenceIndex(config: ProductTournamentConfig) -> ProductTournamentEvidenceIndex {
+private func makeRolloutEvidenceIndex(config: ProductTournamentConfig)
+  -> ProductTournamentEvidenceIndex
+{
   let record = ProductTournamentEvidenceRecord(
     id: "rollout-run",
     experimentID: config.tournamentExperiments[0].id,

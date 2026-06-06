@@ -98,7 +98,8 @@ struct ProductTournamentPlanEvaluationTests {
     )
 
     try #require(outcome.focusedContenderID == focusedContender.id)
-    try #require(outcome.focusedProofTargetSummary == "operator and economic-buyer plan evaluations")
+    try #require(
+      outcome.focusedProofTargetSummary == "operator and economic-buyer plan evaluations")
     try #require(outcome.completedEvaluationCount == 2)
     try #require(outcome.records.allSatisfy { $0.contenderID == focusedContender.id })
     try #require(outcome.targetedBuyerOrSponsorContenderIDs == [focusedContender.id])
@@ -107,7 +108,8 @@ struct ProductTournamentPlanEvaluationTests {
 
     let index = workspace.readProductTournamentEvidenceIndex()
     try #require(index.planEvaluationSummaries.count == 2)
-    try #require(index.aggregate.planReadinessByContender.map(\.contenderID) == [focusedContender.id])
+    try #require(
+      index.aggregate.planReadinessByContender.map(\.contenderID) == [focusedContender.id])
   }
 
   @Test func personaModelRoundOneWritesAgenticPlanEvidence() async throws {
@@ -347,14 +349,15 @@ struct ProductTournamentPlanEvaluationTests {
       "Offer a clearer reporting workspace that organizes updates and reminders."
     config.tournamentContenders[genericContenderIndex].valueProposition =
       "Make weekly reporting easier to review."
-    let genericProductHypothesisID = config.tournamentContenders[genericContenderIndex].productHypothesisID
-    let genericSolutionIndex = try #require(
+    let genericProductHypothesisID = config.tournamentContenders[genericContenderIndex]
+      .productHypothesisID
+    let genericProductHypothesisIndex = try #require(
       config.productHypotheses.firstIndex { $0.id == genericProductHypothesisID })
-    config.productHypotheses[genericSolutionIndex].differentiator =
+    config.productHypotheses[genericProductHypothesisIndex].differentiator =
       "Organizes reporting context in one workflow."
-    config.productHypotheses[genericSolutionIndex].whyThisCouldWin =
+    config.productHypotheses[genericProductHypothesisIndex].whyThisCouldWin =
       "The user may prefer a clearer reporting workspace."
-    config.productHypotheses[genericSolutionIndex].requiredProof = [
+    config.productHypotheses[genericProductHypothesisIndex].requiredProof = [
       "Show reporting steps are easier to review."
     ]
     try workspace.writeProductTournamentConfig(config)
@@ -424,7 +427,8 @@ private func makePlanEvaluationRecord(
   startedAt: Double,
   endedAt: Double
 ) throws -> ProductTournamentPlanEvaluationRecord {
-  let hypothesis = try #require(config.productHypotheses.first { $0.id == contender.productHypothesisID })
+  let hypothesis = try #require(
+    config.productHypotheses.first { $0.id == contender.productHypothesisID })
   return ProductTournamentPlanEvaluationRecord(
     id: id,
     tournamentID: tournament.id,

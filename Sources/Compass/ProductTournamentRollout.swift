@@ -22,7 +22,8 @@ struct ProductTournamentExperimentGitRolloutPreview: Equatable, Sendable {
 
   var experimentStateMatchesBranch: Bool {
     guard let expectedExperimentSha else { return false }
-    return ProductTournamentExperimentGit.commitMatches(expected: expectedExperimentSha, actual: actualExperimentSha)
+    return ProductTournamentExperimentGit.commitMatches(
+      expected: expectedExperimentSha, actual: actualExperimentSha)
   }
 
   var boundedSummary: String {
@@ -103,7 +104,9 @@ enum ProductTournamentExperimentRolloutAction: String, CaseIterable, Equatable, 
   case promoteOrConfirm
   case killOrArchive
 
-  func targetDecision(from current: ProductTournamentExperimentDecision) -> ProductTournamentExperimentDecision {
+  func targetDecision(from current: ProductTournamentExperimentDecision)
+    -> ProductTournamentExperimentDecision
+  {
     switch self {
     case .promoteOrConfirm:
       return current == .promote ? .promoted : .promote
@@ -160,7 +163,8 @@ enum ProductTournamentExperimentRolloutWorkflow {
     decidedBy: String = "Product Tournament Workbench"
   ) throws -> ProductTournamentConfig {
     var next = config
-    guard let experimentIndex = next.tournamentExperiments.firstIndex(where: { $0.id == experimentID })
+    guard
+      let experimentIndex = next.tournamentExperiments.firstIndex(where: { $0.id == experimentID })
     else {
       throw ProductTournamentExperimentRolloutError.unknownExperiment(experimentID)
     }
@@ -183,14 +187,16 @@ enum ProductTournamentExperimentRolloutWorkflow {
     next.tournamentExperiments[experimentIndex].evidenceSummary = summary
     next.tournamentExperiments[experimentIndex].updatedAt = timestamp
 
-    if let solutionIndex = next.productHypotheses.firstIndex(where: { $0.id == experiment.productHypothesisID }) {
+    if let productHypothesisIndex = next.productHypotheses.firstIndex(where: {
+      $0.id == experiment.productHypothesisID
+    }) {
       switch target {
       case .promoted:
-        next.productHypotheses[solutionIndex].status = .promoted
+        next.productHypotheses[productHypothesisIndex].status = .promoted
       case .kill:
-        next.productHypotheses[solutionIndex].status = .rejected
+        next.productHypotheses[productHypothesisIndex].status = .rejected
       case .archived:
-        next.productHypotheses[solutionIndex].status = .parked
+        next.productHypotheses[productHypothesisIndex].status = .parked
       case .notRun, .keepGoing, .narrow, .pivot, .promote:
         break
       }
@@ -256,7 +262,8 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     guard CompassWorkspace.isGitRepository(repoURL) else {
       throw ProductTournamentExperimentGitRolloutError.missingGitRepository(repoURL)
     }
-    guard let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID }) else {
+    guard let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
+    else {
       throw ProductTournamentExperimentGitRolloutError.unknownExperiment(experimentID)
     }
     try await ProductTournamentExperimentGit.validateBranchName(experiment.branchName, in: repoURL)
@@ -272,7 +279,8 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
       experiment.branchName,
       in: repoURL
     )
-    let acceptedBeforeSha = try await ProductTournamentExperimentGit.branchHead(acceptedBranch, in: repoURL)
+    let acceptedBeforeSha = try await ProductTournamentExperimentGit.branchHead(
+      acceptedBranch, in: repoURL)
     let mergeBaseSha = try await ProductTournamentExperimentGit.output(
       ["merge-base", acceptedBranch, experiment.branchName],
       in: repoURL,
@@ -291,7 +299,10 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
       maxLines: 12
     )
     let commitSubjects = try await ProductTournamentExperimentGit.lines(
-      ["log", "--oneline", "--decorate=short", "--max-count=8", "\(acceptedBranch)..\(experiment.branchName)"],
+      [
+        "log", "--oneline", "--decorate=short", "--max-count=8",
+        "\(acceptedBranch)..\(experiment.branchName)",
+      ],
       in: repoURL,
       commandName: "log \(acceptedBranch)..\(experiment.branchName)",
       maxLines: 8
@@ -323,7 +334,9 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     now: Date = Date(),
     decidedBy: String = "Product Tournament Workbench"
   ) async throws -> ProductTournamentExperimentGitRolloutResult {
-    guard let experimentIndex = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID })
+    guard
+      let experimentIndex = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID }
+      )
     else {
       throw ProductTournamentExperimentGitRolloutError.unknownExperiment(experimentID)
     }
@@ -418,7 +431,9 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     guard CompassWorkspace.isGitRepository(repoURL) else {
       throw ProductTournamentExperimentGitRolloutError.missingGitRepository(repoURL)
     }
-    guard let experimentIndex = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID })
+    guard
+      let experimentIndex = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID }
+      )
     else {
       throw ProductTournamentExperimentGitRolloutError.unknownExperiment(experimentID)
     }
@@ -499,12 +514,14 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     next.tournamentExperiments[experimentIndex].decision = target
     next.tournamentExperiments[experimentIndex].evidenceSummary = summary
     next.tournamentExperiments[experimentIndex].updatedAt = timestamp
-    if let solutionIndex = next.productHypotheses.firstIndex(where: { $0.id == experiment.productHypothesisID }) {
+    if let productHypothesisIndex = next.productHypotheses.firstIndex(where: {
+      $0.id == experiment.productHypothesisID
+    }) {
       switch target {
       case .promoted:
-        next.productHypotheses[solutionIndex].status = .promoted
+        next.productHypotheses[productHypothesisIndex].status = .promoted
       case .archived:
-        next.productHypotheses[solutionIndex].status = .parked
+        next.productHypotheses[productHypothesisIndex].status = .parked
       case .notRun, .keepGoing, .narrow, .pivot, .kill, .promote:
         break
       }
@@ -666,7 +683,8 @@ enum ProductTournamentExperimentGit {
       commandName: commandName,
       allowEmptyOutput: true
     )
-    return raw
+    return
+      raw
       .split(whereSeparator: \.isNewline)
       .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
@@ -712,7 +730,8 @@ extension CompassProject {
     guard let workspace else {
       throw AppModelError.noRepositorySelected
     }
-    return try await workspace.productTournamentExperimentGitRolloutPreview(experimentID: experimentID)
+    return try await workspace.productTournamentExperimentGitRolloutPreview(
+      experimentID: experimentID)
   }
 
   func applyProductTournamentExperimentRolloutAction(
@@ -724,14 +743,17 @@ extension CompassProject {
         fail(AppModelError.noRepositorySelected)
         return
       }
-      let actionTitle = productTournamentConfig.tournamentExperiments
+      let actionTitle =
+        productTournamentConfig.tournamentExperiments
         .first { $0.id == experimentID }
         .map { action.title(from: $0.decision) }
         ?? action.rawValue
       if action == .promoteOrConfirm,
-        productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentID })?.decision == .promote
+        productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentID })?
+          .decision == .promote
       {
-        let result = try await workspace.promoteProductTournamentExperiment(experimentID: experimentID)
+        let result = try await workspace.promoteProductTournamentExperiment(
+          experimentID: experimentID)
         productTournamentConfig = result.config
         log(
           "Promoted tournament experiment \(experimentID) into \(result.preview.acceptedBranchName) at \(String(result.acceptedAfterSha.prefix(12))).",
@@ -740,9 +762,11 @@ extension CompassProject {
         return
       }
       if action == .killOrArchive,
-        productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentID })?.decision == .kill
+        productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentID })?
+          .decision == .kill
       {
-        let result = try await workspace.archiveProductTournamentExperiment(experimentID: experimentID)
+        let result = try await workspace.archiveProductTournamentExperiment(
+          experimentID: experimentID)
         productTournamentConfig = result.config
         log(
           "Archived tournament experiment \(experimentID) to \(result.archiveBranchName ?? "archive branch").",

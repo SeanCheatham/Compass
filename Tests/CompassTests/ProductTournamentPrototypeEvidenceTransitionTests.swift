@@ -40,10 +40,12 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       outcome.config.tournamentContenders.first { $0.id == fixture.losingContender.id })
     let updatedExperiment = try #require(
       outcome.config.tournamentExperiments.first { $0.id == fixture.experiment.id })
-    let updatedSolution = try #require(
+    let updatedProductHypothesis = try #require(
       outcome.config.productHypotheses.first { $0.id == fixture.contender.productHypothesisID })
-    let losingSolution = try #require(
-      outcome.config.productHypotheses.first { $0.id == fixture.losingContender.productHypothesisID })
+    let losingProductHypothesis = try #require(
+      outcome.config.productHypotheses.first {
+        $0.id == fixture.losingContender.productHypothesisID
+      })
     let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: fixture.config,
       evidenceIndex: index
@@ -80,8 +82,8 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
     try #require(updatedContender.status == .winner)
     try #require(losingContender.status == .eliminated)
     try #require(updatedExperiment.decision == .promote)
-    try #require(updatedSolution.status == .promoted)
-    try #require(losingSolution.status == .rejected)
+    try #require(updatedProductHypothesis.status == .promoted)
+    try #require(losingProductHypothesis.status == .rejected)
     try #require(
       Set(outcome.affectedContenderIDs) == [fixture.contender.id, fixture.losingContender.id])
     try #require(outcome.toRoundID == nil)
@@ -169,7 +171,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       outcome.config.tournamentContenders.first { $0.id == fixture.contender.id })
     let updatedExperiment = try #require(
       outcome.config.tournamentExperiments.first { $0.id == fixture.experiment.id })
-    let updatedSolution = try #require(
+    let updatedProductHypothesis = try #require(
       outcome.config.productHypotheses.first { $0.id == fixture.contender.productHypothesisID })
 
     try #require(outcome.proposal.recommendation == .eliminate)
@@ -177,7 +179,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
     try #require(updatedTournament.currentRoundID == fixture.prototypeRound.id)
     try #require(updatedContender.status == .eliminated)
     try #require(updatedExperiment.decision == .kill)
-    try #require(updatedSolution.status == .rejected)
+    try #require(updatedProductHypothesis.status == .rejected)
     try #require(outcome.userMessage.contains("Eliminated"))
   }
 
@@ -345,7 +347,8 @@ private func roundThreeFixture() throws -> RoundThreeFixture {
   let losingContender = try #require(config.tournamentContenders.dropFirst().first)
   let experimentID = try #require(contender.experimentID)
   let experiment = try #require(config.tournamentExperiments.first { $0.id == experimentID })
-  let hypothesis = try #require(config.productHypotheses.first { $0.id == contender.productHypothesisID })
+  let hypothesis = try #require(
+    config.productHypotheses.first { $0.id == contender.productHypothesisID })
 
   config.tournaments[0].currentRoundID = prototypeRound.id
   if let index = config.tournamentRounds.firstIndex(where: { $0.id == planRound.id }) {
@@ -424,7 +427,9 @@ private func prototypeEvidenceRecords(
         ? "The simulated user would pay for or sponsor this prototype."
         : "The simulated user is not ready to sponsor this prototype.",
       personaActionRationales: includePrototypeUseProof
-        ? ["The simulated user exercised the low-medium fidelity prototype before judging sponsorship."]
+        ? [
+          "The simulated user exercised the low-medium fidelity prototype before judging sponsorship."
+        ]
         : [],
       verdict: verdict,
       summary: summary
