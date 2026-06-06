@@ -124,7 +124,7 @@ enum SharedCompassVMGuestWorkspaceCatalog {
     }
     let entry = CatalogEntry(
       id: UUID().uuidString.lowercased(),
-      experimentID: ProductizationModelText.identifier(experimentID, fallback: "experiment"),
+      experimentID: ProductTournamentModelText.identifier(experimentID, fallback: "experiment"),
       branchName: StringUtils.boundedText(branchName, limit: 240),
       lastSyncedHostFingerprint: nil
     )

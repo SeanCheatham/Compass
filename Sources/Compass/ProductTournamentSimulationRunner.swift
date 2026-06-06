@@ -54,9 +54,9 @@ struct ProductTournamentSimulationRequest {
     self.alternatives = alternatives
     self.solution = solution
     self.experiment = experiment
-    self.scenarioID = ProductizationModelText.identifier(scenarioID, fallback: "scenario")
-    self.scenarioTask = ProductizationModelText.cleanedText(scenarioTask, limit: 800)
-    self.scenarioSuccessSignal = ProductizationModelText.cleanedText(
+    self.scenarioID = ProductTournamentModelText.identifier(scenarioID, fallback: "scenario")
+    self.scenarioTask = ProductTournamentModelText.cleanedText(scenarioTask, limit: 800)
+    self.scenarioSuccessSignal = ProductTournamentModelText.cleanedText(
       scenarioSuccessSignal,
       limit: 500
     )
@@ -165,12 +165,12 @@ struct ProductTournamentSimulationDecisionIntent: Codable, Equatable, Sendable {
   ) {
     self.currentDecision = currentDecision
     self.targetDecision = targetDecision
-    self.directive = ProductizationModelText.cleanedText(
+    self.directive = ProductTournamentModelText.cleanedText(
       directive ?? Self.directive(for: targetDecision),
       fallback: Self.directive(for: targetDecision),
       limit: 700
     )
-    self.scorecardFocus = ProductizationModelText.cleanedList(
+    self.scorecardFocus = ProductTournamentModelText.cleanedList(
       scorecardFocus ?? Self.scorecardFocus(for: targetDecision),
       limit: 120
     )

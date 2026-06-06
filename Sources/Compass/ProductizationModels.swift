@@ -72,7 +72,7 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     factoryCycleAudits: [ProductFactoryCycleAudit] = []
   ) {
     self.schemaVersion = schemaVersion
-    self.rawPain = ProductizationModelText.cleanedText(rawPain, limit: 4_000)
+    self.rawPain = ProductTournamentModelText.cleanedText(rawPain, limit: 4_000)
     self.painHypotheses = painHypotheses
     self.userSegments = userSegments
     self.currentWorkflows = currentWorkflows
@@ -173,11 +173,11 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     now: Date = Date()
   ) -> ProductizationConfig {
     let timestamp = now.timeIntervalSince1970
-    let title = ProductizationModelText.cleanedText(projectTitle, fallback: "Project", limit: 120)
+    let title = ProductTournamentModelText.cleanedText(projectTitle, fallback: "Project", limit: 120)
     let painText =
-      ProductizationModelText.firstMeaningfulLine(in: rawPain)
+      ProductTournamentModelText.firstMeaningfulLine(in: rawPain)
       ?? "\(title) has an unresolved workflow pain that needs product discovery."
-    let slug = ProductizationModelText.slug(painText, fallback: title)
+    let slug = ProductTournamentModelText.slug(painText, fallback: title)
     let painID = "\(slug)-pain"
     let workflowID = "\(slug)-current-workflow"
     let manualAlternativeID = "\(slug)-manual-alternative"
@@ -644,20 +644,20 @@ struct PainHypothesis: Codable, Equatable, Identifiable, Sendable {
     createdAt: Double,
     updatedAt: Double? = nil
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "pain")
-    self.title = ProductizationModelText.cleanedText(title, fallback: "Pain hypothesis", limit: 180)
-    self.rawPain = ProductizationModelText.cleanedText(
+    self.id = ProductTournamentModelText.identifier(id, fallback: "pain")
+    self.title = ProductTournamentModelText.cleanedText(title, fallback: "Pain hypothesis", limit: 180)
+    self.rawPain = ProductTournamentModelText.cleanedText(
       rawPain, fallback: "Current workflow pain to explore", limit: 4_000)
-    self.targetSituation = ProductizationModelText.cleanedText(
+    self.targetSituation = ProductTournamentModelText.cleanedText(
       targetSituation, fallback: "The situation where the pain appears", limit: 800)
-    self.painFrequency = ProductizationModelText.cleanedText(
+    self.painFrequency = ProductTournamentModelText.cleanedText(
       painFrequency, fallback: "Unknown frequency", limit: 300)
-    self.painSeverity = ProductizationModelText.cleanedText(
+    self.painSeverity = ProductTournamentModelText.cleanedText(
       painSeverity, fallback: "Unknown severity", limit: 300)
-    self.costOfInaction = ProductizationModelText.cleanedText(
+    self.costOfInaction = ProductTournamentModelText.cleanedText(
       costOfInaction, fallback: "The current workaround continues", limit: 800)
-    self.successSignals = ProductizationModelText.cleanedList(successSignals, limit: 240)
-    self.unknowns = ProductizationModelText.cleanedList(unknowns, limit: 240)
+    self.successSignals = ProductTournamentModelText.cleanedList(successSignals, limit: 240)
+    self.unknowns = ProductTournamentModelText.cleanedList(unknowns, limit: 240)
     self.status = status
     self.createdAt = createdAt
     self.updatedAt = updatedAt ?? createdAt
@@ -698,22 +698,22 @@ struct UserSegment: Codable, Equatable, Identifiable, Sendable {
     decisionCriteria: [String] = [],
     skepticism: String
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "segment")
-    self.painID = ProductizationModelText.identifier(painID, fallback: "pain")
-    self.name = ProductizationModelText.cleanedText(name, fallback: "User segment", limit: 160)
-    self.role = ProductizationModelText.cleanedText(role, fallback: "Target user", limit: 220)
-    self.context = ProductizationModelText.cleanedText(
+    self.id = ProductTournamentModelText.identifier(id, fallback: "segment")
+    self.painID = ProductTournamentModelText.identifier(painID, fallback: "pain")
+    self.name = ProductTournamentModelText.cleanedText(name, fallback: "User segment", limit: 160)
+    self.role = ProductTournamentModelText.cleanedText(role, fallback: "Target user", limit: 220)
+    self.context = ProductTournamentModelText.cleanedText(
       context, fallback: "Experiences the pain in a real workflow", limit: 800)
-    self.goals = ProductizationModelText.cleanedList(goals, limit: 220)
-    self.constraints = ProductizationModelText.cleanedList(constraints, limit: 220)
+    self.goals = ProductTournamentModelText.cleanedList(goals, limit: 220)
+    self.constraints = ProductTournamentModelText.cleanedList(constraints, limit: 220)
     self.currentWorkflowIDs =
-      ProductizationModelText.cleanedList(currentWorkflowIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "workflow") }
+      ProductTournamentModelText.cleanedList(currentWorkflowIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "workflow") }
     self.alternativeIDs =
-      ProductizationModelText.cleanedList(alternativeIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "alternative") }
-    self.decisionCriteria = ProductizationModelText.cleanedList(decisionCriteria, limit: 220)
-    self.skepticism = ProductizationModelText.cleanedText(
+      ProductTournamentModelText.cleanedList(alternativeIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "alternative") }
+    self.decisionCriteria = ProductTournamentModelText.cleanedList(decisionCriteria, limit: 220)
+    self.skepticism = ProductTournamentModelText.cleanedText(
       skepticism, fallback: "Needs proof before switching", limit: 500)
   }
 }
@@ -740,16 +740,16 @@ struct CurrentWorkflow: Codable, Equatable, Identifiable, Sendable {
     workarounds: [String] = [],
     estimatedCost: String
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "workflow")
-    self.painID = ProductizationModelText.identifier(painID, fallback: "pain")
-    self.title = ProductizationModelText.cleanedText(
+    self.id = ProductTournamentModelText.identifier(id, fallback: "workflow")
+    self.painID = ProductTournamentModelText.identifier(painID, fallback: "pain")
+    self.title = ProductTournamentModelText.cleanedText(
       title, fallback: "Current workflow", limit: 180)
-    self.steps = ProductizationModelText.cleanedList(steps, limit: 260)
-    self.tools = ProductizationModelText.cleanedList(tools, limit: 180)
-    self.handoffs = ProductizationModelText.cleanedList(handoffs, limit: 240)
-    self.failureModes = ProductizationModelText.cleanedList(failureModes, limit: 260)
-    self.workarounds = ProductizationModelText.cleanedList(workarounds, limit: 220)
-    self.estimatedCost = ProductizationModelText.cleanedText(
+    self.steps = ProductTournamentModelText.cleanedList(steps, limit: 260)
+    self.tools = ProductTournamentModelText.cleanedList(tools, limit: 180)
+    self.handoffs = ProductTournamentModelText.cleanedList(handoffs, limit: 240)
+    self.failureModes = ProductTournamentModelText.cleanedList(failureModes, limit: 260)
+    self.workarounds = ProductTournamentModelText.cleanedList(workarounds, limit: 220)
+    self.estimatedCost = ProductTournamentModelText.cleanedText(
       estimatedCost, fallback: "Unknown cost", limit: 400)
   }
 }
@@ -772,13 +772,13 @@ struct Alternative: Codable, Equatable, Identifiable, Sendable {
     weaknesses: [String] = [],
     switchingCost: String
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "alternative")
-    self.painID = ProductizationModelText.identifier(painID, fallback: "pain")
-    self.title = ProductizationModelText.cleanedText(title, fallback: "Alternative", limit: 180)
+    self.id = ProductTournamentModelText.identifier(id, fallback: "alternative")
+    self.painID = ProductTournamentModelText.identifier(painID, fallback: "pain")
+    self.title = ProductTournamentModelText.cleanedText(title, fallback: "Alternative", limit: 180)
     self.kind = kind
-    self.strengths = ProductizationModelText.cleanedList(strengths, limit: 220)
-    self.weaknesses = ProductizationModelText.cleanedList(weaknesses, limit: 220)
-    self.switchingCost = ProductizationModelText.cleanedText(
+    self.strengths = ProductTournamentModelText.cleanedList(strengths, limit: 220)
+    self.weaknesses = ProductTournamentModelText.cleanedList(weaknesses, limit: 220)
+    self.switchingCost = ProductTournamentModelText.cleanedText(
       switchingCost, fallback: "Unknown switching cost", limit: 400)
   }
 }
@@ -818,24 +818,24 @@ struct SolutionHypothesis: Codable, Equatable, Identifiable, Sendable {
     requiredProof: [String] = [],
     status: SolutionHypothesisStatus
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "solution")
-    self.painID = ProductizationModelText.identifier(painID, fallback: "pain")
-    self.title = ProductizationModelText.cleanedText(
+    self.id = ProductTournamentModelText.identifier(id, fallback: "solution")
+    self.painID = ProductTournamentModelText.identifier(painID, fallback: "pain")
+    self.title = ProductTournamentModelText.cleanedText(
       title, fallback: "Solution hypothesis", limit: 180)
-    self.promise = ProductizationModelText.cleanedText(
+    self.promise = ProductTournamentModelText.cleanedText(
       promise, fallback: "Relieve the target pain", limit: 500)
-    self.workflowBet = ProductizationModelText.cleanedText(
+    self.workflowBet = ProductTournamentModelText.cleanedText(
       workflowBet, fallback: "A prototype can prove pain relief", limit: 700)
     self.targetSegmentIDs =
-      ProductizationModelText.cleanedList(targetSegmentIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "segment") }
-    self.differentiator = ProductizationModelText.cleanedText(
+      ProductTournamentModelText.cleanedList(targetSegmentIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "segment") }
+    self.differentiator = ProductTournamentModelText.cleanedText(
       differentiator, fallback: "Different from the current alternative", limit: 500)
-    self.whyThisCouldWin = ProductizationModelText.cleanedText(
+    self.whyThisCouldWin = ProductTournamentModelText.cleanedText(
       whyThisCouldWin, fallback: "The target segment may prefer it", limit: 700)
-    self.whyThisMightFail = ProductizationModelText.cleanedText(
+    self.whyThisMightFail = ProductTournamentModelText.cleanedText(
       whyThisMightFail, fallback: "The product bet may not relieve enough pain", limit: 700)
-    self.requiredProof = ProductizationModelText.cleanedList(requiredProof, limit: 260)
+    self.requiredProof = ProductTournamentModelText.cleanedList(requiredProof, limit: 260)
     self.status = status
   }
 }
@@ -878,21 +878,21 @@ struct ProductExperiment: Codable, Equatable, Identifiable, Sendable {
     createdAt: Double,
     updatedAt: Double? = nil
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "experiment")
-    self.solutionID = ProductizationModelText.identifier(solutionID, fallback: "solution")
-    self.title = ProductizationModelText.cleanedText(
+    self.id = ProductTournamentModelText.identifier(id, fallback: "experiment")
+    self.solutionID = ProductTournamentModelText.identifier(solutionID, fallback: "solution")
+    self.title = ProductTournamentModelText.cleanedText(
       title, fallback: "Product experiment", limit: 180)
-    self.branchName = ProductizationModelText.cleanedText(
+    self.branchName = ProductTournamentModelText.cleanedText(
       branchName, fallback: "codex/product-experiment", limit: 240)
-    self.worktreeID = ProductizationModelText.identifier(worktreeID, fallback: "worktree")
-    self.baseSha = ProductizationModelText.optionalCleanedText(baseSha, limit: 80)
-    self.currentSha = ProductizationModelText.optionalCleanedText(currentSha, limit: 80)
-    self.prototypeScope = ProductizationModelText.cleanedText(
+    self.worktreeID = ProductTournamentModelText.identifier(worktreeID, fallback: "worktree")
+    self.baseSha = ProductTournamentModelText.optionalCleanedText(baseSha, limit: 80)
+    self.currentSha = ProductTournamentModelText.optionalCleanedText(currentSha, limit: 80)
+    self.prototypeScope = ProductTournamentModelText.cleanedText(
       prototypeScope, fallback: "Smallest prototype needed for evidence", limit: 800)
     self.scenarioCohortIDs =
-      ProductizationModelText.cleanedList(scenarioCohortIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "cohort") }
-    self.evidenceSummary = ProductizationModelText.cleanedText(
+      ProductTournamentModelText.cleanedList(scenarioCohortIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "cohort") }
+    self.evidenceSummary = ProductTournamentModelText.cleanedText(
       evidenceSummary, fallback: "No evidence recorded yet.", limit: 1_000)
     self.decision = decision
     self.createdAt = createdAt
@@ -935,25 +935,25 @@ struct ProductTournament: Codable, Equatable, Identifiable, Sendable {
     createdAt: Double,
     updatedAt: Double? = nil
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "tournament")
-    self.painID = ProductizationModelText.identifier(painID, fallback: "pain")
-    self.title = ProductizationModelText.cleanedText(
+    self.id = ProductTournamentModelText.identifier(id, fallback: "tournament")
+    self.painID = ProductTournamentModelText.identifier(painID, fallback: "pain")
+    self.title = ProductTournamentModelText.cleanedText(
       title,
       fallback: "Product tournament",
       limit: 180
     )
-    self.premise = ProductizationModelText.cleanedText(
+    self.premise = ProductTournamentModelText.cleanedText(
       premise,
       fallback: "A user pain worth exploring with competing product plans.",
       limit: 1_000
     )
     self.contenderIDs =
-      ProductizationModelText.cleanedList(contenderIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "contender") }
+      ProductTournamentModelText.cleanedList(contenderIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "contender") }
     self.roundIDs =
-      ProductizationModelText.cleanedList(roundIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "round") }
-    self.currentRoundID = ProductizationModelText.optionalIdentifier(
+      ProductTournamentModelText.cleanedList(roundIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "round") }
+    self.currentRoundID = ProductTournamentModelText.optionalIdentifier(
       currentRoundID,
       fallback: "round"
     )
@@ -998,36 +998,36 @@ struct ProductTournamentContender: Codable, Equatable, Identifiable, Sendable {
     createdAt: Double,
     updatedAt: Double? = nil
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "contender")
-    self.tournamentID = ProductizationModelText.identifier(tournamentID, fallback: "tournament")
-    self.solutionID = ProductizationModelText.identifier(solutionID, fallback: "solution")
-    self.experimentID = ProductizationModelText.optionalIdentifier(
+    self.id = ProductTournamentModelText.identifier(id, fallback: "contender")
+    self.tournamentID = ProductTournamentModelText.identifier(tournamentID, fallback: "tournament")
+    self.solutionID = ProductTournamentModelText.identifier(solutionID, fallback: "solution")
+    self.experimentID = ProductTournamentModelText.optionalIdentifier(
       experimentID,
       fallback: "experiment"
     )
-    self.title = ProductizationModelText.cleanedText(
+    self.title = ProductTournamentModelText.cleanedText(
       title,
       fallback: "Product contender",
       limit: 180
     )
-    self.productPlan = ProductizationModelText.cleanedText(
+    self.productPlan = ProductTournamentModelText.cleanedText(
       productPlan,
       fallback: "Plan how this contender will relieve the pain.",
       limit: 1_000
     )
-    self.valueProposition = ProductizationModelText.cleanedText(
+    self.valueProposition = ProductTournamentModelText.cleanedText(
       valueProposition,
       fallback: "Why the user may switch or pay.",
       limit: 700
     )
-    self.primaryRisk = ProductizationModelText.cleanedText(
+    self.primaryRisk = ProductTournamentModelText.cleanedText(
       primaryRisk,
       fallback: "Why this contender may lose.",
       limit: 700
     )
     self.targetSegmentIDs =
-      ProductizationModelText.cleanedList(targetSegmentIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "segment") }
+      ProductTournamentModelText.cleanedList(targetSegmentIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "segment") }
     self.status = status
     self.createdAt = createdAt
     self.updatedAt = updatedAt ?? createdAt
@@ -1075,27 +1075,27 @@ struct ProductTournamentRound: Codable, Equatable, Identifiable, Sendable {
     createdAt: Double,
     updatedAt: Double? = nil
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "round")
-    self.tournamentID = ProductizationModelText.identifier(tournamentID, fallback: "tournament")
+    self.id = ProductTournamentModelText.identifier(id, fallback: "round")
+    self.tournamentID = ProductTournamentModelText.identifier(tournamentID, fallback: "tournament")
     self.ordinal = max(1, ordinal)
     self.kind = kind
-    self.title = ProductizationModelText.cleanedText(
+    self.title = ProductTournamentModelText.cleanedText(
       title,
       fallback: "Tournament round",
       limit: 180
     )
-    self.goal = ProductizationModelText.cleanedText(
+    self.goal = ProductTournamentModelText.cleanedText(
       goal,
       fallback: "Evaluate product contenders against the pain.",
       limit: 1_000
     )
-    self.evaluationFocus = ProductizationModelText.cleanedList(evaluationFocus, limit: 220)
+    self.evaluationFocus = ProductTournamentModelText.cleanedList(evaluationFocus, limit: 220)
     self.contenderIDs =
-      ProductizationModelText.cleanedList(contenderIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "contender") }
+      ProductTournamentModelText.cleanedList(contenderIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "contender") }
     self.scenarioCohortIDs =
-      ProductizationModelText.cleanedList(scenarioCohortIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "cohort") }
+      ProductTournamentModelText.cleanedList(scenarioCohortIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "cohort") }
     self.status = status
     self.createdAt = createdAt
     self.updatedAt = updatedAt ?? createdAt
@@ -1164,33 +1164,33 @@ struct ProductScenario: Codable, Equatable, Identifiable, Sendable {
     createdAt: Double,
     updatedAt: Double? = nil
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "scenario")
-    self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
-    self.segmentID = ProductizationModelText.identifier(segmentID, fallback: "segment")
-    self.currentWorkflowID = ProductizationModelText.identifier(
+    self.id = ProductTournamentModelText.identifier(id, fallback: "scenario")
+    self.experimentID = ProductTournamentModelText.identifier(experimentID, fallback: "experiment")
+    self.segmentID = ProductTournamentModelText.identifier(segmentID, fallback: "segment")
+    self.currentWorkflowID = ProductTournamentModelText.identifier(
       currentWorkflowID,
       fallback: "workflow"
     )
-    self.alternativeID = ProductizationModelText.optionalIdentifier(
+    self.alternativeID = ProductTournamentModelText.optionalIdentifier(
       alternativeID,
       fallback: "alternative"
     )
-    self.title = ProductizationModelText.cleanedText(
+    self.title = ProductTournamentModelText.cleanedText(
       title,
       fallback: "Productization scenario",
       limit: 180
     )
-    self.task = ProductizationModelText.cleanedText(
+    self.task = ProductTournamentModelText.cleanedText(
       task,
       fallback: "Try the product experiment against the current workflow.",
       limit: 800
     )
-    self.successSignal = ProductizationModelText.cleanedText(
+    self.successSignal = ProductTournamentModelText.cleanedText(
       successSignal,
       fallback: "The scenario produces evidence for the next product decision.",
       limit: 500
     )
-    self.targetCommitSha = ProductizationModelText.optionalCleanedText(
+    self.targetCommitSha = ProductTournamentModelText.optionalCleanedText(
       targetCommitSha,
       limit: 80
     )
@@ -1218,15 +1218,15 @@ struct ProductScenarioCohort: Codable, Equatable, Identifiable, Sendable {
     enabled: Bool = true,
     tags: [String] = []
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "cohort")
-    self.title = ProductizationModelText.cleanedText(
+    self.id = ProductTournamentModelText.identifier(id, fallback: "cohort")
+    self.title = ProductTournamentModelText.cleanedText(
       title, fallback: "Product scenario cohort", limit: 180)
-    self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
+    self.experimentID = ProductTournamentModelText.identifier(experimentID, fallback: "experiment")
     self.scenarioIDs =
-      ProductizationModelText.cleanedList(scenarioIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "scenario") }
+      ProductTournamentModelText.cleanedList(scenarioIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "scenario") }
     self.enabled = enabled
-    self.tags = ProductizationModelText.cleanedList(tags, limit: 80)
+    self.tags = ProductTournamentModelText.cleanedList(tags, limit: 80)
   }
 }
 
@@ -1254,19 +1254,19 @@ struct ProductDecision: Codable, Equatable, Identifiable, Sendable {
     decidedAt: Double,
     decidedBy: String
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "decision")
-    self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
+    self.id = ProductTournamentModelText.identifier(id, fallback: "decision")
+    self.experimentID = ProductTournamentModelText.identifier(experimentID, fallback: "experiment")
     self.decision = decision
-    self.summary = ProductizationModelText.cleanedText(
+    self.summary = ProductTournamentModelText.cleanedText(
       summary, fallback: "Product decision recorded.", limit: 1_000)
     self.evidenceRunIDs =
-      ProductizationModelText.cleanedList(evidenceRunIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "evidence-run") }
-    self.branchName = ProductizationModelText.optionalCleanedText(branchName, limit: 240)
-    self.beforeSha = ProductizationModelText.optionalCleanedText(beforeSha, limit: 80)
-    self.afterSha = ProductizationModelText.optionalCleanedText(afterSha, limit: 80)
+      ProductTournamentModelText.cleanedList(evidenceRunIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "evidence-run") }
+    self.branchName = ProductTournamentModelText.optionalCleanedText(branchName, limit: 240)
+    self.beforeSha = ProductTournamentModelText.optionalCleanedText(beforeSha, limit: 80)
+    self.afterSha = ProductTournamentModelText.optionalCleanedText(afterSha, limit: 80)
     self.decidedAt = decidedAt
-    self.decidedBy = ProductizationModelText.cleanedText(
+    self.decidedBy = ProductTournamentModelText.cleanedText(
       decidedBy, fallback: "Compass", limit: 120)
   }
 }
@@ -1404,14 +1404,14 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     stopDetail: String,
     userMessage: String
   ) {
-    self.id = ProductizationModelText.identifier(id, fallback: "factory-cycle-audit")
+    self.id = ProductTournamentModelText.identifier(id, fallback: "factory-cycle-audit")
     self.startedAt = startedAt
     self.endedAt = max(startedAt, endedAt)
-    self.executedStepIDs = ProductizationModelText.cleanedList(executedStepIDs, limit: 260)
+    self.executedStepIDs = ProductTournamentModelText.cleanedList(executedStepIDs, limit: 260)
     self.experimentIDs =
-      ProductizationModelText.cleanedList(experimentIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "experiment") }
-    self.messages = ProductizationModelText.cleanedList(messages, limit: 500)
+      ProductTournamentModelText.cleanedList(experimentIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "experiment") }
+    self.messages = ProductTournamentModelText.cleanedList(messages, limit: 500)
     self.maxSteps = max(1, maxSteps)
     self.appliedDecisionCount = max(0, appliedDecisionCount)
     self.promotedDecisionCount = max(0, promotedDecisionCount)
@@ -1419,54 +1419,54 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     self.targetedPromoteProofCount = max(0, targetedPromoteProofCount)
     self.targetedKillProofCount = max(0, targetedKillProofCount)
     self.evidenceRunStepCount = max(0, evidenceRunStepCount)
-    self.evidenceRunIDs = ProductizationModelText.cleanedList(evidenceRunIDs, limit: 120)
+    self.evidenceRunIDs = ProductTournamentModelText.cleanedList(evidenceRunIDs, limit: 120)
     self.completedEvidenceRunCount = max(0, completedEvidenceRunCount)
     self.failedEvidenceRunCount = max(0, failedEvidenceRunCount)
     self.skippedScenarioCount = max(0, skippedScenarioCount)
     self.startingProofDebtCount = startingProofDebtCount.map { max(0, $0) }
     self.endingProofDebtCount = endingProofDebtCount.map { max(0, $0) }
-    self.startingProofDebtSummary = ProductizationModelText.optionalCleanedText(
+    self.startingProofDebtSummary = ProductTournamentModelText.optionalCleanedText(
       startingProofDebtSummary,
       limit: 500
     )
-    self.endingProofDebtSummary = ProductizationModelText.optionalCleanedText(
+    self.endingProofDebtSummary = ProductTournamentModelText.optionalCleanedText(
       endingProofDebtSummary,
       limit: 500
     )
-    self.decisionCandidateSummaries = ProductizationModelText.cleanedList(
+    self.decisionCandidateSummaries = ProductTournamentModelText.cleanedList(
       decisionCandidateSummaries,
       limit: 300
     )
-    self.evidenceTensionSummaries = ProductizationModelText.cleanedList(
+    self.evidenceTensionSummaries = ProductTournamentModelText.cleanedList(
       evidenceTensionSummaries,
       limit: 360
     )
-    self.proofTargetSummaries = ProductizationModelText.cleanedList(
+    self.proofTargetSummaries = ProductTournamentModelText.cleanedList(
       proofTargetSummaries,
       limit: 360
     )
-    self.targetedProofOutcomeSummaries = ProductizationModelText.cleanedList(
+    self.targetedProofOutcomeSummaries = ProductTournamentModelText.cleanedList(
       targetedProofOutcomeSummaries,
       limit: 360
     )
-    self.personaRationaleSignalSummaries = ProductizationModelText.cleanedList(
+    self.personaRationaleSignalSummaries = ProductTournamentModelText.cleanedList(
       personaRationaleSignalSummaries,
       limit: 360
     )
-    self.revisionBriefSummaries = ProductizationModelText.cleanedList(
+    self.revisionBriefSummaries = ProductTournamentModelText.cleanedList(
       revisionBriefSummaries,
       limit: 300
     )
     self.stopReason = stopReason
-    self.stopStepID = ProductizationModelText.optionalCleanedText(stopStepID, limit: 200)
-    self.stopStepTitle = ProductizationModelText.optionalCleanedText(stopStepTitle, limit: 180)
-    let cleanedStopDetail = ProductizationModelText.cleanedText(
+    self.stopStepID = ProductTournamentModelText.optionalCleanedText(stopStepID, limit: 200)
+    self.stopStepTitle = ProductTournamentModelText.optionalCleanedText(stopStepTitle, limit: 180)
+    let cleanedStopDetail = ProductTournamentModelText.cleanedText(
       stopDetail,
       fallback: "Factory cycle stopped.",
       limit: 500
     )
     self.stopDetail = cleanedStopDetail
-    self.userMessage = ProductizationModelText.cleanedText(
+    self.userMessage = ProductTournamentModelText.cleanedText(
       userMessage,
       fallback: cleanedStopDetail,
       limit: 2_000
@@ -1617,7 +1617,7 @@ enum ProductizationConfigError: LocalizedError, Equatable {
   }
 }
 
-enum ProductizationModelText {
+enum ProductTournamentModelText {
   static func firstMeaningfulLine(in text: String) -> String? {
     text
       .split(whereSeparator: \.isNewline)

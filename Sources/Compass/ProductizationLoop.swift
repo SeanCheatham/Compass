@@ -25,15 +25,15 @@ struct ProductizationReflectDecisionUpdate: Codable, Equatable, Sendable {
     evidenceRunIDs: [String] = [],
     decidedBy: String = "Reflect"
   ) {
-    self.experimentID = ProductizationModelText.identifier(
+    self.experimentID = ProductTournamentModelText.identifier(
       experimentID,
       fallback: "experiment"
     )
     self.decision = decision
     self.summary = StringUtils.boundedText(summary, limit: 1_000)
     self.evidenceRunIDs =
-      ProductizationModelText.cleanedList(evidenceRunIDs, limit: 120)
-      .map { ProductizationModelText.identifier($0, fallback: "evidence-run") }
+      ProductTournamentModelText.cleanedList(evidenceRunIDs, limit: 120)
+      .map { ProductTournamentModelText.identifier($0, fallback: "evidence-run") }
     self.decidedBy = StringUtils.boundedText(decidedBy, limit: 120)
     if self.decidedBy.isEmpty {
       self.decidedBy = "Reflect"
@@ -305,7 +305,7 @@ struct ProductFactoryDecisionCandidate: Equatable, Sendable, Identifiable {
   }
 
   init(proposal: ProductMarketFitDecisionProposal) {
-    self.experimentID = ProductizationModelText.identifier(
+    self.experimentID = ProductTournamentModelText.identifier(
       proposal.experimentID,
       fallback: "experiment"
     )
@@ -315,11 +315,11 @@ struct ProductFactoryDecisionCandidate: Equatable, Sendable, Identifiable {
     self.pressure = ProductFactoryDecisionCandidateAdvisor.pressure(
       for: proposal.update.decision
     )
-    self.evidenceRunIDs = ProductizationModelText.cleanedList(
+    self.evidenceRunIDs = ProductTournamentModelText.cleanedList(
       proposal.update.evidenceRunIDs,
       limit: 160
     )
-    self.summary = ProductizationModelText.cleanedText(
+    self.summary = ProductTournamentModelText.cleanedText(
       proposal.update.summary,
       fallback: "PMF decision candidate is ready.",
       limit: 1_000
@@ -480,11 +480,11 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
     targetDecision: ProductExperimentDecision? = nil,
     summary: String
   ) {
-    self.experimentID = ProductizationModelText.identifier(
+    self.experimentID = ProductTournamentModelText.identifier(
       experimentID,
       fallback: "experiment"
     )
-    self.label = ProductizationModelText.cleanedText(
+    self.label = ProductTournamentModelText.cleanedText(
       label,
       fallback: "resolve split PMF evidence",
       limit: 120
@@ -492,32 +492,32 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
     self.readinessScore = min(100, max(0, readinessScore))
     self.strongestVerdict = strongestVerdict
     self.weakestVerdict = weakestVerdict
-    self.positiveEvidenceRunIDs = ProductizationModelText.cleanedList(
+    self.positiveEvidenceRunIDs = ProductTournamentModelText.cleanedList(
       positiveEvidenceRunIDs,
       limit: 96
     )
-    self.negativeEvidenceRunIDs = ProductizationModelText.cleanedList(
+    self.negativeEvidenceRunIDs = ProductTournamentModelText.cleanedList(
       negativeEvidenceRunIDs,
       limit: 96
     )
-    self.targetPersonaID = ProductizationModelText.optionalIdentifier(
+    self.targetPersonaID = ProductTournamentModelText.optionalIdentifier(
       targetPersonaID,
       fallback: "persona"
     )
-    self.targetPersonaName = ProductizationModelText.optionalCleanedText(
+    self.targetPersonaName = ProductTournamentModelText.optionalCleanedText(
       targetPersonaName,
       limit: 160
     )
-    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+    self.targetScenarioID = ProductTournamentModelText.optionalIdentifier(
       targetScenarioID,
       fallback: "scenario"
     )
-    self.targetCohortID = ProductizationModelText.optionalIdentifier(
+    self.targetCohortID = ProductTournamentModelText.optionalIdentifier(
       targetCohortID,
       fallback: "cohort"
     )
     self.targetDecision = targetDecision
-    self.summary = ProductizationModelText.cleanedText(
+    self.summary = ProductTournamentModelText.cleanedText(
       summary,
       fallback:
         "Current PMF evidence contains both pull and rejection; resolve the split before lift/cut decisions.",
@@ -726,7 +726,7 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
     targetScenarioID: String? = nil,
     targetDecision: ProductExperimentDecision? = nil
   ) {
-    self.experimentID = ProductizationModelText.identifier(
+    self.experimentID = ProductTournamentModelText.identifier(
       experimentID,
       fallback: "experiment"
     )
@@ -734,17 +734,17 @@ struct ProductMarketFitNextAction: Equatable, Sendable {
     self.title = StringUtils.boundedText(title, limit: 160)
     self.detail = StringUtils.boundedText(detail, limit: 500)
     self.priority = max(0, priority)
-    self.cohortID = ProductizationModelText.optionalIdentifier(cohortID, fallback: "cohort")
+    self.cohortID = ProductTournamentModelText.optionalIdentifier(cohortID, fallback: "cohort")
     self.requiredSimulationMode = requiredSimulationMode
-    self.targetPersonaID = ProductizationModelText.optionalIdentifier(
+    self.targetPersonaID = ProductTournamentModelText.optionalIdentifier(
       targetPersonaID,
       fallback: "persona"
     )
-    self.targetPersonaName = ProductizationModelText.optionalCleanedText(
+    self.targetPersonaName = ProductTournamentModelText.optionalCleanedText(
       targetPersonaName,
       limit: 160
     )
-    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+    self.targetScenarioID = ProductTournamentModelText.optionalIdentifier(
       targetScenarioID,
       fallback: "scenario"
     )
@@ -791,8 +791,8 @@ struct ProductMarketFitCohortRunReadiness: Equatable, Sendable {
     missingTargetCommitCount: Int,
     targetScenarioID: String? = nil
   ) {
-    self.cohortID = ProductizationModelText.identifier(cohortID, fallback: "cohort")
-    self.cohortTitle = ProductizationModelText.cleanedText(
+    self.cohortID = ProductTournamentModelText.identifier(cohortID, fallback: "cohort")
+    self.cohortTitle = ProductTournamentModelText.cleanedText(
       cohortTitle,
       fallback: "Product scenario cohort",
       limit: 180
@@ -800,7 +800,7 @@ struct ProductMarketFitCohortRunReadiness: Equatable, Sendable {
     self.cohortEnabled = cohortEnabled
     self.enabledScenarioCount = max(0, enabledScenarioCount)
     self.missingTargetCommitCount = max(0, missingTargetCommitCount)
-    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+    self.targetScenarioID = ProductTournamentModelText.optionalIdentifier(
       targetScenarioID,
       fallback: "scenario"
     )
@@ -858,7 +858,7 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
     proofDebtCount: Int = 0,
     proofDebtSummary: String? = nil
   ) {
-    self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
+    self.experimentID = ProductTournamentModelText.identifier(experimentID, fallback: "experiment")
     self.readinessScore = readinessScore.map { min(100, max(0, $0)) }
     self.readinessRecommendation = readinessRecommendation
     self.nextActionKind = nextActionKind
@@ -929,35 +929,35 @@ struct ProductFactoryRationaleSignal: Equatable, Sendable, Identifiable {
     targetDecision: ProductExperimentDecision? = nil,
     summary: String
   ) {
-    self.experimentID = ProductizationModelText.identifier(
+    self.experimentID = ProductTournamentModelText.identifier(
       experimentID,
       fallback: "experiment"
     )
-    self.rationale = ProductizationModelText.cleanedText(
+    self.rationale = ProductTournamentModelText.cleanedText(
       rationale,
       fallback: "Repeated AI-user rationale needs product proof.",
       limit: 260
     )
     self.count = max(0, count)
-    self.runIDs = ProductizationModelText.cleanedList(runIDs, limit: 96)
-    self.targetPersonaID = ProductizationModelText.optionalIdentifier(
+    self.runIDs = ProductTournamentModelText.cleanedList(runIDs, limit: 96)
+    self.targetPersonaID = ProductTournamentModelText.optionalIdentifier(
       targetPersonaID,
       fallback: "persona"
     )
-    self.targetPersonaName = ProductizationModelText.optionalCleanedText(
+    self.targetPersonaName = ProductTournamentModelText.optionalCleanedText(
       targetPersonaName,
       limit: 160
     )
-    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+    self.targetScenarioID = ProductTournamentModelText.optionalIdentifier(
       targetScenarioID,
       fallback: "scenario"
     )
-    self.targetCohortID = ProductizationModelText.optionalIdentifier(
+    self.targetCohortID = ProductTournamentModelText.optionalIdentifier(
       targetCohortID,
       fallback: "cohort"
     )
     self.targetDecision = targetDecision
-    self.summary = ProductizationModelText.cleanedText(
+    self.summary = ProductTournamentModelText.cleanedText(
       summary,
       fallback:
         "Repeated AI-user rationale points to a PMF proof gap; resolve it before lift/cut decisions.",
@@ -1069,7 +1069,7 @@ struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiab
     requiredSimulationMode: ProductTournamentSimulationMode? = nil,
     summary: String
   ) {
-    self.experimentID = ProductizationModelText.identifier(
+    self.experimentID = ProductTournamentModelText.identifier(
       experimentID,
       fallback: "experiment"
     )
@@ -1077,32 +1077,32 @@ struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiab
     self.outcome = outcome
     self.recommendedDecision = recommendedDecision
     self.actionKind = actionKind
-    self.title = ProductizationModelText.cleanedText(
+    self.title = ProductTournamentModelText.cleanedText(
       title,
       fallback: "Resolve targeted PMF proof outcome",
       limit: 160
     )
     self.priority = max(0, priority)
     self.count = max(0, count)
-    self.runIDs = ProductizationModelText.cleanedList(runIDs, limit: 96)
-    self.targetPersonaID = ProductizationModelText.optionalIdentifier(
+    self.runIDs = ProductTournamentModelText.cleanedList(runIDs, limit: 96)
+    self.targetPersonaID = ProductTournamentModelText.optionalIdentifier(
       targetPersonaID,
       fallback: "persona"
     )
-    self.targetPersonaName = ProductizationModelText.optionalCleanedText(
+    self.targetPersonaName = ProductTournamentModelText.optionalCleanedText(
       targetPersonaName,
       limit: 160
     )
-    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+    self.targetScenarioID = ProductTournamentModelText.optionalIdentifier(
       targetScenarioID,
       fallback: "scenario"
     )
-    self.targetCohortID = ProductizationModelText.optionalIdentifier(
+    self.targetCohortID = ProductTournamentModelText.optionalIdentifier(
       targetCohortID,
       fallback: "cohort"
     )
     self.requiredSimulationMode = requiredSimulationMode
-    self.summary = ProductizationModelText.cleanedText(
+    self.summary = ProductTournamentModelText.cleanedText(
       summary,
       fallback:
         "A targeted PMF proof answered the requested decision; update the product-factory queue before rerunning the same proof.",
@@ -1766,50 +1766,50 @@ struct ProductFactoryRevisionBrief: Equatable, Sendable, Identifiable {
     targetCohortID: String? = nil,
     targetDecision: ProductExperimentDecision? = nil
   ) {
-    self.experimentID = ProductizationModelText.identifier(
+    self.experimentID = ProductTournamentModelText.identifier(
       experimentID,
       fallback: "experiment"
     )
     self.source = source
-    self.title = ProductizationModelText.cleanedText(
+    self.title = ProductTournamentModelText.cleanedText(
       title,
       fallback: "Revise product bet",
       limit: 160
     )
     self.priority = max(0, priority)
-    self.triggerSummary = ProductizationModelText.cleanedText(
+    self.triggerSummary = ProductTournamentModelText.cleanedText(
       triggerSummary,
       fallback: "AI-user evidence found a product revision trigger.",
       limit: 320
     )
-    self.prototypeChange = ProductizationModelText.cleanedText(
+    self.prototypeChange = ProductTournamentModelText.cleanedText(
       prototypeChange,
       fallback: "Update the prototype to address the evidence trigger.",
       limit: 360
     )
-    self.scenarioChange = ProductizationModelText.cleanedText(
+    self.scenarioChange = ProductTournamentModelText.cleanedText(
       scenarioChange,
       fallback: "Retarget the scenario so the next AI-user run can test the change.",
       limit: 360
     )
-    self.proofPlan = ProductizationModelText.cleanedText(
+    self.proofPlan = ProductTournamentModelText.cleanedText(
       proofPlan,
       fallback: "Rerun targeted AI-user proof against the current alternative.",
       limit: 360
     )
-    self.targetPersonaID = ProductizationModelText.optionalIdentifier(
+    self.targetPersonaID = ProductTournamentModelText.optionalIdentifier(
       targetPersonaID,
       fallback: "persona"
     )
-    self.targetPersonaName = ProductizationModelText.optionalCleanedText(
+    self.targetPersonaName = ProductTournamentModelText.optionalCleanedText(
       targetPersonaName,
       limit: 160
     )
-    self.targetScenarioID = ProductizationModelText.optionalIdentifier(
+    self.targetScenarioID = ProductTournamentModelText.optionalIdentifier(
       targetScenarioID,
       fallback: "scenario"
     )
-    self.targetCohortID = ProductizationModelText.optionalIdentifier(
+    self.targetCohortID = ProductTournamentModelText.optionalIdentifier(
       targetCohortID,
       fallback: "cohort"
     )
@@ -2160,14 +2160,14 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
     debtSummary: String,
     nextAction: ProductMarketFitNextAction?
   ) {
-    self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
-    self.label = ProductizationModelText.cleanedText(
+    self.experimentID = ProductTournamentModelText.identifier(experimentID, fallback: "experiment")
+    self.label = ProductTournamentModelText.cleanedText(
       label,
       fallback: "close PMF proof debt",
       limit: 160
     )
     self.readinessScore = min(100, max(0, readinessScore))
-    self.debtSummary = ProductizationModelText.cleanedText(
+    self.debtSummary = ProductTournamentModelText.cleanedText(
       debtSummary,
       fallback: "proof incomplete",
       limit: 240
@@ -2585,12 +2585,12 @@ struct ProductFactoryAutopilotStepResult: Equatable, Sendable {
     failedEvidenceRunCount: Int = 0,
     skippedScenarioCount: Int = 0
   ) {
-    self.message = ProductizationModelText.cleanedText(
+    self.message = ProductTournamentModelText.cleanedText(
       message,
       fallback: "Factory step completed.",
       limit: 1_200
     )
-    self.evidenceRunIDs = ProductizationModelText.cleanedList(evidenceRunIDs, limit: 120)
+    self.evidenceRunIDs = ProductTournamentModelText.cleanedList(evidenceRunIDs, limit: 120)
     self.completedEvidenceRunCount = max(0, completedEvidenceRunCount)
     self.failedEvidenceRunCount = max(0, failedEvidenceRunCount)
     self.skippedScenarioCount = max(0, skippedScenarioCount)
@@ -2638,44 +2638,44 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     revisionBriefSummaries: [String] = []
   ) {
     self.executedSteps = executedSteps
-    self.messages = ProductizationModelText.cleanedList(messages, limit: 500)
+    self.messages = ProductTournamentModelText.cleanedList(messages, limit: 500)
     self.maxSteps = max(1, maxSteps)
     self.stopReason = stopReason
-    self.evidenceRunIDs = ProductizationModelText.cleanedList(evidenceRunIDs, limit: 120)
+    self.evidenceRunIDs = ProductTournamentModelText.cleanedList(evidenceRunIDs, limit: 120)
     self.completedEvidenceRunCount = max(0, completedEvidenceRunCount)
     self.failedEvidenceRunCount = max(0, failedEvidenceRunCount)
     self.skippedScenarioCount = max(0, skippedScenarioCount)
     self.startingProofDebtCount = startingProofDebtCount.map { max(0, $0) }
     self.endingProofDebtCount = endingProofDebtCount.map { max(0, $0) }
-    self.startingProofDebtSummary = ProductizationModelText.optionalCleanedText(
+    self.startingProofDebtSummary = ProductTournamentModelText.optionalCleanedText(
       startingProofDebtSummary,
       limit: 500
     )
-    self.endingProofDebtSummary = ProductizationModelText.optionalCleanedText(
+    self.endingProofDebtSummary = ProductTournamentModelText.optionalCleanedText(
       endingProofDebtSummary,
       limit: 500
     )
-    self.decisionCandidateSummaries = ProductizationModelText.cleanedList(
+    self.decisionCandidateSummaries = ProductTournamentModelText.cleanedList(
       decisionCandidateSummaries,
       limit: 300
     )
-    self.evidenceTensionSummaries = ProductizationModelText.cleanedList(
+    self.evidenceTensionSummaries = ProductTournamentModelText.cleanedList(
       evidenceTensionSummaries,
       limit: 360
     )
-    self.proofTargetSummaries = ProductizationModelText.cleanedList(
+    self.proofTargetSummaries = ProductTournamentModelText.cleanedList(
       proofTargetSummaries,
       limit: 360
     )
-    self.targetedProofOutcomeSummaries = ProductizationModelText.cleanedList(
+    self.targetedProofOutcomeSummaries = ProductTournamentModelText.cleanedList(
       targetedProofOutcomeSummaries,
       limit: 360
     )
-    self.personaRationaleSignalSummaries = ProductizationModelText.cleanedList(
+    self.personaRationaleSignalSummaries = ProductTournamentModelText.cleanedList(
       personaRationaleSignalSummaries,
       limit: 360
     )
-    self.revisionBriefSummaries = ProductizationModelText.cleanedList(
+    self.revisionBriefSummaries = ProductTournamentModelText.cleanedList(
       revisionBriefSummaries,
       limit: 300
     )

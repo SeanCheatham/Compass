@@ -531,7 +531,7 @@ enum ProductExperimentGitRolloutWorkflow {
     in config: ProductizationConfig
   ) -> String {
     let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
-    let slug = ProductizationModelText.slug(
+    let slug = ProductTournamentModelText.slug(
       solution?.title ?? experiment.solutionID,
       fallback: experiment.solutionID
     )

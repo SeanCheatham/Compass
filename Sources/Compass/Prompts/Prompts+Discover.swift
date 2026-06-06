@@ -357,7 +357,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     scenarioCohorts: [ProductScenarioCohort] = [],
     decisions: [ProductDecision] = []
   ) {
-    self.rawPain = ProductizationModelText.optionalCleanedText(rawPain, limit: 4_000)
+    self.rawPain = ProductTournamentModelText.optionalCleanedText(rawPain, limit: 4_000)
     self.painHypotheses = painHypotheses
     self.userSegments = userSegments
     self.currentWorkflows = currentWorkflows
@@ -469,7 +469,7 @@ struct DiscoveryCandidateExperiment: Codable, Equatable {
     expectedEvidenceSignal: String,
     killCriteria: String
   ) {
-    self.solutionHypothesisID = ProductizationModelText.identifier(
+    self.solutionHypothesisID = ProductTournamentModelText.identifier(
       solutionHypothesisID,
       fallback: "solution"
     )

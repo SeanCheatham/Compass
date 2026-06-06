@@ -20,10 +20,10 @@ struct ProductExperimentSimulationTarget: Codable, Equatable, Sendable {
     commitSha: String,
     scenarioCohortID: String
   ) {
-    self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
+    self.experimentID = ProductTournamentModelText.identifier(experimentID, fallback: "experiment")
     self.branchName = StringUtils.boundedText(branchName, limit: 240)
     self.commitSha = StringUtils.boundedText(commitSha, limit: 80)
-    self.scenarioCohortID = ProductizationModelText.identifier(
+    self.scenarioCohortID = ProductTournamentModelText.identifier(
       scenarioCohortID,
       fallback: "cohort"
     )
@@ -227,7 +227,7 @@ extension CompassWorkspace {
   func productExperimentWorktreeURL(experimentID: String) -> URL {
     productTournamentURL
       .appending(path: "worktrees", directoryHint: .isDirectory)
-      .appending(path: ProductizationModelText.identifier(experimentID, fallback: "experiment"))
+      .appending(path: ProductTournamentModelText.identifier(experimentID, fallback: "experiment"))
   }
 
   @discardableResult

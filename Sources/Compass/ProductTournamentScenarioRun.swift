@@ -34,40 +34,40 @@ struct ProductScenarioDraft: Equatable, Sendable {
     appCommandTimeoutSeconds: Double = 120,
     enabled: Bool = true
   ) {
-    self.id = ProductizationModelText.optionalIdentifier(id, fallback: "scenario")
-    self.experimentID = ProductizationModelText.identifier(experimentID, fallback: "experiment")
-    self.cohortID = ProductizationModelText.optionalIdentifier(cohortID, fallback: "cohort")
-    self.cohortTitle = ProductizationModelText.cleanedText(
+    self.id = ProductTournamentModelText.optionalIdentifier(id, fallback: "scenario")
+    self.experimentID = ProductTournamentModelText.identifier(experimentID, fallback: "experiment")
+    self.cohortID = ProductTournamentModelText.optionalIdentifier(cohortID, fallback: "cohort")
+    self.cohortTitle = ProductTournamentModelText.cleanedText(
       cohortTitle,
       fallback: "Product scenario cohort",
       limit: 180
     )
     self.cohortEnabled = cohortEnabled
-    self.segmentID = ProductizationModelText.identifier(segmentID, fallback: "segment")
-    self.currentWorkflowID = ProductizationModelText.identifier(
+    self.segmentID = ProductTournamentModelText.identifier(segmentID, fallback: "segment")
+    self.currentWorkflowID = ProductTournamentModelText.identifier(
       currentWorkflowID,
       fallback: "workflow"
     )
-    self.alternativeID = ProductizationModelText.optionalIdentifier(
+    self.alternativeID = ProductTournamentModelText.optionalIdentifier(
       alternativeID,
       fallback: "alternative"
     )
-    self.title = ProductizationModelText.cleanedText(
+    self.title = ProductTournamentModelText.cleanedText(
       title,
       fallback: "Product tournament scenario",
       limit: 180
     )
-    self.task = ProductizationModelText.cleanedText(
+    self.task = ProductTournamentModelText.cleanedText(
       task,
       fallback: "Try the product experiment against the current workflow.",
       limit: 800
     )
-    self.successSignal = ProductizationModelText.cleanedText(
+    self.successSignal = ProductTournamentModelText.cleanedText(
       successSignal,
       fallback: "The scenario produces evidence for the next product decision.",
       limit: 500
     )
-    self.targetCommitSha = ProductizationModelText.optionalCleanedText(
+    self.targetCommitSha = ProductTournamentModelText.optionalCleanedText(
       targetCommitSha,
       limit: 80
     )
@@ -253,7 +253,7 @@ enum ProductTournamentScenarioCoordinator {
     }
     let scenarioID =
       existingScenario?.id
-      ?? ProductizationModelText.identifier(
+      ?? ProductTournamentModelText.identifier(
         "\(experiment.id)-revision-\(Int(now.timeIntervalSince1970))",
         fallback: "revision-scenario"
       )
