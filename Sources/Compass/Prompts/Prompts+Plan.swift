@@ -174,7 +174,7 @@ extension Prompts {
         target's acceptance signals.
       - When Product Tournament Context includes `round_2_evidence_lock`, treat
         `paused_sibling_experiments` as intentionally paused tournament tracks.
-        Do not plan scenario, cohort, autopilot, or implementation work for
+        Do not plan scenario, cohort, Tournament Automation, or implementation work for
         those siblings until Round 2 transitions; mention the pause in Outcome
         or Why it matters when it could otherwise look like missing evidence.
       - When Product Tournament Context includes only a "Round 2 feasibility

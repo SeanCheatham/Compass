@@ -216,7 +216,7 @@ enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
 
 enum ProductTournamentScenarioCoordinator {
   static func revisionDraft(
-    for brief: ProductFactoryRevisionBrief,
+    for brief: TournamentAutomationRevisionBrief,
     in config: ProductTournamentConfig,
     now: Date = Date()
   ) throws -> ProductScenarioDraft {

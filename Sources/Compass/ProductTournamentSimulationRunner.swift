@@ -194,7 +194,7 @@ struct ProductTournamentSimulationDecisionIntent: Codable, Equatable, Sendable {
         "Stress-test a pivot. Separate evidence that the pain is real from evidence that the current product shape fails to create enough pull."
     case .keepGoing:
       return
-        "Stress-test continuing. Look for the next proof that would make the factory continue, narrow, pivot, kill, or promote with less uncertainty."
+        "Stress-test continuing. Look for the next proof that would make the tournament continue, narrow, pivot, kill, or promote with less uncertainty."
     case .notRun:
       return
         "Stress-test first evidence. Verify whether the pain, workflow, and current alternative are real before treating the prototype as a product bet."

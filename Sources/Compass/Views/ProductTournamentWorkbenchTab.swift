@@ -34,7 +34,7 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var isApplyingRoundEvidenceTransition = false
   @State private var isApplyingPrototypeEvidenceTransition = false
   @State private var isRunningFactoryStep = false
-  @State private var isRunningFactoryCycle = false
+  @State private var isRunningTournamentAutomationCycle = false
   @State private var scenarioRunMessage: String?
   @State private var planEvaluationMessage: String?
   @State private var planTransitionMessage: String?
@@ -142,7 +142,7 @@ struct ProductTournamentWorkbenchTab: View {
       && !isApplyingRoundEvidenceTransition
       && !isApplyingPrototypeEvidenceTransition
       && !isRunningFactoryStep
-      && !isRunningFactoryCycle
+      && !isRunningTournamentAutomationCycle
       && !isRunningScenario
   }
 
@@ -162,7 +162,7 @@ struct ProductTournamentWorkbenchTab: View {
       && !isApplyingPrototypeEvidenceTransition
       && !isRunningPlanEvaluation
       && !isRunningFactoryStep
-      && !isRunningFactoryCycle
+      && !isRunningTournamentAutomationCycle
       && !isRunningScenario
   }
 
@@ -182,7 +182,7 @@ struct ProductTournamentWorkbenchTab: View {
       && !isApplyingPlanTransition
       && !isRunningPlanEvaluation
       && !isRunningFactoryStep
-      && !isRunningFactoryCycle
+      && !isRunningTournamentAutomationCycle
       && !isRunningScenario
   }
 
@@ -204,7 +204,7 @@ struct ProductTournamentWorkbenchTab: View {
       && !isApplyingPlanTransition
       && !isRunningPlanEvaluation
       && !isRunningFactoryStep
-      && !isRunningFactoryCycle
+      && !isRunningTournamentAutomationCycle
       && !isRunningScenario
   }
 
@@ -332,64 +332,64 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private var experimentsForBoard: [ProductExperiment] {
-    ProductFactoryExperimentRanker.rankedExperiments(
+    TournamentAutomationExperimentRanker.rankedExperiments(
       config: config,
       evidenceIndex: evidenceIndex
     )
   }
 
-  private var factoryProofTargets: [ProductFactoryProofTarget] {
-    ProductFactoryProofTargetAdvisor.targets(
+  private var tournamentAutomationProofTargets: [TournamentAutomationProofTarget] {
+    TournamentAutomationProofTargetAdvisor.targets(
       config: config,
       evidenceIndex: evidenceIndex
     )
   }
 
-  private var factoryRationaleSignals: [ProductFactoryRationaleSignal] {
-    ProductFactoryRationaleSignalAdvisor.signals(
+  private var tournamentAutomationRationaleSignals: [TournamentAutomationRationaleSignal] {
+    TournamentAutomationRationaleSignalAdvisor.signals(
       config: config,
       evidenceIndex: evidenceIndex
     )
   }
 
-  private var factoryTargetedProofOutcomeSignals: [ProductFactoryTargetedProofOutcomeSignal] {
-    ProductFactoryTargetedProofOutcomeAdvisor.signals(
+  private var tournamentAutomationTargetedProofOutcomeSignals: [TournamentAutomationTargetedProofOutcomeSignal] {
+    TournamentAutomationTargetedProofOutcomeAdvisor.signals(
       config: config,
       evidenceIndex: evidenceIndex
     )
   }
 
-  private var factoryRevisionBriefs: [ProductFactoryRevisionBrief] {
-    ProductFactoryRevisionBriefAdvisor.briefs(
+  private var tournamentAutomationRevisionBriefs: [TournamentAutomationRevisionBrief] {
+    TournamentAutomationRevisionBriefAdvisor.briefs(
       config: config,
       evidenceIndex: evidenceIndex
     )
   }
 
-  private var factoryEvidenceTensions: [ProductFactoryEvidenceTension] {
-    ProductFactoryEvidenceTensionAdvisor.tensions(
+  private var tournamentAutomationEvidenceTensions: [TournamentAutomationEvidenceTension] {
+    TournamentAutomationEvidenceTensionAdvisor.tensions(
       config: config,
       evidenceIndex: evidenceIndex
     )
   }
 
-  private var factoryDecisionCandidates: [ProductFactoryDecisionCandidate] {
-    ProductFactoryDecisionCandidateAdvisor.candidates(
+  private var tournamentAutomationDecisionCandidates: [TournamentAutomationDecisionCandidate] {
+    TournamentAutomationDecisionCandidateAdvisor.candidates(
       config: config,
       evidenceIndex: evidenceIndex
     )
   }
 
-  private var factoryAutopilotStep: ProductFactoryAutopilotStep? {
-    ProductFactoryAutopilotPlanner.nextStep(
+  private var tournamentAutomationStep: TournamentAutomationStep? {
+    TournamentAutomationPlanner.nextStep(
       config: config,
       evidenceIndex: evidenceIndex,
       isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
     )
   }
 
-  private var factoryAutopilotCyclePlan: ProductFactoryAutopilotCyclePlan {
-    ProductFactoryAutopilotPlanner.cyclePlan(
+  private var tournamentAutomationCyclePlan: TournamentAutomationCyclePlan {
+    TournamentAutomationPlanner.cyclePlan(
       config: config,
       evidenceIndex: evidenceIndex,
       maxSteps: 3,
@@ -397,43 +397,43 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
-  private var factoryAutopilotCanRun: Bool {
-    factoryAutopilotStep?.canExecute == true
+  private var tournamentAutomationCanRun: Bool {
+    tournamentAutomationStep?.canExecute == true
       && !isRunningFactoryStep
-      && !isRunningFactoryCycle
+      && !isRunningTournamentAutomationCycle
       && !isRunningScenario
-      && factoryAutopilotStepMatchesRoundTwoTarget
+      && tournamentAutomationStepMatchesRoundTwoTarget
   }
 
-  private var factoryAutopilotCycleCanRun: Bool {
-    factoryAutopilotCyclePlan.canRun
+  private var tournamentAutomationCycleCanRun: Bool {
+    tournamentAutomationCyclePlan.canRun
       && !isRunningFactoryStep
-      && !isRunningFactoryCycle
+      && !isRunningTournamentAutomationCycle
       && !isRunningScenario
-      && factoryAutopilotStepMatchesRoundTwoTarget
+      && tournamentAutomationStepMatchesRoundTwoTarget
   }
 
-  private var factoryAutopilotStepMatchesRoundTwoTarget: Bool {
-    guard let step = factoryAutopilotStep else { return true }
+  private var tournamentAutomationStepMatchesRoundTwoTarget: Bool {
+    guard let step = tournamentAutomationStep else { return true }
     return roundTwoLaunchBlockedMessage(experimentID: step.experimentID) == nil
   }
 
-  private var factoryAutopilotRoundTwoBlockedMessage: String? {
-    guard let step = factoryAutopilotStep else { return nil }
+  private var tournamentAutomationRoundTwoBlockedMessage: String? {
+    guard let step = tournamentAutomationStep else { return nil }
     return roundTwoLaunchBlockedMessage(experimentID: step.experimentID)
   }
 
-  private var latestFactoryCycleAudit: ProductFactoryCycleAudit? {
-    config.factoryCycleAudits.sorted { lhs, rhs in
+  private var latestTournamentAutomationCycleAudit: TournamentAutomationCycleAudit? {
+    config.tournamentAutomationCycleAudits.sorted { lhs, rhs in
       if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
       return lhs.endedAt > rhs.endedAt
     }
     .first
   }
 
-  private var factoryAutopilotCohortMode: ProductTournamentSimulationMode {
-    factoryAutopilotStep?.action.requiredSimulationMode
-      ?? ProductFactoryAutopilotPlanner.cohortSimulationMode(
+  private var tournamentAutomationCohortMode: ProductTournamentSimulationMode {
+    tournamentAutomationStep?.action.requiredSimulationMode
+      ?? TournamentAutomationPlanner.cohortSimulationMode(
         isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
       )
   }
@@ -859,10 +859,10 @@ struct ProductTournamentWorkbenchTab: View {
 
         WorkbenchSection("Proof Targets", systemImage: "target") {
           VStack(alignment: .leading, spacing: 8) {
-            if factoryProofTargets.isEmpty {
+            if tournamentAutomationProofTargets.isEmpty {
               WorkbenchEmptyLine("No tournament proof debt queued.")
             } else {
-              ForEach(factoryProofTargets.prefix(4)) { target in
+              ForEach(tournamentAutomationProofTargets.prefix(4)) { target in
                 proofTargetRow(target)
               }
             }
@@ -871,10 +871,10 @@ struct ProductTournamentWorkbenchTab: View {
 
         WorkbenchSection("Targeted Proof Outcomes", systemImage: "arrow.triangle.branch") {
           VStack(alignment: .leading, spacing: 8) {
-            if factoryTargetedProofOutcomeSignals.isEmpty {
+            if tournamentAutomationTargetedProofOutcomeSignals.isEmpty {
               WorkbenchEmptyLine("No targeted tournament proof outcomes queued.")
             } else {
-              ForEach(factoryTargetedProofOutcomeSignals.prefix(4)) { signal in
+              ForEach(tournamentAutomationTargetedProofOutcomeSignals.prefix(4)) { signal in
                 targetedProofOutcomeRow(signal)
               }
             }
@@ -883,10 +883,10 @@ struct ProductTournamentWorkbenchTab: View {
 
         WorkbenchSection("AI-User Rationale Signals", systemImage: "person.2.wave.2") {
           VStack(alignment: .leading, spacing: 8) {
-            if factoryRationaleSignals.isEmpty {
+            if tournamentAutomationRationaleSignals.isEmpty {
               WorkbenchEmptyLine("No repeated AI-user rationale signals detected.")
             } else {
-              ForEach(factoryRationaleSignals.prefix(4)) { signal in
+              ForEach(tournamentAutomationRationaleSignals.prefix(4)) { signal in
                 rationaleSignalRow(signal)
               }
             }
@@ -895,10 +895,10 @@ struct ProductTournamentWorkbenchTab: View {
 
         WorkbenchSection("Revision Briefs", systemImage: "hammer") {
           VStack(alignment: .leading, spacing: 8) {
-            if factoryRevisionBriefs.isEmpty {
+            if tournamentAutomationRevisionBriefs.isEmpty {
               WorkbenchEmptyLine("No product revision briefs queued.")
             } else {
-              ForEach(factoryRevisionBriefs.prefix(4)) { brief in
+              ForEach(tournamentAutomationRevisionBriefs.prefix(4)) { brief in
                 revisionBriefRow(brief)
               }
             }
@@ -907,10 +907,10 @@ struct ProductTournamentWorkbenchTab: View {
 
         WorkbenchSection("Evidence Tensions", systemImage: "exclamationmark.triangle") {
           VStack(alignment: .leading, spacing: 8) {
-            if factoryEvidenceTensions.isEmpty {
+            if tournamentAutomationEvidenceTensions.isEmpty {
               WorkbenchEmptyLine("No split tournament evidence detected.")
             } else {
-              ForEach(factoryEvidenceTensions.prefix(4)) { tension in
+              ForEach(tournamentAutomationEvidenceTensions.prefix(4)) { tension in
                 evidenceTensionRow(tension)
               }
             }
@@ -919,10 +919,10 @@ struct ProductTournamentWorkbenchTab: View {
 
         WorkbenchSection("Decision Candidates", systemImage: "checkmark.seal") {
           VStack(alignment: .leading, spacing: 8) {
-            if factoryDecisionCandidates.isEmpty {
+            if tournamentAutomationDecisionCandidates.isEmpty {
               WorkbenchEmptyLine("No tournament lift/cut decisions queued.")
             } else {
-              ForEach(factoryDecisionCandidates.prefix(4)) { candidate in
+              ForEach(tournamentAutomationDecisionCandidates.prefix(4)) { candidate in
                 decisionCandidateRow(candidate)
               }
             }
@@ -1073,7 +1073,7 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private func experimentRow(_ experiment: ProductExperiment) -> some View {
-    let signal = ProductFactoryExperimentRanker.signal(
+    let signal = TournamentAutomationExperimentRanker.signal(
       for: experiment,
       config: config,
       evidenceIndex: evidenceIndex
@@ -1123,7 +1123,7 @@ struct ProductTournamentWorkbenchTab: View {
     .buttonStyle(.plain)
   }
 
-  private func proofTargetRow(_ target: ProductFactoryProofTarget) -> some View {
+  private func proofTargetRow(_ target: TournamentAutomationProofTarget) -> some View {
     Button {
       selectedExperimentID = target.experimentID
       if let targetScenarioID = target.targetScenarioID {
@@ -1159,7 +1159,7 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private func targetedProofOutcomeRow(
-    _ signal: ProductFactoryTargetedProofOutcomeSignal
+    _ signal: TournamentAutomationTargetedProofOutcomeSignal
   ) -> some View {
     Button {
       selectedExperimentID = signal.experimentID
@@ -1198,7 +1198,7 @@ struct ProductTournamentWorkbenchTab: View {
     .help(signal.auditSummary)
   }
 
-  private func rationaleSignalRow(_ signal: ProductFactoryRationaleSignal) -> some View {
+  private func rationaleSignalRow(_ signal: TournamentAutomationRationaleSignal) -> some View {
     Button {
       selectedExperimentID = signal.experimentID
       if let targetScenarioID = signal.targetScenarioID {
@@ -1246,7 +1246,7 @@ struct ProductTournamentWorkbenchTab: View {
     .help(signal.auditSummary)
   }
 
-  private func revisionBriefRow(_ brief: ProductFactoryRevisionBrief) -> some View {
+  private func revisionBriefRow(_ brief: TournamentAutomationRevisionBrief) -> some View {
     VStack(alignment: .leading, spacing: 8) {
       Button {
         selectedExperimentID = brief.experimentID
@@ -1291,7 +1291,7 @@ struct ProductTournamentWorkbenchTab: View {
     .help(brief.displayDetail)
   }
 
-  private func evidenceTensionRow(_ tension: ProductFactoryEvidenceTension) -> some View {
+  private func evidenceTensionRow(_ tension: TournamentAutomationEvidenceTension) -> some View {
     Button {
       selectedExperimentID = tension.experimentID
     } label: {
@@ -1336,7 +1336,7 @@ struct ProductTournamentWorkbenchTab: View {
     .help(tension.displayDetail)
   }
 
-  private func decisionCandidateRow(_ candidate: ProductFactoryDecisionCandidate) -> some View {
+  private func decisionCandidateRow(_ candidate: TournamentAutomationDecisionCandidate) -> some View {
     Button {
       selectedExperimentID = candidate.experimentID
     } label: {
@@ -1372,7 +1372,7 @@ struct ProductTournamentWorkbenchTab: View {
   private var evidenceAndDecisionPane: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
-        factoryAutopilot
+        tournamentAutomation
         aggregateEvidence
         planEvaluationEvidence
         selectedPlanEvaluationDetail
@@ -1386,10 +1386,10 @@ struct ProductTournamentWorkbenchTab: View {
     }
   }
 
-  private var factoryAutopilot: some View {
+  private var tournamentAutomation: some View {
     WorkbenchSection("Tournament Automation", systemImage: "sparkles") {
       VStack(alignment: .leading, spacing: 8) {
-        if let step = factoryAutopilotStep {
+        if let step = tournamentAutomationStep {
           WorkbenchFact(label: "Experiment", value: step.experimentTitle)
           WorkbenchFact(
             label: "Step",
@@ -1398,19 +1398,19 @@ struct ProductTournamentWorkbenchTab: View {
           if let decisionIntentSummary = step.decisionIntentSummary {
             WorkbenchFact(label: "Intent", value: decisionIntentSummary)
           }
-          WorkbenchFact(label: "Cycle", value: factoryAutopilotCyclePlan.summary)
-          WorkbenchFact(label: "Queue", value: factoryAutopilotCyclePlan.queueSummary)
+          WorkbenchFact(label: "Cycle", value: tournamentAutomationCyclePlan.summary)
+          WorkbenchFact(label: "Queue", value: tournamentAutomationCyclePlan.queueSummary)
           if step.kind == .runCohort {
             WorkbenchFact(
               label: "Mode",
-              value: "\(factoryAutopilotCohortMode.productFactoryLabel) cohort"
+              value: "\(tournamentAutomationCohortMode.tournamentAutomationLabel) cohort"
             )
           }
-          if let factoryAutopilotRoundTwoBlockedMessage {
-            WorkbenchFact(label: "Round 2", value: factoryAutopilotRoundTwoBlockedMessage)
+          if let tournamentAutomationRoundTwoBlockedMessage {
+            WorkbenchFact(label: "Round 2", value: tournamentAutomationRoundTwoBlockedMessage)
           }
-          if let latestFactoryCycleAudit {
-            WorkbenchFact(label: "Last Cycle", value: latestFactoryCycleAudit.summary)
+          if let latestTournamentAutomationCycleAudit {
+            WorkbenchFact(label: "Last Cycle", value: latestTournamentAutomationCycleAudit.summary)
           }
           Text(step.detail)
             .font(.caption)
@@ -1418,7 +1418,7 @@ struct ProductTournamentWorkbenchTab: View {
             .fixedSize(horizontal: false, vertical: true)
           HStack(spacing: 8) {
             Button {
-              Task { await runFactoryAutopilotStep() }
+              Task { await runTournamentAutomationStep() }
             } label: {
               Label(
                 isRunningFactoryStep ? "Running Step" : "Run Step",
@@ -1426,18 +1426,18 @@ struct ProductTournamentWorkbenchTab: View {
               )
             }
             .buttonStyle(.borderedProminent)
-            .disabled(!factoryAutopilotCanRun)
+            .disabled(!tournamentAutomationCanRun)
 
             Button {
-              Task { await runFactoryAutopilotCycle() }
+              Task { await runTournamentAutomationCycle() }
             } label: {
               Label(
-                isRunningFactoryCycle ? "Running Cycle" : "Run Cycle",
+                isRunningTournamentAutomationCycle ? "Running Cycle" : "Run Cycle",
                 systemImage: "forward.frame.fill"
               )
             }
             .buttonStyle(.bordered)
-            .disabled(!factoryAutopilotCycleCanRun)
+            .disabled(!tournamentAutomationCycleCanRun)
           }
         } else {
           WorkbenchEmptyLine("No tournament automation action queued.")
@@ -2435,7 +2435,7 @@ struct ProductTournamentWorkbenchTab: View {
     await loadContractStatus()
   }
 
-  private func applyRevisionBrief(_ brief: ProductFactoryRevisionBrief) async {
+  private func applyRevisionBrief(_ brief: TournamentAutomationRevisionBrief) async {
     isSavingScenario = true
     defer { isSavingScenario = false }
     let startedAt = Date()
@@ -2455,7 +2455,7 @@ struct ProductTournamentWorkbenchTab: View {
       }
       selectedScenarioID = scenarioID
       let targetedProofOutcomeSummaries =
-        productFactoryTargetedProofOutcomeSignal(forExperimentID: brief.experimentID)
+        tournamentAutomationTargetedProofOutcomeSignal(forExperimentID: brief.experimentID)
         .map { [$0.auditSummary] } ?? []
       let audit = appliedRevisionAudit(
         for: brief,
@@ -2469,7 +2469,7 @@ struct ProductTournamentWorkbenchTab: View {
       )
       scenarioRunMessage = audit.userMessage
       await project.saveProductTournamentConfig(
-        project.productTournamentConfig.recordingFactoryCycleAudit(audit)
+        project.productTournamentConfig.recordingTournamentAutomationCycleAudit(audit)
       )
       await loadContractStatus()
     } catch {
@@ -2478,19 +2478,19 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private func appliedRevisionAudit(
-    for brief: ProductFactoryRevisionBrief,
+    for brief: TournamentAutomationRevisionBrief,
     scenarioID: String,
     startedAt: Date,
     idPrefix: String,
     targetedProofOutcomeSummaries: [String] = [],
     stopDetail: String,
     userMessage: String
-  ) -> ProductFactoryCycleAudit {
+  ) -> TournamentAutomationCycleAudit {
     let started = startedAt.timeIntervalSince1970
     let ended = Date().timeIntervalSince1970
     let stepID =
-      "\(brief.experimentID):\(ProductFactoryAutopilotStepKind.applyRevision.rawValue):\(scenarioID)"
-    return ProductFactoryCycleAudit(
+      "\(brief.experimentID):\(TournamentAutomationStepKind.applyRevision.rawValue):\(scenarioID)"
+    return TournamentAutomationCycleAudit(
       id: "\(idPrefix)-\(brief.experimentID)-\(Int(started))-\(scenarioID)",
       startedAt: started,
       endedAt: ended,
@@ -2547,8 +2547,8 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
-  private func runFactoryAutopilotStep() async {
-    guard let step = factoryAutopilotStep, step.canExecute else { return }
+  private func runTournamentAutomationStep() async {
+    guard let step = tournamentAutomationStep, step.canExecute else { return }
     if let blockedMessage = roundTwoLaunchBlockedMessage(experimentID: step.experimentID) {
       selectedExperimentID = step.experimentID
       scenarioRunMessage = blockedMessage
@@ -2558,29 +2558,29 @@ struct ProductTournamentWorkbenchTab: View {
     isRunningFactoryStep = true
     defer { isRunningFactoryStep = false }
     let stepStartedAt = Date()
-    let startingProofDebt = productFactoryProofDebt(forExperimentID: step.experimentID)
+    let startingProofDebt = tournamentAutomationProofDebt(forExperimentID: step.experimentID)
     let decisionCandidateSummaries =
-      productFactoryDecisionCandidate(forExperimentID: step.experimentID)
+      tournamentAutomationDecisionCandidate(forExperimentID: step.experimentID)
       .map { [$0.auditSummary] } ?? []
     let evidenceTensionSummaries =
-      productFactoryEvidenceTension(forExperimentID: step.experimentID)
+      tournamentAutomationEvidenceTension(forExperimentID: step.experimentID)
       .map { [$0.auditSummary] } ?? []
     let proofTargetSummaries =
-      productFactoryProofTarget(forExperimentID: step.experimentID)
+      tournamentAutomationProofTarget(forExperimentID: step.experimentID)
       .map { [$0.auditSummary] } ?? []
     let targetedProofOutcomeSummaries =
-      productFactoryTargetedProofOutcomeSignal(forExperimentID: step.experimentID)
+      tournamentAutomationTargetedProofOutcomeSignal(forExperimentID: step.experimentID)
       .map { [$0.auditSummary] } ?? []
     let revisionBriefSummaries =
       step.kind == .applyRevision
-      ? productFactoryRevisionBrief(forExperimentID: step.experimentID).map { [$0.auditSummary] }
+      ? tournamentAutomationRevisionBrief(forExperimentID: step.experimentID).map { [$0.auditSummary] }
         ?? []
       : []
     let personaRationaleSignalSummaries: [String]
     if let stepExperiment = project.productTournamentConfig.experiments.first(where: {
       $0.id == step.experimentID
     }),
-      let rationaleSignal = ProductFactoryRationaleSignalAdvisor.signal(
+      let rationaleSignal = TournamentAutomationRationaleSignalAdvisor.signal(
         for: stepExperiment,
         config: project.productTournamentConfig,
         evidenceIndex: project.productTournamentEvidenceIndex
@@ -2590,15 +2590,15 @@ struct ProductTournamentWorkbenchTab: View {
     } else {
       personaRationaleSignalSummaries = []
     }
-    let result = await executeFactoryAutopilotStep(step)
-    let startingProofDebtSnapshot = productFactoryProofDebtSnapshot(
+    let result = await executeTournamentAutomationStep(step)
+    let startingProofDebtSnapshot = tournamentAutomationProofDebtSnapshot(
       experimentIDs: [step.experimentID],
       proofDebts: startingProofDebt.map { [step.experimentID: $0] }
     )
-    let endingProofDebtSnapshot = productFactoryProofDebtSnapshot(
+    let endingProofDebtSnapshot = tournamentAutomationProofDebtSnapshot(
       experimentIDs: [step.experimentID]
     )
-    let stopReason: ProductFactoryAutopilotCycleStopReason =
+    let stopReason: TournamentAutomationCycleStopReason =
       result == nil
       ? .executionFailed(
         stepID: step.id,
@@ -2606,7 +2606,7 @@ struct ProductTournamentWorkbenchTab: View {
         message: project.errorMessage ?? step.blockedReason
       )
       : .reachedStepLimit
-    let outcome = ProductFactoryAutopilotCycleOutcome(
+    let outcome = TournamentAutomationCycleOutcome(
       executedSteps: result == nil ? [] : [step],
       messages: result.map { [$0.message] } ?? [],
       maxSteps: 1,
@@ -2629,18 +2629,18 @@ struct ProductTournamentWorkbenchTab: View {
     let audit = outcome.audit(startedAt: stepStartedAt)
     scenarioRunMessage = result?.message ?? project.errorMessage ?? step.blockedReason
     await project.saveProductTournamentConfig(
-      project.productTournamentConfig.recordingFactoryCycleAudit(audit)
+      project.productTournamentConfig.recordingTournamentAutomationCycleAudit(audit)
     )
     await loadContractStatus()
   }
 
-  private func runFactoryAutopilotCycle() async {
-    guard factoryAutopilotCyclePlan.canRun else { return }
-    isRunningFactoryCycle = true
-    defer { isRunningFactoryCycle = false }
+  private func runTournamentAutomationCycle() async {
+    guard tournamentAutomationCyclePlan.canRun else { return }
+    isRunningTournamentAutomationCycle = true
+    defer { isRunningTournamentAutomationCycle = false }
     let cycleStartedAt = Date()
-    let maxSteps = factoryAutopilotCyclePlan.maxSteps
-    var executedSteps: [ProductFactoryAutopilotStep] = []
+    let maxSteps = tournamentAutomationCyclePlan.maxSteps
+    var executedSteps: [TournamentAutomationStep] = []
     var messages: [String] = []
     var evidenceRunIDs: [String] = []
     var completedEvidenceRunCount = 0
@@ -2651,24 +2651,24 @@ struct ProductTournamentWorkbenchTab: View {
     var decisionCandidateSummaries: [String] = []
     var evidenceTensionSummaries: [String] = []
     var proofTargetSummaries: [String] = []
-    var targetedProofOutcomeSummaries = ProductFactoryTargetedProofOutcomeAdvisor.signals(
+    var targetedProofOutcomeSummaries = TournamentAutomationTargetedProofOutcomeAdvisor.signals(
       config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
     .prefix(3)
     .map(\.auditSummary)
     var revisionBriefSummaries: [String] = []
-    var personaRationaleSignalSummaries = ProductFactoryRationaleSignalAdvisor.signals(
+    var personaRationaleSignalSummaries = TournamentAutomationRationaleSignalAdvisor.signals(
       config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
     .prefix(3)
     .map(\.auditSummary)
     var seenStepIDs = Set<String>()
-    var stopReason: ProductFactoryAutopilotCycleStopReason = .reachedStepLimit
+    var stopReason: TournamentAutomationCycleStopReason = .reachedStepLimit
     for _ in 0..<maxSteps {
       guard
-        let step = ProductFactoryAutopilotPlanner.nextExecutableStep(
+        let step = TournamentAutomationPlanner.nextExecutableStep(
           config: project.productTournamentConfig,
           evidenceIndex: project.productTournamentEvidenceIndex,
           isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
@@ -2694,27 +2694,27 @@ struct ProductTournamentWorkbenchTab: View {
         touchedExperimentIDs.append(step.experimentID)
       }
       if startingProofDebts[step.experimentID] == nil {
-        startingProofDebts[step.experimentID] = productFactoryProofDebt(
+        startingProofDebts[step.experimentID] = tournamentAutomationProofDebt(
           forExperimentID: step.experimentID
         )
       }
       if step.action.kind == .applyDecision,
-        let candidate = productFactoryDecisionCandidate(forExperimentID: step.experimentID),
+        let candidate = tournamentAutomationDecisionCandidate(forExperimentID: step.experimentID),
         !decisionCandidateSummaries.contains(candidate.auditSummary)
       {
         decisionCandidateSummaries.append(candidate.auditSummary)
       }
-      if let evidenceTension = productFactoryEvidenceTension(forExperimentID: step.experimentID),
+      if let evidenceTension = tournamentAutomationEvidenceTension(forExperimentID: step.experimentID),
         !evidenceTensionSummaries.contains(evidenceTension.auditSummary)
       {
         evidenceTensionSummaries.append(evidenceTension.auditSummary)
       }
-      if let proofTarget = productFactoryProofTarget(forExperimentID: step.experimentID),
+      if let proofTarget = tournamentAutomationProofTarget(forExperimentID: step.experimentID),
         !proofTargetSummaries.contains(proofTarget.auditSummary)
       {
         proofTargetSummaries.append(proofTarget.auditSummary)
       }
-      if let targetedProofOutcome = productFactoryTargetedProofOutcomeSignal(
+      if let targetedProofOutcome = tournamentAutomationTargetedProofOutcomeSignal(
         forExperimentID: step.experimentID
       ),
         !targetedProofOutcomeSummaries.contains(targetedProofOutcome.auditSummary)
@@ -2723,7 +2723,7 @@ struct ProductTournamentWorkbenchTab: View {
       }
       let stepRevisionBrief =
         step.kind == .applyRevision
-        ? productFactoryRevisionBrief(forExperimentID: step.experimentID)
+        ? tournamentAutomationRevisionBrief(forExperimentID: step.experimentID)
         : nil
       if let revisionBrief = stepRevisionBrief,
         !revisionBriefSummaries.contains(revisionBrief.auditSummary)
@@ -2733,7 +2733,7 @@ struct ProductTournamentWorkbenchTab: View {
       if let stepExperiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == step.experimentID
       }),
-        let rationaleSignal = ProductFactoryRationaleSignalAdvisor.signal(
+        let rationaleSignal = TournamentAutomationRationaleSignalAdvisor.signal(
           for: stepExperiment,
           config: project.productTournamentConfig,
           evidenceIndex: project.productTournamentEvidenceIndex
@@ -2742,7 +2742,7 @@ struct ProductTournamentWorkbenchTab: View {
       {
         personaRationaleSignalSummaries.append(rationaleSignal.auditSummary)
       }
-      guard let result = await executeFactoryAutopilotStep(step) else {
+      guard let result = await executeTournamentAutomationStep(step) else {
         stopReason = .executionFailed(
           stepID: step.id,
           title: step.title,
@@ -2765,7 +2765,7 @@ struct ProductTournamentWorkbenchTab: View {
           startedAt: Date(),
           idPrefix: "tournament-cycle-revision-checkpoint",
           targetedProofOutcomeSummaries:
-            productFactoryTargetedProofOutcomeSignal(
+            tournamentAutomationTargetedProofOutcomeSignal(
               forExperimentID: stepRevisionBrief.experimentID
             )
             .map { [$0.auditSummary] } ?? [],
@@ -2775,18 +2775,18 @@ struct ProductTournamentWorkbenchTab: View {
             "Product revision checkpoint recorded for \(stepRevisionBrief.experimentID). Continuing with targeted validation evidence."
         )
         await project.saveProductTournamentConfig(
-          project.productTournamentConfig.recordingFactoryCycleAudit(checkpoint)
+          project.productTournamentConfig.recordingTournamentAutomationCycleAudit(checkpoint)
         )
       }
     }
-    let startingProofDebt = productFactoryProofDebtSnapshot(
+    let startingProofDebt = tournamentAutomationProofDebtSnapshot(
       experimentIDs: touchedExperimentIDs,
       proofDebts: startingProofDebts
     )
-    let endingProofDebt = productFactoryProofDebtSnapshot(
+    let endingProofDebt = tournamentAutomationProofDebtSnapshot(
       experimentIDs: touchedExperimentIDs
     )
-    let outcome = ProductFactoryAutopilotCycleOutcome(
+    let outcome = TournamentAutomationCycleOutcome(
       executedSteps: executedSteps,
       messages: messages,
       maxSteps: maxSteps,
@@ -2809,12 +2809,12 @@ struct ProductTournamentWorkbenchTab: View {
     let audit = outcome.audit(startedAt: cycleStartedAt)
     scenarioRunMessage = audit.userMessage
     await project.saveProductTournamentConfig(
-      project.productTournamentConfig.recordingFactoryCycleAudit(audit)
+      project.productTournamentConfig.recordingTournamentAutomationCycleAudit(audit)
     )
     await loadContractStatus()
   }
 
-  private func productFactoryProofDebt(
+  private func tournamentAutomationProofDebt(
     forExperimentID experimentID: String
   ) -> ProductTournamentProofDebt? {
     guard
@@ -2832,77 +2832,77 @@ struct ProductTournamentWorkbenchTab: View {
       )
   }
 
-  private func productFactoryProofTarget(
+  private func tournamentAutomationProofTarget(
     forExperimentID experimentID: String
-  ) -> ProductFactoryProofTarget? {
+  ) -> TournamentAutomationProofTarget? {
     guard
       let experiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
-    return ProductFactoryProofTargetAdvisor.target(
+    return TournamentAutomationProofTargetAdvisor.target(
       for: experiment,
       config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
 
-  private func productFactoryDecisionCandidate(
+  private func tournamentAutomationDecisionCandidate(
     forExperimentID experimentID: String
-  ) -> ProductFactoryDecisionCandidate? {
-    ProductFactoryDecisionCandidateAdvisor.candidates(
+  ) -> TournamentAutomationDecisionCandidate? {
+    TournamentAutomationDecisionCandidateAdvisor.candidates(
       config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
     .first { $0.experimentID == experimentID }
   }
 
-  private func productFactoryEvidenceTension(
+  private func tournamentAutomationEvidenceTension(
     forExperimentID experimentID: String
-  ) -> ProductFactoryEvidenceTension? {
+  ) -> TournamentAutomationEvidenceTension? {
     guard
       let experiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
-    return ProductFactoryEvidenceTensionAdvisor.tension(
+    return TournamentAutomationEvidenceTensionAdvisor.tension(
       for: experiment,
       config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
 
-  private func productFactoryTargetedProofOutcomeSignal(
+  private func tournamentAutomationTargetedProofOutcomeSignal(
     forExperimentID experimentID: String
-  ) -> ProductFactoryTargetedProofOutcomeSignal? {
+  ) -> TournamentAutomationTargetedProofOutcomeSignal? {
     guard
       let experiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
-    return ProductFactoryTargetedProofOutcomeAdvisor.signal(
+    return TournamentAutomationTargetedProofOutcomeAdvisor.signal(
       for: experiment,
       config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
 
-  private func productFactoryRevisionBrief(
+  private func tournamentAutomationRevisionBrief(
     forExperimentID experimentID: String
-  ) -> ProductFactoryRevisionBrief? {
+  ) -> TournamentAutomationRevisionBrief? {
     guard
       let experiment = project.productTournamentConfig.experiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
-    return ProductFactoryRevisionBriefAdvisor.brief(
+    return TournamentAutomationRevisionBriefAdvisor.brief(
       for: experiment,
       config: project.productTournamentConfig,
       evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
 
-  private func productFactoryProofDebtSnapshot(
+  private func tournamentAutomationProofDebtSnapshot(
     experimentIDs: [String],
     proofDebts: [String: ProductTournamentProofDebt]? = nil
   ) -> (count: Int, summary: String)? {
@@ -2915,7 +2915,7 @@ struct ProductTournamentWorkbenchTab: View {
     for experimentID in orderedExperimentIDs {
       guard
         let debt = proofDebts?[experimentID]
-          ?? productFactoryProofDebt(forExperimentID: experimentID)
+          ?? tournamentAutomationProofDebt(forExperimentID: experimentID)
       else { continue }
       total += debt.blockingDebtCount
       parts.append("\(experimentID): \(debt.summary)")
@@ -2927,15 +2927,15 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
-  private func executeFactoryAutopilotStep(
-    _ step: ProductFactoryAutopilotStep
-  ) async -> ProductFactoryAutopilotStepResult? {
+  private func executeTournamentAutomationStep(
+    _ step: TournamentAutomationStep
+  ) async -> TournamentAutomationStepResult? {
     switch step.kind {
     case .applyDecision:
       let decisionCount = project.productTournamentConfig.decisions.count
       await project.applyProductTournamentDecisionRecommendation(experimentID: step.experimentID)
       if project.productTournamentConfig.decisions.count > decisionCount {
-        return ProductFactoryAutopilotStepResult(
+        return TournamentAutomationStepResult(
           message: "Applied tournament advice for \(step.experimentTitle)."
         )
       }
@@ -2952,7 +2952,7 @@ struct ProductTournamentWorkbenchTab: View {
       else { return nil }
       let mode =
         step.action.requiredSimulationMode
-        ?? ProductFactoryAutopilotPlanner.cohortSimulationMode(
+        ?? TournamentAutomationPlanner.cohortSimulationMode(
           isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
         )
       let outcome: ProductTournamentScenarioCohortRunOutcome?
@@ -2975,7 +2975,7 @@ struct ProductTournamentWorkbenchTab: View {
         if let scenarioOutcome {
           selectedRunID = scenarioOutcome.record.id
           loadSelectedRecord()
-          return ProductFactoryAutopilotStepResult(
+          return TournamentAutomationStepResult(
             message: "\(scenarioOutcome.userMessage) Run \(scenarioOutcome.record.id).",
             evidenceRunIDs: [scenarioOutcome.record.id],
             completedEvidenceRunCount: scenarioOutcome.result.isSuccess ? 1 : 0,
@@ -3003,7 +3003,7 @@ struct ProductTournamentWorkbenchTab: View {
           selectedRunID = latestRecordID
           loadSelectedRecord()
         }
-        return ProductFactoryAutopilotStepResult(
+        return TournamentAutomationStepResult(
           message: outcome.userMessage,
           evidenceRunIDs: outcome.outcomes.map(\.record.id),
           completedEvidenceRunCount: outcome.completedRunCount,
@@ -3013,7 +3013,7 @@ struct ProductTournamentWorkbenchTab: View {
       }
       return nil
     case .applyRevision:
-      guard let brief = productFactoryRevisionBrief(forExperimentID: step.experimentID) else {
+      guard let brief = tournamentAutomationRevisionBrief(forExperimentID: step.experimentID) else {
         return nil
       }
       do {
@@ -3031,7 +3031,7 @@ struct ProductTournamentWorkbenchTab: View {
         }
         selectedScenarioID = scenarioID
         await loadContractStatus()
-        return ProductFactoryAutopilotStepResult(
+        return TournamentAutomationStepResult(
           message:
             "Applied product revision for \(step.experimentTitle): \(brief.title) to scenario \(scenarioID)."
         )

@@ -4,7 +4,7 @@ enum ProductTournamentSimulationMode: String, Codable, CaseIterable, Equatable, 
   case modelFree = "model_free"
   case personaModel = "persona_model"
 
-  var productFactoryLabel: String {
+  var tournamentAutomationLabel: String {
     switch self {
     case .modelFree: return "Model-free"
     case .personaModel: return "AI-user"

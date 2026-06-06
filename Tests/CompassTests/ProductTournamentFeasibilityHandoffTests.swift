@@ -125,7 +125,7 @@ struct ProductTournamentFeasibilityHandoffTests {
     try #require(planPrompt.contains("worktree \(experiment.worktreeID)"))
     try #require(planPrompt.contains("round_2_evidence_lock"))
     try #require(planPrompt.contains("paused_sibling_experiments \(siblingExperimentID)"))
-    try #require(planPrompt.contains("Do not plan scenario, cohort, autopilot"))
+    try #require(planPrompt.contains("Do not plan scenario, cohort, Tournament Automation"))
     try #require(reflectPrompt.contains("## Product Tournament Context"))
     try #require(reflectPrompt.contains("round_2_evidence_lock"))
     try #require(reflectPrompt.contains("paused_sibling_experiments \(siblingExperimentID)"))

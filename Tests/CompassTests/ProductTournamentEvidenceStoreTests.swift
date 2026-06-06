@@ -467,8 +467,8 @@ struct ProductTournamentEvidenceStoreTests {
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
     )
-    config = config.recordingFactoryCycleAudit(
-      ProductFactoryCycleAudit(
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
         id: "tournament-cycle-digest",
         startedAt: 40,
         endedAt: 45,
@@ -605,7 +605,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(text.contains("rationale-two"))
   }
 
-  @Test func planningDigestBlocksAutopilotAfterRecentCycleFailure() throws {
+  @Test func planningDigestBlocksTournamentAutomationAfterRecentCycleFailure() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
@@ -618,12 +618,12 @@ struct ProductTournamentEvidenceStoreTests {
       config.experiments[index].decision = .promoted
     }
     let runnable = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: .empty
       ))
-    config = config.recordingFactoryCycleAudit(
-      ProductFactoryCycleAudit(
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
         id: "tournament-cycle-failed-step",
         startedAt: 50,
         endedAt: 55,

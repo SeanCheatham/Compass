@@ -93,7 +93,7 @@ struct ProductTournamentScenarioRunTests {
       config.scenarioCohorts.first {
         $0.experimentID == experiment.id && $0.scenarioIDs.contains(scenario.id)
       })
-    let brief = ProductFactoryRevisionBrief(
+    let brief = TournamentAutomationRevisionBrief(
       experimentID: experiment.id,
       source: .aiUserRationale,
       title: "Revise prototype for AI-user rationale",

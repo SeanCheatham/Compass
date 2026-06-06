@@ -17,7 +17,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
   var scenarios: [ProductScenario]
   var scenarioCohorts: [ProductScenarioCohort]
   var decisions: [ProductDecision]
-  var factoryCycleAudits: [ProductFactoryCycleAudit]
+  var tournamentAutomationCycleAudits: [TournamentAutomationCycleAudit]
 
   static let empty = ProductTournamentConfig(
     rawPain: "",
@@ -33,7 +33,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     scenarios: [],
     scenarioCohorts: [],
     decisions: [],
-    factoryCycleAudits: []
+    tournamentAutomationCycleAudits: []
   )
 
   enum CodingKeys: String, CodingKey {
@@ -51,7 +51,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     case scenarios
     case scenarioCohorts
     case decisions
-    case factoryCycleAudits
+    case tournamentAutomationCycleAudits
   }
 
   init(
@@ -69,7 +69,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     scenarios: [ProductScenario] = [],
     scenarioCohorts: [ProductScenarioCohort] = [],
     decisions: [ProductDecision] = [],
-    factoryCycleAudits: [ProductFactoryCycleAudit] = []
+    tournamentAutomationCycleAudits: [TournamentAutomationCycleAudit] = []
   ) {
     self.schemaVersion = schemaVersion
     self.rawPain = ProductTournamentModelText.cleanedText(rawPain, limit: 4_000)
@@ -85,7 +85,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     self.scenarios = scenarios
     self.scenarioCohorts = scenarioCohorts
     self.decisions = decisions
-    self.factoryCycleAudits = factoryCycleAudits
+    self.tournamentAutomationCycleAudits = tournamentAutomationCycleAudits
   }
 
   init(from decoder: Decoder) throws {
@@ -124,9 +124,9 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       scenarioCohorts: try container.decodeIfPresent(
         [ProductScenarioCohort].self, forKey: .scenarioCohorts) ?? [],
       decisions: try container.decodeIfPresent([ProductDecision].self, forKey: .decisions) ?? [],
-      factoryCycleAudits: try container.decodeIfPresent(
-        [ProductFactoryCycleAudit].self,
-        forKey: .factoryCycleAudits
+      tournamentAutomationCycleAudits: try container.decodeIfPresent(
+        [TournamentAutomationCycleAudit].self,
+        forKey: .tournamentAutomationCycleAudits
       ) ?? []
     )
   }
@@ -145,16 +145,16 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       && scenarios.isEmpty
       && scenarioCohorts.isEmpty
       && decisions.isEmpty
-      && factoryCycleAudits.isEmpty
+      && tournamentAutomationCycleAudits.isEmpty
   }
 
-  func recordingFactoryCycleAudit(
-    _ audit: ProductFactoryCycleAudit,
+  func recordingTournamentAutomationCycleAudit(
+    _ audit: TournamentAutomationCycleAudit,
     limit: Int = 20
   ) -> ProductTournamentConfig {
     var next = self
     let cappedLimit = max(1, limit)
-    next.factoryCycleAudits = (next.factoryCycleAudits + [audit])
+    next.tournamentAutomationCycleAudits = (next.tournamentAutomationCycleAudits + [audit])
       .sorted { lhs, rhs in
         if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
         return lhs.endedAt > rhs.endedAt
@@ -1271,14 +1271,14 @@ struct ProductDecision: Codable, Equatable, Identifiable, Sendable {
   }
 }
 
-enum ProductFactoryCycleAuditStopReason: String, Codable, CaseIterable, Equatable, Sendable {
+enum TournamentAutomationCycleAuditStopReason: String, Codable, CaseIterable, Equatable, Sendable {
   case reachedStepLimit = "reached_step_limit"
   case noExecutableStep = "no_executable_step"
   case repeatedStep = "repeated_step"
   case executionFailed = "execution_failed"
 }
 
-struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
+struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendable {
   var id: String
   var startedAt: Double
   var endedAt: Double
@@ -1306,7 +1306,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
   var targetedProofOutcomeSummaries: [String]
   var personaRationaleSignalSummaries: [String]
   var revisionBriefSummaries: [String]
-  var stopReason: ProductFactoryCycleAuditStopReason
+  var stopReason: TournamentAutomationCycleAuditStopReason
   var stopStepID: String?
   var stopStepTitle: String?
   var stopDetail: String
@@ -1398,7 +1398,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     targetedProofOutcomeSummaries: [String] = [],
     personaRationaleSignalSummaries: [String] = [],
     revisionBriefSummaries: [String] = [],
-    stopReason: ProductFactoryCycleAuditStopReason,
+    stopReason: TournamentAutomationCycleAuditStopReason,
     stopStepID: String? = nil,
     stopStepTitle: String? = nil,
     stopDetail: String,
@@ -1597,7 +1597,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
         forKey: .revisionBriefSummaries
       ) ?? [],
       stopReason: try container.decode(
-        ProductFactoryCycleAuditStopReason.self, forKey: .stopReason),
+        TournamentAutomationCycleAuditStopReason.self, forKey: .stopReason),
       stopStepID: try container.decodeIfPresent(String.self, forKey: .stopStepID),
       stopStepTitle: try container.decodeIfPresent(String.self, forKey: .stopStepTitle),
       stopDetail: try container.decode(String.self, forKey: .stopDetail),

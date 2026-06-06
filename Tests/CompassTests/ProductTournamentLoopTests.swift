@@ -222,7 +222,7 @@ struct ProductTournamentLoopTests {
       config: config,
       evidenceIndex: index
     )
-    let candidates = ProductFactoryDecisionCandidateAdvisor.candidates(
+    let candidates = TournamentAutomationDecisionCandidateAdvisor.candidates(
       config: config,
       evidenceIndex: index
     )
@@ -367,7 +367,7 @@ struct ProductTournamentLoopTests {
 
     let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let tension = try #require(
-      ProductFactoryEvidenceTensionAdvisor.tension(
+      TournamentAutomationEvidenceTensionAdvisor.tension(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -401,7 +401,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ).isEmpty)
     try #require(
-      ProductFactoryDecisionCandidateAdvisor.candidates(
+      TournamentAutomationDecisionCandidateAdvisor.candidates(
         config: config,
         evidenceIndex: index
       ).isEmpty)
@@ -435,11 +435,11 @@ struct ProductTournamentLoopTests {
       try #require(error == .noProposal(experiment.id))
     }
 
-    let stalledAudit = ProductFactoryCycleAudit(
+    let stalledAudit = TournamentAutomationCycleAudit(
       id: "tournament-cycle-split-stalled",
       startedAt: 700,
       endedAt: 710,
-      executedStepIDs: [ProductFactoryCycleFailureAdvisor.stepID(for: action)],
+      executedStepIDs: [TournamentAutomationCycleFailureAdvisor.stepID(for: action)],
       experimentIDs: [experiment.id],
       messages: ["AI-user target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
       maxSteps: 3,
@@ -453,12 +453,12 @@ struct ProductTournamentLoopTests {
       stopDetail: "Stopped because no executable tournament automation step remains.",
       userMessage: "Tournament automation cycle ran 1 step(s). Evidence tensions remained split."
     )
-    let stalledConfig = config.recordingFactoryCycleAudit(stalledAudit)
-    let mismatchedDecisionAudit = ProductFactoryCycleAudit(
+    let stalledConfig = config.recordingTournamentAutomationCycleAudit(stalledAudit)
+    let mismatchedDecisionAudit = TournamentAutomationCycleAudit(
       id: "tournament-cycle-split-wrong-decision",
       startedAt: 720,
       endedAt: 730,
-      executedStepIDs: [ProductFactoryCycleFailureAdvisor.stepID(for: action)],
+      executedStepIDs: [TournamentAutomationCycleFailureAdvisor.stepID(for: action)],
       experimentIDs: [experiment.id],
       messages: ["AI-user target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
       maxSteps: 3,
@@ -477,16 +477,16 @@ struct ProductTournamentLoopTests {
       stopDetail: "Stopped because no executable tournament automation step remains.",
       userMessage: "Tournament automation cycle ran 1 step(s). Evidence tensions remained split."
     )
-    let mismatchedDecisionConfig = config.recordingFactoryCycleAudit(mismatchedDecisionAudit)
+    let mismatchedDecisionConfig = config.recordingTournamentAutomationCycleAudit(mismatchedDecisionAudit)
     try #require(
-      ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
+      TournamentAutomationCycleLearningAdvisor.stalledEvidenceTensionAudit(
         for: action,
         experiment: experiment,
         config: mismatchedDecisionConfig,
         evidenceIndex: index
       ) == nil)
     let learningAudit = try #require(
-      ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
+      TournamentAutomationCycleLearningAdvisor.stalledEvidenceTensionAudit(
         for: action,
         experiment: experiment,
         config: stalledConfig,
@@ -499,7 +499,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let blockedStep = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: stalledConfig,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -515,7 +515,7 @@ struct ProductTournamentLoopTests {
     try #require(stalledAction.targetScenarioID == buyerScenario.id)
     try #require(stalledAction.targetDecision == .promote)
     try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: stalledConfig,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -605,7 +605,7 @@ struct ProductTournamentLoopTests {
 
     let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let tension = try #require(
-      ProductFactoryEvidenceTensionAdvisor.tension(
+      TournamentAutomationEvidenceTensionAdvisor.tension(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -691,13 +691,13 @@ struct ProductTournamentLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let signal = ProductFactoryExperimentRanker.signal(
+    let signal = TournamentAutomationExperimentRanker.signal(
       for: experiment,
       config: config,
       evidenceIndex: index
     )
     let proofTarget = try #require(
-      ProductFactoryProofTargetAdvisor.target(
+      TournamentAutomationProofTargetAdvisor.target(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -734,7 +734,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("target_decision kill"))
   }
 
-  @Test func productFactoryStalledProofTargetRequiresMatchingDecisionIntent() throws {
+  @Test func tournamentAutomationStalledProofTargetRequiresMatchingDecisionIntent() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -788,15 +788,15 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let proofTarget = try #require(
-      ProductFactoryProofTargetAdvisor.target(
+      TournamentAutomationProofTargetAdvisor.target(
         for: experiment,
         config: config,
         evidenceIndex: index
       ))
-    let stepID = ProductFactoryCycleFailureAdvisor.stepID(for: action)
+    let stepID = TournamentAutomationCycleFailureAdvisor.stepID(for: action)
 
-    func stalledAudit(id: String, proofTargetSummary: String) -> ProductFactoryCycleAudit {
-      ProductFactoryCycleAudit(
+    func stalledAudit(id: String, proofTargetSummary: String) -> TournamentAutomationCycleAudit {
+      TournamentAutomationCycleAudit(
         id: id,
         startedAt: 500,
         endedAt: 510,
@@ -822,7 +822,7 @@ struct ProductTournamentLoopTests {
       of: "target_decision kill",
       with: "target_decision promote"
     )
-    let mismatchedConfig = config.recordingFactoryCycleAudit(
+    let mismatchedConfig = config.recordingTournamentAutomationCycleAudit(
       stalledAudit(
         id: "tournament-cycle-wrong-decision-target",
         proofTargetSummary: mismatchedSummary
@@ -832,23 +832,23 @@ struct ProductTournamentLoopTests {
       id: "tournament-cycle-matching-decision-target",
       proofTargetSummary: proofTarget.auditSummary
     )
-    let matchedConfig = config.recordingFactoryCycleAudit(
+    let matchedConfig = config.recordingTournamentAutomationCycleAudit(
       matchedAudit
     )
     let matchedConfigTarget = try #require(
-      ProductFactoryProofTargetAdvisor.target(
+      TournamentAutomationProofTargetAdvisor.target(
         for: experiment,
         config: matchedConfig,
         evidenceIndex: index
       ))
     let mismatchedStep = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: mismatchedConfig,
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
     let matchedStep = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: matchedConfig,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -874,14 +874,14 @@ struct ProductTournamentLoopTests {
     }
     try #require(mismatchedSummary.contains("target_decision promote"))
     try #require(
-      ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
+      TournamentAutomationCycleLearningAdvisor.stalledProofTargetAudit(
         for: action,
         experiment: experiment,
         config: mismatchedConfig,
         evidenceIndex: index
       ) == nil)
     try #require(
-      ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
+      TournamentAutomationCycleLearningAdvisor.stalledProofTargetAudit(
         for: action,
         experiment: experiment,
         config: matchedConfig,
@@ -894,7 +894,7 @@ struct ProductTournamentLoopTests {
     try #require(matchedStep.blockedReason != nil)
   }
 
-  @Test func productFactoryFailureBlockRequiresMatchingDecisionIntent() throws {
+  @Test func tournamentAutomationFailureBlockRequiresMatchingDecisionIntent() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -931,10 +931,10 @@ struct ProductTournamentLoopTests {
       targetScenarioID: scenarioID,
       targetDecision: .kill
     )
-    let promoteStepID = ProductFactoryCycleFailureAdvisor.stepID(for: promoteAction)
-    let killStepID = ProductFactoryCycleFailureAdvisor.stepID(for: killAction)
-    config = config.recordingFactoryCycleAudit(
-      ProductFactoryCycleAudit(
+    let promoteStepID = TournamentAutomationCycleFailureAdvisor.stepID(for: promoteAction)
+    let killStepID = TournamentAutomationCycleFailureAdvisor.stepID(for: killAction)
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
         id: "tournament-cycle-promote-proof-failed",
         startedAt: 500,
         endedAt: 505,
@@ -954,14 +954,14 @@ struct ProductTournamentLoopTests {
     try #require(killStepID.contains("target_decision:kill"))
     try #require(promoteStepID != killStepID)
     try #require(
-      ProductFactoryCycleFailureAdvisor.blockingAudit(
+      TournamentAutomationCycleFailureAdvisor.blockingAudit(
         forStepID: promoteStepID,
         experiment: experiment,
         config: config,
         evidenceIndex: .empty
       )?.id == "tournament-cycle-promote-proof-failed")
     try #require(
-      ProductFactoryCycleFailureAdvisor.blockingAudit(
+      TournamentAutomationCycleFailureAdvisor.blockingAudit(
         forStepID: killStepID,
         experiment: experiment,
         config: config,
@@ -1098,7 +1098,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let proofTarget = try #require(
-      ProductFactoryProofTargetAdvisor.target(
+      TournamentAutomationProofTargetAdvisor.target(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1155,13 +1155,13 @@ struct ProductTournamentLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let signal = ProductFactoryExperimentRanker.signal(
+    let signal = TournamentAutomationExperimentRanker.signal(
       for: experiment,
       config: config,
       evidenceIndex: index
     )
     let proofTarget = try #require(
-      ProductFactoryProofTargetAdvisor.target(
+      TournamentAutomationProofTargetAdvisor.target(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1346,7 +1346,7 @@ struct ProductTournamentLoopTests {
 
     let readiness = try #require(index.currentTournamentReadiness(for: experiment))
     let signal = try #require(
-      ProductFactoryRationaleSignalAdvisor.signal(
+      TournamentAutomationRationaleSignalAdvisor.signal(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1358,13 +1358,13 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
     let revisionBrief = try #require(
-      ProductFactoryRevisionBriefAdvisor.brief(
+      TournamentAutomationRevisionBriefAdvisor.brief(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1471,7 +1471,7 @@ struct ProductTournamentLoopTests {
     let index = ProductTournamentEvidenceIndex.build(records: rationaleRecords)
 
     let signal = try #require(
-      ProductFactoryRationaleSignalAdvisor.signal(
+      TournamentAutomationRationaleSignalAdvisor.signal(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1483,13 +1483,13 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
-    config = config.recordingFactoryCycleAudit(
-      ProductFactoryCycleAudit(
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
         id: "tournament-cycle-stalled-rationale",
         startedAt: 350,
         endedAt: 360,
@@ -1510,7 +1510,7 @@ struct ProductTournamentLoopTests {
     )
 
     let audit = try #require(
-      ProductFactoryCycleLearningAdvisor.stalledRationaleSignalAudit(
+      TournamentAutomationCycleLearningAdvisor.stalledRationaleSignalAudit(
         for: action,
         experiment: experiment,
         config: config,
@@ -1523,13 +1523,13 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let revisionStep = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
     let revisionBrief = try #require(
-      ProductFactoryRevisionBriefAdvisor.brief(
+      TournamentAutomationRevisionBriefAdvisor.brief(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1547,7 +1547,7 @@ struct ProductTournamentLoopTests {
     try #require(retarget.targetPersonaID == buyer.id)
     try #require(retarget.targetScenarioID == buyerScenario.id)
     try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -1559,7 +1559,7 @@ struct ProductTournamentLoopTests {
     try #require(revisionBrief.title == "Retarget product revision for AI-user rationale")
     try #require(revisionBrief.prototypeChange.contains("same rationale survived"))
     try #require(revisionBrief.proofPlan.contains("current alternative"))
-    let revisionAudit = ProductFactoryCycleAudit(
+    let revisionAudit = TournamentAutomationCycleAudit(
       id: "tournament-cycle-applied-revision",
       startedAt: 370,
       endedAt: 380,
@@ -1574,9 +1574,9 @@ struct ProductTournamentLoopTests {
       stopDetail: "Stopped before repeating Apply product revision.",
       userMessage: "Tournament automation cycle ran 1 step(s). Product revision applied."
     )
-    let revisedConfig = config.recordingFactoryCycleAudit(revisionAudit)
+    let revisedConfig = config.recordingTournamentAutomationCycleAudit(revisionAudit)
     let appliedAudit = try #require(
-      ProductFactoryCycleLearningAdvisor.appliedRevisionBriefAudit(
+      TournamentAutomationCycleLearningAdvisor.appliedRevisionBriefAudit(
         for: revisionBrief,
         experiment: experiment,
         config: revisedConfig,
@@ -1589,7 +1589,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let validationStep = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: revisedConfig,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -1603,7 +1603,7 @@ struct ProductTournamentLoopTests {
     try #require(validationAction.targetPersonaID == buyer.id)
     try #require(validationAction.targetScenarioID == buyerScenario.id)
     try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: revisedConfig,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -1630,12 +1630,12 @@ struct ProductTournamentLoopTests {
       records: rationaleRecords + [validationRecord]
     )
     let validationSignal = try #require(
-      ProductFactoryRationaleSignalAdvisor.signal(
+      TournamentAutomationRationaleSignalAdvisor.signal(
         for: experiment,
         config: revisedConfig,
         evidenceIndex: validationIndex
       ))
-    let validationAudit = ProductFactoryCycleAudit(
+    let validationAudit = TournamentAutomationCycleAudit(
       id: "tournament-cycle-validation-rationale",
       startedAt: 400,
       endedAt: 410,
@@ -1654,7 +1654,7 @@ struct ProductTournamentLoopTests {
       userMessage:
         "Tournament automation cycle ran 1 step(s). Product revision validation still showed the rationale."
     )
-    let validationConfig = revisedConfig.recordingFactoryCycleAudit(validationAudit)
+    let validationConfig = revisedConfig.recordingTournamentAutomationCycleAudit(validationAudit)
     let postValidationAction = try #require(
       ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
@@ -1662,7 +1662,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: validationIndex
       ))
     let postValidationStep = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: validationConfig,
         evidenceIndex: validationIndex,
         isPersonaModelAvailable: true
@@ -1675,12 +1675,12 @@ struct ProductTournamentLoopTests {
     try #require(postValidationStep.kind == .applyRevision)
     try #require(postValidationStep.targetScenarioID == buyerScenario.id)
     let secondRevisionBrief = try #require(
-      ProductFactoryRevisionBriefAdvisor.brief(
+      TournamentAutomationRevisionBriefAdvisor.brief(
         for: experiment,
         config: validationConfig,
         evidenceIndex: validationIndex
       ))
-    let secondRevisionAudit = ProductFactoryCycleAudit(
+    let secondRevisionAudit = TournamentAutomationCycleAudit(
       id: "tournament-cycle-second-applied-revision",
       startedAt: 420,
       endedAt: 430,
@@ -1695,7 +1695,7 @@ struct ProductTournamentLoopTests {
       stopDetail: "Stopped before repeating Apply product revision.",
       userMessage: "Tournament automation cycle ran 1 step(s). Second product revision applied."
     )
-    let secondRevisedConfig = validationConfig.recordingFactoryCycleAudit(secondRevisionAudit)
+    let secondRevisedConfig = validationConfig.recordingTournamentAutomationCycleAudit(secondRevisionAudit)
     let secondValidationAction = try #require(
       ProductTournamentNextActionAdvisor.nextAction(
         for: experiment,
@@ -1703,7 +1703,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: validationIndex
       ))
     let secondValidationStep = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: secondRevisedConfig,
         evidenceIndex: validationIndex,
         isPersonaModelAvailable: true
@@ -1734,12 +1734,12 @@ struct ProductTournamentLoopTests {
       records: rationaleRecords + [validationRecord, secondValidationRecord]
     )
     let secondValidationSignal = try #require(
-      ProductFactoryRationaleSignalAdvisor.signal(
+      TournamentAutomationRationaleSignalAdvisor.signal(
         for: experiment,
         config: secondRevisedConfig,
         evidenceIndex: secondValidationIndex
       ))
-    let secondValidationAudit = ProductFactoryCycleAudit(
+    let secondValidationAudit = TournamentAutomationCycleAudit(
       id: "tournament-cycle-second-validation-rationale",
       startedAt: 450,
       endedAt: 460,
@@ -1758,9 +1758,9 @@ struct ProductTournamentLoopTests {
       userMessage:
         "Tournament automation cycle ran 1 step(s). Second product revision validation still showed the rationale."
     )
-    let fatiguedConfig = secondRevisedConfig.recordingFactoryCycleAudit(secondValidationAudit)
+    let fatiguedConfig = secondRevisedConfig.recordingTournamentAutomationCycleAudit(secondValidationAudit)
     let fatigueAudit = try #require(
-      ProductFactoryCycleLearningAdvisor.revisionFatigueAudit(
+      TournamentAutomationCycleLearningAdvisor.revisionFatigueAudit(
         for: action,
         experiment: experiment,
         config: fatiguedConfig,
@@ -1773,12 +1773,12 @@ struct ProductTournamentLoopTests {
         evidenceIndex: secondValidationIndex
       ))
     let fatigueStep = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: fatiguedConfig,
         evidenceIndex: secondValidationIndex,
         isPersonaModelAvailable: true
       ))
-    let fatigueSignal = ProductFactoryExperimentRanker.signal(
+    let fatigueSignal = TournamentAutomationExperimentRanker.signal(
       for: experiment,
       config: fatiguedConfig,
       evidenceIndex: secondValidationIndex
@@ -1799,7 +1799,7 @@ struct ProductTournamentLoopTests {
     try #require(!fatigueStep.canExecute)
     try #require(fatigueStep.action.targetDecision == .narrow)
     try #require(
-      fatigueStep.blockedReason == "Review the decision path before autopilot changes state.")
+      fatigueStep.blockedReason == "Review the decision path before Tournament Automation changes state.")
     try #require(fatigueSignal.pressure == .reshape)
     try #require(fatigueSignal.targetDecision == .narrow)
     try #require(fatigueDigest.contains("Review revision fatigue"))
@@ -1828,7 +1828,7 @@ struct ProductTournamentLoopTests {
     )
 
     let signal = try #require(
-      ProductFactoryRationaleSignalAdvisor.signal(
+      TournamentAutomationRationaleSignalAdvisor.signal(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1848,7 +1848,7 @@ struct ProductTournamentLoopTests {
     try #require(action.kind == .applyDecision)
     try #require(action.title == "Apply tournament decision")
     try #require(
-      ProductFactoryRevisionBriefAdvisor.brief(
+      TournamentAutomationRevisionBriefAdvisor.brief(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -1928,18 +1928,18 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let rationaleSignal = try #require(
-      ProductFactoryRationaleSignalAdvisor.signal(
+      TournamentAutomationRationaleSignalAdvisor.signal(
         for: experiment,
         config: config,
         evidenceIndex: index
       ))
     let revisionBrief = try #require(
-      ProductFactoryRevisionBriefAdvisor.brief(
+      TournamentAutomationRevisionBriefAdvisor.brief(
         for: experiment,
         config: config,
         evidenceIndex: index
       ))
-    let signal = ProductFactoryExperimentRanker.signal(
+    let signal = TournamentAutomationExperimentRanker.signal(
       for: experiment,
       config: config,
       evidenceIndex: index
@@ -2055,7 +2055,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -2162,8 +2162,8 @@ struct ProductTournamentLoopTests {
       includeAIUserEvidence: true,
       includeAIUserPersonaBreadth: false
     )
-    config = config.recordingFactoryCycleAudit(
-      ProductFactoryCycleAudit(
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
         id: "tournament-cycle-stalled-broad-ai-user",
         startedAt: 340,
         endedAt: 350,
@@ -2195,7 +2195,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -2208,7 +2208,7 @@ struct ProductTournamentLoopTests {
     try #require(action.detail.contains("cohort `\(buyerCohortID)`"))
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(
-      ProductFactoryCycleLearningAdvisor.stalledProofDebtAudit(
+      TournamentAutomationCycleLearningAdvisor.stalledProofDebtAudit(
         for: action,
         experiment: experiment,
         config: config,
@@ -2263,13 +2263,13 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
     let proofTarget = try #require(
-      ProductFactoryProofTargetAdvisor.target(
+      TournamentAutomationProofTargetAdvisor.target(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -2292,14 +2292,14 @@ struct ProductTournamentLoopTests {
     try #require(!step.canExecute)
     try #require(step.kind == .blocked)
     try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ) == nil)
   }
 
-  @Test func productFactoryAutopilotBlocksRequiredAIUserCohortWhenUnavailable() throws {
+  @Test func tournamentAutomationBlocksRequiredAIUserCohortWhenUnavailable() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2317,28 +2317,28 @@ struct ProductTournamentLoopTests {
     )
 
     let blocked = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: false
       ))
-    let blockedPlan = ProductFactoryAutopilotPlanner.cyclePlan(
+    let blockedPlan = TournamentAutomationPlanner.cyclePlan(
       config: config,
       evidenceIndex: index,
       isPersonaModelAvailable: false
     )
-    let executable = ProductFactoryAutopilotPlanner.nextExecutableStep(
+    let executable = TournamentAutomationPlanner.nextExecutableStep(
       config: config,
       evidenceIndex: index,
       isPersonaModelAvailable: false
     )
     let available = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
-    let availablePlan = ProductFactoryAutopilotPlanner.cyclePlan(
+    let availablePlan = TournamentAutomationPlanner.cyclePlan(
       config: config,
       evidenceIndex: index,
       isPersonaModelAvailable: true
@@ -2363,7 +2363,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("decision target promote"))
   }
 
-  @Test func productFactoryProofTargetsFollowRoundTwoImplementationTarget() throws {
+  @Test func tournamentAutomationProofTargetsFollowRoundTwoImplementationTarget() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2385,12 +2385,12 @@ struct ProductTournamentLoopTests {
       config: config
     )
 
-    let targets = ProductFactoryProofTargetAdvisor.targets(
+    let targets = TournamentAutomationProofTargetAdvisor.targets(
       config: config,
       evidenceIndex: evidenceIndex
     )
     let target = try #require(
-      ProductFactoryProofTargetAdvisor.target(
+      TournamentAutomationProofTargetAdvisor.target(
         for: targetExperiment,
         config: config,
         evidenceIndex: evidenceIndex
@@ -2400,7 +2400,7 @@ struct ProductTournamentLoopTests {
     try #require(target.experimentID == targetExperiment.id)
     try #require(targets.map(\.experimentID) == [targetExperiment.id])
     try #require(
-      ProductFactoryProofTargetAdvisor.target(
+      TournamentAutomationProofTargetAdvisor.target(
         for: siblingExperiment,
         config: config,
         evidenceIndex: evidenceIndex
@@ -2408,7 +2408,7 @@ struct ProductTournamentLoopTests {
     )
   }
 
-  @Test func productFactoryAutopilotOmitsSiblingEvidenceDuringRoundTwoTarget() throws {
+  @Test func tournamentAutomationOmitsSiblingEvidenceDuringRoundTwoTarget() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2423,19 +2423,19 @@ struct ProductTournamentLoopTests {
     let implementationTarget = try activateRoundTwoImplementationTarget(in: &config)
     let siblingExperiment = config.experiments[1]
 
-    let steps = ProductFactoryAutopilotPlanner.steps(
+    let steps = TournamentAutomationPlanner.steps(
       config: config,
       evidenceIndex: .empty,
       isPersonaModelAvailable: true
     )
     let nextStep = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: .empty,
         isPersonaModelAvailable: true
       )
     )
-    let plan = ProductFactoryAutopilotPlanner.cyclePlan(
+    let plan = TournamentAutomationPlanner.cyclePlan(
       config: config,
       evidenceIndex: .empty,
       isPersonaModelAvailable: true
@@ -2449,7 +2449,7 @@ struct ProductTournamentLoopTests {
     try #require(plan.blockedSteps.isEmpty)
   }
 
-  @Test func productFactoryRankerPrioritizesActionableTournamentPressure() throws {
+  @Test func tournamentAutomationRankerPrioritizesActionableTournamentPressure() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2464,16 +2464,16 @@ struct ProductTournamentLoopTests {
     config.experiments[1].currentSha = "head-sha"
     let index = makeTournamentPromotionEvidenceIndex(config: config)
 
-    let ranked = ProductFactoryExperimentRanker.rankedExperiments(
+    let ranked = TournamentAutomationExperimentRanker.rankedExperiments(
       config: config,
       evidenceIndex: index
     )
-    let firstSignal = ProductFactoryExperimentRanker.signal(
+    let firstSignal = TournamentAutomationExperimentRanker.signal(
       for: config.experiments[0],
       config: config,
       evidenceIndex: index
     )
-    let secondSignal = ProductFactoryExperimentRanker.signal(
+    let secondSignal = TournamentAutomationExperimentRanker.signal(
       for: config.experiments[1],
       config: config,
       evidenceIndex: index
@@ -2491,7 +2491,7 @@ struct ProductTournamentLoopTests {
     try #require(secondSignal.readinessLabel == "No current tournament evidence")
   }
 
-  @Test func productFactoryRankerSurfacesTournamentProofDebt() throws {
+  @Test func tournamentAutomationRankerSurfacesTournamentProofDebt() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2505,7 +2505,7 @@ struct ProductTournamentLoopTests {
       includeAIUserEvidence: false
     )
 
-    let signal = ProductFactoryExperimentRanker.signal(
+    let signal = TournamentAutomationExperimentRanker.signal(
       for: config.experiments[0],
       config: config,
       evidenceIndex: index
@@ -2523,7 +2523,7 @@ struct ProductTournamentLoopTests {
     try #require(signal.targetDecision == .promote)
   }
 
-  @Test func productFactoryAutopilotChoosesExecutableTournamentDecision() throws {
+  @Test func tournamentAutomationChoosesExecutableTournamentDecision() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2535,7 +2535,7 @@ struct ProductTournamentLoopTests {
     let index = makeTournamentPromotionEvidenceIndex(config: config)
 
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: index
       ))
@@ -2547,7 +2547,7 @@ struct ProductTournamentLoopTests {
     try #require(step.detail.contains(config.experiments[0].title))
   }
 
-  @Test func productFactoryAutopilotRunsRunnableCohortWhenEvidenceIsMissing() throws {
+  @Test func tournamentAutomationRunsRunnableCohortWhenEvidenceIsMissing() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2558,7 +2558,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].currentSha = "head-sha"
 
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: .empty
       ))
@@ -2570,20 +2570,20 @@ struct ProductTournamentLoopTests {
     try #require(step.cohortReadiness?.canRun == true)
   }
 
-  @Test func productFactoryAutopilotSelectsAIUserCohortsWhenAvailable() throws {
+  @Test func tournamentAutomationSelectsAIUserCohortsWhenAvailable() throws {
     try #require(
-      ProductFactoryAutopilotPlanner.cohortSimulationMode(isPersonaModelAvailable: true)
+      TournamentAutomationPlanner.cohortSimulationMode(isPersonaModelAvailable: true)
         == .personaModel
     )
     try #require(
-      ProductFactoryAutopilotPlanner.cohortSimulationMode(isPersonaModelAvailable: false)
+      TournamentAutomationPlanner.cohortSimulationMode(isPersonaModelAvailable: false)
         == .modelFree
     )
-    try #require(ProductTournamentSimulationMode.personaModel.productFactoryLabel == "AI-user")
-    try #require(ProductTournamentSimulationMode.modelFree.productFactoryLabel == "Model-free")
+    try #require(ProductTournamentSimulationMode.personaModel.tournamentAutomationLabel == "AI-user")
+    try #require(ProductTournamentSimulationMode.modelFree.tournamentAutomationLabel == "Model-free")
   }
 
-  @Test func productFactoryAutopilotBlocksRecentlyFailedStep() throws {
+  @Test func tournamentAutomationBlocksRecentlyFailedStep() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2596,12 +2596,12 @@ struct ProductTournamentLoopTests {
       config.experiments[index].decision = .promoted
     }
     let runnable = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: .empty
       ))
-    config = config.recordingFactoryCycleAudit(
-      ProductFactoryCycleAudit(
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
         id: "tournament-cycle-failed-step",
         startedAt: 100,
         endedAt: 110,
@@ -2619,7 +2619,7 @@ struct ProductTournamentLoopTests {
     )
 
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: config,
         evidenceIndex: .empty
       ))
@@ -2629,18 +2629,18 @@ struct ProductTournamentLoopTests {
         config: config,
         evidenceIndex: .empty
       ))
-    let plan = ProductFactoryAutopilotPlanner.cyclePlan(
+    let plan = TournamentAutomationPlanner.cyclePlan(
       config: config,
       evidenceIndex: .empty
     )
-    let signal = ProductFactoryExperimentRanker.signal(
+    let signal = TournamentAutomationExperimentRanker.signal(
       for: config.experiments[0],
       config: config,
       evidenceIndex: .empty
     )
 
     try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: .empty
       ) == nil)
@@ -2658,7 +2658,7 @@ struct ProductTournamentLoopTests {
     try #require(plan.nextBlockedStep?.action.kind == .repairFailures)
   }
 
-  @Test func productFactoryAutopilotClearsFailureBlockAfterCompletedEvidence() throws {
+  @Test func tournamentAutomationClearsFailureBlockAfterCompletedEvidence() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2671,12 +2671,12 @@ struct ProductTournamentLoopTests {
       config.experiments[index].decision = .promoted
     }
     let runnable = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: .empty
       ))
-    config = config.recordingFactoryCycleAudit(
-      ProductFactoryCycleAudit(
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
         id: "tournament-cycle-failed-step",
         startedAt: 100,
         endedAt: 110,
@@ -2712,7 +2712,7 @@ struct ProductTournamentLoopTests {
       ])
 
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: evidenceIndex
       ))
@@ -2722,7 +2722,7 @@ struct ProductTournamentLoopTests {
     try #require(step.blockedReason == nil)
   }
 
-  @Test func productFactoryAutopilotRetargetsBroadCohortWhenProofDebtStalls() throws {
+  @Test func tournamentAutomationRetargetsBroadCohortWhenProofDebtStalls() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2754,14 +2754,14 @@ struct ProductTournamentLoopTests {
         )
       ])
     let broadStep = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: evidenceIndex
       ))
     try #require(broadStep.action.kind == .runCohort)
     try #require(broadStep.action.targetScenarioID == nil)
-    config = config.recordingFactoryCycleAudit(
-      ProductFactoryCycleAudit(
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
         id: "tournament-cycle-stalled-proof",
         startedAt: 100,
         endedAt: 110,
@@ -2795,20 +2795,20 @@ struct ProductTournamentLoopTests {
         evidenceIndex: evidenceIndex
       ))
     let audit = try #require(
-      ProductFactoryCycleLearningAdvisor.stalledProofDebtAudit(
+      TournamentAutomationCycleLearningAdvisor.stalledProofDebtAudit(
         for: broadStep.action,
         experiment: experiment,
         config: config,
         evidenceIndex: evidenceIndex
       ))
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: config,
         evidenceIndex: evidenceIndex,
         isPersonaModelAvailable: true
       ))
     let proofTarget = try #require(
-      ProductFactoryProofTargetAdvisor.target(
+      TournamentAutomationProofTargetAdvisor.target(
         for: experiment,
         config: config,
         evidenceIndex: evidenceIndex
@@ -2840,7 +2840,7 @@ struct ProductTournamentLoopTests {
     try #require(proofTarget.targetPersonaName == "Budget owner")
     try #require(proofTarget.requiredSimulationMode == .personaModel)
     let executable = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: evidenceIndex,
         isPersonaModelAvailable: true
@@ -2860,8 +2860,8 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("required_mode persona_model"))
     try #require(digest.contains("proof debt 6 -> 6 (0)"))
 
-    config = config.recordingFactoryCycleAudit(
-      ProductFactoryCycleAudit(
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
         id: "tournament-cycle-stalled-target",
         startedAt: 120,
         endedAt: 130,
@@ -2888,14 +2888,14 @@ struct ProductTournamentLoopTests {
     )
 
     let stalledTargetAudit = try #require(
-      ProductFactoryCycleLearningAdvisor.stalledProofTargetAudit(
+      TournamentAutomationCycleLearningAdvisor.stalledProofTargetAudit(
         for: action,
         experiment: experiment,
         config: config,
         evidenceIndex: evidenceIndex
       ))
     let blockedStep = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: config,
         evidenceIndex: evidenceIndex,
         isPersonaModelAvailable: true
@@ -2903,7 +2903,7 @@ struct ProductTournamentLoopTests {
 
     try #require(stalledTargetAudit.id == "tournament-cycle-stalled-target")
     try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: evidenceIndex,
         isPersonaModelAvailable: true
@@ -2914,7 +2914,7 @@ struct ProductTournamentLoopTests {
     try #require(blockedStep.blockedReason?.contains("change the scenario") == true)
   }
 
-  @Test func productFactoryAutopilotFallsBackWhenStalledProofDebtHasNoAIUserTarget() throws {
+  @Test func tournamentAutomationFallsBackWhenStalledProofDebtHasNoAIUserTarget() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -2966,12 +2966,12 @@ struct ProductTournamentLoopTests {
         )
       ])
     let broadStep = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: evidenceIndex
       ))
-    config = config.recordingFactoryCycleAudit(
-      ProductFactoryCycleAudit(
+    config = config.recordingTournamentAutomationCycleAudit(
+      TournamentAutomationCycleAudit(
         id: "tournament-cycle-stalled-no-target",
         startedAt: 100,
         endedAt: 110,
@@ -3003,12 +3003,12 @@ struct ProductTournamentLoopTests {
         evidenceIndex: evidenceIndex
       ))
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: config,
         evidenceIndex: evidenceIndex
       ))
     let proofTarget = try #require(
-      ProductFactoryProofTargetAdvisor.target(
+      TournamentAutomationProofTargetAdvisor.target(
         for: experiment,
         config: config,
         evidenceIndex: evidenceIndex
@@ -3037,7 +3037,7 @@ struct ProductTournamentLoopTests {
     try #require(proofTarget.targetScenarioID == nil)
     try #require(proofTarget.requiredSimulationMode == .personaModel)
     try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: evidenceIndex
       ) == nil)
@@ -3051,7 +3051,7 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("required_mode persona_model"))
   }
 
-  @Test func productFactoryAutopilotCyclePlanCapsExecutableSteps() throws {
+  @Test func tournamentAutomationCyclePlanCapsExecutableSteps() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -3063,7 +3063,7 @@ struct ProductTournamentLoopTests {
       config.experiments[index].currentSha = "head-\(index)"
     }
 
-    let plan = ProductFactoryAutopilotPlanner.cyclePlan(
+    let plan = TournamentAutomationPlanner.cyclePlan(
       config: config,
       evidenceIndex: .empty,
       maxSteps: 1
@@ -3079,7 +3079,7 @@ struct ProductTournamentLoopTests {
     try #require(plan.queueSummary.contains("plus more queued"))
   }
 
-  @Test func productFactoryAutopilotCyclePlanReportsBlockedStep() throws {
+  @Test func tournamentAutomationCyclePlanReportsBlockedStep() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -3087,7 +3087,7 @@ struct ProductTournamentLoopTests {
     )
     config.experiments[0].decision = .keepGoing
 
-    let plan = ProductFactoryAutopilotPlanner.cyclePlan(
+    let plan = TournamentAutomationPlanner.cyclePlan(
       config: config,
       evidenceIndex: .empty
     )
@@ -3102,7 +3102,7 @@ struct ProductTournamentLoopTests {
     try #require(plan.queueSummary.contains("target commit"))
   }
 
-  @Test func productFactoryAutopilotCycleOutcomeReportsRepeatStop() throws {
+  @Test func tournamentAutomationCycleOutcomeReportsRepeatStop() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -3112,12 +3112,12 @@ struct ProductTournamentLoopTests {
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: .empty
       ))
 
-    let outcome = ProductFactoryAutopilotCycleOutcome(
+    let outcome = TournamentAutomationCycleOutcome(
       executedSteps: [step],
       messages: ["Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
       maxSteps: 3,
@@ -3131,7 +3131,7 @@ struct ProductTournamentLoopTests {
     try #require(outcome.userMessage.contains("Stopped before repeating Run evidence cohort."))
   }
 
-  @Test func productFactoryAutopilotCycleOutcomeSeparatesTargetedProofFromAppliedDecisions()
+  @Test func tournamentAutomationCycleOutcomeSeparatesTargetedProofFromAppliedDecisions()
     throws
   {
     var config = ProductTournamentConfig.seedDefaults(
@@ -3147,13 +3147,13 @@ struct ProductTournamentLoopTests {
       includeAIUserEvidence: false
     )
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
 
-    let outcome = ProductFactoryAutopilotCycleOutcome(
+    let outcome = TournamentAutomationCycleOutcome(
       executedSteps: [step],
       messages: ["AI-user validation cohort ran 1 scenario(s): 1 completed."],
       maxSteps: 3,
@@ -3186,13 +3186,13 @@ struct ProductTournamentLoopTests {
     try #require(audit.userMessage.contains("targeted proof 1 promote, 0 kill"))
     try #require(audit.summary.contains("targeted proof 1 promote, 0 kill"))
     let digest = ProductTournamentPlanningDigestFormatter.promptText(
-      config: config.recordingFactoryCycleAudit(audit),
+      config: config.recordingTournamentAutomationCycleAudit(audit),
       evidenceIndex: index
     )
     try #require(digest.contains("targeted proof 1 promote, 0 kill"))
   }
 
-  @Test func productFactoryAutopilotCycleOutcomeCountsLiftAndCutDecisions() throws {
+  @Test func tournamentAutomationCycleOutcomeCountsLiftAndCutDecisions() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -3203,18 +3203,18 @@ struct ProductTournamentLoopTests {
     config.experiments[0].currentSha = "head-sha"
     let index = makeTournamentPromotionEvidenceIndex(config: config)
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: index
       ))
     let candidate = try #require(
-      ProductFactoryDecisionCandidateAdvisor.candidates(
+      TournamentAutomationDecisionCandidateAdvisor.candidates(
         config: config,
         evidenceIndex: index
       ).first { $0.experimentID == step.experimentID }
     )
 
-    let outcome = ProductFactoryAutopilotCycleOutcome(
+    let outcome = TournamentAutomationCycleOutcome(
       executedSteps: [step],
       messages: ["Applied tournament advice for \(step.experimentTitle)."],
       maxSteps: 3,
@@ -3261,7 +3261,7 @@ struct ProductTournamentLoopTests {
     try #require(audit.summary.contains("rationale signals"))
     try #require(audit.summary.contains("decisions 1 (1 promote, 0 kill); evidence 0"))
     let digest = ProductTournamentPlanningDigestFormatter.promptText(
-      config: config.recordingFactoryCycleAudit(audit),
+      config: config.recordingTournamentAutomationCycleAudit(audit),
       evidenceIndex: index
     )
     try #require(digest.contains("Recent tournament automation cycle audits"))
@@ -3309,7 +3309,7 @@ struct ProductTournamentLoopTests {
     let index = ProductTournamentEvidenceIndex.build(records: [record])
 
     let signal = try #require(
-      ProductFactoryTargetedProofOutcomeAdvisor.signal(
+      TournamentAutomationTargetedProofOutcomeAdvisor.signal(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -3321,13 +3321,13 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let brief = try #require(
-      ProductFactoryRevisionBriefAdvisor.brief(
+      TournamentAutomationRevisionBriefAdvisor.brief(
         for: experiment,
         config: config,
         evidenceIndex: index
       ))
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -3395,7 +3395,7 @@ struct ProductTournamentLoopTests {
     let index = ProductTournamentEvidenceIndex.build(records: [record])
 
     let signal = try #require(
-      ProductFactoryTargetedProofOutcomeAdvisor.signal(
+      TournamentAutomationTargetedProofOutcomeAdvisor.signal(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -3407,7 +3407,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -3463,7 +3463,7 @@ struct ProductTournamentLoopTests {
     )
     let index = ProductTournamentEvidenceIndex.build(records: [record])
     let signal = try #require(
-      ProductFactoryTargetedProofOutcomeAdvisor.signal(
+      TournamentAutomationTargetedProofOutcomeAdvisor.signal(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -3474,11 +3474,11 @@ struct ProductTournamentLoopTests {
         config: config,
         evidenceIndex: index
       ))
-    let stalledAudit = ProductFactoryCycleAudit(
+    let stalledAudit = TournamentAutomationCycleAudit(
       id: "tournament-cycle-stalled-targeted-proof",
       startedAt: 220,
       endedAt: 230,
-      executedStepIDs: [ProductFactoryCycleFailureAdvisor.stepID(for: action)],
+      executedStepIDs: [TournamentAutomationCycleFailureAdvisor.stepID(for: action)],
       experimentIDs: [experiment.id],
       messages: ["Targeted kill contradiction proof reran 1 scenario."],
       maxSteps: 3,
@@ -3492,10 +3492,10 @@ struct ProductTournamentLoopTests {
       stopDetail: "Stopped because no executable tournament automation step remains.",
       userMessage: "Tournament automation cycle ran 1 step(s). Targeted proof outcome persisted."
     )
-    let stalledConfig = config.recordingFactoryCycleAudit(stalledAudit)
+    let stalledConfig = config.recordingTournamentAutomationCycleAudit(stalledAudit)
 
     let learningAudit = try #require(
-      ProductFactoryCycleLearningAdvisor.stalledTargetedProofOutcomeAudit(
+      TournamentAutomationCycleLearningAdvisor.stalledTargetedProofOutcomeAudit(
         for: action,
         experiment: experiment,
         config: stalledConfig,
@@ -3508,13 +3508,13 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let revisionBrief = try #require(
-      ProductFactoryRevisionBriefAdvisor.brief(
+      TournamentAutomationRevisionBriefAdvisor.brief(
         for: experiment,
         config: stalledConfig,
         evidenceIndex: index
       ))
     let revisionStep = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: stalledConfig,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -3575,7 +3575,7 @@ struct ProductTournamentLoopTests {
     )
     let index = ProductTournamentEvidenceIndex.build(records: [record])
     let signal = try #require(
-      ProductFactoryTargetedProofOutcomeAdvisor.signal(
+      TournamentAutomationTargetedProofOutcomeAdvisor.signal(
         for: experiment,
         config: config,
         evidenceIndex: index
@@ -3587,18 +3587,18 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let revisionBrief = try #require(
-      ProductFactoryRevisionBriefAdvisor.brief(
+      TournamentAutomationRevisionBriefAdvisor.brief(
         for: experiment,
         config: config,
         evidenceIndex: index
       ))
     let revisionStep = try #require(
-      ProductFactoryAutopilotPlanner.nextStep(
+      TournamentAutomationPlanner.nextStep(
         config: config,
         evidenceIndex: index,
         isPersonaModelAvailable: true
       ))
-    let revisionAudit = ProductFactoryCycleAudit(
+    let revisionAudit = TournamentAutomationCycleAudit(
       id: "tournament-cycle-targeted-proof-revision",
       startedAt: 220,
       endedAt: 230,
@@ -3614,10 +3614,10 @@ struct ProductTournamentLoopTests {
       stopDetail: "Product revision checkpoint recorded.",
       userMessage: "Applied targeted proof revision; validate next."
     )
-    let revisedConfig = config.recordingFactoryCycleAudit(revisionAudit)
+    let revisedConfig = config.recordingTournamentAutomationCycleAudit(revisionAudit)
 
     let appliedAudit = try #require(
-      ProductFactoryCycleLearningAdvisor.appliedTargetedProofOutcomeRevisionAudit(
+      TournamentAutomationCycleLearningAdvisor.appliedTargetedProofOutcomeRevisionAudit(
         for: action,
         experiment: experiment,
         config: revisedConfig,
@@ -3630,7 +3630,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ))
     let validationStep = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: revisedConfig,
         evidenceIndex: index,
         isPersonaModelAvailable: true
@@ -3648,7 +3648,7 @@ struct ProductTournamentLoopTests {
     try #require(validationStep.targetScenarioID == scenario.id)
   }
 
-  @Test func productFactoryAutopilotCycleOutcomeReportsFailureStop() throws {
+  @Test func tournamentAutomationCycleOutcomeReportsFailureStop() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -3658,12 +3658,12 @@ struct ProductTournamentLoopTests {
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: .empty
       ))
 
-    let outcome = ProductFactoryAutopilotCycleOutcome(
+    let outcome = TournamentAutomationCycleOutcome(
       executedSteps: [],
       messages: [],
       maxSteps: 3,
@@ -3688,7 +3688,7 @@ struct ProductTournamentLoopTests {
     try #require(audit.stopStepTitle == step.title)
   }
 
-  @Test func productFactoryAutopilotCycleOutcomeBuildsDurableAudit() throws {
+  @Test func tournamentAutomationCycleOutcomeBuildsDurableAudit() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
       rawPain: "Factory users need better product bet evidence.",
@@ -3698,7 +3698,7 @@ struct ProductTournamentLoopTests {
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
     let step = try #require(
-      ProductFactoryAutopilotPlanner.nextExecutableStep(
+      TournamentAutomationPlanner.nextExecutableStep(
         config: config,
         evidenceIndex: .empty
       ))
@@ -3710,7 +3710,7 @@ struct ProductTournamentLoopTests {
       "\(step.experimentID): run targeted AI-user validation proof; target_decision promote; target Budget owner; scenario \(longScenarioID); debt 2 completed run(s), 2 persona(s), 1 AI-user current-alternative proof(s)"
     let targetedProofOutcomeSummary =
       "\(step.experimentID): targeted tournament proof outcome; target_decision kill; outcome contradicts_target; count 2; action run_cohort; recommended_decision promote; target Budget owner; scenario \(longScenarioID); runs stop-a, stop-b"
-    let outcome = ProductFactoryAutopilotCycleOutcome(
+    let outcome = TournamentAutomationCycleOutcome(
       executedSteps: [step],
       messages: ["Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
       maxSteps: 3,

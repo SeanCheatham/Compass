@@ -25,7 +25,7 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += feasibilityHandoffLines(config: config, evidenceIndex: evidenceIndex)
     lines += roundEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += prototypeEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
-    lines += factoryCycleAuditLines(config: config)
+    lines += tournamentAutomationCycleAuditLines(config: config)
     lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
     lines += solutionLines(config: config, maxSolutionHypotheses: maxSolutionHypotheses)
     lines += experimentLines(config: config, maxExperiments: maxExperiments)
@@ -43,7 +43,7 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += revisionBriefLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
-    lines += autopilotLines(config: config, evidenceIndex: evidenceIndex)
+    lines += tournamentAutomationLines(config: config, evidenceIndex: evidenceIndex)
 
     return boundedLines(lines, maxLines: 80, maxCharacters: 12_000)
   }
@@ -352,7 +352,7 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
-    let candidates = ProductFactoryDecisionCandidateAdvisor.candidates(
+    let candidates = TournamentAutomationDecisionCandidateAdvisor.candidates(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -381,7 +381,7 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
-    let tensions = ProductFactoryEvidenceTensionAdvisor.tensions(
+    let tensions = TournamentAutomationEvidenceTensionAdvisor.tensions(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -427,7 +427,7 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
-    let signals = ProductFactoryExperimentRanker.experimentSignals(
+    let signals = TournamentAutomationExperimentRanker.experimentSignals(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -464,7 +464,7 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
-    let signals = ProductFactoryRationaleSignalAdvisor.signals(
+    let signals = TournamentAutomationRationaleSignalAdvisor.signals(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -505,7 +505,7 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
-    let signals = ProductFactoryTargetedProofOutcomeAdvisor.signals(
+    let signals = TournamentAutomationTargetedProofOutcomeAdvisor.signals(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -548,7 +548,7 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
-    let briefs = ProductFactoryRevisionBriefAdvisor.briefs(
+    let briefs = TournamentAutomationRevisionBriefAdvisor.briefs(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -586,7 +586,7 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
-    let targets = ProductFactoryProofTargetAdvisor.targets(
+    let targets = TournamentAutomationProofTargetAdvisor.targets(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -623,18 +623,18 @@ enum ProductTournamentPlanningDigestFormatter {
     return lines.count > 1 ? lines : []
   }
 
-  private static func autopilotLines(
+  private static func tournamentAutomationLines(
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     guard
-      let step = ProductFactoryAutopilotPlanner.nextStep(
+      let step = TournamentAutomationPlanner.nextStep(
         config: config,
         evidenceIndex: evidenceIndex,
         isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
       )
     else { return [] }
-    let cyclePlan = ProductFactoryAutopilotPlanner.cyclePlan(
+    let cyclePlan = TournamentAutomationPlanner.cyclePlan(
       config: config,
       evidenceIndex: evidenceIndex,
       isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
@@ -664,7 +664,7 @@ enum ProductTournamentPlanningDigestFormatter {
     if step.kind == .runCohort {
       let mode =
         step.action.requiredSimulationMode
-        ?? ProductFactoryAutopilotPlanner.cohortSimulationMode(
+        ?? TournamentAutomationPlanner.cohortSimulationMode(
           isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
         )
       metadata.append("mode \(mode.rawValue)")
@@ -717,8 +717,8 @@ enum ProductTournamentPlanningDigestFormatter {
     return lines
   }
 
-  private static func factoryCycleAuditLines(config: ProductTournamentConfig) -> [String] {
-    let audits = config.factoryCycleAudits
+  private static func tournamentAutomationCycleAuditLines(config: ProductTournamentConfig) -> [String] {
+    let audits = config.tournamentAutomationCycleAudits
       .sorted { lhs, rhs in
         if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
         return lhs.endedAt > rhs.endedAt

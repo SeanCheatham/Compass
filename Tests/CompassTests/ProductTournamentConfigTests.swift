@@ -88,9 +88,9 @@ struct ProductTournamentConfigTests {
     try #require(scenario.title == "Product Tournament scenario")
   }
 
-  @Test func recordingFactoryCycleAuditKeepsLatestBoundedHistory() throws {
+  @Test func recordingTournamentAutomationCycleAuditKeepsLatestBoundedHistory() throws {
     let base = ProductTournamentConfig.empty
-    let first = ProductFactoryCycleAudit(
+    let first = TournamentAutomationCycleAudit(
       id: "tournament-cycle-first",
       startedAt: 10,
       endedAt: 11,
@@ -102,7 +102,7 @@ struct ProductTournamentConfigTests {
       stopDetail: "Stopped first.",
       userMessage: "First."
     )
-    let second = ProductFactoryCycleAudit(
+    let second = TournamentAutomationCycleAudit(
       id: "tournament-cycle-second",
       startedAt: 20,
       endedAt: 21,
@@ -114,7 +114,7 @@ struct ProductTournamentConfigTests {
       stopDetail: "Stopped second.",
       userMessage: "Second."
     )
-    let third = ProductFactoryCycleAudit(
+    let third = TournamentAutomationCycleAudit(
       id: "tournament-cycle-third",
       startedAt: 30,
       endedAt: 31,
@@ -129,12 +129,12 @@ struct ProductTournamentConfigTests {
 
     let next =
       base
-      .recordingFactoryCycleAudit(first, limit: 2)
-      .recordingFactoryCycleAudit(second, limit: 2)
-      .recordingFactoryCycleAudit(third, limit: 2)
+      .recordingTournamentAutomationCycleAudit(first, limit: 2)
+      .recordingTournamentAutomationCycleAudit(second, limit: 2)
+      .recordingTournamentAutomationCycleAudit(third, limit: 2)
 
     try #require(
-      next.factoryCycleAudits.map(\.id) == ["tournament-cycle-second", "tournament-cycle-third"])
+      next.tournamentAutomationCycleAudits.map(\.id) == ["tournament-cycle-second", "tournament-cycle-third"])
   }
 
   @Test func seedDefaultsCreateProductTournamentContendersRoundsAndCohorts() throws {
@@ -189,7 +189,7 @@ struct ProductTournamentConfigTests {
       )
       try #require(scenarioSegmentIDs == Set(config.userSegments.map(\.id)))
     }
-    try #require(config.factoryCycleAudits.isEmpty)
+    try #require(config.tournamentAutomationCycleAudits.isEmpty)
     try #require(
       Set(config.scenarioCohorts.flatMap(\.scenarioIDs)).isSubset(
         of: Set(config.scenarios.map(\.id)))
@@ -342,7 +342,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     decidedAt: 300,
     decidedBy: "Reflect"
   )
-  let audit = ProductFactoryCycleAudit(
+  let audit = TournamentAutomationCycleAudit(
     id: "tournament-cycle-handoff",
     startedAt: 400,
     endedAt: 405,
@@ -369,6 +369,6 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     scenarios: [scenario],
     scenarioCohorts: [cohort],
     decisions: [decision],
-    factoryCycleAudits: [audit]
+    tournamentAutomationCycleAudits: [audit]
   )
 }
