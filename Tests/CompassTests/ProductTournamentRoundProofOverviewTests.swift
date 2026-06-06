@@ -200,6 +200,7 @@ struct ProductTournamentRoundProofOverviewTests {
     )
     try #require(topActionRow.postMovementNextStatusLabel == "More proof")
     try #require(topActionRow.postMovementNextStatusSystemImage == "text.badge.checkmark")
+    try #require(topActionRow.nextStatusSortPriority == 50)
     try #require(topActionRow.contextSummary.contains("step ready run_plan_proof"))
     try #require(topActionRow.runPairSummary == "No audited proof run yet -> Ready: Run Plan Proof")
     try #require(topActionRow.contextSummary.contains("run_pair last no audited proof run"))
@@ -211,6 +212,7 @@ struct ProductTournamentRoundProofOverviewTests {
     transitionRow.nextStep = transitionStep
     try #require(transitionRow.postMovementNextStatusLabel == "Transition ready")
     try #require(transitionRow.postMovementNextStatusSystemImage == "arrow.turn.down.right")
+    try #require(transitionRow.nextStatusSortPriority == 90)
     var promoteRow = topActionRow
     var promoteStep = topActionStep
     promoteStep.kind = .applyDecision
@@ -219,6 +221,7 @@ struct ProductTournamentRoundProofOverviewTests {
     promoteRow.nextStep = promoteStep
     try #require(promoteRow.postMovementNextStatusLabel == "Promotion ready")
     try #require(promoteRow.postMovementNextStatusSystemImage == "arrow.up.circle")
+    try #require(promoteRow.nextStatusSortPriority == 100)
     var killRow = promoteRow
     var killStep = promoteStep
     killStep.action.targetDecision = .kill
@@ -229,6 +232,23 @@ struct ProductTournamentRoundProofOverviewTests {
     noQueuedRow.nextStep = nil
     try #require(noQueuedRow.postMovementNextStatusLabel == "No queued proof")
     try #require(noQueuedRow.postMovementNextStatusSystemImage == "checkmark.seal")
+    try #require(noQueuedRow.nextStatusSortPriority == 0)
+    let prioritizedStatuses =
+      [topActionRow, noQueuedRow, transitionRow, promoteRow]
+      .sorted { $0.scoreboardSortsBefore($1) }
+      .map(\.nextStatusLabel)
+    try #require(
+      prioritizedStatuses == [
+        "Promotion ready",
+        "Transition ready",
+        "More proof",
+        "No queued proof",
+      ]
+    )
+    var priorityItem = item
+    priorityItem.rows = [topActionRow, noQueuedRow, transitionRow, promoteRow]
+    try #require(priorityItem.topActionRow?.nextStatusLabel == "Promotion ready")
+    try #require(priorityItem.topActionStep?.kind == .applyDecision)
     try #require(includesAllRivalPositions)
     try #require(displayDetailIncludesRows)
     try #require(contextLines.first == "Tournament automation proof scoreboard:")

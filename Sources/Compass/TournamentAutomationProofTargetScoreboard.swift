@@ -369,6 +369,36 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
     postMovementNextStatusSystemImage
   }
 
+  var nextStatusSortPriority: Int {
+    guard let nextStep else { return 0 }
+    guard nextStep.canExecute else { return 20 }
+    switch nextStep.kind {
+    case .applyDecision:
+      return 100
+    case .applyRoundTransition:
+      return 90
+    case .applyRevision, .prepareWorktree:
+      return 80
+    case .runCohort, .runPlanProof:
+      return 50
+    case .blocked:
+      return 20
+    }
+  }
+
+  func scoreboardSortsBefore(_ other: TournamentAutomationProofTargetScoreboardRow) -> Bool {
+    if nextStatusSortPriority != other.nextStatusSortPriority {
+      return nextStatusSortPriority > other.nextStatusSortPriority
+    }
+    if urgencyScore != other.urgencyScore {
+      return urgencyScore > other.urgencyScore
+    }
+    if readinessScore != other.readinessScore {
+      return readinessScore > other.readinessScore
+    }
+    return contenderTitle < other.contenderTitle
+  }
+
   private var lastRunSummary: String {
     latestDebtMovement?.lastRunSummary ?? "No audited proof run yet"
   }
@@ -434,7 +464,10 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
   var targetCount: Int { rows.count }
 
   var topActionRow: TournamentAutomationProofTargetScoreboardRow? {
-    rows.first { $0.nextStep != nil }
+    rows
+      .filter { $0.nextStep != nil }
+      .sorted { $0.scoreboardSortsBefore($1) }
+      .first
   }
 
   var topActionStep: TournamentAutomationStep? {
@@ -718,12 +751,7 @@ enum TournamentAutomationProofTargetScoreboard {
           latestDebtMovement: latestDebtMovementByExperimentID[target.experimentID]
         )
       }
-      .sorted {
-        if $0.urgencyScore == $1.urgencyScore {
-          return $0.contenderTitle < $1.contenderTitle
-        }
-        return $0.urgencyScore > $1.urgencyScore
-      }
+      .sorted { $0.scoreboardSortsBefore($1) }
     return TournamentAutomationProofTargetScoreboardItem(
       tournamentID: key.tournamentID,
       roundID: key.roundID,
