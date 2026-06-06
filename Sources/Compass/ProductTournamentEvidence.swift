@@ -730,18 +730,18 @@ struct ProductTournamentEvidenceScores: Codable, Equatable, Sendable {
   }
 }
 
-enum ProductizationDecisionIntentOutcome: String, Codable, CaseIterable, Equatable, Sendable {
+enum ProductTournamentEvidenceDecisionIntentOutcome: String, Codable, CaseIterable, Equatable, Sendable {
   case supportsTarget = "supports_target"
   case contradictsTarget = "contradicts_target"
   case inconclusive
 }
 
-struct ProductizationDecisionIntentEvaluation: Codable, Equatable, Sendable {
-  var outcome: ProductizationDecisionIntentOutcome
+struct ProductTournamentEvidenceDecisionIntentEvaluation: Codable, Equatable, Sendable {
+  var outcome: ProductTournamentEvidenceDecisionIntentOutcome
   var rationale: String
 
   init(
-    outcome: ProductizationDecisionIntentOutcome,
+    outcome: ProductTournamentEvidenceDecisionIntentOutcome,
     rationale: String
   ) {
     self.outcome = outcome
@@ -767,7 +767,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
   var personaID: String
   var mode: ProductTournamentSimulationMode
   var decisionIntent: ProductTournamentSimulationDecisionIntent?
-  var decisionIntentEvaluation: ProductizationDecisionIntentEvaluation?
+  var decisionIntentEvaluation: ProductTournamentEvidenceDecisionIntentEvaluation?
   var status: ProductTournamentRunStatus
   var startedAt: Double
   var endedAt: Double
@@ -851,7 +851,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
         forKey: .decisionIntent
       ),
       decisionIntentEvaluation: try container.decodeIfPresent(
-        ProductizationDecisionIntentEvaluation.self,
+        ProductTournamentEvidenceDecisionIntentEvaluation.self,
         forKey: .decisionIntentEvaluation
       ),
       status: try container.decode(ProductTournamentRunStatus.self, forKey: .status),
@@ -920,7 +920,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     personaID: String,
     mode: ProductTournamentSimulationMode,
     decisionIntent: ProductTournamentSimulationDecisionIntent? = nil,
-    decisionIntentEvaluation: ProductizationDecisionIntentEvaluation? = nil,
+    decisionIntentEvaluation: ProductTournamentEvidenceDecisionIntentEvaluation? = nil,
     status: ProductTournamentRunStatus,
     startedAt: Double,
     endedAt: Double,
@@ -1082,10 +1082,10 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     scores: ProductTournamentEvidenceScores,
     missingCapabilities: [String],
     currentAlternativeComparison: String
-  ) -> ProductizationDecisionIntentEvaluation? {
+  ) -> ProductTournamentEvidenceDecisionIntentEvaluation? {
     guard let intent else { return nil }
     guard status == .completed else {
-      return ProductizationDecisionIntentEvaluation(
+      return ProductTournamentEvidenceDecisionIntentEvaluation(
         outcome: .inconclusive,
         rationale:
           "Run ended with status \(status.rawValue), so it did not answer the targeted \(intent.targetDecision.rawValue) decision."
@@ -1115,7 +1115,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
       if strongVerdict && !hasMissingCapabilities
         && (productPullFloor == 0 || productPullFloor >= 3)
       {
-        return ProductizationDecisionIntentEvaluation(
+        return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .supportsTarget,
           rationale:
             "The run produced \(verdict.rawValue) evidence without missing capabilities, supporting the targeted promotion proof."
@@ -1128,7 +1128,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
           hasMissingCapabilities
           ? "missing \(missing.prefix(3).joined(separator: ", "))"
           : "weak pull"
-        return ProductizationDecisionIntentEvaluation(
+        return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .contradictsTarget,
           rationale:
             "The targeted promotion proof was contradicted by \(verdict.rawValue) evidence and \(blocker)."
@@ -1136,7 +1136,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
       }
     case .kill, .archived:
       if weakVerdict || (productPullCeiling > 0 && productPullCeiling <= 2) {
-        return ProductizationDecisionIntentEvaluation(
+        return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .supportsTarget,
           rationale:
             "The run produced \(verdict.rawValue) evidence with weak product pull, supporting the targeted stop decision."
@@ -1145,7 +1145,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
       if strongVerdict && !hasMissingCapabilities
         && (productPullCeiling == 0 || productPullCeiling >= 3)
       {
-        return ProductizationDecisionIntentEvaluation(
+        return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .contradictsTarget,
           rationale:
             "The targeted stop decision was contradicted by \(verdict.rawValue) evidence and no missing capabilities."
@@ -1157,7 +1157,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
           hasMissingCapabilities
           ? "missing \(missing.prefix(3).joined(separator: ", "))"
           : "low scorecard pull"
-        return ProductizationDecisionIntentEvaluation(
+        return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .supportsTarget,
           rationale:
             "The run exposed narrower scope pressure through \(pressure)."
@@ -1166,7 +1166,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
       if verdict == .strongPull && !hasMissingCapabilities
         && (productPullFloor == 0 || productPullFloor >= 4)
       {
-        return ProductizationDecisionIntentEvaluation(
+        return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .contradictsTarget,
           rationale:
             "The targeted narrow decision was contradicted by strong pull without missing capabilities."
@@ -1174,7 +1174,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
       }
     case .pivot:
       if painRecognition >= 4 && productPullCeiling > 0 && productPullCeiling <= 2 {
-        return ProductizationDecisionIntentEvaluation(
+        return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .supportsTarget,
           rationale:
             "The pain was recognized, but the current product shape did not create enough pull."
@@ -1183,7 +1183,7 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
       if strongVerdict && !hasMissingCapabilities
         && (productPullCeiling == 0 || productPullCeiling >= 4)
       {
-        return ProductizationDecisionIntentEvaluation(
+        return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .contradictsTarget,
           rationale:
             "The targeted pivot decision was contradicted by strong pull for the current product shape."
@@ -1191,27 +1191,27 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
       }
     case .keepGoing:
       if strongVerdict || verdict == .unclear || comparedAlternative {
-        return ProductizationDecisionIntentEvaluation(
+        return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .supportsTarget,
           rationale:
             "The run reduced uncertainty enough to support continuing the current product bet."
         )
       }
       if verdict == .rejected {
-        return ProductizationDecisionIntentEvaluation(
+        return ProductTournamentEvidenceDecisionIntentEvaluation(
           outcome: .contradictsTarget,
           rationale: "The continue target was contradicted by rejected evidence."
         )
       }
     case .notRun:
-      return ProductizationDecisionIntentEvaluation(
+      return ProductTournamentEvidenceDecisionIntentEvaluation(
         outcome: .supportsTarget,
         rationale:
           "The first targeted evidence run completed and moved the bet out of not-run state."
       )
     }
 
-    return ProductizationDecisionIntentEvaluation(
+    return ProductTournamentEvidenceDecisionIntentEvaluation(
       outcome: .inconclusive,
       rationale:
         "The run produced \(verdict.rawValue) evidence, but it did not decisively answer the targeted \(intent.targetDecision.rawValue) decision."
@@ -1362,7 +1362,7 @@ struct ProductTournamentEvidenceSummary: Codable, Equatable, Identifiable, Senda
   var personaID: String
   var mode: ProductTournamentSimulationMode
   var decisionIntent: ProductTournamentSimulationDecisionIntent?
-  var decisionIntentEvaluation: ProductizationDecisionIntentEvaluation?
+  var decisionIntentEvaluation: ProductTournamentEvidenceDecisionIntentEvaluation?
   var status: ProductTournamentRunStatus
   var startedAt: Double
   var endedAt: Double
@@ -1432,7 +1432,7 @@ struct ProductTournamentEvidenceSummary: Codable, Equatable, Identifiable, Senda
       forKey: .decisionIntent
     )
     decisionIntentEvaluation = try container.decodeIfPresent(
-      ProductizationDecisionIntentEvaluation.self,
+      ProductTournamentEvidenceDecisionIntentEvaluation.self,
       forKey: .decisionIntentEvaluation
     )
     status = try container.decode(ProductTournamentRunStatus.self, forKey: .status)
@@ -2173,14 +2173,14 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
   var pmfReadinessByExperiment: [ProductMarketFitReadiness]
   var latestPlanEvaluationByContender: [String: String]
   var planReadinessByContender: [ProductTournamentPlanReadiness]
-  var repeatedObjections: [ProductizationRepeatedObjection]
-  var lowScoreClusters: [ProductizationScoreCluster]
-  var missingCapabilityFrequency: [ProductizationMissingCapabilityCount]
+  var repeatedObjections: [ProductTournamentEvidenceRepeatedObjection]
+  var lowScoreClusters: [ProductTournamentEvidenceScoreCluster]
+  var missingCapabilityFrequency: [ProductTournamentEvidenceMissingCapabilityCount]
   var verdictCounts: [String: Int]
   var failuresByKind: [String: Int]
   var personaRationaleSignals: [ProductTournamentPersonaRationaleSignal]
-  var currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary]
-  var decisionIntentOutcomes: [ProductizationDecisionIntentOutcomeCount]
+  var currentAlternativeComparisons: [ProductTournamentEvidenceAlternativeComparisonSummary]
+  var decisionIntentOutcomes: [ProductTournamentEvidenceDecisionIntentOutcomeCount]
 
   enum CodingKeys: String, CodingKey {
     case latestRunByExperiment
@@ -2202,14 +2202,14 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     pmfReadinessByExperiment: [ProductMarketFitReadiness] = [],
     latestPlanEvaluationByContender: [String: String] = [:],
     planReadinessByContender: [ProductTournamentPlanReadiness] = [],
-    repeatedObjections: [ProductizationRepeatedObjection],
-    lowScoreClusters: [ProductizationScoreCluster],
-    missingCapabilityFrequency: [ProductizationMissingCapabilityCount],
+    repeatedObjections: [ProductTournamentEvidenceRepeatedObjection],
+    lowScoreClusters: [ProductTournamentEvidenceScoreCluster],
+    missingCapabilityFrequency: [ProductTournamentEvidenceMissingCapabilityCount],
     verdictCounts: [String: Int],
     failuresByKind: [String: Int],
     personaRationaleSignals: [ProductTournamentPersonaRationaleSignal] = [],
-    currentAlternativeComparisons: [ProductizationAlternativeComparisonSummary],
-    decisionIntentOutcomes: [ProductizationDecisionIntentOutcomeCount] = []
+    currentAlternativeComparisons: [ProductTournamentEvidenceAlternativeComparisonSummary],
+    decisionIntentOutcomes: [ProductTournamentEvidenceDecisionIntentOutcomeCount] = []
   ) {
     self.latestRunByExperiment = latestRunByExperiment
     self.pmfReadinessByExperiment = pmfReadinessByExperiment
@@ -2245,15 +2245,15 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
         forKey: .planReadinessByContender
       ) ?? [],
       repeatedObjections: try container.decodeIfPresent(
-        [ProductizationRepeatedObjection].self,
+        [ProductTournamentEvidenceRepeatedObjection].self,
         forKey: .repeatedObjections
       ) ?? [],
       lowScoreClusters: try container.decodeIfPresent(
-        [ProductizationScoreCluster].self,
+        [ProductTournamentEvidenceScoreCluster].self,
         forKey: .lowScoreClusters
       ) ?? [],
       missingCapabilityFrequency: try container.decodeIfPresent(
-        [ProductizationMissingCapabilityCount].self,
+        [ProductTournamentEvidenceMissingCapabilityCount].self,
         forKey: .missingCapabilityFrequency
       ) ?? [],
       verdictCounts: try container.decodeIfPresent(
@@ -2269,11 +2269,11 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
         forKey: .personaRationaleSignals
       ) ?? [],
       currentAlternativeComparisons: try container.decodeIfPresent(
-        [ProductizationAlternativeComparisonSummary].self,
+        [ProductTournamentEvidenceAlternativeComparisonSummary].self,
         forKey: .currentAlternativeComparisons
       ) ?? [],
       decisionIntentOutcomes: try container.decodeIfPresent(
-        [ProductizationDecisionIntentOutcomeCount].self,
+        [ProductTournamentEvidenceDecisionIntentOutcomeCount].self,
         forKey: .decisionIntentOutcomes
       ) ?? []
     )
@@ -2335,7 +2335,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     repeatedObjections =
       objectionCounts
       .filter { !$0.key.isEmpty && $0.value > 1 }
-      .map { ProductizationRepeatedObjection(objection: $0.key, count: $0.value) }
+      .map { ProductTournamentEvidenceRepeatedObjection(objection: $0.key, count: $0.value) }
       .sorted { lhs, rhs in
         if lhs.count == rhs.count { return lhs.objection < rhs.objection }
         return lhs.count > rhs.count
@@ -2350,7 +2350,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     missingCapabilityFrequency =
       missingCounts
       .filter { !$0.key.isEmpty }
-      .map { ProductizationMissingCapabilityCount(capabilityID: $0.key, count: $0.value) }
+      .map { ProductTournamentEvidenceMissingCapabilityCount(capabilityID: $0.key, count: $0.value) }
       .sorted { lhs, rhs in
         if lhs.count == rhs.count { return lhs.capabilityID < rhs.capabilityID }
         return lhs.count > rhs.count
@@ -2403,7 +2403,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
       "\($0.experimentID)|\($0.personaID)"
     }
     lowScoreClusters = scoreGroups.map { _, group in
-      ProductizationScoreCluster(summaries: group)
+      ProductTournamentEvidenceScoreCluster(summaries: group)
     }
     .filter { $0.minimumScore > 0 && $0.minimumScore <= 2.5 }
     .sorted { lhs, rhs in
@@ -2415,7 +2415,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
 
     currentAlternativeComparisons = Array(
       (summaries.map {
-        ProductizationAlternativeComparisonSummary(
+        ProductTournamentEvidenceAlternativeComparisonSummary(
           runID: $0.runID,
           experimentID: $0.experimentID,
           comparison: $0.currentAlternativeComparison,
@@ -2423,7 +2423,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
         )
       }
         + planEvaluationSummaries.map {
-          ProductizationAlternativeComparisonSummary(
+          ProductTournamentEvidenceAlternativeComparisonSummary(
             runID: $0.evaluationID,
             experimentID: $0.experimentID ?? $0.contenderID,
             comparison: $0.currentAlternativeComparison,
@@ -2435,14 +2435,14 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     )
 
     let outcomeGroups = Dictionary(
-      grouping: summaries.compactMap(ProductizationDecisionIntentOutcomeSource.init),
+      grouping: summaries.compactMap(ProductTournamentEvidenceDecisionIntentOutcomeSource.init),
       by: { "\($0.intent.targetDecision.rawValue)|\($0.evaluation.outcome.rawValue)" }
     )
     decisionIntentOutcomes =
       outcomeGroups
       .map { _, sources in
         let first = sources[0]
-        return ProductizationDecisionIntentOutcomeCount(
+        return ProductTournamentEvidenceDecisionIntentOutcomeCount(
           targetDecision: first.intent.targetDecision,
           outcome: first.evaluation.outcome,
           count: sources.count,
@@ -2470,12 +2470,12 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
   }
 }
 
-struct ProductizationRepeatedObjection: Codable, Equatable, Sendable {
+struct ProductTournamentEvidenceRepeatedObjection: Codable, Equatable, Sendable {
   var objection: String
   var count: Int
 }
 
-struct ProductizationMissingCapabilityCount: Codable, Equatable, Sendable {
+struct ProductTournamentEvidenceMissingCapabilityCount: Codable, Equatable, Sendable {
   var capabilityID: String
   var count: Int
 }
@@ -2516,9 +2516,9 @@ private struct ProductTournamentPersonaRationaleSignalSource {
   var rationale: String
 }
 
-struct ProductizationDecisionIntentOutcomeCount: Codable, Equatable, Sendable {
+struct ProductTournamentEvidenceDecisionIntentOutcomeCount: Codable, Equatable, Sendable {
   var targetDecision: ProductExperimentDecision
-  var outcome: ProductizationDecisionIntentOutcome
+  var outcome: ProductTournamentEvidenceDecisionIntentOutcome
   var count: Int
   var runIDs: [String]
   var experimentIDs: [String]
@@ -2538,7 +2538,7 @@ struct ProductizationDecisionIntentOutcomeCount: Codable, Equatable, Sendable {
 
   init(
     targetDecision: ProductExperimentDecision,
-    outcome: ProductizationDecisionIntentOutcome,
+    outcome: ProductTournamentEvidenceDecisionIntentOutcome,
     count: Int,
     runIDs: [String],
     experimentIDs: [String]
@@ -2551,10 +2551,10 @@ struct ProductizationDecisionIntentOutcomeCount: Codable, Equatable, Sendable {
   }
 }
 
-private struct ProductizationDecisionIntentOutcomeSource {
+private struct ProductTournamentEvidenceDecisionIntentOutcomeSource {
   var summary: ProductTournamentEvidenceSummary
   var intent: ProductTournamentSimulationDecisionIntent
-  var evaluation: ProductizationDecisionIntentEvaluation
+  var evaluation: ProductTournamentEvidenceDecisionIntentEvaluation
 
   init?(_ summary: ProductTournamentEvidenceSummary) {
     guard let intent = summary.decisionIntent,
@@ -2566,14 +2566,14 @@ private struct ProductizationDecisionIntentOutcomeSource {
   }
 }
 
-struct ProductizationAlternativeComparisonSummary: Codable, Equatable, Sendable {
+struct ProductTournamentEvidenceAlternativeComparisonSummary: Codable, Equatable, Sendable {
   var runID: String
   var experimentID: String
   var comparison: String
   var verdict: ProductTournamentEvidenceVerdict
 }
 
-struct ProductizationScoreCluster: Codable, Equatable, Sendable {
+struct ProductTournamentEvidenceScoreCluster: Codable, Equatable, Sendable {
   var experimentID: String
   var personaID: String
   var runCount: Int
@@ -2948,7 +2948,7 @@ enum ProductTournamentEvidenceMarkdownExporter {
   }
 
   private static func decisionIntentEvaluationLine(
-    _ evaluation: ProductizationDecisionIntentEvaluation
+    _ evaluation: ProductTournamentEvidenceDecisionIntentEvaluation
   ) -> String {
     let rationale = StringUtils.boundedText(evaluation.rationale, limit: 220)
     guard !rationale.isEmpty else { return evaluation.outcome.rawValue }

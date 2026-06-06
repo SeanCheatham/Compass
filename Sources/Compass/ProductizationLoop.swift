@@ -979,7 +979,7 @@ struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiab
 
   var experimentID: String
   var targetDecision: ProductExperimentDecision
-  var outcome: ProductizationDecisionIntentOutcome
+  var outcome: ProductTournamentEvidenceDecisionIntentOutcome
   var recommendedDecision: ProductExperimentDecision?
   var actionKind: ProductMarketFitNextActionKind
   var title: String
@@ -1055,7 +1055,7 @@ struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiab
   init(
     experimentID: String,
     targetDecision: ProductExperimentDecision,
-    outcome: ProductizationDecisionIntentOutcome,
+    outcome: ProductTournamentEvidenceDecisionIntentOutcome,
     recommendedDecision: ProductExperimentDecision?,
     actionKind: ProductMarketFitNextActionKind,
     title: String,
@@ -1155,7 +1155,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
   private struct OutcomeSource: Equatable, Sendable {
     var summary: ProductTournamentEvidenceSummary
     var intent: ProductTournamentSimulationDecisionIntent
-    var evaluation: ProductizationDecisionIntentEvaluation
+    var evaluation: ProductTournamentEvidenceDecisionIntentEvaluation
 
     init?(_ summary: ProductTournamentEvidenceSummary) {
       guard let intent = summary.decisionIntent,
