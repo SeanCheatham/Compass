@@ -125,6 +125,10 @@ struct PromptSchemaLoadingTests {
         .contains("materializes each candidate")
     )
     try #require(
+      propertyDescription("candidateTournamentExperiments", in: properties)
+        .contains("starter scenario")
+    )
+    try #require(
       candidateTournamentExperimentItems["$ref"] as? String
         == "#/$defs/candidateTournamentExperiment"
     )

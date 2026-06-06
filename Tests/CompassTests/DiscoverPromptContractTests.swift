@@ -278,8 +278,23 @@ struct DiscoverPromptContractTests {
     )
     try #require(cohort.title == "Incident lead cohort")
     try #require(cohort.experimentID == experiment.id)
-    try #require(cohort.scenarioIDs.isEmpty)
+    try #require(cohort.scenarioIDs == ["experiment-incident-command-board-starter-scenario"])
     try #require(cohort.tags == ["discover", "candidate-implementation-track"])
+    let scenario = try #require(
+      written.scenarios.first { $0.id == "experiment-incident-command-board-starter-scenario" }
+    )
+    try #require(scenario.experimentID == experiment.id)
+    try #require(scenario.segmentID == "segment-incident-lead")
+    try #require(scenario.currentWorkflowID == "workflow-chat-triage")
+    try #require(scenario.alternativeID == "alternative-chat")
+    try #require(scenario.title == "Incident Command Board starter scenario")
+    try #require(
+      scenario.task.contains("Draft a customer update from owner and decision context.")
+    )
+    try #require(scenario.task.contains("Compare it with Slack thread."))
+    try #require(scenario.successSignal == "Persona creates a clearer update than the Slack thread.")
+    try #require(scenario.targetCommitSha == nil)
+    try #require(scenario.enabled)
 
     let planRound = try #require(written.tournamentRounds.first { $0.kind == .productPlans })
     try #require(!planRound.scenarioCohortIDs.contains(cohort.id))

@@ -36,7 +36,8 @@ extension Prompts {
         contenders after the plan-only round; do not treat them as Round 1.
         When a candidate references a contender without a linked tournament
         experiment, Compass will materialize a durable Round 2/Round 3
-        implementation track from it during apply.
+        implementation track and starter scenario from it during apply when the
+        target segment and current workflow can be resolved.
       - `contenderID` must reference a tournament contender in `stateEdits` or current
         tournament state.
       - `branchSlug` must be a single safe git-ref component such as
@@ -342,6 +343,7 @@ struct DiscoverPromptOutput: Codable, Equatable {
     var branchNames = Set(next.tournamentExperiments.map(\.branchName))
     var worktreeIDs = Set(next.tournamentExperiments.map(\.worktreeID))
     var cohortIDs = Set(next.scenarioCohorts.map(\.id))
+    var scenarioIDs = Set(next.scenarios.map(\.id))
     let timestamp = Self.materializationTimestamp(in: next)
 
     for candidate in candidateTournamentExperiments {
@@ -381,6 +383,15 @@ struct DiscoverPromptOutput: Codable, Equatable {
         fallback: "\(branchSlug)-cohort",
         existing: &cohortIDs
       )
+      let starterScenario = Self.starterScenario(
+        for: candidate,
+        contender: contender,
+        experimentID: experimentID,
+        cohortID: cohortID,
+        config: next,
+        timestamp: timestamp,
+        existingScenarioIDs: &scenarioIDs
+      )
 
       next.tournamentExperiments.append(
         ProductTournamentExperiment(
@@ -405,11 +416,14 @@ struct DiscoverPromptOutput: Codable, Equatable {
           id: cohortID,
           title: candidate.targetScenarioCohort,
           experimentID: experimentID,
-          scenarioIDs: [],
+          scenarioIDs: starterScenario.map { [$0.id] } ?? [],
           enabled: true,
           tags: ["discover", "candidate-implementation-track"]
         )
       )
+      if let starterScenario {
+        next.scenarios.append(starterScenario)
+      }
 
       next.tournamentContenders[contenderIndex].experimentID = experimentID
       next.tournamentContenders[contenderIndex].updatedAt = timestamp
@@ -427,6 +441,114 @@ struct DiscoverPromptOutput: Codable, Equatable {
     }
 
     return next
+  }
+
+  private static func starterScenario(
+    for candidate: DiscoveryCandidateTournamentExperiment,
+    contender: ProductTournamentContender,
+    experimentID: String,
+    cohortID: String,
+    config: ProductTournamentConfig,
+    timestamp: Double,
+    existingScenarioIDs: inout Set<String>
+  ) -> ProductScenario? {
+    guard
+      let contenderPlan = config.contenderPlans.first(where: { $0.id == contender.contenderPlanID }),
+      let segment = scenarioSegment(
+        for: contender,
+        contenderPlan: contenderPlan,
+        in: config
+      ),
+      let workflow = scenarioWorkflow(
+        for: segment,
+        painID: contenderPlan.painID,
+        in: config
+      )
+    else { return nil }
+
+    let alternative = scenarioAlternative(
+      for: segment,
+      painID: contenderPlan.painID,
+      in: config
+    )
+    let scenarioID = reserveUniqueIdentifier(
+      preferred: "\(experimentID)-starter-scenario",
+      fallback: "\(cohortID)-scenario",
+      existing: &existingScenarioIDs
+    )
+    let alternativeComparison = alternative.map {
+      " Compare it with \($0.title)."
+    } ?? " Compare it with the current workaround."
+    return ProductScenario(
+      id: scenarioID,
+      experimentID: experimentID,
+      segmentID: segment.id,
+      currentWorkflowID: workflow.id,
+      alternativeID: alternative?.id,
+      title: "\(candidate.implementationName) starter scenario",
+      task:
+        "Use \(candidate.implementationName) to \(candidate.smallestWorkflowToProve) in the \(workflow.title) workflow.\(alternativeComparison) Decide whether it relieves \(segment.name)'s pain.",
+      successSignal: candidate.expectedEvidenceSignal,
+      targetCommitSha: nil,
+      maxTurns: 8,
+      appCommandTimeoutSeconds: 120,
+      enabled: true,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    )
+  }
+
+  private static func scenarioSegment(
+    for contender: ProductTournamentContender,
+    contenderPlan: ProductTournamentContenderPlan,
+    in config: ProductTournamentConfig
+  ) -> UserSegment? {
+    let preferredIDs = uniqueIDs(contender.targetSegmentIDs + contenderPlan.targetSegmentIDs)
+    if let segment = preferredIDs.compactMap({ segmentID in
+      config.userSegments.first { $0.id == segmentID }
+    }).first {
+      return segment
+    }
+    return config.userSegments.first { $0.painID == contenderPlan.painID }
+      ?? config.userSegments.first
+  }
+
+  private static func scenarioWorkflow(
+    for segment: UserSegment,
+    painID: String,
+    in config: ProductTournamentConfig
+  ) -> CurrentWorkflow? {
+    if let workflow = segment.currentWorkflowIDs.compactMap({ workflowID in
+      config.currentWorkflows.first { $0.id == workflowID }
+    }).first {
+      return workflow
+    }
+    return config.currentWorkflows.first { $0.painID == painID }
+      ?? config.currentWorkflows.first
+  }
+
+  private static func scenarioAlternative(
+    for segment: UserSegment,
+    painID: String,
+    in config: ProductTournamentConfig
+  ) -> Alternative? {
+    if let alternative = segment.alternativeIDs.compactMap({ alternativeID in
+      config.alternatives.first { $0.id == alternativeID }
+    }).first {
+      return alternative
+    }
+    return config.alternatives.first { $0.painID == painID }
+  }
+
+  private static func uniqueIDs(_ values: [String]) -> [String] {
+    var seen = Set<String>()
+    var out: [String] = []
+    for value in values {
+      let identifier = ProductTournamentModelText.identifier(value, fallback: "id")
+      guard !identifier.isEmpty, seen.insert(identifier).inserted else { continue }
+      out.append(identifier)
+    }
+    return out
   }
 
   private static func reserveUniqueIdentifier(

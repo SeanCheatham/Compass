@@ -159,8 +159,8 @@ state edits store tournament implementation tracks under `tournamentExperiments`
 Discover candidate tournament experiments reference tournament contenders with
 `contenderID`. If a candidate references a contender that is not already linked
 to a tournament experiment, Compass materializes a durable implementation track,
-starter scenario cohort, and built-product round cohort link when the Discover
-output is applied. Candidate-derived expected evidence and kill criteria are
+starter scenario, starter scenario cohort, and built-product round cohort link
+when the Discover output is applied. Candidate-derived expected evidence and kill criteria are
 split back out in Round 2 handoffs, Product Tournament Context, and Workbench
 implementation-track rows so the next implementation slice is judged against the
 right simulated-user signal. The Tournament workbench lists pain hypotheses,

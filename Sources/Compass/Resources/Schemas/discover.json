@@ -20,7 +20,7 @@
     },
     "candidateTournamentExperiments": {
       "type": "array",
-      "description": "Implementation tracks for Product Tournament contenders after the plan-only round; Compass materializes each candidate into a durable tournament experiment when the contender is not already linked to one.",
+      "description": "Implementation tracks for Product Tournament contenders after the plan-only round; Compass materializes each candidate into a durable tournament experiment and starter scenario when the contender is not already linked to one and the target segment/workflow can be resolved.",
       "maxItems": 6,
       "items": { "$ref": "#/$defs/candidateTournamentExperiment" }
     },
