@@ -25,7 +25,8 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains("Start from pain, not a solution"))
     try #require(prompt.contains("Name the user segment before naming the app"))
     try #require(prompt.contains("Round 1 compares product"))
-    try #require(prompt.contains("candidateExperiments"))
+    try #require(prompt.contains("candidateTournamentExperiments"))
+    try #require(!prompt.contains("candidateExperiments"))
     try #require(prompt.contains("tournamentExperiments"))
     try #require(prompt.contains("productHypotheses"))
     try #require(prompt.contains("productHypothesisID"))
@@ -55,8 +56,25 @@ struct DiscoverPromptContractTests {
     try #require(
       config.tournamentRounds.map(\.kind) == [.productPlans, .coreTechnology, .prototype])
     try #require(config.tournamentRounds[0].requiresBuiltProduct == false)
-    try #require(decoded.candidateExperiments[0].branchSlug == "incident-command-board")
+    try #require(decoded.candidateTournamentExperiments[0].branchSlug == "incident-command-board")
     try #require(decoded.assumptions[0].text.contains("Incident leads"))
+  }
+
+  @Test func discoverResponseRejectsRetiredCandidateExperimentsKey() throws {
+    var output = makeDiscoverOutput()
+    output.openQuestions = []
+    let legacyJSON = try encodeDiscoverJSON(output).replacingOccurrences(
+      of: "\"candidateTournamentExperiments\"",
+      with: "\"candidateExperiments\""
+    )
+
+    #expect(
+      throws: DiscoverPromptValidationError.invalidJSON(
+        "Use candidateTournamentExperiments instead of candidateExperiments."
+      )
+    ) {
+      _ = try Prompts.decodeDiscoverResponse(legacyJSON)
+    }
   }
 
   @Test func discoverValidationRejectsMissingActivePain() throws {
@@ -96,7 +114,7 @@ struct DiscoverPromptContractTests {
 
   @Test func discoverValidationRejectsInvalidCandidateBranchSlug() throws {
     var output = makeDiscoverOutput()
-    output.candidateExperiments[0] = DiscoveryCandidateExperiment(
+    output.candidateTournamentExperiments[0] = DiscoveryCandidateTournamentExperiment(
       productHypothesisID: "hypothesis-command-board",
       prototypeName: "Incident Command Board",
       branchSlug: "bad slug",
@@ -113,7 +131,7 @@ struct DiscoverPromptContractTests {
 
   @Test func discoverValidationRejectsOpenQuestionsAsNextSteps() throws {
     var output = makeDiscoverOutput()
-    output.candidateExperiments = []
+    output.candidateTournamentExperiments = []
     output.openQuestions = ["Build the prototype next"]
 
     #expect(
@@ -345,8 +363,8 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
       scenarioCohorts: [cohort],
       decisions: []
     ),
-    candidateExperiments: [
-      DiscoveryCandidateExperiment(
+    candidateTournamentExperiments: [
+      DiscoveryCandidateTournamentExperiment(
         productHypothesisID: commandBoard.id,
         prototypeName: "Incident Command Board",
         branchSlug: "incident-command-board",

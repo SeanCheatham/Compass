@@ -4,7 +4,7 @@
   "required": [
     "summary",
     "stateEdits",
-    "candidateExperiments",
+    "candidateTournamentExperiments",
     "openQuestions",
     "lessonEdits",
     "assumptions"
@@ -18,11 +18,11 @@
       "$ref": "#/$defs/stateEdits",
       "description": "Structured Product Tournament state edits that seed pain hypotheses, contenders, tournament rounds, and implementation tracks."
     },
-    "candidateExperiments": {
+    "candidateTournamentExperiments": {
       "type": "array",
       "description": "Implementation tracks for Product Tournament contenders after the plan-only round.",
       "maxItems": 6,
-      "items": { "$ref": "#/$defs/candidateExperiment" }
+      "items": { "$ref": "#/$defs/candidateTournamentExperiment" }
     },
     "openQuestions": {
       "type": "array",
@@ -449,7 +449,7 @@
         "decidedBy": { "type": "string" }
       }
     },
-    "candidateExperiment": {
+    "candidateTournamentExperiment": {
       "type": "object",
       "additionalProperties": false,
       "required": [

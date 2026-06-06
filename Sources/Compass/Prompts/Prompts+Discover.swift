@@ -32,7 +32,7 @@ extension Prompts {
       - Use "assumption" for guesses. Do not invent evidence.
 
       Candidate tournament experiment rules:
-      - `candidateExperiments` are implementation tracks for tournament
+      - `candidateTournamentExperiments` are implementation tracks for tournament
         contenders after the plan-only round; do not treat them as Round 1.
       - `productHypothesisID` must reference a product hypothesis in `stateEdits` or
         current tournament state.
@@ -119,7 +119,7 @@ struct DiscoverPromptOutput: Codable, Equatable {
 
   var summary: String
   var stateEdits: DiscoveryStateEdits
-  var candidateExperiments: [DiscoveryCandidateExperiment]
+  var candidateTournamentExperiments: [DiscoveryCandidateTournamentExperiment]
   var openQuestions: [String]
   var lessonEdits: [LessonEdit]
   var assumptions: [AssumptionDraft]
@@ -127,23 +127,27 @@ struct DiscoverPromptOutput: Codable, Equatable {
   enum CodingKeys: String, CodingKey {
     case summary
     case stateEdits
-    case candidateExperiments
+    case candidateTournamentExperiments
     case openQuestions
     case lessonEdits
     case assumptions
   }
 
+  private enum LegacyCodingKeys: String, CodingKey {
+    case candidateExperiments
+  }
+
   init(
     summary: String,
     stateEdits: DiscoveryStateEdits,
-    candidateExperiments: [DiscoveryCandidateExperiment],
+    candidateTournamentExperiments: [DiscoveryCandidateTournamentExperiment],
     openQuestions: [String] = [],
     lessonEdits: [LessonEdit] = [],
     assumptions: [AssumptionDraft] = []
   ) {
     self.summary = StringUtils.boundedText(summary, limit: 1_200)
     self.stateEdits = stateEdits
-    self.candidateExperiments = candidateExperiments.map(\.cleaned)
+    self.candidateTournamentExperiments = candidateTournamentExperiments.map(\.cleaned)
     self.openQuestions =
       openQuestions
       .map { StringUtils.boundedText($0, limit: 240) }
@@ -154,11 +158,18 @@ struct DiscoverPromptOutput: Codable, Equatable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
+    let legacyContainer = try decoder.container(keyedBy: LegacyCodingKeys.self)
+    if legacyContainer.contains(.candidateExperiments) {
+      throw DiscoverPromptValidationError.invalidJSON(
+        "Use candidateTournamentExperiments instead of candidateExperiments."
+      )
+    }
     self.init(
       summary: try container.decode(String.self, forKey: .summary),
       stateEdits: try container.decode(DiscoveryStateEdits.self, forKey: .stateEdits),
-      candidateExperiments: try container.decodeIfPresent(
-        [DiscoveryCandidateExperiment].self, forKey: .candidateExperiments) ?? [],
+      candidateTournamentExperiments: try container.decodeIfPresent(
+        [DiscoveryCandidateTournamentExperiment].self, forKey: .candidateTournamentExperiments)
+        ?? [],
       openQuestions: try container.decodeIfPresent([String].self, forKey: .openQuestions) ?? [],
       lessonEdits: try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? [],
       assumptions: try container.decodeIfPresent([AssumptionDraft].self, forKey: .assumptions)
@@ -288,7 +299,7 @@ struct DiscoverPromptOutput: Codable, Equatable {
         )
       }
     }
-    for candidate in candidateExperiments {
+    for candidate in candidateTournamentExperiments {
       guard productHypothesisIDs.contains(candidate.productHypothesisID) else {
         throw DiscoverPromptValidationError.candidateReferencesMissingProductHypothesis(
           productHypothesisID: candidate.productHypothesisID
@@ -299,7 +310,7 @@ struct DiscoverPromptOutput: Codable, Equatable {
       }
     }
 
-    if candidateExperiments.isEmpty && !openQuestions.isEmpty {
+    if candidateTournamentExperiments.isEmpty && !openQuestions.isEmpty {
       throw DiscoverPromptValidationError.openQuestionsUsedInsteadOfActionableNextSteps(
         openQuestions[0]
       )
@@ -383,7 +394,8 @@ struct DiscoveryStateEdits: Codable, Equatable {
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
       productHypotheses: try container.decodeIfPresent(
         [ProductHypothesis].self, forKey: .productHypotheses) ?? [],
-      tournamentExperiments: try container.decodeIfPresent([ProductTournamentExperiment].self, forKey: .tournamentExperiments)
+      tournamentExperiments: try container.decodeIfPresent(
+        [ProductTournamentExperiment].self, forKey: .tournamentExperiments)
         ?? [],
       tournaments: try container.decodeIfPresent([ProductTournament].self, forKey: .tournaments)
         ?? [],
@@ -444,7 +456,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
   }
 }
 
-struct DiscoveryCandidateExperiment: Codable, Equatable {
+struct DiscoveryCandidateTournamentExperiment: Codable, Equatable {
   var productHypothesisID: String
   var prototypeName: String
   var branchSlug: String
@@ -484,8 +496,8 @@ struct DiscoveryCandidateExperiment: Codable, Equatable {
     self.killCriteria = StringUtils.boundedText(killCriteria, limit: 500)
   }
 
-  var cleaned: DiscoveryCandidateExperiment {
-    DiscoveryCandidateExperiment(
+  var cleaned: DiscoveryCandidateTournamentExperiment {
+    DiscoveryCandidateTournamentExperiment(
       productHypothesisID: productHypothesisID,
       prototypeName: prototypeName,
       branchSlug: branchSlug,
@@ -558,7 +570,8 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
     case .roundReferencesMissingCohort(let roundID, let cohortID):
       return "Product tournament round \(roundID) references missing scenario cohort \(cohortID)."
     case .candidateReferencesMissingProductHypothesis(let productHypothesisID):
-      return "Candidate tournament experiment references missing product hypothesis \(productHypothesisID)."
+      return
+        "Candidate tournament experiment references missing product hypothesis \(productHypothesisID)."
     case .invalidBranchSlug(let slug):
       return "Invalid discovery branch slug or branch name: \(slug)."
     case .openQuestionsUsedInsteadOfActionableNextSteps(let text):

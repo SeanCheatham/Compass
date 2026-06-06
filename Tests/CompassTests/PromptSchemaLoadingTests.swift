@@ -86,18 +86,31 @@ struct PromptSchemaLoadingTests {
     let experimentItems = try #require(tournamentExperiments["items"] as? [String: Any])
     let decisions = try #require(stateEditProperties["decisions"] as? [String: Any])
     let decisionItems = try #require(decisions["items"] as? [String: Any])
+    let candidateTournamentExperiments = try #require(
+      properties["candidateTournamentExperiments"] as? [String: Any]
+    )
+    let candidateTournamentExperimentItems = try #require(
+      candidateTournamentExperiments["items"] as? [String: Any]
+    )
     let defs = try schemaDefinitions(Prompts.discoverSchema)
 
     try #require(try additionalProperties(Prompts.discoverSchema) == false)
     try #require(propertyDescription("summary", in: properties).contains("pain model"))
     try #require(properties.keys.contains("stateEdits"))
-    try #require(properties.keys.contains("candidateExperiments"))
+    try #require(properties.keys.contains("candidateTournamentExperiments"))
+    try #require(!properties.keys.contains("candidateExperiments"))
     try #require(propertyDescription("stateEdits", in: properties).contains("Product Tournament"))
     try #require(propertyDescription("stateEdits", in: properties).contains("tournament rounds"))
     try #require(
-      propertyDescription("candidateExperiments", in: properties)
+      propertyDescription("candidateTournamentExperiments", in: properties)
         .contains("after the plan-only round")
     )
+    try #require(
+      candidateTournamentExperimentItems["$ref"] as? String
+        == "#/$defs/candidateTournamentExperiment"
+    )
+    try #require(defs.keys.contains("candidateTournamentExperiment"))
+    try #require(!defs.keys.contains("candidateExperiment"))
     try #require(stateEditProperties.keys.contains("tournamentExperiments"))
     try #require(!stateEditProperties.keys.contains("experiments"))
     try #require(experimentItems["$ref"] as? String == "#/$defs/productTournamentExperiment")
