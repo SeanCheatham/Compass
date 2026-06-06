@@ -13,8 +13,8 @@ struct ProductizationConfigTests {
 
     try workspace.writeProductizationConfig(config)
 
-    try #require(FileManager.default.fileExists(atPath: workspace.productizationConfigURL.path))
-    try #require(FileManager.default.fileExists(atPath: workspace.productizationURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.productTournamentConfigURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.productTournamentURL.path))
     try #require(try workspace.readProductizationConfig() == config)
   }
 
@@ -23,7 +23,7 @@ struct ProductizationConfigTests {
     defer { try? FileManager.default.removeItem(at: root) }
     let workspace = CompassWorkspace(repoURL: root)
 
-    try #require(!FileManager.default.fileExists(atPath: workspace.productizationConfigURL.path))
+    try #require(!FileManager.default.fileExists(atPath: workspace.productTournamentConfigURL.path))
     try #require(try workspace.readProductizationConfig() == .empty)
   }
 
@@ -34,7 +34,7 @@ struct ProductizationConfigTests {
 
     try FileManager.default.createDirectory(
       at: workspace.compassURL, withIntermediateDirectories: true)
-    try "{".write(to: workspace.productizationConfigURL, atomically: true, encoding: .utf8)
+    try "{".write(to: workspace.productTournamentConfigURL, atomically: true, encoding: .utf8)
 
     #expect(throws: (any Error).self) {
       _ = try workspace.readProductizationConfig()
@@ -62,7 +62,7 @@ struct ProductizationConfigTests {
 
     try FileManager.default.createDirectory(
       at: workspace.compassURL, withIntermediateDirectories: true)
-    try payload.write(to: workspace.productizationConfigURL, atomically: true, encoding: .utf8)
+    try payload.write(to: workspace.productTournamentConfigURL, atomically: true, encoding: .utf8)
 
     do {
       _ = try workspace.readProductizationConfig()

@@ -114,10 +114,10 @@ app owns a stable experience contract and can replay a deterministic tournament
 journey. Live persona and feedback calls are manual/interactive checks, not part
 of normal automated tests.
 
-Tournament state and evidence currently use the existing productization storage
-namespace: `.compass/productization.json` for pain hypotheses, tournaments,
+Tournament state and evidence use the product tournament storage namespace:
+`.compass/product-tournament.json` for pain hypotheses, tournaments,
 contenders, rounds, solution bets, experiment branches, scenarios, and decisions;
-`.compass/productization/` for `evidence-index.json` and separate run artifacts
+`.compass/product-tournament/` for `evidence-index.json` and separate run artifacts
 for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
 Tournament workbench lists pain hypotheses, contenders, rounds, implementation
 tracks, selectable Round 1 plan evaluations with buyer objections and
@@ -336,8 +336,8 @@ Everything lives in `.compass/` inside each selected repository:
 ├── drafts.md         # User-owned draft queue.
 ├── lessons.md        # Durable guidance shared across iterations.
 ├── assumptions.json  # Agent-recorded assumptions and user reviews.
-├── productization.json # Pains, tournaments, contenders, rounds, experiments.
-├── productization/     # Tournament evidence, runs, and worktrees.
+├── product-tournament.json # Pains, tournaments, contenders, rounds, experiments.
+├── product-tournament/     # Tournament evidence, runs, and worktrees.
 ├── sessions.jsonl    # Per-iteration session index and latest feedback.
 ├── sessions-archive/ # Segmented older session records.
 ├── sessions/         # Session audit manifests, events, and artifacts.

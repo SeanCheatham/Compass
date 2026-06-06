@@ -2614,17 +2614,17 @@ struct ProductizationScoreCluster: Codable, Equatable, Sendable {
 }
 
 struct ProductizationEvidenceStore {
-  var productizationURL: URL
+  var productTournamentURL: URL
 
   init(workspace: CompassWorkspace) {
-    self.productizationURL = workspace.productizationURL
+    self.productTournamentURL = workspace.productTournamentURL
   }
 
-  var runsURL: URL { productizationURL.appending(path: "runs", directoryHint: .isDirectory) }
+  var runsURL: URL { productTournamentURL.appending(path: "runs", directoryHint: .isDirectory) }
   var planEvaluationsURL: URL {
-    productizationURL.appending(path: "plan-evaluations", directoryHint: .isDirectory)
+    productTournamentURL.appending(path: "plan-evaluations", directoryHint: .isDirectory)
   }
-  var indexURL: URL { productizationURL.appending(path: "evidence-index.json") }
+  var indexURL: URL { productTournamentURL.appending(path: "evidence-index.json") }
 
   func readIndex() throws -> ProductizationEvidenceIndex {
     guard FileManager.default.fileExists(atPath: indexURL.path) else {
@@ -2662,7 +2662,7 @@ struct ProductizationEvidenceStore {
     if let traceJSON, !traceJSON.isEmpty {
       stored.traceArtifactPath = try writeArtifact(
         runURL: runURL,
-        relativePath: "productization/runs/\(safeID)/trace.json",
+        relativePath: "product-tournament/runs/\(safeID)/trace.json",
         fileName: "trace.json",
         contents: traceJSON
       )
@@ -2670,7 +2670,7 @@ struct ProductizationEvidenceStore {
     if let feedbackJSON, !feedbackJSON.isEmpty {
       stored.feedbackArtifactPath = try writeArtifact(
         runURL: runURL,
-        relativePath: "productization/runs/\(safeID)/feedback.json",
+        relativePath: "product-tournament/runs/\(safeID)/feedback.json",
         fileName: "feedback.json",
         contents: feedbackJSON
       )
@@ -2678,7 +2678,7 @@ struct ProductizationEvidenceStore {
     if let transcriptJSONL, !transcriptJSONL.isEmpty {
       stored.transcriptArtifactPath = try writeArtifact(
         runURL: runURL,
-        relativePath: "productization/runs/\(safeID)/transcript.jsonl",
+        relativePath: "product-tournament/runs/\(safeID)/transcript.jsonl",
         fileName: "transcript.jsonl",
         contents: transcriptJSONL
       )
@@ -2687,7 +2687,7 @@ struct ProductizationEvidenceStore {
     if !summary.isEmpty {
       stored.summaryArtifactPath = try writeArtifact(
         runURL: runURL,
-        relativePath: "productization/runs/\(safeID)/summary.md",
+        relativePath: "product-tournament/runs/\(safeID)/summary.md",
         fileName: "summary.md",
         contents: summary
       )
@@ -2715,7 +2715,7 @@ struct ProductizationEvidenceStore {
     if !summary.isEmpty {
       stored.summaryArtifactPath = try writeArtifact(
         runURL: evaluationURL,
-        relativePath: "productization/plan-evaluations/\(safeID)/summary.md",
+        relativePath: "product-tournament/plan-evaluations/\(safeID)/summary.md",
         fileName: "summary.md",
         contents: summary
       )
@@ -2783,7 +2783,7 @@ struct ProductizationEvidenceStore {
     )
     let data = try Self.encoder().encode(index)
     try FileManager.default.createDirectory(
-      at: productizationURL, withIntermediateDirectories: true)
+      at: productTournamentURL, withIntermediateDirectories: true)
     try data.write(to: indexURL, options: .atomic)
     return index
   }

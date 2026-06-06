@@ -24,13 +24,14 @@ struct ProductizationEvidenceStoreTests {
       summaryMarkdown: "summary"
     )
 
-    try #require(stored.traceArtifactPath == "productization/runs/run-one/trace.json")
-    try #require(stored.feedbackArtifactPath == "productization/runs/run-one/feedback.json")
-    try #require(stored.transcriptArtifactPath == "productization/runs/run-one/transcript.jsonl")
-    try #require(stored.summaryArtifactPath == "productization/runs/run-one/summary.md")
+    try #require(stored.traceArtifactPath == "product-tournament/runs/run-one/trace.json")
+    try #require(stored.feedbackArtifactPath == "product-tournament/runs/run-one/feedback.json")
+    try #require(
+      stored.transcriptArtifactPath == "product-tournament/runs/run-one/transcript.jsonl")
+    try #require(stored.summaryArtifactPath == "product-tournament/runs/run-one/summary.md")
     try #require(
       FileManager.default.fileExists(
-        atPath: workspace.productizationURL.appending(path: "evidence-index.json").path))
+        atPath: workspace.productTournamentURL.appending(path: "evidence-index.json").path))
     let read = try workspace.readProductizationEvidenceRecord(id: "run-one")
     try #require(read == stored)
     let summaries = workspace.readProductizationEvidenceIndex().summaries
@@ -82,7 +83,7 @@ struct ProductizationEvidenceStoreTests {
 
     try #require(
       stored.summaryArtifactPath
-        == "productization/plan-evaluations/plan-eval-one/summary.md")
+        == "product-tournament/plan-evaluations/plan-eval-one/summary.md")
     let read = try workspace.readProductTournamentPlanEvaluationRecord(id: "plan-eval-one")
     try #require(read == stored)
     let index = workspace.readProductizationEvidenceIndex()

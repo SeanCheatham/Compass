@@ -22,11 +22,11 @@ struct CompassWorkspace {
   var lessonsURL: URL { compassURL.appending(path: "lessons.md") }
   var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
   var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
-  var productizationConfigURL: URL { compassURL.appending(path: "productization.json") }
-  var productizationURL: URL {
-    compassURL.appending(path: "productization", directoryHint: .isDirectory)
+  var productTournamentConfigURL: URL { compassURL.appending(path: "product-tournament.json") }
+  var productTournamentURL: URL {
+    compassURL.appending(path: "product-tournament", directoryHint: .isDirectory)
   }
-  var productizationEvidenceStore: ProductizationEvidenceStore {
+  var productTournamentEvidenceStore: ProductizationEvidenceStore {
     ProductizationEvidenceStore(workspace: self)
   }
   var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
@@ -72,8 +72,8 @@ struct CompassWorkspace {
     try createFileIfMissing(assumptionsURL, contents: AssumptionLedger.emptyJSON)
     try createFileIfMissing(visionURL, contents: "")
     try createFileIfMissing(sessionsRecordURL, contents: "")
-    try fm.createDirectory(at: productizationURL, withIntermediateDirectories: true)
-    _ = try productizationEvidenceStore.rebuildIndex()
+    try fm.createDirectory(at: productTournamentURL, withIntermediateDirectories: true)
+    _ = try productTournamentEvidenceStore.rebuildIndex()
     if isRepoLocalStorage {
       try ensureCompassIsIgnored()
     }
@@ -230,10 +230,10 @@ struct CompassWorkspace {
   }
 
   func readProductizationConfig() throws -> ProductizationConfig {
-    guard FileManager.default.fileExists(atPath: productizationConfigURL.path) else {
+    guard FileManager.default.fileExists(atPath: productTournamentConfigURL.path) else {
       return .empty
     }
-    let data = try Data(contentsOf: productizationConfigURL)
+    let data = try Data(contentsOf: productTournamentConfigURL)
     guard !data.isEmpty else { return .empty }
     return try JSONDecoder().decode(ProductizationConfig.self, from: data)
   }
@@ -243,7 +243,7 @@ struct CompassWorkspace {
     rawPain: String,
     now: Date = Date()
   ) throws -> ProductizationConfig {
-    guard FileManager.default.fileExists(atPath: productizationConfigURL.path) else {
+    guard FileManager.default.fileExists(atPath: productTournamentConfigURL.path) else {
       return ProductizationConfig.seedDefaults(
         projectTitle: projectTitle,
         rawPain: rawPain,
@@ -259,9 +259,9 @@ struct CompassWorkspace {
   func writeProductizationConfig(_ config: ProductizationConfig) throws {
     try FileManager.default.createDirectory(at: compassURL, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(
-      at: productizationURL, withIntermediateDirectories: true)
+      at: productTournamentURL, withIntermediateDirectories: true)
     try Self.encodeProductizationConfig(config).write(
-      to: productizationConfigURL,
+      to: productTournamentConfigURL,
       atomically: true,
       encoding: .utf8
     )
@@ -279,17 +279,17 @@ struct CompassWorkspace {
   }
 
   func readProductizationEvidenceIndex() -> ProductizationEvidenceIndex {
-    (try? productizationEvidenceStore.readIndex()) ?? .empty
+    (try? productTournamentEvidenceStore.readIndex()) ?? .empty
   }
 
   func readProductizationEvidenceRecord(id: String) throws -> ProductizationEvidenceRecord {
-    try productizationEvidenceStore.readRecord(id: id)
+    try productTournamentEvidenceStore.readRecord(id: id)
   }
 
   func readProductTournamentPlanEvaluationRecord(
     id: String
   ) throws -> ProductTournamentPlanEvaluationRecord {
-    try productizationEvidenceStore.readPlanEvaluationRecord(id: id)
+    try productTournamentEvidenceStore.readPlanEvaluationRecord(id: id)
   }
 
   @discardableResult
@@ -300,7 +300,7 @@ struct CompassWorkspace {
     transcriptJSONL: String? = nil,
     summaryMarkdown: String? = nil
   ) throws -> ProductizationEvidenceRecord {
-    try productizationEvidenceStore.writeRecord(
+    try productTournamentEvidenceStore.writeRecord(
       record,
       traceJSON: traceJSON,
       feedbackJSON: feedbackJSON,
@@ -314,7 +314,7 @@ struct CompassWorkspace {
     _ record: ProductTournamentPlanEvaluationRecord,
     summaryMarkdown: String? = nil
   ) throws -> ProductTournamentPlanEvaluationRecord {
-    try productizationEvidenceStore.writePlanEvaluationRecord(
+    try productTournamentEvidenceStore.writePlanEvaluationRecord(
       record,
       summaryMarkdown: summaryMarkdown
     )

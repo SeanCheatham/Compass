@@ -45,7 +45,7 @@ enum SharedCompassVMGuestWorkspaceCatalog {
   /// sync. Kept out of the JSON catalog to avoid blowing the per-call
   /// decode cost on large repos.
   static let filesetFilename = "guest-workspace-fileset.dat"
-  static let experimentCatalogDirectory = "productization/guest-workspaces"
+  static let experimentCatalogDirectory = "product-tournament/guest-workspaces"
 
   // MARK: - Catalog entry
 

@@ -225,7 +225,7 @@ enum ProductExperimentWorktreeManager {
 
 extension CompassWorkspace {
   func productExperimentWorktreeURL(experimentID: String) -> URL {
-    productizationURL
+    productTournamentURL
       .appending(path: "worktrees", directoryHint: .isDirectory)
       .appending(path: ProductizationModelText.identifier(experimentID, fallback: "experiment"))
   }

@@ -126,11 +126,11 @@ struct DiscoverPromptContractTests {
     #expect(throws: DiscoverPromptValidationError.missingActivePainHypothesis) {
       try workspace.applyDiscoverOutput(invalid)
     }
-    try #require(!FileManager.default.fileExists(atPath: workspace.productizationConfigURL.path))
+    try #require(!FileManager.default.fileExists(atPath: workspace.productTournamentConfigURL.path))
 
     let written = try workspace.applyDiscoverOutput(makeDiscoverOutput())
 
-    try #require(FileManager.default.fileExists(atPath: workspace.productizationConfigURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.productTournamentConfigURL.path))
     try #require(try workspace.readProductizationConfig() == written)
   }
 }
