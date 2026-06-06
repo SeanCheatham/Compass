@@ -471,14 +471,16 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(partialValidationAction.kind == .rerunCohort)
     try #require(partialValidationAction.title == "Complete Round 2 proof-gap validation")
     try #require(partialValidationAction.detail.contains(revisionAudit.id))
-    try #require(partialValidationAction.detail.contains(revisionScenarioID))
+    let partialValidationTargetScenarioID = try #require(partialValidationAction.targetScenarioID)
+    try #require(partialValidationAction.detail.contains(partialValidationTargetScenarioID))
     try #require(partialValidationAction.detail.contains("needs 1 more completed"))
     try #require(partialValidationAction.cohortID == revisionDraft.cohortID)
-    try #require(partialValidationAction.targetScenarioID == revisionScenarioID)
+    try #require(partialValidationAction.targetScenarioID != revisionScenarioID)
+    try #require(partialValidationAction.targetPersonaID != validationRecords[0].personaID)
     try #require(partialValidationAction.requiredSimulationMode == .personaModel)
     try #require(partialValidationStep.kind == .runCohort)
     try #require(partialValidationStep.canExecute)
-    try #require(partialValidationStep.targetScenarioID == revisionScenarioID)
+    try #require(partialValidationStep.targetScenarioID == partialValidationTargetScenarioID)
     try #require(validationProposal.recommendation == .advanceToProductImplementation)
     try #require(validationProposal.proofGaps.isEmpty)
     try #require(
@@ -669,6 +671,148 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(eliminatedResult.outcome == .eliminated)
     try #require(eliminatedResult.revisionAuditID == revisionAudit.id)
     try #require(eliminatedResult.nextValidationTarget.contains("Stop this contender"))
+  }
+
+  @Test func partialProofGapValidationTargetsUntestedPersonaInRevisionCohort() throws {
+    let fixture = try roundTwoFixture()
+    let revisionScenarioID = "\(fixture.experiment.id)-round-2-validation-operator"
+    let siblingScenarioID = "\(fixture.experiment.id)-round-2-validation-buyer"
+    let firstSegment = try #require(fixture.config.userSegments.first)
+    let secondSegment = try #require(fixture.config.userSegments.dropFirst().first)
+    let workflow = try #require(fixture.config.currentWorkflows.first)
+    let revisionAudit = proofGapRevisionAudit(
+      fixture: fixture,
+      scenarioID: revisionScenarioID,
+      endedAt: 100
+    )
+    var config = fixture.config.recordingTournamentAutomationCycleAudit(revisionAudit)
+    if let experimentIndex = config.tournamentExperiments.firstIndex(where: {
+      $0.id == fixture.experiment.id
+    }) {
+      config.tournamentExperiments[experimentIndex].baseSha = "base-sha"
+      config.tournamentExperiments[experimentIndex].currentSha = "abc123"
+    }
+    config.scenarios.append(
+      ProductScenario(
+        id: revisionScenarioID,
+        experimentID: fixture.experiment.id,
+        segmentID: firstSegment.id,
+        currentWorkflowID: workflow.id,
+        title: "Round 2 validation operator",
+        task: "Validate the proof-gap revision as the first simulated user.",
+        successSignal: "The revised core technology proof can be inspected.",
+        targetCommitSha: "abc123",
+        createdAt: 100
+      ))
+    config.scenarios.append(
+      ProductScenario(
+        id: siblingScenarioID,
+        experimentID: fixture.experiment.id,
+        segmentID: secondSegment.id,
+        currentWorkflowID: workflow.id,
+        title: "Round 2 validation buyer",
+        task: "Validate the proof-gap revision as the second simulated user.",
+        successSignal: "The revised core technology proof can be inspected by another persona.",
+        targetCommitSha: "abc123",
+        createdAt: 100
+      ))
+    config.scenarioCohorts.append(
+      ProductScenarioCohort(
+        id: "\(fixture.experiment.id)-round-2-validation-cohort",
+        title: "Round 2 validation cohort",
+        experimentID: fixture.experiment.id,
+        scenarioIDs: [revisionScenarioID, siblingScenarioID],
+        enabled: true,
+        tags: ["round-2-validation"]
+      ))
+    let experiment = try #require(
+      config.tournamentExperiments.first { $0.id == fixture.experiment.id }
+    )
+    let preRevisionRecords = try evidenceRecords(
+      fixture: fixture,
+      score: 3,
+      verdict: .unclear,
+      objections: ["The proof needs a more inspectable source artifact."],
+      missingCapabilities: ["inspectable_source_artifact"],
+      summary: "The original core technology proof was plausible but incomplete."
+    )
+    let firstValidationRecord = try evidenceRecords(
+      fixture: fixture,
+      score: 5,
+      verdict: .strongPull,
+      summary: "The first validation run found the revised proof inspectable.",
+      mode: .personaModel,
+      scenarioID: revisionScenarioID,
+      startedAt: 120,
+      idPrefix: "\(fixture.contender.id)-round-2-validation-operator"
+    )[0]
+    let siblingValidationRecord = try evidenceRecords(
+      fixture: fixture,
+      score: 5,
+      verdict: .strongPull,
+      summary: "The second validation persona also found the proof inspectable.",
+      mode: .personaModel,
+      scenarioID: siblingScenarioID,
+      startedAt: 130,
+      idPrefix: "\(fixture.contender.id)-round-2-validation-buyer"
+    )[1]
+    let partialIndex = ProductTournamentEvidenceIndex.build(
+      records: preRevisionRecords + [firstValidationRecord]
+    )
+    let partialResult = try #require(
+      ProductTournamentRoundTwoProofGapValidationAdvisor.results(
+        config: config,
+        evidenceIndex: partialIndex
+      ).first
+    )
+    let partialAction = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: partialIndex
+      )
+    )
+    let partialStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: partialIndex,
+        isPersonaModelAvailable: true
+      )
+    )
+    let validationIndex = ProductTournamentEvidenceIndex.build(
+      records: preRevisionRecords + [firstValidationRecord, siblingValidationRecord]
+    )
+    let validationProposal = try #require(
+      ProductTournamentRoundEvidenceTransitioner.bestProposal(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.coreRound.id,
+        config: config,
+        evidenceIndex: validationIndex
+      )
+    )
+    let validationResult = try #require(
+      ProductTournamentRoundTwoProofGapValidationAdvisor.results(
+        config: config,
+        evidenceIndex: validationIndex
+      ).first
+    )
+
+    try #require(partialResult.outcome == .partialValidation)
+    try #require(partialResult.validationRunIDs == [firstValidationRecord.id])
+    try #require(partialAction.title == "Complete Round 2 proof-gap validation")
+    try #require(partialAction.targetPersonaID == secondSegment.id)
+    try #require(partialAction.targetPersonaName == secondSegment.name)
+    try #require(partialAction.targetScenarioID == siblingScenarioID)
+    try #require(partialAction.detail.contains(secondSegment.name))
+    try #require(partialStep.kind == .runCohort)
+    try #require(partialStep.targetScenarioID == siblingScenarioID)
+    try #require(partialStep.detail.contains("targeting \(secondSegment.name)"))
+    try #require(validationProposal.recommendation == .advanceToProductImplementation)
+    try #require(validationResult.outcome == .resolved)
+    try #require(validationResult.validationRunCount == 2)
+    try #require(validationResult.completedValidationRunCount == 2)
+    try #require(validationResult.validationRunIDs.contains(firstValidationRecord.id))
+    try #require(validationResult.validationRunIDs.contains(siblingValidationRecord.id))
   }
 
   @Test func strongFeasibilityScoresWithoutUseProofOnlyGatherEvidence() throws {

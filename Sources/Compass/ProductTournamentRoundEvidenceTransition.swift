@@ -269,17 +269,52 @@ enum ProductTournamentRoundTwoProofGapValidationAdvisor {
   static func validationSummaries(
     in summaries: [ProductTournamentEvidenceSummary],
     after audit: TournamentAutomationCycleAudit,
-    scenarioID: String?
+    scenarioID: String?,
+    scenarioIDs: Set<String>? = nil
   ) -> [ProductTournamentEvidenceSummary] {
-    summaries
+    let scopedScenarioIDs =
+      scenarioIDs?.filter { !$0.isEmpty }
+      ?? scenarioID.map { Set([$0]) }
+    return summaries
       .filter { summary in
         summary.endedAt > audit.endedAt
-          && (scenarioID == nil || summary.scenarioID == scenarioID)
+          && (scopedScenarioIDs?.contains(summary.scenarioID) ?? true)
       }
       .sorted { lhs, rhs in
         if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
         return lhs.endedAt > rhs.endedAt
       }
+  }
+
+  static func validationScenarioIDs(
+    after audit: TournamentAutomationCycleAudit,
+    experimentID: String,
+    config: ProductTournamentConfig
+  ) -> Set<String>? {
+    guard let scenarioID = revisionScenarioID(from: audit, experimentID: experimentID) else {
+      return nil
+    }
+    let enabledScenarioIDs = Set(
+      config.scenarios
+        .filter { $0.experimentID == experimentID && $0.enabled }
+        .map(\.id)
+    )
+    let cohort = config.scenarioCohorts
+      .filter {
+        $0.experimentID == experimentID
+          && $0.enabled
+          && $0.scenarioIDs.contains(scenarioID)
+      }
+      .sorted {
+        if $0.scenarioIDs.count == $1.scenarioIDs.count { return $0.title < $1.title }
+        return $0.scenarioIDs.count < $1.scenarioIDs.count
+      }
+      .first
+    guard let cohort else { return [scenarioID] }
+    let cohortScenarioIDs = Set(
+      cohort.scenarioIDs.filter { enabledScenarioIDs.contains($0) || $0 == scenarioID }
+    )
+    return cohortScenarioIDs.isEmpty ? [scenarioID] : cohortScenarioIDs
   }
 
   private static func result(
@@ -306,7 +341,12 @@ enum ProductTournamentRoundTwoProofGapValidationAdvisor {
     let validationSummaries = validationSummaries(
       in: scopedSummaries,
       after: audit,
-      scenarioID: scenarioID
+      scenarioID: scenarioID,
+      scenarioIDs: validationScenarioIDs(
+        after: audit,
+        experimentID: experiment.id,
+        config: config
+      )
     )
     let originalGaps = auditedProofGaps(from: audit)
     let outcome = outcome(for: proposal, validationSummaries: validationSummaries)
@@ -848,7 +888,12 @@ enum ProductTournamentRoundEvidenceTransitioner {
       .validationSummaries(
         in: summaries,
         after: audit,
-        scenarioID: scenarioID
+        scenarioID: scenarioID,
+        scenarioIDs: ProductTournamentRoundTwoProofGapValidationAdvisor.validationScenarioIDs(
+          after: audit,
+          experimentID: experimentID,
+          config: config
+        )
       )
     return validationSummaries.isEmpty ? summaries : validationSummaries
   }

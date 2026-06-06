@@ -6186,23 +6186,35 @@ enum ProductTournamentNextActionAdvisor {
       )
     else { return nil }
 
-    let targetName = target.personaName ?? "the target simulated user"
+    let personaTarget = roundTwoProofGapValidationPersonaTarget(
+      after: audit,
+      result: result,
+      revisionTarget: target,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    let actionCohortID = personaTarget?.executableCohortID ?? target.cohortID
+    let actionScenarioID = personaTarget?.executableScenarioID ?? target.scenarioID
+    let actionPersonaID = personaTarget?.id ?? target.personaID
+    let actionPersonaName = personaTarget?.name ?? target.personaName
+    let targetName = actionPersonaName ?? "the target simulated user"
     let gapSummary =
       result.persistedProofGaps.isEmpty
       ? "the remaining Round 2 proof threshold"
       : result.persistedProofGaps.prefix(3).joined(separator: "; ")
-    guard let cohortID = target.cohortID else {
+    guard let cohortID = actionCohortID else {
       return ProductTournamentNextAction(
         experimentID: experiment.id,
         kind: .refineContender,
         title: "Enable Round 2 proof-gap validation",
         detail:
-          "Round 2 proof-gap validation after audit \(result.revisionAuditID) is partial (\(result.completedValidationRunCount)/\(result.validationRunCount) validation run(s)), but no enabled cohort contains scenario `\(target.scenarioID)`. Enable or add a cohort for the revision scenario before deciding the Round 2 transition.",
+          "Round 2 proof-gap validation after audit \(result.revisionAuditID) is partial (\(result.completedValidationRunCount)/\(result.validationRunCount) validation run(s)), but no enabled cohort contains scenario `\(actionScenarioID)`. Enable or add a cohort for the revision validation scenario before deciding the Round 2 transition.",
         priority: 92,
         requiredSimulationMode: .personaModel,
-        targetPersonaID: target.personaID,
-        targetPersonaName: target.personaName,
-        targetScenarioID: target.scenarioID,
+        targetPersonaID: actionPersonaID,
+        targetPersonaName: actionPersonaName,
+        targetScenarioID: actionScenarioID,
         targetDecision: .narrow
       )
     }
@@ -6212,13 +6224,13 @@ enum ProductTournamentNextActionAdvisor {
       kind: .rerunCohort,
       title: "Complete Round 2 proof-gap validation",
       detail:
-        "Round 2 proof-gap validation after audit \(result.revisionAuditID) is partial (\(result.completedValidationRunCount)/\(result.validationRunCount) validation run(s)); rerun persona-model scenario `\(target.scenarioID)` for \(targetName) in cohort `\(cohortID)` to close \(gapSummary) before applying another revision or transition. Proof plan: \(result.nextValidationTarget)",
+        "Round 2 proof-gap validation after audit \(result.revisionAuditID) is partial (\(result.completedValidationRunCount)/\(result.validationRunCount) validation run(s)); rerun persona-model scenario `\(actionScenarioID)` for \(targetName) in cohort `\(cohortID)` to close \(gapSummary) before applying another revision or transition. Proof plan: \(result.nextValidationTarget)",
       priority: 94,
       cohortID: cohortID,
       requiredSimulationMode: .personaModel,
-      targetPersonaID: target.personaID,
-      targetPersonaName: target.personaName,
-      targetScenarioID: target.scenarioID,
+      targetPersonaID: actionPersonaID,
+      targetPersonaName: actionPersonaName,
+      targetScenarioID: actionScenarioID,
       targetDecision: .narrow
     )
     return prepareWorktreeActionIfNeeded(
@@ -6226,6 +6238,69 @@ enum ProductTournamentNextActionAdvisor {
       experiment: experiment,
       config: config
     ) ?? validationAction
+  }
+
+  private static func roundTwoProofGapValidationPersonaTarget(
+    after audit: TournamentAutomationCycleAudit,
+    result: ProductTournamentRoundTwoProofGapValidationResult,
+    revisionTarget: RevisionValidationTarget,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> PersonaModelTarget? {
+    guard
+      let validationScenarioIDs = ProductTournamentRoundTwoProofGapValidationAdvisor
+        .validationScenarioIDs(
+          after: audit,
+          experimentID: experiment.id,
+          config: config
+        )
+    else { return nil }
+    let scopedSummaries = evidenceIndex.summaries(for: experiment)
+      .filter {
+        $0.tournamentID == result.tournamentID
+          && $0.roundID == result.roundID
+          && $0.contenderID == result.contenderID
+      }
+    let validationSummaries = ProductTournamentRoundTwoProofGapValidationAdvisor
+      .validationSummaries(
+        in: scopedSummaries,
+        after: audit,
+        scenarioID: result.revisionScenarioID,
+        scenarioIDs: validationScenarioIDs
+      )
+    let testedPersonaIDs = Set(
+      validationSummaries
+        .filter { $0.isCompleted && $0.mode == .personaModel }
+        .map(\.personaID)
+        .filter { !$0.isEmpty }
+    )
+    guard testedPersonaIDs.count < 2 else { return nil }
+
+    let validationCohort = revisionTarget.cohortID.flatMap { cohortID in
+      config.scenarioCohorts.first {
+        $0.id == cohortID && $0.experimentID == experiment.id && $0.enabled
+      }
+    }
+    let candidates = config.scenarios
+      .filter {
+        $0.experimentID == experiment.id
+          && $0.enabled
+          && validationScenarioIDs.contains($0.id)
+          && !testedPersonaIDs.contains($0.segmentID)
+      }
+      .sorted(by: scenarioSort(config: config))
+    guard let scenario = candidates.first else { return nil }
+    let targetCohortID =
+      validationCohort?.scenarioIDs.contains(scenario.id) == true
+      ? validationCohort?.id
+      : executableCohortID(forScenarioID: scenario.id, experiment: experiment, config: config)
+    return PersonaModelTarget(
+      id: scenario.segmentID,
+      name: segmentName(for: scenario.segmentID, config: config),
+      scenarioID: scenario.id,
+      executableCohortID: targetCohortID
+    )
   }
 
   private static func revisionValidationTarget(
