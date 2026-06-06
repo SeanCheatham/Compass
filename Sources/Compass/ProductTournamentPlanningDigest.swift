@@ -28,6 +28,10 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     lines += roundEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
+    lines += ProductTournamentRoundThreePrototypeOverview.contextLines(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
     lines += prototypeEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationCycleAuditLines(config: config)
     lines += tournamentAutomationPlanProofAuditLines(config: config)

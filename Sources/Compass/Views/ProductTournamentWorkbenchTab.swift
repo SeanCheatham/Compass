@@ -260,6 +260,13 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
+  private var roundThreePrototypeOverview: [ProductTournamentRoundThreePrototypeOverviewItem] {
+    ProductTournamentRoundThreePrototypeOverview.items(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var prototypeEvidenceTransitionCanApply: Bool {
     prototypeEvidenceTransitionProposal != nil
       && !isApplyingPrototypeEvidenceTransition
@@ -898,13 +905,21 @@ struct ProductTournamentWorkbenchTab: View {
                   .lineLimit(2)
               }
             }
-            if let proposal = prototypeEvidenceTransitionProposal {
-              WorkbenchValueBlock(
-                title: proposal.title,
-                subtitle:
-                  "\(proposal.contenderTitle) - \(proposal.scoreLabel)/100 - \(proposal.recommendation.rawValue)",
-                detail: proposal.detail
-              )
+            if !roundThreePrototypeOverview.isEmpty {
+              Text("Prototype Winner Proof")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(roundThreePrototypeOverview.prefix(3)) { item in
+                roundThreePrototypeOverviewRow(item)
+              }
+              if let proposal = prototypeEvidenceTransitionProposal {
+                WorkbenchValueBlock(
+                  title: proposal.title,
+                  subtitle:
+                    "\(proposal.contenderTitle) - \(proposal.scoreLabel)/100 - \(proposal.recommendation.rawValue)",
+                  detail: proposal.detail
+                )
+              }
             } else {
               WorkbenchEmptyLine("No contender is active in Round 3 prototype evidence yet.")
             }
@@ -1267,6 +1282,48 @@ struct ProductTournamentWorkbenchTab: View {
             .lineLimit(2)
           WorkbenchFact(label: "Track", value: item.experimentID)
           WorkbenchFact(label: "Proof", value: item.coreTechnologyProof)
+          Text(item.displayDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .help(item.helpSummary)
+  }
+
+  private func roundThreePrototypeOverviewRow(
+    _ item: ProductTournamentRoundThreePrototypeOverviewItem
+  ) -> some View {
+    Button {
+      selectedExperimentID = item.experimentID
+    } label: {
+      HStack(alignment: .top, spacing: 9) {
+        Image(systemName: item.displaySystemImage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .frame(width: 16, alignment: .center)
+          .padding(.top, 2)
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(item.contenderTitle)
+              .font(.callout.weight(.semibold))
+              .lineLimit(2)
+            Spacer()
+            WorkbenchStatusPill(text: item.recommendation.title)
+          }
+          Text(item.displaySubtitle)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          WorkbenchFact(label: "Track", value: item.experimentID)
+          WorkbenchFact(label: "Prototype", value: item.prototypeScope)
+          WorkbenchFact(label: "Alternative proof", value: "\(item.currentAlternativeProofCount)")
           Text(item.displayDetail)
             .font(.caption)
             .foregroundStyle(.secondary)

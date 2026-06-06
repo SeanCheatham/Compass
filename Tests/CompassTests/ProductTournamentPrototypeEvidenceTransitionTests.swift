@@ -48,8 +48,29 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       config: fixture.config,
       evidenceIndex: index
     )
+    let proofOverview = ProductTournamentRoundThreePrototypeOverview.items(
+      config: fixture.config,
+      evidenceIndex: index
+    )
+    let proofOverviewItem = try #require(proofOverview.first)
+    let postWinnerProofOverview = ProductTournamentRoundThreePrototypeOverview.items(
+      config: outcome.config,
+      evidenceIndex: index
+    )
+    let postWinnerDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: outcome.config,
+      evidenceIndex: index
+    )
 
     try #require(proposal.recommendation == .selectWinner)
+    try #require(proofOverview.count == 1)
+    try #require(proofOverviewItem.recommendation == .selectWinner)
+    try #require(proofOverviewItem.completedRunCount == 3)
+    try #require(proofOverviewItem.currentAlternativeProofCount == 3)
+    try #require(proofOverviewItem.evidenceRunIDs.contains("\(fixture.contender.id)-round-3-0"))
+    try #require(proofOverviewItem.contextLine.contains("round_3_prototype_proof contender"))
+    try #require(proofOverviewItem.contextLine.contains("recommendation select_winner"))
+    try #require(proofOverviewItem.contextLine.contains("willingness_to_pay 5.0/5"))
     try #require(updatedTournament.status == .completed)
     try #require(updatedTournament.currentRoundID == fixture.prototypeRound.id)
     try #require(updatedPrototypeRound.status == .completed)
@@ -63,8 +84,14 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       Set(outcome.affectedContenderIDs) == [fixture.contender.id, fixture.losingContender.id])
     try #require(outcome.toRoundID == nil)
     try #require(outcome.userMessage.contains("winner"))
+    try #require(digest.contains("Round 3 prototype proof overview"))
+    try #require(digest.contains("round_3_prototype_proof contender \(fixture.contender.id)"))
+    try #require(digest.contains("recommendation select_winner"))
+    try #require(digest.contains("willingness_to_pay 5.0/5"))
     try #require(digest.contains("Round 3 prototype transition"))
     try #require(digest.contains("recommendation select_winner"))
+    try #require(postWinnerProofOverview.isEmpty)
+    try #require(!postWinnerDigest.contains("Round 3 prototype proof overview"))
   }
 
   @Test func mixedPrototypeEvidenceMarksContenderForRevision() throws {
@@ -183,6 +210,46 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
         evidenceIndex: index
       ) == nil
     )
+  }
+
+  @Test func roundThreePrototypeOverviewShowsActiveWinnerProofBeforeEvidence() throws {
+    let fixture = try roundThreeFixture()
+    let index = ProductTournamentEvidenceIndex.build(records: [])
+
+    let overview = ProductTournamentRoundThreePrototypeOverview.items(
+      config: fixture.config,
+      evidenceIndex: index
+    )
+    let item = try #require(overview.first)
+    let contextLines = ProductTournamentRoundThreePrototypeOverview.contextLines(
+      config: fixture.config,
+      evidenceIndex: index
+    )
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: fixture.config,
+      evidenceIndex: index
+    )
+
+    try #require(overview.count == 1)
+    try #require(item.tournamentID == fixture.tournament.id)
+    try #require(item.roundID == fixture.prototypeRound.id)
+    try #require(item.contenderID == fixture.contender.id)
+    try #require(item.experimentID == fixture.experiment.id)
+    try #require(item.recommendation == .gatherEvidence)
+    try #require(item.completedRunCount == 0)
+    try #require(item.runCount == 0)
+    try #require(item.currentAlternativeProofCount == 0)
+    try #require(item.displaySubtitle.contains("Gather Evidence"))
+    try #require(item.contextLine.contains("no scoped evidence"))
+    try #require(item.contextLine.contains("prototype_scope"))
+    try #require(item.contextLine.contains(fixture.experiment.id))
+    try #require(item.helpSummary.contains(fixture.experiment.branchName))
+    try #require(contextLines.first == "Round 3 prototype proof overview:")
+    try #require(contextLines.joined(separator: "\n").contains("recommendation gather_evidence"))
+    try #require(digest.contains("Round 3 prototype proof overview"))
+    try #require(digest.contains("round_3_prototype_proof contender \(fixture.contender.id)"))
+    try #require(digest.contains("recommendation gather_evidence"))
+    try #require(digest.contains("no scoped evidence"))
   }
 }
 

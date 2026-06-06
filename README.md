@@ -106,7 +106,11 @@ and advances them through rounds:
   versions and evaluate workflow improvement, switching readiness, continued-use
   pull, and explicit price or sponsorship intent. Scoped prototype evidence can
   select a tournament winner, force a final prototype revision, or eliminate the
-  remaining contender.
+  remaining contender. A Round 3 prototype proof overview keeps the active
+  contender's winner-readiness, willingness-to-pay, current-alternative proof,
+  persona breadth, missing capabilities, and next transition recommendation
+  visible in both the Workbench and Product Tournament Context until the
+  tournament winner is selected.
 
 Simulation is not user research, a sales forecast, or a Verify gate. It is a
 skeptical, repeatable product-pressure loop: a scenario works through the app's
@@ -167,10 +171,10 @@ Plan and Reflect receive only a compact advisory summary:
 current tournament round, contender plans, Round 1 plan readiness and plan proof
 debt, focused Round 1 proof actions, buyer/sponsor signals, willingness-to-pay
 signals, Round 2 feasibility handoffs, core-technology proof overview, and
-evidence transitions, Round 3 prototype winner recommendations, latest evidence
-per active scenario, repeated objections, low-score clusters, verdict
-distribution, failures, current alternative comparisons, and generated-product
-willingness to pay or sponsor.
+evidence transitions, Round 3 prototype proof overview and winner
+recommendations, latest evidence per active scenario, repeated objections,
+low-score clusters, verdict distribution, failures, current alternative
+comparisons, and generated-product willingness to pay or sponsor.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 
