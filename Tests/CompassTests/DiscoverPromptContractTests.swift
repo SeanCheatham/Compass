@@ -218,7 +218,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     requiredProof: ["Lead can find why a decision changed"],
     status: .candidate
   )
-  let experiment = ProductExperiment(
+  let experiment = ProductTournamentExperiment(
     id: "experiment-command-board",
     productHypothesisID: commandBoard.id,
     title: "Incident command board prototype",

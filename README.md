@@ -91,13 +91,13 @@ and advances them through rounds:
   acceptance signals for the next build slice. Product Tournament Context also
   turns that handoff into a single Plan-facing implementation target, so the
   next Immediate handoff builds only the selected contender's core-technology
-  proof on its experiment branch/worktree. Scenario evidence launches validate
+  proof on its tournament experiment branch/worktree. Scenario evidence launches validate
   that target before running, blocking accidental evidence collection against
   sibling contenders once Round 2 has narrowed to one implementation track; the
   Workbench also preselects that track and visibly locks sibling scenario/cohort
   run controls, while tournament automation planning omits sibling proof
   targets and evidence steps. Plan/Reflect prompts also receive a
-  `round_2_evidence_lock` line naming the paused sibling experiments so the next
+  `round_2_evidence_lock` line naming the paused sibling tournament experiments so the next
   handoff stays focused on the single core-technology proof. A Round 2
   core-technology proof overview summarizes that active target's readiness,
   scoped evidence, persona breadth, experience-use proof, missing capabilities,
@@ -150,7 +150,7 @@ tests.
 
 Tournament state and evidence use the product tournament storage namespace:
 `.compass/product-tournament.json` for pain hypotheses, tournaments,
-contenders, rounds, product hypotheses, experiment branches, scenarios, and decisions;
+contenders, rounds, product hypotheses, tournament experiment branches, scenarios, and decisions;
 `.compass/product-tournament/` for `evidence-index.json` and separate run artifacts
 for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
 state schema stores product hypotheses under `productHypotheses`, and Discover
@@ -409,7 +409,7 @@ Everything lives in `.compass/` inside each selected repository:
 ├── drafts.md         # User-owned draft queue.
 ├── lessons.md        # Durable guidance shared across iterations.
 ├── assumptions.json  # Agent-recorded assumptions and user reviews.
-├── product-tournament.json # Pains, tournaments, contenders, rounds, experiments.
+├── product-tournament.json # Pains, tournaments, contenders, rounds, tournament experiments.
 ├── product-tournament/     # Tournament evidence, runs, and worktrees.
 ├── sessions.jsonl    # Per-iteration session index and latest feedback.
 ├── sessions-archive/ # Segmented older session records.

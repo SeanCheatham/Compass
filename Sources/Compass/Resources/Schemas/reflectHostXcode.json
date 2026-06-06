@@ -175,7 +175,7 @@
       "properties": {
         "experimentID": {
           "type": "string",
-          "description": "Exact product experiment id from Product Tournament Context."
+          "description": "Exact tournament experiment id from Product Tournament Context."
         },
         "decision": {
           "type": "string",

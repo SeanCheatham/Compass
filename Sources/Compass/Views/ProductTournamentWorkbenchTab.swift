@@ -10,7 +10,7 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var selectedPlanEvaluationID: String?
   @State private var selectedPlanEvaluationRecord: ProductTournamentPlanEvaluationRecord?
   @State private var planEvaluationRecordError: String?
-  @State private var gitPreview: ProductExperimentGitRolloutPreview?
+  @State private var gitPreview: ProductTournamentExperimentGitRolloutPreview?
   @State private var gitPreviewError: String?
   @State private var isLoadingGitPreview = false
   @State private var selectedScenarioID: String?
@@ -339,7 +339,7 @@ struct ProductTournamentWorkbenchTab: View {
     return roundTwoLaunchBlockedMessage(experimentID: experimentID)
   }
 
-  private var selectedExperiment: ProductExperiment? {
+  private var selectedExperiment: ProductTournamentExperiment? {
     guard let selectedExperimentID else { return config.experiments.first }
     return config.experiments.first { $0.id == selectedExperimentID } ?? config.experiments.first
   }
@@ -422,7 +422,7 @@ struct ProductTournamentWorkbenchTab: View {
     TournamentPlanProofDeltaOverview.items(config: config, evidenceIndex: evidenceIndex)
   }
 
-  private var experimentsForBoard: [ProductExperiment] {
+  private var experimentsForBoard: [ProductTournamentExperiment] {
     TournamentAutomationExperimentRanker.rankedExperiments(
       config: config,
       evidenceIndex: evidenceIndex
@@ -1386,7 +1386,7 @@ struct ProductTournamentWorkbenchTab: View {
     .help(item.helpSummary)
   }
 
-  private func experimentRow(_ experiment: ProductExperiment) -> some View {
+  private func experimentRow(_ experiment: ProductTournamentExperiment) -> some View {
     let signal = TournamentAutomationExperimentRanker.signal(
       for: experiment,
       config: config,
@@ -2392,12 +2392,12 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private func rolloutButton(
-    _ action: ProductExperimentRolloutAction,
-    experiment: ProductExperiment
+    _ action: ProductTournamentExperimentRolloutAction,
+    experiment: ProductTournamentExperiment
   ) -> some View {
     Button {
       Task {
-        await project.applyProductExperimentRolloutAction(action, experimentID: experiment.id)
+        await project.applyProductTournamentExperimentRolloutAction(action, experimentID: experiment.id)
       }
     } label: {
       Label(
@@ -2405,11 +2405,11 @@ struct ProductTournamentWorkbenchTab: View {
         systemImage: action == .promoteOrConfirm ? "arrow.up.forward" : "archivebox")
     }
     .buttonStyle(.bordered)
-    .disabled(!ProductExperimentRolloutWorkflow.canApply(action, to: experiment))
+    .disabled(!ProductTournamentExperimentRolloutWorkflow.canApply(action, to: experiment))
   }
 
   @ViewBuilder
-  private func gitRolloutPreviewBlock(for experiment: ProductExperiment) -> some View {
+  private func gitRolloutPreviewBlock(for experiment: ProductTournamentExperiment) -> some View {
     if experiment.decision == .promote || experiment.decision == .kill {
       VStack(alignment: .leading, spacing: 6) {
         if isLoadingGitPreview {
@@ -2681,7 +2681,7 @@ struct ProductTournamentWorkbenchTab: View {
     isLoadingGitPreview = true
     defer { isLoadingGitPreview = false }
     do {
-      gitPreview = try await project.productExperimentGitRolloutPreview(experimentID: experiment.id)
+      gitPreview = try await project.productTournamentExperimentGitRolloutPreview(experimentID: experiment.id)
       gitPreviewError = nil
     } catch {
       gitPreview = nil
@@ -3440,7 +3440,7 @@ struct ProductTournamentWorkbenchTab: View {
     mode: ProductTournamentSimulationMode,
     scenarioID: String? = nil,
     saveDraftFirst: Bool = true,
-    targetDecision: ProductExperimentDecision? = nil
+    targetDecision: ProductTournamentExperimentDecision? = nil
   ) async {
     guard let experiment = selectedExperiment,
       let targetScenarioID = scenarioID ?? selectedScenarioID
@@ -3483,7 +3483,7 @@ struct ProductTournamentWorkbenchTab: View {
     mode: ProductTournamentSimulationMode,
     cohortID: String? = nil,
     saveDraftFirst: Bool = true,
-    targetDecision: ProductExperimentDecision? = nil
+    targetDecision: ProductTournamentExperimentDecision? = nil
   ) async {
     guard let experiment = selectedExperiment,
       !(cohortID ?? scenarioCohortID).isEmpty

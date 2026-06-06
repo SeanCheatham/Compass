@@ -1695,7 +1695,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
   var tournamentExperimentBeforeSha: String?
   var tournamentExperimentAfterSha: String?
   var tournamentEvidenceRunIDs: [String]
-  var tournamentDecision: ProductExperimentDecision?
+  var tournamentDecision: ProductTournamentExperimentDecision?
 
   static func started(_ number: Int) -> SessionRecord {
     SessionRecord(
@@ -1773,7 +1773,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     tournamentExperimentBeforeSha: String? = nil,
     tournamentExperimentAfterSha: String? = nil,
     tournamentEvidenceRunIDs: [String] = [],
-    tournamentDecision: ProductExperimentDecision? = nil
+    tournamentDecision: ProductTournamentExperimentDecision? = nil
   ) {
     self.session = session
     self.startedAt = startedAt
@@ -1880,7 +1880,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       maxCount: 20
     )
     tournamentDecision = try container.decodeIfPresent(
-      ProductExperimentDecision.self,
+      ProductTournamentExperimentDecision.self,
       forKey: .tournamentDecision
     )
   }

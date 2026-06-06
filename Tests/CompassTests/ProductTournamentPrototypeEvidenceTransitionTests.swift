@@ -327,7 +327,7 @@ private struct RoundThreeFixture {
   var prototypeRound: ProductTournamentRound
   var contender: ProductTournamentContender
   var losingContender: ProductTournamentContender
-  var experiment: ProductExperiment
+  var experiment: ProductTournamentExperiment
   var hypothesis: ProductHypothesis
 }
 

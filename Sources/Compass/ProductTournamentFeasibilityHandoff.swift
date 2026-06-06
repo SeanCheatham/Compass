@@ -173,7 +173,7 @@ enum ProductTournamentFeasibilityAdvisor {
   private static func coreTechnologyProof(
     contender: ProductTournamentContender,
     hypothesis: ProductHypothesis,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     round: ProductTournamentRound
   ) -> String {
     let proof = hypothesis.requiredProof.first ?? round.evaluationFocus.first ?? round.goal

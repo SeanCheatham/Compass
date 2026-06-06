@@ -315,7 +315,7 @@ enum ProductTournamentPlanningDigestFormatter {
     guard !experiments.isEmpty else {
       return [
         "Experiments and branches:",
-        "- No product experiments are configured yet.",
+        "- No tournament experiments are configured yet.",
       ]
     }
 
@@ -1018,7 +1018,7 @@ enum ProductTournamentPlanningDigestFormatter {
     }
   }
 
-  private static func experimentDecisionRank(_ decision: ProductExperimentDecision) -> Int {
+  private static func experimentDecisionRank(_ decision: ProductTournamentExperimentDecision) -> Int {
     switch decision {
     case .promoted: return 0
     case .promote: return 0

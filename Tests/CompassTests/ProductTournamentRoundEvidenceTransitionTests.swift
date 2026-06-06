@@ -309,7 +309,7 @@ private struct RoundTwoFixture {
   var coreRound: ProductTournamentRound
   var prototypeRound: ProductTournamentRound
   var contender: ProductTournamentContender
-  var experiment: ProductExperiment
+  var experiment: ProductTournamentExperiment
   var hypothesis: ProductHypothesis
 }
 

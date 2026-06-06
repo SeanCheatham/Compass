@@ -93,7 +93,7 @@
         "experiments": {
           "type": "array",
           "maxItems": 8,
-          "items": { "$ref": "#/$defs/productExperiment" }
+          "items": { "$ref": "#/$defs/productTournamentExperiment" }
         },
         "tournaments": {
           "type": "array",
@@ -274,7 +274,7 @@
         }
       }
     },
-    "productExperiment": {
+    "productTournamentExperiment": {
       "type": "object",
       "additionalProperties": false,
       "required": [

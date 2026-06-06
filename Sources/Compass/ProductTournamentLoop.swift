@@ -2,7 +2,7 @@ import Foundation
 
 struct ProductTournamentReflectDecisionUpdate: Codable, Equatable, Sendable {
   var experimentID: String
-  var decision: ProductExperimentDecision
+  var decision: ProductTournamentExperimentDecision
   var summary: String
   var evidenceRunIDs: [String]
   var decidedBy: String
@@ -20,7 +20,7 @@ struct ProductTournamentReflectDecisionUpdate: Codable, Equatable, Sendable {
 
   init(
     experimentID: String,
-    decision: ProductExperimentDecision,
+    decision: ProductTournamentExperimentDecision,
     summary: String,
     evidenceRunIDs: [String] = [],
     decidedBy: String = "Reflect"
@@ -48,7 +48,7 @@ struct ProductTournamentReflectDecisionUpdate: Codable, Equatable, Sendable {
       aliases: [.experimentIDSnake],
       fallback: "experiment"
     )
-    let decision = try container.decode(ProductExperimentDecision.self, forKey: .decision)
+    let decision = try container.decode(ProductTournamentExperimentDecision.self, forKey: .decision)
     let summary =
       try Self.decodeOptionalString(
         from: container,
@@ -137,22 +137,22 @@ struct ProductTournamentReflectDecisionUpdate: Codable, Equatable, Sendable {
 enum ProductTournamentDecisionTransitionError: LocalizedError, Equatable {
   case invalidTransition(
     experimentID: String,
-    from: ProductExperimentDecision,
-    to: ProductExperimentDecision
+    from: ProductTournamentExperimentDecision,
+    to: ProductTournamentExperimentDecision
   )
-  case missingSummary(experimentID: String, decision: ProductExperimentDecision)
+  case missingSummary(experimentID: String, decision: ProductTournamentExperimentDecision)
   case unknownExperiment(String)
 
   var errorDescription: String? {
     switch self {
     case .invalidTransition(let experimentID, let from, let to):
       return
-        "Reflect tried to move product experiment \(experimentID) from \(from.rawValue) to \(to.rawValue), which is not an allowed product tournament transition."
+        "Reflect tried to move tournament experiment \(experimentID) from \(from.rawValue) to \(to.rawValue), which is not an allowed product tournament transition."
     case .missingSummary(let experimentID, let decision):
       return
-        "Reflect tried to mark product experiment \(experimentID) as \(decision.rawValue) without a decision summary."
+        "Reflect tried to mark tournament experiment \(experimentID) as \(decision.rawValue) without a decision summary."
     case .unknownExperiment(let id):
-      return "Reflect tried to update unknown product experiment \(id)."
+      return "Reflect tried to update unknown tournament experiment \(id)."
     }
   }
 }
@@ -160,8 +160,8 @@ enum ProductTournamentDecisionTransitionError: LocalizedError, Equatable {
 enum ProductTournamentDecisionTransitionValidator {
   static func validate(
     experimentID: String,
-    from current: ProductExperimentDecision,
-    to proposed: ProductExperimentDecision,
+    from current: ProductTournamentExperimentDecision,
+    to proposed: ProductTournamentExperimentDecision,
     summary: String
   ) throws {
     if requiresSummary(proposed)
@@ -183,8 +183,8 @@ enum ProductTournamentDecisionTransitionValidator {
   }
 
   static func allowedNextDecisions(
-    from current: ProductExperimentDecision
-  ) -> Set<ProductExperimentDecision> {
+    from current: ProductTournamentExperimentDecision
+  ) -> Set<ProductTournamentExperimentDecision> {
     switch current {
     case .notRun:
       return [.keepGoing]
@@ -203,7 +203,7 @@ enum ProductTournamentDecisionTransitionValidator {
     }
   }
 
-  private static func requiresSummary(_ decision: ProductExperimentDecision) -> Bool {
+  private static func requiresSummary(_ decision: ProductTournamentExperimentDecision) -> Bool {
     switch decision {
     case .kill, .promote, .archived, .promoted:
       return true
@@ -215,7 +215,7 @@ enum ProductTournamentDecisionTransitionValidator {
 
 struct ProductTournamentDecisionProposal: Equatable, Sendable {
   var experimentID: String
-  var currentDecision: ProductExperimentDecision
+  var currentDecision: ProductTournamentExperimentDecision
   var update: ProductTournamentReflectDecisionUpdate
   var readiness: ProductTournamentReadiness
 }
@@ -265,8 +265,8 @@ struct TournamentAutomationDecisionCandidate: Equatable, Sendable, Identifiable 
   var id: String { experimentID }
 
   var experimentID: String
-  var currentDecision: ProductExperimentDecision
-  var targetDecision: ProductExperimentDecision
+  var currentDecision: ProductTournamentExperimentDecision
+  var targetDecision: ProductTournamentExperimentDecision
   var readinessScore: Int
   var pressure: TournamentAutomationPortfolioPressure
   var evidenceRunIDs: [String]
@@ -359,7 +359,7 @@ enum TournamentAutomationDecisionCandidateAdvisor {
   }
 
   static func pressure(
-    for decision: ProductExperimentDecision
+    for decision: ProductTournamentExperimentDecision
   ) -> TournamentAutomationPortfolioPressure {
     switch decision {
     case .promote, .promoted:
@@ -390,7 +390,7 @@ struct TournamentAutomationEvidenceTension: Equatable, Sendable, Identifiable {
   var targetPersonaName: String?
   var targetScenarioID: String?
   var targetCohortID: String?
-  var targetDecision: ProductExperimentDecision?
+  var targetDecision: ProductTournamentExperimentDecision?
   var summary: String
 
   var evidenceRunIDs: [String] {
@@ -479,7 +479,7 @@ struct TournamentAutomationEvidenceTension: Equatable, Sendable, Identifiable {
     targetPersonaName: String? = nil,
     targetScenarioID: String? = nil,
     targetCohortID: String? = nil,
-    targetDecision: ProductExperimentDecision? = nil,
+    targetDecision: ProductTournamentExperimentDecision? = nil,
     summary: String
   ) {
     self.experimentID = ProductTournamentModelText.identifier(
@@ -543,14 +543,14 @@ enum TournamentAutomationEvidenceTensionAdvisor {
   }
 
   static func tension(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationEvidenceTension? {
     tension(for: experiment, config: nil, evidenceIndex: evidenceIndex)
   }
 
   static func tension(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationEvidenceTension? {
@@ -558,7 +558,7 @@ enum TournamentAutomationEvidenceTensionAdvisor {
   }
 
   private static func tension(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig?,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationEvidenceTension? {
@@ -596,8 +596,8 @@ enum TournamentAutomationEvidenceTensionAdvisor {
   }
 
   static func blocksAutomaticDecision(
-    targetDecision: ProductExperimentDecision,
-    experiment: ProductExperiment,
+    targetDecision: ProductTournamentExperimentDecision,
+    experiment: ProductTournamentExperiment,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> Bool {
     guard targetDecision == .promote || targetDecision == .kill else { return false }
@@ -614,7 +614,7 @@ enum TournamentAutomationEvidenceTensionAdvisor {
 
   private static func targetDecision(
     for recommendation: ProductTournamentReadinessRecommendation
-  ) -> ProductExperimentDecision? {
+  ) -> ProductTournamentExperimentDecision? {
     switch recommendation {
     case .promote:
       return .promote
@@ -634,7 +634,7 @@ enum TournamentAutomationEvidenceTensionAdvisor {
 
   private static func tensionTarget(
     for negative: [ProductTournamentEvidenceSummary],
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> EvidenceTensionTarget? {
     for summary in negative {
@@ -677,7 +677,7 @@ enum TournamentAutomationEvidenceTensionAdvisor {
 
   private static func executableCohortID(
     forScenarioID scenarioID: String,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> String? {
     config.scenarioCohorts
@@ -716,7 +716,7 @@ struct ProductTournamentNextAction: Equatable, Sendable {
   var targetPersonaID: String?
   var targetPersonaName: String?
   var targetScenarioID: String?
-  var targetDecision: ProductExperimentDecision?
+  var targetDecision: ProductTournamentExperimentDecision?
 
   init(
     experimentID: String,
@@ -732,7 +732,7 @@ struct ProductTournamentNextAction: Equatable, Sendable {
     targetPersonaID: String? = nil,
     targetPersonaName: String? = nil,
     targetScenarioID: String? = nil,
-    targetDecision: ProductExperimentDecision? = nil
+    targetDecision: ProductTournamentExperimentDecision? = nil
   ) {
     self.experimentID = ProductTournamentModelText.identifier(
       experimentID,
@@ -833,7 +833,7 @@ struct TournamentAutomationExperimentSignal: Equatable, Sendable, Identifiable {
   var nextActionKind: ProductTournamentNextActionKind?
   var nextActionTitle: String?
   var nextActionPriority: Int
-  var targetDecision: ProductExperimentDecision?
+  var targetDecision: ProductTournamentExperimentDecision?
   var pressure: TournamentAutomationPortfolioPressure
   var staleEvidenceCount: Int
   var proofDebtCount: Int
@@ -869,7 +869,7 @@ struct TournamentAutomationExperimentSignal: Equatable, Sendable, Identifiable {
     nextActionKind: ProductTournamentNextActionKind?,
     nextActionTitle: String?,
     nextActionPriority: Int,
-    targetDecision: ProductExperimentDecision? = nil,
+    targetDecision: ProductTournamentExperimentDecision? = nil,
     pressure: TournamentAutomationPortfolioPressure,
     staleEvidenceCount: Int,
     proofDebtCount: Int = 0,
@@ -902,7 +902,7 @@ struct TournamentAutomationRationaleSignal: Equatable, Sendable, Identifiable {
   var targetPersonaName: String?
   var targetScenarioID: String?
   var targetCohortID: String?
-  var targetDecision: ProductExperimentDecision?
+  var targetDecision: ProductTournamentExperimentDecision?
   var summary: String
 
   var urgencyScore: Int {
@@ -943,7 +943,7 @@ struct TournamentAutomationRationaleSignal: Equatable, Sendable, Identifiable {
     targetPersonaName: String? = nil,
     targetScenarioID: String? = nil,
     targetCohortID: String? = nil,
-    targetDecision: ProductExperimentDecision? = nil,
+    targetDecision: ProductTournamentExperimentDecision? = nil,
     summary: String
   ) {
     self.experimentID = ProductTournamentModelText.identifier(
@@ -995,9 +995,9 @@ struct TournamentAutomationTargetedProofOutcomeSignal: Equatable, Sendable, Iden
   }
 
   var experimentID: String
-  var targetDecision: ProductExperimentDecision
+  var targetDecision: ProductTournamentExperimentDecision
   var outcome: ProductTournamentEvidenceDecisionIntentOutcome
-  var recommendedDecision: ProductExperimentDecision?
+  var recommendedDecision: ProductTournamentExperimentDecision?
   var actionKind: ProductTournamentNextActionKind
   var title: String
   var priority: Int
@@ -1071,9 +1071,9 @@ struct TournamentAutomationTargetedProofOutcomeSignal: Equatable, Sendable, Iden
 
   init(
     experimentID: String,
-    targetDecision: ProductExperimentDecision,
+    targetDecision: ProductTournamentExperimentDecision,
     outcome: ProductTournamentEvidenceDecisionIntentOutcome,
-    recommendedDecision: ProductExperimentDecision?,
+    recommendedDecision: ProductTournamentExperimentDecision?,
     actionKind: ProductTournamentNextActionKind,
     title: String,
     priority: Int,
@@ -1143,7 +1143,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
   }
 
   static func signal(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationTargetedProofOutcomeSignal? {
@@ -1193,7 +1193,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
 
   private static func signal(
     for sources: [OutcomeSource],
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     readiness: ProductTournamentReadiness?
   ) -> TournamentAutomationTargetedProofOutcomeSignal? {
@@ -1241,8 +1241,8 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
   }
 
   private static func contradictedSignal(
-    experiment: ProductExperiment,
-    targetDecision: ProductExperimentDecision,
+    experiment: ProductTournamentExperiment,
+    targetDecision: ProductTournamentExperimentDecision,
     target: OutcomeTarget?,
     count: Int,
     runIDs: [String]
@@ -1330,8 +1330,8 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
   }
 
   private static func supportedSignal(
-    experiment: ProductExperiment,
-    targetDecision: ProductExperimentDecision,
+    experiment: ProductTournamentExperiment,
+    targetDecision: ProductTournamentExperimentDecision,
     readiness: ProductTournamentReadiness?,
     target: OutcomeTarget?,
     count: Int,
@@ -1401,8 +1401,8 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
   }
 
   private static func inconclusiveSignal(
-    experiment: ProductExperiment,
-    targetDecision: ProductExperimentDecision,
+    experiment: ProductTournamentExperiment,
+    targetDecision: ProductTournamentExperimentDecision,
     target: OutcomeTarget?,
     count: Int,
     runIDs: [String]
@@ -1430,7 +1430,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
 
   private static func target(
     for summaries: [ProductTournamentEvidenceSummary],
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> OutcomeTarget? {
     for summary in summaries {
@@ -1461,9 +1461,9 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
   }
 
   private static func allowedDecision(
-    _ decision: ProductExperimentDecision,
-    current: ProductExperimentDecision
-  ) -> ProductExperimentDecision? {
+    _ decision: ProductTournamentExperimentDecision,
+    current: ProductTournamentExperimentDecision
+  ) -> ProductTournamentExperimentDecision? {
     if decision == current { return decision }
     return ProductTournamentDecisionTransitionValidator.allowedNextDecisions(from: current)
       .contains(decision)
@@ -1473,7 +1473,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
 
   private static func executableCohortID(
     forScenarioID scenarioID: String,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> String? {
     config.scenarioCohorts
@@ -1510,7 +1510,7 @@ enum TournamentAutomationRationaleSignalAdvisor {
   }
 
   static func signal(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationRationaleSignal? {
@@ -1551,10 +1551,10 @@ enum TournamentAutomationRationaleSignalAdvisor {
 
   private static func targetDecision(
     for readiness: ProductTournamentReadiness?,
-    currentDecision: ProductExperimentDecision
-  ) -> ProductExperimentDecision? {
+    currentDecision: ProductTournamentExperimentDecision
+  ) -> ProductTournamentExperimentDecision? {
     guard let readiness else { return nil }
-    let target: ProductExperimentDecision?
+    let target: ProductTournamentExperimentDecision?
     switch readiness.recommendation {
     case .promote:
       target = .promote
@@ -1585,7 +1585,7 @@ enum TournamentAutomationRationaleSignalAdvisor {
 
   private static func target(
     for summaries: [ProductTournamentEvidenceSummary],
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> SignalTarget? {
     let preferred = summaries.sorted { lhs, rhs in
@@ -1675,7 +1675,7 @@ enum TournamentAutomationRationaleSignalAdvisor {
 
   private static func executableCohortID(
     forScenarioID scenarioID: String,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> String? {
     config.scenarioCohorts
@@ -1724,7 +1724,7 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
   var targetPersonaName: String?
   var targetScenarioID: String?
   var targetCohortID: String?
-  var targetDecision: ProductExperimentDecision?
+  var targetDecision: ProductTournamentExperimentDecision?
 
   var displaySubtitle: String {
     let target = targetPersonaName.map { "target \($0)" } ?? "no target persona"
@@ -1781,7 +1781,7 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
     targetPersonaName: String? = nil,
     targetScenarioID: String? = nil,
     targetCohortID: String? = nil,
-    targetDecision: ProductExperimentDecision? = nil
+    targetDecision: ProductTournamentExperimentDecision? = nil
   ) {
     self.experimentID = ProductTournamentModelText.identifier(
       experimentID,
@@ -1849,7 +1849,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
   }
 
   static func brief(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationRevisionBrief? {
@@ -1898,7 +1898,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
   }
 
   private static func targetedProofOutcomeBrief(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationRevisionBrief? {
@@ -2113,7 +2113,7 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
   var targetScenarioID: String?
   var targetPersonaID: String?
   var targetPersonaName: String?
-  var targetDecision: ProductExperimentDecision?
+  var targetDecision: ProductTournamentExperimentDecision?
   var requiredSimulationMode: ProductTournamentSimulationMode?
 
   var urgencyScore: Int {
@@ -2265,7 +2265,7 @@ enum TournamentAutomationProofTargetAdvisor {
   }
 
   static func target(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
@@ -2301,7 +2301,7 @@ enum TournamentAutomationProofTargetAdvisor {
   }
 
   private static func planProofTarget(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     isPersonaModelAvailable: Bool
@@ -2457,7 +2457,7 @@ enum TournamentAutomationExperimentRanker {
   static func rankedExperiments(
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
-  ) -> [ProductExperiment] {
+  ) -> [ProductTournamentExperiment] {
     let signals = Dictionary(
       uniqueKeysWithValues: experimentSignals(
         config: config,
@@ -2487,7 +2487,7 @@ enum TournamentAutomationExperimentRanker {
   }
 
   static func signal(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationExperimentSignal {
@@ -2535,10 +2535,10 @@ enum TournamentAutomationExperimentRanker {
   }
 
   private static func pressure(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     readiness: ProductTournamentReadiness?,
     nextActionKind: ProductTournamentNextActionKind?,
-    targetDecision: ProductExperimentDecision?
+    targetDecision: ProductTournamentExperimentDecision?
   ) -> TournamentAutomationPortfolioPressure {
     if nextActionKind == .repairFailures {
       return .repair
@@ -2681,7 +2681,7 @@ struct TournamentAutomationStep: Equatable, Sendable, Identifiable {
   }
 
   init(
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     action: ProductTournamentNextAction,
     cohortReadiness: ProductTournamentCohortRunReadiness?,
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
@@ -3347,7 +3347,7 @@ enum TournamentAutomationProofDebtSnapshotter {
   }
 
   private static func tournamentExperienceSnapshot(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     proofDebt: ProductTournamentProofDebt
   ) -> TournamentAutomationProofDebtSnapshot {
     TournamentAutomationProofDebtSnapshot(
@@ -3357,7 +3357,7 @@ enum TournamentAutomationProofDebtSnapshotter {
   }
 
   private static func planProofSnapshot(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     tournamentID: String?,
     roundID: String?,
     contenderID: String?,
@@ -3401,7 +3401,7 @@ enum TournamentAutomationCycleFailureAdvisor {
 
   static func blockingAudit(
     forStepID stepID: String,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationCycleAudit? {
@@ -3433,7 +3433,7 @@ enum TournamentAutomationCycleFailureAdvisor {
 
   private static func hasCompletedEvidence(
     after audit: TournamentAutomationCycleAudit,
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> Bool {
     evidenceIndex.summaries(for: experiment).contains {
@@ -3445,7 +3445,7 @@ enum TournamentAutomationCycleFailureAdvisor {
 enum TournamentAutomationCycleLearningAdvisor {
   static func stalledProofDebtAudit(
     for action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationCycleAudit? {
@@ -3473,7 +3473,7 @@ enum TournamentAutomationCycleLearningAdvisor {
 
   static func stalledProofTargetAudit(
     for action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationCycleAudit? {
@@ -3512,7 +3512,7 @@ enum TournamentAutomationCycleLearningAdvisor {
 
   static func stalledEvidenceTensionAudit(
     for action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationCycleAudit? {
@@ -3549,7 +3549,7 @@ enum TournamentAutomationCycleLearningAdvisor {
 
   static func stalledRationaleSignalAudit(
     for action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationCycleAudit? {
@@ -3586,7 +3586,7 @@ enum TournamentAutomationCycleLearningAdvisor {
 
   static func stalledTargetedProofOutcomeAudit(
     for action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationCycleAudit? {
@@ -3627,7 +3627,7 @@ enum TournamentAutomationCycleLearningAdvisor {
 
   static func revisionFatigueAudit(
     for action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationCycleAudit? {
@@ -3676,7 +3676,7 @@ enum TournamentAutomationCycleLearningAdvisor {
 
   static func appliedTargetedProofOutcomeRevisionAudit(
     for action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationCycleAudit? {
@@ -3709,7 +3709,7 @@ enum TournamentAutomationCycleLearningAdvisor {
 
   static func appliedRevisionBriefAudit(
     for brief: TournamentAutomationRevisionBrief,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationCycleAudit? {
@@ -3732,7 +3732,7 @@ enum TournamentAutomationCycleLearningAdvisor {
 
   static func appliedRevisionBriefAudit(
     for action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationCycleAudit? {
@@ -3760,7 +3760,7 @@ enum TournamentAutomationCycleLearningAdvisor {
     _ audit: TournamentAutomationCycleAudit,
     recentAudits: [TournamentAutomationCycleAudit],
     action: ProductTournamentNextAction,
-    experiment: ProductExperiment
+    experiment: ProductTournamentExperiment
   ) -> Bool {
     if !audit.revisionBriefSummaries.isEmpty,
       matchesCurrentRevisionBrief(audit: audit, action: action)
@@ -4014,7 +4014,7 @@ enum TournamentAutomationCycleLearningAdvisor {
 
   private static func hasCompletedEvidence(
     after audit: TournamentAutomationCycleAudit,
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> Bool {
     evidenceIndex.summaries(for: experiment).contains {
@@ -4118,7 +4118,7 @@ enum TournamentAutomationPlanner {
   }
 
   private static func roundTransitionStep(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
@@ -4181,7 +4181,7 @@ enum TournamentAutomationPlanner {
   }
 
   private static func transitionStep(
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     title: String,
     detail: String,
     priority: Int,
@@ -4209,7 +4209,7 @@ enum TournamentAutomationPlanner {
 
   private static func contender(
     _ contenderID: String,
-    matches experiment: ProductExperiment,
+    matches experiment: ProductTournamentExperiment,
     in config: ProductTournamentConfig
   ) -> Bool {
     config.tournamentContenders.contains {
@@ -4218,7 +4218,7 @@ enum TournamentAutomationPlanner {
   }
 
   private static func planProofStep(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
@@ -4312,7 +4312,7 @@ enum TournamentAutomationPlanner {
 
   private static func applyingRecentCycleFailureBlock(
     to step: TournamentAutomationStep,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationStep {
@@ -4347,7 +4347,7 @@ enum TournamentAutomationPlanner {
 
   private static func applyingRecentCycleLearningBlock(
     to step: TournamentAutomationStep,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationStep {
@@ -4430,7 +4430,7 @@ enum TournamentAutomationPlanner {
 
   private static func applyingRevisionBriefStep(
     to step: TournamentAutomationStep,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> TournamentAutomationStep {
@@ -4772,7 +4772,7 @@ enum ProductTournamentDecisionAdvisorError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .noProposal(let experimentID):
-      return "No tournament decision recommendation is available for product experiment \(experimentID)."
+      return "No tournament decision recommendation is available for tournament experiment \(experimentID)."
     }
   }
 }
@@ -4792,7 +4792,7 @@ enum ProductTournamentNextActionAdvisor {
   }
 
   static func nextAction(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentNextAction? {
@@ -5174,7 +5174,7 @@ enum ProductTournamentNextActionAdvisor {
 
   private static func liftCutDecisionHint(
     for recommendation: ProductTournamentReadinessRecommendation
-  ) -> ProductExperimentDecision? {
+  ) -> ProductTournamentExperimentDecision? {
     switch recommendation {
     case .promote:
       return .promote
@@ -5186,13 +5186,13 @@ enum ProductTournamentNextActionAdvisor {
   }
 
   private static func aiUserBreadthAction(
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     selectedCohort: ProductScenarioCohort?,
     target: AIUserPersonaTarget?,
     title: String,
     decisionGate: String,
     gateReason: String,
-    targetDecision: ProductExperimentDecision,
+    targetDecision: ProductTournamentExperimentDecision,
     priority: Int,
     observedCount: Int,
     observedEvidenceLabel: String
@@ -5260,7 +5260,7 @@ enum ProductTournamentNextActionAdvisor {
   }
 
   private static func missingAIUserPersonaTarget(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     cohort: ProductScenarioCohort?,
@@ -5314,7 +5314,7 @@ enum ProductTournamentNextActionAdvisor {
   }
 
   private static func aiUserCurrentAlternativePersonaIDs(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> Set<String> {
     Set(
@@ -5343,7 +5343,7 @@ enum ProductTournamentNextActionAdvisor {
 
   private static func executableCohortID(
     forScenarioID scenarioID: String?,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> String? {
     guard let scenarioID else { return nil }
@@ -5361,7 +5361,7 @@ enum ProductTournamentNextActionAdvisor {
   }
 
   private static func targetSegmentIDs(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> [String] {
     let hypothesis = config.productHypotheses.first { $0.id == experiment.productHypothesisID }
@@ -5409,7 +5409,7 @@ enum ProductTournamentNextActionAdvisor {
 
   private static func applyingRecentCycleGuards(
     to action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentNextAction {
@@ -5430,7 +5430,7 @@ enum ProductTournamentNextActionAdvisor {
 
   private static func applyingRecentCycleLearningGuard(
     to action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentNextAction {
@@ -5574,7 +5574,7 @@ enum ProductTournamentNextActionAdvisor {
   private static func targetedProofOutcomeValidationAction(
     after audit: TournamentAutomationCycleAudit,
     replacing action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentNextAction? {
@@ -5609,7 +5609,7 @@ enum ProductTournamentNextActionAdvisor {
   private static func revisionFatigueAction(
     after audit: TournamentAutomationCycleAudit,
     replacing action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentNextAction {
     let readiness = evidenceIndex.currentTournamentReadiness(for: experiment)
@@ -5642,8 +5642,8 @@ enum ProductTournamentNextActionAdvisor {
 
   private static func revisionFatigueTargetDecision(
     readiness: ProductTournamentReadiness?,
-    currentDecision: ProductExperimentDecision
-  ) -> ProductExperimentDecision? {
+    currentDecision: ProductTournamentExperimentDecision
+  ) -> ProductTournamentExperimentDecision? {
     let shouldKill =
       readiness?.recommendation == .kill
       || readiness.map { $0.readinessScore <= 40 } == true
@@ -5672,7 +5672,7 @@ enum ProductTournamentNextActionAdvisor {
     after revisionAudit: TournamentAutomationCycleAudit,
     stalledAudit: TournamentAutomationCycleAudit,
     replacing action: ProductTournamentNextAction,
-    experiment: ProductExperiment
+    experiment: ProductTournamentExperiment
   ) -> ProductTournamentNextAction? {
     guard let cohortID = action.cohortID,
       action.targetScenarioID != nil
@@ -5697,7 +5697,7 @@ enum ProductTournamentNextActionAdvisor {
   private static func stalledProofDebtRetargetAction(
     audit: TournamentAutomationCycleAudit,
     replacing action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentNextAction? {
@@ -5755,7 +5755,7 @@ enum ProductTournamentNextActionAdvisor {
   private static func retargetedAIUserProofDebtAction(
     audit: TournamentAutomationCycleAudit,
     replacing action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     readiness: ProductTournamentReadiness,
     selectedCohort: ProductScenarioCohort?,
     target: AIUserPersonaTarget?,
@@ -5800,7 +5800,7 @@ enum ProductTournamentNextActionAdvisor {
 
   private static func applyingRecentCycleFailureGuard(
     to action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentNextAction {
@@ -5824,7 +5824,7 @@ enum ProductTournamentNextActionAdvisor {
 
   static func cohortRunReadiness(
     for action: ProductTournamentNextAction,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> ProductTournamentCohortRunReadiness? {
     guard action.experimentID == experiment.id,
@@ -5857,7 +5857,7 @@ enum ProductTournamentNextActionAdvisor {
   }
 
   private static func runnableCohort(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> ProductScenarioCohort? {
     let enabledScenarioIDs = Set(
@@ -5883,7 +5883,7 @@ enum ProductTournamentNextActionAdvisor {
 
   private static func targetCommit(
     for scenario: ProductScenario,
-    experiment: ProductExperiment
+    experiment: ProductTournamentExperiment
   ) -> String? {
     let commit = scenario.targetCommitSha ?? experiment.currentSha ?? experiment.baseSha
     let trimmed = commit?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -5966,8 +5966,8 @@ enum ProductTournamentDecisionAdvisor {
 
   private static func targetDecision(
     for readiness: ProductTournamentReadiness,
-    current: ProductExperimentDecision
-  ) -> ProductExperimentDecision? {
+    current: ProductTournamentExperimentDecision
+  ) -> ProductTournamentExperimentDecision? {
     switch readiness.recommendation {
     case .promote:
       switch current {
@@ -6011,8 +6011,8 @@ enum ProductTournamentDecisionAdvisor {
 
   private static func summary(
     for readiness: ProductTournamentReadiness,
-    target: ProductExperimentDecision,
-    experiment: ProductExperiment
+    target: ProductTournamentExperimentDecision,
+    experiment: ProductTournamentExperiment
   ) -> String {
     let evidence =
       readiness.evidenceRunIDs.isEmpty

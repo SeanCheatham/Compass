@@ -29,7 +29,7 @@ struct ProductTournamentGitRolloutTests {
     try workspace.writeProductTournamentConfig(config)
     try workspace.writeProductTournamentEvidenceRecord(makeGitRolloutEvidence(config: config))
 
-    let result = try await workspace.promoteProductExperiment(
+    let result = try await workspace.promoteProductTournamentExperiment(
       experimentID: "experiment-fast-forward",
       acceptedBranchName: "main",
       now: Date(timeIntervalSince1970: 100)
@@ -83,7 +83,7 @@ struct ProductTournamentGitRolloutTests {
     try workspace.writeProductTournamentConfig(config)
     try workspace.writeProductTournamentEvidenceRecord(makeGitRolloutEvidence(config: config))
 
-    let result = try await workspace.promoteProductExperiment(
+    let result = try await workspace.promoteProductTournamentExperiment(
       experimentID: "experiment-merge",
       acceptedBranchName: "main",
       now: Date(timeIntervalSince1970: 110)
@@ -133,12 +133,12 @@ struct ProductTournamentGitRolloutTests {
     try workspace.writeProductTournamentConfig(config)
 
     do {
-      _ = try await workspace.promoteProductExperiment(
+      _ = try await workspace.promoteProductTournamentExperiment(
         experimentID: "experiment-stale",
         acceptedBranchName: "main"
       )
       Issue.record("Expected stale experiment sha rejection.")
-    } catch let error as ProductExperimentGitRolloutError {
+    } catch let error as ProductTournamentExperimentGitRolloutError {
       try #require(
         error == .staleExperimentSha(
           branchName: branchName,
@@ -183,7 +183,7 @@ struct ProductTournamentGitRolloutTests {
     )
     try await git(["worktree", "add", worktreeURL.path, branchName], in: root)
 
-    let result = try await workspace.archiveProductExperiment(
+    let result = try await workspace.archiveProductTournamentExperiment(
       experimentID: "experiment-archive",
       acceptedBranchName: "main",
       now: Date(timeIntervalSince1970: 120)
@@ -248,7 +248,7 @@ private func makeGitRolloutConfig(
   branchName: String,
   baseSha: String,
   currentSha: String,
-  decision: ProductExperimentDecision
+  decision: ProductTournamentExperimentDecision
 ) -> ProductTournamentConfig {
   let pain = PainHypothesis(
     id: "pain-rollout",
@@ -265,7 +265,7 @@ private func makeGitRolloutConfig(
     id: "hypothesis-rollout",
     painID: pain.id,
     title: "Rollout Hypothesis",
-    promise: "Promote and archive product experiments deliberately.",
+    promise: "Promote and archive tournament experiments deliberately.",
     contenderPlan: "Git-backed rollout preserves evidence and lineage.",
     targetSegmentIDs: [],
     differentiator: "Evidence-linked branch decisions.",
@@ -274,7 +274,7 @@ private func makeGitRolloutConfig(
     requiredProof: ["Promotion records before and after commits"],
     status: .active
   )
-  let experiment = ProductExperiment(
+  let experiment = ProductTournamentExperiment(
     id: experimentID,
     productHypothesisID: hypothesis.id,
     title: "Rollout experiment",

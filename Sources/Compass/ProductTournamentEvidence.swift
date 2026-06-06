@@ -2505,14 +2505,14 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     }
   }
 
-  func targetCommit(for experiment: ProductExperiment) -> String? {
+  func targetCommit(for experiment: ProductTournamentExperiment) -> String? {
     let commit = experiment.currentSha ?? experiment.baseSha ?? ""
     let trimmed = commit.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
   }
 
   func summaries(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     currentCommitOnly: Bool = true
   ) -> [ProductTournamentEvidenceSummary] {
     let experimentSummaries = summaries.filter { $0.experimentID == experiment.id }
@@ -2520,16 +2520,16 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
       return experimentSummaries
     }
     return experimentSummaries.filter {
-      ProductExperimentGit.commitMatches(expected: targetCommit, actual: $0.commitSha)
+      ProductTournamentExperimentGit.commitMatches(expected: targetCommit, actual: $0.commitSha)
     }
   }
 
-  func staleSummaryCount(for experiment: ProductExperiment) -> Int {
+  func staleSummaryCount(for experiment: ProductTournamentExperiment) -> Int {
     let all = summaries(for: experiment, currentCommitOnly: false)
     return max(0, all.count - summaries(for: experiment).count)
   }
 
-  func currentTournamentReadiness(for experiment: ProductExperiment) -> ProductTournamentReadiness? {
+  func currentTournamentReadiness(for experiment: ProductTournamentExperiment) -> ProductTournamentReadiness? {
     let currentSummaries = summaries(for: experiment)
     guard !currentSummaries.isEmpty else { return nil }
     return ProductTournamentReadiness(summaries: currentSummaries)
@@ -2899,7 +2899,7 @@ private struct ProductTournamentPersonaRationaleSignalSource {
 }
 
 struct ProductTournamentEvidenceDecisionIntentOutcomeCount: Codable, Equatable, Sendable {
-  var targetDecision: ProductExperimentDecision
+  var targetDecision: ProductTournamentExperimentDecision
   var outcome: ProductTournamentEvidenceDecisionIntentOutcome
   var count: Int
   var runIDs: [String]
@@ -2919,7 +2919,7 @@ struct ProductTournamentEvidenceDecisionIntentOutcomeCount: Codable, Equatable, 
   }
 
   init(
-    targetDecision: ProductExperimentDecision,
+    targetDecision: ProductTournamentExperimentDecision,
     outcome: ProductTournamentEvidenceDecisionIntentOutcome,
     count: Int,
     runIDs: [String],

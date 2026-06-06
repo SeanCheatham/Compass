@@ -9,7 +9,7 @@ struct ProductTournamentSimulationRequest {
   var currentWorkflow: CurrentWorkflow
   var alternatives: [Alternative]
   var productHypothesis: ProductHypothesis
-  var experiment: ProductExperiment
+  var experiment: ProductTournamentExperiment
   var scenarioID: String
   var scenarioTask: String
   var scenarioSuccessSignal: String
@@ -31,7 +31,7 @@ struct ProductTournamentSimulationRequest {
     currentWorkflow: CurrentWorkflow,
     alternatives: [Alternative],
     productHypothesis: ProductHypothesis,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     scenarioID: String,
     scenarioTask: String = "",
     scenarioSuccessSignal: String = "",
@@ -40,7 +40,7 @@ struct ProductTournamentSimulationRequest {
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
     mode: ProductTournamentSimulationMode = .modelFree,
-    targetDecision: ProductExperimentDecision? = nil,
+    targetDecision: ProductTournamentExperimentDecision? = nil,
     decisionIntent: ProductTournamentSimulationDecisionIntent? = nil,
     maxTurns: Int = 8,
     fixtureActions: [ProductTournamentExperienceAction]? = nil,
@@ -152,14 +152,14 @@ struct ProductTournamentSimulationRequest {
 }
 
 struct ProductTournamentSimulationDecisionIntent: Codable, Equatable, Sendable {
-  var currentDecision: ProductExperimentDecision
-  var targetDecision: ProductExperimentDecision
+  var currentDecision: ProductTournamentExperimentDecision
+  var targetDecision: ProductTournamentExperimentDecision
   var directive: String
   var scorecardFocus: [String]
 
   init(
-    currentDecision: ProductExperimentDecision,
-    targetDecision: ProductExperimentDecision,
+    currentDecision: ProductTournamentExperimentDecision,
+    targetDecision: ProductTournamentExperimentDecision,
     directive: String? = nil,
     scorecardFocus: [String]? = nil
   ) {
@@ -177,7 +177,7 @@ struct ProductTournamentSimulationDecisionIntent: Codable, Equatable, Sendable {
   }
 
   private static func directive(
-    for targetDecision: ProductExperimentDecision
+    for targetDecision: ProductTournamentExperimentDecision
   ) -> String {
     switch targetDecision {
     case .promote, .promoted:
@@ -202,7 +202,7 @@ struct ProductTournamentSimulationDecisionIntent: Codable, Equatable, Sendable {
   }
 
   private static func scorecardFocus(
-    for targetDecision: ProductExperimentDecision
+    for targetDecision: ProductTournamentExperimentDecision
   ) -> [String] {
     switch targetDecision {
     case .promote, .promoted:
@@ -326,7 +326,7 @@ struct ProductTournamentSimulationRequestContext: Equatable, Sendable {
   var currentWorkflow: CurrentWorkflow
   var alternatives: [Alternative]
   var productHypothesis: ProductHypothesis
-  var experiment: ProductExperiment
+  var experiment: ProductTournamentExperiment
   var scenarioID: String
   var scenarioTask: String
   var scenarioSuccessSignal: String
@@ -1275,8 +1275,8 @@ struct ProductTournamentExperienceAlternative: Codable, Equatable, Sendable {
 }
 
 struct ProductTournamentExperienceDecisionIntent: Codable, Equatable, Sendable {
-  var currentDecision: ProductExperimentDecision
-  var targetDecision: ProductExperimentDecision
+  var currentDecision: ProductTournamentExperimentDecision
+  var targetDecision: ProductTournamentExperimentDecision
   var directive: String
   var scorecardFocus: [String]
 

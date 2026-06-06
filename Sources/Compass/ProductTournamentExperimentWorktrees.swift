@@ -82,7 +82,7 @@ enum ProductTournamentExperimentGitRef {
 
 enum ProductTournamentExperimentWorktreeManager {
   static func ensureWorktree(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     in workspace: CompassWorkspace
   ) async throws -> ProductTournamentExperimentWorktree {
     guard CompassWorkspace.isGitRepository(workspace.repoURL) else {

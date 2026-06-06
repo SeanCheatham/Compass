@@ -321,7 +321,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
   var currentWorkflows: [CurrentWorkflow]
   var alternatives: [Alternative]
   var productHypotheses: [ProductHypothesis]
-  var experiments: [ProductExperiment]
+  var experiments: [ProductTournamentExperiment]
   var tournaments: [ProductTournament]
   var tournamentContenders: [ProductTournamentContender]
   var tournamentRounds: [ProductTournamentRound]
@@ -350,7 +350,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     currentWorkflows: [CurrentWorkflow] = [],
     alternatives: [Alternative] = [],
     productHypotheses: [ProductHypothesis] = [],
-    experiments: [ProductExperiment] = [],
+    experiments: [ProductTournamentExperiment] = [],
     tournaments: [ProductTournament] = [],
     tournamentContenders: [ProductTournamentContender] = [],
     tournamentRounds: [ProductTournamentRound] = [],
@@ -383,7 +383,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
       productHypotheses: try container.decodeIfPresent(
         [ProductHypothesis].self, forKey: .productHypotheses) ?? [],
-      experiments: try container.decodeIfPresent([ProductExperiment].self, forKey: .experiments)
+      experiments: try container.decodeIfPresent([ProductTournamentExperiment].self, forKey: .experiments)
         ?? [],
       tournaments: try container.decodeIfPresent([ProductTournament].self, forKey: .tournaments)
         ?? [],

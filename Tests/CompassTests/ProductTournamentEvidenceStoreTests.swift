@@ -859,7 +859,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(prompt.contains("plan_modes persona_model 0 model_free 1"))
     try #require(!prompt.contains("persona transcript should stay out of prompts"))
 
-    await project.applyProductExperimentRolloutAction(
+    await project.applyProductTournamentExperimentRolloutAction(
       .promoteOrConfirm,
       experimentID: config.experiments[0].id
     )

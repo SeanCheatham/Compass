@@ -231,7 +231,7 @@ enum PlanTransitionValidator {
     guard mentioned.count <= 1 else {
       throw PlanTransitionValidationError(
         message:
-          "Plan immediate handoff mentions multiple product experiments (\(mentioned.joined(separator: ", "))). Choose one experiment for the next commit-sized slice, or explicitly scope the handoff to shared experiment infrastructure.",
+          "Plan immediate handoff mentions multiple tournament experiments (\(mentioned.joined(separator: ", "))). Choose one experiment for the next commit-sized slice, or explicitly scope the handoff to shared tournament experiment infrastructure.",
         reason: .multiExperimentImmediate,
         missingLabels: ["Single experiment scope"]
       )

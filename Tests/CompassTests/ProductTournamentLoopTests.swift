@@ -113,7 +113,7 @@ struct ProductTournamentLoopTests {
     )
     config.experiments[0].decision = .keepGoing
     config.experiments[1].decision = .keepGoing
-    let weakExperiment = ProductExperiment(
+    let weakExperiment = ProductTournamentExperiment(
       id: "reporting-weak-contender",
       productHypothesisID: config.productHypotheses[0].id,
       title: "Reporting weak contender",
@@ -4641,9 +4641,9 @@ struct ProductTournamentLoopTests {
     let experiment = config.experiments[0]
     let evidenceIndex = makeRolloutEvidenceIndex(config: config)
 
-    try #require(ProductExperimentRolloutWorkflow.canApply(.promoteOrConfirm, to: experiment))
+    try #require(ProductTournamentExperimentRolloutWorkflow.canApply(.promoteOrConfirm, to: experiment))
 
-    let marked = try ProductExperimentRolloutWorkflow.applying(
+    let marked = try ProductTournamentExperimentRolloutWorkflow.applying(
       .promoteOrConfirm,
       experimentID: experiment.id,
       to: config,
@@ -4662,7 +4662,7 @@ struct ProductTournamentLoopTests {
     try #require(readyDecision.evidenceRunIDs == ["rollout-run"])
     try #require(readyDecision.decidedBy == "Workbench")
 
-    let promoted = try ProductExperimentRolloutWorkflow.applying(
+    let promoted = try ProductTournamentExperimentRolloutWorkflow.applying(
       .promoteOrConfirm,
       experimentID: experiment.id,
       to: marked,
@@ -4687,9 +4687,9 @@ struct ProductTournamentLoopTests {
     let experiment = config.experiments[0]
     let evidenceIndex = makeRolloutEvidenceIndex(config: config)
 
-    try #require(ProductExperimentRolloutWorkflow.canApply(.killOrArchive, to: experiment))
+    try #require(ProductTournamentExperimentRolloutWorkflow.canApply(.killOrArchive, to: experiment))
 
-    let killed = try ProductExperimentRolloutWorkflow.applying(
+    let killed = try ProductTournamentExperimentRolloutWorkflow.applying(
       .killOrArchive,
       experimentID: experiment.id,
       to: config,
@@ -4707,7 +4707,7 @@ struct ProductTournamentLoopTests {
     try #require(killedExperiment.worktreeID == experiment.worktreeID)
     try #require(rejectedSolution.status == .rejected)
 
-    let archived = try ProductExperimentRolloutWorkflow.applying(
+    let archived = try ProductTournamentExperimentRolloutWorkflow.applying(
       .killOrArchive,
       experimentID: experiment.id,
       to: killed,
@@ -4732,7 +4732,7 @@ struct ProductTournamentLoopTests {
   }
 }
 
-private func makeRolloutConfig(decision: ProductExperimentDecision) -> ProductTournamentConfig {
+private func makeRolloutConfig(decision: ProductTournamentExperimentDecision) -> ProductTournamentConfig {
   var config = ProductTournamentConfig.seedDefaults(
     projectTitle: "Reporting Helper",
     rawPain: "Reporting work needs evidence.",
@@ -4817,7 +4817,7 @@ private func completePlanOnlyRound(in config: inout ProductTournamentConfig) thr
 }
 
 private func makeProofDebtEvidenceIndex(
-  experiments: [ProductExperiment],
+  experiments: [ProductTournamentExperiment],
   config: ProductTournamentConfig
 ) -> ProductTournamentEvidenceIndex {
   let scores = ProductTournamentEvidenceScores(
@@ -4947,7 +4947,7 @@ private func makeRolloutEvidenceIndex(config: ProductTournamentConfig) -> Produc
 
 private func scopedTournamentEvidenceRecords(
   prefix: String,
-  experiment: ProductExperiment,
+  experiment: ProductTournamentExperiment,
   config: ProductTournamentConfig,
   target: ProductTournamentRoundImplementationTarget,
   count: Int,
@@ -4989,7 +4989,7 @@ private func scopedTournamentEvidenceRecords(
 }
 
 private func makeTournamentPromotionEvidenceIndex(
-  experiment: ProductExperiment? = nil,
+  experiment: ProductTournamentExperiment? = nil,
   config: ProductTournamentConfig,
   includeAIUserEvidence: Bool = true,
   includeAIUserPersonaBreadth: Bool = true,
@@ -5050,7 +5050,7 @@ private func makeTournamentPromotionEvidenceIndex(
 
 private func makeDecisionAdvisorRecord(
   id: String,
-  experiment: ProductExperiment,
+  experiment: ProductTournamentExperiment,
   config: ProductTournamentConfig,
   personaID: String,
   mode: ProductTournamentSimulationMode = .modelFree,

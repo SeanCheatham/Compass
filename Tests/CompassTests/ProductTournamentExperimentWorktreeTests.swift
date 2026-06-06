@@ -57,7 +57,7 @@ struct ProductTournamentExperimentWorktreeTests {
     try setupCommittedRepo(at: root)
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
-    let experiment = ProductExperiment(
+    let experiment = ProductTournamentExperiment(
       id: "experiment-bad",
       productHypothesisID: "hypothesis-command-board",
       title: "Bad branch",
@@ -164,6 +164,7 @@ struct ProductTournamentExperimentWorktreeTests {
     try #require(payload.contains("\"tournamentExperimentID\""))
     try #require(payload.contains("\"tournamentProductHypothesisID\""))
     try #require(!payload.contains("\"productExperimentID\""))
+    try #require(!payload.contains("\"productTournamentExperimentID\""))
     try #require(!payload.contains("\"productHypothesisID\""))
     try #require(decoded.tournamentExperimentID == "experiment-command-board")
     try #require(decoded.tournamentProductHypothesisID == "hypothesis-command-board")
@@ -221,7 +222,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     requiredProof: ["Lead drafts clearer update"],
     status: .active
   )
-  let first = ProductExperiment(
+  let first = ProductTournamentExperiment(
     id: "experiment-command-board",
     productHypothesisID: hypothesis.id,
     title: "Command board prototype",
@@ -234,7 +235,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     decision: .notRun,
     createdAt: 1
   )
-  let second = ProductExperiment(
+  let second = ProductTournamentExperiment(
     id: "experiment-timeline",
     productHypothesisID: hypothesis.id,
     title: "Timeline prototype",

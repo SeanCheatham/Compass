@@ -345,7 +345,7 @@ private final class ScriptedProductTournamentPersonaSelector: ProductTournamentP
 private func makeTournamentRequest(
   generatedAppWorkingDirectory: URL = URL(fileURLWithPath: "/tmp/product-tournament-runner-fixture"),
   mode: ProductTournamentSimulationMode = .modelFree,
-  targetDecision: ProductExperimentDecision? = nil,
+  targetDecision: ProductTournamentExperimentDecision? = nil,
   maxTurns: Int = 6,
   appCommandTimeout: TimeInterval? = 120
 ) -> ProductTournamentSimulationRequest {

@@ -59,7 +59,7 @@ struct ProductScenarioDraft: Equatable, Sendable {
     )
     self.task = ProductTournamentModelText.cleanedText(
       task,
-      fallback: "Try the product experiment against the current workflow.",
+      fallback: "Try the tournament experiment against the current workflow.",
       limit: 800
     )
     self.successSignal = ProductTournamentModelText.cleanedText(
@@ -281,7 +281,7 @@ enum ProductTournamentScenarioCoordinator {
   }
 
   static func defaultDraft(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     in config: ProductTournamentConfig,
     now: Date = Date()
   ) -> ProductScenarioDraft {
@@ -326,7 +326,7 @@ enum ProductTournamentScenarioCoordinator {
 
   private static func cohortID(
     containing scenarioID: String?,
-    experiment: ProductExperiment,
+    experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> String? {
     guard let scenarioID else { return nil }
@@ -425,7 +425,7 @@ enum ProductTournamentScenarioCoordinator {
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
     mode: ProductTournamentSimulationMode = .modelFree,
-    targetDecision: ProductExperimentDecision? = nil
+    targetDecision: ProductTournamentExperimentDecision? = nil
   ) async throws -> ProductTournamentSimulationRequest {
     guard let experiment = config.experiments.first(where: { $0.id == experimentID }) else {
       throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
@@ -464,7 +464,7 @@ enum ProductTournamentScenarioCoordinator {
     let selectedAlternatives = alternatives(for: scenario, painID: pain.id, in: config)
     let targetCommit = try targetCommit(for: scenario, experiment: experiment)
     if let experimentCommit = experiment.currentSha ?? experiment.baseSha,
-      !ProductExperimentGit.commitMatches(expected: targetCommit, actual: experimentCommit)
+      !ProductTournamentExperimentGit.commitMatches(expected: targetCommit, actual: experimentCommit)
     {
       throw ProductTournamentScenarioRunError.staleScenarioCommit(
         scenarioID: scenario.id,
@@ -473,7 +473,7 @@ enum ProductTournamentScenarioCoordinator {
       )
     }
     if let actualHead = try await gitHeadIfAvailable(at: generatedAppWorkingDirectory),
-      !ProductExperimentGit.commitMatches(expected: targetCommit, actual: actualHead)
+      !ProductTournamentExperimentGit.commitMatches(expected: targetCommit, actual: actualHead)
     {
       throw ProductTournamentScenarioRunError.staleWorkingTree(
         url: generatedAppWorkingDirectory,
@@ -505,7 +505,7 @@ enum ProductTournamentScenarioCoordinator {
   }
 
   static func generatedAppWorkingDirectory(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     in workspace: CompassWorkspace
   ) -> URL {
     let worktreeURL = workspace.productTournamentExperimentWorktreeURL(experimentID: experiment.id)
@@ -538,7 +538,7 @@ enum ProductTournamentScenarioCoordinator {
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
-    targetDecision: ProductExperimentDecision? = nil,
+    targetDecision: ProductTournamentExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioRunOutcome {
     try await run(
@@ -567,7 +567,7 @@ enum ProductTournamentScenarioCoordinator {
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
     personaSelector: ProductTournamentPersonaActionSelecting =
       ProductTournamentFoundationModelsPersonaSelector(),
-    targetDecision: ProductExperimentDecision? = nil,
+    targetDecision: ProductTournamentExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioRunOutcome {
     try await run(
@@ -595,7 +595,7 @@ enum ProductTournamentScenarioCoordinator {
     launchPlan: AgentExecutionLaunchPlan = .host(),
     settings: AgentRuntimeSettings = AgentRuntimeSettings(),
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
-    targetDecision: ProductExperimentDecision? = nil,
+    targetDecision: ProductTournamentExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioCohortRunOutcome {
     try await runCohort(
@@ -624,7 +624,7 @@ enum ProductTournamentScenarioCoordinator {
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
     personaSelector: ProductTournamentPersonaActionSelecting =
       ProductTournamentFoundationModelsPersonaSelector(),
-    targetDecision: ProductExperimentDecision? = nil,
+    targetDecision: ProductTournamentExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioCohortRunOutcome {
     try await runCohort(
@@ -654,7 +654,7 @@ enum ProductTournamentScenarioCoordinator {
     mode: ProductTournamentSimulationMode,
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
     personaSelector: ProductTournamentPersonaActionSelecting? = nil,
-    targetDecision: ProductExperimentDecision? = nil,
+    targetDecision: ProductTournamentExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioCohortRunOutcome {
     let config = try workspace.readProductTournamentConfig()
@@ -715,7 +715,7 @@ enum ProductTournamentScenarioCoordinator {
     mode: ProductTournamentSimulationMode,
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
     personaSelector: ProductTournamentPersonaActionSelecting? = nil,
-    targetDecision: ProductExperimentDecision? = nil,
+    targetDecision: ProductTournamentExperimentDecision? = nil,
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioRunOutcome {
     var config = try workspace.readProductTournamentConfig()
@@ -806,7 +806,7 @@ enum ProductTournamentScenarioCoordinator {
 
   private static func targetCommit(
     for scenario: ProductScenario,
-    experiment: ProductExperiment
+    experiment: ProductTournamentExperiment
   ) throws -> String {
     let commit = scenario.targetCommitSha ?? experiment.currentSha ?? experiment.baseSha
     guard let commit, !commit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -817,7 +817,7 @@ enum ProductTournamentScenarioCoordinator {
 
   private static func gitHeadIfAvailable(at url: URL) async throws -> String? {
     guard CompassWorkspace.isGitRepository(url) else { return nil }
-    return try await ProductExperimentGit.output(
+    return try await ProductTournamentExperimentGit.output(
       ["rev-parse", "HEAD"],
       in: url,
       commandName: "rev-parse HEAD"
@@ -879,7 +879,7 @@ extension CompassProject {
   func runProductTournamentScenarioModelFree(
     experimentID: String,
     scenarioID: String,
-    targetDecision: ProductExperimentDecision? = nil
+    targetDecision: ProductTournamentExperimentDecision? = nil
   ) async -> ProductTournamentScenarioRunOutcome? {
     await runProductTournamentScenario(
       experimentID: experimentID,
@@ -892,7 +892,7 @@ extension CompassProject {
   func runProductTournamentScenarioPersonaModel(
     experimentID: String,
     scenarioID: String,
-    targetDecision: ProductExperimentDecision? = nil
+    targetDecision: ProductTournamentExperimentDecision? = nil
   ) async -> ProductTournamentScenarioRunOutcome? {
     guard FoundationModelsAvailability.isAvailable else {
       fail(ProductTournamentPersonaActionModelError.unavailable)
@@ -909,7 +909,7 @@ extension CompassProject {
   func runProductTournamentScenarioCohortModelFree(
     experimentID: String,
     cohortID: String,
-    targetDecision: ProductExperimentDecision? = nil
+    targetDecision: ProductTournamentExperimentDecision? = nil
   ) async -> ProductTournamentScenarioCohortRunOutcome? {
     await runProductTournamentScenarioCohort(
       experimentID: experimentID,
@@ -922,7 +922,7 @@ extension CompassProject {
   func runProductTournamentScenarioCohortPersonaModel(
     experimentID: String,
     cohortID: String,
-    targetDecision: ProductExperimentDecision? = nil
+    targetDecision: ProductTournamentExperimentDecision? = nil
   ) async -> ProductTournamentScenarioCohortRunOutcome? {
     guard FoundationModelsAvailability.isAvailable else {
       fail(ProductTournamentPersonaActionModelError.unavailable)
@@ -940,7 +940,7 @@ extension CompassProject {
     experimentID: String,
     scenarioID: String,
     mode: ProductTournamentSimulationMode,
-    targetDecision: ProductExperimentDecision?
+    targetDecision: ProductTournamentExperimentDecision?
   ) async -> ProductTournamentScenarioRunOutcome? {
     do {
       guard let workspace else {
@@ -983,7 +983,7 @@ extension CompassProject {
     experimentID: String,
     cohortID: String,
     mode: ProductTournamentSimulationMode,
-    targetDecision: ProductExperimentDecision?
+    targetDecision: ProductTournamentExperimentDecision?
   ) async -> ProductTournamentScenarioCohortRunOutcome? {
     do {
       guard let workspace else {

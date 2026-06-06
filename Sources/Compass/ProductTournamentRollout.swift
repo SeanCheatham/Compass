@@ -1,12 +1,12 @@
 import Foundation
 
-enum ProductExperimentGitRolloutKind: String, Equatable, Sendable {
+enum ProductTournamentExperimentGitRolloutKind: String, Equatable, Sendable {
   case fastForwardPromotion = "fast_forward_promotion"
   case mergePromotion = "merge_promotion"
   case archive
 }
 
-struct ProductExperimentGitRolloutPreview: Equatable, Sendable {
+struct ProductTournamentExperimentGitRolloutPreview: Equatable, Sendable {
   var experimentID: String
   var productHypothesisID: String
   var experimentBranchName: String
@@ -16,13 +16,13 @@ struct ProductExperimentGitRolloutPreview: Equatable, Sendable {
   var actualExperimentSha: String
   var acceptedBeforeSha: String
   var mergeBaseSha: String
-  var kind: ProductExperimentGitRolloutKind
+  var kind: ProductTournamentExperimentGitRolloutKind
   var changedFiles: [String]
   var commitSubjects: [String]
 
   var experimentStateMatchesBranch: Bool {
     guard let expectedExperimentSha else { return false }
-    return ProductExperimentGit.commitMatches(expected: expectedExperimentSha, actual: actualExperimentSha)
+    return ProductTournamentExperimentGit.commitMatches(expected: expectedExperimentSha, actual: actualExperimentSha)
   }
 
   var boundedSummary: String {
@@ -51,20 +51,20 @@ struct ProductExperimentGitRolloutPreview: Equatable, Sendable {
   }
 }
 
-struct ProductExperimentGitRolloutResult: Equatable, Sendable {
+struct ProductTournamentExperimentGitRolloutResult: Equatable, Sendable {
   var config: ProductTournamentConfig
-  var preview: ProductExperimentGitRolloutPreview
+  var preview: ProductTournamentExperimentGitRolloutPreview
   var acceptedAfterSha: String
   var archiveBranchName: String?
 }
 
-enum ProductExperimentGitRolloutError: LocalizedError, Equatable {
+enum ProductTournamentExperimentGitRolloutError: LocalizedError, Equatable {
   case unknownExperiment(String)
   case missingGitRepository(URL)
   case expectedDecision(
     experimentID: String,
-    expected: ProductExperimentDecision,
-    actual: ProductExperimentDecision
+    expected: ProductTournamentExperimentDecision,
+    actual: ProductTournamentExperimentDecision
   )
   case missingExperimentSha(String)
   case staleExperimentSha(branchName: String, expected: String, actual: String)
@@ -99,11 +99,11 @@ enum ProductExperimentGitRolloutError: LocalizedError, Equatable {
   }
 }
 
-enum ProductExperimentRolloutAction: String, CaseIterable, Equatable, Sendable {
+enum ProductTournamentExperimentRolloutAction: String, CaseIterable, Equatable, Sendable {
   case promoteOrConfirm
   case killOrArchive
 
-  func targetDecision(from current: ProductExperimentDecision) -> ProductExperimentDecision {
+  func targetDecision(from current: ProductTournamentExperimentDecision) -> ProductTournamentExperimentDecision {
     switch self {
     case .promoteOrConfirm:
       return current == .promote ? .promoted : .promote
@@ -112,7 +112,7 @@ enum ProductExperimentRolloutAction: String, CaseIterable, Equatable, Sendable {
     }
   }
 
-  func title(from current: ProductExperimentDecision) -> String {
+  func title(from current: ProductTournamentExperimentDecision) -> String {
     switch self {
     case .promoteOrConfirm:
       return current == .promote ? "Promote" : "Mark Promote"
@@ -122,7 +122,7 @@ enum ProductExperimentRolloutAction: String, CaseIterable, Equatable, Sendable {
   }
 }
 
-enum ProductExperimentRolloutError: LocalizedError, Equatable {
+enum ProductTournamentExperimentRolloutError: LocalizedError, Equatable {
   case unknownExperiment(String)
 
   var errorDescription: String? {
@@ -133,10 +133,10 @@ enum ProductExperimentRolloutError: LocalizedError, Equatable {
   }
 }
 
-enum ProductExperimentRolloutWorkflow {
+enum ProductTournamentExperimentRolloutWorkflow {
   static func canApply(
-    _ action: ProductExperimentRolloutAction,
-    to experiment: ProductExperiment
+    _ action: ProductTournamentExperimentRolloutAction,
+    to experiment: ProductTournamentExperiment
   ) -> Bool {
     do {
       try ProductTournamentDecisionTransitionValidator.validate(
@@ -152,7 +152,7 @@ enum ProductExperimentRolloutWorkflow {
   }
 
   static func applying(
-    _ action: ProductExperimentRolloutAction,
+    _ action: ProductTournamentExperimentRolloutAction,
     experimentID: String,
     to config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
@@ -162,7 +162,7 @@ enum ProductExperimentRolloutWorkflow {
     var next = config
     guard let experimentIndex = next.experiments.firstIndex(where: { $0.id == experimentID })
     else {
-      throw ProductExperimentRolloutError.unknownExperiment(experimentID)
+      throw ProductTournamentExperimentRolloutError.unknownExperiment(experimentID)
     }
 
     let experiment = next.experiments[experimentIndex]
@@ -215,7 +215,7 @@ enum ProductExperimentRolloutWorkflow {
   }
 
   static func evidenceRunIDs(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     evidenceIndex.summaries(for: experiment)
@@ -224,8 +224,8 @@ enum ProductExperimentRolloutWorkflow {
   }
 
   private static func summary(
-    for action: ProductExperimentRolloutAction,
-    experiment: ProductExperiment
+    for action: ProductTournamentExperimentRolloutAction,
+    experiment: ProductTournamentExperiment
   ) -> String {
     switch action {
     case .promoteOrConfirm:
@@ -246,57 +246,57 @@ enum ProductExperimentRolloutWorkflow {
   }
 }
 
-enum ProductExperimentGitRolloutWorkflow {
+enum ProductTournamentExperimentGitRolloutWorkflow {
   static func preview(
     experimentID: String,
     in config: ProductTournamentConfig,
     repoURL: URL,
     acceptedBranchName: String? = nil
-  ) async throws -> ProductExperimentGitRolloutPreview {
+  ) async throws -> ProductTournamentExperimentGitRolloutPreview {
     guard CompassWorkspace.isGitRepository(repoURL) else {
-      throw ProductExperimentGitRolloutError.missingGitRepository(repoURL)
+      throw ProductTournamentExperimentGitRolloutError.missingGitRepository(repoURL)
     }
     guard let experiment = config.experiments.first(where: { $0.id == experimentID }) else {
-      throw ProductExperimentGitRolloutError.unknownExperiment(experimentID)
+      throw ProductTournamentExperimentGitRolloutError.unknownExperiment(experimentID)
     }
-    try await ProductExperimentGit.validateBranchName(experiment.branchName, in: repoURL)
+    try await ProductTournamentExperimentGit.validateBranchName(experiment.branchName, in: repoURL)
     let acceptedBranch: String
     if let acceptedBranchName {
       acceptedBranch = acceptedBranchName
     } else {
-      acceptedBranch = try await ProductExperimentGit.currentBranch(in: repoURL)
+      acceptedBranch = try await ProductTournamentExperimentGit.currentBranch(in: repoURL)
     }
-    try await ProductExperimentGit.validateBranchName(acceptedBranch, in: repoURL)
+    try await ProductTournamentExperimentGit.validateBranchName(acceptedBranch, in: repoURL)
 
-    let actualExperimentSha = try await ProductExperimentGit.branchHead(
+    let actualExperimentSha = try await ProductTournamentExperimentGit.branchHead(
       experiment.branchName,
       in: repoURL
     )
-    let acceptedBeforeSha = try await ProductExperimentGit.branchHead(acceptedBranch, in: repoURL)
-    let mergeBaseSha = try await ProductExperimentGit.output(
+    let acceptedBeforeSha = try await ProductTournamentExperimentGit.branchHead(acceptedBranch, in: repoURL)
+    let mergeBaseSha = try await ProductTournamentExperimentGit.output(
       ["merge-base", acceptedBranch, experiment.branchName],
       in: repoURL,
       commandName: "merge-base \(acceptedBranch) \(experiment.branchName)"
     )
-    let canFastForward = try await ProductExperimentGit.isAncestor(
+    let canFastForward = try await ProductTournamentExperimentGit.isAncestor(
       acceptedBranch,
       of: experiment.branchName,
       in: repoURL
     )
     let archiveBranchName = archiveBranchName(for: experiment, in: config)
-    let changedFiles = try await ProductExperimentGit.lines(
+    let changedFiles = try await ProductTournamentExperimentGit.lines(
       ["diff", "--name-status", "\(acceptedBranch)...\(experiment.branchName)"],
       in: repoURL,
       commandName: "diff \(acceptedBranch)...\(experiment.branchName)",
       maxLines: 12
     )
-    let commitSubjects = try await ProductExperimentGit.lines(
+    let commitSubjects = try await ProductTournamentExperimentGit.lines(
       ["log", "--oneline", "--decorate=short", "--max-count=8", "\(acceptedBranch)..\(experiment.branchName)"],
       in: repoURL,
       commandName: "log \(acceptedBranch)..\(experiment.branchName)",
       maxLines: 8
     )
-    return ProductExperimentGitRolloutPreview(
+    return ProductTournamentExperimentGitRolloutPreview(
       experimentID: experiment.id,
       productHypothesisID: experiment.productHypothesisID,
       experimentBranchName: experiment.branchName,
@@ -322,23 +322,23 @@ enum ProductExperimentGitRolloutWorkflow {
     acceptedBranchName: String? = nil,
     now: Date = Date(),
     decidedBy: String = "Product Tournament Workbench"
-  ) async throws -> ProductExperimentGitRolloutResult {
+  ) async throws -> ProductTournamentExperimentGitRolloutResult {
     guard let experimentIndex = config.experiments.firstIndex(where: { $0.id == experimentID })
     else {
-      throw ProductExperimentGitRolloutError.unknownExperiment(experimentID)
+      throw ProductTournamentExperimentGitRolloutError.unknownExperiment(experimentID)
     }
     let experiment = config.experiments[experimentIndex]
     guard experiment.decision == .promote else {
-      throw ProductExperimentGitRolloutError.expectedDecision(
+      throw ProductTournamentExperimentGitRolloutError.expectedDecision(
         experimentID: experiment.id,
         expected: .promote,
         actual: experiment.decision
       )
     }
     guard let expectedSha = experiment.currentSha else {
-      throw ProductExperimentGitRolloutError.missingExperimentSha(experiment.id)
+      throw ProductTournamentExperimentGitRolloutError.missingExperimentSha(experiment.id)
     }
-    try await ProductExperimentGit.ensureCleanWorktree(repoURL)
+    try await ProductTournamentExperimentGit.ensureCleanWorktree(repoURL)
     let preview = try await preview(
       experimentID: experiment.id,
       in: config,
@@ -346,14 +346,14 @@ enum ProductExperimentGitRolloutWorkflow {
       acceptedBranchName: acceptedBranchName
     )
     guard preview.experimentStateMatchesBranch else {
-      throw ProductExperimentGitRolloutError.staleExperimentSha(
+      throw ProductTournamentExperimentGitRolloutError.staleExperimentSha(
         branchName: experiment.branchName,
         expected: expectedSha,
         actual: preview.actualExperimentSha
       )
     }
 
-    _ = try await ProductExperimentGit.output(
+    _ = try await ProductTournamentExperimentGit.output(
       ["checkout", preview.acceptedBranchName],
       in: repoURL,
       commandName: "checkout \(preview.acceptedBranchName)",
@@ -361,14 +361,14 @@ enum ProductExperimentGitRolloutWorkflow {
     )
     switch preview.kind {
     case .fastForwardPromotion:
-      _ = try await ProductExperimentGit.output(
+      _ = try await ProductTournamentExperimentGit.output(
         ["merge", "--ff-only", experiment.branchName],
         in: repoURL,
         commandName: "merge --ff-only \(experiment.branchName)",
         allowEmptyOutput: true
       )
     case .mergePromotion:
-      _ = try await ProductExperimentGit.output(
+      _ = try await ProductTournamentExperimentGit.output(
         ["merge", "--no-edit", experiment.branchName],
         in: repoURL,
         commandName: "merge --no-edit \(experiment.branchName)",
@@ -378,7 +378,7 @@ enum ProductExperimentGitRolloutWorkflow {
       break
     }
 
-    let acceptedAfterSha = try await ProductExperimentGit.branchHead(
+    let acceptedAfterSha = try await ProductTournamentExperimentGit.branchHead(
       preview.acceptedBranchName,
       in: repoURL
     )
@@ -388,7 +388,7 @@ enum ProductExperimentGitRolloutWorkflow {
       experimentIndex: experimentIndex,
       summary:
         "Promoted \(experiment.title) from \(experiment.branchName) into \(preview.acceptedBranchName) using \(preview.kind.rawValue).",
-      evidenceRunIDs: ProductExperimentRolloutWorkflow.evidenceRunIDs(
+      evidenceRunIDs: ProductTournamentExperimentRolloutWorkflow.evidenceRunIDs(
         for: experiment,
         evidenceIndex: evidenceIndex
       ),
@@ -398,7 +398,7 @@ enum ProductExperimentGitRolloutWorkflow {
       now: now,
       decidedBy: decidedBy
     )
-    return ProductExperimentGitRolloutResult(
+    return ProductTournamentExperimentGitRolloutResult(
       config: next,
       preview: preview,
       acceptedAfterSha: acceptedAfterSha,
@@ -414,24 +414,24 @@ enum ProductExperimentGitRolloutWorkflow {
     acceptedBranchName: String? = nil,
     now: Date = Date(),
     decidedBy: String = "Product Tournament Workbench"
-  ) async throws -> ProductExperimentGitRolloutResult {
+  ) async throws -> ProductTournamentExperimentGitRolloutResult {
     guard CompassWorkspace.isGitRepository(repoURL) else {
-      throw ProductExperimentGitRolloutError.missingGitRepository(repoURL)
+      throw ProductTournamentExperimentGitRolloutError.missingGitRepository(repoURL)
     }
     guard let experimentIndex = config.experiments.firstIndex(where: { $0.id == experimentID })
     else {
-      throw ProductExperimentGitRolloutError.unknownExperiment(experimentID)
+      throw ProductTournamentExperimentGitRolloutError.unknownExperiment(experimentID)
     }
     let experiment = config.experiments[experimentIndex]
     guard experiment.decision == .kill else {
-      throw ProductExperimentGitRolloutError.expectedDecision(
+      throw ProductTournamentExperimentGitRolloutError.expectedDecision(
         experimentID: experiment.id,
         expected: .kill,
         actual: experiment.decision
       )
     }
     guard let expectedSha = experiment.currentSha else {
-      throw ProductExperimentGitRolloutError.missingExperimentSha(experiment.id)
+      throw ProductTournamentExperimentGitRolloutError.missingExperimentSha(experiment.id)
     }
     var preview = try await preview(
       experimentID: experiment.id,
@@ -440,15 +440,15 @@ enum ProductExperimentGitRolloutWorkflow {
       acceptedBranchName: acceptedBranchName
     )
     guard preview.experimentStateMatchesBranch else {
-      throw ProductExperimentGitRolloutError.staleExperimentSha(
+      throw ProductTournamentExperimentGitRolloutError.staleExperimentSha(
         branchName: experiment.branchName,
         expected: expectedSha,
         actual: preview.actualExperimentSha
       )
     }
     let archiveBranch = archiveBranchName(for: experiment, in: config)
-    try await ProductExperimentGit.validateBranchName(archiveBranch, in: repoURL)
-    _ = try await ProductExperimentGit.output(
+    try await ProductTournamentExperimentGit.validateBranchName(archiveBranch, in: repoURL)
+    _ = try await ProductTournamentExperimentGit.output(
       ["update-ref", "refs/heads/\(archiveBranch)", preview.actualExperimentSha],
       in: repoURL,
       commandName: "update-ref refs/heads/\(archiveBranch)",
@@ -463,7 +463,7 @@ enum ProductExperimentGitRolloutWorkflow {
       experimentIndex: experimentIndex,
       summary:
         "Archived \(experiment.title) by preserving \(experiment.branchName) at \(preview.actualExperimentSha) and updating \(archiveBranch).",
-      evidenceRunIDs: ProductExperimentRolloutWorkflow.evidenceRunIDs(
+      evidenceRunIDs: ProductTournamentExperimentRolloutWorkflow.evidenceRunIDs(
         for: experiment,
         evidenceIndex: evidenceIndex
       ),
@@ -473,7 +473,7 @@ enum ProductExperimentGitRolloutWorkflow {
       now: now,
       decidedBy: decidedBy
     )
-    return ProductExperimentGitRolloutResult(
+    return ProductTournamentExperimentGitRolloutResult(
       config: next,
       preview: preview,
       acceptedAfterSha: preview.acceptedBeforeSha,
@@ -482,7 +482,7 @@ enum ProductExperimentGitRolloutWorkflow {
   }
 
   private static func applyGitDecision(
-    _ target: ProductExperimentDecision,
+    _ target: ProductTournamentExperimentDecision,
     to config: ProductTournamentConfig,
     experimentIndex: Int,
     summary: String,
@@ -527,7 +527,7 @@ enum ProductExperimentGitRolloutWorkflow {
   }
 
   private static func archiveBranchName(
-    for experiment: ProductExperiment,
+    for experiment: ProductTournamentExperiment,
     in config: ProductTournamentConfig
   ) -> String {
     let hypothesis = config.productHypotheses.first { $0.id == experiment.productHypothesisID }
@@ -540,11 +540,11 @@ enum ProductExperimentGitRolloutWorkflow {
 }
 
 extension CompassWorkspace {
-  func productExperimentGitRolloutPreview(
+  func productTournamentExperimentGitRolloutPreview(
     experimentID: String,
     acceptedBranchName: String? = nil
-  ) async throws -> ProductExperimentGitRolloutPreview {
-    try await ProductExperimentGitRolloutWorkflow.preview(
+  ) async throws -> ProductTournamentExperimentGitRolloutPreview {
+    try await ProductTournamentExperimentGitRolloutWorkflow.preview(
       experimentID: experimentID,
       in: try readProductTournamentConfig(),
       repoURL: repoURL,
@@ -553,12 +553,12 @@ extension CompassWorkspace {
   }
 
   @discardableResult
-  func promoteProductExperiment(
+  func promoteProductTournamentExperiment(
     experimentID: String,
     acceptedBranchName: String? = nil,
     now: Date = Date()
-  ) async throws -> ProductExperimentGitRolloutResult {
-    let result = try await ProductExperimentGitRolloutWorkflow.promote(
+  ) async throws -> ProductTournamentExperimentGitRolloutResult {
+    let result = try await ProductTournamentExperimentGitRolloutWorkflow.promote(
       experimentID: experimentID,
       in: try readProductTournamentConfig(),
       repoURL: repoURL,
@@ -571,12 +571,12 @@ extension CompassWorkspace {
   }
 
   @discardableResult
-  func archiveProductExperiment(
+  func archiveProductTournamentExperiment(
     experimentID: String,
     acceptedBranchName: String? = nil,
     now: Date = Date()
-  ) async throws -> ProductExperimentGitRolloutResult {
-    let result = try await ProductExperimentGitRolloutWorkflow.archive(
+  ) async throws -> ProductTournamentExperimentGitRolloutResult {
+    let result = try await ProductTournamentExperimentGitRolloutWorkflow.archive(
       experimentID: experimentID,
       in: try readProductTournamentConfig(),
       repoURL: repoURL,
@@ -589,10 +589,10 @@ extension CompassWorkspace {
   }
 }
 
-enum ProductExperimentGit {
+enum ProductTournamentExperimentGit {
   static func validateBranchName(_ branchName: String, in repoURL: URL) async throws {
     guard ProductTournamentExperimentGitRef.isPlausibleBranchName(branchName) else {
-      throw ProductExperimentGitRolloutError.invalidBranchName(branchName)
+      throw ProductTournamentExperimentGitRolloutError.invalidBranchName(branchName)
     }
     let result = try await ProcessRunner.runEnv(
       "git",
@@ -601,7 +601,7 @@ enum ProductExperimentGit {
       timeout: 30
     )
     guard result.exitCode == 0 else {
-      throw ProductExperimentGitRolloutError.invalidBranchName(branchName)
+      throw ProductTournamentExperimentGitRolloutError.invalidBranchName(branchName)
     }
   }
 
@@ -612,7 +612,7 @@ enum ProductExperimentGit {
       commandName: "rev-parse --abbrev-ref HEAD"
     )
     guard branch != "HEAD" else {
-      throw ProductExperimentGitRolloutError.detachedAcceptedBranch
+      throw ProductTournamentExperimentGitRolloutError.detachedAcceptedBranch
     }
     return branch
   }
@@ -633,7 +633,7 @@ enum ProductExperimentGit {
       allowEmptyOutput: true
     )
     guard status.isEmpty else {
-      throw ProductExperimentGitRolloutError.dirtyAcceptedWorktree(status)
+      throw ProductTournamentExperimentGitRolloutError.dirtyAcceptedWorktree(status)
     }
   }
 
@@ -648,7 +648,7 @@ enum ProductExperimentGit {
     )
     if result.exitCode == 0 { return true }
     if result.exitCode == 1 { return false }
-    throw ProductExperimentGitRolloutError.gitCommandFailed(
+    throw ProductTournamentExperimentGitRolloutError.gitCommandFailed(
       command: "merge-base --is-ancestor \(ancestor) \(descendant)",
       detail: result.stderr + result.stdout
     )
@@ -687,7 +687,7 @@ enum ProductExperimentGit {
       timeout: 120
     )
     guard result.exitCode == 0 else {
-      throw ProductExperimentGitRolloutError.gitCommandFailed(
+      throw ProductTournamentExperimentGitRolloutError.gitCommandFailed(
         command: commandName,
         detail: result.stderr + result.stdout
       )
@@ -706,17 +706,17 @@ enum ProductExperimentGit {
 
 @MainActor
 extension CompassProject {
-  func productExperimentGitRolloutPreview(
+  func productTournamentExperimentGitRolloutPreview(
     experimentID: String
-  ) async throws -> ProductExperimentGitRolloutPreview {
+  ) async throws -> ProductTournamentExperimentGitRolloutPreview {
     guard let workspace else {
       throw AppModelError.noRepositorySelected
     }
-    return try await workspace.productExperimentGitRolloutPreview(experimentID: experimentID)
+    return try await workspace.productTournamentExperimentGitRolloutPreview(experimentID: experimentID)
   }
 
-  func applyProductExperimentRolloutAction(
-    _ action: ProductExperimentRolloutAction,
+  func applyProductTournamentExperimentRolloutAction(
+    _ action: ProductTournamentExperimentRolloutAction,
     experimentID: String
   ) async {
     do {
@@ -731,10 +731,10 @@ extension CompassProject {
       if action == .promoteOrConfirm,
         productTournamentConfig.experiments.first(where: { $0.id == experimentID })?.decision == .promote
       {
-        let result = try await workspace.promoteProductExperiment(experimentID: experimentID)
+        let result = try await workspace.promoteProductTournamentExperiment(experimentID: experimentID)
         productTournamentConfig = result.config
         log(
-          "Promoted product experiment \(experimentID) into \(result.preview.acceptedBranchName) at \(String(result.acceptedAfterSha.prefix(12))).",
+          "Promoted tournament experiment \(experimentID) into \(result.preview.acceptedBranchName) at \(String(result.acceptedAfterSha.prefix(12))).",
           level: .success
         )
         return
@@ -742,15 +742,15 @@ extension CompassProject {
       if action == .killOrArchive,
         productTournamentConfig.experiments.first(where: { $0.id == experimentID })?.decision == .kill
       {
-        let result = try await workspace.archiveProductExperiment(experimentID: experimentID)
+        let result = try await workspace.archiveProductTournamentExperiment(experimentID: experimentID)
         productTournamentConfig = result.config
         log(
-          "Archived product experiment \(experimentID) to \(result.archiveBranchName ?? "archive branch").",
+          "Archived tournament experiment \(experimentID) to \(result.archiveBranchName ?? "archive branch").",
           level: .success
         )
         return
       }
-      let next = try ProductExperimentRolloutWorkflow.applying(
+      let next = try ProductTournamentExperimentRolloutWorkflow.applying(
         action,
         experimentID: experimentID,
         to: productTournamentConfig,
@@ -759,7 +759,7 @@ extension CompassProject {
       try workspace.writeProductTournamentConfig(next)
       productTournamentConfig = next
       log(
-        "\(actionTitle) recorded for product experiment \(experimentID).",
+        "\(actionTitle) recorded for tournament experiment \(experimentID).",
         level: .success
       )
     } catch {
@@ -790,7 +790,7 @@ extension CompassProject {
       try workspace.writeProductTournamentConfig(next)
       productTournamentConfig = next
       log(
-        "Applied tournament recommendation for product experiment \(experimentID): \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue).",
+        "Applied tournament recommendation for tournament experiment \(experimentID): \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue).",
         level: .success
       )
     } catch {

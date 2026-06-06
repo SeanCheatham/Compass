@@ -744,7 +744,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     for contenderID: String,
     in config: inout ProductTournamentConfig,
     timestamp: Double,
-    mutate: (inout ProductExperiment) -> Void
+    mutate: (inout ProductTournamentExperiment) -> Void
   ) {
     guard
       let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),

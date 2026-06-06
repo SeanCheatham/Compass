@@ -10,7 +10,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
   var currentWorkflows: [CurrentWorkflow]
   var alternatives: [Alternative]
   var productHypotheses: [ProductHypothesis]
-  var experiments: [ProductExperiment]
+  var experiments: [ProductTournamentExperiment]
   var tournaments: [ProductTournament]
   var tournamentContenders: [ProductTournamentContender]
   var tournamentRounds: [ProductTournamentRound]
@@ -62,7 +62,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     currentWorkflows: [CurrentWorkflow],
     alternatives: [Alternative],
     productHypotheses: [ProductHypothesis],
-    experiments: [ProductExperiment],
+    experiments: [ProductTournamentExperiment],
     tournaments: [ProductTournament] = [],
     tournamentContenders: [ProductTournamentContender] = [],
     tournamentRounds: [ProductTournamentRound] = [],
@@ -108,7 +108,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
       productHypotheses: try container.decodeIfPresent(
         [ProductHypothesis].self, forKey: .productHypotheses) ?? [],
-      experiments: try container.decodeIfPresent([ProductExperiment].self, forKey: .experiments)
+      experiments: try container.decodeIfPresent([ProductTournamentExperiment].self, forKey: .experiments)
         ?? [],
       tournaments: try container.decodeIfPresent([ProductTournament].self, forKey: .tournaments)
         ?? [],
@@ -376,7 +376,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     ]
 
     let experiments = [
-      ProductExperiment(
+      ProductTournamentExperiment(
         id: workflowExperimentID,
         productHypothesisID: workflowHypothesisID,
         title: "\(title) workflow prototype",
@@ -391,7 +391,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         decision: .notRun,
         createdAt: timestamp
       ),
-      ProductExperiment(
+      ProductTournamentExperiment(
         id: proofExperimentID,
         productHypothesisID: proofHypothesisID,
         title: "\(title) proof prototype",
@@ -849,7 +849,7 @@ enum ProductHypothesisStatus: String, Codable, CaseIterable, Equatable, Sendable
   case parked
 }
 
-struct ProductExperiment: Codable, Equatable, Identifiable, Sendable {
+struct ProductTournamentExperiment: Codable, Equatable, Identifiable, Sendable {
   var id: String
   var productHypothesisID: String
   var title: String
@@ -860,7 +860,7 @@ struct ProductExperiment: Codable, Equatable, Identifiable, Sendable {
   var prototypeScope: String
   var scenarioCohortIDs: [String]
   var evidenceSummary: String
-  var decision: ProductExperimentDecision
+  var decision: ProductTournamentExperimentDecision
   var createdAt: Double
   var updatedAt: Double
 
@@ -875,7 +875,7 @@ struct ProductExperiment: Codable, Equatable, Identifiable, Sendable {
     prototypeScope: String,
     scenarioCohortIDs: [String] = [],
     evidenceSummary: String,
-    decision: ProductExperimentDecision,
+    decision: ProductTournamentExperimentDecision,
     createdAt: Double,
     updatedAt: Double? = nil
   ) {
@@ -901,7 +901,7 @@ struct ProductExperiment: Codable, Equatable, Identifiable, Sendable {
   }
 }
 
-enum ProductExperimentDecision: String, Codable, CaseIterable, Equatable, Sendable {
+enum ProductTournamentExperimentDecision: String, Codable, CaseIterable, Equatable, Sendable {
   case notRun = "not_run"
   case keepGoing = "continue"
   case narrow
@@ -1183,7 +1183,7 @@ struct ProductScenario: Codable, Equatable, Identifiable, Sendable {
     )
     self.task = ProductTournamentModelText.cleanedText(
       task,
-      fallback: "Try the product experiment against the current workflow.",
+      fallback: "Try the tournament experiment against the current workflow.",
       limit: 800
     )
     self.successSignal = ProductTournamentModelText.cleanedText(
@@ -1234,7 +1234,7 @@ struct ProductScenarioCohort: Codable, Equatable, Identifiable, Sendable {
 struct ProductTournamentDecision: Codable, Equatable, Identifiable, Sendable {
   var id: String
   var experimentID: String
-  var decision: ProductExperimentDecision
+  var decision: ProductTournamentExperimentDecision
   var summary: String
   var evidenceRunIDs: [String]
   var branchName: String?
@@ -1246,7 +1246,7 @@ struct ProductTournamentDecision: Codable, Equatable, Identifiable, Sendable {
   init(
     id: String,
     experimentID: String,
-    decision: ProductExperimentDecision,
+    decision: ProductTournamentExperimentDecision,
     summary: String,
     evidenceRunIDs: [String] = [],
     branchName: String? = nil,

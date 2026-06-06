@@ -422,8 +422,8 @@ extension AgentExecutor {
         """
     case .multiExperimentImmediate:
       return """
-        - Choose one product experiment for `state.immediate`.
-        - Preserve experiment branch isolation; do not implement several product contenders in one handoff.
+        - Choose one tournament experiment for `state.immediate`.
+        - Preserve tournament experiment branch isolation; do not implement several product contenders in one handoff.
         - If the work truly serves multiple experiments, explicitly scope it as shared experiment infrastructure and explain why.
         """
     case .unknown:

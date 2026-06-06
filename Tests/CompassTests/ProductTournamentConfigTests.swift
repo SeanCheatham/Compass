@@ -295,7 +295,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     requiredProof: ["Lead can find owner and decision faster than chat"],
     status: .active
   )
-  let experiment = ProductExperiment(
+  let experiment = ProductTournamentExperiment(
     id: "experiment-handoff-desk",
     productHypothesisID: hypothesis.id,
     title: "Handoff Desk prototype",
