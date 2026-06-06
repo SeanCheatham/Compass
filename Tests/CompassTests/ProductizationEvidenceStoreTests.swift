@@ -656,7 +656,7 @@ struct ProductizationEvidenceStoreTests {
     try #require(text.contains("contract missing"))
   }
 
-  @Test func planAndReflectPromptsIncludeProductizationEvidenceWithoutTranscripts() throws {
+  @Test func planAndReflectPromptsIncludeProductTournamentContextWithoutTranscripts() throws {
     let config = ProductizationConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
@@ -710,7 +710,8 @@ struct ProductizationEvidenceStoreTests {
     )
 
     for prompt in [plan, reflect] {
-      try #require(prompt.contains("## Productization Context"))
+      try #require(prompt.contains("## Product Tournament Context"))
+      try #require(!prompt.contains("## Productization Context"))
       try #require(prompt.contains(config.experiments[0].branchName))
       try #require(prompt.contains("Factory autopilot step"))
       try #require(prompt.contains("executable false"))

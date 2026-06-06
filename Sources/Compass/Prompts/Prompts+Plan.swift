@@ -154,9 +154,9 @@ extension Prompts {
         or expose evidence gaps, but normal build/test/verify discipline still
         applies.
       - Start tournament planning from the active pain hypotheses, product
-        tournament rounds, contenders, and experiment branches in Productization
-        Context. Choose work that advances one contender in one round whenever
-        that is the sharpest next step.
+        tournament rounds, contenders, and experiment branches in Product
+        Tournament Context. Choose work that advances one contender in one round
+        whenever that is the sharpest next step.
       - Round 1 is plan-only: do not implement product code just to compare
         product plans. Improve the plan, scenario, simulated-user prompt, or
         evaluation rubric when the current round is `product_plans`.
@@ -166,18 +166,18 @@ extension Prompts {
         implementation work on eliminated contenders.
       - Round 2 should prove the core technology for a surviving contender.
         Round 3 should exercise a low-medium fidelity product version.
-      - When Productization Context includes a "Round 2 implementation target",
+      - When Product Tournament Context includes a "Round 2 implementation target",
         treat it as the current implementation target: the Immediate handoff
         must name `selected_experiment`, use that branch/worktree, build only
         `only_contender`, and keep the Outcome scoped to the named
         `core_technology_proof`. Pull at least one Acceptance check from the
         target's acceptance signals.
-      - When Productization Context includes `round_2_evidence_lock`, treat
+      - When Product Tournament Context includes `round_2_evidence_lock`, treat
         `paused_sibling_experiments` as intentionally paused tournament tracks.
         Do not plan scenario, cohort, autopilot, or implementation work for
         those siblings until Round 2 transitions; mention the pause in Outcome
         or Why it matters when it could otherwise look like missing evidence.
-      - When Productization Context includes only a "Round 2 feasibility
+      - When Product Tournament Context includes only a "Round 2 feasibility
         handoff", treat it as supporting evidence for the same narrowed
         contender: scope one Immediate around that contender's experiment
         branch/worktree and the named core-technology proof.
@@ -336,7 +336,7 @@ extension Prompts {
       ## Vision
       \(fencedOrEmpty(visionDigest, empty: "_(no vision set)_"))
 
-      ## Productization Context
+      ## Product Tournament Context
       \(productizationDigest)
 
       \(forgeProfileSection(forgeProfile: forgeProfile))

@@ -74,12 +74,12 @@ and advances them through rounds:
   proof that demonstrates the hard part can work. After Round 1 advances a
   contender, Compass emits a Round 2 feasibility handoff that names the narrowed
   contender, implementation track, branch/worktree, plan-readiness evidence, and
-  acceptance signals for the next build slice. Productization Context also turns
-  that handoff into a single Plan-facing implementation target, so the next
-  Immediate handoff builds only the selected contender's core-technology proof on
-  its experiment branch/worktree. Scenario evidence launches validate that target
-  before running, blocking accidental evidence collection against sibling
-  contenders once Round 2 has narrowed to one implementation track; the
+  acceptance signals for the next build slice. Product Tournament Context also
+  turns that handoff into a single Plan-facing implementation target, so the
+  next Immediate handoff builds only the selected contender's core-technology
+  proof on its experiment branch/worktree. Scenario evidence launches validate
+  that target before running, blocking accidental evidence collection against
+  sibling contenders once Round 2 has narrowed to one implementation track; the
   Workbench also preselects that track and visibly locks sibling scenario/cohort
   run controls, while product-factory/autopilot planning omits sibling proof
   targets and evidence steps. Plan/Reflect prompts also receive a
