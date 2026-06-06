@@ -882,7 +882,7 @@ struct ProductExperiment: Codable, Equatable, Identifiable, Sendable {
     self.id = ProductTournamentModelText.identifier(id, fallback: "experiment")
     self.productHypothesisID = ProductTournamentModelText.identifier(productHypothesisID, fallback: "product-hypothesis")
     self.title = ProductTournamentModelText.cleanedText(
-      title, fallback: "Product experiment", limit: 180)
+      title, fallback: "Tournament experiment", limit: 180)
     self.branchName = ProductTournamentModelText.cleanedText(
       branchName, fallback: "codex/product-experiment", limit: 240)
     self.worktreeID = ProductTournamentModelText.identifier(worktreeID, fallback: "worktree")

@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProductExperimentWorktree: Equatable {
+struct ProductTournamentExperimentWorktree: Equatable {
   var experimentID: String
   var branchName: String
   var worktreeURL: URL
@@ -8,7 +8,7 @@ struct ProductExperimentWorktree: Equatable {
   var currentSha: String
 }
 
-struct ProductExperimentSimulationTarget: Codable, Equatable, Sendable {
+struct ProductTournamentExperimentSimulationTarget: Codable, Equatable, Sendable {
   var experimentID: String
   var branchName: String
   var commitSha: String
@@ -34,7 +34,7 @@ struct ProductExperimentSimulationTarget: Codable, Equatable, Sendable {
   }
 }
 
-enum ProductExperimentWorktreeError: LocalizedError, Equatable {
+enum ProductTournamentExperimentWorktreeError: LocalizedError, Equatable {
   case experimentNotFound(String)
   case missingGitRepository(URL)
   case invalidBranchName(String)
@@ -46,24 +46,24 @@ enum ProductExperimentWorktreeError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .experimentNotFound(let id):
-      return "Product experiment \(id) was not found in product tournament state."
+      return "Tournament experiment \(id) was not found in product tournament state."
     case .missingGitRepository(let url):
-      return "Product experiment worktrees require a git repository at \(url.path)."
+      return "Tournament experiment worktrees require a git repository at \(url.path)."
     case .invalidBranchName(let branch):
-      return "Invalid product experiment branch name: \(branch)."
+      return "Invalid tournament experiment branch name: \(branch)."
     case .dirtyBaseWorktree(let status):
       return "Refusing to create an experiment branch from a dirty base worktree:\n\(status)"
     case .worktreePathCollision(let url):
-      return "Product experiment worktree path exists but is not a git worktree: \(url.path)."
+      return "Tournament experiment worktree path exists but is not a git worktree: \(url.path)."
     case .worktreeOnUnexpectedBranch(let expected, let actual):
-      return "Product experiment worktree is on \(actual), expected \(expected)."
+      return "Tournament experiment worktree is on \(actual), expected \(expected)."
     case .gitCommandFailed(let command, let detail):
       return "Git command failed (\(command)): \(detail)"
     }
   }
 }
 
-enum ProductExperimentGitRef {
+enum ProductTournamentExperimentGitRef {
   static func isPlausibleBranchName(_ value: String) -> Bool {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed == value, !trimmed.isEmpty, trimmed.count <= 240 else { return false }
@@ -80,13 +80,13 @@ enum ProductExperimentGitRef {
   }
 }
 
-enum ProductExperimentWorktreeManager {
+enum ProductTournamentExperimentWorktreeManager {
   static func ensureWorktree(
     for experiment: ProductExperiment,
     in workspace: CompassWorkspace
-  ) async throws -> ProductExperimentWorktree {
+  ) async throws -> ProductTournamentExperimentWorktree {
     guard CompassWorkspace.isGitRepository(workspace.repoURL) else {
-      throw ProductExperimentWorktreeError.missingGitRepository(workspace.repoURL)
+      throw ProductTournamentExperimentWorktreeError.missingGitRepository(workspace.repoURL)
     }
     try await validateBranchName(experiment.branchName, in: workspace.repoURL)
     try await ensureBaseWorktreeClean(workspace.repoURL)
@@ -104,11 +104,11 @@ enum ProductExperimentWorktreeManager {
       )
     }
 
-    let worktreeURL = workspace.productExperimentWorktreeURL(experimentID: experiment.id)
+    let worktreeURL = workspace.productTournamentExperimentWorktreeURL(experimentID: experiment.id)
     let fm = FileManager.default
     if fm.fileExists(atPath: worktreeURL.path) {
       guard try await isGitWorktree(worktreeURL) else {
-        throw ProductExperimentWorktreeError.worktreePathCollision(worktreeURL)
+        throw ProductTournamentExperimentWorktreeError.worktreePathCollision(worktreeURL)
       }
       let actualBranch = try await gitOutput(
         ["rev-parse", "--abbrev-ref", "HEAD"],
@@ -116,7 +116,7 @@ enum ProductExperimentWorktreeManager {
         commandName: "worktree branch"
       )
       guard actualBranch == experiment.branchName else {
-        throw ProductExperimentWorktreeError.worktreeOnUnexpectedBranch(
+        throw ProductTournamentExperimentWorktreeError.worktreeOnUnexpectedBranch(
           expected: experiment.branchName,
           actual: actualBranch
         )
@@ -138,7 +138,7 @@ enum ProductExperimentWorktreeManager {
       in: worktreeURL,
       commandName: "worktree rev-parse HEAD"
     )
-    return ProductExperimentWorktree(
+    return ProductTournamentExperimentWorktree(
       experimentID: experiment.id,
       branchName: experiment.branchName,
       worktreeURL: worktreeURL,
@@ -148,8 +148,8 @@ enum ProductExperimentWorktreeManager {
   }
 
   private static func validateBranchName(_ branchName: String, in repoURL: URL) async throws {
-    guard ProductExperimentGitRef.isPlausibleBranchName(branchName) else {
-      throw ProductExperimentWorktreeError.invalidBranchName(branchName)
+    guard ProductTournamentExperimentGitRef.isPlausibleBranchName(branchName) else {
+      throw ProductTournamentExperimentWorktreeError.invalidBranchName(branchName)
     }
     let result = try await ProcessRunner.runEnv(
       "git",
@@ -158,7 +158,7 @@ enum ProductExperimentWorktreeManager {
       timeout: 30
     )
     guard result.exitCode == 0 else {
-      throw ProductExperimentWorktreeError.invalidBranchName(branchName)
+      throw ProductTournamentExperimentWorktreeError.invalidBranchName(branchName)
     }
   }
 
@@ -170,7 +170,7 @@ enum ProductExperimentWorktreeManager {
       allowEmptyOutput: true
     )
     guard status.isEmpty else {
-      throw ProductExperimentWorktreeError.dirtyBaseWorktree(status)
+      throw ProductTournamentExperimentWorktreeError.dirtyBaseWorktree(status)
     }
   }
 
@@ -183,7 +183,7 @@ enum ProductExperimentWorktreeManager {
     )
     if result.exitCode == 0 { return true }
     if result.exitCode == 1 { return false }
-    throw ProductExperimentWorktreeError.gitCommandFailed(
+    throw ProductTournamentExperimentWorktreeError.gitCommandFailed(
       command: "show-ref \(branchName)",
       detail: result.stderr + result.stdout
     )
@@ -213,7 +213,7 @@ enum ProductExperimentWorktreeManager {
       timeout: 120
     )
     guard result.exitCode == 0 else {
-      throw ProductExperimentWorktreeError.gitCommandFailed(
+      throw ProductTournamentExperimentWorktreeError.gitCommandFailed(
         command: commandName,
         detail: result.stderr + result.stdout
       )
@@ -224,21 +224,21 @@ enum ProductExperimentWorktreeManager {
 }
 
 extension CompassWorkspace {
-  func productExperimentWorktreeURL(experimentID: String) -> URL {
+  func productTournamentExperimentWorktreeURL(experimentID: String) -> URL {
     productTournamentURL
       .appending(path: "worktrees", directoryHint: .isDirectory)
       .appending(path: ProductTournamentModelText.identifier(experimentID, fallback: "experiment"))
   }
 
   @discardableResult
-  func prepareProductExperimentWorktree(
+  func prepareProductTournamentExperimentWorktree(
     experimentID: String
-  ) async throws -> ProductExperimentWorktree {
+  ) async throws -> ProductTournamentExperimentWorktree {
     var config = try readProductTournamentConfig()
     guard let index = config.experiments.firstIndex(where: { $0.id == experimentID }) else {
-      throw ProductExperimentWorktreeError.experimentNotFound(experimentID)
+      throw ProductTournamentExperimentWorktreeError.experimentNotFound(experimentID)
     }
-    let prepared = try await ProductExperimentWorktreeManager.ensureWorktree(
+    let prepared = try await ProductTournamentExperimentWorktreeManager.ensureWorktree(
       for: config.experiments[index],
       in: self
     )

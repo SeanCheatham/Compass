@@ -206,7 +206,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     ## Deterministic Product Tournament Experience Contract
 
-    Product experiments use `run_product_tournament_experience(ProductTournamentExperienceInput) ->
+    Tournament experiments use `run_product_tournament_experience(ProductTournamentExperienceInput) ->
     ProductTournamentExperienceTrace` as a semantic app journey. The input carries
     the pain, product hypothesis, experiment, current workflow, alternatives, and tournament
     decision intent being evaluated. The generated app owns the allowed action list for each state,

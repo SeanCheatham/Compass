@@ -176,7 +176,7 @@ struct ProductTournamentGitRolloutTests {
     )
     try workspace.writeProductTournamentConfig(config)
     try workspace.writeProductTournamentEvidenceRecord(makeGitRolloutEvidence(config: config))
-    let worktreeURL = workspace.productExperimentWorktreeURL(experimentID: "experiment-archive")
+    let worktreeURL = workspace.productTournamentExperimentWorktreeURL(experimentID: "experiment-archive")
     try FileManager.default.createDirectory(
       at: worktreeURL.deletingLastPathComponent(),
       withIntermediateDirectories: true
@@ -253,7 +253,7 @@ private func makeGitRolloutConfig(
   let pain = PainHypothesis(
     id: "pain-rollout",
     title: "Rollout pain",
-    rawPain: "Users need reliable product experiment rollout.",
+    rawPain: "Users need reliable tournament experiment rollout.",
     targetSituation: "A product contender is ready for a decision.",
     painFrequency: "Weekly",
     painSeverity: "High",

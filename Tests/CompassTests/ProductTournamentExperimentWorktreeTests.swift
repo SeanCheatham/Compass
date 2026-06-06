@@ -3,8 +3,8 @@ import Testing
 
 @testable import Compass
 
-struct ProductExperimentWorktreeTests {
-  @Test func preparesExperimentBranchesAndSeparateWorktrees() async throws {
+struct ProductTournamentExperimentWorktreeTests {
+  @Test func preparesTournamentExperimentBranchesAndSeparateWorktrees() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
     try setupCommittedRepo(at: root)
@@ -15,10 +15,10 @@ struct ProductExperimentWorktreeTests {
     try workspace.writeProductTournamentConfig(config)
     let initialMainSha = try await gitOutput(["rev-parse", "HEAD"], in: root)
 
-    let first = try await workspace.prepareProductExperimentWorktree(
+    let first = try await workspace.prepareProductTournamentExperimentWorktree(
       experimentID: "experiment-command-board"
     )
-    let second = try await workspace.prepareProductExperimentWorktree(
+    let second = try await workspace.prepareProductTournamentExperimentWorktree(
       experimentID: "experiment-timeline"
     )
 
@@ -32,7 +32,7 @@ struct ProductExperimentWorktreeTests {
     try writeFile("experiment-only.txt", contents: "branch one\n", at: first.worktreeURL)
     try await git(["add", "experiment-only.txt"], in: first.worktreeURL)
     try await git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "Experiment one"], in: first.worktreeURL)
-    let updatedFirst = try await workspace.prepareProductExperimentWorktree(
+    let updatedFirst = try await workspace.prepareProductTournamentExperimentWorktree(
       experimentID: "experiment-command-board"
     )
     let saved = try workspace.readProductTournamentConfig()
@@ -51,7 +51,7 @@ struct ProductExperimentWorktreeTests {
     )
   }
 
-  @Test func invalidExperimentBranchNameIsRejected() async throws {
+  @Test func invalidTournamentExperimentBranchNameIsRejected() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
     try setupCommittedRepo(at: root)
@@ -71,15 +71,15 @@ struct ProductExperimentWorktreeTests {
       createdAt: 1
     )
 
-    await #expect(throws: ProductExperimentWorktreeError.invalidBranchName("bad branch")) {
-      _ = try await ProductExperimentWorktreeManager.ensureWorktree(
+    await #expect(throws: ProductTournamentExperimentWorktreeError.invalidBranchName("bad branch")) {
+      _ = try await ProductTournamentExperimentWorktreeManager.ensureWorktree(
         for: experiment,
         in: workspace
       )
     }
   }
 
-  @Test func dirtyBaseWorktreeIsRejectedBeforeBranchCreation() async throws {
+  @Test func dirtyBaseWorktreeIsRejectedBeforeTournamentBranchCreation() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
     try setupCommittedRepo(at: root)
@@ -89,9 +89,9 @@ struct ProductExperimentWorktreeTests {
     let experiment = makeBranchingProductTournamentConfig().experiments[0]
 
     do {
-      _ = try await ProductExperimentWorktreeManager.ensureWorktree(for: experiment, in: workspace)
+      _ = try await ProductTournamentExperimentWorktreeManager.ensureWorktree(for: experiment, in: workspace)
       #expect(Bool(false), "Expected dirty worktree rejection.")
-    } catch let error as ProductExperimentWorktreeError {
+    } catch let error as ProductTournamentExperimentWorktreeError {
       switch error {
       case .dirtyBaseWorktree(let status):
         try #require(status.contains("dirty.txt"))
@@ -177,7 +177,7 @@ struct ProductExperimentWorktreeTests {
   }
 
   @Test func simulationTargetCapturesReadOnlyCommitIdentity() throws {
-    let target = ProductExperimentSimulationTarget(
+    let target = ProductTournamentExperimentSimulationTarget(
       experimentID: "experiment-command-board",
       branchName: "compass/exp/command-board",
       commitSha: "abc123",
@@ -185,7 +185,7 @@ struct ProductExperimentWorktreeTests {
     )
 
     let decoded = try JSONDecoder().decode(
-      ProductExperimentSimulationTarget.self,
+      ProductTournamentExperimentSimulationTarget.self,
       from: try JSONEncoder().encode(target)
     )
 

@@ -171,7 +171,7 @@ enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .unknownExperiment(let id):
-      return "Product experiment \(id) was not found in product tournament state."
+      return "Tournament experiment \(id) was not found in product tournament state."
     case .unknownCohort(let id):
       return "Product scenario cohort \(id) was not found in product tournament state."
     case .unknownScenario(let id):
@@ -203,7 +203,7 @@ enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
       return
         "Round 2 implementation target for tournament \(tournamentID) round \(roundID) is experiment \(expectedExperimentID) / contender \(contenderID). Experiment \(selectedExperimentID) would build a competing contender; run the selected target or transition the tournament first."
     case .missingExperimentCommit(let id):
-      return "Product experiment \(id) has no commit to run."
+      return "Tournament experiment \(id) has no commit to run."
     case .staleScenarioCommit(let scenarioID, let expected, let actual):
       return
         "Scenario \(scenarioID) targets \(expected), but the selected experiment is at \(actual). Refresh or save the scenario before running evidence."
@@ -508,7 +508,7 @@ enum ProductTournamentScenarioCoordinator {
     for experiment: ProductExperiment,
     in workspace: CompassWorkspace
   ) -> URL {
-    let worktreeURL = workspace.productExperimentWorktreeURL(experimentID: experiment.id)
+    let worktreeURL = workspace.productTournamentExperimentWorktreeURL(experimentID: experiment.id)
     if FileManager.default.fileExists(atPath: worktreeURL.path) {
       return worktreeURL
     }

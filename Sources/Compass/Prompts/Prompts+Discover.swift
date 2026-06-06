@@ -537,7 +537,7 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
     case .experimentReferencesMissingProductHypothesis(
       let experimentID, let productHypothesisID):
       return
-        "Product experiment \(experimentID) references missing product hypothesis \(productHypothesisID)."
+        "Tournament experiment \(experimentID) references missing product hypothesis \(productHypothesisID)."
     case .tournamentReferencesMissingPain(let tournamentID, let painID):
       return "Product tournament \(tournamentID) references missing pain \(painID)."
     case .tournamentReferencesMissingContender(let tournamentID, let contenderID):

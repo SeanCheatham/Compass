@@ -58,6 +58,7 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains("run_gui_replay(GuiReplayTrace) -> GuiSemanticSnapshot"))
     try #require(readme.contains("app-cli gui-replay --input"))
     try #require(readme.contains("Deterministic Product Tournament Experience Contract"))
+    try #require(readme.contains("Tournament experiments use"))
     try #require(readme.contains("run_product_tournament_experience(ProductTournamentExperienceInput) ->"))
     try #require(readme.contains("app-cli product-tournament-experience --input"))
     try #require(readme.contains("provide_requested_input"))

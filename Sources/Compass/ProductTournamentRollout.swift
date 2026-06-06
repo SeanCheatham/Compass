@@ -76,23 +76,23 @@ enum ProductExperimentGitRolloutError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .unknownExperiment(let id):
-      return "Product experiment \(id) was not found in product tournament state."
+      return "Tournament experiment \(id) was not found in product tournament state."
     case .missingGitRepository(let url):
-      return "Product experiment rollout requires a git repository at \(url.path)."
+      return "Tournament experiment rollout requires a git repository at \(url.path)."
     case .expectedDecision(let experimentID, let expected, let actual):
       return
-        "Product experiment \(experimentID) must be \(expected.rawValue) before this git rollout, but it is \(actual.rawValue)."
+        "Tournament experiment \(experimentID) must be \(expected.rawValue) before this git rollout, but it is \(actual.rawValue)."
     case .missingExperimentSha(let id):
-      return "Product experiment \(id) has no recorded current commit sha."
+      return "Tournament experiment \(id) has no recorded current commit sha."
     case .staleExperimentSha(let branchName, let expected, let actual):
       return
-        "Product experiment branch \(branchName) is stale: state expected \(expected), but git has \(actual). Refresh product tournament state before rollout."
+        "Tournament experiment branch \(branchName) is stale: state expected \(expected), but git has \(actual). Refresh product tournament state before rollout."
     case .detachedAcceptedBranch:
       return "Cannot promote into a detached HEAD. Check out the accepted product branch first."
     case .dirtyAcceptedWorktree(let status):
-      return "Refusing product experiment rollout from a dirty accepted worktree:\n\(status)"
+      return "Refusing tournament experiment rollout from a dirty accepted worktree:\n\(status)"
     case .invalidBranchName(let branch):
-      return "Invalid product experiment rollout branch name: \(branch)."
+      return "Invalid tournament experiment rollout branch name: \(branch)."
     case .gitCommandFailed(let command, let detail):
       return "Git command failed (\(command)): \(detail)"
     }
@@ -128,7 +128,7 @@ enum ProductExperimentRolloutError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .unknownExperiment(let id):
-      return "Product experiment \(id) was not found in product tournament state."
+      return "Tournament experiment \(id) was not found in product tournament state."
     }
   }
 }
@@ -591,7 +591,7 @@ extension CompassWorkspace {
 
 enum ProductExperimentGit {
   static func validateBranchName(_ branchName: String, in repoURL: URL) async throws {
-    guard ProductExperimentGitRef.isPlausibleBranchName(branchName) else {
+    guard ProductTournamentExperimentGitRef.isPlausibleBranchName(branchName) else {
       throw ProductExperimentGitRolloutError.invalidBranchName(branchName)
     }
     let result = try await ProcessRunner.runEnv(
