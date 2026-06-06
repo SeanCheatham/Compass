@@ -54,7 +54,7 @@ struct ProductScenarioDraft: Equatable, Sendable {
     )
     self.title = ProductizationModelText.cleanedText(
       title,
-      fallback: "Productization scenario",
+      fallback: "Product tournament scenario",
       limit: 180
     )
     self.task = ProductizationModelText.cleanedText(
@@ -77,7 +77,7 @@ struct ProductScenarioDraft: Equatable, Sendable {
   }
 }
 
-struct ProductizationScenarioRunOutcome {
+struct ProductTournamentScenarioRunOutcome {
   var request: ProductizationSimulationRequest
   var result: ProductizationRunResult
   var record: ProductizationEvidenceRecord
@@ -107,11 +107,11 @@ struct ProductizationScenarioRunOutcome {
   }
 }
 
-struct ProductizationScenarioCohortRunOutcome {
+struct ProductTournamentScenarioCohortRunOutcome {
   var experimentID: String
   var cohortID: String
   var mode: ProductizationSimulationMode
-  var outcomes: [ProductizationScenarioRunOutcome]
+  var outcomes: [ProductTournamentScenarioRunOutcome]
   var skippedScenarioIDs: [String]
 
   var completedRunCount: Int {
@@ -143,7 +143,7 @@ struct ProductizationScenarioCohortRunOutcome {
   }
 }
 
-enum ProductizationScenarioRunError: LocalizedError, Equatable {
+enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
   case unknownExperiment(String)
   case unknownCohort(String)
   case unknownScenario(String)
@@ -171,21 +171,21 @@ enum ProductizationScenarioRunError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .unknownExperiment(let id):
-      return "Product experiment \(id) was not found in productization state."
+      return "Product experiment \(id) was not found in product tournament state."
     case .unknownCohort(let id):
-      return "Product scenario cohort \(id) was not found in productization state."
+      return "Product scenario cohort \(id) was not found in product tournament state."
     case .unknownScenario(let id):
-      return "Product scenario \(id) was not found in productization state."
+      return "Product scenario \(id) was not found in product tournament state."
     case .unknownSolution(let id):
-      return "Product solution \(id) was not found in productization state."
+      return "Product solution \(id) was not found in product tournament state."
     case .unknownPain(let id):
-      return "Pain hypothesis \(id) was not found in productization state."
+      return "Pain hypothesis \(id) was not found in product tournament state."
     case .unknownSegment(let id):
-      return "User segment \(id) was not found in productization state."
+      return "User segment \(id) was not found in product tournament state."
     case .unknownWorkflow(let id):
-      return "Current workflow \(id) was not found in productization state."
+      return "Current workflow \(id) was not found in product tournament state."
     case .unknownAlternative(let id):
-      return "Current alternative \(id) was not found in productization state."
+      return "Current alternative \(id) was not found in product tournament state."
     case .scenarioExperimentMismatch(
       let scenarioID,
       let selectedExperimentID,
@@ -214,14 +214,14 @@ enum ProductizationScenarioRunError: LocalizedError, Equatable {
   }
 }
 
-enum ProductizationScenarioCoordinator {
+enum ProductTournamentScenarioCoordinator {
   static func revisionDraft(
     for brief: ProductFactoryRevisionBrief,
     in config: ProductizationConfig,
     now: Date = Date()
   ) throws -> ProductScenarioDraft {
     guard let experiment = config.experiments.first(where: { $0.id == brief.experimentID }) else {
-      throw ProductizationScenarioRunError.unknownExperiment(brief.experimentID)
+      throw ProductTournamentScenarioRunError.unknownExperiment(brief.experimentID)
     }
     let fallback = defaultDraft(for: experiment, in: config, now: now)
     let existingScenario = brief.targetScenarioID.flatMap { scenarioID in
@@ -231,16 +231,16 @@ enum ProductizationScenarioCoordinator {
     }
     let segmentID = brief.targetPersonaID ?? existingScenario?.segmentID ?? fallback.segmentID
     guard config.userSegments.contains(where: { $0.id == segmentID }) else {
-      throw ProductizationScenarioRunError.unknownSegment(segmentID)
+      throw ProductTournamentScenarioRunError.unknownSegment(segmentID)
     }
     let workflowID = existingScenario?.currentWorkflowID ?? fallback.currentWorkflowID
     guard config.currentWorkflows.contains(where: { $0.id == workflowID }) else {
-      throw ProductizationScenarioRunError.unknownWorkflow(workflowID)
+      throw ProductTournamentScenarioRunError.unknownWorkflow(workflowID)
     }
     let alternativeID = existingScenario?.alternativeID ?? fallback.alternativeID
     if let alternativeID {
       guard config.alternatives.contains(where: { $0.id == alternativeID }) else {
-        throw ProductizationScenarioRunError.unknownAlternative(alternativeID)
+        throw ProductTournamentScenarioRunError.unknownAlternative(alternativeID)
       }
     }
     let cohortID =
@@ -348,17 +348,17 @@ enum ProductizationScenarioCoordinator {
   ) throws -> ProductizationConfig {
     var next = config
     guard let experiment = next.experiments.first(where: { $0.id == draft.experimentID }) else {
-      throw ProductizationScenarioRunError.unknownExperiment(draft.experimentID)
+      throw ProductTournamentScenarioRunError.unknownExperiment(draft.experimentID)
     }
     guard next.userSegments.contains(where: { $0.id == draft.segmentID }) else {
-      throw ProductizationScenarioRunError.unknownSegment(draft.segmentID)
+      throw ProductTournamentScenarioRunError.unknownSegment(draft.segmentID)
     }
     guard next.currentWorkflows.contains(where: { $0.id == draft.currentWorkflowID }) else {
-      throw ProductizationScenarioRunError.unknownWorkflow(draft.currentWorkflowID)
+      throw ProductTournamentScenarioRunError.unknownWorkflow(draft.currentWorkflowID)
     }
     if let alternativeID = draft.alternativeID {
       guard next.alternatives.contains(where: { $0.id == alternativeID }) else {
-        throw ProductizationScenarioRunError.unknownAlternative(alternativeID)
+        throw ProductTournamentScenarioRunError.unknownAlternative(alternativeID)
       }
     }
 
@@ -428,13 +428,13 @@ enum ProductizationScenarioCoordinator {
     targetDecision: ProductExperimentDecision? = nil
   ) async throws -> ProductizationSimulationRequest {
     guard let experiment = config.experiments.first(where: { $0.id == experimentID }) else {
-      throw ProductizationScenarioRunError.unknownExperiment(experimentID)
+      throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
     guard let scenario = config.scenarios.first(where: { $0.id == scenarioID }) else {
-      throw ProductizationScenarioRunError.unknownScenario(scenarioID)
+      throw ProductTournamentScenarioRunError.unknownScenario(scenarioID)
     }
     guard scenario.experimentID == experiment.id else {
-      throw ProductizationScenarioRunError.scenarioExperimentMismatch(
+      throw ProductTournamentScenarioRunError.scenarioExperimentMismatch(
         scenarioID: scenario.id,
         selectedExperimentID: experiment.id,
         scenarioExperimentID: scenario.experimentID
@@ -446,27 +446,27 @@ enum ProductizationScenarioCoordinator {
     )
     guard let solution = config.solutionHypotheses.first(where: { $0.id == experiment.solutionID })
     else {
-      throw ProductizationScenarioRunError.unknownSolution(experiment.solutionID)
+      throw ProductTournamentScenarioRunError.unknownSolution(experiment.solutionID)
     }
     guard let pain = config.painHypotheses.first(where: { $0.id == solution.painID }) else {
-      throw ProductizationScenarioRunError.unknownPain(solution.painID)
+      throw ProductTournamentScenarioRunError.unknownPain(solution.painID)
     }
     guard let segment = config.userSegments.first(where: { $0.id == scenario.segmentID }) else {
-      throw ProductizationScenarioRunError.unknownSegment(scenario.segmentID)
+      throw ProductTournamentScenarioRunError.unknownSegment(scenario.segmentID)
     }
     guard
       let currentWorkflow = config.currentWorkflows.first(where: {
         $0.id == scenario.currentWorkflowID
       })
     else {
-      throw ProductizationScenarioRunError.unknownWorkflow(scenario.currentWorkflowID)
+      throw ProductTournamentScenarioRunError.unknownWorkflow(scenario.currentWorkflowID)
     }
     let selectedAlternatives = alternatives(for: scenario, painID: pain.id, in: config)
     let targetCommit = try targetCommit(for: scenario, experiment: experiment)
     if let experimentCommit = experiment.currentSha ?? experiment.baseSha,
       !ProductExperimentGit.commitMatches(expected: targetCommit, actual: experimentCommit)
     {
-      throw ProductizationScenarioRunError.staleScenarioCommit(
+      throw ProductTournamentScenarioRunError.staleScenarioCommit(
         scenarioID: scenario.id,
         expected: targetCommit,
         actual: experimentCommit
@@ -475,7 +475,7 @@ enum ProductizationScenarioCoordinator {
     if let actualHead = try await gitHeadIfAvailable(at: generatedAppWorkingDirectory),
       !ProductExperimentGit.commitMatches(expected: targetCommit, actual: actualHead)
     {
-      throw ProductizationScenarioRunError.staleWorkingTree(
+      throw ProductTournamentScenarioRunError.staleWorkingTree(
         url: generatedAppWorkingDirectory,
         expected: targetCommit,
         actual: actualHead
@@ -522,7 +522,7 @@ enum ProductizationScenarioCoordinator {
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner()
   ) async throws -> Bool {
     guard let experiment = config.experiments.first(where: { $0.id == experimentID }) else {
-      throw ProductizationScenarioRunError.unknownExperiment(experimentID)
+      throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
     return await appRunner.productTournamentExperienceContractAvailable(
       workingDirectory: generatedAppWorkingDirectory(for: experiment, in: workspace)
@@ -540,7 +540,7 @@ enum ProductizationScenarioCoordinator {
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
-  ) async throws -> ProductizationScenarioRunOutcome {
+  ) async throws -> ProductTournamentScenarioRunOutcome {
     try await run(
       experimentID: experimentID,
       scenarioID: scenarioID,
@@ -569,7 +569,7 @@ enum ProductizationScenarioCoordinator {
       ProductizationFoundationModelsPersonaSelector(),
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
-  ) async throws -> ProductizationScenarioRunOutcome {
+  ) async throws -> ProductTournamentScenarioRunOutcome {
     try await run(
       experimentID: experimentID,
       scenarioID: scenarioID,
@@ -597,7 +597,7 @@ enum ProductizationScenarioCoordinator {
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
-  ) async throws -> ProductizationScenarioCohortRunOutcome {
+  ) async throws -> ProductTournamentScenarioCohortRunOutcome {
     try await runCohort(
       experimentID: experimentID,
       cohortID: cohortID,
@@ -626,7 +626,7 @@ enum ProductizationScenarioCoordinator {
       ProductizationFoundationModelsPersonaSelector(),
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
-  ) async throws -> ProductizationScenarioCohortRunOutcome {
+  ) async throws -> ProductTournamentScenarioCohortRunOutcome {
     try await runCohort(
       experimentID: experimentID,
       cohortID: cohortID,
@@ -656,24 +656,24 @@ enum ProductizationScenarioCoordinator {
     personaSelector: ProductizationPersonaActionSelecting? = nil,
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
-  ) async throws -> ProductizationScenarioCohortRunOutcome {
+  ) async throws -> ProductTournamentScenarioCohortRunOutcome {
     let config = try workspace.readProductTournamentConfig()
     guard config.experiments.contains(where: { $0.id == experimentID }) else {
-      throw ProductizationScenarioRunError.unknownExperiment(experimentID)
+      throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
     guard
       let cohort = config.scenarioCohorts.first(where: {
         $0.id == cohortID && $0.experimentID == experimentID
       })
     else {
-      throw ProductizationScenarioRunError.unknownCohort(cohortID)
+      throw ProductTournamentScenarioRunError.unknownCohort(cohortID)
     }
 
-    var outcomes: [ProductizationScenarioRunOutcome] = []
+    var outcomes: [ProductTournamentScenarioRunOutcome] = []
     var skippedScenarioIDs: [String] = []
     for scenarioID in cohort.scenarioIDs {
       guard let scenario = config.scenarios.first(where: { $0.id == scenarioID }) else {
-        throw ProductizationScenarioRunError.unknownScenario(scenarioID)
+        throw ProductTournamentScenarioRunError.unknownScenario(scenarioID)
       }
       guard cohort.enabled && scenario.enabled else {
         skippedScenarioIDs.append(scenarioID)
@@ -695,7 +695,7 @@ enum ProductizationScenarioCoordinator {
       )
       outcomes.append(outcome)
     }
-    return ProductizationScenarioCohortRunOutcome(
+    return ProductTournamentScenarioCohortRunOutcome(
       experimentID: experimentID,
       cohortID: cohortID,
       mode: mode,
@@ -717,11 +717,11 @@ enum ProductizationScenarioCoordinator {
     personaSelector: ProductizationPersonaActionSelecting? = nil,
     targetDecision: ProductExperimentDecision? = nil,
     now: Date = Date()
-  ) async throws -> ProductizationScenarioRunOutcome {
+  ) async throws -> ProductTournamentScenarioRunOutcome {
     var config = try workspace.readProductTournamentConfig()
     guard let experimentIndex = config.experiments.firstIndex(where: { $0.id == experimentID })
     else {
-      throw ProductizationScenarioRunError.unknownExperiment(experimentID)
+      throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
     let experiment = config.experiments[experimentIndex]
     let workingDirectory = generatedAppWorkingDirectory(for: experiment, in: workspace)
@@ -762,7 +762,7 @@ enum ProductizationScenarioCoordinator {
     config.experiments[experimentIndex].evidenceSummary = stored.summary
     config.experiments[experimentIndex].updatedAt = endedAt
     try workspace.writeProductTournamentConfig(config)
-    return ProductizationScenarioRunOutcome(
+    return ProductTournamentScenarioRunOutcome(
       request: request,
       result: result,
       record: stored,
@@ -795,7 +795,7 @@ enum ProductizationScenarioCoordinator {
       target.experimentID != experimentID
     else { return }
 
-    throw ProductizationScenarioRunError.roundTwoImplementationTargetMismatch(
+    throw ProductTournamentScenarioRunError.roundTwoImplementationTargetMismatch(
       selectedExperimentID: experimentID,
       expectedExperimentID: target.experimentID,
       tournamentID: target.tournamentID,
@@ -810,7 +810,7 @@ enum ProductizationScenarioCoordinator {
   ) throws -> String {
     let commit = scenario.targetCommitSha ?? experiment.currentSha ?? experiment.baseSha
     guard let commit, !commit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-      throw ProductizationScenarioRunError.missingExperimentCommit(experiment.id)
+      throw ProductTournamentScenarioRunError.missingExperimentCommit(experiment.id)
     }
     return commit
   }
@@ -839,7 +839,7 @@ enum ProductizationScenarioCoordinator {
 extension CompassWorkspace {
   @discardableResult
   func saveProductScenarioDraft(_ draft: ProductScenarioDraft) throws -> ProductizationConfig {
-    let next = try ProductizationScenarioCoordinator.saving(
+    let next = try ProductTournamentScenarioCoordinator.saving(
       draft: draft,
       to: try readProductTournamentConfig()
     )
@@ -857,7 +857,7 @@ extension CompassProject {
         return
       }
       productizationConfig = try workspace.saveProductScenarioDraft(draft)
-      log("Saved productization scenario \(draft.title).", level: .success)
+      log("Saved product tournament scenario \(draft.title).", level: .success)
     } catch {
       fail(error)
     }
@@ -866,7 +866,7 @@ extension CompassProject {
   func productTournamentScenarioContractAvailable(experimentID: String) async -> Bool? {
     guard let workspace else { return nil }
     do {
-      return try await ProductizationScenarioCoordinator.contractAvailable(
+      return try await ProductTournamentScenarioCoordinator.contractAvailable(
         experimentID: experimentID,
         in: productizationConfig,
         workspace: workspace
@@ -880,7 +880,7 @@ extension CompassProject {
     experimentID: String,
     scenarioID: String,
     targetDecision: ProductExperimentDecision? = nil
-  ) async -> ProductizationScenarioRunOutcome? {
+  ) async -> ProductTournamentScenarioRunOutcome? {
     await runProductTournamentScenario(
       experimentID: experimentID,
       scenarioID: scenarioID,
@@ -893,7 +893,7 @@ extension CompassProject {
     experimentID: String,
     scenarioID: String,
     targetDecision: ProductExperimentDecision? = nil
-  ) async -> ProductizationScenarioRunOutcome? {
+  ) async -> ProductTournamentScenarioRunOutcome? {
     guard FoundationModelsAvailability.isAvailable else {
       fail(ProductizationPersonaActionModelError.unavailable)
       return nil
@@ -910,7 +910,7 @@ extension CompassProject {
     experimentID: String,
     cohortID: String,
     targetDecision: ProductExperimentDecision? = nil
-  ) async -> ProductizationScenarioCohortRunOutcome? {
+  ) async -> ProductTournamentScenarioCohortRunOutcome? {
     await runProductTournamentScenarioCohort(
       experimentID: experimentID,
       cohortID: cohortID,
@@ -923,7 +923,7 @@ extension CompassProject {
     experimentID: String,
     cohortID: String,
     targetDecision: ProductExperimentDecision? = nil
-  ) async -> ProductizationScenarioCohortRunOutcome? {
+  ) async -> ProductTournamentScenarioCohortRunOutcome? {
     guard FoundationModelsAvailability.isAvailable else {
       fail(ProductizationPersonaActionModelError.unavailable)
       return nil
@@ -941,7 +941,7 @@ extension CompassProject {
     scenarioID: String,
     mode: ProductizationSimulationMode,
     targetDecision: ProductExperimentDecision?
-  ) async -> ProductizationScenarioRunOutcome? {
+  ) async -> ProductTournamentScenarioRunOutcome? {
     do {
       guard let workspace else {
         fail(AppModelError.noRepositorySelected)
@@ -950,15 +950,15 @@ extension CompassProject {
       guard
         let experiment = productizationConfig.experiments.first(where: { $0.id == experimentID })
       else {
-        throw ProductizationScenarioRunError.unknownExperiment(experimentID)
+        throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
       }
-      let workingDirectory = ProductizationScenarioCoordinator.generatedAppWorkingDirectory(
+      let workingDirectory = ProductTournamentScenarioCoordinator.generatedAppWorkingDirectory(
         for: experiment,
         in: workspace
       )
       let personaSelector: ProductizationPersonaActionSelecting? =
         mode == .personaModel ? ProductizationFoundationModelsPersonaSelector() : nil
-      let outcome = try await ProductizationScenarioCoordinator.run(
+      let outcome = try await ProductTournamentScenarioCoordinator.run(
         experimentID: experimentID,
         scenarioID: scenarioID,
         in: workspace,
@@ -984,7 +984,7 @@ extension CompassProject {
     cohortID: String,
     mode: ProductizationSimulationMode,
     targetDecision: ProductExperimentDecision?
-  ) async -> ProductizationScenarioCohortRunOutcome? {
+  ) async -> ProductTournamentScenarioCohortRunOutcome? {
     do {
       guard let workspace else {
         fail(AppModelError.noRepositorySelected)
@@ -993,15 +993,15 @@ extension CompassProject {
       guard
         let experiment = productizationConfig.experiments.first(where: { $0.id == experimentID })
       else {
-        throw ProductizationScenarioRunError.unknownExperiment(experimentID)
+        throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
       }
-      let workingDirectory = ProductizationScenarioCoordinator.generatedAppWorkingDirectory(
+      let workingDirectory = ProductTournamentScenarioCoordinator.generatedAppWorkingDirectory(
         for: experiment,
         in: workspace
       )
       let personaSelector: ProductizationPersonaActionSelecting? =
         mode == .personaModel ? ProductizationFoundationModelsPersonaSelector() : nil
-      let outcome = try await ProductizationScenarioCoordinator.runCohort(
+      let outcome = try await ProductTournamentScenarioCoordinator.runCohort(
         experimentID: experimentID,
         cohortID: cohortID,
         in: workspace,

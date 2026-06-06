@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct ProductizationScenarioRunTests {
+struct ProductTournamentScenarioRunTests {
   @Test func scenarioDraftPersistsAndAddsScenarioToExperimentCohort() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Scenario Helper",
@@ -30,7 +30,7 @@ struct ProductizationScenarioRunTests {
       appCommandTimeoutSeconds: 90
     )
 
-    let saved = try ProductizationScenarioCoordinator.saving(
+    let saved = try ProductTournamentScenarioCoordinator.saving(
       draft: draft,
       to: config,
       now: Date(timeIntervalSince1970: 20)
@@ -64,7 +64,7 @@ struct ProductizationScenarioRunTests {
       maxTurns: 6,
       appCommandTimeoutSeconds: 90
     )
-    let editedConfig = try ProductizationScenarioCoordinator.saving(
+    let editedConfig = try ProductTournamentScenarioCoordinator.saving(
       draft: edited,
       to: saved,
       now: Date(timeIntervalSince1970: 30)
@@ -112,12 +112,12 @@ struct ProductizationScenarioRunTests {
       targetCohortID: cohort.id
     )
 
-    let draft = try ProductizationScenarioCoordinator.revisionDraft(
+    let draft = try ProductTournamentScenarioCoordinator.revisionDraft(
       for: brief,
       in: config,
       now: Date(timeIntervalSince1970: 40)
     )
-    let saved = try ProductizationScenarioCoordinator.saving(
+    let saved = try ProductTournamentScenarioCoordinator.saving(
       draft: draft,
       to: config,
       now: Date(timeIntervalSince1970: 50)
@@ -147,7 +147,7 @@ struct ProductizationScenarioRunTests {
     let config = try makeScenarioRunConfig(commitSha: head)
     let scenario = config.scenarios[0]
 
-    let request = try await ProductizationScenarioCoordinator.request(
+    let request = try await ProductTournamentScenarioCoordinator.request(
       experimentID: config.experiments[0].id,
       scenarioID: scenario.id,
       in: config,
@@ -170,7 +170,7 @@ struct ProductizationScenarioRunTests {
     try #require(input.experiment.successSignal == scenario.successSignal)
     try #require(input.alternatives.map(\.id) == [scenario.alternativeID])
 
-    let personaRequest = try await ProductizationScenarioCoordinator.request(
+    let personaRequest = try await ProductTournamentScenarioCoordinator.request(
       experimentID: config.experiments[0].id,
       scenarioID: scenario.id,
       in: config,
@@ -191,7 +191,7 @@ struct ProductizationScenarioRunTests {
     let scenario = config.scenarios[0]
 
     do {
-      _ = try await ProductizationScenarioCoordinator.request(
+      _ = try await ProductTournamentScenarioCoordinator.request(
         experimentID: selectedExperimentID,
         scenarioID: scenario.id,
         in: config,
@@ -199,7 +199,7 @@ struct ProductizationScenarioRunTests {
         generatedAppWorkingDirectory: root
       )
       #expect(Bool(false), "Expected scenario experiment mismatch error.")
-    } catch let error as ProductizationScenarioRunError {
+    } catch let error as ProductTournamentScenarioRunError {
       guard
         case .scenarioExperimentMismatch(
           let scenarioID,
@@ -225,12 +225,12 @@ struct ProductizationScenarioRunTests {
     try #require(config.experiments.indices.contains(1))
     let selectedExperimentID = config.experiments[1].id
     config.experiments[1].currentSha = head
-    let secondDraft = ProductizationScenarioCoordinator.defaultDraft(
+    let secondDraft = ProductTournamentScenarioCoordinator.defaultDraft(
       for: config.experiments[1],
       in: config,
       now: Date(timeIntervalSince1970: 30)
     )
-    config = try ProductizationScenarioCoordinator.saving(
+    config = try ProductTournamentScenarioCoordinator.saving(
       draft: secondDraft,
       to: config,
       now: Date(timeIntervalSince1970: 40)
@@ -242,7 +242,7 @@ struct ProductizationScenarioRunTests {
     let expectedExperimentID = config.experiments[0].id
 
     do {
-      _ = try await ProductizationScenarioCoordinator.request(
+      _ = try await ProductTournamentScenarioCoordinator.request(
         experimentID: selectedExperimentID,
         scenarioID: selectedScenario.id,
         in: config,
@@ -250,7 +250,7 @@ struct ProductizationScenarioRunTests {
         generatedAppWorkingDirectory: root
       )
       #expect(Bool(false), "Expected Round 2 implementation target mismatch error.")
-    } catch let error as ProductizationScenarioRunError {
+    } catch let error as ProductTournamentScenarioRunError {
       guard
         case .roundTwoImplementationTargetMismatch(
           let selectedExperiment,
@@ -283,7 +283,7 @@ struct ProductizationScenarioRunTests {
     try workspace.writeProductTournamentConfig(config)
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
 
-    let outcome = try await ProductizationScenarioCoordinator.runModelFree(
+    let outcome = try await ProductTournamentScenarioCoordinator.runModelFree(
       experimentID: config.experiments[0].id,
       scenarioID: config.scenarios[0].id,
       in: workspace,
@@ -323,7 +323,7 @@ struct ProductizationScenarioRunTests {
     try workspace.writeProductTournamentConfig(config)
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
 
-    let outcome = try await ProductizationScenarioCoordinator.runModelFree(
+    let outcome = try await ProductTournamentScenarioCoordinator.runModelFree(
       experimentID: config.experiments[0].id,
       scenarioID: config.scenarios[0].id,
       in: workspace,
@@ -377,7 +377,7 @@ struct ProductizationScenarioRunTests {
       "provide_requested_input",
     ])
 
-    let outcome = try await ProductizationScenarioCoordinator.runPersonaModel(
+    let outcome = try await ProductTournamentScenarioCoordinator.runPersonaModel(
       experimentID: config.experiments[0].id,
       scenarioID: config.scenarios[0].id,
       in: workspace,
@@ -454,7 +454,7 @@ struct ProductizationScenarioRunTests {
     try workspace.writeProductTournamentConfig(config)
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
 
-    let outcome = try await ProductizationScenarioCoordinator.runCohortModelFree(
+    let outcome = try await ProductTournamentScenarioCoordinator.runCohortModelFree(
       experimentID: config.experiments[0].id,
       cohortID: cohort.id,
       in: workspace,
@@ -483,7 +483,7 @@ struct ProductizationScenarioRunTests {
     try workspace.writeProductTournamentConfig(config)
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: false)
 
-    let outcome = try await ProductizationScenarioCoordinator.runModelFree(
+    let outcome = try await ProductTournamentScenarioCoordinator.runModelFree(
       experimentID: config.experiments[0].id,
       scenarioID: config.scenarios[0].id,
       in: workspace,
@@ -507,7 +507,7 @@ struct ProductizationScenarioRunTests {
     config.experiments[0].currentSha = "different-commit"
 
     do {
-      _ = try await ProductizationScenarioCoordinator.request(
+      _ = try await ProductTournamentScenarioCoordinator.request(
         experimentID: config.experiments[0].id,
         scenarioID: config.scenarios[0].id,
         in: config,
@@ -515,7 +515,7 @@ struct ProductizationScenarioRunTests {
         generatedAppWorkingDirectory: root
       )
       #expect(Bool(false), "Expected stale scenario commit error.")
-    } catch let error as ProductizationScenarioRunError {
+    } catch let error as ProductTournamentScenarioRunError {
       guard case .staleScenarioCommit(let scenarioID, let expected, let actual) = error else {
         #expect(Bool(false), "Expected stale scenario commit, got \(error).")
         return
@@ -539,7 +539,7 @@ struct ProductizationScenarioRunTests {
       ProcessResult(exitCode: 2, stdout: "not json", stderr: "scenario command failed")
     }
 
-    let outcome = try await ProductizationScenarioCoordinator.runModelFree(
+    let outcome = try await ProductTournamentScenarioCoordinator.runModelFree(
       experimentID: config.experiments[0].id,
       scenarioID: config.scenarios[0].id,
       in: workspace,
@@ -650,7 +650,7 @@ private func makeScenarioRunConfig(commitSha: String) throws -> ProductizationCo
     maxTurns: 6,
     appCommandTimeoutSeconds: 90
   )
-  return try ProductizationScenarioCoordinator.saving(
+  return try ProductTournamentScenarioCoordinator.saving(
     draft: draft,
     to: config,
     now: Date(timeIntervalSince1970: 20)

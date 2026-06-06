@@ -2381,7 +2381,7 @@ struct ProductTournamentWorkbenchTab: View {
       scenarioEnabled = scenario.enabled
       return
     }
-    let draft = ProductizationScenarioCoordinator.defaultDraft(
+    let draft = ProductTournamentScenarioCoordinator.defaultDraft(
       for: experiment,
       in: config
     )
@@ -2439,7 +2439,7 @@ struct ProductTournamentWorkbenchTab: View {
     defer { isSavingScenario = false }
     let startedAt = Date()
     do {
-      let draft = try ProductizationScenarioCoordinator.revisionDraft(
+      let draft = try ProductTournamentScenarioCoordinator.revisionDraft(
         for: brief,
         in: project.productizationConfig
       )
@@ -2954,9 +2954,9 @@ struct ProductTournamentWorkbenchTab: View {
         ?? ProductFactoryAutopilotPlanner.cohortSimulationMode(
           isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
         )
-      let outcome: ProductizationScenarioCohortRunOutcome?
+      let outcome: ProductTournamentScenarioCohortRunOutcome?
       if let targetScenarioID = step.targetScenarioID {
-        let scenarioOutcome: ProductizationScenarioRunOutcome?
+        let scenarioOutcome: ProductTournamentScenarioRunOutcome?
         switch mode {
         case .modelFree:
           scenarioOutcome = await project.runProductTournamentScenarioModelFree(
@@ -3016,7 +3016,7 @@ struct ProductTournamentWorkbenchTab: View {
         return nil
       }
       do {
-        let draft = try ProductizationScenarioCoordinator.revisionDraft(
+        let draft = try ProductTournamentScenarioCoordinator.revisionDraft(
           for: brief,
           in: project.productizationConfig
         )
@@ -3061,7 +3061,7 @@ struct ProductTournamentWorkbenchTab: View {
     }
     isRunningScenario = true
     defer { isRunningScenario = false }
-    let outcome: ProductizationScenarioRunOutcome?
+    let outcome: ProductTournamentScenarioRunOutcome?
     switch mode {
     case .modelFree:
       outcome = await project.runProductTournamentScenarioModelFree(
@@ -3105,7 +3105,7 @@ struct ProductTournamentWorkbenchTab: View {
     }
     isRunningScenario = true
     defer { isRunningScenario = false }
-    let outcome: ProductizationScenarioCohortRunOutcome?
+    let outcome: ProductTournamentScenarioCohortRunOutcome?
     switch mode {
     case .modelFree:
       outcome = await project.runProductTournamentScenarioCohortModelFree(
