@@ -2959,13 +2959,13 @@ struct ProductTournamentWorkbenchTab: View {
         let scenarioOutcome: ProductizationScenarioRunOutcome?
         switch mode {
         case .modelFree:
-          scenarioOutcome = await project.runProductizationScenarioModelFree(
+          scenarioOutcome = await project.runProductTournamentScenarioModelFree(
             experimentID: step.experimentID,
             scenarioID: targetScenarioID,
             targetDecision: step.action.targetDecision
           )
         case .personaModel:
-          scenarioOutcome = await project.runProductizationScenarioPersonaModel(
+          scenarioOutcome = await project.runProductTournamentScenarioPersonaModel(
             experimentID: step.experimentID,
             scenarioID: targetScenarioID,
             targetDecision: step.action.targetDecision
@@ -2985,13 +2985,13 @@ struct ProductTournamentWorkbenchTab: View {
       }
       switch mode {
       case .modelFree:
-        outcome = await project.runProductizationScenarioCohortModelFree(
+        outcome = await project.runProductTournamentScenarioCohortModelFree(
           experimentID: step.experimentID,
           cohortID: cohortID,
           targetDecision: step.action.targetDecision
         )
       case .personaModel:
-        outcome = await project.runProductizationScenarioCohortPersonaModel(
+        outcome = await project.runProductTournamentScenarioCohortPersonaModel(
           experimentID: step.experimentID,
           cohortID: cohortID,
           targetDecision: step.action.targetDecision
@@ -3064,13 +3064,13 @@ struct ProductTournamentWorkbenchTab: View {
     let outcome: ProductizationScenarioRunOutcome?
     switch mode {
     case .modelFree:
-      outcome = await project.runProductizationScenarioModelFree(
+      outcome = await project.runProductTournamentScenarioModelFree(
         experimentID: experiment.id,
         scenarioID: targetScenarioID,
         targetDecision: targetDecision
       )
     case .personaModel:
-      outcome = await project.runProductizationScenarioPersonaModel(
+      outcome = await project.runProductTournamentScenarioPersonaModel(
         experimentID: experiment.id,
         scenarioID: targetScenarioID,
         targetDecision: targetDecision
@@ -3108,13 +3108,13 @@ struct ProductTournamentWorkbenchTab: View {
     let outcome: ProductizationScenarioCohortRunOutcome?
     switch mode {
     case .modelFree:
-      outcome = await project.runProductizationScenarioCohortModelFree(
+      outcome = await project.runProductTournamentScenarioCohortModelFree(
         experimentID: experiment.id,
         cohortID: targetCohortID,
         targetDecision: targetDecision
       )
     case .personaModel:
-      outcome = await project.runProductizationScenarioCohortPersonaModel(
+      outcome = await project.runProductTournamentScenarioCohortPersonaModel(
         experimentID: experiment.id,
         cohortID: targetCohortID,
         targetDecision: targetDecision
@@ -3209,7 +3209,7 @@ struct ProductTournamentWorkbenchTab: View {
       contractAvailable = nil
       return
     }
-    contractAvailable = await project.productizationScenarioContractAvailable(
+    contractAvailable = await project.productTournamentScenarioContractAvailable(
       experimentID: experiment.id
     )
   }

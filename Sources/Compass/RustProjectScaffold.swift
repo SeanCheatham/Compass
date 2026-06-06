@@ -47,11 +47,11 @@ struct RustProjectScaffold: Equatable, Sendable {
       ScaffoldFile(path: "schemas/gui-replay-trace.schema.json", contents: guiReplayTraceSchema()),
       ScaffoldFile(
         path: "schemas/product-tournament-experience-input.schema.json",
-        contents: productizationExperienceInputSchema()
+        contents: productTournamentExperienceInputSchema()
       ),
       ScaffoldFile(
         path: "schemas/product-tournament-experience-trace.schema.json",
-        contents: productizationExperienceTraceSchema()
+        contents: productTournamentExperienceTraceSchema()
       ),
       ScaffoldFile(path: "crates/app-core/Cargo.toml", contents: appCoreManifest()),
       ScaffoldFile(path: "crates/app-core/src/lib.rs", contents: appCoreLib()),
@@ -127,7 +127,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     desktop_handshake = true
     simulation_fixtures = true
     gui_replay = true
-    productization_experience = true
+    product_tournament_experience = true
     """
   }
 
@@ -203,7 +203,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     ## Deterministic Product Tournament Experience Contract
 
-    Product experiments use `run_productization_experience(ProductizationExperienceInput) ->
+    Product experiments use `run_product_tournament_experience(ProductizationExperienceInput) ->
     ProductizationExperienceTrace` as a semantic app journey. The input carries
     the pain, solution, experiment, current workflow, alternatives, and PMF
     decision intent being evaluated. The generated app owns the allowed action list for each state,
@@ -315,7 +315,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     """
   }
 
-  private static func productizationExperienceInputSchema() -> String {
+  private static func productTournamentExperienceInputSchema() -> String {
     """
     {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -428,7 +428,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     """
   }
 
-  private static func productizationExperienceTraceSchema() -> String {
+  private static func productTournamentExperienceTraceSchema() -> String {
     """
     {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -914,11 +914,11 @@ struct RustProjectScaffold: Equatable, Sendable {
         }
     }
 
-    pub fn run_productization_experience(
+    pub fn run_product_tournament_experience(
         input: ProductizationExperienceInput,
     ) -> ProductizationExperienceTrace {
         let mut runtime = ProductizationExperienceRuntime {
-            state: initial_productization_experience_state(&input),
+            state: initial_product_tournament_experience_state(&input),
             terminal_status: ProductizationExperienceTerminalStatus::InProgress,
             event_log: vec![
                 format!("pain:{}", input.pain.id),
@@ -935,12 +935,12 @@ struct RustProjectScaffold: Equatable, Sendable {
         let mut turns = Vec::new();
 
         for (index, action) in input.actions.iter().cloned().enumerate() {
-            let allowed_before = allowed_productization_experience_actions(&runtime);
+            let allowed_before = allowed_product_tournament_experience_actions(&runtime);
             let turn_events = if allowed_before.iter().any(|allowed| allowed.id == action.id) {
-                apply_productization_experience_action(&mut runtime, &input, &action, index)
+                apply_product_tournament_experience_action(&mut runtime, &input, &action, index)
             } else {
                 runtime.terminal_status = ProductizationExperienceTerminalStatus::InvalidAction;
-                runtime.state = productization_experience_state(
+                runtime.state = product_tournament_experience_state(
                     "invalid_action",
                     "Invalid action rejected",
                     format!(
@@ -953,7 +953,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 vec![format!("turn:{index}:invalid_action:{}", action.id)]
             };
             runtime.event_log.extend(turn_events.clone());
-            let allowed_next_actions = allowed_productization_experience_actions(&runtime);
+            let allowed_next_actions = allowed_product_tournament_experience_actions(&runtime);
             turns.push(ProductizationExperienceTurn {
                 index: index as u32,
                 action,
@@ -974,14 +974,14 @@ struct RustProjectScaffold: Equatable, Sendable {
             experiment_id: input.experiment.id,
             initial_state,
             turns,
-            allowed_next_actions: allowed_productization_experience_actions(&runtime),
+            allowed_next_actions: allowed_product_tournament_experience_actions(&runtime),
             terminal_status: runtime.terminal_status,
             event_log: runtime.event_log,
             pain_relief_signals,
         }
     }
 
-    fn initial_productization_experience_state(
+    fn initial_product_tournament_experience_state(
         input: &ProductizationExperienceInput,
     ) -> ProductizationExperienceState {
         let decision_intent = input
@@ -994,7 +994,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 )
             })
             .unwrap_or_else(|| "discover the next PMF decision".to_owned());
-        productization_experience_state(
+        product_tournament_experience_state(
             "initial",
             "Ready to evaluate pain relief",
             format!(
@@ -1015,7 +1015,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         )
     }
 
-    fn apply_productization_experience_action(
+    fn apply_product_tournament_experience_action(
         runtime: &mut ProductizationExperienceRuntime,
         input: &ProductizationExperienceInput,
         action: &ProductizationExperienceAction,
@@ -1024,7 +1024,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         match action.id.as_str() {
             "inspect_pain" => {
                 runtime.pain_recognized = true;
-                runtime.state = productization_experience_state(
+                runtime.state = product_tournament_experience_state(
                     "pain_inspected",
                     "Pain inspected",
                     format!(
@@ -1042,7 +1042,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             }
             "compare_current_alternative" => {
                 runtime.current_alternative_addressed = true;
-                runtime.state = productization_experience_state(
+                runtime.state = product_tournament_experience_state(
                     "alternative_compared",
                     "Current alternative compared",
                     format!(
@@ -1062,7 +1062,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "reduce_switching_objection" => {
                 runtime.switching_objection_reduced = true;
                 runtime.current_alternative_addressed = true;
-                runtime.state = productization_experience_state(
+                runtime.state = product_tournament_experience_state(
                     "switching_objection_reduced",
                     "Switching objection reduced",
                     format!(
@@ -1079,7 +1079,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             }
             "start_solution_workflow" => {
                 runtime.workflow_advanced = true;
-                runtime.state = productization_experience_state(
+                runtime.state = product_tournament_experience_state(
                     "workflow_started",
                     "Solution workflow started",
                     format!(
@@ -1097,7 +1097,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             "provide_requested_input" => {
                 runtime.workflow_advanced = true;
                 runtime.terminal_status = ProductizationExperienceTerminalStatus::Completed;
-                runtime.state = productization_experience_state(
+                runtime.state = product_tournament_experience_state(
                     "workflow_completed",
                     "Pain relief outcome shown",
                     format!(
@@ -1114,7 +1114,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                 vec![format!("turn:{index}:provide_requested_input")]
             }
             "ask_for_help" => {
-                runtime.state = productization_experience_state(
+                runtime.state = product_tournament_experience_state(
                     "help_requested",
                     "Help requested",
                     "The app explains the next step but still expects the persona to judge whether the pain relief is concrete.",
@@ -1128,7 +1128,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             }
             "abandon_task" => {
                 runtime.terminal_status = ProductizationExperienceTerminalStatus::Abandoned;
-                runtime.state = productization_experience_state(
+                runtime.state = product_tournament_experience_state(
                     "abandoned",
                     "Task abandoned",
                     "The persona left the flow before the app proved enough pain relief.",
@@ -1141,7 +1141,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         }
     }
 
-    fn allowed_productization_experience_actions(
+    fn allowed_product_tournament_experience_actions(
         runtime: &ProductizationExperienceRuntime,
     ) -> Vec<ProductizationExperienceAllowedAction> {
         if runtime.terminal_status != ProductizationExperienceTerminalStatus::InProgress
@@ -1381,7 +1381,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         }
     }
 
-    fn productization_experience_state(
+    fn product_tournament_experience_state(
         id: &str,
         headline: impl Into<String>,
         body: impl Into<String>,
@@ -1524,7 +1524,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         })
     }
 
-    pub fn productization_experience_input_schema() -> Value {
+    pub fn product_tournament_experience_input_schema() -> Value {
         json!({
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": "ProductizationExperienceInput",
@@ -1658,7 +1658,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         })
     }
 
-    pub fn productization_experience_trace_schema() -> Value {
+    pub fn product_tournament_experience_trace_schema() -> Value {
         json!({
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": "ProductizationExperienceTrace",
@@ -1723,11 +1723,11 @@ struct RustProjectScaffold: Equatable, Sendable {
         })
     }
 
-    pub fn productization_experience_contract_schema() -> Value {
+    pub fn product_tournament_experience_contract_schema() -> Value {
         json!({
             "schemaVersion": 1,
-            "input": productization_experience_input_schema(),
-            "trace": productization_experience_trace_schema()
+            "input": product_tournament_experience_input_schema(),
+            "trace": product_tournament_experience_trace_schema()
         })
     }
 
@@ -1737,7 +1737,7 @@ struct RustProjectScaffold: Equatable, Sendable {
   private static func appCoreTests() -> String {
     """
     use app_core::{
-        run_gui_replay, run_productization_experience, run_simulation, DemoState, GuiReplayAction,
+        run_gui_replay, run_product_tournament_experience, run_simulation, DemoState, GuiReplayAction,
         GuiReplayStep, GuiReplayTrace, ProductizationAlternative, ProductizationCurrentWorkflow,
         ProductizationDecisionIntent, ProductizationExperienceAction, ProductizationExperienceInput,
         ProductizationExperienceTerminalStatus, ProductizationExperiment, ProductizationPain,
@@ -1802,7 +1802,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     }
 
     #[test]
-    fn productization_experience_fixture_replays_allowed_actions_deterministically() {
+    fn product_tournament_experience_fixture_replays_allowed_actions_deterministically() {
         let input = ProductizationExperienceInput {
             schema_version: 1,
             pain: ProductizationPain {
@@ -1865,8 +1865,8 @@ struct RustProjectScaffold: Equatable, Sendable {
             ],
         };
 
-        let first = run_productization_experience(input.clone());
-        let second = run_productization_experience(input);
+        let first = run_product_tournament_experience(input.clone());
+        let second = run_product_tournament_experience(input);
 
         assert_eq!(first, second);
         assert_eq!(first.schema_version, 1);
@@ -1914,8 +1914,8 @@ struct RustProjectScaffold: Equatable, Sendable {
   private static func appCLIMain() -> String {
     """
     use app_core::{
-        demo_state_schema, gui_replay_trace_schema, productization_experience_contract_schema,
-        run_gui_replay, run_productization_experience, run_simulation, simulation_input_schema,
+        demo_state_schema, gui_replay_trace_schema, product_tournament_experience_contract_schema,
+        run_gui_replay, run_product_tournament_experience, run_simulation, simulation_input_schema,
         DemoState, GuiReplayTrace, ProductizationExperienceInput, SimulationInput,
     };
 
@@ -1943,7 +1943,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             Some("product-tournament-experience-schema") => {
                 println!(
                     "{}",
-                    serde_json::to_string_pretty(&productization_experience_contract_schema())?
+                    serde_json::to_string_pretty(&product_tournament_experience_contract_schema())?
                 );
             }
             Some("simulate") => {
@@ -1955,10 +1955,10 @@ struct RustProjectScaffold: Equatable, Sendable {
                 println!("{}", serde_json::to_string_pretty(&run_gui_replay(trace))?);
             }
             Some("product-tournament-experience") => {
-                let input = parse_productization_experience_input(args)?;
+                let input = parse_product_tournament_experience_input(args)?;
                 println!(
                     "{}",
-                    serde_json::to_string_pretty(&run_productization_experience(input))?
+                    serde_json::to_string_pretty(&run_product_tournament_experience(input))?
                 );
             }
             Some(other) => {
@@ -2010,7 +2010,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         }
     }
 
-    fn parse_productization_experience_input(
+    fn parse_product_tournament_experience_input(
         mut args: impl Iterator<Item = String>,
     ) -> Result<ProductizationExperienceInput, Box<dyn std::error::Error>> {
         let mut input_json = None;
@@ -2454,9 +2454,9 @@ struct RustProjectScaffold: Equatable, Sendable {
         let initial_allowed = demo_json
             .get("allowedNextActions")
             .and_then(|value| value.as_array())
-            .ok_or("productization trace is missing allowedNextActions")?;
+            .ok_or("product tournament trace is missing allowedNextActions")?;
         if initial_allowed.is_empty() {
-            return Err("productization trace did not expose any initial allowed actions".into());
+            return Err("product tournament trace did not expose any initial allowed actions".into());
         }
 
         let input = r#"{"schemaVersion":1,"pain":{"id":"pain-reporting","summary":"Weekly reporting takes too long","impact":"Managers lose visibility"},"solution":{"id":"solution-compass","title":"Compass workflow helper","promise":"Turn scattered updates into a reviewed weekly report"},"experiment":{"id":"experiment-reporting","branchName":"product-tournament/reporting","successSignal":"Persona completes a report draft and sees why it beats the current workflow"},"scenario":{"seed":"demo","personaSummary":"Operations lead evaluating a workflow tool","task":"Reduce weekly reporting work"},"currentWorkflow":{"summary":"Collect updates manually, paste them into a spreadsheet, and chase missing details.","frictionPoints":["manual copy paste","late follow ups"]},"alternatives":[{"id":"spreadsheet","name":"Shared spreadsheet","description":"A manual tracker with copied status updates.","switchingObjection":"The team already knows the spreadsheet."}],"actions":[{"id":"inspect_pain","params":{}},{"id":"compare_current_alternative","params":{}},{"id":"reduce_switching_objection","params":{}},{"id":"start_solution_workflow","params":{}}]}"#;
@@ -2485,27 +2485,27 @@ struct RustProjectScaffold: Equatable, Sendable {
             ],
         )?;
         if first != second {
-            return Err("productization trace changed across identical invocations".into());
+            return Err("product tournament trace changed across identical invocations".into());
         }
 
         let trace: serde_json::Value = serde_json::from_slice(&first)?;
         let turns = trace
             .get("turns")
             .and_then(|value| value.as_array())
-            .ok_or("productization trace is missing turns")?;
+            .ok_or("product tournament trace is missing turns")?;
         if turns.len() < 4 {
-            return Err("productization trace did not replay at least four actions".into());
+            return Err("product tournament trace did not replay at least four actions".into());
         }
         let signals = trace
             .get("painReliefSignals")
             .and_then(|value| value.as_object())
-            .ok_or("productization trace is missing painReliefSignals")?;
+            .ok_or("product tournament trace is missing painReliefSignals")?;
         if signals
             .get("currentAlternativeAddressed")
             .and_then(|value| value.as_bool())
             != Some(true)
         {
-            return Err("productization trace did not address the current alternative".into());
+            return Err("product tournament trace did not address the current alternative".into());
         }
         if signals
             .get("currentAlternativeComparison")
@@ -2514,7 +2514,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             .is_empty()
         {
             return Err(
-                "productization trace did not explain the current alternative comparison".into(),
+                "product tournament trace did not explain the current alternative comparison".into(),
             );
         }
         let willingness_to_pay = signals
@@ -2522,7 +2522,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             .and_then(|value| value.as_u64())
             .unwrap_or(0);
         if !(1..=5).contains(&willingness_to_pay) {
-            return Err("productization trace did not report willingness to pay".into());
+            return Err("product tournament trace did not report willingness to pay".into());
         }
         if signals
             .get("sponsorshipIntent")
@@ -2530,7 +2530,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             .unwrap_or("")
             .is_empty()
         {
-            return Err("productization trace did not report sponsorship intent".into());
+            return Err("product tournament trace did not report sponsorship intent".into());
         }
         println!("COMPASS_PRODUCTIZATION_SMOKE_TRACE_BYTES={}", first.len());
         Ok(())

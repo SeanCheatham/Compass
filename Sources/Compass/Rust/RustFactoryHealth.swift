@@ -97,7 +97,7 @@ struct RustFactoryHealth: Codable, Equatable, Sendable {
             desktopHandshake: true,
             simulationFixtures: true,
             guiReplay: true,
-            productizationExperience: true
+            productTournamentExperience: true
           ),
           checks: []
         ),

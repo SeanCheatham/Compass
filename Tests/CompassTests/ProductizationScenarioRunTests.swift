@@ -556,7 +556,7 @@ struct ProductizationScenarioRunTests {
   }
 }
 
-private final class MockScenarioExperienceAppRunner: ProductizationExperienceAppRunning {
+private final class MockScenarioExperienceAppRunner: ProductTournamentExperienceAppRunning {
   typealias Handler = (
     ProductizationExperienceInput,
     URL,
@@ -582,11 +582,11 @@ private final class MockScenarioExperienceAppRunner: ProductizationExperienceApp
     self.handler = handler
   }
 
-  func productizationExperienceContractAvailable(workingDirectory: URL) async -> Bool {
+  func productTournamentExperienceContractAvailable(workingDirectory: URL) async -> Bool {
     contractAvailable
   }
 
-  func runProductizationExperience(
+  func runProductTournamentExperience(
     input: ProductizationExperienceInput,
     workingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,

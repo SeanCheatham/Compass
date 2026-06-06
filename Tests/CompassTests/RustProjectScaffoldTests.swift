@@ -37,7 +37,7 @@ struct RustProjectScaffoldTests {
     try #require(metadata.contains("desktop_handshake = true"))
     try #require(metadata.contains("simulation_fixtures = true"))
     try #require(metadata.contains("gui_replay = true"))
-    try #require(metadata.contains("productization_experience = true"))
+    try #require(metadata.contains("product_tournament_experience = true"))
   }
 
   @Test func scaffoldDocumentsStandardRustCommandsAndDesktopStack() throws {
@@ -57,7 +57,7 @@ struct RustProjectScaffoldTests {
     try #require(readme.contains("run_gui_replay(GuiReplayTrace) -> GuiSemanticSnapshot"))
     try #require(readme.contains("app-cli gui-replay --input"))
     try #require(readme.contains("Deterministic Product Tournament Experience Contract"))
-    try #require(readme.contains("run_productization_experience(ProductizationExperienceInput) ->"))
+    try #require(readme.contains("run_product_tournament_experience(ProductizationExperienceInput) ->"))
     try #require(readme.contains("app-cli product-tournament-experience --input"))
     try #require(readme.contains("Product Tournament evidence is product pressure"))
     try #require(readme.contains("Manual product tournament simulation checklist"))
@@ -113,7 +113,7 @@ struct RustProjectScaffoldTests {
     try #require(core.contains("pub struct ProductizationExperienceAllowedAction"))
     try #require(core.contains("pub struct ProductizationExperienceTrace"))
     try #require(core.contains("pub struct PainReliefSignals"))
-    try #require(core.contains("pub fn run_productization_experience"))
+    try #require(core.contains("pub fn run_product_tournament_experience"))
     try #require(cli.contains(#"Some("simulate")"#))
     try #require(cli.contains(#"Some("gui-replay")"#))
     try #require(cli.contains(#"Some("product-tournament-experience")"#))
@@ -126,11 +126,11 @@ struct RustProjectScaffoldTests {
     try #require(cli.contains("serde_json::to_string_pretty(&run_simulation(input))"))
     try #require(cli.contains("serde_json::to_string_pretty(&run_gui_replay(trace))"))
     try #require(
-      cli.contains("serde_json::to_string_pretty(&run_productization_experience(input))"))
+      cli.contains("serde_json::to_string_pretty(&run_product_tournament_experience(input))"))
     try #require(tests.contains("simulation_fixture_is_a_pure_transition"))
     try #require(tests.contains("gui_replay_fixture_emits_stable_semantic_snapshot"))
     try #require(
-      tests.contains("productization_experience_fixture_replays_allowed_actions_deterministically"))
+      tests.contains("product_tournament_experience_fixture_replays_allowed_actions_deterministically"))
   }
 
   @Test func desktopTemplateHasStableVisualVerificationLabels() throws {
@@ -180,7 +180,7 @@ struct RustProjectScaffoldTests {
     try #require(!xtask.contains(#""productization-smoke" => productization_smoke()"#))
     try #require(xtask.contains("fn product_tournament_smoke() -> Result<()>"))
     try #require(xtask.contains("allowedNextActions"))
-    try #require(xtask.contains("productization trace changed across identical invocations"))
+    try #require(xtask.contains("product tournament trace changed across identical invocations"))
     try #require(xtask.contains("painReliefSignals"))
     try #require(xtask.contains("willingnessToPayScore"))
     try #require(xtask.contains("sponsorshipIntent"))

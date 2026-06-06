@@ -998,7 +998,7 @@ struct ProductizationEvidenceRecord: Codable, Equatable, Identifiable, Sendable 
     startedAt: Double,
     endedAt: Double
   ) {
-    let traceSignals = runResult.productizationTrace?.painReliefSignals
+    let traceSignals = runResult.tournamentTrace?.painReliefSignals
     let missing = traceSignals?.missingCapabilityIDs ?? []
     let comparison = Self.currentAlternativeComparison(from: traceSignals)
     let willingnessToPayScore = Self.derivedWillingnessToPayScore(

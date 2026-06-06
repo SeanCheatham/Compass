@@ -16,7 +16,7 @@ struct AgentRustVerifyToolsTests {
             visualVerify: true,
             schemaContracts: true,
             desktopHandshake: true,
-            productizationExperience: true
+            productTournamentExperience: true
           ),
           checks: [
             ScaffoldCheck(
@@ -45,7 +45,7 @@ struct AgentRustVerifyToolsTests {
 
     #expect(!result.isError)
     #expect(result.content.contains("scaffold-check: fail"))
-    #expect(result.content.contains("productization_experience"))
+    #expect(result.content.contains("product_tournament_experience"))
     #expect(result.content.contains("member_crates_app_cli"))
     #expect(result.content.contains("crates/app-cli/Cargo.toml"))
   }

@@ -345,7 +345,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
   var desktopHandshake: Bool
   var simulationFixtures: Bool
   var guiReplay: Bool
-  var productizationExperience: Bool
+  var productTournamentExperience: Bool
 
   init(
     xtaskVerify: Bool,
@@ -354,7 +354,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     desktopHandshake: Bool,
     simulationFixtures: Bool = false,
     guiReplay: Bool = false,
-    productizationExperience: Bool = false
+    productTournamentExperience: Bool = false
   ) {
     self.xtaskVerify = xtaskVerify
     self.visualVerify = visualVerify
@@ -362,7 +362,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     self.desktopHandshake = desktopHandshake
     self.simulationFixtures = simulationFixtures
     self.guiReplay = guiReplay
-    self.productizationExperience = productizationExperience
+    self.productTournamentExperience = productTournamentExperience
   }
 
   init(from decoder: Decoder) throws {
@@ -374,8 +374,8 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     simulationFixtures =
       try container.decodeIfPresent(Bool.self, forKey: .simulationFixtures) ?? false
     guiReplay = try container.decodeIfPresent(Bool.self, forKey: .guiReplay) ?? false
-    productizationExperience =
-      try container.decodeIfPresent(Bool.self, forKey: .productizationExperience)
+    productTournamentExperience =
+      try container.decodeIfPresent(Bool.self, forKey: .productTournamentExperience)
       ?? false
   }
 
@@ -387,7 +387,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     try container.encode(desktopHandshake, forKey: .desktopHandshake)
     try container.encode(simulationFixtures, forKey: .simulationFixtures)
     try container.encode(guiReplay, forKey: .guiReplay)
-    try container.encode(productizationExperience, forKey: .productizationExperience)
+    try container.encode(productTournamentExperience, forKey: .productTournamentExperience)
   }
 
   enum CodingKeys: String, CodingKey {
@@ -397,7 +397,7 @@ struct ScaffoldCapabilities: Codable, Equatable, Sendable {
     case desktopHandshake = "desktop_handshake"
     case simulationFixtures = "simulation_fixtures"
     case guiReplay = "gui_replay"
-    case productizationExperience = "productization_experience"
+    case productTournamentExperience = "product_tournament_experience"
   }
 }
 

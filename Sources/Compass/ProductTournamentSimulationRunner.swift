@@ -241,7 +241,7 @@ struct ProductizationRunResult: Codable, Equatable, Sendable {
   var rawPersonaActionTranscript: [ProductizationPersonaActionTranscriptEntry]
   var experienceTraceJSON: String?
   var experienceTraceHash: String?
-  var productizationTrace: ProductizationExperienceTrace?
+  var tournamentTrace: ProductizationExperienceTrace?
   var failure: ProductizationRunFailure?
 
   var isSuccess: Bool {
@@ -618,10 +618,10 @@ private struct PersonaActionModelResponse: Decodable {
   }
 }
 
-protocol ProductizationExperienceAppRunning {
-  func productizationExperienceContractAvailable(workingDirectory: URL) async -> Bool
+protocol ProductTournamentExperienceAppRunning {
+  func productTournamentExperienceContractAvailable(workingDirectory: URL) async -> Bool
 
-  func runProductizationExperience(
+  func runProductTournamentExperience(
     input: ProductizationExperienceInput,
     workingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,
@@ -629,14 +629,14 @@ protocol ProductizationExperienceAppRunning {
   ) async throws -> ProcessResult
 }
 
-struct ProductizationExperienceCLIAppRunner: ProductizationExperienceAppRunning {
+struct ProductTournamentExperienceCLIAppRunner: ProductTournamentExperienceAppRunning {
   var processRunner: ProcessRunner.InvocationRunner?
 
   init(processRunner: ProcessRunner.InvocationRunner? = nil) {
     self.processRunner = processRunner
   }
 
-  func productizationExperienceContractAvailable(workingDirectory: URL) async -> Bool {
+  func productTournamentExperienceContractAvailable(workingDirectory: URL) async -> Bool {
     let fm = FileManager.default
     let requiredRelativePaths = [
       "Cargo.toml",
@@ -650,14 +650,14 @@ struct ProductizationExperienceCLIAppRunner: ProductizationExperienceAppRunning 
     }
   }
 
-  func runProductizationExperience(
+  func runProductTournamentExperience(
     input: ProductizationExperienceInput,
     workingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,
     timeout: TimeInterval?
   ) async throws -> ProcessResult {
     let inputJSON = try Self.inputJSONString(input)
-    let command = Self.productizationExperienceCommand(inputJSON: inputJSON)
+    let command = Self.productTournamentExperienceCommand(inputJSON: inputJSON)
     return try await ProcessRunner.runShell(
       command,
       workingDirectory: workingDirectory,
@@ -667,7 +667,7 @@ struct ProductizationExperienceCLIAppRunner: ProductizationExperienceAppRunning 
     )
   }
 
-  static func productizationExperienceCommand(inputJSON: String) -> String {
+  static func productTournamentExperienceCommand(inputJSON: String) -> String {
     RustVerifyCommands.cargo([
       "run", "-p", "app-cli", "--", "product-tournament-experience", "--input", inputJSON,
     ])
@@ -681,12 +681,12 @@ struct ProductizationExperienceCLIAppRunner: ProductizationExperienceAppRunning 
   }
 }
 
-struct ProductizationSimulationRunner {
-  var appRunner: ProductizationExperienceAppRunning
+struct ProductTournamentSimulationRunner {
+  var appRunner: ProductTournamentExperienceAppRunning
   var personaSelector: ProductizationPersonaActionSelecting?
 
   init(
-    appRunner: ProductizationExperienceAppRunning = ProductizationExperienceCLIAppRunner(),
+    appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner(),
     personaSelector: ProductizationPersonaActionSelecting? = nil
   ) {
     self.appRunner = appRunner
@@ -695,7 +695,7 @@ struct ProductizationSimulationRunner {
 
   func run(_ request: ProductizationSimulationRequest) async -> ProductizationRunResult {
     guard
-      await appRunner.productizationExperienceContractAvailable(
+      await appRunner.productTournamentExperienceContractAvailable(
         workingDirectory: request.generatedAppWorkingDirectory
       )
     else {
@@ -755,7 +755,7 @@ struct ProductizationSimulationRunner {
             failure: ProductizationRunFailure(
               status: .noAllowedActions,
               message:
-                "The productization trace is still in progress but returned no allowed actions."
+                "The product tournament trace is still in progress but returned no allowed actions."
             )
           )
         }
@@ -1055,7 +1055,7 @@ struct ProductizationSimulationRunner {
           failure: ProductizationRunFailure(
             status: .appOutputNotJSON,
             message:
-              "Final productization trace could not be normalized: \(error.localizedDescription)"
+              "Final product tournament trace could not be normalized: \(error.localizedDescription)"
           )
         )
       }
@@ -1069,7 +1069,7 @@ struct ProductizationSimulationRunner {
     let input = request.experienceInput(actions: actions)
     let result: ProcessResult
     do {
-      result = try await appRunner.runProductizationExperience(
+      result = try await appRunner.runProductTournamentExperience(
         input: input,
         workingDirectory: request.generatedAppWorkingDirectory,
         launchPlan: request.launchPlan,
@@ -1079,7 +1079,7 @@ struct ProductizationSimulationRunner {
       return .failure(
         ProductizationRunFailure(
           status: .appCommandFailed,
-          message: "Productization experience CLI command failed: \(error.localizedDescription)"
+          message: "Product tournament experience CLI command failed: \(error.localizedDescription)"
         ),
         traceJSON: nil
       )
@@ -1089,7 +1089,7 @@ struct ProductizationSimulationRunner {
       return .failure(
         ProductizationRunFailure(
           status: .appCommandFailed,
-          message: "Productization experience CLI exited with code \(result.exitCode).",
+          message: "Product tournament experience CLI exited with code \(result.exitCode).",
           stdout: result.stdout,
           stderr: result.stderr
         ),
@@ -1101,7 +1101,7 @@ struct ProductizationSimulationRunner {
       return .failure(
         ProductizationRunFailure(
           status: .appOutputNotJSON,
-          message: "Productization experience CLI stdout was not UTF-8."
+          message: "Product tournament experience CLI stdout was not UTF-8."
         ),
         traceJSON: result.stdout
       )
@@ -1115,7 +1115,7 @@ struct ProductizationSimulationRunner {
         ProductizationRunFailure(
           status: .appOutputNotJSON,
           message:
-            "Productization experience CLI stdout was not a valid productization trace: \(error.localizedDescription).",
+            "Product tournament experience CLI stdout was not a valid product tournament trace: \(error.localizedDescription).",
           stdout: result.stdout,
           stderr: result.stderr
         ),
@@ -1210,7 +1210,7 @@ struct ProductizationSimulationRunner {
       rawPersonaActionTranscript: transcript,
       experienceTraceJSON: traceJSON,
       experienceTraceHash: traceHash,
-      productizationTrace: trace,
+      tournamentTrace: trace,
       failure: failure
     )
   }

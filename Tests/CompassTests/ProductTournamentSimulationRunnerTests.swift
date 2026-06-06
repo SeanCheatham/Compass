@@ -3,10 +3,10 @@ import Testing
 
 @testable import Compass
 
-struct ProductizationSimulationRunnerTests {
+struct ProductTournamentSimulationRunnerTests {
   @Test func modelFreeRunnerCompletesFixtureAndValidatesDeterminism() async throws {
-    let appRunner = MockProductizationExperienceAppRunner()
-    let runner = ProductizationSimulationRunner(appRunner: appRunner)
+    let appRunner = MockProductTournamentExperienceAppRunner()
+    let runner = ProductTournamentSimulationRunner(appRunner: appRunner)
 
     let result = await runner.run(makeProductizationRequest(maxTurns: 6))
 
@@ -22,7 +22,7 @@ struct ProductizationSimulationRunnerTests {
         "provide_requested_input",
       ])
     try #require(result.experienceTraceHash != nil)
-    try #require(result.productizationTrace?.painReliefSignals.currentAlternativeAddressed == true)
+    try #require(result.tournamentTrace?.painReliefSignals.currentAlternativeAddressed == true)
     try #require(appRunner.inputs.filter { $0.actions.count == 5 }.count == 3)
 
     let record = ProductizationEvidenceRecord(
@@ -71,7 +71,7 @@ struct ProductizationSimulationRunnerTests {
   }
 
   @Test func personaModelRejectsInventedActionsAndAllowsOneRepair() async throws {
-    let appRunner = MockProductizationExperienceAppRunner()
+    let appRunner = MockProductTournamentExperienceAppRunner()
     let selector = ScriptedProductizationPersonaSelector(
       choices: [
         .init(action: ProductizationExperienceAction(id: "invent_new_button"))
@@ -80,7 +80,7 @@ struct ProductizationSimulationRunnerTests {
         .init(action: ProductizationExperienceAction(id: "inspect_pain"))
       ]
     )
-    let runner = ProductizationSimulationRunner(appRunner: appRunner, personaSelector: selector)
+    let runner = ProductTournamentSimulationRunner(appRunner: appRunner, personaSelector: selector)
 
     let result = await runner.run(makeProductizationRequest(mode: .personaModel, maxTurns: 1))
 
@@ -94,13 +94,13 @@ struct ProductizationSimulationRunnerTests {
   }
 
   @Test func personaModelRunnerPassesDecisionIntentToInputAndSelector() async throws {
-    let appRunner = MockProductizationExperienceAppRunner()
+    let appRunner = MockProductTournamentExperienceAppRunner()
     let selector = ScriptedProductizationPersonaSelector(
       choices: [
         .init(action: ProductizationExperienceAction(id: "inspect_pain"))
       ]
     )
-    let runner = ProductizationSimulationRunner(appRunner: appRunner, personaSelector: selector)
+    let runner = ProductTournamentSimulationRunner(appRunner: appRunner, personaSelector: selector)
 
     let result = await runner.run(
       makeProductizationRequest(mode: .personaModel, targetDecision: .kill, maxTurns: 1)
@@ -121,12 +121,12 @@ struct ProductizationSimulationRunnerTests {
   }
 
   @Test func personaModelFailsWhenRepairStillInventsAction() async throws {
-    let appRunner = MockProductizationExperienceAppRunner()
+    let appRunner = MockProductTournamentExperienceAppRunner()
     let selector = ScriptedProductizationPersonaSelector(
       choices: [.init(action: ProductizationExperienceAction(id: "invent_new_button"))],
       repairs: [.init(action: ProductizationExperienceAction(id: "still_bad"))]
     )
-    let runner = ProductizationSimulationRunner(appRunner: appRunner, personaSelector: selector)
+    let runner = ProductTournamentSimulationRunner(appRunner: appRunner, personaSelector: selector)
 
     let result = await runner.run(makeProductizationRequest(mode: .personaModel, maxTurns: 3))
 
@@ -135,13 +135,13 @@ struct ProductizationSimulationRunnerTests {
     try #require(result.failure?.status == .invalidPersonaAction)
   }
 
-  @Test func cliRunnerUsesProductizationContractPathsAndCommand() async throws {
+  @Test func cliRunnerUsesProductTournamentContractPathsAndCommand() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
-    try writeProductizationExperienceContractMarkers(to: root)
+    try writeProductTournamentExperienceContractMarkers(to: root)
 
     var capturedInvocation: AgentExecutionInvocation?
-    let appRunner = ProductizationExperienceCLIAppRunner { invocation, input, timeout, _, _ in
+    let appRunner = ProductTournamentExperienceCLIAppRunner { invocation, input, timeout, _, _ in
       capturedInvocation = invocation
       try #require(input == nil)
       try #require(timeout == 99)
@@ -149,8 +149,8 @@ struct ProductizationSimulationRunnerTests {
         exitCode: 0, stdout: try encodeTrace(defaultProductizationTrace()), stderr: "")
     }
 
-    try #require(await appRunner.productizationExperienceContractAvailable(workingDirectory: root))
-    _ = try await appRunner.runProductizationExperience(
+    try #require(await appRunner.productTournamentExperienceContractAvailable(workingDirectory: root))
+    _ = try await appRunner.runProductTournamentExperience(
       input: makeProductizationRequest().experienceInput(actions: []),
       workingDirectory: root,
       launchPlan: .host(),
@@ -166,7 +166,7 @@ struct ProductizationSimulationRunnerTests {
 
   @Test func runnerExecutesGeneratedScaffoldWhenRequested() async throws {
     guard
-      ProcessInfo.processInfo.environment["COMPASS_RUN_GENERATED_RUST_PRODUCTIZATION_RUNNER"] == "1"
+      ProcessInfo.processInfo.environment["COMPASS_RUN_GENERATED_RUST_PRODUCT_TOURNAMENT_RUNNER"] == "1"
     else {
       return
     }
@@ -175,10 +175,10 @@ struct ProductizationSimulationRunnerTests {
     defer { try? FileManager.default.removeItem(at: root) }
     try RustProjectScaffold.write(
       to: root,
-      options: RustProjectScaffold.Options(projectName: "Productization Runner Fixture")
+      options: RustProjectScaffold.Options(projectName: "Product Tournament Runner Fixture")
     )
 
-    let runner = ProductizationSimulationRunner(appRunner: ProductizationExperienceCLIAppRunner())
+    let runner = ProductTournamentSimulationRunner(appRunner: ProductTournamentExperienceCLIAppRunner())
     let result = await runner.run(
       makeProductizationRequest(
         generatedAppWorkingDirectory: root,
@@ -258,7 +258,7 @@ struct ProductizationSimulationRunnerTests {
   }
 }
 
-private final class MockProductizationExperienceAppRunner: ProductizationExperienceAppRunning {
+private final class MockProductTournamentExperienceAppRunner: ProductTournamentExperienceAppRunning {
   typealias Handler = (ProductizationExperienceInput, Int) async throws -> ProcessResult
 
   var contractAvailable = true
@@ -277,11 +277,11 @@ private final class MockProductizationExperienceAppRunner: ProductizationExperie
     self.handler = handler
   }
 
-  func productizationExperienceContractAvailable(workingDirectory: URL) async -> Bool {
+  func productTournamentExperienceContractAvailable(workingDirectory: URL) async -> Bool {
     contractAvailable
   }
 
-  func runProductizationExperience(
+  func runProductTournamentExperience(
     input: ProductizationExperienceInput,
     workingDirectory: URL,
     launchPlan: AgentExecutionLaunchPlan,
@@ -531,12 +531,12 @@ private func encodeTrace(_ trace: ProductizationExperienceTrace) throws -> Strin
 private func makeTempDir() throws -> URL {
   let url = FileManager.default.temporaryDirectory
     .appending(
-      path: "ProductizationSimulationRunnerTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+      path: "ProductTournamentSimulationRunnerTests-\(UUID().uuidString)", directoryHint: .isDirectory)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url.standardizedFileURL
 }
 
-private func writeProductizationExperienceContractMarkers(to root: URL) throws {
+private func writeProductTournamentExperienceContractMarkers(to root: URL) throws {
   let paths = [
     "Cargo.toml",
     "crates/app-cli/Cargo.toml",
