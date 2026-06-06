@@ -1300,6 +1300,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
   var killedDecisionCount: Int
   var targetedPromoteProofCount: Int
   var targetedKillProofCount: Int
+  var prepareWorktreeStepCount: Int
   var evidenceRunStepCount: Int
   var evidenceRunIDs: [String]
   var completedEvidenceRunCount: Int
@@ -1352,6 +1353,10 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       appliedRoundTransitionCount > 0
       ? "; round transitions \(appliedRoundTransitionCount)"
       : ""
+    let worktreePrep =
+      prepareWorktreeStepCount > 0
+      ? "; worktree prep \(prepareWorktreeStepCount) step(s)"
+      : ""
     let decisionCandidates =
       decisionCandidateSummaries.isEmpty
       ? ""
@@ -1377,7 +1382,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       ? ""
       : "; revisions \(revisionBriefSummaries.prefix(3).joined(separator: " | "))"
     return
-      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill)\(roundTransitions)\(targetedProof); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(planModes)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedOutcomes)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
+      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill)\(roundTransitions)\(targetedProof)\(worktreePrep); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(planModes)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedOutcomes)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
   }
 
   var planEvaluationModeContext: String? {
@@ -1422,6 +1427,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     killedDecisionCount: Int = 0,
     targetedPromoteProofCount: Int = 0,
     targetedKillProofCount: Int = 0,
+    prepareWorktreeStepCount: Int = 0,
     evidenceRunStepCount: Int = 0,
     evidenceRunIDs: [String] = [],
     completedEvidenceRunCount: Int = 0,
@@ -1462,6 +1468,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     self.killedDecisionCount = max(0, killedDecisionCount)
     self.targetedPromoteProofCount = max(0, targetedPromoteProofCount)
     self.targetedKillProofCount = max(0, targetedKillProofCount)
+    self.prepareWorktreeStepCount = max(0, prepareWorktreeStepCount)
     self.evidenceRunStepCount = max(0, evidenceRunStepCount)
     self.evidenceRunIDs = ProductTournamentModelText.cleanedList(evidenceRunIDs, limit: 120)
     self.completedEvidenceRunCount = max(0, completedEvidenceRunCount)
@@ -1539,6 +1546,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     case killedDecisionCount
     case targetedPromoteProofCount
     case targetedKillProofCount
+    case prepareWorktreeStepCount
     case evidenceRunStepCount
     case evidenceRunIDs
     case completedEvidenceRunCount
@@ -1598,6 +1606,10 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
       targetedKillProofCount: try container.decodeIfPresent(
         Int.self,
         forKey: .targetedKillProofCount
+      ) ?? 0,
+      prepareWorktreeStepCount: try container.decodeIfPresent(
+        Int.self,
+        forKey: .prepareWorktreeStepCount
       ) ?? 0,
       evidenceRunStepCount: try container.decodeIfPresent(
         Int.self,

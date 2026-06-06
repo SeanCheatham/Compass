@@ -3634,6 +3634,63 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("targeted proof 1 promote, 0 kill"))
   }
 
+  @Test func tournamentAutomationCycleOutcomeCountsPrepareWorktreeSeparatelyFromEvidence() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Reporting work needs evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.tournamentExperiments[0].decision = .keepGoing
+    try completePlanOnlyRound(in: &config)
+    let experiment = config.tournamentExperiments[0]
+    let cohortIndex = try #require(
+      config.scenarioCohorts.firstIndex { $0.experimentID == experiment.id }
+    )
+    let cohort = config.scenarioCohorts[cohortIndex]
+    config.scenarioCohorts[cohortIndex] = ProductScenarioCohort(
+      id: cohort.id,
+      title: cohort.title,
+      experimentID: cohort.experimentID,
+      scenarioIDs: cohort.scenarioIDs,
+      enabled: cohort.enabled,
+      tags: ["discover", "candidate-implementation-track"]
+    )
+    let step = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: .empty
+      ))
+
+    let outcome = TournamentAutomationCycleOutcome(
+      executedSteps: [step],
+      messages: [
+        "Prepared implementation worktree for \(step.experimentTitle) at head-sha on \(experiment.branchName)."
+      ],
+      maxSteps: 3,
+      stopReason: .reachedStepLimit
+    )
+    let audit = outcome.audit(
+      startedAt: Date(timeIntervalSince1970: 340),
+      endedAt: Date(timeIntervalSince1970: 345)
+    )
+
+    try #require(step.kind == .prepareWorktree)
+    try #require(outcome.prepareWorktreeStepCount == 1)
+    try #require(outcome.evidenceRunStepCount == 0)
+    try #require(outcome.userMessage.contains("1 worktree prepare step(s)"))
+    try #require(outcome.userMessage.contains("0 evidence step(s)"))
+    try #require(audit.prepareWorktreeStepCount == 1)
+    try #require(audit.evidenceRunStepCount == 0)
+    try #require(audit.summary.contains("worktree prep 1 step(s)"))
+    try #require(audit.summary.contains("evidence 0 step(s)"))
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: config.recordingTournamentAutomationCycleAudit(audit),
+      evidenceIndex: .empty
+    )
+    try #require(digest.contains("worktree prep 1 step(s)"))
+    try #require(digest.contains("evidence 0 step(s)"))
+  }
+
   @Test func tournamentAutomationCycleOutcomeCountsLiftAndCutDecisions() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Reporting Helper",
@@ -3779,6 +3836,7 @@ struct ProductTournamentLoopTests {
       from: Data(legacyJSON.utf8)
     )
     try #require(legacyAudit.appliedRoundTransitionCount == 0)
+    try #require(legacyAudit.prepareWorktreeStepCount == 0)
     try #require(legacyAudit.startingPersonaModelPlanEvaluationCount == nil)
     try #require(legacyAudit.endingPersonaModelPlanEvaluationCount == nil)
     try #require(legacyAudit.startingModelFreePlanEvaluationCount == nil)

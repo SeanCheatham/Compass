@@ -3003,6 +3003,10 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
     }.count
   }
 
+  var prepareWorktreeStepCount: Int {
+    executedSteps.filter { $0.action.kind == .prepareWorktree }.count
+  }
+
   var evidenceRunStepCount: Int {
     executedSteps.filter {
       $0.action.kind == .runPlanProof || $0.action.kind == .runCohort
@@ -3114,6 +3118,7 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
       killedDecisionCount: killedDecisionCount,
       targetedPromoteProofCount: targetedPromoteProofCount,
       targetedKillProofCount: targetedKillProofCount,
+      prepareWorktreeStepCount: prepareWorktreeStepCount,
       evidenceRunStepCount: evidenceRunStepCount,
       evidenceRunIDs: evidenceRunIDs,
       completedEvidenceRunCount: completedEvidenceRunCount,
@@ -3143,8 +3148,8 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
 
   private var outcomeMessage: String? {
     guard
-      appliedDecisionCount > 0 || appliedRoundTransitionCount > 0 || evidenceRunStepCount > 0
-        || hasEvidenceRunOutcomes
+      appliedDecisionCount > 0 || appliedRoundTransitionCount > 0
+        || prepareWorktreeStepCount > 0 || evidenceRunStepCount > 0 || hasEvidenceRunOutcomes
     else { return nil }
     let evidenceOutcome =
       hasEvidenceRunOutcomes
@@ -3155,8 +3160,12 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
       targetedProofCount > 0
       ? ", targeted proof \(targetedPromoteProofCount) promote, \(targetedKillProofCount) kill"
       : ""
+    let worktreePrep =
+      prepareWorktreeStepCount > 0
+      ? ", \(prepareWorktreeStepCount) worktree prepare step(s)"
+      : ""
     return
-      "Cycle outcomes: \(appliedDecisionCount) tournament decision(s) applied (\(promotedDecisionCount) promote, \(killedDecisionCount) kill), \(appliedRoundTransitionCount) round transition(s) applied, \(evidenceRunStepCount) evidence step(s)\(targetedProof)\(evidenceOutcome)."
+      "Cycle outcomes: \(appliedDecisionCount) tournament decision(s) applied (\(promotedDecisionCount) promote, \(killedDecisionCount) kill), \(appliedRoundTransitionCount) round transition(s) applied\(worktreePrep), \(evidenceRunStepCount) evidence step(s)\(targetedProof)\(evidenceOutcome)."
   }
 
   private var hasEvidenceRunOutcomes: Bool {
