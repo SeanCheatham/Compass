@@ -144,7 +144,12 @@ and advances them through rounds:
   capabilities, or mixed pull, Compass queues a Round 3 implementation revision
   brief instead of selecting a winner; that brief becomes an apply-revision
   checkpoint with implementation, scenario, and validation instructions for the
-  next scoped simulated-user pass.
+  next scoped simulated-user pass. After that checkpoint is applied, Compass
+  tracks Round 3 implementation revision validation as pending, partial,
+  resolved, persisted, or eliminated. Fresh post-revision validation runs become
+  the scoring set for winner selection, so stale pre-revision evidence cannot
+  select the tournament winner; partial validation keeps targeting persona-model
+  scenarios until the Round 3 winner proof gates are complete.
   Workbench scenario-run rows and selected-run details expose whether each run
   counts as completed-use proof.
 
@@ -238,11 +243,12 @@ decisions, so missing implementation-use, current-alternative, and pay/sponsor
 proof each point at a runnable scenario when one exists; actionable Round 3
 revision recommendations become product implementation revision briefs so a
 checkpointed low-medium fidelity change is applied and validated before another
-winner transition is considered. Cycle audits record worktree preparation,
-applied revision briefs, and automated round transitions separately from
-tournament decision updates and simulated-user evidence runs, and Round 1
-plan-proof cycles capture starting and ending persona-model/model-free plan
-evidence counts.
+winner transition is considered. Round 3 validation actions can also route
+through implementation-worktree preparation when their revision scenarios need a
+target commit. Cycle audits record worktree preparation, applied revision briefs,
+and automated round transitions separately from tournament decision updates and
+simulated-user evidence runs, and Round 1 plan-proof cycles capture starting and
+ending persona-model/model-free plan evidence counts.
 Recent worktree-preparation cycles also appear as compact Plan/Reflect context
 rows with current evidence-run counts, so agents can see when a branch was
 prepared before simulated-user evidence arrived. The Workbench mirrors that
@@ -265,9 +271,10 @@ debt, focused Round 1 proof actions, buyer/sponsor signals, willingness-to-pay
 signals, persona-model/model-free plan evidence counts, Round 2 feasibility
 handoffs, core-technology proof overview, experience-use proof counts, evidence
 transitions, Round 3 product implementation proof overview and winner
-recommendations, latest evidence per active scenario, repeated objections,
-low-score clusters, verdict distribution, failures, current alternative
-comparisons, and tournament evidence-backed willingness to pay or sponsor.
+recommendations, Round 3 implementation revision validation, latest evidence per
+active scenario, repeated objections, low-score clusters, verdict distribution,
+failures, current alternative comparisons, and tournament evidence-backed
+willingness to pay or sponsor.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 

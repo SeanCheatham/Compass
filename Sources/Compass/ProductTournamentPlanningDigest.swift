@@ -37,6 +37,10 @@ enum ProductTournamentPlanningDigestFormatter {
       config: config,
       evidenceIndex: evidenceIndex
     )
+    lines += ProductTournamentRoundThreeImplementationRevisionValidationAdvisor.contextLines(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
     lines += productImplementationEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationCycleAuditLines(config: config)
     lines += tournamentAutomationWorktreePrepLines(config: config, evidenceIndex: evidenceIndex)

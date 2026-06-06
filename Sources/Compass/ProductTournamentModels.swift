@@ -1514,7 +1514,7 @@ struct TournamentAutomationCycleAudit: Codable, Equatable, Identifiable, Sendabl
     )
     self.revisionBriefSummaries = ProductTournamentModelText.cleanedList(
       revisionBriefSummaries,
-      limit: 300
+      limit: 700
     )
     self.stopReason = stopReason
     self.stopStepID = ProductTournamentModelText.optionalCleanedText(stopStepID, limit: 200)

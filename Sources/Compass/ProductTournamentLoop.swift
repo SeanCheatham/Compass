@@ -1771,7 +1771,7 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
     }
     parts.append("implementation \(implementationChange)")
     parts.append("proof \(proofPlan)")
-    return StringUtils.boundedText(parts.joined(separator: "; "), limit: 420)
+    return StringUtils.boundedText(parts.joined(separator: "; "), limit: 700)
   }
 
   init(
@@ -3325,7 +3325,7 @@ struct TournamentAutomationCycleOutcome: Equatable, Sendable {
     )
     self.revisionBriefSummaries = ProductTournamentModelText.cleanedList(
       revisionBriefSummaries,
-      limit: 300
+      limit: 700
     )
   }
 
@@ -5364,6 +5364,34 @@ enum ProductTournamentNextActionAdvisor {
       break
     }
 
+    if let implementationRevisionValidationAction =
+      roundThreeImplementationRevisionValidationAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    {
+      return applyingRecentCycleGuards(
+        to: implementationRevisionValidationAction,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
+    if let implementationRevisionPartialValidationAction =
+      roundThreeImplementationRevisionPartialValidationAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    {
+      return applyingRecentCycleGuards(
+        to: implementationRevisionPartialValidationAction,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    }
     if let roundThreeProofAction = roundThreeProductImplementationProofAction(
       for: experiment,
       config: config,
@@ -6082,14 +6110,20 @@ enum ProductTournamentNextActionAdvisor {
     let isRoundTwoProofGapValidation =
       action.title == "Validate Round 2 proof-gap revision"
       || action.title == "Complete Round 2 proof-gap validation"
+    let isRoundThreeImplementationRevisionValidation =
+      action.title == "Validate Round 3 implementation revision"
+      || action.title == "Complete Round 3 implementation validation"
     let isRoundThreeProductImplementationProof = action.title.hasPrefix("Run Round 3")
       || action.title == "Broaden Round 3 persona proof"
-    guard isCandidateTrack || isRoundTwoProofGapValidation || isRoundThreeProductImplementationProof
+    guard isCandidateTrack || isRoundTwoProofGapValidation
+      || isRoundThreeImplementationRevisionValidation || isRoundThreeProductImplementationProof
     else { return nil }
 
     let scenarioText =
       isRoundTwoProofGapValidation
       ? "Round 2 revision validation scenario needs"
+      : isRoundThreeImplementationRevisionValidation
+      ? "Round 3 implementation revision validation scenario needs"
       : isRoundThreeProductImplementationProof
       ? "Round 3 product implementation proof scenario needs"
       : readiness.missingTargetCommitCount == 1
@@ -6730,6 +6764,155 @@ enum ProductTournamentNextActionAdvisor {
     ) ?? validationAction
   }
 
+  private static func roundThreeImplementationRevisionValidationAction(
+    for experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> ProductTournamentNextAction? {
+    guard
+      let brief = TournamentAutomationRevisionBriefAdvisor.roundThreeImplementationRevisionBrief(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      let audit = TournamentAutomationCycleLearningAdvisor.appliedRevisionBriefAudit(
+        for: brief,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      let target = revisionValidationTarget(
+        after: audit,
+        brief: brief,
+        experiment: experiment,
+        config: config
+      )
+    else { return nil }
+
+    let targetName = target.personaName ?? "the target simulated user"
+    guard let cohortID = target.cohortID else {
+      return ProductTournamentNextAction(
+        experimentID: experiment.id,
+        kind: .refineContender,
+        title: "Enable Round 3 implementation validation",
+        detail:
+          "Recent tournament automation cycle \(audit.id) applied a Round 3 implementation revision to scenario `\(target.scenarioID)`, but no enabled cohort contains that scenario. Enable or add a cohort for the revision scenario before selecting a tournament winner.",
+        priority: min(99, max(brief.priority + 2, 90)),
+        requiredSimulationMode: .personaModel,
+        targetPersonaID: target.personaID,
+        targetPersonaName: target.personaName,
+        targetScenarioID: target.scenarioID,
+        targetDecision: .promote
+      )
+    }
+
+    let validationAction = ProductTournamentNextAction(
+      experimentID: experiment.id,
+      kind: .rerunCohort,
+      title: "Validate Round 3 implementation revision",
+      detail:
+        "Recent tournament automation cycle \(audit.id) applied a Round 3 implementation revision; rerun persona-model scenario `\(target.scenarioID)` for \(targetName) in cohort `\(cohortID)` before selecting a tournament winner or applying the same implementation revision again. Proof plan: \(brief.proofPlan)",
+      priority: min(99, max(brief.priority + 3, 91)),
+      cohortID: cohortID,
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: target.personaID,
+      targetPersonaName: target.personaName,
+      targetScenarioID: target.scenarioID,
+      targetDecision: .promote
+    )
+    return prepareWorktreeActionIfNeeded(
+      replacing: validationAction,
+      experiment: experiment,
+      config: config
+    ) ?? validationAction
+  }
+
+  private static func roundThreeImplementationRevisionPartialValidationAction(
+    for experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> ProductTournamentNextAction? {
+    guard
+      let result = ProductTournamentRoundThreeImplementationRevisionValidationAdvisor.results(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        limit: 8
+      )
+      .first(where: {
+        $0.experimentID == experiment.id && $0.outcome == .partialValidation
+      })
+    else { return nil }
+
+    let latestAudit = ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
+      .latestAppliedImplementationRevisionAudit(for: experiment.id, config: config)
+    let audit = config.tournamentAutomationCycleAudits.first {
+      $0.id == result.revisionAuditID
+    } ?? latestAudit
+    guard
+      let audit,
+      let target = revisionValidationTarget(
+        after: audit,
+        brief: nil,
+        scenarioID: result.revisionScenarioID,
+        experiment: experiment,
+        config: config
+      )
+    else { return nil }
+
+    let personaTarget = roundThreeImplementationRevisionValidationPersonaTarget(
+      after: audit,
+      result: result,
+      revisionTarget: target,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    let actionCohortID = personaTarget?.executableCohortID ?? target.cohortID
+    let actionScenarioID = personaTarget?.executableScenarioID ?? target.scenarioID
+    let actionPersonaID = personaTarget?.id ?? target.personaID
+    let actionPersonaName = personaTarget?.name ?? target.personaName
+    let targetName = actionPersonaName ?? "the target simulated user"
+    let gapSummary =
+      result.persistedProofGaps.isEmpty
+      ? "the remaining Round 3 winner threshold"
+      : result.persistedProofGaps.prefix(3).joined(separator: "; ")
+    guard let cohortID = actionCohortID else {
+      return ProductTournamentNextAction(
+        experimentID: experiment.id,
+        kind: .refineContender,
+        title: "Enable Round 3 implementation validation",
+        detail:
+          "Round 3 implementation validation after audit \(result.revisionAuditID) is partial (\(result.completedValidationRunCount)/\(result.validationRunCount) validation run(s)), but no enabled cohort contains scenario `\(actionScenarioID)`. Enable or add a cohort for the revision validation scenario before selecting a winner.",
+        priority: 92,
+        requiredSimulationMode: .personaModel,
+        targetPersonaID: actionPersonaID,
+        targetPersonaName: actionPersonaName,
+        targetScenarioID: actionScenarioID,
+        targetDecision: .promote
+      )
+    }
+
+    let validationAction = ProductTournamentNextAction(
+      experimentID: experiment.id,
+      kind: .rerunCohort,
+      title: "Complete Round 3 implementation validation",
+      detail:
+        "Round 3 implementation validation after audit \(result.revisionAuditID) is partial (\(result.completedValidationRunCount)/\(result.validationRunCount) validation run(s)); rerun persona-model scenario `\(actionScenarioID)` for \(targetName) in cohort `\(cohortID)` to close \(gapSummary) before selecting a winner or applying another implementation revision. Proof plan: \(result.nextValidationTarget)",
+      priority: 94,
+      cohortID: cohortID,
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: actionPersonaID,
+      targetPersonaName: actionPersonaName,
+      targetScenarioID: actionScenarioID,
+      targetDecision: .promote
+    )
+    return prepareWorktreeActionIfNeeded(
+      replacing: validationAction,
+      experiment: experiment,
+      config: config
+    ) ?? validationAction
+  }
+
   private static func roundTwoProofGapValidationPersonaTarget(
     after audit: TournamentAutomationCycleAudit,
     result: ProductTournamentRoundTwoProofGapValidationResult,
@@ -6753,6 +6936,69 @@ enum ProductTournamentNextActionAdvisor {
           && $0.contenderID == result.contenderID
       }
     let validationSummaries = ProductTournamentRoundTwoProofGapValidationAdvisor
+      .validationSummaries(
+        in: scopedSummaries,
+        after: audit,
+        scenarioID: result.revisionScenarioID,
+        scenarioIDs: validationScenarioIDs
+      )
+    let testedPersonaIDs = Set(
+      validationSummaries
+        .filter { $0.isCompleted && $0.mode == .personaModel }
+        .map(\.personaID)
+        .filter { !$0.isEmpty }
+    )
+    guard testedPersonaIDs.count < 2 else { return nil }
+
+    let validationCohort = revisionTarget.cohortID.flatMap { cohortID in
+      config.scenarioCohorts.first {
+        $0.id == cohortID && $0.experimentID == experiment.id && $0.enabled
+      }
+    }
+    let candidates = config.scenarios
+      .filter {
+        $0.experimentID == experiment.id
+          && $0.enabled
+          && validationScenarioIDs.contains($0.id)
+          && !testedPersonaIDs.contains($0.segmentID)
+      }
+      .sorted(by: scenarioSort(config: config))
+    guard let scenario = candidates.first else { return nil }
+    let targetCohortID =
+      validationCohort?.scenarioIDs.contains(scenario.id) == true
+      ? validationCohort?.id
+      : executableCohortID(forScenarioID: scenario.id, experiment: experiment, config: config)
+    return PersonaModelTarget(
+      id: scenario.segmentID,
+      name: segmentName(for: scenario.segmentID, config: config),
+      scenarioID: scenario.id,
+      executableCohortID: targetCohortID
+    )
+  }
+
+  private static func roundThreeImplementationRevisionValidationPersonaTarget(
+    after audit: TournamentAutomationCycleAudit,
+    result: ProductTournamentRoundThreeImplementationRevisionValidationResult,
+    revisionTarget: RevisionValidationTarget,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> PersonaModelTarget? {
+    guard
+      let validationScenarioIDs = ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
+        .validationScenarioIDs(
+          after: audit,
+          experimentID: experiment.id,
+          config: config
+        )
+    else { return nil }
+    let scopedSummaries = evidenceIndex.summaries(for: experiment)
+      .filter {
+        $0.tournamentID == result.tournamentID
+          && $0.roundID == result.roundID
+          && $0.contenderID == result.contenderID
+      }
+    let validationSummaries = ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
       .validationSummaries(
         in: scopedSummaries,
         after: audit,

@@ -155,6 +155,248 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(outcome.userMessage.contains("revision"))
   }
 
+  @Test func roundThreeImplementationRevisionValidationScopesFreshEvidenceBeforeWinnerSelection()
+    throws
+  {
+    let fixture = try roundThreeFixture()
+    let revisionScenarioID = "\(fixture.experiment.id)-round-3-validation-operator"
+    let siblingScenarioID = "\(fixture.experiment.id)-round-3-validation-buyer"
+    let firstSegment = try #require(fixture.config.userSegments.first)
+    let secondSegment = try #require(fixture.config.userSegments.dropFirst().first)
+    let workflow = try #require(fixture.config.currentWorkflows.first)
+    var config = fixture.config
+    if let experimentIndex = config.tournamentExperiments.firstIndex(where: {
+      $0.id == fixture.experiment.id
+    }) {
+      config.tournamentExperiments[experimentIndex].baseSha = "base-sha"
+      config.tournamentExperiments[experimentIndex].currentSha = "def456"
+    }
+    config.scenarios.append(
+      ProductScenario(
+        id: revisionScenarioID,
+        experimentID: fixture.experiment.id,
+        segmentID: firstSegment.id,
+        currentWorkflowID: workflow.id,
+        title: "Round 3 validation operator",
+        task: "Validate the revised low-medium fidelity implementation as the first user.",
+        successSignal:
+          "The revised implementation is exercised, beats the spreadsheet, and earns sponsor intent.",
+        targetCommitSha: "def456",
+        createdAt: 100
+      ))
+    config.scenarios.append(
+      ProductScenario(
+        id: siblingScenarioID,
+        experimentID: fixture.experiment.id,
+        segmentID: secondSegment.id,
+        currentWorkflowID: workflow.id,
+        title: "Round 3 validation buyer",
+        task: "Validate the revised low-medium fidelity implementation as the second user.",
+        successSignal:
+          "The revised implementation earns explicit willingness-to-pay from another persona.",
+        targetCommitSha: "def456",
+        createdAt: 100
+      ))
+    config.scenarioCohorts.append(
+      ProductScenarioCohort(
+        id: "\(fixture.experiment.id)-round-3-validation-cohort",
+        title: "Round 3 validation cohort",
+        experimentID: fixture.experiment.id,
+        scenarioIDs: [revisionScenarioID, siblingScenarioID],
+        enabled: true,
+        tags: ["round-3-validation"]
+      ))
+    let experiment = try #require(
+      config.tournamentExperiments.first { $0.id == fixture.experiment.id }
+    )
+    let preRevisionRecords = productImplementationEvidenceRecords(
+      fixture: fixture,
+      count: 3,
+      score: 3,
+      willingnessToPay: 2,
+      verdict: .unclear,
+      objections: ["The sponsor proof needs clearer export and audit context."],
+      missingCapabilities: ["sponsor_export"],
+      summary: "The original product implementation needs one more fidelity pass."
+    )
+    let preRevisionIndex = ProductTournamentEvidenceIndex.build(records: preRevisionRecords)
+    let revisionBrief = try #require(
+      TournamentAutomationRevisionBriefAdvisor.roundThreeImplementationRevisionBrief(
+        for: experiment,
+        config: config,
+        evidenceIndex: preRevisionIndex
+      ))
+    let revisionAudit = roundThreeImplementationRevisionAudit(
+      fixture: fixture,
+      brief: revisionBrief,
+      scenarioID: revisionScenarioID,
+      endedAt: 100
+    )
+    let revisionAuditedConfig = config.recordingTournamentAutomationCycleAudit(revisionAudit)
+    let recognizedAudit = TournamentAutomationCycleLearningAdvisor.appliedRevisionBriefAudit(
+      for: revisionBrief,
+      experiment: experiment,
+      config: revisionAuditedConfig,
+      evidenceIndex: preRevisionIndex
+    )
+    let pendingAction = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: revisionAuditedConfig,
+        evidenceIndex: preRevisionIndex
+      ))
+    let pendingResult = try #require(
+      ProductTournamentRoundThreeImplementationRevisionValidationAdvisor.results(
+        config: revisionAuditedConfig,
+        evidenceIndex: preRevisionIndex
+      ).first
+    )
+    let firstValidationRecord = productImplementationEvidenceRecords(
+      fixture: fixture,
+      count: 1,
+      score: 5,
+      willingnessToPay: 5,
+      verdict: .strongPull,
+      summary: "The first validation run found sponsor pull after the revision.",
+      scenarioID: revisionScenarioID,
+      mode: .personaModel,
+      startedAt: 120,
+      idPrefix: "\(fixture.contender.id)-round-3-validation-operator"
+    )[0]
+    let siblingValidationRecord = productImplementationEvidenceRecords(
+      fixture: fixture,
+      count: 2,
+      score: 5,
+      willingnessToPay: 5,
+      verdict: .strongPull,
+      summary: "The second validation persona would sponsor the revised implementation.",
+      scenarioID: siblingScenarioID,
+      mode: .personaModel,
+      startedAt: 130,
+      idPrefix: "\(fixture.contender.id)-round-3-validation-buyer"
+    )[1]
+    let thirdValidationRecord = productImplementationEvidenceRecords(
+      fixture: fixture,
+      count: 3,
+      score: 5,
+      willingnessToPay: 5,
+      verdict: .strongPull,
+      summary: "A third validation run confirmed the revised implementation is ready.",
+      scenarioID: revisionScenarioID,
+      mode: .personaModel,
+      startedAt: 140,
+      idPrefix: "\(fixture.contender.id)-round-3-validation-repeat"
+    )[2]
+    let partialIndex = ProductTournamentEvidenceIndex.build(
+      records: preRevisionRecords + [firstValidationRecord]
+    )
+    let partialProposal = try #require(
+      ProductTournamentProductImplementationEvidenceTransitioner.proposals(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.productImplementationRound.id,
+        config: revisionAuditedConfig,
+        evidenceIndex: partialIndex
+      ).first
+    )
+    let partialResult = try #require(
+      ProductTournamentRoundThreeImplementationRevisionValidationAdvisor.results(
+        config: revisionAuditedConfig,
+        evidenceIndex: partialIndex
+      ).first
+    )
+    let partialAction = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: revisionAuditedConfig,
+        evidenceIndex: partialIndex
+      ))
+    let partialDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: revisionAuditedConfig,
+      evidenceIndex: partialIndex
+    )
+    let validationIndex = ProductTournamentEvidenceIndex.build(
+      records: preRevisionRecords + [
+        firstValidationRecord, siblingValidationRecord, thirdValidationRecord,
+      ]
+    )
+    let validationProposal = try #require(
+      ProductTournamentProductImplementationEvidenceTransitioner.bestProposal(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.productImplementationRound.id,
+        config: revisionAuditedConfig,
+        evidenceIndex: validationIndex
+      )
+    )
+    let validationResult = try #require(
+      ProductTournamentRoundThreeImplementationRevisionValidationAdvisor.results(
+        config: revisionAuditedConfig,
+        evidenceIndex: validationIndex
+      ).first
+    )
+    let validationDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: revisionAuditedConfig,
+      evidenceIndex: validationIndex
+    )
+    let validationTransitionStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: revisionAuditedConfig,
+        evidenceIndex: validationIndex,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(revisionBrief.source == .roundThreeImplementationRevision)
+    try #require(recognizedAudit?.id == revisionAudit.id)
+    try #require(pendingAction.title == "Validate Round 3 implementation revision")
+    try #require(pendingAction.kind == .rerunCohort)
+    try #require(pendingAction.detail.contains(revisionAudit.id))
+    try #require(pendingAction.targetScenarioID == revisionScenarioID)
+    try #require(pendingAction.targetDecision == .promote)
+    try #require(pendingAction.requiredSimulationMode == .personaModel)
+    try #require(pendingResult.outcome == .pendingValidation)
+    try #require(pendingResult.revisionAuditID == revisionAudit.id)
+    try #require(pendingResult.validationRunIDs.isEmpty)
+    try #require(
+      pendingResult.persistedProofGaps.contains {
+        $0.contains("sponsor_export") || $0.contains("willingness to pay")
+      })
+    try #require(partialProposal.recommendation == .gatherEvidence)
+    try #require(partialProposal.completedRunCount == 1)
+    try #require(
+      partialProposal.evidenceRunIDs.allSatisfy {
+        $0.contains("\(fixture.contender.id)-round-3-validation-operator")
+      })
+    try #require(partialResult.outcome == .partialValidation)
+    try #require(partialResult.validationRunIDs == [firstValidationRecord.id])
+    try #require(partialAction.kind == .rerunCohort)
+    try #require(partialAction.title == "Complete Round 3 implementation validation")
+    try #require(partialAction.targetPersonaID == secondSegment.id)
+    try #require(partialAction.targetPersonaName == secondSegment.name)
+    try #require(partialAction.targetScenarioID == siblingScenarioID)
+    try #require(partialAction.targetDecision == .promote)
+    try #require(partialDigest.contains("Round 3 implementation revision validation"))
+    try #require(partialDigest.contains("outcome partial_validation"))
+    try #require(validationProposal.recommendation == .selectWinner)
+    try #require(validationProposal.proofGaps.isEmpty)
+    try #require(
+      validationProposal.evidenceRunIDs.allSatisfy {
+        $0.contains("\(fixture.contender.id)-round-3-validation")
+      })
+    try #require(validationResult.outcome == .resolved)
+    try #require(validationResult.recommendation == .selectWinner)
+    try #require(validationResult.validationRunCount == 3)
+    try #require(validationResult.completedValidationRunCount == 3)
+    try #require(validationResult.persistedProofGaps.isEmpty)
+    try #require(
+      validationResult.resolvedProofGaps.contains {
+        $0.contains("sponsor_export") || $0.contains("willingness to pay")
+      })
+    try #require(validationResult.contextLine.contains("outcome resolved"))
+    try #require(validationDigest.contains("Round 3 implementation revision validation"))
+    try #require(validationDigest.contains("outcome resolved"))
+    try #require(validationTransitionStep.kind == .applyRoundTransition)
+    try #require(validationTransitionStep.title == "Apply Round 3 transition")
+  }
+
   @Test func weakProductImplementationEvidenceEliminatesContender() throws {
     let fixture = try roundThreeFixture()
     let records = productImplementationEvidenceRecords(
@@ -490,14 +732,19 @@ private func productImplementationEvidenceRecords(
   summary: String,
   sponsorshipIntent: String? = nil,
   includeImplementationUseProof: Bool = true,
-  completedUseProof: Bool? = nil
+  completedUseProof: Bool? = nil,
+  scenarioID: String? = nil,
+  mode: ProductTournamentSimulationMode = .modelFree,
+  startedAt: Double = 0,
+  idPrefix: String? = nil
 ) -> [ProductTournamentEvidenceRecord] {
   let completedUseProof = completedUseProof ?? includeImplementationUseProof
   let segments = Array(fixture.config.userSegments)
   return (0..<count).map { index in
     let segment = segments[index % max(1, segments.count)]
+    let recordID = "\(idPrefix ?? "\(fixture.contender.id)-round-3")-\(index)"
     return ProductTournamentEvidenceRecord(
-      id: "\(fixture.contender.id)-round-3-\(index)",
+      id: recordID,
       experimentID: fixture.experiment.id,
       contenderPlanID: fixture.contender.contenderPlanID,
       painID: fixture.contenderPlan.painID,
@@ -506,12 +753,12 @@ private func productImplementationEvidenceRecords(
       contenderID: fixture.contender.id,
       branchName: fixture.experiment.branchName,
       commitSha: "def456",
-      scenarioID: "product-implementation-scenario-\(index)",
+      scenarioID: scenarioID ?? "product-implementation-scenario-\(index)",
       personaID: segment.id,
-      mode: .modelFree,
+      mode: mode,
       status: .completed,
-      startedAt: Double(index),
-      endedAt: Double(index + 1),
+      startedAt: startedAt + Double(index),
+      endedAt: startedAt + Double(index + 1),
       traceHash: includeImplementationUseProof ? "round-3-trace-\(index)" : nil,
       completedUseProof: completedUseProof,
       scores: ProductTournamentEvidenceScores(
@@ -541,4 +788,32 @@ private func productImplementationEvidenceRecords(
       summary: summary
     )
   }
+}
+
+private func roundThreeImplementationRevisionAudit(
+  fixture: RoundThreeFixture,
+  brief: TournamentAutomationRevisionBrief,
+  scenarioID: String,
+  endedAt: Double
+) -> TournamentAutomationCycleAudit {
+  let stepID =
+    "\(fixture.experiment.id):\(TournamentAutomationStepKind.applyRevision.rawValue):\(scenarioID)"
+  return TournamentAutomationCycleAudit(
+    id: "round-3-implementation-revision-\(fixture.experiment.id)-\(Int(endedAt))",
+    startedAt: endedAt - 10,
+    endedAt: endedAt,
+    executedStepIDs: [stepID],
+    experimentIDs: [fixture.experiment.id],
+    messages: [
+      "Applied Round 3 implementation revision \(brief.title) to scenario \(scenarioID)."
+    ],
+    maxSteps: 1,
+    revisionBriefSummaries: [brief.auditSummary],
+    stopReason: .reachedStepLimit,
+    stopStepID: stepID,
+    stopStepTitle: "Apply contender revision",
+    stopDetail: "Round 3 implementation revision applied; run validation evidence next.",
+    userMessage:
+      "Applied Round 3 implementation revision for \(fixture.experiment.id). Run validation evidence next."
+  )
 }
