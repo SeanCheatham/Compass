@@ -71,7 +71,10 @@ and advances them through rounds:
   can advance a contender to Round 2, mark a plan for revision, or eliminate a
   weak contender before implementation spend.
 - **Round 2: core technology.** Surviving contenders get the smallest technical
-  proof that demonstrates the hard part can work.
+  proof that demonstrates the hard part can work. After Round 1 advances a
+  contender, Compass emits a Round 2 feasibility handoff that names the narrowed
+  contender, implementation track, branch/worktree, plan-readiness evidence, and
+  acceptance signals for the next build slice.
 - **Round 3: prototype.** Agentic users exercise low-medium fidelity product
   versions and evaluate workflow improvement, switching readiness, continued-use
   pull, and price or sponsorship intent.
@@ -107,9 +110,9 @@ missing capabilities, failure kinds, decision history, and copyable Markdown
 summaries. It can also apply the best actionable Round 1 recommendation to
 stored tournament state. Plan and Reflect receive only a compact advisory
 summary: current tournament round, contender plans, Round 1 plan readiness,
-willingness-to-pay signals, latest evidence per active scenario, repeated
-objections, low-score clusters, verdict distribution, failures, and current
-alternative comparisons.
+willingness-to-pay signals, Round 2 feasibility handoffs, latest evidence per
+active scenario, repeated objections, low-score clusters, verdict distribution,
+failures, and current alternative comparisons.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 

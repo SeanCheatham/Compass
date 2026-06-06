@@ -111,6 +111,13 @@ struct ProductizationWorkbenchTab: View {
       && !isRunningScenario
   }
 
+  private var feasibilityHandoffs: [ProductTournamentFeasibilityHandoff] {
+    ProductTournamentFeasibilityAdvisor.handoffs(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var selectedExperiment: ProductExperiment? {
     guard let selectedExperimentID else { return config.experiments.first }
     return config.experiments.first { $0.id == selectedExperimentID } ?? config.experiments.first
@@ -552,6 +559,18 @@ struct ProductizationWorkbenchTab: View {
           }
         }
 
+        WorkbenchSection("Round 2 Feasibility", systemImage: "wrench.and.screwdriver") {
+          VStack(alignment: .leading, spacing: 8) {
+            if feasibilityHandoffs.isEmpty {
+              WorkbenchEmptyLine("No narrowed contender is active in Round 2 yet.")
+            } else {
+              ForEach(feasibilityHandoffs.prefix(3)) { handoff in
+                feasibilityHandoffRow(handoff)
+              }
+            }
+          }
+        }
+
         WorkbenchSection("Solution Hypotheses", systemImage: "lightbulb") {
           VStack(alignment: .leading, spacing: 8) {
             if config.solutionHypotheses.isEmpty {
@@ -763,6 +782,45 @@ struct ProductizationWorkbenchTab: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func feasibilityHandoffRow(_ handoff: ProductTournamentFeasibilityHandoff) -> some View {
+    Button {
+      selectedExperimentID = handoff.experimentID
+    } label: {
+      VStack(alignment: .leading, spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text(handoff.contenderTitle)
+            .font(.callout.weight(.semibold))
+            .lineLimit(2)
+          Spacer()
+          WorkbenchStatusPill(text: "Round 2")
+        }
+        WorkbenchFact(label: "Track", value: handoff.experimentID)
+        WorkbenchFact(label: "Branch", value: handoff.branchName)
+        WorkbenchFact(label: "Plan", value: "\(handoff.scoreLabel)/100")
+        if !handoff.scenarioCohortIDs.isEmpty {
+          WorkbenchFact(label: "Cohorts", value: handoff.scenarioCohortIDs.joined(separator: ", "))
+        }
+        WorkbenchFact(
+          label: "Acceptance",
+          value: handoff.acceptanceSignals.prefix(3).joined(separator: "; ")
+        )
+        Text(handoff.coreTechnologyProof)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+        Text("Risk: \(handoff.riskFocus)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .help(handoff.feasibilityGoal)
   }
 
   private func experimentRow(_ experiment: ProductExperiment) -> some View {

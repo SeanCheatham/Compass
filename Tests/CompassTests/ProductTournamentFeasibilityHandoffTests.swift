@@ -1,0 +1,122 @@
+import Foundation
+import Testing
+
+@testable import Compass
+
+struct ProductTournamentFeasibilityHandoffTests {
+  @Test func roundTwoHandoffTargetsNarrowedContenderImplementationTrack() throws {
+    let config = ProductizationConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Weekly reporting takes too long.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let tournament = try #require(config.tournaments.first)
+    let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let feasibilityRound = try #require(
+      config.tournamentRounds.first { $0.kind == .coreTechnology })
+    let contender = try #require(config.tournamentContenders.first)
+    let experimentID = try #require(contender.experimentID)
+    let experiment = try #require(config.experiments.first { $0.id == experimentID })
+    let records = try strongPlanRecords(
+      for: contender,
+      tournament: tournament,
+      round: planRound,
+      config: config
+    )
+    let index = ProductizationEvidenceIndex.build(records: [], planEvaluationRecords: records)
+    let transition = try ProductTournamentPlanTransitioner.applyBestProposal(
+      tournamentID: tournament.id,
+      roundID: planRound.id,
+      to: config,
+      evidenceIndex: index,
+      now: Date(timeIntervalSince1970: 2_000)
+    )
+
+    let handoffs = ProductTournamentFeasibilityAdvisor.handoffs(
+      config: transition.config,
+      evidenceIndex: index
+    )
+    let handoff = try #require(handoffs.first)
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: transition.config,
+      evidenceIndex: index
+    )
+
+    try #require(handoffs.count == 1)
+    try #require(handoff.roundID == feasibilityRound.id)
+    try #require(handoff.contenderID == contender.id)
+    try #require(handoff.experimentID == experiment.id)
+    try #require(handoff.branchName == experiment.branchName)
+    try #require(handoff.planRecommendation == .advanceToFeasibility)
+    try #require((handoff.planReadinessScore ?? 0) >= 66)
+    try #require(handoff.coreTechnologyProof.contains(experiment.title))
+    try #require(handoff.acceptanceSignals.contains("Technical feasibility"))
+    try #require(digest.contains("Round 2 feasibility handoff"))
+    try #require(digest.contains("round_2_feasibility contender \(contender.id)"))
+    try #require(digest.contains("experiment \(experiment.id)"))
+    try #require(digest.contains("branch \(experiment.branchName)"))
+    try #require(digest.contains("plan_readiness"))
+  }
+
+  @Test func handoffIsAbsentBeforeRoundOneTransition() throws {
+    let config = ProductizationConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Weekly reporting takes too long.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let tournament = try #require(config.tournaments.first)
+    let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let contender = try #require(config.tournamentContenders.first)
+    let records = try strongPlanRecords(
+      for: contender,
+      tournament: tournament,
+      round: planRound,
+      config: config
+    )
+    let index = ProductizationEvidenceIndex.build(records: [], planEvaluationRecords: records)
+
+    try #require(
+      ProductTournamentFeasibilityAdvisor.handoffs(
+        config: config,
+        evidenceIndex: index
+      ).isEmpty
+    )
+  }
+}
+
+private func strongPlanRecords(
+  for contender: ProductTournamentContender,
+  tournament: ProductTournament,
+  round: ProductTournamentRound,
+  config: ProductizationConfig
+) throws -> [ProductTournamentPlanEvaluationRecord] {
+  let solution = try #require(config.solutionHypotheses.first { $0.id == contender.solutionID })
+  return config.userSegments.prefix(2).enumerated().map { index, segment in
+    ProductTournamentPlanEvaluationRecord(
+      id: "\(contender.id)-feasibility-\(index)",
+      tournamentID: tournament.id,
+      roundID: round.id,
+      contenderID: contender.id,
+      solutionID: contender.solutionID,
+      experimentID: contender.experimentID,
+      painID: solution.painID,
+      personaID: segment.id,
+      personaName: segment.name,
+      startedAt: Double(index),
+      endedAt: Double(index + 1),
+      scores: ProductizationEvidenceScores(
+        painRecognition: 5,
+        workflowImprovement: 5,
+        alternativeAdvantage: 5,
+        switchingReadiness: 5,
+        continuedUsePull: 5
+      ),
+      willingnessToPayScore: 4,
+      estimatedMonthlyPriceCents: 9900,
+      currentAlternativeComparison: "The plan can beat the current workaround.",
+      verdict: .strongPull,
+      summary: "The plan is ready for feasibility proof.",
+      rationale: ["Strong Round 1 signal."]
+    )
+  }
+}

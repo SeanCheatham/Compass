@@ -21,6 +21,7 @@ enum ProductizationPlanningDigestFormatter {
 
     lines += painLines(config: config, maxPainHypotheses: maxPainHypotheses)
     lines += tournamentLines(config: config, evidenceIndex: evidenceIndex)
+    lines += feasibilityHandoffLines(config: config, evidenceIndex: evidenceIndex)
     lines += solutionLines(config: config, maxSolutionHypotheses: maxSolutionHypotheses)
     lines += experimentLines(config: config, maxExperiments: maxExperiments)
     lines += evidenceSignalLines(
@@ -199,6 +200,19 @@ enum ProductizationPlanningDigestFormatter {
         "- \(solutions.count - maxSolutionHypotheses) more solution hypothesis/hypotheses omitted.")
     }
     return lines
+  }
+
+  private static func feasibilityHandoffLines(
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> [String] {
+    let handoffs = ProductTournamentFeasibilityAdvisor.handoffs(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    guard !handoffs.isEmpty else { return [] }
+    return ["Round 2 feasibility handoff:"]
+      + handoffs.prefix(3).map { handoff in bounded(handoff.digestLine, 620) }
   }
 
   private static func experimentLines(
