@@ -59,16 +59,27 @@ repositories and for Compass's own Swift code; it is not a generated-output
 dependency. The Compass host app remains Swift/macOS; the Rust engine is a
 factory sidecar and is not used for the host UI or VM lifecycle.
 
-## Productization Evidence
+## Product Tournaments
 
-Compass can collect productization evidence for generated Rust apps that expose
-the deterministic productization experience contract. Simulation is not user
-research, a sales forecast, or a Verify gate. It is a skeptical, repeatable
-product-pressure loop: a scenario works through the app's semantic
-`ProductizationExperienceTrace`, records structured feedback, and gives
+Compass frames product discovery as a tournament. A tournament starts from a
+durable user pain, creates several competing product contenders for that pain,
+and advances them through rounds:
+
+- **Round 1: product plans.** No product exists yet. Simulated users inspect the
+  plans, compare them with the current alternative, and judge pain recognition,
+  sponsorship, and willingness to pay.
+- **Round 2: core technology.** Surviving contenders get the smallest technical
+  proof that demonstrates the hard part can work.
+- **Round 3: prototype.** Agentic users exercise low-medium fidelity product
+  versions and evaluate workflow improvement, switching readiness, continued-use
+  pull, and price or sponsorship intent.
+
+Simulation is not user research, a sales forecast, or a Verify gate. It is a
+skeptical, repeatable product-pressure loop: a scenario works through the app's
+semantic `ProductizationExperienceTrace`, records structured feedback, and gives
 Plan/Reflect bounded evidence about pain recognition, workflow improvement,
 objections, missing capabilities, scores, verdicts, scenario gaps, and the
-PMF decision intent being stress-tested.
+decision intent being stress-tested.
 
 Generated apps expose the contract through:
 
@@ -79,32 +90,34 @@ cargo run -p xtask -- productization-smoke
 ```
 
 `productization-smoke` is the model-free generated-project check. It proves the
-app owns a stable experience contract and can replay a deterministic
-productization journey. Live persona and feedback calls are manual/interactive
-checks, not part of normal automated tests.
+app owns a stable experience contract and can replay a deterministic tournament
+journey. Live persona and feedback calls are manual/interactive checks, not part
+of normal automated tests.
 
-Productization evidence is stored under `.compass/productization/` with a
-quick-loading `evidence-index.json` and separate run artifacts for traces,
-feedback, transcripts, and Markdown summaries. The Productization workbench
-lists pain hypotheses, solution bets, experiment branches, scenario runs,
-feedback scores, objections, missing capabilities, failure kinds, decision
-history, and copyable Markdown summaries. Plan and Reflect receive only a
-compact advisory summary: latest evidence per active scenario, repeated
-objections, low-score clusters, verdict distribution, failures, and current
-alternative comparisons. Raw transcripts stay out of prompt context unless a
-human inspects them in the app.
+Tournament state and evidence currently use the existing productization storage
+namespace: `.compass/productization.json` for pain hypotheses, tournaments,
+contenders, rounds, solution bets, experiment branches, scenarios, and decisions;
+`.compass/productization/` for `evidence-index.json` and separate run artifacts
+for traces, feedback, transcripts, and Markdown summaries. The Tournament
+workbench lists pain hypotheses, contenders, rounds, implementation tracks,
+scenario runs, feedback scores, objections, missing capabilities, failure kinds,
+decision history, and copyable Markdown summaries. Plan and Reflect receive only
+a compact advisory summary: current tournament round, contender plans, latest
+evidence per active scenario, repeated objections, low-score clusters, verdict
+distribution, failures, and current alternative comparisons. Raw transcripts
+stay out of prompt context unless a human inspects them in the app.
 
 Interpret subjective feedback carefully. Repeated objections across personas or
 tasks can justify product work; a single persona-specific complaint should be
-treated as a signal to investigate. Productization evidence can motivate the next Plan
-increment, suggest better scenarios, or challenge the hypothesis, but it never
-bypasses normal build/test/Verify discipline.
+treated as a signal to investigate. Tournament evidence can motivate the next
+Plan increment, suggest better scenarios, or challenge the hypothesis, but it
+never bypasses normal build/test/Verify discipline.
 
-Productization prompts use the same model/provider settings already configured
-for the project and do not add a new network destination. Automatic
-persona-model execution is kept disabled unless rollout controls can bound
-runtime and flake risk; run the generated `productization-smoke` and inspect
-productization evidence manually when evaluating the feature.
+Tournament prompts use the same model/provider settings already configured for
+the project and do not add a new network destination. Automatic persona-model
+execution is kept disabled unless rollout controls can bound runtime and flake
+risk; run the generated `productization-smoke` and inspect tournament evidence
+manually when evaluating the feature.
 
 ## Developing compass-engine
 
@@ -293,8 +306,8 @@ Everything lives in `.compass/` inside each selected repository:
 ├── drafts.md         # User-owned draft queue.
 ├── lessons.md        # Durable guidance shared across iterations.
 ├── assumptions.json  # Agent-recorded assumptions and user reviews.
-├── productization.json # Pain hypotheses, solutions, experiments, decisions.
-├── productization/     # Productization evidence, runs, and worktrees.
+├── productization.json # Pains, tournaments, contenders, rounds, experiments.
+├── productization/     # Tournament evidence, runs, and worktrees.
 ├── sessions.jsonl    # Per-iteration session index and latest feedback.
 ├── sessions-archive/ # Segmented older session records.
 ├── sessions/         # Session audit manifests, events, and artifacts.

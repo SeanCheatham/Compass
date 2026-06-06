@@ -112,15 +112,17 @@ struct ProductizationConfigTests {
       userMessage: "Third."
     )
 
-    let next = base
+    let next =
+      base
       .recordingFactoryCycleAudit(first, limit: 2)
       .recordingFactoryCycleAudit(second, limit: 2)
       .recordingFactoryCycleAudit(third, limit: 2)
 
-    try #require(next.factoryCycleAudits.map(\.id) == ["factory-cycle-second", "factory-cycle-third"])
+    try #require(
+      next.factoryCycleAudits.map(\.id) == ["factory-cycle-second", "factory-cycle-third"])
   }
 
-  @Test func seedDefaultsCreatePainSolutionsExperimentsAndCohorts() throws {
+  @Test func seedDefaultsCreateProductTournamentContendersRoundsAndCohorts() throws {
     let config = ProductizationConfig.seedDefaults(
       projectTitle: "LedgerLift",
       rawPain: "Finance operators lose weekly reporting context between Slack and spreadsheets.\n",
@@ -135,17 +137,34 @@ struct ProductizationConfigTests {
     try #require(config.alternatives.count == 2)
     try #require(config.solutionHypotheses.count == 2)
     try #require(config.experiments.count == 2)
+    try #require(config.tournaments.count == 1)
+    try #require(config.tournamentContenders.count == 2)
+    try #require(config.tournamentRounds.count == 3)
     try #require(config.scenarios.count == 4)
     try #require(config.scenarioCohorts.count == 2)
     try #require(Set(config.userSegments.map(\.id)).count == config.userSegments.count)
     try #require(Set(config.solutionHypotheses.map(\.id)).count == config.solutionHypotheses.count)
     try #require(Set(config.experiments.map(\.id)).count == config.experiments.count)
+    try #require(
+      Set(config.tournamentContenders.map(\.id)).count == config.tournamentContenders.count)
+    try #require(Set(config.tournamentRounds.map(\.id)).count == config.tournamentRounds.count)
     try #require(Set(config.scenarios.map(\.id)).count == config.scenarios.count)
     try #require(config.painHypotheses[0].status == .active)
     try #require(config.solutionHypotheses.contains { $0.status == .active })
     try #require(config.solutionHypotheses.allSatisfy { $0.painID == config.painHypotheses[0].id })
     try #require(config.experiments.allSatisfy { !$0.branchName.isEmpty })
     try #require(config.experiments.allSatisfy { !$0.worktreeID.isEmpty })
+    let tournament = try #require(config.tournaments.first)
+    try #require(tournament.contenderIDs == config.tournamentContenders.map(\.id))
+    try #require(tournament.roundIDs == config.tournamentRounds.map(\.id))
+    try #require(tournament.currentRoundID == config.tournamentRounds[0].id)
+    try #require(
+      config.tournamentRounds.map(\.kind) == [.productPlans, .coreTechnology, .prototype])
+    try #require(config.tournamentRounds[0].requiresBuiltProduct == false)
+    try #require(config.tournamentRounds[1].requiresBuiltProduct)
+    try #require(config.tournamentRounds[2].evaluationFocus.contains("Continued-use pull"))
+    try #require(config.tournamentContenders.allSatisfy { $0.status == .competing })
+    try #require(config.tournamentContenders.allSatisfy { $0.experimentID != nil })
     try #require(config.scenarioCohorts.allSatisfy { $0.scenarioIDs.count == 2 })
     for experiment in config.experiments {
       let scenarioSegmentIDs = Set(
@@ -157,7 +176,8 @@ struct ProductizationConfigTests {
     }
     try #require(config.factoryCycleAudits.isEmpty)
     try #require(
-      Set(config.scenarioCohorts.flatMap(\.scenarioIDs)).isSubset(of: Set(config.scenarios.map(\.id)))
+      Set(config.scenarioCohorts.flatMap(\.scenarioIDs)).isSubset(
+        of: Set(config.scenarios.map(\.id)))
     )
     try #require(config.experiments[0].createdAt == 1_700_000_000)
   }
@@ -176,6 +196,8 @@ struct ProductizationConfigTests {
     try #require(!project.productizationConfig.isEmpty)
     try #require(project.productizationConfig.rawPain.contains("Support teams"))
     try #require(project.productizationConfig.solutionHypotheses.count == 2)
+    try #require(project.productizationConfig.tournaments.count == 1)
+    try #require(project.productizationConfig.tournamentRounds.map(\.kind).contains(.productPlans))
   }
 
   @Test func projectSavesAndReloadsProductizationConfig() async throws {

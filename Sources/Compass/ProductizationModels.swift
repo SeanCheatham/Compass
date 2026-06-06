@@ -11,6 +11,9 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
   var alternatives: [Alternative]
   var solutionHypotheses: [SolutionHypothesis]
   var experiments: [ProductExperiment]
+  var tournaments: [ProductTournament]
+  var tournamentContenders: [ProductTournamentContender]
+  var tournamentRounds: [ProductTournamentRound]
   var scenarios: [ProductScenario]
   var scenarioCohorts: [ProductScenarioCohort]
   var decisions: [ProductDecision]
@@ -24,6 +27,9 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     alternatives: [],
     solutionHypotheses: [],
     experiments: [],
+    tournaments: [],
+    tournamentContenders: [],
+    tournamentRounds: [],
     scenarios: [],
     scenarioCohorts: [],
     decisions: [],
@@ -39,6 +45,9 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     case alternatives
     case solutionHypotheses
     case experiments
+    case tournaments
+    case tournamentContenders
+    case tournamentRounds
     case scenarios
     case scenarioCohorts
     case decisions
@@ -54,6 +63,9 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     alternatives: [Alternative],
     solutionHypotheses: [SolutionHypothesis],
     experiments: [ProductExperiment],
+    tournaments: [ProductTournament] = [],
+    tournamentContenders: [ProductTournamentContender] = [],
+    tournamentRounds: [ProductTournamentRound] = [],
     scenarios: [ProductScenario] = [],
     scenarioCohorts: [ProductScenarioCohort] = [],
     decisions: [ProductDecision] = [],
@@ -67,6 +79,9 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     self.alternatives = alternatives
     self.solutionHypotheses = solutionHypotheses
     self.experiments = experiments
+    self.tournaments = tournaments
+    self.tournamentContenders = tournamentContenders
+    self.tournamentRounds = tournamentRounds
     self.scenarios = scenarios
     self.scenarioCohorts = scenarioCohorts
     self.decisions = decisions
@@ -95,6 +110,16 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
         [SolutionHypothesis].self, forKey: .solutionHypotheses) ?? [],
       experiments: try container.decodeIfPresent([ProductExperiment].self, forKey: .experiments)
         ?? [],
+      tournaments: try container.decodeIfPresent([ProductTournament].self, forKey: .tournaments)
+        ?? [],
+      tournamentContenders: try container.decodeIfPresent(
+        [ProductTournamentContender].self,
+        forKey: .tournamentContenders
+      ) ?? [],
+      tournamentRounds: try container.decodeIfPresent(
+        [ProductTournamentRound].self,
+        forKey: .tournamentRounds
+      ) ?? [],
       scenarios: try container.decodeIfPresent([ProductScenario].self, forKey: .scenarios) ?? [],
       scenarioCohorts: try container.decodeIfPresent(
         [ProductScenarioCohort].self, forKey: .scenarioCohorts) ?? [],
@@ -114,6 +139,9 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
       && alternatives.isEmpty
       && solutionHypotheses.isEmpty
       && experiments.isEmpty
+      && tournaments.isEmpty
+      && tournamentContenders.isEmpty
+      && tournamentRounds.isEmpty
       && scenarios.isEmpty
       && scenarioCohorts.isEmpty
       && decisions.isEmpty
@@ -158,6 +186,12 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
     let buyerSegmentID = "\(slug)-buyer"
     let workflowSolutionID = "\(slug)-workflow-clarifier"
     let proofSolutionID = "\(slug)-proof-assistant"
+    let tournamentID = "\(slug)-tournament"
+    let workflowContenderID = "\(slug)-workflow-contender"
+    let proofContenderID = "\(slug)-proof-contender"
+    let planRoundID = "\(slug)-round-1-plans"
+    let feasibilityRoundID = "\(slug)-round-2-feasibility"
+    let prototypeRoundID = "\(slug)-round-3-prototype"
     let workflowExperimentID = "\(slug)-workflow-prototype"
     let proofExperimentID = "\(slug)-proof-prototype"
     let workflowOperatorScenarioID = "\(workflowExperimentID)-operator-starter-scenario"
@@ -253,7 +287,8 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
         painID: painID,
         name: "Hands-on operator",
         role: "Primary user responsible for getting through the painful workflow",
-        context: "Evaluates whether a product bet helps in the moment of work, not just in a pitch.",
+        context:
+          "Evaluates whether a product bet helps in the moment of work, not just in a pitch.",
         goals: [
           "Reduce the painful step or handoff.",
           "Know what to do next with less rework.",
@@ -291,7 +326,8 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
           "Adoption risk",
           "Evidence quality",
         ],
-        skepticism: "Treats subjective enthusiasm as weak until paired with concrete workflow proof."
+        skepticism:
+          "Treats subjective enthusiasm as weak until paired with concrete workflow proof."
       ),
     ]
 
@@ -347,7 +383,8 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
         worktreeID: "\(slug)-workflow-worktree",
         baseSha: nil,
         currentSha: nil,
-        prototypeScope: "Build the smallest Rust desktop workflow that proves one pain-relief moment.",
+        prototypeScope:
+          "Build the smallest Rust desktop workflow that proves one pain-relief moment.",
         scenarioCohortIDs: ["\(workflowExperimentID)-starter-cohort"],
         evidenceSummary: "No evidence recorded yet.",
         decision: .notRun,
@@ -378,8 +415,10 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
         currentWorkflowID: workflowID,
         alternativeID: manualAlternativeID,
         title: "\(title) workflow proof",
-        task: "Try the prototype against the current manual workflow and decide whether it makes the next action clearer.",
-        successSignal: "The operator can complete one workflow moment with less ambiguity than the manual workaround.",
+        task:
+          "Try the prototype against the current manual workflow and decide whether it makes the next action clearer.",
+        successSignal:
+          "The operator can complete one workflow moment with less ambiguity than the manual workaround.",
         targetCommitSha: nil,
         maxTurns: 8,
         appCommandTimeoutSeconds: 120,
@@ -393,8 +432,10 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
         currentWorkflowID: workflowID,
         alternativeID: doNothingAlternativeID,
         title: "\(title) workflow sponsor proof",
-        task: "Review the workflow prototype as the sponsor and decide whether the evidence justifies more product investment.",
-        successSignal: "The buyer can explain whether the workflow relief is valuable enough to sponsor.",
+        task:
+          "Review the workflow prototype as the sponsor and decide whether the evidence justifies more product investment.",
+        successSignal:
+          "The buyer can explain whether the workflow relief is valuable enough to sponsor.",
         targetCommitSha: nil,
         maxTurns: 8,
         appCommandTimeoutSeconds: 120,
@@ -408,8 +449,10 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
         currentWorkflowID: workflowID,
         alternativeID: manualAlternativeID,
         title: "\(title) evidence operator proof",
-        task: "Use the proof assistant during the current workflow and decide whether it makes product evidence easier to capture.",
-        successSignal: "The operator can capture reusable evidence with less rework than the manual workaround.",
+        task:
+          "Use the proof assistant during the current workflow and decide whether it makes product evidence easier to capture.",
+        successSignal:
+          "The operator can capture reusable evidence with less rework than the manual workaround.",
         targetCommitSha: nil,
         maxTurns: 8,
         appCommandTimeoutSeconds: 120,
@@ -423,8 +466,10 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
         currentWorkflowID: workflowID,
         alternativeID: doNothingAlternativeID,
         title: "\(title) decision proof",
-        task: "Use the prototype to compare the product bet against doing nothing and decide whether evidence is strong enough to continue.",
-        successSignal: "The buyer can explain the decision criteria and the next product decision with reusable evidence.",
+        task:
+          "Use the prototype to compare the product bet against doing nothing and decide whether evidence is strong enough to continue.",
+        successSignal:
+          "The buyer can explain the decision criteria and the next product decision with reusable evidence.",
         targetCommitSha: nil,
         maxTurns: 8,
         appCommandTimeoutSeconds: 120,
@@ -438,13 +483,120 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
         id: "\(experiment.id)-starter-cohort",
         title: "\(experiment.title) starter cohort",
         experimentID: experiment.id,
-        scenarioIDs: scenarios
+        scenarioIDs:
+          scenarios
           .filter { $0.experimentID == experiment.id }
           .map(\.id),
         enabled: true,
         tags: ["seeded", "starter"]
       )
     }
+
+    let contenders = [
+      ProductTournamentContender(
+        id: workflowContenderID,
+        tournamentID: tournamentID,
+        solutionID: workflowSolutionID,
+        experimentID: workflowExperimentID,
+        title: "\(title) workflow product",
+        productPlan:
+          "Turn the current workaround into a guided workflow that helps the operator complete one painful moment with less ambiguity.",
+        valueProposition:
+          "The user gets a clearer next action without adopting a broad product surface.",
+        primaryRisk:
+          "The workflow may be too context-specific for a reusable product to win against the manual workaround.",
+        targetSegmentIDs: [operatorSegmentID],
+        status: .competing,
+        createdAt: timestamp
+      ),
+      ProductTournamentContender(
+        id: proofContenderID,
+        tournamentID: tournamentID,
+        solutionID: proofSolutionID,
+        experimentID: proofExperimentID,
+        title: "\(title) proof product",
+        productPlan:
+          "Capture alternatives, assumptions, and proof while the user evaluates what product investment should happen next.",
+        valueProposition:
+          "The buyer and operator can reuse evidence instead of relying on subjective enthusiasm.",
+        primaryRisk:
+          "Decision support may feel one step removed from the pain if the user needs direct workflow relief first.",
+        targetSegmentIDs: [operatorSegmentID, buyerSegmentID],
+        status: .competing,
+        createdAt: timestamp
+      ),
+    ]
+
+    let contenderIDs = contenders.map(\.id)
+    let cohortIDs = cohorts.map(\.id)
+    let rounds = [
+      ProductTournamentRound(
+        id: planRoundID,
+        tournamentID: tournamentID,
+        ordinal: 1,
+        kind: .productPlans,
+        title: "Round 1: product plans",
+        goal:
+          "Compare product plans before any implementation exists and ask simulated users which plan best recognizes the pain.",
+        evaluationFocus: [
+          "Pain recognition",
+          "Current alternative comparison",
+          "Willingness to pay or sponsor",
+        ],
+        contenderIDs: contenderIDs,
+        scenarioCohortIDs: [],
+        status: .active,
+        createdAt: timestamp
+      ),
+      ProductTournamentRound(
+        id: feasibilityRoundID,
+        tournamentID: tournamentID,
+        ordinal: 2,
+        kind: .coreTechnology,
+        title: "Round 2: core technology",
+        goal:
+          "Build the smallest feasibility proof for each surviving contender so users can react to whether the hard part works.",
+        evaluationFocus: [
+          "Technical feasibility",
+          "Trust in the core workflow",
+          "Evidence that the product can beat the workaround",
+        ],
+        contenderIDs: contenderIDs,
+        scenarioCohortIDs: cohortIDs,
+        status: .planned,
+        createdAt: timestamp
+      ),
+      ProductTournamentRound(
+        id: prototypeRoundID,
+        tournamentID: tournamentID,
+        ordinal: 3,
+        kind: .prototype,
+        title: "Round 3: low-medium fidelity product",
+        goal:
+          "Let agentic users exercise low-medium fidelity product versions and judge adoption, switching, and willingness to pay.",
+        evaluationFocus: [
+          "Workflow improvement",
+          "Switching readiness",
+          "Continued-use pull",
+        ],
+        contenderIDs: contenderIDs,
+        scenarioCohortIDs: cohortIDs,
+        status: .planned,
+        createdAt: timestamp
+      ),
+    ]
+
+    let tournament = ProductTournament(
+      id: tournamentID,
+      painID: painID,
+      title: "\(title) product tournament",
+      premise: painText,
+      contenderIDs: contenderIDs,
+      roundIDs: rounds.map(\.id),
+      currentRoundID: planRoundID,
+      status: .active,
+      createdAt: timestamp
+    )
 
     return ProductizationConfig(
       rawPain: painText,
@@ -454,6 +606,9 @@ struct ProductizationConfig: Codable, Equatable, Sendable {
       alternatives: alternatives,
       solutionHypotheses: solutions,
       experiments: experiments,
+      tournaments: [tournament],
+      tournamentContenders: contenders,
+      tournamentRounds: rounds,
       scenarios: scenarios,
       scenarioCohorts: cohorts,
       decisions: []
@@ -756,6 +911,226 @@ enum ProductExperimentDecision: String, Codable, CaseIterable, Equatable, Sendab
   case promoted
 }
 
+struct ProductTournament: Codable, Equatable, Identifiable, Sendable {
+  var id: String
+  var painID: String
+  var title: String
+  var premise: String
+  var contenderIDs: [String]
+  var roundIDs: [String]
+  var currentRoundID: String?
+  var status: ProductTournamentStatus
+  var createdAt: Double
+  var updatedAt: Double
+
+  init(
+    id: String,
+    painID: String,
+    title: String,
+    premise: String,
+    contenderIDs: [String] = [],
+    roundIDs: [String] = [],
+    currentRoundID: String? = nil,
+    status: ProductTournamentStatus,
+    createdAt: Double,
+    updatedAt: Double? = nil
+  ) {
+    self.id = ProductizationModelText.identifier(id, fallback: "tournament")
+    self.painID = ProductizationModelText.identifier(painID, fallback: "pain")
+    self.title = ProductizationModelText.cleanedText(
+      title,
+      fallback: "Product tournament",
+      limit: 180
+    )
+    self.premise = ProductizationModelText.cleanedText(
+      premise,
+      fallback: "A user pain worth exploring with competing product plans.",
+      limit: 1_000
+    )
+    self.contenderIDs =
+      ProductizationModelText.cleanedList(contenderIDs, limit: 120)
+      .map { ProductizationModelText.identifier($0, fallback: "contender") }
+    self.roundIDs =
+      ProductizationModelText.cleanedList(roundIDs, limit: 120)
+      .map { ProductizationModelText.identifier($0, fallback: "round") }
+    self.currentRoundID = ProductizationModelText.optionalIdentifier(
+      currentRoundID,
+      fallback: "round"
+    )
+    self.status = status
+    self.createdAt = createdAt
+    self.updatedAt = updatedAt ?? createdAt
+  }
+}
+
+enum ProductTournamentStatus: String, Codable, CaseIterable, Equatable, Sendable {
+  case drafting
+  case active
+  case completed
+  case archived
+}
+
+struct ProductTournamentContender: Codable, Equatable, Identifiable, Sendable {
+  var id: String
+  var tournamentID: String
+  var solutionID: String
+  var experimentID: String?
+  var title: String
+  var productPlan: String
+  var valueProposition: String
+  var primaryRisk: String
+  var targetSegmentIDs: [String]
+  var status: ProductTournamentContenderStatus
+  var createdAt: Double
+  var updatedAt: Double
+
+  init(
+    id: String,
+    tournamentID: String,
+    solutionID: String,
+    experimentID: String? = nil,
+    title: String,
+    productPlan: String,
+    valueProposition: String,
+    primaryRisk: String,
+    targetSegmentIDs: [String] = [],
+    status: ProductTournamentContenderStatus,
+    createdAt: Double,
+    updatedAt: Double? = nil
+  ) {
+    self.id = ProductizationModelText.identifier(id, fallback: "contender")
+    self.tournamentID = ProductizationModelText.identifier(tournamentID, fallback: "tournament")
+    self.solutionID = ProductizationModelText.identifier(solutionID, fallback: "solution")
+    self.experimentID = ProductizationModelText.optionalIdentifier(
+      experimentID,
+      fallback: "experiment"
+    )
+    self.title = ProductizationModelText.cleanedText(
+      title,
+      fallback: "Product contender",
+      limit: 180
+    )
+    self.productPlan = ProductizationModelText.cleanedText(
+      productPlan,
+      fallback: "Plan how this contender will relieve the pain.",
+      limit: 1_000
+    )
+    self.valueProposition = ProductizationModelText.cleanedText(
+      valueProposition,
+      fallback: "Why the user may switch or pay.",
+      limit: 700
+    )
+    self.primaryRisk = ProductizationModelText.cleanedText(
+      primaryRisk,
+      fallback: "Why this contender may lose.",
+      limit: 700
+    )
+    self.targetSegmentIDs =
+      ProductizationModelText.cleanedList(targetSegmentIDs, limit: 120)
+      .map { ProductizationModelText.identifier($0, fallback: "segment") }
+    self.status = status
+    self.createdAt = createdAt
+    self.updatedAt = updatedAt ?? createdAt
+  }
+}
+
+enum ProductTournamentContenderStatus: String, Codable, CaseIterable, Equatable, Sendable {
+  case competing
+  case narrowed
+  case eliminated
+  case winner
+  case archived
+}
+
+struct ProductTournamentRound: Codable, Equatable, Identifiable, Sendable {
+  var id: String
+  var tournamentID: String
+  var ordinal: Int
+  var kind: ProductTournamentRoundKind
+  var title: String
+  var goal: String
+  var evaluationFocus: [String]
+  var contenderIDs: [String]
+  var scenarioCohortIDs: [String]
+  var status: ProductTournamentRoundStatus
+  var createdAt: Double
+  var updatedAt: Double
+
+  var requiresBuiltProduct: Bool {
+    kind.requiresBuiltProduct
+  }
+
+  init(
+    id: String,
+    tournamentID: String,
+    ordinal: Int,
+    kind: ProductTournamentRoundKind,
+    title: String,
+    goal: String,
+    evaluationFocus: [String] = [],
+    contenderIDs: [String] = [],
+    scenarioCohortIDs: [String] = [],
+    status: ProductTournamentRoundStatus,
+    createdAt: Double,
+    updatedAt: Double? = nil
+  ) {
+    self.id = ProductizationModelText.identifier(id, fallback: "round")
+    self.tournamentID = ProductizationModelText.identifier(tournamentID, fallback: "tournament")
+    self.ordinal = max(1, ordinal)
+    self.kind = kind
+    self.title = ProductizationModelText.cleanedText(
+      title,
+      fallback: "Tournament round",
+      limit: 180
+    )
+    self.goal = ProductizationModelText.cleanedText(
+      goal,
+      fallback: "Evaluate product contenders against the pain.",
+      limit: 1_000
+    )
+    self.evaluationFocus = ProductizationModelText.cleanedList(evaluationFocus, limit: 220)
+    self.contenderIDs =
+      ProductizationModelText.cleanedList(contenderIDs, limit: 120)
+      .map { ProductizationModelText.identifier($0, fallback: "contender") }
+    self.scenarioCohortIDs =
+      ProductizationModelText.cleanedList(scenarioCohortIDs, limit: 120)
+      .map { ProductizationModelText.identifier($0, fallback: "cohort") }
+    self.status = status
+    self.createdAt = createdAt
+    self.updatedAt = updatedAt ?? createdAt
+  }
+}
+
+enum ProductTournamentRoundKind: String, Codable, CaseIterable, Equatable, Sendable {
+  case productPlans = "product_plans"
+  case coreTechnology = "core_technology"
+  case prototype
+
+  var title: String {
+    switch self {
+    case .productPlans: return "Product plans"
+    case .coreTechnology: return "Core technology"
+    case .prototype: return "Prototype"
+    }
+  }
+
+  var requiresBuiltProduct: Bool {
+    switch self {
+    case .productPlans:
+      return false
+    case .coreTechnology, .prototype:
+      return true
+    }
+  }
+}
+
+enum ProductTournamentRoundStatus: String, Codable, CaseIterable, Equatable, Sendable {
+  case planned
+  case active
+  case completed
+  case skipped
+}
+
 struct ProductScenario: Codable, Equatable, Identifiable, Sendable {
   var id: String
   var experimentID: String
@@ -990,7 +1365,8 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       return nil
     }
     let sign = proofDebtDelta > 0 ? "+" : ""
-    return "proof debt \(startingProofDebtCount) -> \(endingProofDebtCount) (\(sign)\(proofDebtDelta))"
+    return
+      "proof debt \(startingProofDebtCount) -> \(endingProofDebtCount) (\(sign)\(proofDebtDelta))"
   }
 
   init(
@@ -1295,7 +1671,8 @@ enum ProductizationModelText {
   }
 
   static func cleanedList(_ values: [String], limit: Int) -> [String] {
-    let cleaned = values
+    let cleaned =
+      values
       .map { StringUtils.boundedText($0, limit: limit) }
       .filter { !$0.isEmpty }
     var seen = Set<String>()

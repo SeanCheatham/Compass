@@ -48,6 +48,9 @@
         "alternatives",
         "solutionHypotheses",
         "experiments",
+        "tournaments",
+        "tournamentContenders",
+        "tournamentRounds",
         "scenarioCohorts",
         "decisions"
       ],
@@ -87,6 +90,21 @@
           "type": "array",
           "maxItems": 8,
           "items": { "$ref": "#/$defs/productExperiment" }
+        },
+        "tournaments": {
+          "type": "array",
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/productTournament" }
+        },
+        "tournamentContenders": {
+          "type": "array",
+          "maxItems": 12,
+          "items": { "$ref": "#/$defs/productTournamentContender" }
+        },
+        "tournamentRounds": {
+          "type": "array",
+          "maxItems": 12,
+          "items": { "$ref": "#/$defs/productTournamentRound" }
         },
         "scenarioCohorts": {
           "type": "array",
@@ -284,6 +302,114 @@
         "decision": {
           "type": "string",
           "enum": ["not_run", "continue", "narrow", "pivot", "kill", "promote", "archived", "promoted"]
+        },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      }
+    },
+    "productTournament": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "painID",
+        "title",
+        "premise",
+        "contenderIDs",
+        "roundIDs",
+        "currentRoundID",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "painID": { "type": "string" },
+        "title": { "type": "string" },
+        "premise": { "type": "string" },
+        "contenderIDs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "roundIDs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "currentRoundID": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "status": {
+          "type": "string",
+          "enum": ["drafting", "active", "completed", "archived"]
+        },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      }
+    },
+    "productTournamentContender": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "tournamentID",
+        "solutionID",
+        "experimentID",
+        "title",
+        "productPlan",
+        "valueProposition",
+        "primaryRisk",
+        "targetSegmentIDs",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "tournamentID": { "type": "string" },
+        "solutionID": { "type": "string" },
+        "experimentID": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "title": { "type": "string" },
+        "productPlan": { "type": "string" },
+        "valueProposition": { "type": "string" },
+        "primaryRisk": { "type": "string" },
+        "targetSegmentIDs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "status": {
+          "type": "string",
+          "enum": ["competing", "narrowed", "eliminated", "winner", "archived"]
+        },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      }
+    },
+    "productTournamentRound": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "tournamentID",
+        "ordinal",
+        "kind",
+        "title",
+        "goal",
+        "evaluationFocus",
+        "contenderIDs",
+        "scenarioCohortIDs",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "tournamentID": { "type": "string" },
+        "ordinal": { "type": "integer" },
+        "kind": {
+          "type": "string",
+          "enum": ["product_plans", "core_technology", "prototype"]
+        },
+        "title": { "type": "string" },
+        "goal": { "type": "string" },
+        "evaluationFocus": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "contenderIDs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "scenarioCohortIDs": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string" }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["planned", "active", "completed", "skipped"]
         },
         "createdAt": { "type": "number" },
         "updatedAt": { "type": "number" }

@@ -24,6 +24,7 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains(Prompts.discoverPromptVersionID))
     try #require(prompt.contains("Start from pain, not a solution"))
     try #require(prompt.contains("Name the user segment before naming the app"))
+    try #require(prompt.contains("Round 1 compares product"))
     try #require(prompt.contains("candidateExperiments"))
     try #require(prompt.contains("Support leads lose escalation decisions"))
     try #require(prompt.contains("Rust desktop"))
@@ -38,6 +39,11 @@ struct DiscoverPromptContractTests {
     try #require(config.painHypotheses.count == 1)
     try #require(config.solutionHypotheses.count == 2)
     try #require(config.experiments.count == 1)
+    try #require(config.tournaments.count == 1)
+    try #require(config.tournamentContenders.count == 2)
+    try #require(
+      config.tournamentRounds.map(\.kind) == [.productPlans, .coreTechnology, .prototype])
+    try #require(config.tournamentRounds[0].requiresBuiltProduct == false)
     try #require(decoded.candidateExperiments[0].branchSlug == "incident-command-board")
     try #require(decoded.assumptions[0].text.contains("Incident leads"))
   }
@@ -67,10 +73,12 @@ struct DiscoverPromptContractTests {
       status: .active
     )
 
-    #expect(throws: DiscoverPromptValidationError.solutionReferencesMissingPain(
-      solutionID: "solution-bad",
-      painID: "missing-pain"
-    )) {
+    #expect(
+      throws: DiscoverPromptValidationError.solutionReferencesMissingPain(
+        solutionID: "solution-bad",
+        painID: "missing-pain"
+      )
+    ) {
       _ = try Prompts.decodeDiscoverResponse(try encodeDiscoverJSON(output))
     }
   }
@@ -97,9 +105,11 @@ struct DiscoverPromptContractTests {
     output.candidateExperiments = []
     output.openQuestions = ["Build the prototype next"]
 
-    #expect(throws: DiscoverPromptValidationError.openQuestionsUsedInsteadOfActionableNextSteps(
-      "Build the prototype next"
-    )) {
+    #expect(
+      throws: DiscoverPromptValidationError.openQuestionsUsedInsteadOfActionableNextSteps(
+        "Build the prototype next"
+      )
+    ) {
       _ = try Prompts.decodeDiscoverResponse(try encodeDiscoverJSON(output))
     }
   }
@@ -220,6 +230,94 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     scenarioIDs: [],
     tags: ["discover"]
   )
+  let tournament = ProductTournament(
+    id: "tournament-incident-decisions",
+    painID: pain.id,
+    title: "Incident decisions tournament",
+    premise: pain.rawPain,
+    contenderIDs: ["contender-command-board", "contender-timeline"],
+    roundIDs: [
+      "round-incident-plans",
+      "round-incident-core-technology",
+      "round-incident-prototype",
+    ],
+    currentRoundID: "round-incident-plans",
+    status: .active,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  )
+  let commandBoardContender = ProductTournamentContender(
+    id: "contender-command-board",
+    tournamentID: tournament.id,
+    solutionID: commandBoard.id,
+    experimentID: experiment.id,
+    title: "Incident command board",
+    productPlan: "Use owner and decision context to draft a customer update during triage.",
+    valueProposition: "Incident leads produce clearer updates than they can from chat alone.",
+    primaryRisk: "The board may be slower than Slack during a live incident.",
+    targetSegmentIDs: [segment.id],
+    status: .competing,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  )
+  let timelineContender = ProductTournamentContender(
+    id: "contender-timeline",
+    tournamentID: tournament.id,
+    solutionID: timeline.id,
+    experimentID: nil,
+    title: "Incident timeline",
+    productPlan: "Turn chat and ticket context into an auditable incident timeline.",
+    valueProposition: "Teams can explain why decisions changed without repeated context gathering.",
+    primaryRisk: "After-action clarity may not relieve the live communication pain.",
+    targetSegmentIDs: [segment.id],
+    status: .competing,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  )
+  let rounds = [
+    ProductTournamentRound(
+      id: "round-incident-plans",
+      tournamentID: tournament.id,
+      ordinal: 1,
+      kind: .productPlans,
+      title: "Round 1: product plans",
+      goal: "Compare the command board and timeline as plans before implementation.",
+      evaluationFocus: ["Pain recognition", "Willingness to pay", "Current alternative"],
+      contenderIDs: tournament.contenderIDs,
+      scenarioCohortIDs: [],
+      status: .active,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    ),
+    ProductTournamentRound(
+      id: "round-incident-core-technology",
+      tournamentID: tournament.id,
+      ordinal: 2,
+      kind: .coreTechnology,
+      title: "Round 2: core technology",
+      goal: "Prove that owner and decision context can be assembled reliably.",
+      evaluationFocus: ["Feasibility", "Trust", "Switching objection"],
+      contenderIDs: ["contender-command-board"],
+      scenarioCohortIDs: [cohort.id],
+      status: .planned,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    ),
+    ProductTournamentRound(
+      id: "round-incident-prototype",
+      tournamentID: tournament.id,
+      ordinal: 3,
+      kind: .prototype,
+      title: "Round 3: prototype",
+      goal: "Evaluate a low-medium fidelity command board with simulated users.",
+      evaluationFocus: ["Workflow improvement", "Continued-use pull"],
+      contenderIDs: ["contender-command-board"],
+      scenarioCohortIDs: [cohort.id],
+      status: .planned,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    ),
+  ]
   return DiscoverPromptOutput(
     summary: "Modeled incident decision loss and two possible product bets.",
     stateEdits: DiscoveryStateEdits(
@@ -230,6 +328,9 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
       alternatives: [alternative],
       solutionHypotheses: [commandBoard, timeline],
       experiments: [experiment],
+      tournaments: [tournament],
+      tournamentContenders: [commandBoardContender, timelineContender],
+      tournamentRounds: rounds,
       scenarioCohorts: [cohort],
       decisions: []
     ),

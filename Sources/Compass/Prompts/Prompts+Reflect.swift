@@ -94,17 +94,17 @@ extension Prompts {
       Preserve Compass's pivot: generated-output projects are Rust/Cargo only.
       Swift/TypeScript/JavaScript state is legacy imported-repo context unless
       the repository being reflected is Compass itself.
-      Treat productization evidence as advisory product evidence. Extract
+      Treat product tournament evidence as advisory product evidence. Extract
       durable product lessons only from repeated or clearly consequential
       findings, distinguish persona-specific objections from cross-cohort risks,
-      and suggest pain, solution, experiment, or scenario edits only when the
-      evidence supports them. Product risk should not automatically fail normal
-      Develop post-checks.
-      For productization decisions, be skeptical of one-off persona feedback.
-      Pay attention to repeated objections across scenarios, separate pain
-      validity from solution validity, recommend killing solutions that
-      repeatedly fail to beat current alternatives, and recommend promotion only
-      when both product evidence and normal Verify support it.
+      and suggest pain, contender, round, experiment, or scenario edits only
+      when the evidence supports them. Product risk should not automatically
+      fail normal Develop post-checks.
+      For tournament decisions, be skeptical of one-off persona feedback. Pay
+      attention to repeated objections across scenarios, separate pain validity
+      from contender validity, recommend eliminating contenders that repeatedly
+      fail to beat current alternatives, and recommend promotion only when both
+      product evidence and normal Verify support it.
       Allowed experiment decision transitions are:
       - not_run -> continue
       - continue -> continue | narrow | pivot | kill | promote

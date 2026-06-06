@@ -11,7 +11,7 @@ enum ProductizationPlanningDigestFormatter {
     maxEvidenceSignals: Int = 5
   ) -> String {
     var lines: [String] = [
-      "Productization context starts from durable user pain; solution hypotheses and experiments are disposable product bets."
+      "Product tournament context starts from durable user pain; competing product contenders are disposable bets evaluated through rounds."
     ]
 
     if config.isEmpty {
@@ -20,6 +20,7 @@ enum ProductizationPlanningDigestFormatter {
     }
 
     lines += painLines(config: config, maxPainHypotheses: maxPainHypotheses)
+    lines += tournamentLines(config: config)
     lines += solutionLines(config: config, maxSolutionHypotheses: maxSolutionHypotheses)
     lines += experimentLines(config: config, maxExperiments: maxExperiments)
     lines += decisionLines(config: config, maxDecisions: maxDecisions)
@@ -72,6 +73,74 @@ enum ProductizationPlanningDigestFormatter {
     }
     if active.count > maxPainHypotheses {
       lines.append("- \(active.count - maxPainHypotheses) more pain hypothesis/hypotheses omitted.")
+    }
+    return lines
+  }
+
+  private static func tournamentLines(config: ProductizationConfig) -> [String] {
+    let tournaments = config.tournaments
+      .filter { $0.status == .active || $0.status == .drafting }
+      .sorted { lhs, rhs in
+        if lhs.status == rhs.status { return lhs.updatedAt > rhs.updatedAt }
+        return lhs.status == .active
+      }
+
+    guard !tournaments.isEmpty else {
+      return [
+        "Product tournaments:",
+        "- No active tournament is configured. Seed competing contenders and rounds before committing to one product.",
+      ]
+    }
+
+    var lines = ["Product tournaments:"]
+    for tournament in tournaments.prefix(3) {
+      let currentRound =
+        tournament.currentRoundID.flatMap { roundID in
+          config.tournamentRounds.first { $0.id == roundID }
+        }
+      let currentRoundLabel =
+        currentRound.map {
+          "current round \($0.ordinal) \($0.kind.rawValue)"
+        } ?? "no current round"
+      lines.append(
+        "- \(bounded(tournament.title, 160)) [\(tournament.status.rawValue), pain \(tournament.painID), \(currentRoundLabel)]: \(bounded(tournament.premise, 220))."
+      )
+
+      let contenders = tournament.contenderIDs.compactMap { contenderID in
+        config.tournamentContenders.first { $0.id == contenderID }
+      }
+      for contender in contenders.prefix(4) {
+        let experiment = contender.experimentID ?? "no implementation track"
+        let segments =
+          contender.targetSegmentIDs.isEmpty
+          ? "no target segment"
+          : contender.targetSegmentIDs.joined(separator: ", ")
+        lines.append(
+          "- Contender \(contender.id) [\(contender.status.rawValue), solution \(contender.solutionID), experiment \(experiment), segments \(segments)]: \(bounded(contender.valueProposition, 180)); risk: \(bounded(contender.primaryRisk, 160))."
+        )
+      }
+
+      let rounds = tournament.roundIDs.compactMap { roundID in
+        config.tournamentRounds.first { $0.id == roundID }
+      }
+      .sorted { lhs, rhs in
+        if lhs.ordinal == rhs.ordinal { return lhs.id < rhs.id }
+        return lhs.ordinal < rhs.ordinal
+      }
+      for round in rounds.prefix(4) {
+        let productRequirement =
+          round.requiresBuiltProduct ? "built product required" : "no built product"
+        let focus =
+          round.evaluationFocus.isEmpty
+          ? "no evaluation focus"
+          : round.evaluationFocus.prefix(4).joined(separator: "; ")
+        lines.append(
+          "- Round \(round.ordinal) \(round.kind.rawValue) [\(round.status.rawValue), \(productRequirement)]: \(bounded(round.goal, 200)); focus: \(bounded(focus, 200))."
+        )
+      }
+    }
+    if tournaments.count > 3 {
+      lines.append("- \(tournaments.count - 3) more tournament(s) omitted.")
     }
     return lines
   }
@@ -600,7 +669,7 @@ enum ProductizationPlanningDigestFormatter {
           : "; revisions \(bounded(revisionBriefList, 260))"
         return
           "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedProofOutcomes)\(rationaleSignals)\(revisionBriefs)"
-            + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
+          + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
   }
 

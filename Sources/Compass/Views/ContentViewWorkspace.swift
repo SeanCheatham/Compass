@@ -569,7 +569,8 @@ struct ProjectRunControls: View {
       foundationModelsAvailable: FoundationModelsAvailability.isAvailable,
       runGuide: runGuide
     )
-    let rustFactoryHealth = RustFactoryHealth.local(repoURL: project.repoURL, workspace: project.workspace)
+    let rustFactoryHealth = RustFactoryHealth.local(
+      repoURL: project.repoURL, workspace: project.workspace)
     let factoryGuide = FactoryCompassGuide(runGuide: runGuide, rustHealth: rustFactoryHealth)
 
     HStack(spacing: 5) {
@@ -1107,7 +1108,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .assumptions: return "Assumptions"
     case .vision: return "Vision"
     case .lessons: return "Lessons"
-    case .productization: return "Productization"
+    case .productization: return "Tournament"
     case .world: return "World"
     }
   }
@@ -1120,7 +1121,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .assumptions: return "checklist.checked"
     case .vision: return "scope"
     case .lessons: return "book.closed"
-    case .productization: return "scope"
+    case .productization: return "trophy"
     case .world: return "cube.transparent"
     }
   }
@@ -1129,6 +1130,8 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .assumptions:
       return 116
+    case .productization:
+      return 98
     default:
       return 82
     }

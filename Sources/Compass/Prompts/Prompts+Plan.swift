@@ -148,27 +148,33 @@ extension Prompts {
         Strategic context alone is not remaining work.
       - If feedback reports a blocker, plan the next smallest step that resolves
         it or rescope so Develop can make progress.
-      - Treat productization evidence as advisory product pressure, not an
+      - Treat product tournament evidence as advisory product pressure, not an
         engineering failure or Verify bypass. It can motivate product changes,
         reprioritize roadmap work, challenge the pain or solution hypothesis,
         or expose evidence gaps, but normal build/test/verify discipline still
         applies.
-      - Start productization planning from the active pain hypotheses and
-        experiment branches in Productization Context. Choose implementation
-        work that can create, clarify, or preserve evidence for one product bet
-        whenever that is the sharpest next step.
-      - Preserve experiment branch isolation. Do not plan one Immediate handoff
-        that implements several product experiments at once. If the slice truly
-        serves more than one experiment, explicitly scope it as shared experiment
-        infrastructure and explain why it is not experiment-specific work.
-      - Use deterministic productization simulation fixtures before live
+      - Start tournament planning from the active pain hypotheses, product
+        tournament rounds, contenders, and experiment branches in Productization
+        Context. Choose work that advances one contender in one round whenever
+        that is the sharpest next step.
+      - Round 1 is plan-only: do not implement product code just to compare
+        product plans. Improve the plan, scenario, simulated-user prompt, or
+        evaluation rubric when the current round is `product_plans`.
+      - Round 2 should prove the core technology for a surviving contender.
+        Round 3 should exercise a low-medium fidelity product version.
+      - Preserve contender and experiment branch isolation. Do not plan one
+        Immediate handoff that implements several competing contenders at once.
+        If the slice truly serves more than one contender, explicitly scope it
+        as shared tournament infrastructure and explain why it is not
+        contender-specific work.
+      - Use deterministic product tournament simulation fixtures before live
         persona-model runs when possible, so evidence can be replayed and
         compared across revisions.
-      - Distinguish engineering failures from productization risks and evidence
+      - Distinguish engineering failures from tournament risks and evidence
         gaps. Repeated target-persona confusion or objections should influence
         the next increment when they are fresher or more specific than generic
         roadmap ideas.
-      - If evidence is thin, stale, or missing for active product experiments,
+      - If evidence is thin, stale, or missing for active tournament contenders,
         prefer an increment that improves the deterministic experience contract,
         creates a better scenario, or makes simulation easier to run. Do not
         blindly optimize for simulated praise.

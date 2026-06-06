@@ -1,15 +1,15 @@
 import Foundation
 
 extension Prompts {
-  static let discoverPromptVersionID = "discover.productization.v1"
+  static let discoverPromptVersionID = "discover.product_tournament.v1"
 
   static func discoverPrompt(context: DiscoveryPromptContext) throws -> String {
     let digestJSON = try discoverPromptJSON(DiscoveryPromptDigest(context: context))
     return """
-      You are the Discover agent for Compass's pain-driven productization loop.
+      You are the Discover agent for Compass's pain-driven product tournament loop.
       Prompt version: \(discoverPromptVersionID).
 
-      Turn rough user pain into structured productization state before any
+      Turn rough user pain into structured tournament state before any
       implementation work starts. Do not create branches, edit project files,
       or specify a final app as if the first idea is guaranteed correct.
 
@@ -20,13 +20,20 @@ extension Prompts {
         mechanisms.
       - Include non-software alternatives such as manual work, spreadsheets,
         internal workarounds, outsourcing, or doing nothing.
-      - Generate multiple solution hypotheses when the pain is broad.
-      - Make each candidate experiment small enough to become a Rust desktop
-        prototype.
+      - Generate multiple competing product contenders when the pain is broad.
+      - Create a tournament with explicit rounds: Round 1 compares product
+        plans with no built product, Round 2 proves the core technology, and
+        Round 3 evaluates low-medium fidelity product versions.
+      - Make each candidate experiment small enough to become the Round 2 or
+        Round 3 Rust desktop track for one contender.
+      - Include willingness-to-pay or willingness-to-sponsor signals in the
+        tournament evaluation focus when buyer evidence matters.
       - Record unknowns that would materially change the product direction.
       - Use "assumption" for guesses. Do not invent evidence.
 
       Candidate experiment rules:
+      - `candidateExperiments` are implementation tracks for tournament
+        contenders after the plan-only round; do not treat them as Round 1.
       - `solutionHypothesisID` must reference a solution in `stateEdits` or
         current productization state.
       - `branchSlug` must be a single safe git-ref component such as
@@ -137,7 +144,8 @@ struct DiscoverPromptOutput: Codable, Equatable {
     self.summary = StringUtils.boundedText(summary, limit: 1_200)
     self.stateEdits = stateEdits
     self.candidateExperiments = candidateExperiments.map(\.cleaned)
-    self.openQuestions = openQuestions
+    self.openQuestions =
+      openQuestions
       .map { StringUtils.boundedText($0, limit: 240) }
       .filter { !$0.isEmpty }
     self.lessonEdits = lessonEdits
@@ -214,6 +222,72 @@ struct DiscoverPromptOutput: Codable, Equatable {
         throw DiscoverPromptValidationError.invalidBranchSlug(experiment.branchName)
       }
     }
+
+    let tournamentIDs = Set(config.tournaments.map(\.id))
+    let contenderIDs = Set(config.tournamentContenders.map(\.id))
+    let roundIDs = Set(config.tournamentRounds.map(\.id))
+    let experimentIDs = Set(config.experiments.map(\.id))
+    let scenarioCohortIDs = Set(config.scenarioCohorts.map(\.id))
+    for tournament in config.tournaments {
+      guard painIDs.contains(tournament.painID) else {
+        throw DiscoverPromptValidationError.tournamentReferencesMissingPain(
+          tournamentID: tournament.id,
+          painID: tournament.painID
+        )
+      }
+      for contenderID in tournament.contenderIDs where !contenderIDs.contains(contenderID) {
+        throw DiscoverPromptValidationError.tournamentReferencesMissingContender(
+          tournamentID: tournament.id,
+          contenderID: contenderID
+        )
+      }
+      for roundID in tournament.roundIDs where !roundIDs.contains(roundID) {
+        throw DiscoverPromptValidationError.tournamentReferencesMissingRound(
+          tournamentID: tournament.id,
+          roundID: roundID
+        )
+      }
+    }
+    for contender in config.tournamentContenders {
+      guard tournamentIDs.contains(contender.tournamentID) else {
+        throw DiscoverPromptValidationError.contenderReferencesMissingTournament(
+          contenderID: contender.id,
+          tournamentID: contender.tournamentID
+        )
+      }
+      guard solutionIDs.contains(contender.solutionID) else {
+        throw DiscoverPromptValidationError.contenderReferencesMissingSolution(
+          contenderID: contender.id,
+          solutionID: contender.solutionID
+        )
+      }
+      if let experimentID = contender.experimentID, !experimentIDs.contains(experimentID) {
+        throw DiscoverPromptValidationError.contenderReferencesMissingExperiment(
+          contenderID: contender.id,
+          experimentID: experimentID
+        )
+      }
+    }
+    for round in config.tournamentRounds {
+      guard tournamentIDs.contains(round.tournamentID) else {
+        throw DiscoverPromptValidationError.roundReferencesMissingTournament(
+          roundID: round.id,
+          tournamentID: round.tournamentID
+        )
+      }
+      for contenderID in round.contenderIDs where !contenderIDs.contains(contenderID) {
+        throw DiscoverPromptValidationError.roundReferencesMissingContender(
+          roundID: round.id,
+          contenderID: contenderID
+        )
+      }
+      for cohortID in round.scenarioCohortIDs where !scenarioCohortIDs.contains(cohortID) {
+        throw DiscoverPromptValidationError.roundReferencesMissingCohort(
+          roundID: round.id,
+          cohortID: cohortID
+        )
+      }
+    }
     for candidate in candidateExperiments {
       guard solutionIDs.contains(candidate.solutionHypothesisID) else {
         throw DiscoverPromptValidationError.candidateReferencesMissingSolution(
@@ -248,6 +322,9 @@ struct DiscoveryStateEdits: Codable, Equatable {
   var alternatives: [Alternative]
   var solutionHypotheses: [SolutionHypothesis]
   var experiments: [ProductExperiment]
+  var tournaments: [ProductTournament]
+  var tournamentContenders: [ProductTournamentContender]
+  var tournamentRounds: [ProductTournamentRound]
   var scenarioCohorts: [ProductScenarioCohort]
   var decisions: [ProductDecision]
 
@@ -259,6 +336,9 @@ struct DiscoveryStateEdits: Codable, Equatable {
     case alternatives
     case solutionHypotheses
     case experiments
+    case tournaments
+    case tournamentContenders
+    case tournamentRounds
     case scenarioCohorts
     case decisions
   }
@@ -271,6 +351,9 @@ struct DiscoveryStateEdits: Codable, Equatable {
     alternatives: [Alternative] = [],
     solutionHypotheses: [SolutionHypothesis] = [],
     experiments: [ProductExperiment] = [],
+    tournaments: [ProductTournament] = [],
+    tournamentContenders: [ProductTournamentContender] = [],
+    tournamentRounds: [ProductTournamentRound] = [],
     scenarioCohorts: [ProductScenarioCohort] = [],
     decisions: [ProductDecision] = []
   ) {
@@ -281,6 +364,9 @@ struct DiscoveryStateEdits: Codable, Equatable {
     self.alternatives = alternatives
     self.solutionHypotheses = solutionHypotheses
     self.experiments = experiments
+    self.tournaments = tournaments
+    self.tournamentContenders = tournamentContenders
+    self.tournamentRounds = tournamentRounds
     self.scenarioCohorts = scenarioCohorts
     self.decisions = decisions
   }
@@ -299,6 +385,16 @@ struct DiscoveryStateEdits: Codable, Equatable {
         [SolutionHypothesis].self, forKey: .solutionHypotheses) ?? [],
       experiments: try container.decodeIfPresent([ProductExperiment].self, forKey: .experiments)
         ?? [],
+      tournaments: try container.decodeIfPresent([ProductTournament].self, forKey: .tournaments)
+        ?? [],
+      tournamentContenders: try container.decodeIfPresent(
+        [ProductTournamentContender].self,
+        forKey: .tournamentContenders
+      ) ?? [],
+      tournamentRounds: try container.decodeIfPresent(
+        [ProductTournamentRound].self,
+        forKey: .tournamentRounds
+      ) ?? [],
       scenarioCohorts: try container.decodeIfPresent(
         [ProductScenarioCohort].self, forKey: .scenarioCohorts) ?? [],
       decisions: try container.decodeIfPresent([ProductDecision].self, forKey: .decisions) ?? []
@@ -316,6 +412,9 @@ struct DiscoveryStateEdits: Codable, Equatable {
     upsert(&next.alternatives, edits: alternatives, id: \.id)
     upsert(&next.solutionHypotheses, edits: solutionHypotheses, id: \.id)
     upsert(&next.experiments, edits: experiments, id: \.id)
+    upsert(&next.tournaments, edits: tournaments, id: \.id)
+    upsert(&next.tournamentContenders, edits: tournamentContenders, id: \.id)
+    upsert(&next.tournamentRounds, edits: tournamentRounds, id: \.id)
     upsert(&next.scenarioCohorts, edits: scenarioCohorts, id: \.id)
     upsert(&next.decisions, edits: decisions, id: \.id)
     return next
@@ -403,6 +502,15 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
   case segmentReferencesMissingPain(segmentID: String, painID: String)
   case solutionReferencesMissingPain(solutionID: String, painID: String)
   case experimentReferencesMissingSolution(experimentID: String, solutionID: String)
+  case tournamentReferencesMissingPain(tournamentID: String, painID: String)
+  case tournamentReferencesMissingContender(tournamentID: String, contenderID: String)
+  case tournamentReferencesMissingRound(tournamentID: String, roundID: String)
+  case contenderReferencesMissingTournament(contenderID: String, tournamentID: String)
+  case contenderReferencesMissingSolution(contenderID: String, solutionID: String)
+  case contenderReferencesMissingExperiment(contenderID: String, experimentID: String)
+  case roundReferencesMissingTournament(roundID: String, tournamentID: String)
+  case roundReferencesMissingContender(roundID: String, contenderID: String)
+  case roundReferencesMissingCohort(roundID: String, cohortID: String)
   case candidateReferencesMissingSolution(solutionID: String)
   case invalidBranchSlug(String)
   case openQuestionsUsedInsteadOfActionableNextSteps(String)
@@ -424,6 +532,24 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
       return "Solution hypothesis \(solutionID) references missing pain \(painID)."
     case .experimentReferencesMissingSolution(let experimentID, let solutionID):
       return "Product experiment \(experimentID) references missing solution \(solutionID)."
+    case .tournamentReferencesMissingPain(let tournamentID, let painID):
+      return "Product tournament \(tournamentID) references missing pain \(painID)."
+    case .tournamentReferencesMissingContender(let tournamentID, let contenderID):
+      return "Product tournament \(tournamentID) references missing contender \(contenderID)."
+    case .tournamentReferencesMissingRound(let tournamentID, let roundID):
+      return "Product tournament \(tournamentID) references missing round \(roundID)."
+    case .contenderReferencesMissingTournament(let contenderID, let tournamentID):
+      return "Product contender \(contenderID) references missing tournament \(tournamentID)."
+    case .contenderReferencesMissingSolution(let contenderID, let solutionID):
+      return "Product contender \(contenderID) references missing solution \(solutionID)."
+    case .contenderReferencesMissingExperiment(let contenderID, let experimentID):
+      return "Product contender \(contenderID) references missing experiment \(experimentID)."
+    case .roundReferencesMissingTournament(let roundID, let tournamentID):
+      return "Product tournament round \(roundID) references missing tournament \(tournamentID)."
+    case .roundReferencesMissingContender(let roundID, let contenderID):
+      return "Product tournament round \(roundID) references missing contender \(contenderID)."
+    case .roundReferencesMissingCohort(let roundID, let cohortID):
+      return "Product tournament round \(roundID) references missing scenario cohort \(cohortID)."
     case .candidateReferencesMissingSolution(let solutionID):
       return "Candidate experiment references missing solution \(solutionID)."
     case .invalidBranchSlug(let slug):

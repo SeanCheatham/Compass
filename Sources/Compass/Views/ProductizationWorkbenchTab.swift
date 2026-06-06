@@ -34,6 +34,27 @@ struct ProductizationWorkbenchTab: View {
   private var config: ProductizationConfig { project.productizationConfig }
   private var evidenceIndex: ProductizationEvidenceIndex { project.productizationEvidenceIndex }
 
+  private var tournamentsForBoard: [ProductTournament] {
+    config.tournaments.sorted { lhs, rhs in
+      if lhs.status == rhs.status { return lhs.updatedAt > rhs.updatedAt }
+      return tournamentStatusRank(lhs.status) < tournamentStatusRank(rhs.status)
+    }
+  }
+
+  private var contendersForBoard: [ProductTournamentContender] {
+    config.tournamentContenders.sorted { lhs, rhs in
+      if lhs.status == rhs.status { return lhs.updatedAt > rhs.updatedAt }
+      return contenderStatusRank(lhs.status) < contenderStatusRank(rhs.status)
+    }
+  }
+
+  private var tournamentRoundsForBoard: [ProductTournamentRound] {
+    config.tournamentRounds.sorted { lhs, rhs in
+      if lhs.ordinal == rhs.ordinal { return lhs.title < rhs.title }
+      return lhs.ordinal < rhs.ordinal
+    }
+  }
+
   private var selectedExperiment: ProductExperiment? {
     guard let selectedExperimentID else { return config.experiments.first }
     return config.experiments.first { $0.id == selectedExperimentID } ?? config.experiments.first
@@ -204,9 +225,9 @@ struct ProductizationWorkbenchTab: View {
       header
       if config.isEmpty {
         ContentUnavailableView(
-          "No Productization State",
-          systemImage: "scope",
-          description: Text("Enter raw pain or run Discover to seed productization state.")
+          "No Product Tournament State",
+          systemImage: "trophy",
+          description: Text("Enter a user pain or run Discover to seed product tournament state.")
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
@@ -281,7 +302,7 @@ struct ProductizationWorkbenchTab: View {
 
   private var header: some View {
     HStack {
-      SectionHeader("Productization", systemImage: "scope")
+      SectionHeader("Product Tournament", systemImage: "trophy")
       Spacer()
       Button {
         Task { await project.reloadProductizationEvidenceIndex() }
@@ -290,13 +311,25 @@ struct ProductizationWorkbenchTab: View {
           .frame(width: 18, height: 18)
       }
       .buttonStyle(.borderless)
-      .help("Reload productization evidence")
+      .help("Reload tournament evidence")
     }
   }
 
   private var painMap: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
+        WorkbenchSection("Tournament", systemImage: "trophy") {
+          VStack(alignment: .leading, spacing: 8) {
+            if tournamentsForBoard.isEmpty {
+              WorkbenchEmptyLine("No tournament seeded yet.")
+            } else {
+              ForEach(tournamentsForBoard) { tournament in
+                tournamentRow(tournament)
+              }
+            }
+          }
+        }
+
         WorkbenchSection("Pain Map", systemImage: "person.crop.circle.badge.exclamationmark") {
           VStack(alignment: .leading, spacing: 8) {
             if config.painHypotheses.isEmpty {
@@ -369,10 +402,63 @@ struct ProductizationWorkbenchTab: View {
     }
   }
 
+  private func tournamentRow(_ tournament: ProductTournament) -> some View {
+    let currentRound = tournament.currentRoundID.flatMap { roundID in
+      config.tournamentRounds.first { $0.id == roundID }
+    }
+    let currentRoundLabel =
+      currentRound.map {
+        "Round \($0.ordinal): \($0.kind.title)"
+      } ?? "No active round"
+    return VStack(alignment: .leading, spacing: 7) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text(tournament.title)
+          .font(.callout.weight(.semibold))
+          .lineLimit(2)
+        Spacer()
+        WorkbenchStatusPill(text: tournament.status.rawValue)
+      }
+      WorkbenchFact(label: "Current", value: currentRoundLabel)
+      WorkbenchFact(label: "Contenders", value: "\(tournament.contenderIDs.count)")
+      WorkbenchFact(label: "Rounds", value: "\(tournament.roundIDs.count)")
+      Text(tournament.premise)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(3)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
   private var solutionAndExperimentBoard: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
-        WorkbenchSection("Solution Board", systemImage: "rectangle.3.group") {
+        WorkbenchSection("Contender Plans", systemImage: "rectangle.3.group") {
+          VStack(alignment: .leading, spacing: 8) {
+            if contendersForBoard.isEmpty {
+              WorkbenchEmptyLine("No product contenders yet.")
+            } else {
+              ForEach(contendersForBoard) { contender in
+                contenderRow(contender)
+              }
+            }
+          }
+        }
+
+        WorkbenchSection("Rounds", systemImage: "list.number") {
+          VStack(alignment: .leading, spacing: 8) {
+            if tournamentRoundsForBoard.isEmpty {
+              WorkbenchEmptyLine("No tournament rounds yet.")
+            } else {
+              ForEach(tournamentRoundsForBoard) { round in
+                tournamentRoundRow(round)
+              }
+            }
+          }
+        }
+
+        WorkbenchSection("Solution Hypotheses", systemImage: "lightbulb") {
           VStack(alignment: .leading, spacing: 8) {
             if config.solutionHypotheses.isEmpty {
               WorkbenchEmptyLine("No solution hypotheses yet.")
@@ -398,10 +484,12 @@ struct ProductizationWorkbenchTab: View {
           }
         }
 
-        WorkbenchSection("Experiment Board", systemImage: "point.3.connected.trianglepath.dotted") {
+        WorkbenchSection(
+          "Implementation Tracks", systemImage: "point.3.connected.trianglepath.dotted"
+        ) {
           VStack(alignment: .leading, spacing: 8) {
             if config.experiments.isEmpty {
-              WorkbenchEmptyLine("No experiment branches yet.")
+              WorkbenchEmptyLine("No contender implementation branches yet.")
             } else {
               ForEach(experimentsForBoard) { experiment in
                 experimentRow(experiment)
@@ -484,6 +572,84 @@ struct ProductizationWorkbenchTab: View {
       }
       .padding(.trailing, 4)
     }
+  }
+
+  private func contenderRow(_ contender: ProductTournamentContender) -> some View {
+    let experiment = contender.experimentID.flatMap { experimentID in
+      config.experiments.first { $0.id == experimentID }
+    }
+    return Button {
+      if let experimentID = contender.experimentID {
+        selectedExperimentID = experimentID
+      }
+    } label: {
+      VStack(alignment: .leading, spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text(contender.title)
+            .font(.callout.weight(.semibold))
+            .lineLimit(2)
+          Spacer()
+          WorkbenchStatusPill(text: contender.status.rawValue)
+        }
+        WorkbenchFact(label: "Solution", value: contender.solutionID)
+        WorkbenchFact(label: "Track", value: contender.experimentID ?? "plan only")
+        if let experiment {
+          WorkbenchFact(label: "Decision", value: experiment.decision.rawValue)
+        }
+        WorkbenchFact(
+          label: "Segments",
+          value: contender.targetSegmentIDs.isEmpty
+            ? "none"
+            : contender.targetSegmentIDs.joined(separator: ", ")
+        )
+        Text(contender.valueProposition)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        Text("Risk: \(contender.primaryRisk)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .disabled(contender.experimentID == nil)
+    .help(contender.productPlan)
+  }
+
+  private func tournamentRoundRow(_ round: ProductTournamentRound) -> some View {
+    VStack(alignment: .leading, spacing: 7) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text(round.title)
+          .font(.callout.weight(.semibold))
+          .lineLimit(2)
+        Spacer()
+        WorkbenchStatusPill(text: round.status.rawValue)
+      }
+      WorkbenchFact(label: "Kind", value: round.kind.title)
+      WorkbenchFact(
+        label: "Product",
+        value: round.requiresBuiltProduct ? "built product required" : "plan-only review"
+      )
+      WorkbenchFact(label: "Contenders", value: "\(round.contenderIDs.count)")
+      if !round.scenarioCohortIDs.isEmpty {
+        WorkbenchFact(label: "Cohorts", value: round.scenarioCohortIDs.joined(separator: ", "))
+      }
+      if !round.evaluationFocus.isEmpty {
+        WorkbenchFact(
+          label: "Focus", value: round.evaluationFocus.prefix(4).joined(separator: "; "))
+      }
+      Text(round.goal)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(3)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private func experimentRow(_ experiment: ProductExperiment) -> some View {
@@ -1295,9 +1461,9 @@ struct ProductizationWorkbenchTab: View {
                   .lineLimit(1)
                 if let decisionIntent = summary.decisionIntent {
                   Text(evidenceIntentSummary(summary, intent: decisionIntent))
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
-                  .lineLimit(1)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 }
                 Text(summary.summary)
                   .font(.caption)
@@ -1867,7 +2033,9 @@ struct ProductizationWorkbenchTab: View {
           startedAt: Date(),
           idPrefix: "factory-cycle-revision-checkpoint",
           targetedProofOutcomeSummaries:
-            productFactoryTargetedProofOutcomeSignal(forExperimentID: stepRevisionBrief.experimentID)
+            productFactoryTargetedProofOutcomeSignal(
+              forExperimentID: stepRevisionBrief.experimentID
+            )
             .map { [$0.auditSummary] } ?? [],
           stopDetail:
             "Product revision checkpoint recorded; continue with targeted validation evidence.",
@@ -2274,6 +2442,25 @@ private struct WorkbenchSection<Content: View>: View {
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private func tournamentStatusRank(_ status: ProductTournamentStatus) -> Int {
+  switch status {
+  case .active: return 0
+  case .drafting: return 1
+  case .completed: return 2
+  case .archived: return 3
+  }
+}
+
+private func contenderStatusRank(_ status: ProductTournamentContenderStatus) -> Int {
+  switch status {
+  case .competing: return 0
+  case .narrowed: return 1
+  case .winner: return 2
+  case .eliminated: return 3
+  case .archived: return 4
   }
 }
 
