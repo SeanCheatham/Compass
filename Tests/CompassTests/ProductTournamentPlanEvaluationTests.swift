@@ -105,6 +105,119 @@ struct ProductTournamentPlanEvaluationTests {
     try #require(index.aggregate.planReadinessByContender.map(\.contenderID) == [focusedContender.id])
   }
 
+  @Test func personaModelRoundOneWritesAgenticPlanEvidence() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    let config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "LedgerLift",
+      rawPain: "Finance operators lose weekly reporting context between Slack and spreadsheets.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    try workspace.writeProductTournamentConfig(config)
+
+    let tournament = try #require(config.tournaments.first)
+    let round = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let focusedContender = try #require(config.tournamentContenders.first)
+    let stream = PlanEvaluationModelStream(
+      response: """
+        The useful part is the JSON:
+        {
+          "painRecognition": 5,
+          "workflowImprovement": 4,
+          "alternativeAdvantage": 4,
+          "switchingReadiness": 3,
+          "continuedUsePull": 4,
+          "willingnessToPayScore": 5,
+          "estimatedMonthlyPriceCents": 12900,
+          "commercialProofSummary": "Buyer would sponsor at $129/month if import proof lands.",
+          "currentAlternativeComparison": "The plan beats the spreadsheet for weekly review confidence.",
+          "verdict": "strong_pull",
+          "summary": "The buyer would fund feasibility after seeing import proof.",
+          "objections": ["Import feasibility is still unproven."],
+          "missingCapabilities": ["core_import_proof"],
+          "rationale": ["The persona sees direct budget value but wants proof."],
+          "planStrengths": ["Clear buyer pain and sponsor value."],
+          "planRisks": ["Feasibility proof may fail."]
+        }
+        """
+    )
+
+    let outcome = try await ProductTournamentPlanEvaluator.runPlanRoundPersonaModel(
+      tournamentID: tournament.id,
+      roundID: round.id,
+      contenderID: focusedContender.id,
+      in: workspace,
+      now: Date(timeIntervalSince1970: 2_750),
+      streamText: { prompt in await stream.respond(prompt) }
+    )
+
+    try #require(outcome.focusedContenderID == focusedContender.id)
+    try #require(outcome.completedEvaluationCount == 2)
+    try #require(outcome.personaModelEvaluationCount == 2)
+    try #require(outcome.userMessage.contains("persona-model"))
+    try #require(outcome.records.allSatisfy { $0.mode == .personaModel })
+    try #require(outcome.records.allSatisfy { $0.model == "foundation-models-plan-evaluator" })
+    try #require(
+      outcome.records.allSatisfy {
+        $0.promptVersions == [ProductTournamentPlanEvaluator.personaModelPromptVersionID]
+      })
+    let firstRecord = try #require(outcome.records.first)
+    try #require(firstRecord.verdict == .strongPull)
+    try #require(firstRecord.willingnessToPayScore == 5)
+    try #require(firstRecord.estimatedMonthlyPriceCents == 12_900)
+    try #require(firstRecord.currentAlternativeComparison.contains("beats the spreadsheet"))
+    try #require(firstRecord.objections == ["Import feasibility is still unproven."])
+    try #require(firstRecord.missingCapabilities == ["core_import_proof"])
+
+    let prompts = await stream.recordedPrompts()
+    try #require(prompts.count == 2)
+    try #require(prompts[0].contains("Evaluate a Round 1 Product Tournament plan"))
+    try #require(prompts[0].contains("no built product is available"))
+    try #require(prompts[0].contains(focusedContender.title))
+
+    let index = workspace.readProductTournamentEvidenceIndex()
+    try #require(index.planEvaluationSummaries.count == 2)
+    try #require(index.planEvaluationSummaries.allSatisfy { $0.mode == .personaModel })
+    try #require(
+      index.aggregate.planReadinessByContender.first?.averageWillingnessToPayScore == 5)
+  }
+
+  @Test func personaModelRoundOneRejectsMalformedResponsesWithoutWritingEvidence() async throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let workspace = CompassWorkspace(repoURL: root)
+    try workspace.initialize()
+    let config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "LedgerLift",
+      rawPain: "Finance operators lose weekly reporting context.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    try workspace.writeProductTournamentConfig(config)
+    let tournament = try #require(config.tournaments.first)
+    let round = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let contender = try #require(config.tournamentContenders.first)
+    let stream = PlanEvaluationModelStream(response: "not json")
+
+    do {
+      _ = try await ProductTournamentPlanEvaluator.runPlanRoundPersonaModel(
+        tournamentID: tournament.id,
+        roundID: round.id,
+        contenderID: contender.id,
+        in: workspace,
+        streamText: { prompt in await stream.respond(prompt) }
+      )
+      Issue.record("Expected malformed persona-model plan evaluation to fail.")
+    } catch let error as ProductTournamentPlanEvaluationModelError {
+      try #require(error == .invalidJSON("not json"))
+    }
+
+    let prompts = await stream.recordedPrompts()
+    try #require(prompts.count == 1)
+    try #require(workspace.readProductTournamentEvidenceIndex().planEvaluationSummaries.isEmpty)
+  }
+
   @Test func modelFreeRoundOneTargetsBuyerSponsorDebtAfterOperatorOnlyEvidence() throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
@@ -328,4 +441,22 @@ private func makePlanEvaluationRecord(
     verdict: .strongPull,
     summary: "\(segment.name) strongly liked the plan."
   )
+}
+
+private actor PlanEvaluationModelStream {
+  private let response: String?
+  private var prompts: [String] = []
+
+  init(response: String?) {
+    self.response = response
+  }
+
+  func respond(_ prompt: String) -> String? {
+    prompts.append(prompt)
+    return response
+  }
+
+  func recordedPrompts() -> [String] {
+    prompts
+  }
 }

@@ -147,6 +147,10 @@ struct ProductTournamentWorkbenchTab: View {
       && !isRunningScenario
   }
 
+  private var personaPlanEvaluationCanRun: Bool {
+    planEvaluationCanRun && FoundationModelsAvailability.isAvailable
+  }
+
   private var activePlanRoundContenderIDs: Set<String> {
     guard let tournament = activeTournamentForPlanEvaluation,
       let round = activePlanRoundForEvaluation
@@ -168,6 +172,12 @@ struct ProductTournamentWorkbenchTab: View {
       && planProofIsActionable(for: contender)
       && (contender.status == .competing || contender.status == .narrowed
         || contender.status == .needsRevision)
+  }
+
+  private func personaPlanEvaluationCanRun(
+    for contender: ProductTournamentContender
+  ) -> Bool {
+    planEvaluationCanRun(for: contender) && FoundationModelsAvailability.isAvailable
   }
 
   private func planProofIsActionable(
@@ -789,7 +799,7 @@ struct ProductTournamentWorkbenchTab: View {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
               Button {
-                Task { await runPlanEvaluationRound(contenderID: nil) }
+                Task { await runPlanEvaluationRound(contenderID: nil, mode: .modelFree) }
               } label: {
                 Label(
                   isRunningPlanEvaluation ? "Running Round 1" : "Run Round 1",
@@ -800,6 +810,22 @@ struct ProductTournamentWorkbenchTab: View {
               .disabled(!planEvaluationCanRun)
               .help(
                 "Run model-free simulated-user evaluation for the plan-only round. Missing buyer/sponsor proof is targeted automatically."
+              )
+
+              Button {
+                Task { await runPlanEvaluationRound(contenderID: nil, mode: .personaModel) }
+              } label: {
+                Label(
+                  isRunningPlanEvaluation ? "Running Persona" : "Persona Round 1",
+                  systemImage: "sparkles"
+                )
+              }
+              .buttonStyle(.bordered)
+              .disabled(!personaPlanEvaluationCanRun)
+              .help(
+                FoundationModelsAvailability.isAvailable
+                  ? "Run Foundation Models persona evaluation for the plan-only round."
+                  : "Foundation Models is unavailable for persona-model plan evaluation."
               )
 
               Button {
@@ -1103,7 +1129,7 @@ struct ProductTournamentWorkbenchTab: View {
       if activePlanRoundContenderIDs.contains(contender.id) {
         HStack {
           Button {
-            Task { await runPlanEvaluationRound(contenderID: contender.id) }
+            Task { await runPlanEvaluationRound(contenderID: contender.id, mode: .modelFree) }
           } label: {
             Label(
               runningPlanEvaluationContenderID == contender.id
@@ -1114,6 +1140,18 @@ struct ProductTournamentWorkbenchTab: View {
           .buttonStyle(.bordered)
           .disabled(!planEvaluationCanRun(for: contender))
           .help(planProofTargetHelp(for: contender, readiness: planReadiness))
+          Button {
+            Task { await runPlanEvaluationRound(contenderID: contender.id, mode: .personaModel) }
+          } label: {
+            Label("Persona Proof", systemImage: "sparkles")
+          }
+          .buttonStyle(.bordered)
+          .disabled(!personaPlanEvaluationCanRun(for: contender))
+          .help(
+            FoundationModelsAvailability.isAvailable
+              ? "Run Foundation Models persona proof for \(contender.title)."
+              : "Foundation Models is unavailable for persona-model plan proof."
+          )
           if let latestPlanProofDelta {
             Label(
               latestPlanProofDelta.displaySummary,
@@ -3469,7 +3507,10 @@ struct ProductTournamentWorkbenchTab: View {
     await loadContractStatus()
   }
 
-  private func runPlanEvaluationRound(contenderID: String?) async {
+  private func runPlanEvaluationRound(
+    contenderID: String?,
+    mode: ProductTournamentSimulationMode
+  ) async {
     guard let tournament = activeTournamentForPlanEvaluation,
       let round = activePlanRoundForEvaluation
     else { return }
@@ -3479,11 +3520,21 @@ struct ProductTournamentWorkbenchTab: View {
       isRunningPlanEvaluation = false
       runningPlanEvaluationContenderID = nil
     }
-    let outcome = await project.runProductTournamentPlanRoundModelFree(
-      tournamentID: tournament.id,
-      roundID: round.id,
-      contenderID: contenderID
-    )
+    let outcome: ProductTournamentPlanEvaluationOutcome?
+    switch mode {
+    case .modelFree:
+      outcome = await project.runProductTournamentPlanRoundModelFree(
+        tournamentID: tournament.id,
+        roundID: round.id,
+        contenderID: contenderID
+      )
+    case .personaModel:
+      outcome = await project.runProductTournamentPlanRoundPersonaModel(
+        tournamentID: tournament.id,
+        roundID: round.id,
+        contenderID: contenderID
+      )
+    }
     if let outcome {
       planEvaluationMessage = outcome.userMessage
       if let latestRecordID = outcome.latestRecordID {

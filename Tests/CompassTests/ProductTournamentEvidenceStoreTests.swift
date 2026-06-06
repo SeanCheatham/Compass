@@ -850,6 +850,7 @@ struct ProductTournamentEvidenceStoreTests {
     )
 
     try #require(workbenchBody.contains("Checking tournament experience contract"))
+    try #require(workbenchBody.contains("Persona Round 1"))
     try #require(workbenchBody.contains("completedUseProof: true"))
     try #require(prompt.contains("smoke-run"))
     try #require(prompt.contains(config.experiments[0].branchName))

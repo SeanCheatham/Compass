@@ -22,6 +22,10 @@ struct ProductTournamentPlanEvaluationOutcome {
     }.count
   }
 
+  var personaModelEvaluationCount: Int {
+    records.filter { $0.mode == .personaModel }.count
+  }
+
   var latestRecordID: String? {
     records.last?.id
   }
@@ -41,6 +45,9 @@ struct ProductTournamentPlanEvaluationOutcome {
     }
     if buyerOrSponsorEvaluationCount > 0 {
       message += " Included \(buyerOrSponsorEvaluationCount) buyer/sponsor signal(s)."
+    }
+    if personaModelEvaluationCount > 0 {
+      message += " Included \(personaModelEvaluationCount) persona-model evaluation(s)."
     }
     if !targetedBuyerOrSponsorContenderIDs.isEmpty {
       message +=
@@ -75,6 +82,24 @@ enum ProductTournamentPlanEvaluationError: LocalizedError, Equatable {
       return "Tournament round \(id) requires a built product and cannot run plan-only evaluation."
     case .noPlanRound(let tournamentID):
       return "Product tournament \(tournamentID) has no plan-only round to evaluate."
+    }
+  }
+}
+
+enum ProductTournamentPlanEvaluationModelError: LocalizedError, Equatable {
+  case unavailable
+  case emptyResponse
+  case invalidJSON(String)
+
+  var errorDescription: String? {
+    switch self {
+    case .unavailable:
+      return "Foundation Models is unavailable for Round 1 plan evaluation."
+    case .emptyResponse:
+      return "Round 1 plan evaluation model returned an empty response."
+    case .invalidJSON(let response):
+      return
+        "Round 1 plan evaluation model did not return a valid JSON object: \(StringUtils.boundedText(response, limit: 500))"
     }
   }
 }
@@ -234,6 +259,17 @@ private struct ProductTournamentPlanCommercialSignals {
 
 enum ProductTournamentPlanEvaluator {
   static let promptVersionID = "product_tournament.plan_evaluator.model_free.v3"
+  static let personaModelPromptVersionID =
+    "product_tournament.plan_evaluator.foundation_models.v1"
+
+  private static let defaultPersonaModelStreamText:
+    @Sendable (_ prompt: String) async -> String? = { prompt in
+      guard FoundationModelsAvailability.isAvailable else { return nil }
+      if #available(macOS 26.0, *) {
+        return await FoundationModelsAvailability._streamText(prompt: prompt)
+      }
+      return nil
+    }
 
   static func runPlanRound(
     tournamentID: String,
@@ -311,6 +347,106 @@ enum ProductTournamentPlanEvaluator {
           projectID: projectID,
           startedAt: evaluationStart,
           endedAt: endedAt
+        )
+        records.append(try workspace.writeProductTournamentPlanEvaluationRecord(record))
+      }
+    }
+
+    if let roundIndex = config.tournamentRounds.firstIndex(where: { $0.id == round.id }) {
+      config.tournamentRounds[roundIndex].updatedAt = Date().timeIntervalSince1970
+      try workspace.writeProductTournamentConfig(config)
+    }
+
+    return ProductTournamentPlanEvaluationOutcome(
+      tournamentID: tournament.id,
+      roundID: round.id,
+      focusedContenderID: focusedContenderID,
+      focusedProofTargetSummary: focusedProofTargetSummary,
+      records: records,
+      skippedContenderIDs: skippedContenderIDs,
+      targetedBuyerOrSponsorContenderIDs: targetedBuyerOrSponsorContenderIDs
+    )
+  }
+
+  static func runPlanRoundPersonaModel(
+    tournamentID: String,
+    roundID: String? = nil,
+    contenderID focusedContenderID: String? = nil,
+    in workspace: CompassWorkspace,
+    projectID: UUID? = nil,
+    now: Date = Date(),
+    streamText: @escaping @Sendable (_ prompt: String) async -> String? =
+      defaultPersonaModelStreamText
+  ) async throws -> ProductTournamentPlanEvaluationOutcome {
+    var config = try workspace.readProductTournamentConfig()
+    let evaluationStart = now.timeIntervalSince1970
+    guard let tournament = config.tournaments.first(where: { $0.id == tournamentID }) else {
+      throw ProductTournamentPlanEvaluationError.unknownTournament(tournamentID)
+    }
+    let round = try planRound(roundID: roundID, tournament: tournament, config: config)
+    let roundContenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
+    let contenderIDs: [String]
+    if let focusedContenderID {
+      guard roundContenderIDs.contains(focusedContenderID) else {
+        throw ProductTournamentPlanEvaluationError.unknownContender(focusedContenderID)
+      }
+      contenderIDs = [focusedContenderID]
+    } else {
+      contenderIDs = roundContenderIDs
+    }
+    let existingEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
+    var records: [ProductTournamentPlanEvaluationRecord] = []
+    var skippedContenderIDs: [String] = []
+    var targetedBuyerOrSponsorContenderIDs: [String] = []
+    var focusedProofTargetSummary: String?
+
+    for contenderID in contenderIDs {
+      guard let contender = config.tournamentContenders.first(where: { $0.id == contenderID })
+      else {
+        throw ProductTournamentPlanEvaluationError.unknownContender(contenderID)
+      }
+      guard
+        contender.status == .competing || contender.status == .narrowed
+          || contender.status == .needsRevision
+      else {
+        skippedContenderIDs.append(contender.id)
+        continue
+      }
+      let hypothesis = try hypothesis(for: contender, config: config)
+      let pain = try pain(for: hypothesis, config: config)
+      let plan = evaluationPlan(
+        for: contender,
+        pain: pain,
+        tournament: tournament,
+        round: round,
+        config: config,
+        evidenceIndex: existingEvidenceIndex
+      )
+      if contender.id == focusedContenderID {
+        focusedProofTargetSummary = plan.proofTargetSummary
+      }
+      if plan.targetedBuyerOrSponsorProof
+        && !targetedBuyerOrSponsorContenderIDs.contains(contender.id)
+      {
+        targetedBuyerOrSponsorContenderIDs.append(contender.id)
+      }
+      for segment in plan.segments {
+        let workflow = currentWorkflow(for: segment, painID: pain.id, config: config)
+        let alternative = currentAlternative(for: segment, painID: pain.id, config: config)
+        let endedAt = Date().timeIntervalSince1970
+        let record = try await evaluatePersonaModel(
+          tournament: tournament,
+          round: round,
+          contender: contender,
+          hypothesis: hypothesis,
+          pain: pain,
+          segment: segment,
+          currentWorkflow: workflow,
+          alternative: alternative,
+          projectID: projectID,
+          startedAt: evaluationStart,
+          endedAt: endedAt,
+          streamText: streamText
         )
         records.append(try workspace.writeProductTournamentPlanEvaluationRecord(record))
       }
@@ -637,6 +773,283 @@ enum ProductTournamentPlanEvaluator {
     )
   }
 
+  private static func evaluatePersonaModel(
+    tournament: ProductTournament,
+    round: ProductTournamentRound,
+    contender: ProductTournamentContender,
+    hypothesis: ProductHypothesis,
+    pain: PainHypothesis,
+    segment: UserSegment,
+    currentWorkflow: CurrentWorkflow?,
+    alternative: Alternative?,
+    projectID: UUID?,
+    startedAt: Double,
+    endedAt: Double,
+    streamText: @escaping @Sendable (_ prompt: String) async -> String?
+  ) async throws -> ProductTournamentPlanEvaluationRecord {
+    let baseline = evaluate(
+      tournament: tournament,
+      round: round,
+      contender: contender,
+      hypothesis: hypothesis,
+      pain: pain,
+      segment: segment,
+      currentWorkflow: currentWorkflow,
+      alternative: alternative,
+      projectID: projectID,
+      startedAt: startedAt,
+      endedAt: endedAt
+    )
+    guard
+      let response = await streamText(
+        personaModelPrompt(
+          tournament: tournament,
+          round: round,
+          contender: contender,
+          hypothesis: hypothesis,
+          pain: pain,
+          segment: segment,
+          currentWorkflow: currentWorkflow,
+          alternative: alternative,
+          baseline: baseline
+        )
+      )
+    else {
+      throw ProductTournamentPlanEvaluationModelError.unavailable
+    }
+    guard !response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      throw ProductTournamentPlanEvaluationModelError.emptyResponse
+    }
+    let modelResponse = try parsePlanEvaluationModelResponse(response)
+    let painRecognition =
+      clampedScore(modelResponse.painRecognition) ?? baseline.scores.painRecognition ?? 3
+    let workflowImprovement =
+      clampedScore(modelResponse.workflowImprovement) ?? baseline.scores.workflowImprovement ?? 3
+    let alternativeAdvantage =
+      clampedScore(modelResponse.alternativeAdvantage) ?? baseline.scores.alternativeAdvantage ?? 3
+    let switchingReadiness =
+      clampedScore(modelResponse.switchingReadiness) ?? baseline.scores.switchingReadiness ?? 3
+    let continuedUsePull =
+      clampedScore(modelResponse.continuedUsePull) ?? baseline.scores.continuedUsePull ?? 3
+    let willingnessToPay =
+      clampedScore(modelResponse.willingnessToPayScore ?? modelResponse.willingnessToPay)
+      ?? baseline.willingnessToPayScore
+      ?? baseline.scores.willingnessToPay
+      ?? 3
+    let scores = ProductTournamentEvidenceScores(
+      painRecognition: painRecognition,
+      workflowImprovement: workflowImprovement,
+      alternativeAdvantage: alternativeAdvantage,
+      switchingReadiness: switchingReadiness,
+      continuedUsePull: continuedUsePull,
+      willingnessToPay: willingnessToPay
+    )
+    let average =
+      Double(
+        painRecognition + workflowImprovement + alternativeAdvantage + switchingReadiness
+          + continuedUsePull + willingnessToPay
+      ) / 6
+    let parsedVerdict = modelResponse.verdict.flatMap(ProductTournamentEvidenceVerdict.init(rawValue:))
+    let selectedVerdict = parsedVerdict ?? verdict(
+      averageScore: average,
+      willingnessToPayScore: willingnessToPay
+    )
+
+    return ProductTournamentPlanEvaluationRecord(
+      id: recordID(round: round, contender: contender, segment: segment, endedAt: endedAt),
+      projectID: projectID?.uuidString,
+      tournamentID: tournament.id,
+      roundID: round.id,
+      contenderID: contender.id,
+      productHypothesisID: hypothesis.id,
+      experimentID: contender.experimentID,
+      painID: pain.id,
+      personaID: segment.id,
+      personaName: segment.name,
+      currentWorkflowID: currentWorkflow?.id,
+      alternativeID: alternative?.id,
+      mode: .personaModel,
+      status: .completed,
+      startedAt: startedAt,
+      endedAt: endedAt,
+      model: "foundation-models-plan-evaluator",
+      scores: scores,
+      willingnessToPayScore: willingnessToPay,
+      estimatedMonthlyPriceCents: modelResponse.estimatedMonthlyPriceCents
+        ?? baseline.estimatedMonthlyPriceCents,
+      commercialProofSummary: cleanedOptional(
+        modelResponse.commercialProofSummary,
+        fallback: baseline.commercialProofSummary
+      ),
+      objections: nonEmpty(modelResponse.objections, fallback: baseline.objections),
+      missingCapabilities: nonEmpty(
+        modelResponse.missingCapabilities,
+        fallback: baseline.missingCapabilities
+      ),
+      currentAlternativeComparison: cleanedOptional(
+        modelResponse.currentAlternativeComparison,
+        fallback: baseline.currentAlternativeComparison
+      ) ?? baseline.currentAlternativeComparison,
+      verdict: selectedVerdict,
+      summary: cleanedOptional(modelResponse.summary, fallback: baseline.summary) ?? baseline.summary,
+      rationale: nonEmpty(modelResponse.rationale, fallback: baseline.rationale),
+      planStrengths: nonEmpty(modelResponse.planStrengths, fallback: baseline.planStrengths),
+      planRisks: nonEmpty(modelResponse.planRisks, fallback: baseline.planRisks),
+      promptVersions: [personaModelPromptVersionID]
+    )
+  }
+
+  private static func personaModelPrompt(
+    tournament: ProductTournament,
+    round: ProductTournamentRound,
+    contender: ProductTournamentContender,
+    hypothesis: ProductHypothesis,
+    pain: PainHypothesis,
+    segment: UserSegment,
+    currentWorkflow: CurrentWorkflow?,
+    alternative: Alternative?,
+    baseline: ProductTournamentPlanEvaluationRecord
+  ) -> String {
+    let workflowText = [
+      currentWorkflow?.title,
+      currentWorkflow?.steps.joined(separator: "; "),
+      currentWorkflow?.failureModes.joined(separator: "; "),
+      currentWorkflow?.handoffs.joined(separator: "; "),
+    ].compactMap { $0 }.joined(separator: " | ")
+    let alternativeText = [
+      alternative?.title,
+      alternative?.strengths.joined(separator: "; "),
+      alternative?.weaknesses.joined(separator: "; "),
+      alternative?.switchingCost,
+    ].compactMap { $0 }.joined(separator: " | ")
+    let criteria = segment.decisionCriteria.joined(separator: "; ")
+    let goals = segment.goals.joined(separator: "; ")
+    let constraints = segment.constraints.joined(separator: "; ")
+    let requiredProof = hypothesis.requiredProof.joined(separator: "; ")
+    return """
+      Evaluate a Round 1 Product Tournament plan without assuming any built product exists.
+      Simulate the target persona as a skeptical user or buyer deciding whether this
+      plan deserves Round 2 core-technology feasibility work.
+
+      Tournament: \(bounded(tournament.title, 160)) (\(tournament.id)).
+      Round: \(bounded(round.title, 120)) (\(round.id)); no built product is available.
+      Pain: \(bounded(pain.rawPain, 600)).
+      Target situation: \(bounded(pain.targetSituation, 400)).
+      Cost of inaction: \(bounded(pain.costOfInaction, 400)).
+      Persona: \(bounded(segment.name, 120)) - \(bounded(segment.role, 180)).
+      Persona goals: \(bounded(goals, 500)).
+      Persona constraints: \(bounded(constraints, 500)).
+      Decision criteria: \(bounded(criteria, 500)).
+      Current workflow: \(bounded(workflowText, 800)).
+      Current alternative: \(bounded(alternativeText, 700)).
+      Contender: \(bounded(contender.title, 160)) (\(contender.id)).
+      Plan: \(bounded(contender.productPlan, 900)).
+      Value proposition: \(bounded(contender.valueProposition, 500)).
+      Primary risk: \(bounded(contender.primaryRisk, 400)).
+      Product hypothesis promise: \(bounded(hypothesis.promise, 500)).
+      Differentiator: \(bounded(hypothesis.differentiator, 500)).
+      Required proof: \(bounded(requiredProof, 500)).
+      Baseline deterministic scorecard: pain \(baseline.scores.painRecognition ?? 0),
+      workflow \(baseline.scores.workflowImprovement ?? 0),
+      alternative \(baseline.scores.alternativeAdvantage ?? 0),
+      switching \(baseline.scores.switchingReadiness ?? 0),
+      pull \(baseline.scores.continuedUsePull ?? 0),
+      willingnessToPay \(baseline.willingnessToPayScore ?? 0).
+
+      Score each dimension from 1 to 5 from this persona's point of view:
+      painRecognition, workflowImprovement, alternativeAdvantage,
+      switchingReadiness, continuedUsePull, willingnessToPayScore.
+      Include objections, missing capabilities, current-alternative comparison,
+      commercial proof, and rationale. Use verdict one of:
+      strong_pull, promising, unclear, weak, rejected.
+
+      Return exactly one JSON object and no prose:
+      {
+        "painRecognition": 4,
+        "workflowImprovement": 4,
+        "alternativeAdvantage": 3,
+        "switchingReadiness": 3,
+        "continuedUsePull": 4,
+        "willingnessToPayScore": 3,
+        "estimatedMonthlyPriceCents": 4900,
+        "commercialProofSummary": "short price, ROI, or sponsor assessment",
+        "currentAlternativeComparison": "short comparison against the current alternative",
+        "verdict": "promising",
+        "summary": "one sentence persona-grounded judgment",
+        "objections": ["one concrete objection"],
+        "missingCapabilities": ["one proof gap id"],
+        "rationale": ["short reason"],
+        "planStrengths": ["short strength"],
+        "planRisks": ["short risk"]
+      }
+      """
+  }
+
+  private static func parsePlanEvaluationModelResponse(
+    _ response: String
+  ) throws -> ProductTournamentPlanModelResponse {
+    guard let json = firstJSONObject(in: response), let data = json.data(using: .utf8) else {
+      throw ProductTournamentPlanEvaluationModelError.invalidJSON(response)
+    }
+    do {
+      return try JSONDecoder().decode(ProductTournamentPlanModelResponse.self, from: data)
+    } catch {
+      throw ProductTournamentPlanEvaluationModelError.invalidJSON(response)
+    }
+  }
+
+  private static func firstJSONObject(in text: String) -> String? {
+    let characters = Array(text)
+    guard let start = characters.firstIndex(of: "{") else { return nil }
+    var depth = 0
+    var inString = false
+    var escaped = false
+    for index in start..<characters.count {
+      let character = characters[index]
+      if inString {
+        if escaped {
+          escaped = false
+        } else if character == "\\" {
+          escaped = true
+        } else if character == "\"" {
+          inString = false
+        }
+        continue
+      }
+      if character == "\"" {
+        inString = true
+      } else if character == "{" {
+        depth += 1
+      } else if character == "}" {
+        depth -= 1
+        if depth == 0 {
+          return String(characters[start...index])
+        }
+      }
+    }
+    return nil
+  }
+
+  private static func clampedScore(_ value: Int?) -> Int? {
+    value.map { min(5, max(1, $0)) }
+  }
+
+  private static func cleanedOptional(_ value: String?, fallback: String?) -> String? {
+    let cleaned = value.map { StringUtils.boundedText($0, limit: 1_500) }?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if let cleaned, !cleaned.isEmpty { return cleaned }
+    return fallback
+  }
+
+  private static func nonEmpty(_ values: [String]?, fallback: [String]) -> [String] {
+    let cleaned = ProductTournamentEvidenceRecord.cleanedList(values ?? [], limit: 360)
+    return cleaned.isEmpty ? fallback : cleaned
+  }
+
+  private static func bounded(_ value: String, _ limit: Int) -> String {
+    StringUtils.boundedText(value, limit: limit)
+  }
+
   private static func recordID(
     round: ProductTournamentRound,
     contender: ProductTournamentContender,
@@ -961,6 +1374,26 @@ enum ProductTournamentPlanEvaluator {
   }
 }
 
+private struct ProductTournamentPlanModelResponse: Decodable {
+  var painRecognition: Int?
+  var workflowImprovement: Int?
+  var alternativeAdvantage: Int?
+  var switchingReadiness: Int?
+  var continuedUsePull: Int?
+  var willingnessToPay: Int?
+  var willingnessToPayScore: Int?
+  var estimatedMonthlyPriceCents: Int?
+  var commercialProofSummary: String?
+  var currentAlternativeComparison: String?
+  var verdict: String?
+  var summary: String?
+  var objections: [String]?
+  var missingCapabilities: [String]?
+  var rationale: [String]?
+  var planStrengths: [String]?
+  var planRisks: [String]?
+}
+
 @MainActor
 extension CompassProject {
   func runProductTournamentPlanRoundModelFree(
@@ -974,6 +1407,33 @@ extension CompassProject {
         return nil
       }
       let outcome = try ProductTournamentPlanEvaluator.runPlanRound(
+        tournamentID: tournamentID,
+        roundID: roundID,
+        contenderID: contenderID,
+        in: workspace,
+        projectID: id
+      )
+      productTournamentConfig = try workspace.readProductTournamentConfig()
+      productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
+      log(outcome.userMessage, level: outcome.isSuccess ? .success : .warning)
+      return outcome
+    } catch {
+      fail(error)
+      return nil
+    }
+  }
+
+  func runProductTournamentPlanRoundPersonaModel(
+    tournamentID: String,
+    roundID: String? = nil,
+    contenderID: String? = nil
+  ) async -> ProductTournamentPlanEvaluationOutcome? {
+    do {
+      guard let workspace else {
+        fail(AppModelError.noRepositorySelected)
+        return nil
+      }
+      let outcome = try await ProductTournamentPlanEvaluator.runPlanRoundPersonaModel(
         tournamentID: tournamentID,
         roundID: roundID,
         contenderID: contenderID,

@@ -65,12 +65,13 @@ Compass frames product discovery as a tournament. A tournament starts from a
 durable user pain, creates several competing product contenders for that pain,
 and advances them through rounds:
 
-- **Round 1: product plans.** No product exists yet. Model-free simulated users
-  inspect the plans, compare them with the current alternative, and judge pain
-  recognition, sponsorship, and willingness to pay. Accumulated plan readiness
-  tracks plan proof debt: enough completed simulated-user evaluations, at least
-  two distinct personas, a buyer/sponsor signal, and a viable willingness-to-pay
-  score. Compass only advances a contender to Round 2 when that debt is clear;
+- **Round 1: product plans.** No product exists yet. Model-free and optional
+  Foundation Models persona simulated users inspect the plans, compare them with
+  the current alternative, and judge pain recognition, sponsorship, and
+  willingness to pay. Accumulated plan readiness tracks plan proof debt: enough
+  completed simulated-user evaluations, at least two distinct personas, a
+  buyer/sponsor signal, and a viable willingness-to-pay score. Compass only
+  advances a contender to Round 2 when that debt is clear;
   otherwise it gathers more plan evidence, marks a plan for revision, or
   eliminates a weak contender before implementation spend. When buyer/sponsor
   debt remains, Round 1 plan evaluation targets an economic-buyer simulated user
@@ -167,9 +168,11 @@ with contender and round IDs, so Plan/Reflect can queue plan-only proof before a
 prototype or core-technology artifact exists. While the active tournament has no
 generated-product evidence yet, automation turns that target into a runnable
 `run_plan_proof` step that executes the focused model-free plan evaluator and
-writes Round 1 plan-evaluation evidence for that contender. Cycle audits report
-the before/after Round 1 plan-proof debt for those steps directly, so a focused
-plan run shows whether it cleared buyer/sponsor, persona, evaluation, or
+the Workbench can also run a Foundation Models persona-model plan proof when
+available. Both write Round 1 plan-evaluation evidence for that contender. Cycle
+audits report the before/after Round 1 plan-proof debt for automation steps
+directly, so a focused plan run shows whether it cleared buyer/sponsor, persona,
+evaluation, or
 willingness-to-pay debt before any generated-product evidence exists. Product
 Tournament Context also includes recent Round 1 plan-proof automation deltas so
 Plan and Reflect can see the exact debt labels that changed after automation;
@@ -210,9 +213,11 @@ never bypasses normal build/test/Verify discipline.
 
 Tournament prompts use the same model/provider settings already configured for
 the project and do not add a new network destination. Automatic persona-model
-execution is kept disabled unless rollout controls can bound runtime and flake
-risk; run the generated `product-tournament-smoke` and inspect tournament evidence
-manually when evaluating the feature.
+scenario execution is kept disabled unless rollout controls can bound runtime and
+flake risk; Round 1 persona-model plan evaluation is available from the
+Workbench when Foundation Models is present. Run the generated
+`product-tournament-smoke` and inspect tournament evidence manually when
+evaluating the feature.
 
 ## Developing compass-engine
 
