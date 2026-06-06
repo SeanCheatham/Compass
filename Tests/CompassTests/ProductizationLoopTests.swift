@@ -3303,6 +3303,227 @@ struct ProductizationLoopTests {
     try #require(step.action.targetDecision == .promote)
   }
 
+  @Test func targetedProofOutcomeStallQueuesRetargetedRevision() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
+    let strongScores = ProductizationEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 5,
+      alternativeAdvantage: 4,
+      switchingReadiness: 4,
+      continuedUsePull: 5
+    )
+    let record = makeDecisionAdvisorRecord(
+      id: "contradicted-kill",
+      experiment: experiment,
+      config: config,
+      personaID: scenario.segmentID,
+      mode: .personaModel,
+      endedAt: 200,
+      verdict: .strongPull,
+      scores: strongScores,
+      currentAlternativeComparison: "The prototype beat the spreadsheet.",
+      scenarioID: scenario.id,
+      decisionIntent: ProductizationSimulationDecisionIntent(
+        currentDecision: .keepGoing,
+        targetDecision: .kill
+      )
+    )
+    let index = ProductizationEvidenceIndex.build(records: [record])
+    let signal = try #require(
+      ProductFactoryTargetedProofOutcomeAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let stalledAudit = ProductFactoryCycleAudit(
+      id: "factory-cycle-stalled-targeted-proof",
+      startedAt: 220,
+      endedAt: 230,
+      executedStepIDs: [ProductFactoryCycleFailureAdvisor.stepID(for: action)],
+      experimentIDs: [experiment.id],
+      messages: ["Targeted kill contradiction proof reran 1 scenario."],
+      maxSteps: 3,
+      evidenceRunStepCount: 1,
+      evidenceRunIDs: ["contradicted-kill-rerun"],
+      completedEvidenceRunCount: 1,
+      failedEvidenceRunCount: 0,
+      skippedScenarioCount: 0,
+      targetedProofOutcomeSummaries: [signal.auditSummary],
+      stopReason: .noExecutableStep,
+      stopDetail: "Stopped because no executable product-factory step remains.",
+      userMessage: "Factory cycle ran 1 step(s). Targeted proof outcome persisted."
+    )
+    let stalledConfig = config.recordingFactoryCycleAudit(stalledAudit)
+
+    let learningAudit = try #require(
+      ProductFactoryCycleLearningAdvisor.stalledTargetedProofOutcomeAudit(
+        for: action,
+        experiment: experiment,
+        config: stalledConfig,
+        evidenceIndex: index
+      ))
+    let retarget = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: stalledConfig,
+        evidenceIndex: index
+      ))
+    let revisionBrief = try #require(
+      ProductFactoryRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: stalledConfig,
+        evidenceIndex: index
+      ))
+    let revisionStep = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: stalledConfig,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+    let digest = ProductizationPlanningDigestFormatter.promptText(
+      config: stalledConfig,
+      evidenceIndex: index
+    )
+
+    try #require(learningAudit.id == stalledAudit.id)
+    try #require(retarget.kind == .refineBet)
+    try #require(retarget.title == "Retarget targeted PMF proof")
+    try #require(retarget.detail.contains(stalledAudit.id))
+    try #require(retarget.targetDecision == .promote)
+    try #require(revisionBrief.source == .targetedProofOutcome)
+    try #require(revisionBrief.title == "Revise contradicted stop proof")
+    try #require(revisionBrief.targetDecision == .promote)
+    try #require(revisionStep.kind == .applyRevision)
+    try #require(revisionStep.canExecute)
+    try #require(revisionStep.targetScenarioID == scenario.id)
+    try #require(digest.contains("targeted proof outcomes"))
+    try #require(digest.contains("factory-cycle-stalled-targeted-proof"))
+  }
+
+  @Test func targetedProofOutcomeAppliedRevisionQueuesValidationRerun() throws {
+    var config = ProductizationConfig.seedDefaults(
+      projectTitle: "Factory",
+      rawPain: "Factory users need better product bet evidence.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    config.experiments[0].decision = .keepGoing
+    config.experiments[0].baseSha = "base-sha"
+    config.experiments[0].currentSha = "head-sha"
+    let experiment = config.experiments[0]
+    let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
+    let weakScores = ProductizationEvidenceScores(
+      painRecognition: 2,
+      workflowImprovement: 1,
+      alternativeAdvantage: 1,
+      switchingReadiness: 1,
+      continuedUsePull: 1
+    )
+    let record = makeDecisionAdvisorRecord(
+      id: "contradicted-promote",
+      experiment: experiment,
+      config: config,
+      personaID: scenario.segmentID,
+      mode: .personaModel,
+      endedAt: 200,
+      verdict: .rejected,
+      scores: weakScores,
+      currentAlternativeComparison: "The spreadsheet remained better.",
+      scenarioID: scenario.id,
+      decisionIntent: ProductizationSimulationDecisionIntent(
+        currentDecision: .keepGoing,
+        targetDecision: .promote
+      )
+    )
+    let index = ProductizationEvidenceIndex.build(records: [record])
+    let signal = try #require(
+      ProductFactoryTargetedProofOutcomeAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let action = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let revisionBrief = try #require(
+      ProductFactoryRevisionBriefAdvisor.brief(
+        for: experiment,
+        config: config,
+        evidenceIndex: index
+      ))
+    let revisionStep = try #require(
+      ProductFactoryAutopilotPlanner.nextStep(
+        config: config,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+    let revisionAudit = ProductFactoryCycleAudit(
+      id: "factory-cycle-targeted-proof-revision",
+      startedAt: 220,
+      endedAt: 230,
+      executedStepIDs: [revisionStep.id],
+      experimentIDs: [experiment.id],
+      messages: ["Applied targeted proof revision."],
+      maxSteps: 3,
+      targetedProofOutcomeSummaries: [signal.auditSummary],
+      revisionBriefSummaries: [revisionBrief.auditSummary],
+      stopReason: .reachedStepLimit,
+      stopStepID: revisionStep.id,
+      stopStepTitle: revisionStep.title,
+      stopDetail: "Product revision checkpoint recorded.",
+      userMessage: "Applied targeted proof revision; validate next."
+    )
+    let revisedConfig = config.recordingFactoryCycleAudit(revisionAudit)
+
+    let appliedAudit = try #require(
+      ProductFactoryCycleLearningAdvisor.appliedTargetedProofOutcomeRevisionAudit(
+        for: action,
+        experiment: experiment,
+        config: revisedConfig,
+        evidenceIndex: index
+      ))
+    let validationAction = try #require(
+      ProductMarketFitNextActionAdvisor.nextAction(
+        for: experiment,
+        config: revisedConfig,
+        evidenceIndex: index
+      ))
+    let validationStep = try #require(
+      ProductFactoryAutopilotPlanner.nextExecutableStep(
+        config: revisedConfig,
+        evidenceIndex: index,
+        isPersonaModelAvailable: true
+      ))
+
+    try #require(appliedAudit.id == revisionAudit.id)
+    try #require(validationAction.kind == .rerunCohort)
+    try #require(validationAction.title == "Validate targeted PMF revision")
+    try #require(validationAction.detail.contains(revisionAudit.id))
+    try #require(validationAction.cohortID == signal.targetCohortID)
+    try #require(validationAction.targetScenarioID == scenario.id)
+    try #require(validationAction.targetDecision == .narrow)
+    try #require(validationStep.kind == .runCohort)
+    try #require(validationStep.canExecute)
+    try #require(validationStep.targetScenarioID == scenario.id)
+  }
+
   @Test func productFactoryAutopilotCycleOutcomeReportsFailureStop() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Factory",
@@ -3363,6 +3584,8 @@ struct ProductizationLoopTests {
       "\(step.experimentID): resolve split PMF evidence; score 82/100; strong_pull vs rejected; target_decision promote; target Budget owner; scenario \(longScenarioID); evidence split-a, split-b; Current PMF evidence is split."
     let proofTargetSummary =
       "\(step.experimentID): run targeted AI-user validation proof; target_decision promote; target Budget owner; scenario \(longScenarioID); debt 2 completed run(s), 2 persona(s), 1 AI-user current-alternative proof(s)"
+    let targetedProofOutcomeSummary =
+      "\(step.experimentID): targeted PMF proof outcome; target_decision kill; outcome contradicts_target; count 2; action run_cohort; recommended_decision promote; target Budget owner; scenario \(longScenarioID); runs stop-a, stop-b"
     let outcome = ProductFactoryAutopilotCycleOutcome(
       executedSteps: [step],
       messages: ["Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
@@ -3378,6 +3601,7 @@ struct ProductizationLoopTests {
       endingProofDebtSummary: "\(step.experimentID): 1 completed run(s), 1 persona(s)",
       evidenceTensionSummaries: [tensionSummary],
       proofTargetSummaries: [proofTargetSummary],
+      targetedProofOutcomeSummaries: [targetedProofOutcomeSummary],
       revisionBriefSummaries: [
         "\(step.experimentID): Retarget product revision for AI-user rationale; source ai_user_rationale; priority 88; target Budget owner"
       ]
@@ -3411,6 +3635,10 @@ struct ProductizationLoopTests {
     try #require(audit.proofTargetSummaries[0].contains("targeted AI-user validation proof"))
     try #require(audit.proofTargetSummaries[0].contains("target_decision promote"))
     try #require(audit.proofTargetSummaries[0].contains(longScenarioID))
+    try #require(audit.targetedProofOutcomeSummaries.count == 1)
+    try #require(audit.targetedProofOutcomeSummaries[0].contains("targeted PMF proof outcome"))
+    try #require(audit.targetedProofOutcomeSummaries[0].contains("outcome contradicts_target"))
+    try #require(audit.targetedProofOutcomeSummaries[0].contains("recommended_decision promote"))
     try #require(audit.revisionBriefSummaries.count == 1)
     try #require(audit.revisionBriefSummaries[0].contains("Retarget product revision"))
     try #require(audit.stopReason == .noExecutableStep)
@@ -3418,6 +3646,7 @@ struct ProductizationLoopTests {
     try #require(audit.userMessage.contains("evidence runs 1 completed, 0 needing review"))
     try #require(audit.userMessage.contains("Evidence tensions:"))
     try #require(audit.userMessage.contains("Proof targets:"))
+    try #require(audit.userMessage.contains("Targeted proof outcomes:"))
     try #require(audit.userMessage.contains("Product revisions:"))
     try #require(audit.userMessage.contains("Proof debt improved by 2"))
     try #require(audit.summary.contains("runs run-one"))
@@ -3428,6 +3657,8 @@ struct ProductizationLoopTests {
     try #require(audit.summary.contains("targeted AI-user validation proof"))
     try #require(audit.summary.contains("target_decision promote"))
     try #require(audit.summary.contains(longScenarioID))
+    try #require(audit.summary.contains("targeted outcomes"))
+    try #require(audit.summary.contains("outcome contradicts_target"))
     try #require(audit.summary.contains("revisions"))
     try #require(audit.summary.contains("Retarget product revision"))
     try #require(audit.userMessage.contains("Stopped because no executable product-factory step remains."))

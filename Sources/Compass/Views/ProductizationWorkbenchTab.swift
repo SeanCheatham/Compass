@@ -1569,11 +1569,15 @@ struct ProductizationWorkbenchTab: View {
         return
       }
       selectedScenarioID = scenarioID
+      let targetedProofOutcomeSummaries =
+        productFactoryTargetedProofOutcomeSignal(forExperimentID: brief.experimentID)
+        .map { [$0.auditSummary] } ?? []
       let audit = appliedRevisionAudit(
         for: brief,
         scenarioID: scenarioID,
         startedAt: startedAt,
         idPrefix: "factory-cycle-manual-revision",
+        targetedProofOutcomeSummaries: targetedProofOutcomeSummaries,
         stopDetail: "Manual product revision applied; run targeted validation evidence next.",
         userMessage:
           "Applied product revision for \(brief.experimentID). Run targeted validation evidence next."
@@ -1593,6 +1597,7 @@ struct ProductizationWorkbenchTab: View {
     scenarioID: String,
     startedAt: Date,
     idPrefix: String,
+    targetedProofOutcomeSummaries: [String] = [],
     stopDetail: String,
     userMessage: String
   ) -> ProductFactoryCycleAudit {
@@ -1610,6 +1615,7 @@ struct ProductizationWorkbenchTab: View {
         "Applied product revision \(brief.title) to scenario \(scenarioID)."
       ],
       maxSteps: 1,
+      targetedProofOutcomeSummaries: targetedProofOutcomeSummaries,
       revisionBriefSummaries: [brief.auditSummary],
       stopReason: .reachedStepLimit,
       stopStepID: stepID,
@@ -1672,6 +1678,9 @@ struct ProductizationWorkbenchTab: View {
     let proofTargetSummaries =
       productFactoryProofTarget(forExperimentID: step.experimentID)
       .map { [$0.auditSummary] } ?? []
+    let targetedProofOutcomeSummaries =
+      productFactoryTargetedProofOutcomeSignal(forExperimentID: step.experimentID)
+      .map { [$0.auditSummary] } ?? []
     let revisionBriefSummaries =
       step.kind == .applyRevision
       ? productFactoryRevisionBrief(forExperimentID: step.experimentID).map { [$0.auditSummary] }
@@ -1723,6 +1732,7 @@ struct ProductizationWorkbenchTab: View {
       decisionCandidateSummaries: decisionCandidateSummaries,
       evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,
+      targetedProofOutcomeSummaries: targetedProofOutcomeSummaries,
       personaRationaleSignalSummaries: personaRationaleSignalSummaries,
       revisionBriefSummaries: revisionBriefSummaries
     )
@@ -1751,6 +1761,12 @@ struct ProductizationWorkbenchTab: View {
     var decisionCandidateSummaries: [String] = []
     var evidenceTensionSummaries: [String] = []
     var proofTargetSummaries: [String] = []
+    var targetedProofOutcomeSummaries = ProductFactoryTargetedProofOutcomeAdvisor.signals(
+      config: project.productizationConfig,
+      evidenceIndex: project.productizationEvidenceIndex
+    )
+    .prefix(3)
+    .map(\.auditSummary)
     var revisionBriefSummaries: [String] = []
     var personaRationaleSignalSummaries = ProductFactoryRationaleSignalAdvisor.signals(
       config: project.productizationConfig,
@@ -1800,6 +1816,13 @@ struct ProductizationWorkbenchTab: View {
       {
         proofTargetSummaries.append(proofTarget.auditSummary)
       }
+      if let targetedProofOutcome = productFactoryTargetedProofOutcomeSignal(
+        forExperimentID: step.experimentID
+      ),
+        !targetedProofOutcomeSummaries.contains(targetedProofOutcome.auditSummary)
+      {
+        targetedProofOutcomeSummaries.append(targetedProofOutcome.auditSummary)
+      }
       let stepRevisionBrief =
         step.kind == .applyRevision
         ? productFactoryRevisionBrief(forExperimentID: step.experimentID)
@@ -1843,6 +1866,9 @@ struct ProductizationWorkbenchTab: View {
           scenarioID: scenarioID,
           startedAt: Date(),
           idPrefix: "factory-cycle-revision-checkpoint",
+          targetedProofOutcomeSummaries:
+            productFactoryTargetedProofOutcomeSignal(forExperimentID: stepRevisionBrief.experimentID)
+            .map { [$0.auditSummary] } ?? [],
           stopDetail:
             "Product revision checkpoint recorded; continue with targeted validation evidence.",
           userMessage:
@@ -1876,6 +1902,7 @@ struct ProductizationWorkbenchTab: View {
       decisionCandidateSummaries: decisionCandidateSummaries,
       evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,
+      targetedProofOutcomeSummaries: targetedProofOutcomeSummaries,
       personaRationaleSignalSummaries: personaRationaleSignalSummaries,
       revisionBriefSummaries: revisionBriefSummaries
     )
@@ -1939,6 +1966,21 @@ struct ProductizationWorkbenchTab: View {
       })
     else { return nil }
     return ProductFactoryEvidenceTensionAdvisor.tension(
+      for: experiment,
+      config: project.productizationConfig,
+      evidenceIndex: project.productizationEvidenceIndex
+    )
+  }
+
+  private func productFactoryTargetedProofOutcomeSignal(
+    forExperimentID experimentID: String
+  ) -> ProductFactoryTargetedProofOutcomeSignal? {
+    guard
+      let experiment = project.productizationConfig.experiments.first(where: {
+        $0.id == experimentID
+      })
+    else { return nil }
+    return ProductFactoryTargetedProofOutcomeAdvisor.signal(
       for: experiment,
       config: project.productizationConfig,
       evidenceIndex: project.productizationEvidenceIndex

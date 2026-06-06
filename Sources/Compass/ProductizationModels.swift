@@ -927,6 +927,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
   var decisionCandidateSummaries: [String]
   var evidenceTensionSummaries: [String]
   var proofTargetSummaries: [String]
+  var targetedProofOutcomeSummaries: [String]
   var personaRationaleSignalSummaries: [String]
   var revisionBriefSummaries: [String]
   var stopReason: ProductFactoryCycleAuditStopReason
@@ -968,6 +969,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       proofTargetSummaries.isEmpty
       ? ""
       : "; targets \(proofTargetSummaries.prefix(3).joined(separator: " | "))"
+    let targetedOutcomes =
+      targetedProofOutcomeSummaries.isEmpty
+      ? ""
+      : "; targeted outcomes \(targetedProofOutcomeSummaries.prefix(3).joined(separator: " | "))"
     let rationaleSignals =
       personaRationaleSignalSummaries.isEmpty
       ? ""
@@ -977,7 +982,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       ? ""
       : "; revisions \(revisionBriefSummaries.prefix(3).joined(separator: " | "))"
     return
-      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill)\(targetedProof); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
+      "\(executedStepCount) step(s); decisions \(appliedDecisionCount) (\(promotedDecisionCount) promote, \(killedDecisionCount) kill)\(targetedProof); evidence \(evidenceRunStepCount) step(s), \(completedEvidenceRunCount) completed run(s), \(failedEvidenceRunCount) needing review, \(skippedScenarioCount) skipped\(runIDs)\(proofDebt)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedOutcomes)\(rationaleSignals)\(revisionBriefs); \(stopReason.rawValue)\(stopTarget); \(stopDetail)"
   }
 
   private var proofDebtSummary: String? {
@@ -1013,6 +1018,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     decisionCandidateSummaries: [String] = [],
     evidenceTensionSummaries: [String] = [],
     proofTargetSummaries: [String] = [],
+    targetedProofOutcomeSummaries: [String] = [],
     personaRationaleSignalSummaries: [String] = [],
     revisionBriefSummaries: [String] = [],
     stopReason: ProductFactoryCycleAuditStopReason,
@@ -1062,6 +1068,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       proofTargetSummaries,
       limit: 360
     )
+    self.targetedProofOutcomeSummaries = ProductizationModelText.cleanedList(
+      targetedProofOutcomeSummaries,
+      limit: 360
+    )
     self.personaRationaleSignalSummaries = ProductizationModelText.cleanedList(
       personaRationaleSignalSummaries,
       limit: 360
@@ -1082,7 +1092,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     self.userMessage = ProductizationModelText.cleanedText(
       userMessage,
       fallback: cleanedStopDetail,
-      limit: 1_200
+      limit: 2_000
     )
   }
 
@@ -1111,6 +1121,7 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
     case decisionCandidateSummaries
     case evidenceTensionSummaries
     case proofTargetSummaries
+    case targetedProofOutcomeSummaries
     case personaRationaleSignalSummaries
     case revisionBriefSummaries
     case stopReason
@@ -1195,6 +1206,10 @@ struct ProductFactoryCycleAudit: Codable, Equatable, Identifiable, Sendable {
       proofTargetSummaries: try container.decodeIfPresent(
         [String].self,
         forKey: .proofTargetSummaries
+      ) ?? [],
+      targetedProofOutcomeSummaries: try container.decodeIfPresent(
+        [String].self,
+        forKey: .targetedProofOutcomeSummaries
       ) ?? [],
       personaRationaleSignalSummaries: try container.decodeIfPresent(
         [String].self,

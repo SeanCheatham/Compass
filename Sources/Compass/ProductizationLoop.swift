@@ -1881,14 +1881,17 @@ enum ProductFactoryRevisionBriefAdvisor {
       for: experiment,
       config: config,
       evidenceIndex: evidenceIndex
-    ), signal.actionKind == .refineBet
-    else { return nil }
+    ) else { return nil }
     let action = ProductMarketFitNextActionAdvisor.nextAction(
       for: experiment,
       config: config,
       evidenceIndex: evidenceIndex
     )
-    guard action?.title == signal.title else { return nil }
+    let isRetargeted = action?.title == "Retarget targeted PMF proof"
+    guard signal.actionKind == .refineBet || isRetargeted else { return nil }
+    guard action?.title == signal.title || isRetargeted else {
+      return nil
+    }
     let revision = revisionPlan(for: signal)
     return ProductFactoryRevisionBrief(
       experimentID: experiment.id,
@@ -2589,6 +2592,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
   var decisionCandidateSummaries: [String]
   var evidenceTensionSummaries: [String]
   var proofTargetSummaries: [String]
+  var targetedProofOutcomeSummaries: [String]
   var personaRationaleSignalSummaries: [String]
   var revisionBriefSummaries: [String]
 
@@ -2608,6 +2612,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     decisionCandidateSummaries: [String] = [],
     evidenceTensionSummaries: [String] = [],
     proofTargetSummaries: [String] = [],
+    targetedProofOutcomeSummaries: [String] = [],
     personaRationaleSignalSummaries: [String] = [],
     revisionBriefSummaries: [String] = []
   ) {
@@ -2639,6 +2644,10 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     )
     self.proofTargetSummaries = ProductizationModelText.cleanedList(
       proofTargetSummaries,
+      limit: 360
+    )
+    self.targetedProofOutcomeSummaries = ProductizationModelText.cleanedList(
+      targetedProofOutcomeSummaries,
       limit: 360
     )
     self.personaRationaleSignalSummaries = ProductizationModelText.cleanedList(
@@ -2712,6 +2721,9 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     }
     if let proofTargetMessage {
       parts.append(proofTargetMessage)
+    }
+    if let targetedProofOutcomeMessage {
+      parts.append(targetedProofOutcomeMessage)
     }
     if let personaRationaleSignalMessage {
       parts.append(personaRationaleSignalMessage)
@@ -2792,6 +2804,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       decisionCandidateSummaries: decisionCandidateSummaries,
       evidenceTensionSummaries: evidenceTensionSummaries,
       proofTargetSummaries: proofTargetSummaries,
+      targetedProofOutcomeSummaries: targetedProofOutcomeSummaries,
       personaRationaleSignalSummaries: personaRationaleSignalSummaries,
       revisionBriefSummaries: revisionBriefSummaries,
       stopReason: auditStopReason,
@@ -2840,6 +2853,12 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
     guard !proofTargetSummaries.isEmpty else { return nil }
     let targets = proofTargetSummaries.prefix(3).joined(separator: " | ")
     return "Proof targets: \(StringUtils.boundedText(targets, limit: 360))."
+  }
+
+  private var targetedProofOutcomeMessage: String? {
+    guard !targetedProofOutcomeSummaries.isEmpty else { return nil }
+    let outcomes = targetedProofOutcomeSummaries.prefix(3).joined(separator: " | ")
+    return "Targeted proof outcomes: \(StringUtils.boundedText(outcomes, limit: 420))."
   }
 
   private var personaRationaleSignalMessage: String? {
@@ -3086,6 +3105,47 @@ enum ProductFactoryCycleLearningAdvisor {
       }
   }
 
+  static func stalledTargetedProofOutcomeAudit(
+    for action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryCycleAudit? {
+    guard action.kind == .runCohort || action.kind == .rerunCohort,
+      action.targetScenarioID != nil,
+      action.requiredSimulationMode == .personaModel,
+      let currentSignal = ProductFactoryTargetedProofOutcomeAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      currentSignal.title == action.title || action.title == "Validate targeted PMF revision"
+    else { return nil }
+    let stepIDs = targetedScenarioStepIDs(for: action)
+    return config.factoryCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(5)
+      .first { audit in
+        guard audit.stopReason != .executionFailed,
+          audit.experimentIDs.contains(experiment.id),
+          audit.evidenceRunStepCount > 0,
+          audit.completedEvidenceRunCount > 0,
+          matchesAnyExecutedStepID(stepIDs, audit: audit),
+          !audit.targetedProofOutcomeSummaries.isEmpty,
+          matchesCurrentTargetedProofOutcome(
+            audit: audit,
+            action: action,
+            signal: currentSignal
+          ),
+          !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
+        else { return false }
+        return true
+      }
+  }
+
   static func revisionFatigueAudit(
     for action: ProductMarketFitNextAction,
     experiment: ProductExperiment,
@@ -3133,6 +3193,39 @@ enum ProductFactoryCycleLearningAdvisor {
       !hasCompletedEvidence(after: latestAudit, for: experiment, evidenceIndex: evidenceIndex)
     else { return nil }
     return latestAudit
+  }
+
+  static func appliedTargetedProofOutcomeRevisionAudit(
+    for action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductFactoryCycleAudit? {
+    guard action.kind == .refineBet,
+      let currentSignal = ProductFactoryTargetedProofOutcomeAdvisor.signal(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    else { return nil }
+    return config.factoryCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .prefix(5)
+      .first { audit in
+        guard audit.stopReason != .executionFailed,
+          audit.experimentIDs.contains(experiment.id),
+          matchesCurrentTargetedProofOutcomeRevision(
+            audit: audit,
+            action: action,
+            signal: currentSignal
+          ),
+          !hasCompletedEvidence(after: audit, for: experiment, evidenceIndex: evidenceIndex)
+        else { return false }
+        return true
+      }
   }
 
   static func appliedRevisionBriefAudit(
@@ -3337,6 +3430,61 @@ enum ProductFactoryCycleLearningAdvisor {
       }
       return action.targetScenarioID.map { summary.contains($0) } ?? false
     }
+  }
+
+  private static func matchesCurrentTargetedProofOutcome(
+    audit: ProductFactoryCycleAudit,
+    action: ProductMarketFitNextAction,
+    signal: ProductFactoryTargetedProofOutcomeSignal
+  ) -> Bool {
+    audit.targetedProofOutcomeSummaries.contains { summary in
+      let labelMatches = summary.localizedCaseInsensitiveContains("targeted PMF proof outcome")
+      let targetDecisionMatches = summary.contains(
+        "target_decision \(signal.targetDecision.rawValue)"
+      )
+      let outcomeMatches = summary.contains("outcome \(signal.outcome.rawValue)")
+      let recommendedMatches =
+        signal.recommendedDecision.map {
+          summary.contains("recommended_decision \($0.rawValue)")
+        } ?? true
+      let scenarioMatches = action.targetScenarioID.map { summary.contains($0) } ?? true
+      let personaMatches =
+        action.targetPersonaName.map {
+          summary.localizedCaseInsensitiveContains($0)
+        } ?? true
+      return labelMatches
+        && targetDecisionMatches
+        && outcomeMatches
+        && recommendedMatches
+        && scenarioMatches
+        && personaMatches
+    }
+  }
+
+  private static func matchesCurrentTargetedProofOutcomeRevision(
+    audit: ProductFactoryCycleAudit,
+    action: ProductMarketFitNextAction,
+    signal: ProductFactoryTargetedProofOutcomeSignal
+  ) -> Bool {
+    let revisionMatches = audit.revisionBriefSummaries.contains { summary in
+      let sourceMatches = summary.contains(
+        ProductFactoryRevisionBriefSource.targetedProofOutcome.rawValue
+      )
+      let scenarioMatches = action.targetScenarioID.map { summary.contains($0) } ?? true
+      let personaMatches =
+        action.targetPersonaName.map {
+          summary.localizedCaseInsensitiveContains($0)
+        } ?? true
+      let decisionMatches =
+        action.targetDecision.map {
+          summary.contains("target_decision \($0.rawValue)")
+        } ?? true
+      return sourceMatches && scenarioMatches && personaMatches && decisionMatches
+    }
+    if revisionMatches {
+      return true
+    }
+    return matchesCurrentTargetedProofOutcome(audit: audit, action: action, signal: signal)
   }
 
   private static func matchesCurrentRevisionBrief(
@@ -3547,6 +3695,20 @@ enum ProductFactoryAutopilotPlanner {
       blocked.canExecute = false
       blocked.blockedReason =
         "Recent factory cycle \(audit.id) already applied this product revision; run fresh targeted AI-user evidence or change the prototype before applying it again."
+      return blocked
+    }
+    if step.canExecute,
+      let audit = ProductFactoryCycleLearningAdvisor.stalledTargetedProofOutcomeAudit(
+        for: step.action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    {
+      var blocked = step
+      blocked.canExecute = false
+      blocked.blockedReason =
+        "Recent factory cycle \(audit.id) already attempted this targeted PMF proof outcome and the same outcome is still present; revise the prototype, scenario, target persona, or decision criteria before retrying."
       return blocked
     }
     if step.canExecute,
@@ -4298,6 +4460,43 @@ enum ProductMarketFitNextActionAdvisor {
     config: ProductizationConfig,
     evidenceIndex: ProductizationEvidenceIndex
   ) -> ProductMarketFitNextAction {
+    if let revisionAudit = ProductFactoryCycleLearningAdvisor
+      .appliedTargetedProofOutcomeRevisionAudit(
+        for: action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      let validationAction = targetedProofOutcomeValidationAction(
+        after: revisionAudit,
+        replacing: action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+    {
+      return validationAction
+    }
+    if let audit = ProductFactoryCycleLearningAdvisor.stalledTargetedProofOutcomeAudit(
+      for: action,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return ProductMarketFitNextAction(
+        experimentID: experiment.id,
+        kind: .refineBet,
+        title: "Retarget targeted PMF proof",
+        detail:
+          "Recent factory cycle \(audit.id) reran the same targeted PMF proof outcome and it is still present (\(audit.summary)); revise the prototype, scenario, target persona, or decision criteria before retrying.",
+        priority: min(98, max(action.priority + 1, 87)),
+        requiredSimulationMode: .personaModel,
+        targetPersonaID: action.targetPersonaID,
+        targetPersonaName: action.targetPersonaName,
+        targetScenarioID: action.targetScenarioID,
+        targetDecision: action.targetDecision
+      )
+    }
     if let audit = ProductFactoryCycleLearningAdvisor.stalledEvidenceTensionAudit(
       for: action,
       experiment: experiment,
@@ -4394,6 +4593,39 @@ enum ProductMarketFitNextActionAdvisor {
       detail:
         "Recent factory cycle \(audit.id) ran broad evidence without reducing proof debt (\(audit.summary)); retarget the scenario cohort, persona, or current-alternative proof before rerunning broad evidence.",
       priority: min(98, max(action.priority + 1, 84))
+    )
+  }
+
+  private static func targetedProofOutcomeValidationAction(
+    after audit: ProductFactoryCycleAudit,
+    replacing action: ProductMarketFitNextAction,
+    experiment: ProductExperiment,
+    config: ProductizationConfig,
+    evidenceIndex: ProductizationEvidenceIndex
+  ) -> ProductMarketFitNextAction? {
+    guard let signal = ProductFactoryTargetedProofOutcomeAdvisor.signal(
+      for: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ),
+      let cohortID = signal.targetCohortID,
+      let scenarioID = signal.targetScenarioID
+    else { return nil }
+    let targetName = signal.targetPersonaName ?? "the target AI user"
+    let targetDecision = action.targetDecision ?? signal.recommendedDecision ?? signal.targetDecision
+    return ProductMarketFitNextAction(
+      experimentID: experiment.id,
+      kind: .rerunCohort,
+      title: "Validate targeted PMF revision",
+      detail:
+        "Recent factory cycle \(audit.id) applied a targeted PMF proof revision; rerun the persona-model scenario for \(targetName) before applying the same revision again.",
+      priority: min(99, max(action.priority + 3, 90)),
+      cohortID: cohortID,
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: signal.targetPersonaID,
+      targetPersonaName: signal.targetPersonaName,
+      targetScenarioID: scenarioID,
+      targetDecision: targetDecision
     )
   }
 

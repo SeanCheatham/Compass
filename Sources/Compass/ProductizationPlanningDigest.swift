@@ -580,6 +580,12 @@ enum ProductizationPlanningDigestFormatter {
           audit.proofTargetSummaries.isEmpty
           ? ""
           : "; proof targets \(bounded(proofTargetList, 260))"
+        let targetedProofOutcomeList = audit.targetedProofOutcomeSummaries.prefix(3)
+          .joined(separator: " | ")
+        let targetedProofOutcomes =
+          audit.targetedProofOutcomeSummaries.isEmpty
+          ? ""
+          : "; targeted proof outcomes \(bounded(targetedProofOutcomeList, 260))"
         let rationaleSignalList = audit.personaRationaleSignalSummaries.prefix(3)
           .joined(separator: " | ")
         let rationaleSignals =
@@ -593,7 +599,7 @@ enum ProductizationPlanningDigestFormatter {
           ? ""
           : "; revisions \(bounded(revisionBriefList, 260))"
         return
-          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(rationaleSignals)\(revisionBriefs)"
+          "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedProofOutcomes)\(rationaleSignals)\(revisionBriefs)"
             + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
   }
