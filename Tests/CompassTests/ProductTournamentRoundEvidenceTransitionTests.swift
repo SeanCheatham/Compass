@@ -286,6 +286,49 @@ struct ProductTournamentRoundEvidenceTransitionTests {
         isPersonaModelAvailable: true
       )
     )
+    let pendingValidationResult = try #require(
+      ProductTournamentRoundTwoProofGapValidationAdvisor.results(
+        config: preparedRevisionConfig,
+        evidenceIndex: index
+      ).first
+    )
+    let validationRecords = try evidenceRecords(
+      fixture: fixture,
+      score: 5,
+      verdict: .strongPull,
+      summary:
+        "The revised core technology proof is inspectable and beats the current workaround.",
+      mode: .personaModel,
+      scenarioID: revisionScenarioID,
+      startedAt: 2_140,
+      idPrefix: "\(fixture.contender.id)-round-2-validation"
+    )
+    let validationIndex = ProductTournamentEvidenceIndex.build(records: records + validationRecords)
+    let validationProposal = try #require(
+      ProductTournamentRoundEvidenceTransitioner.bestProposal(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.coreRound.id,
+        config: preparedRevisionConfig,
+        evidenceIndex: validationIndex
+      )
+    )
+    let validationResult = try #require(
+      ProductTournamentRoundTwoProofGapValidationAdvisor.results(
+        config: preparedRevisionConfig,
+        evidenceIndex: validationIndex
+      ).first
+    )
+    let validationDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: preparedRevisionConfig,
+      evidenceIndex: validationIndex
+    )
+    let validationTransitionStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: preparedRevisionConfig,
+        evidenceIndex: validationIndex,
+        isPersonaModelAvailable: true
+      )
+    )
 
     try #require(proposal.recommendation == .reviseCoreTechnology)
     try #require(preTransitionStep.kind == .applyRoundTransition)
@@ -343,6 +386,43 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(validationStep.kind == .runCohort)
     try #require(validationStep.canExecute)
     try #require(validationStep.targetScenarioID == revisionScenarioID)
+    try #require(pendingValidationResult.outcome == .pendingValidation)
+    try #require(pendingValidationResult.revisionAuditID == revisionAudit.id)
+    try #require(pendingValidationResult.revisionScenarioID == revisionScenarioID)
+    try #require(pendingValidationResult.validationRunIDs.isEmpty)
+    try #require(
+      pendingValidationResult.persistedProofGaps.contains {
+        $0.contains("inspectable_source_artifact")
+      })
+    try #require(validationProposal.recommendation == .advanceToProductImplementation)
+    try #require(validationProposal.proofGaps.isEmpty)
+    try #require(
+      validationProposal.evidenceRunIDs.allSatisfy {
+        $0.contains("\(fixture.contender.id)-round-2-validation")
+      })
+    try #require(validationResult.outcome == .resolved)
+    try #require(validationResult.recommendation == .advanceToProductImplementation)
+    try #require(validationResult.validationRunCount == validationRecords.count)
+    try #require(validationResult.completedValidationRunCount == validationRecords.count)
+    try #require(
+      validationResult.validationRunIDs.allSatisfy {
+        $0.contains("\(fixture.contender.id)-round-2-validation")
+      })
+    try #require(
+      validationResult.originalProofGaps.contains {
+        $0.contains("inspectable_source_artifact")
+      })
+    try #require(
+      validationResult.resolvedProofGaps.contains {
+        $0.contains("inspectable_source_artifact")
+      })
+    try #require(validationResult.persistedProofGaps.isEmpty)
+    try #require(validationResult.contextLine.contains("outcome resolved"))
+    try #require(validationDigest.contains("Round 2 proof-gap revision validation"))
+    try #require(validationDigest.contains("outcome resolved"))
+    try #require(validationDigest.contains("resolved missing capability inspectable_source_artifact"))
+    try #require(validationTransitionStep.kind == .applyRoundTransition)
+    try #require(validationTransitionStep.title == "Apply Round 2 transition")
     try #require(updatedTournament.currentRoundID == fixture.coreRound.id)
     try #require(updatedCoreRound.status == .active)
     try #require(updatedContender.status == .needsRevision)
@@ -385,6 +465,111 @@ struct ProductTournamentRoundEvidenceTransitionTests {
         evidenceIndex: index
       ) == nil
     )
+  }
+
+  @Test func proofGapValidationEvidenceCanPersistGapsOrEliminateFromFreshRuns() throws {
+    let fixture = try roundTwoFixture()
+    let revisionScenarioID = "\(fixture.experiment.id)-proof-gap-validation-scenario"
+    let revisionAudit = proofGapRevisionAudit(
+      fixture: fixture,
+      scenarioID: revisionScenarioID,
+      endedAt: 100
+    )
+    var config = fixture.config.recordingTournamentAutomationCycleAudit(revisionAudit)
+    if let experimentIndex = config.tournamentExperiments.firstIndex(where: {
+      $0.id == fixture.experiment.id
+    }) {
+      config.tournamentExperiments[experimentIndex].baseSha = "base-sha"
+      config.tournamentExperiments[experimentIndex].currentSha = "abc123"
+    }
+    let preRevisionRecords = try evidenceRecords(
+      fixture: fixture,
+      score: 3,
+      verdict: .unclear,
+      objections: ["The proof needs a more inspectable source artifact."],
+      missingCapabilities: ["inspectable_source_artifact"],
+      summary: "The original core technology proof was plausible but incomplete."
+    )
+    let persistedValidationRecords = try evidenceRecords(
+      fixture: fixture,
+      score: 3,
+      verdict: .unclear,
+      objections: ["The revised proof still needs a more inspectable source artifact."],
+      missingCapabilities: ["inspectable_source_artifact"],
+      summary: "The validation rerun still found the inspectability gap.",
+      mode: .personaModel,
+      scenarioID: revisionScenarioID,
+      startedAt: 120,
+      idPrefix: "\(fixture.contender.id)-round-2-persisted-validation"
+    )
+    let eliminatedValidationRecords = try evidenceRecords(
+      fixture: fixture,
+      score: 1,
+      verdict: .weak,
+      objections: ["The revised proof still does not beat the current workflow."],
+      missingCapabilities: ["current_alternative_advantage"],
+      summary: "The validation rerun made the core technology look too weak.",
+      mode: .personaModel,
+      scenarioID: revisionScenarioID,
+      startedAt: 140,
+      idPrefix: "\(fixture.contender.id)-round-2-elimination-validation"
+    )
+
+    let persistedIndex = ProductTournamentEvidenceIndex.build(
+      records: preRevisionRecords + persistedValidationRecords
+    )
+    let persistedProposal = try #require(
+      ProductTournamentRoundEvidenceTransitioner.bestProposal(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.coreRound.id,
+        config: config,
+        evidenceIndex: persistedIndex
+      )
+    )
+    let persistedResult = try #require(
+      ProductTournamentRoundTwoProofGapValidationAdvisor.results(
+        config: config,
+        evidenceIndex: persistedIndex
+      ).first
+    )
+    let eliminatedIndex = ProductTournamentEvidenceIndex.build(
+      records: preRevisionRecords + eliminatedValidationRecords
+    )
+    let eliminatedProposal = try #require(
+      ProductTournamentRoundEvidenceTransitioner.bestProposal(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.coreRound.id,
+        config: config,
+        evidenceIndex: eliminatedIndex
+      )
+    )
+    let eliminatedResult = try #require(
+      ProductTournamentRoundTwoProofGapValidationAdvisor.results(
+        config: config,
+        evidenceIndex: eliminatedIndex
+      ).first
+    )
+
+    try #require(persistedProposal.recommendation == .reviseCoreTechnology)
+    try #require(
+      persistedProposal.evidenceRunIDs.allSatisfy {
+        $0.contains("\(fixture.contender.id)-round-2-persisted-validation")
+      })
+    try #require(persistedResult.outcome == .persisted)
+    try #require(persistedResult.revisionAuditID == revisionAudit.id)
+    try #require(persistedResult.revisionScenarioID == revisionScenarioID)
+    try #require(
+      persistedResult.persistedProofGaps.contains {
+        $0.contains("inspectable_source_artifact")
+      })
+    try #require(eliminatedProposal.recommendation == .eliminate)
+    try #require(
+      eliminatedProposal.evidenceRunIDs.allSatisfy {
+        $0.contains("\(fixture.contender.id)-round-2-elimination-validation")
+      })
+    try #require(eliminatedResult.outcome == .eliminated)
+    try #require(eliminatedResult.revisionAuditID == revisionAudit.id)
+    try #require(eliminatedResult.nextValidationTarget.contains("Stop this contender"))
   }
 
   @Test func strongFeasibilityScoresWithoutUseProofOnlyGatherEvidence() throws {
@@ -550,6 +735,32 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
   )
 }
 
+private func proofGapRevisionAudit(
+  fixture: RoundTwoFixture,
+  scenarioID: String,
+  endedAt: Double
+) -> TournamentAutomationCycleAudit {
+  let stepID =
+    "\(fixture.experiment.id):\(TournamentAutomationStepKind.applyRevision.rawValue):\(scenarioID)"
+  return TournamentAutomationCycleAudit(
+    id: "tournament-cycle-round-2-proof-gap-revision-\(Int(endedAt))",
+    startedAt: endedAt - 10,
+    endedAt: endedAt,
+    executedStepIDs: [stepID],
+    experimentIDs: [fixture.experiment.id],
+    messages: ["Applied Round 2 proof-gap revision to scenario \(scenarioID)."],
+    maxSteps: 3,
+    revisionBriefSummaries: [
+      "\(fixture.experiment.id): Revise Round 2 core technology proof gaps; source round_2_proof_gap; priority 86; target_decision narrow; implementation Address missing capability inspectable_source_artifact (2x); readiness 47/100 below Round 3 threshold in the core technology proof before adding Round 3 fidelity.; proof Revise the core technology against the audited gaps."
+    ],
+    stopReason: .reachedStepLimit,
+    stopStepID: stepID,
+    stopStepTitle: "Apply contender revision",
+    stopDetail: "Contender revision checkpoint recorded.",
+    userMessage: "Applied Round 2 proof-gap revision; validate next."
+  )
+}
+
 private func evidenceRecords(
   fixture: RoundTwoFixture,
   score: Int,
@@ -558,12 +769,17 @@ private func evidenceRecords(
   missingCapabilities: [String] = [],
   summary: String,
   includeExperienceUseProof: Bool = true,
-  completedUseProof: Bool? = nil
+  completedUseProof: Bool? = nil,
+  mode: ProductTournamentSimulationMode = .modelFree,
+  scenarioID: String? = nil,
+  startedAt: Double = 0,
+  idPrefix: String? = nil
 ) throws -> [ProductTournamentEvidenceRecord] {
   let completedUseProof = completedUseProof ?? includeExperienceUseProof
+  let idPrefix = idPrefix ?? "\(fixture.contender.id)-round-2"
   return fixture.config.userSegments.prefix(2).enumerated().map { index, segment in
     ProductTournamentEvidenceRecord(
-      id: "\(fixture.contender.id)-round-2-\(index)",
+      id: "\(idPrefix)-\(index)",
       experimentID: fixture.experiment.id,
       contenderPlanID: fixture.contender.contenderPlanID,
       painID: fixture.contenderPlan.painID,
@@ -572,12 +788,12 @@ private func evidenceRecords(
       contenderID: fixture.contender.id,
       branchName: fixture.experiment.branchName,
       commitSha: "abc123",
-      scenarioID: "scenario-\(index)",
+      scenarioID: scenarioID ?? "scenario-\(index)",
       personaID: segment.id,
-      mode: .modelFree,
+      mode: mode,
       status: .completed,
-      startedAt: Double(index),
-      endedAt: Double(index + 1),
+      startedAt: startedAt + Double(index),
+      endedAt: startedAt + Double(index + 1),
       traceHash: includeExperienceUseProof ? "round-2-trace-\(index)" : nil,
       completedUseProof: completedUseProof,
       scores: ProductTournamentEvidenceScores(

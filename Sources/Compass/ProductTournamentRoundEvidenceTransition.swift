@@ -106,6 +106,345 @@ struct ProductTournamentRoundEvidenceTransitionOutcome: Equatable, Sendable {
   }
 }
 
+enum ProductTournamentRoundTwoProofGapValidationOutcome: String, Codable, Equatable, Sendable {
+  case pendingValidation = "pending_validation"
+  case resolved
+  case persisted
+  case eliminated
+}
+
+struct ProductTournamentRoundTwoProofGapValidationResult: Equatable, Sendable, Identifiable {
+  var id: String { "\(experimentID)-\(revisionAuditID)" }
+
+  var tournamentID: String
+  var roundID: String
+  var contenderID: String
+  var experimentID: String
+  var revisionAuditID: String
+  var revisionEndedAt: Double
+  var revisionScenarioID: String?
+  var outcome: ProductTournamentRoundTwoProofGapValidationOutcome
+  var recommendation: ProductTournamentRoundEvidenceRecommendation
+  var readinessScore: Double
+  var validationRunIDs: [String]
+  var validationRunCount: Int
+  var completedValidationRunCount: Int
+  var originalProofGaps: [String]
+  var resolvedProofGaps: [String]
+  var persistedProofGaps: [String]
+  var nextValidationTarget: String
+
+  var scoreLabel: String {
+    "\(Int(readinessScore.rounded()))"
+  }
+
+  var contextLine: String {
+    let scenario = revisionScenarioID ?? "unknown"
+    let runs =
+      validationRunIDs.isEmpty
+      ? "validation_runs none"
+      : "validation_runs \(validationRunIDs.prefix(4).joined(separator: ", "))"
+    let audited = originalProofGaps.isEmpty
+      ? "audited gaps unavailable"
+      : originalProofGaps.prefix(4).joined(separator: "; ")
+    let resolved = resolvedProofGaps.isEmpty
+      ? "none"
+      : resolvedProofGaps.prefix(4).joined(separator: "; ")
+    let persisted = persistedProofGaps.isEmpty
+      ? "none"
+      : persistedProofGaps.prefix(4).joined(separator: "; ")
+    return
+      "- round_2_proof_gap_validation contender \(contenderID) [round \(roundID), experiment \(experimentID), audit \(revisionAuditID), scenario \(scenario), outcome \(outcome.rawValue), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, completed_validation \(completedValidationRunCount)/\(validationRunCount), \(runs)]: audited \(Self.bounded(audited, limit: 220)); resolved \(Self.bounded(resolved, limit: 180)); persisted \(Self.bounded(persisted, limit: 220)); next \(Self.bounded(nextValidationTarget, limit: 220))."
+  }
+
+  private static func bounded(_ value: String, limit: Int) -> String {
+    StringUtils.boundedText(value, limit: limit)
+  }
+}
+
+enum ProductTournamentRoundTwoProofGapValidationAdvisor {
+  static func results(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    limit: Int = 3
+  ) -> [ProductTournamentRoundTwoProofGapValidationResult] {
+    guard limit > 0 else { return [] }
+    return ProductTournamentRoundEvidenceTransitioner.proposals(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    .compactMap { proposal in
+      result(for: proposal, config: config, evidenceIndex: evidenceIndex)
+    }
+    .sorted { lhs, rhs in
+      if lhs.revisionEndedAt == rhs.revisionEndedAt {
+        return lhs.contenderID < rhs.contenderID
+      }
+      return lhs.revisionEndedAt > rhs.revisionEndedAt
+    }
+    .prefix(limit)
+    .map { $0 }
+  }
+
+  static func contextLines(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    limit: Int = 3
+  ) -> [String] {
+    let scopedResults = results(config: config, evidenceIndex: evidenceIndex, limit: limit)
+    guard !scopedResults.isEmpty else { return [] }
+    return ["Round 2 proof-gap revision validation:"]
+      + scopedResults.map(\.contextLine)
+  }
+
+  static func latestAppliedProofGapRevisionAudit(
+    for experimentID: String,
+    config: ProductTournamentConfig
+  ) -> TournamentAutomationCycleAudit? {
+    config.tournamentAutomationCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .first { audit in
+        audit.stopReason != .executionFailed
+          && audit.experimentIDs.contains(experimentID)
+          && audit.executedStepIDs.contains {
+            $0.hasPrefix(
+              "\(experimentID):\(TournamentAutomationStepKind.applyRevision.rawValue):"
+            )
+          }
+          && audit.revisionBriefSummaries.contains {
+            $0.contains("source \(TournamentAutomationRevisionBriefSource.roundTwoProofGap.rawValue)")
+          }
+      }
+  }
+
+  static func revisionScenarioID(
+    from audit: TournamentAutomationCycleAudit,
+    experimentID: String
+  ) -> String? {
+    let prefix = "\(experimentID):\(TournamentAutomationStepKind.applyRevision.rawValue):"
+    for stepID in audit.executedStepIDs where stepID.hasPrefix(prefix) {
+      var target = String(stepID.dropFirst(prefix.count))
+      if let decisionRange = target.range(of: ":target_decision:") {
+        target = String(target[..<decisionRange.lowerBound])
+      }
+      if !target.isEmpty && target != "none" {
+        return target
+      }
+    }
+    return nil
+  }
+
+  static func validationSummaries(
+    in summaries: [ProductTournamentEvidenceSummary],
+    after audit: TournamentAutomationCycleAudit,
+    scenarioID: String?
+  ) -> [ProductTournamentEvidenceSummary] {
+    summaries
+      .filter { summary in
+        summary.endedAt > audit.endedAt
+          && (scenarioID == nil || summary.scenarioID == scenarioID)
+      }
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
+        return lhs.endedAt > rhs.endedAt
+      }
+  }
+
+  private static func result(
+    for proposal: ProductTournamentRoundEvidenceTransitionProposal,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> ProductTournamentRoundTwoProofGapValidationResult? {
+    guard
+      let contender = config.tournamentContenders.first(where: {
+        $0.id == proposal.contenderID
+      }),
+      let experimentID = contender.experimentID,
+      let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID }),
+      let audit = latestAppliedProofGapRevisionAudit(for: experiment.id, config: config)
+    else { return nil }
+
+    let scenarioID = revisionScenarioID(from: audit, experimentID: experiment.id)
+    let scopedSummaries = evidenceIndex.summaries(for: experiment)
+      .filter {
+        $0.tournamentID == proposal.tournamentID
+          && $0.roundID == proposal.roundID
+          && $0.contenderID == proposal.contenderID
+      }
+    let validationSummaries = validationSummaries(
+      in: scopedSummaries,
+      after: audit,
+      scenarioID: scenarioID
+    )
+    let originalGaps = auditedProofGaps(from: audit)
+    let outcome = outcome(for: proposal, validationSummaries: validationSummaries)
+    let persisted = persistedProofGaps(
+      outcome: outcome,
+      proposalProofGaps: proposal.proofGaps,
+      originalProofGaps: originalGaps
+    )
+
+    return ProductTournamentRoundTwoProofGapValidationResult(
+      tournamentID: proposal.tournamentID,
+      roundID: proposal.roundID,
+      contenderID: proposal.contenderID,
+      experimentID: experiment.id,
+      revisionAuditID: audit.id,
+      revisionEndedAt: audit.endedAt,
+      revisionScenarioID: scenarioID,
+      outcome: outcome,
+      recommendation: proposal.recommendation,
+      readinessScore: proposal.readinessScore,
+      validationRunIDs: validationSummaries.prefix(8).map(\.runID),
+      validationRunCount: validationSummaries.count,
+      completedValidationRunCount: validationSummaries.filter(\.isCompleted).count,
+      originalProofGaps: originalGaps,
+      resolvedProofGaps: resolvedProofGaps(
+        outcome: outcome,
+        originalProofGaps: originalGaps,
+        persistedProofGaps: persisted
+      ),
+      persistedProofGaps: persisted,
+      nextValidationTarget: proposal.nextValidationTarget
+    )
+  }
+
+  private static func outcome(
+    for proposal: ProductTournamentRoundEvidenceTransitionProposal,
+    validationSummaries: [ProductTournamentEvidenceSummary]
+  ) -> ProductTournamentRoundTwoProofGapValidationOutcome {
+    guard !validationSummaries.isEmpty else { return .pendingValidation }
+    switch proposal.recommendation {
+    case .advanceToProductImplementation:
+      return .resolved
+    case .eliminate:
+      return .eliminated
+    case .reviseCoreTechnology, .gatherEvidence:
+      return .persisted
+    }
+  }
+
+  private static func persistedProofGaps(
+    outcome: ProductTournamentRoundTwoProofGapValidationOutcome,
+    proposalProofGaps: [String],
+    originalProofGaps: [String]
+  ) -> [String] {
+    switch outcome {
+    case .resolved:
+      return []
+    case .pendingValidation:
+      return originalProofGaps.isEmpty ? proposalProofGaps : originalProofGaps
+    case .persisted, .eliminated:
+      return proposalProofGaps.isEmpty ? originalProofGaps : proposalProofGaps
+    }
+  }
+
+  private static func resolvedProofGaps(
+    outcome: ProductTournamentRoundTwoProofGapValidationOutcome,
+    originalProofGaps: [String],
+    persistedProofGaps: [String]
+  ) -> [String] {
+    switch outcome {
+    case .resolved:
+      return originalProofGaps.isEmpty ? ["all audited Round 2 proof gaps"] : originalProofGaps
+    case .persisted:
+      let resolved = originalProofGaps.filter { original in
+        !persistedProofGaps.contains { persisted in
+          gapsMatch(original, persisted)
+        }
+      }
+      return Array(resolved.prefix(4))
+    case .pendingValidation, .eliminated:
+      return []
+    }
+  }
+
+  private static func auditedProofGaps(
+    from audit: TournamentAutomationCycleAudit
+  ) -> [String] {
+    for summary in audit.revisionBriefSummaries
+    where summary.contains("source \(TournamentAutomationRevisionBriefSource.roundTwoProofGap.rawValue)") {
+      let gapText = auditedProofGapText(in: summary)
+      let gaps = gapText
+        .split(separator: ";")
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+      if !gaps.isEmpty {
+        return Array(gaps.prefix(6))
+      }
+    }
+    return []
+  }
+
+  private static func auditedProofGapText(in summary: String) -> String {
+    if let implementationRange = summary.range(of: "implementation Address ") {
+      let text = String(summary[implementationRange.upperBound...])
+      return clipped(text, before: [
+        " in the core technology proof",
+        "; scenario",
+        "; proof",
+      ])
+    }
+    if let triggerRange = summary.range(of: "recommends revising contender"),
+      let colonRange = summary[triggerRange.upperBound...].range(of: ":")
+    {
+      let text = String(summary[colonRange.upperBound...])
+      return clipped(text, before: [".", "; implementation", "; proof"])
+    }
+    return ""
+  }
+
+  private static func clipped(_ text: String, before markers: [String]) -> String {
+    var clipped = text
+    for marker in markers {
+      if let range = clipped.range(of: marker) {
+        clipped = String(clipped[..<range.lowerBound])
+      }
+    }
+    return clipped.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private static func gapsMatch(_ lhs: String, _ rhs: String) -> Bool {
+    let lhsKey = gapKey(lhs)
+    let rhsKey = gapKey(rhs)
+    return lhsKey == rhsKey
+      || lhsKey.contains(rhsKey)
+      || rhsKey.contains(lhsKey)
+  }
+
+  private static func gapKey(_ value: String) -> String {
+    let normalized = value
+      .lowercased()
+      .replacingOccurrences(of: #"[^a-z0-9]+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if normalized.contains("inspectable source artifact") {
+      return "inspectable_source_artifact"
+    }
+    if normalized.contains("missing capability") {
+      return "missing_capability"
+    }
+    if normalized.contains("completed use") {
+      return "completed_use"
+    }
+    if normalized.contains("persona") {
+      return "persona"
+    }
+    if normalized.contains("average feasibility") {
+      return "average_feasibility"
+    }
+    if normalized.contains("readiness") {
+      return "readiness"
+    }
+    if normalized.contains("weak") || normalized.contains("rejected") {
+      return "weak_or_rejected"
+    }
+    return normalized
+  }
+}
+
 enum ProductTournamentRoundEvidenceTransitionError: LocalizedError, Equatable {
   case unknownTournament(String)
   case unknownRound(String)
@@ -328,8 +667,13 @@ enum ProductTournamentRoundEvidenceTransitioner {
           && $0.roundID == round.id
           && $0.contenderID == contender.id
       }
+      let effectiveSummaries = effectiveSummariesAfterProofGapRevisionIfAvailable(
+        summaries,
+        contender: contender,
+        config: config
+      )
       return proposal(
-        for: summaries,
+        for: effectiveSummaries,
         tournament: tournament,
         round: round,
         contender: contender
@@ -450,6 +794,32 @@ enum ProductTournamentRoundEvidenceTransitioner {
         recommendation: recommendation
       )
     )
+  }
+
+  private static func effectiveSummariesAfterProofGapRevisionIfAvailable(
+    _ summaries: [ProductTournamentEvidenceSummary],
+    contender: ProductTournamentContender,
+    config: ProductTournamentConfig
+  ) -> [ProductTournamentEvidenceSummary] {
+    guard
+      let experimentID = contender.experimentID,
+      let audit = ProductTournamentRoundTwoProofGapValidationAdvisor
+        .latestAppliedProofGapRevisionAudit(
+          for: experimentID,
+          config: config
+        )
+    else { return summaries }
+    let scenarioID = ProductTournamentRoundTwoProofGapValidationAdvisor.revisionScenarioID(
+      from: audit,
+      experimentID: experimentID
+    )
+    let validationSummaries = ProductTournamentRoundTwoProofGapValidationAdvisor
+      .validationSummaries(
+        in: summaries,
+        after: audit,
+        scenarioID: scenarioID
+      )
+    return validationSummaries.isEmpty ? summaries : validationSummaries
   }
 
   private static func readinessScore(

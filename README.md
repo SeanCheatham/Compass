@@ -112,9 +112,13 @@ and advances them through rounds:
   validation instructions for the next simulated-user pass; Tournament
   Automation can apply that brief into a concrete revision scenario, stamp that
   generated scenario into the cycle audit, and queue a persona-model validation
-  rerun before applying the same proof-gap revision again. Advancement requires
-  completed evidence from two personas plus two stored completed-use proofs
-  derived from traces that reach the required product-use action sequence.
+  rerun before applying the same proof-gap revision again. Once validation
+  evidence lands, Compass scopes the next Round 2 recommendation to the fresh
+  post-revision runs and adds a proof-gap validation digest line naming the
+  audited gaps that resolved, persisted, or justify eliminating the contender.
+  Advancement requires completed evidence from two personas plus two stored
+  completed-use proofs derived from traces that reach the required product-use
+  action sequence.
 - **Round 3: product implementation.** Agentic users exercise low-medium
   fidelity product implementations and evaluate workflow improvement, switching
   readiness, continued-use pull, and explicit price or sponsorship intent.
