@@ -80,7 +80,9 @@ and advances them through rounds:
   adding prototype fidelity.
 - **Round 3: prototype.** Agentic users exercise low-medium fidelity product
   versions and evaluate workflow improvement, switching readiness, continued-use
-  pull, and price or sponsorship intent.
+  pull, and price or sponsorship intent. Scoped prototype evidence can select a
+  tournament winner, force a final prototype revision, or eliminate the
+  remaining contender.
 
 Simulation is not user research, a sales forecast, or a Verify gate. It is a
 skeptical, repeatable product-pressure loop: a scenario works through the app's
@@ -117,8 +119,9 @@ can apply the best actionable Round 1 and Round 2 recommendations to stored
 tournament state. Plan and Reflect receive only a compact advisory summary:
 current tournament round, contender plans, Round 1 plan readiness,
 willingness-to-pay signals, Round 2 feasibility handoffs and evidence
-transitions, latest evidence per active scenario, repeated objections, low-score
-clusters, verdict distribution, failures, and current alternative comparisons.
+transitions, Round 3 prototype winner recommendations, latest evidence per active
+scenario, repeated objections, low-score clusters, verdict distribution,
+failures, and current alternative comparisons.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 
