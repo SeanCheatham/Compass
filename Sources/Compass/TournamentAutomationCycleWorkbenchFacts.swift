@@ -108,6 +108,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   var latestActedPressureGroupLearningHelp: String?
   var latestActedRevisionValidationSummary: String?
   var latestActedRevisionValidationHelp: String?
+  var latestActedRevisionValidationRunSummary: String?
+  var latestActedRevisionValidationRunHelp: String?
   var postPreparationEvidenceSummary: String?
   var postPreparationEvidenceHelp: String?
   var latestRoundTwoProofGapValidationSummary: String?
@@ -151,6 +153,16 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
         limit: Int.max,
         isPersonaModelAvailable: isPersonaModelAvailable
       )
+    let actedRevisionValidationRun = actedRevisionValidation.flatMap {
+      makeActedRevisionValidationRunContext(
+        for: $0,
+        actedPressureGroupAudit: actedPressureGroupAudit,
+        scoreboardItems: proofScoreboardItems,
+        config: config,
+        evidenceIndex: evidenceIndex,
+        currentStep: currentStep
+      )
+    }
 
     let latestPreparationSummary: String?
     let latestPreparationHelp: String?
@@ -213,6 +225,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       latestActedPressureGroupLearningHelp: actedPressureGroupLearning?.help,
       latestActedRevisionValidationSummary: actedRevisionValidation?.summary,
       latestActedRevisionValidationHelp: actedRevisionValidation?.help,
+      latestActedRevisionValidationRunSummary: actedRevisionValidationRun?.summary,
+      latestActedRevisionValidationRunHelp: actedRevisionValidationRun?.help,
       postPreparationEvidenceSummary: postPreparationEvidence?.summary,
       postPreparationEvidenceHelp: postPreparationEvidence?.help,
       latestRoundTwoProofGapValidationSummary: roundTwoValidation.map(
@@ -455,18 +469,123 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
 
   private static func makeActedRevisionValidationContext(
     for audit: TournamentAutomationCycleAudit
-  ) -> (summary: String, help: String)? {
+  ) -> AppliedActedRevisionValidationContext? {
     guard
       let revision = audit.revisionBriefSummaries
         .compactMap(ActedRevisionValidationContext.init(summary:))
         .first
     else { return nil }
+    return AppliedActedRevisionValidationContext(
+      audit: audit,
+      revision: revision
+    )
+  }
+
+  private static func makeActedRevisionValidationRunContext(
+    for validation: AppliedActedRevisionValidationContext,
+    actedPressureGroupAudit: TournamentAutomationCycleAudit?,
+    scoreboardItems: [TournamentAutomationProofTargetScoreboardItem],
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    currentStep: TournamentAutomationStep?
+  ) -> (summary: String, help: String)? {
+    guard
+      let experimentID = validation.revision.experimentID,
+      let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
+    else { return nil }
+    let scenarioID = validation.revision.scenarioID
+    let validationRuns = evidenceIndex.summaries(for: experiment)
+      .filter { summary in
+        summary.isCompleted
+          && summary.mode == .personaModel
+          && summary.endedAt > validation.audit.endedAt
+          && scenarioID.map { $0 == summary.scenarioID } ?? true
+      }
+    let outcome = actedPressureGroupAudit.flatMap {
+      actedRevisionValidationOutcome(
+        for: validation.revision,
+        actedPressureGroupAudit: $0,
+        scoreboardItems: scoreboardItems
+      )
+    }
+    let validationLabel = validation.revision.validation ?? "Acted proof-group revision"
+    let scenario = scenarioID.map { "; scenario \($0)" } ?? ""
+    let outcomeSummary = outcome.map { "; group \($0.summary)" } ?? ""
+    if validationRuns.isEmpty {
+      let nextCue = actedRevisionValidationNextCue(
+        currentStep: currentStep,
+        scenarioID: scenarioID
+      )
+      return (
+        summary: bounded(
+          "\(validationLabel); pending; 0 validation run(s)\(scenario); \(nextCue.summary)",
+          limit: 260
+        ),
+        help: bounded(
+          "audit \(validation.audit.id); validation \(validationLabel)\(scenario); no completed persona-model validation run after the acted revision. \(nextCue.help)\(outcomeSummary)",
+          limit: 500
+        )
+      )
+    }
+    let latestRun = validationRuns[0]
+    let runIDs = validationRuns.prefix(3).map(\.runID).joined(separator: ", ")
+    let moreRuns =
+      validationRuns.count > 3
+      ? ", +\(validationRuns.count - 3) more"
+      : ""
     return (
-      summary: revision.displaySummary,
+      summary: bounded(
+        "\(validationLabel); \(validationRuns.count) validation run(s); latest \(latestRun.verdict.rawValue)\(scenario)\(outcomeSummary)",
+        limit: 260
+      ),
       help: bounded(
-        "audit \(audit.id); \(revision.helpSummary); stop \(audit.stopReason.rawValue); \(audit.stopDetail)",
+        "audit \(validation.audit.id); validation \(validationLabel)\(scenario); completed persona-model validation runs \(validationRuns.count); runs \(runIDs)\(moreRuns); latest \(latestRun.runID) ended \(latestRun.endedAt) with verdict \(latestRun.verdict.rawValue)\(outcomeSummary)",
         limit: 500
       )
+    )
+  }
+
+  private static func actedRevisionValidationOutcome(
+    for revision: ActedRevisionValidationContext,
+    actedPressureGroupAudit: TournamentAutomationCycleAudit,
+    scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
+  ) -> TournamentAutomationActedPressureGroupOutcome? {
+    let outcomes = makeActedPressureGroupOutcomes(
+      for: actedPressureGroupAudit,
+      scoreboardItems: scoreboardItems
+    )
+    guard !outcomes.isEmpty else { return nil }
+    guard let scenarioID = revision.scenarioID else { return outcomes.first }
+    return outcomes.first {
+      $0.anchor?.contains(scenarioID) == true
+        || $0.summary.contains(scenarioID)
+    } ?? outcomes.first
+  }
+
+  private static func actedRevisionValidationNextCue(
+    currentStep: TournamentAutomationStep?,
+    scenarioID: String?
+  ) -> (summary: String, help: String) {
+    guard let currentStep else {
+      return (
+        summary: "awaiting validation focus",
+        help: "No current validation step was supplied."
+      )
+    }
+    let scenarioMatches = scenarioID.map { $0 == currentStep.targetScenarioID } ?? true
+    guard scenarioMatches else {
+      return (
+        summary: "current queue \(currentStep.queueTitle)",
+        help:
+          "Current queue \(currentStep.queueTitle) targets \(currentStep.targetScenarioID ?? "no scenario"), not the revision validation scenario."
+      )
+    }
+    let executable = currentStep.canExecute ? "executable" : "blocked"
+    let cohort = currentStep.cohortID.map { " via cohort `\($0)`" } ?? ""
+    return (
+      summary: "next \(currentStep.queueTitle)",
+      help:
+        "Current queue is \(currentStep.queueTitle)\(cohort); \(executable). \(currentStep.detail)"
     )
   }
 
@@ -767,6 +886,22 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       ].compactMap { $0 }
       guard !parts.isEmpty else { return rawSummary }
       return bounded(parts.joined(separator: "; "), limit: 420)
+    }
+  }
+
+  private struct AppliedActedRevisionValidationContext {
+    var audit: TournamentAutomationCycleAudit
+    var revision: ActedRevisionValidationContext
+
+    var summary: String {
+      revision.displaySummary
+    }
+
+    var help: String {
+      bounded(
+        "audit \(audit.id); \(revision.helpSummary); stop \(audit.stopReason.rawValue); \(audit.stopDetail)",
+        limit: 500
+      )
     }
   }
 }

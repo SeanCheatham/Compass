@@ -165,7 +165,9 @@ and advances them through rounds:
   pressure, shows the same Validation label in the Workbench revision row,
   queued revision prompt context, and completed revision-cycle audit history,
   surfaces the latest completed acted revision validation in Tournament
-  Automation facts,
+  Automation facts, queues a source-aware validation rerun after that acted
+  revision is applied, and shows pending/completed validation-run status with
+  the current cleared/moved/still proof-pressure outcome,
   repeats that acted-outcome signal in Plan/Reflect prompt context, feeds
   stalled or repeatedly still-present proof-run group outcomes back into
   the next-action guard so the planner retargets the scenario, product

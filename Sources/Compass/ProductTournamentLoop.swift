@@ -5409,6 +5409,7 @@ enum TournamentAutomationPlanner {
       return blocked
     }
     if step.canExecute,
+      !isActedProofGroupRevisionValidationAction(step.action),
       let stalledActedGroup = TournamentAutomationCycleLearningAdvisor
         .stalledActedPressureGroupAudit(
           for: step.action,
@@ -5424,6 +5425,7 @@ enum TournamentAutomationPlanner {
       return blocked
     }
     if step.canExecute,
+      !isActedProofGroupRevisionValidationAction(step.action),
       let repeatedActedGroup = TournamentAutomationCycleLearningAdvisor
         .repeatedActedPressureGroupAudit(
           for: step.action,
@@ -5451,6 +5453,14 @@ enum TournamentAutomationPlanner {
     blocked.blockedReason =
       "Recent tournament automation cycle \(audit.id) already attempted this proof target without reducing proof debt; inspect the run evidence, change the scenario or current-alternative proof, or choose a different persona-model target before retrying."
     return blocked
+  }
+
+  private static func isActedProofGroupRevisionValidationAction(
+    _ action: ProductTournamentNextAction
+  ) -> Bool {
+    action.title == "Validate acted proof-group revision"
+      && action.targetScenarioID != nil
+      && action.requiredSimulationMode == .personaModel
   }
 
   private static func applyingRevisionBriefStep(
@@ -7062,6 +7072,14 @@ enum ProductTournamentNextActionAdvisor {
         targetDecision: action.targetDecision
       )
     }
+    if let validationAction = actedProofGroupRevisionValidationAction(
+      replacing: action,
+      experiment: experiment,
+      config: config,
+      evidenceIndex: evidenceIndex
+    ) {
+      return validationAction
+    }
     if let stalledActedGroup = TournamentAutomationCycleLearningAdvisor
       .stalledActedPressureGroupAudit(
         for: action,
@@ -7070,11 +7088,17 @@ enum ProductTournamentNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     {
-      return stalledActedPressureGroupRetargetAction(
+      let retargetAction = stalledActedPressureGroupRetargetAction(
         after: stalledActedGroup,
         replacing: action,
         experiment: experiment
       )
+      return actedProofGroupRevisionValidationAction(
+        replacing: retargetAction,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ) ?? retargetAction
     }
     if let repeatedActedGroup = TournamentAutomationCycleLearningAdvisor
       .repeatedActedPressureGroupAudit(
@@ -7084,11 +7108,17 @@ enum ProductTournamentNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     {
-      return repeatedActedPressureGroupRetargetAction(
+      let retargetAction = repeatedActedPressureGroupRetargetAction(
         after: repeatedActedGroup,
         replacing: action,
         experiment: experiment
       )
+      return actedProofGroupRevisionValidationAction(
+        replacing: retargetAction,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ) ?? retargetAction
     }
     guard
       let audit = TournamentAutomationCycleLearningAdvisor.stalledProofDebtAudit(
@@ -7119,11 +7149,17 @@ enum ProductTournamentNextActionAdvisor {
           evidenceIndex: evidenceIndex
         )
       {
-        return stalledActedPressureGroupRetargetAction(
+        let actedRetargetAction = stalledActedPressureGroupRetargetAction(
           after: stalledActedGroup,
           replacing: failureGuardedRetarget,
           experiment: experiment
         )
+        return actedProofGroupRevisionValidationAction(
+          replacing: actedRetargetAction,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        ) ?? actedRetargetAction
       }
       if let repeatedActedGroup = TournamentAutomationCycleLearningAdvisor
         .repeatedActedPressureGroupAudit(
@@ -7133,11 +7169,17 @@ enum ProductTournamentNextActionAdvisor {
           evidenceIndex: evidenceIndex
         )
       {
-        return repeatedActedPressureGroupRetargetAction(
+        let actedRetargetAction = repeatedActedPressureGroupRetargetAction(
           after: repeatedActedGroup,
           replacing: failureGuardedRetarget,
           experiment: experiment
         )
+        return actedProofGroupRevisionValidationAction(
+          replacing: actedRetargetAction,
+          experiment: experiment,
+          config: config,
+          evidenceIndex: evidenceIndex
+        ) ?? actedRetargetAction
       }
       return failureGuardedRetarget
     }
@@ -7193,6 +7235,59 @@ enum ProductTournamentNextActionAdvisor {
       targetPersonaID: action.targetPersonaID,
       targetPersonaName: action.targetPersonaName,
       targetScenarioID: action.targetScenarioID,
+      targetDecision: action.targetDecision
+    )
+  }
+
+  private static func actedProofGroupRevisionValidationAction(
+    replacing action: ProductTournamentNextAction,
+    experiment: ProductTournamentExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> ProductTournamentNextAction? {
+    guard
+      let scenarioID = action.targetScenarioID,
+      let revisionAudit = TournamentAutomationCycleLearningAdvisor.appliedRevisionBriefAudit(
+        for: action,
+        experiment: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      ),
+      revisionAudit.revisionBriefSummaries.contains(where: {
+        $0.contains("source \(TournamentAutomationRevisionBriefSource.actedProofGroup.rawValue)")
+      })
+    else { return nil }
+    let targetName = action.targetPersonaName ?? "the target simulated user"
+    let validationCohortID =
+      action.cohortID
+      ?? executableCohortID(forScenarioID: scenarioID, experiment: experiment, config: config)
+    guard let cohortID = validationCohortID else {
+      return ProductTournamentNextAction(
+        experimentID: experiment.id,
+        kind: .refineContender,
+        title: "Enable acted proof-group validation",
+        detail:
+          "Recent tournament automation cycle \(revisionAudit.id) applied an acted proof-group revision to scenario `\(scenarioID)`, but no enabled cohort contains that scenario. Enable or add a cohort for the revision validation scenario before applying another acted proof-group revision.",
+        priority: min(99, max(action.priority + 2, 90)),
+        requiredSimulationMode: .personaModel,
+        targetPersonaID: action.targetPersonaID,
+        targetPersonaName: action.targetPersonaName,
+        targetScenarioID: scenarioID,
+        targetDecision: action.targetDecision
+      )
+    }
+    return ProductTournamentNextAction(
+      experimentID: experiment.id,
+      kind: .rerunCohort,
+      title: "Validate acted proof-group revision",
+      detail:
+        "Recent tournament automation cycle \(revisionAudit.id) applied an acted proof-group revision; rerun persona-model scenario `\(scenarioID)` for \(targetName) in cohort `\(cohortID)` to check whether the acted proof pressure cleared, moved, or still blocks willingness to continue or pay.",
+      priority: min(99, max(action.priority + 3, 91)),
+      cohortID: cohortID,
+      requiredSimulationMode: .personaModel,
+      targetPersonaID: action.targetPersonaID,
+      targetPersonaName: action.targetPersonaName,
+      targetScenarioID: scenarioID,
       targetDecision: action.targetDecision
     )
   }

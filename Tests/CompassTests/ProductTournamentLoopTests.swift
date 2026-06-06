@@ -3540,17 +3540,57 @@ struct ProductTournamentLoopTests {
       stopDetail: "Contender revision checkpoint recorded.",
       userMessage: "Applied acted proof-group revision; validate next."
     )
+    let postRevisionConfig = config.recordingTournamentAutomationCycleAudit(revisionAudit)
+    let validationAction = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: postRevisionConfig,
+        evidenceIndex: evidenceIndex
+      ))
+    let validationStep = try #require(
+      TournamentAutomationPlanner.nextStep(
+        config: postRevisionConfig,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: true
+      ))
     let postRevisionFacts = try #require(
       TournamentAutomationCycleWorkbenchFacts.latest(
-        config: config.recordingTournamentAutomationCycleAudit(revisionAudit),
+        config: postRevisionConfig,
         evidenceIndex: evidenceIndex,
-        currentStep: nextStep,
+        currentStep: validationStep,
         isPersonaModelAvailable: true
       ))
     let postRevisionDigest = ProductTournamentPlanningDigestFormatter.promptText(
-      config: config.recordingTournamentAutomationCycleAudit(revisionAudit),
+      config: postRevisionConfig,
       evidenceIndex: evidenceIndex
     )
+    let validationRecord = makeDecisionAdvisorRecord(
+      id: "acted-revision-validation",
+      experiment: experiment,
+      config: config,
+      personaID: config.userSegments[0].id,
+      mode: .personaModel,
+      endedAt: 170,
+      verdict: .promising,
+      scores: ProductTournamentEvidenceScores(
+        painRecognition: 4,
+        workflowImprovement: 4,
+        alternativeAdvantage: 4,
+        switchingReadiness: 3,
+        continuedUsePull: 3
+      ),
+      currentAlternativeComparison: "Compared against the current workflow.",
+      scenarioID: targetScenarioID
+    )
+    let validationIndex = ProductTournamentEvidenceIndex.build(
+      records: [firstPassRecord, validationRecord]
+    )
+    let validationFacts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: postRevisionConfig,
+        evidenceIndex: validationIndex,
+        isPersonaModelAvailable: true
+      ))
 
     try #require(stalledGroup.audit.id == "tournament-cycle-stalled-acted-group")
     try #require(stalledGroup.outcome.isStalledProofRun)
@@ -3598,6 +3638,14 @@ struct ProductTournamentLoopTests {
     try #require(postRevisionDigest.contains("tournament-cycle-stalled-acted-revision"))
     try #require(postRevisionDigest.contains("revisions"))
     try #require(postRevisionDigest.contains("validation Direct proof stall"))
+    try #require(validationAction.kind == .rerunCohort)
+    try #require(validationAction.title == "Validate acted proof-group revision")
+    try #require(validationAction.detail.contains(revisionAudit.id))
+    try #require(validationAction.detail.contains("cleared, moved, or still"))
+    try #require(validationAction.targetScenarioID == targetScenarioID)
+    try #require(validationStep.kind == .runCohort)
+    try #require(validationStep.canExecute)
+    try #require(validationStep.targetScenarioID == targetScenarioID)
     try #require(
       postRevisionFacts.latestActedRevisionValidationSummary?
         .contains("Direct proof stall") == true)
@@ -3610,6 +3658,33 @@ struct ProductTournamentLoopTests {
     try #require(
       postRevisionFacts.latestActedRevisionValidationHelp?
         .contains("Retarget contender revision for stalled proof group") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationRunSummary?
+        .contains("Direct proof stall") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationRunSummary?
+        .contains("pending") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationRunSummary?
+        .contains("0 validation run(s)") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationRunSummary?
+        .contains("scenario \(targetScenarioID)") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationRunHelp?
+        .contains(validationAction.title) == true)
+    try #require(
+      validationFacts.latestActedRevisionValidationRunSummary?
+        .contains("1 validation run(s)") == true)
+    try #require(
+      validationFacts.latestActedRevisionValidationRunSummary?
+        .contains("latest promising") == true)
+    try #require(
+      validationFacts.latestActedRevisionValidationRunSummary?
+        .contains("scenario \(targetScenarioID)") == true)
+    try #require(
+      validationFacts.latestActedRevisionValidationRunHelp?
+        .contains("acted-revision-validation") == true)
     try #require(workbenchRevisionBrief.validationContextSummary == "Direct proof stall")
     try #require(
       workbenchRevisionBrief.validationContextDetail == revisionBrief.validationContextDetail)
@@ -3788,17 +3863,57 @@ struct ProductTournamentLoopTests {
       stopDetail: "Contender revision checkpoint recorded.",
       userMessage: "Applied repeated acted proof-group revision; validate next."
     )
+    let postRevisionConfig = config.recordingTournamentAutomationCycleAudit(revisionAudit)
+    let validationAction = try #require(
+      ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: postRevisionConfig,
+        evidenceIndex: evidenceIndex
+      ))
+    let validationStep = try #require(
+      TournamentAutomationPlanner.nextStep(
+        config: postRevisionConfig,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: true
+      ))
     let postRevisionFacts = try #require(
       TournamentAutomationCycleWorkbenchFacts.latest(
-        config: config.recordingTournamentAutomationCycleAudit(revisionAudit),
+        config: postRevisionConfig,
         evidenceIndex: evidenceIndex,
-        currentStep: nextStep,
+        currentStep: validationStep,
         isPersonaModelAvailable: true
       ))
     let postRevisionDigest = ProductTournamentPlanningDigestFormatter.promptText(
-      config: config.recordingTournamentAutomationCycleAudit(revisionAudit),
+      config: postRevisionConfig,
       evidenceIndex: evidenceIndex
     )
+    let validationRecord = makeDecisionAdvisorRecord(
+      id: "repeated-acted-revision-validation",
+      experiment: experiment,
+      config: config,
+      personaID: config.userSegments[0].id,
+      mode: .personaModel,
+      endedAt: 180,
+      verdict: .promising,
+      scores: ProductTournamentEvidenceScores(
+        painRecognition: 4,
+        workflowImprovement: 4,
+        alternativeAdvantage: 4,
+        switchingReadiness: 3,
+        continuedUsePull: 3
+      ),
+      currentAlternativeComparison: "Compared against the current workflow.",
+      scenarioID: targetScenarioID
+    )
+    let validationIndex = ProductTournamentEvidenceIndex.build(
+      records: [firstPassRecord, validationRecord]
+    )
+    let validationFacts = try #require(
+      TournamentAutomationCycleWorkbenchFacts.latest(
+        config: postRevisionConfig,
+        evidenceIndex: validationIndex,
+        isPersonaModelAvailable: true
+      ))
 
     try #require(repeatedGroup.audit.id == "tournament-cycle-still-acted-group-b")
     try #require(repeatedGroup.outcome.isStillProofRun)
@@ -3853,6 +3968,14 @@ struct ProductTournamentLoopTests {
     try #require(postRevisionDigest.contains("tournament-cycle-repeated-acted-revision"))
     try #require(postRevisionDigest.contains("revisions"))
     try #require(postRevisionDigest.contains("validation Repeated still-present proof pressure"))
+    try #require(validationAction.kind == .rerunCohort)
+    try #require(validationAction.title == "Validate acted proof-group revision")
+    try #require(validationAction.detail.contains(revisionAudit.id))
+    try #require(validationAction.detail.contains("cleared, moved, or still"))
+    try #require(validationAction.targetScenarioID == targetScenarioID)
+    try #require(validationStep.kind == .runCohort)
+    try #require(validationStep.canExecute)
+    try #require(validationStep.targetScenarioID == targetScenarioID)
     try #require(
       postRevisionFacts.latestActedRevisionValidationSummary?
         .contains("Repeated still-present proof pressure") == true)
@@ -3865,6 +3988,33 @@ struct ProductTournamentLoopTests {
     try #require(
       postRevisionFacts.latestActedRevisionValidationHelp?
         .contains("Retarget contender revision for repeated proof group") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationRunSummary?
+        .contains("Repeated still-present proof pressure") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationRunSummary?
+        .contains("pending") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationRunSummary?
+        .contains("0 validation run(s)") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationRunSummary?
+        .contains("scenario \(targetScenarioID)") == true)
+    try #require(
+      postRevisionFacts.latestActedRevisionValidationRunHelp?
+        .contains(validationAction.title) == true)
+    try #require(
+      validationFacts.latestActedRevisionValidationRunSummary?
+        .contains("1 validation run(s)") == true)
+    try #require(
+      validationFacts.latestActedRevisionValidationRunSummary?
+        .contains("latest promising") == true)
+    try #require(
+      validationFacts.latestActedRevisionValidationRunSummary?
+        .contains("scenario \(targetScenarioID)") == true)
+    try #require(
+      validationFacts.latestActedRevisionValidationRunHelp?
+        .contains("repeated-acted-revision-validation") == true)
     try #require(
       workbenchRevisionBrief.validationContextSummary == revisionBrief.validationContextSummary)
     try #require(
