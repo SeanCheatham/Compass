@@ -449,6 +449,16 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
+  private var tournamentAutomationProofTargetScoreboard:
+    [TournamentAutomationProofTargetScoreboardItem]
+  {
+    TournamentAutomationProofTargetScoreboard.items(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+    )
+  }
+
   private var tournamentAutomationRationaleSignals: [TournamentAutomationRationaleSignal] {
     TournamentAutomationRationaleSignalAdvisor.signals(
       config: config,
@@ -1015,6 +1025,18 @@ struct ProductTournamentWorkbenchTab: View {
           }
         }
 
+        WorkbenchSection("Proof Scoreboard", systemImage: "chart.bar.doc.horizontal") {
+          VStack(alignment: .leading, spacing: 8) {
+            if tournamentAutomationProofTargetScoreboard.isEmpty {
+              WorkbenchEmptyLine("No round-level proof target pressure queued.")
+            } else {
+              ForEach(tournamentAutomationProofTargetScoreboard.prefix(3)) { item in
+                proofTargetScoreboardRow(item)
+              }
+            }
+          }
+        }
+
         WorkbenchSection("Proof Targets", systemImage: "target") {
           VStack(alignment: .leading, spacing: 8) {
             if tournamentAutomationProofTargets.isEmpty {
@@ -1555,6 +1577,33 @@ struct ProductTournamentWorkbenchTab: View {
       )
     }
     .buttonStyle(.plain)
+  }
+
+  private func proofTargetScoreboardRow(
+    _ item: TournamentAutomationProofTargetScoreboardItem
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 7) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text(item.displayTitle)
+          .font(.callout.weight(.semibold))
+          .lineLimit(2)
+        Spacer()
+        WorkbenchStatusPill(text: item.displaySubtitle)
+      }
+      WorkbenchFact(label: "Round", value: item.roundID ?? "unscoped")
+      if let tournamentID = item.tournamentID {
+        WorkbenchFact(label: "Tournament", value: tournamentID)
+      }
+      WorkbenchFact(label: "Targets", value: item.displayDetail)
+      ForEach(item.rows.prefix(4)) { row in
+        WorkbenchFact(label: row.contenderTitle, value: row.displaySummary)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .accessibilityIdentifier(item.workbenchAccessibilityID)
+    .help(item.contextLine)
   }
 
   private func proofTargetRow(_ target: TournamentAutomationProofTarget) -> some View {

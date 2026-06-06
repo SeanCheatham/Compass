@@ -64,6 +64,10 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += rationaleSignalLines(config: config, evidenceIndex: evidenceIndex)
     lines += targetedProofOutcomeLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
+    lines += TournamentAutomationProofTargetScoreboard.contextLines(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationLines(config: config, evidenceIndex: evidenceIndex)
 

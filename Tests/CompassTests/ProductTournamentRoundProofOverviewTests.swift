@@ -125,6 +125,48 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(summary.contains("rival product"))
     try #require(includesPositionSummary)
   }
+
+  @Test func proofTargetScoreboardGroupsRoundTargetsInContextAndWorkbench() async throws {
+    let config = try roundOneConfig()
+    let evidenceIndex = ProductTournamentEvidenceIndex.build(records: [])
+    let item = try #require(
+      TournamentAutomationProofTargetScoreboard.items(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: false
+      ).first
+    )
+    let contextLines = TournamentAutomationProofTargetScoreboard.contextLines(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: false
+    )
+    let context = contextLines.joined(separator: "\n")
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+    let workbenchBody = try await workbenchBody(for: config)
+    let includesAllRivalPositions = item.rows.allSatisfy { row in
+      row.tournamentPositionSummary?.contains("rival product") == true
+    }
+    let displayDetailIncludesRows = item.rows.allSatisfy { row in
+      item.displayDetail.contains(row.contenderTitle)
+    }
+
+    try #require(item.contenderCount == 2)
+    try #require(item.targetCount == 2)
+    try #require(item.displaySubtitle == "2/2 contender proof target(s)")
+    try #require(item.workbenchAccessibilityID.hasPrefix("proof-target-scoreboard-"))
+    try #require(includesAllRivalPositions)
+    try #require(displayDetailIncludesRows)
+    try #require(contextLines.first == "Tournament automation proof scoreboard:")
+    try #require(context.contains("proof_target_scoreboard"))
+    try #require(digest.contains("Tournament automation proof scoreboard:"))
+    try #require(digest.contains("proof_target_scoreboard"))
+    try #require(workbenchBody.contains("Proof Scoreboard"))
+    try #require(workbenchBody.contains("AccessibilityAttachmentModifier"))
+  }
 }
 
 private struct ProofOverviewCase {

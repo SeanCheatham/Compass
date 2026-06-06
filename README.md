@@ -141,8 +141,10 @@ and advances them through rounds:
   implementation-use proof first, then current-alternative comparison, then
   explicit willingness-to-pay or sponsorship proof. Proof-target rows and
   Product Tournament Context include each contender's position within the active
-  round, making the next simulated-user proof legible as one contender's burden
-  against its rival products. When the proof gates are met but the low-medium
+  round, while a compact proof scoreboard groups those targets by round so the
+  Workbench and Product Tournament Context show which rival products still carry
+  plan, feasibility, or pay proof debt before narrowing or winner decisions.
+  When the proof gates are met but the low-medium
   fidelity implementation still has weak pay intent, missing capabilities, or
   mixed pull, Compass queues a Round 3 implementation revision brief instead of
   selecting a winner; that brief becomes an apply-revision checkpoint with
