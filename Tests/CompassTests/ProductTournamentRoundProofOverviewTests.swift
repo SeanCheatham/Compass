@@ -153,17 +153,37 @@ struct ProductTournamentRoundProofOverviewTests {
     let displayDetailIncludesRows = item.rows.allSatisfy { row in
       item.displayDetail.contains(row.contenderTitle)
     }
+    let topActionRow = try #require(item.topActionRow)
+    let topActionStep = try #require(item.topActionStep)
+    let plannerStep = try #require(
+      TournamentAutomationPlanner.nextExecutableStep(
+        config: config,
+        evidenceIndex: evidenceIndex,
+        isPersonaModelAvailable: false
+      )
+    )
 
     try #require(item.contenderCount == 2)
     try #require(item.targetCount == 2)
     try #require(item.displaySubtitle == "2/2 contender proof target(s)")
     try #require(item.workbenchAccessibilityID.hasPrefix("proof-target-scoreboard-"))
+    try #require(item.runTopStepAccessibilityID == "\(item.workbenchAccessibilityID)-run-top-step")
+    try #require(topActionRow.experimentID == topActionStep.experimentID)
+    try #require(topActionStep.id == plannerStep.id)
+    try #require(topActionStep.kind == .runPlanProof)
+    try #require(topActionStep.canExecute)
+    try #require(item.topActionSummary.contains("Ready: Run Plan Proof"))
+    try #require(item.topActionButtonTitle == "Run Top Proof")
+    try #require(topActionRow.contextSummary.contains("step ready run_plan_proof"))
     try #require(includesAllRivalPositions)
     try #require(displayDetailIncludesRows)
     try #require(contextLines.first == "Tournament automation proof scoreboard:")
     try #require(context.contains("proof_target_scoreboard"))
+    try #require(context.contains("top_action"))
+    try #require(context.contains("Ready: Run Plan Proof"))
     try #require(digest.contains("Tournament automation proof scoreboard:"))
     try #require(digest.contains("proof_target_scoreboard"))
+    try #require(digest.contains("top_action"))
     try #require(workbenchBody.contains("Proof Scoreboard"))
     try #require(workbenchBody.contains("AccessibilityAttachmentModifier"))
   }

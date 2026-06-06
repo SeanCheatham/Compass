@@ -12,6 +12,7 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
   var debtSummary: String
   var nextActionTitle: String?
   var tournamentPositionSummary: String?
+  var nextStep: TournamentAutomationStep?
 
   var displaySummary: String {
     var parts = [
@@ -40,7 +41,47 @@ struct TournamentAutomationProofTargetScoreboardRow: Equatable, Sendable, Identi
     if let tournamentPositionSummary {
       parts.append("position \(StringUtils.boundedText(tournamentPositionSummary, limit: 120))")
     }
+    if let nextStep {
+      let status = nextStep.canExecute ? "ready" : "blocked"
+      parts.append("step \(status) \(nextStep.kind.rawValue)")
+    }
     return parts.joined(separator: "; ")
+  }
+
+  var nextStepSummary: String {
+    guard let nextStep else {
+      return "No automation step queued"
+    }
+    let prefix = nextStep.canExecute ? "Ready" : "Blocked"
+    return "\(prefix): \(nextStep.queueTitle)"
+  }
+
+  var nextStepDetail: String {
+    guard let nextStep else { return debtSummary }
+    if let blockedReason = nextStep.blockedReason {
+      return blockedReason
+    }
+    return nextStep.detail
+  }
+
+  var nextStepSystemImage: String {
+    guard let nextStep else { return "questionmark.circle" }
+    switch nextStep.kind {
+    case .applyDecision:
+      return "checkmark.circle"
+    case .applyRoundTransition:
+      return "arrow.turn.down.right"
+    case .prepareWorktree:
+      return "hammer"
+    case .runPlanProof:
+      return "text.badge.checkmark"
+    case .runCohort:
+      return "play.rectangle.on.rectangle"
+    case .applyRevision:
+      return "wand.and.stars"
+    case .blocked:
+      return "exclamationmark.triangle"
+    }
   }
 }
 
@@ -54,6 +95,14 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
   var rows: [TournamentAutomationProofTargetScoreboardRow]
 
   var targetCount: Int { rows.count }
+
+  var topActionRow: TournamentAutomationProofTargetScoreboardRow? {
+    rows.first { $0.nextStep != nil }
+  }
+
+  var topActionStep: TournamentAutomationStep? {
+    topActionRow?.nextStep
+  }
 
   var displayTitle: String {
     roundTitle
@@ -74,9 +123,47 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
     "proof-target-scoreboard-\(roundID ?? "unknown-round")"
   }
 
+  var runTopStepAccessibilityID: String {
+    "\(workbenchAccessibilityID)-run-top-step"
+  }
+
+  var topActionSummary: String {
+    guard let topActionRow else { return "No automation step queued" }
+    return "\(topActionRow.contenderTitle): \(topActionRow.nextStepSummary)"
+  }
+
+  var topActionDetail: String {
+    guard let topActionRow else { return "No automation step queued for this round." }
+    return "\(topActionRow.contenderTitle): \(topActionRow.nextStepDetail)"
+  }
+
+  var topActionButtonTitle: String {
+    guard let topActionStep else { return "No Step" }
+    switch topActionStep.kind {
+    case .prepareWorktree:
+      return "Prepare Top Proof"
+    case .blocked:
+      return "Blocked Proof"
+    case .applyDecision, .applyRoundTransition, .runPlanProof, .runCohort, .applyRevision:
+      return "Run Top Proof"
+    }
+  }
+
   var contextLine: String {
     let rowText = rows.prefix(4).map(\.contextSummary).joined(separator: " | ")
-    return "- proof_target_scoreboard \(roundID ?? "unknown_round") [tournament \(tournamentID ?? "unknown_tournament"), targets \(targetCount)/\(contenderCount)]: \(StringUtils.boundedText(rowText, limit: 420))."
+    let topAction = topActionRow.map { row in
+      let title = StringUtils.boundedText(row.contenderTitle, limit: 80)
+      let summary = StringUtils.boundedText(row.nextStepSummary, limit: 140)
+      return "top_action \(title): \(summary)"
+    } ?? "top_action none"
+    let scope = [
+      "tournament \(tournamentID ?? "unknown_tournament")",
+      "targets \(targetCount)/\(contenderCount)",
+      topAction,
+    ]
+    .joined(separator: ", ")
+    return
+      "- proof_target_scoreboard \(roundID ?? "unknown_round") [\(scope)]: \(StringUtils.boundedText(rowText, limit: 420))."
   }
 }
 
@@ -94,12 +181,27 @@ enum TournamentAutomationProofTargetScoreboard {
       isPersonaModelAvailable: isPersonaModelAvailable
     )
     guard !targets.isEmpty else { return [] }
+    var nextStepsByExperimentID: [String: TournamentAutomationStep] = [:]
+    for step in TournamentAutomationPlanner.steps(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    ) {
+      if nextStepsByExperimentID[step.experimentID] == nil {
+        nextStepsByExperimentID[step.experimentID] = step
+      }
+    }
 
     let grouped = Dictionary(grouping: targets) { target in
       scopeKey(for: target, config: config)
     }
     return grouped.map { key, targets in
-      item(for: key, targets: targets, config: config)
+      item(
+        for: key,
+        targets: targets,
+        config: config,
+        nextStepsByExperimentID: nextStepsByExperimentID
+      )
     }
     .sorted { lhs, rhs in
       let lhsMaxUrgency = lhs.rows.map(\.urgencyScore).max() ?? 0
@@ -140,7 +242,8 @@ enum TournamentAutomationProofTargetScoreboard {
   private static func item(
     for key: ScopeKey,
     targets: [TournamentAutomationProofTarget],
-    config: ProductTournamentConfig
+    config: ProductTournamentConfig,
+    nextStepsByExperimentID: [String: TournamentAutomationStep]
   ) -> TournamentAutomationProofTargetScoreboardItem {
     let tournament = key.tournamentID.flatMap { tournamentID in
       config.tournaments.first { $0.id == tournamentID }
@@ -153,7 +256,13 @@ enum TournamentAutomationProofTargetScoreboard {
       activeContenderCount(round: round, tournament: tournament, config: config)
     )
     let rows = targets
-      .map { row(for: $0, config: config) }
+      .map { target in
+        row(
+          for: target,
+          config: config,
+          nextStep: nextStepsByExperimentID[target.experimentID]
+        )
+      }
       .sorted {
         if $0.urgencyScore == $1.urgencyScore {
           return $0.contenderTitle < $1.contenderTitle
@@ -171,7 +280,8 @@ enum TournamentAutomationProofTargetScoreboard {
 
   private static func row(
     for target: TournamentAutomationProofTarget,
-    config: ProductTournamentConfig
+    config: ProductTournamentConfig,
+    nextStep: TournamentAutomationStep?
   ) -> TournamentAutomationProofTargetScoreboardRow {
     let contender = target.contenderID.flatMap { contenderID in
       config.tournamentContenders.first { $0.id == contenderID }
@@ -185,7 +295,8 @@ enum TournamentAutomationProofTargetScoreboard {
       urgencyScore: target.urgencyScore,
       debtSummary: target.debtSummary,
       nextActionTitle: target.nextActionTitle,
-      tournamentPositionSummary: target.tournamentPositionSummary
+      tournamentPositionSummary: target.tournamentPositionSummary,
+      nextStep: nextStep
     )
   }
 

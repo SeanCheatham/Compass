@@ -143,7 +143,9 @@ and advances them through rounds:
   Product Tournament Context include each contender's position within the active
   round, while a compact proof scoreboard groups those targets by round so the
   Workbench and Product Tournament Context show which rival products still carry
-  plan, feasibility, or pay proof debt before narrowing or winner decisions.
+  plan, feasibility, or pay proof debt before narrowing or winner decisions; the
+  Workbench scoreboard can run or prepare the top proof target through the same
+  audited Tournament Automation single-step path.
   When the proof gates are met but the low-medium
   fidelity implementation still has weak pay intent, missing capabilities, or
   mixed pull, Compass queues a Round 3 implementation revision brief instead of

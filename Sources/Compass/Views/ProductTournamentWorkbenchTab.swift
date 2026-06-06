@@ -1594,9 +1594,35 @@ struct ProductTournamentWorkbenchTab: View {
       if let tournamentID = item.tournamentID {
         WorkbenchFact(label: "Tournament", value: tournamentID)
       }
+      WorkbenchFact(label: "Top action", value: item.topActionSummary)
+        .help(item.topActionDetail)
       WorkbenchFact(label: "Targets", value: item.displayDetail)
       ForEach(item.rows.prefix(4)) { row in
         WorkbenchFact(label: row.contenderTitle, value: row.displaySummary)
+      }
+      if let topActionRow = item.topActionRow, let topStep = topActionRow.nextStep {
+        let roundTwoBlockedMessage =
+          roundTwoLaunchBlockedMessage(experimentID: topStep.experimentID)
+        let helpText =
+          roundTwoBlockedMessage
+          ?? (topStep.canExecute
+            ? item.topActionDetail
+            : topStep.blockedReason ?? item.topActionDetail)
+        let isDisabled =
+          isRunningTournamentStep || isRunningTournamentAutomationCycle || isRunningScenario
+          || !topStep.canExecute || roundTwoBlockedMessage != nil
+        Button {
+          Task { await runTournamentAutomationStep(topStep) }
+        } label: {
+          Label(
+            isRunningTournamentStep ? "Running Proof" : item.topActionButtonTitle,
+            systemImage: topActionRow.nextStepSystemImage
+          )
+        }
+        .buttonStyle(.bordered)
+        .disabled(isDisabled)
+        .accessibilityIdentifier(item.runTopStepAccessibilityID)
+        .help(helpText)
       }
     }
     .padding(10)
