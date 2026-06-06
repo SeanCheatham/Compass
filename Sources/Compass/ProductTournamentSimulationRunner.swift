@@ -590,7 +590,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
 private struct PersonaActionModelResponse: Decodable {
   var actionID: String
   var rationale: String
-  var params: ProductizationJSONValue
+  var params: ProductTournamentJSONValue
 
   enum CodingKeys: String, CodingKey {
     case actionID
@@ -613,7 +613,7 @@ private struct PersonaActionModelResponse: Decodable {
       ?? container.decodeIfPresent(String.self, forKey: .reason)
       ?? ""
     params =
-      try container.decodeIfPresent(ProductizationJSONValue.self, forKey: .params)
+      try container.decodeIfPresent(ProductTournamentJSONValue.self, forKey: .params)
       ?? .object([:])
   }
 }
@@ -1013,8 +1013,8 @@ struct ProductTournamentSimulationRunner {
       )
     case (.success(let trace, let firstJSON), .success(_, let secondJSON)):
       do {
-        let firstNormalized = try ProductizationJSONCanonicalizer.canonicalJSON(firstJSON)
-        let secondNormalized = try ProductizationJSONCanonicalizer.canonicalJSON(secondJSON)
+        let firstNormalized = try ProductTournamentJSONCanonicalizer.canonicalJSON(firstJSON)
+        let secondNormalized = try ProductTournamentJSONCanonicalizer.canonicalJSON(secondJSON)
         let firstHash = Self.sha256Hex(firstNormalized)
         let secondHash = Self.sha256Hex(secondNormalized)
         guard firstHash == secondHash else {
@@ -1290,9 +1290,9 @@ struct ProductTournamentExperienceDecisionIntent: Codable, Equatable, Sendable {
 
 struct ProductTournamentExperienceAction: Codable, Equatable, Sendable {
   var id: String
-  var params: ProductizationJSONValue
+  var params: ProductTournamentJSONValue
 
-  init(id: String, params: ProductizationJSONValue = .object([:])) {
+  init(id: String, params: ProductTournamentJSONValue = .object([:])) {
     self.id = id
     self.params = params
   }
@@ -1306,7 +1306,7 @@ struct ProductTournamentExperienceAction: Codable, Equatable, Sendable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     id = try container.decode(String.self, forKey: .id)
     params =
-      try container.decodeIfPresent(ProductizationJSONValue.self, forKey: .params) ?? .object([:])
+      try container.decodeIfPresent(ProductTournamentJSONValue.self, forKey: .params) ?? .object([:])
   }
 }
 
@@ -1350,7 +1350,7 @@ struct ProductTournamentExperienceAllowedAction: Codable, Equatable, Sendable {
   var id: String
   var label: String
   var description: String
-  var paramsSchema: ProductizationJSONValue
+  var paramsSchema: ProductTournamentJSONValue
 }
 
 struct ProductTournamentPainReliefSignals: Codable, Equatable, Sendable {

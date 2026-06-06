@@ -1,20 +1,20 @@
 import Foundation
 
-enum ProductizationJSONValue: Codable, Equatable, Sendable {
+enum ProductTournamentJSONValue: Codable, Equatable, Sendable {
   case null
   case bool(Bool)
   case number(Double)
   case string(String)
-  case array([ProductizationJSONValue])
-  case object([String: ProductizationJSONValue])
+  case array([ProductTournamentJSONValue])
+  case object([String: ProductTournamentJSONValue])
 
   init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
     if container.decodeNil() {
       self = .null
-    } else if let object = try? container.decode([String: ProductizationJSONValue].self) {
+    } else if let object = try? container.decode([String: ProductTournamentJSONValue].self) {
       self = .object(object)
-    } else if let array = try? container.decode([ProductizationJSONValue].self) {
+    } else if let array = try? container.decode([ProductTournamentJSONValue].self) {
       self = .array(array)
     } else if let bool = try? container.decode(Bool.self) {
       self = .bool(bool)
@@ -50,17 +50,17 @@ enum ProductizationJSONValue: Codable, Equatable, Sendable {
         try container.encode(value)
       }
     case .object(let values):
-      var container = encoder.container(keyedBy: ProductizationJSONCodingKey.self)
+      var container = encoder.container(keyedBy: ProductTournamentJSONCodingKey.self)
       for key in values.keys.sorted() {
         if let value = values[key] {
-          try container.encode(value, forKey: ProductizationJSONCodingKey(stringValue: key))
+          try container.encode(value, forKey: ProductTournamentJSONCodingKey(stringValue: key))
         }
       }
     }
   }
 }
 
-private struct ProductizationJSONCodingKey: CodingKey {
+private struct ProductTournamentJSONCodingKey: CodingKey {
   var stringValue: String
   var intValue: Int?
 
@@ -74,12 +74,12 @@ private struct ProductizationJSONCodingKey: CodingKey {
   }
 }
 
-enum ProductizationJSONCanonicalizer {
+enum ProductTournamentJSONCanonicalizer {
   static func canonicalJSON(_ json: String) throws -> String {
     guard let data = json.data(using: .utf8) else {
-      throw ProductizationJSONCanonicalizerError.notUTF8
+      throw ProductTournamentJSONCanonicalizerError.notUTF8
     }
-    let value = try JSONDecoder().decode(ProductizationJSONValue.self, from: data)
+    let value = try JSONDecoder().decode(ProductTournamentJSONValue.self, from: data)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     let encoded = try encoder.encode(value)
@@ -87,7 +87,7 @@ enum ProductizationJSONCanonicalizer {
   }
 }
 
-private enum ProductizationJSONCanonicalizerError: LocalizedError {
+private enum ProductTournamentJSONCanonicalizerError: LocalizedError {
   case notUTF8
 
   var errorDescription: String? {
