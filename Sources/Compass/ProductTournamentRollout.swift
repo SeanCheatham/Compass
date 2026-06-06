@@ -76,7 +76,7 @@ enum ProductExperimentGitRolloutError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .unknownExperiment(let id):
-      return "Product experiment \(id) was not found in productization state."
+      return "Product experiment \(id) was not found in product tournament state."
     case .missingGitRepository(let url):
       return "Product experiment rollout requires a git repository at \(url.path)."
     case .expectedDecision(let experimentID, let expected, let actual):
@@ -86,7 +86,7 @@ enum ProductExperimentGitRolloutError: LocalizedError, Equatable {
       return "Product experiment \(id) has no recorded current commit sha."
     case .staleExperimentSha(let branchName, let expected, let actual):
       return
-        "Product experiment branch \(branchName) is stale: state expected \(expected), but git has \(actual). Refresh productization state before rollout."
+        "Product experiment branch \(branchName) is stale: state expected \(expected), but git has \(actual). Refresh product tournament state before rollout."
     case .detachedAcceptedBranch:
       return "Cannot promote into a detached HEAD. Check out the accepted product branch first."
     case .dirtyAcceptedWorktree(let status):
@@ -128,7 +128,7 @@ enum ProductExperimentRolloutError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .unknownExperiment(let id):
-      return "Product experiment \(id) was not found in productization state."
+      return "Product experiment \(id) was not found in product tournament state."
     }
   }
 }

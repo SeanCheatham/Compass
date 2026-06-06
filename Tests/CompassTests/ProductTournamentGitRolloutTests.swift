@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct ProductizationGitRolloutTests {
+struct ProductTournamentGitRolloutTests {
   @Test func fastForwardPromotionUpdatesAcceptedBranchAndDecisionTrail() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }

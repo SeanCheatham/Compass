@@ -46,7 +46,7 @@ enum ProductExperimentWorktreeError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .experimentNotFound(let id):
-      return "Product experiment \(id) was not found in productization state."
+      return "Product experiment \(id) was not found in product tournament state."
     case .missingGitRepository(let url):
       return "Product experiment worktrees require a git repository at \(url.path)."
     case .invalidBranchName(let branch):
