@@ -150,8 +150,9 @@ and advances them through rounds:
   the scoring set for winner selection, so stale pre-revision evidence cannot
   select the tournament winner; partial validation keeps targeting persona-model
   scenarios until the Round 3 winner proof gates are complete. The Workbench
-  shows that validation state in the Round 3 proof row and Tournament Automation
-  facts.
+  shows that validation state in the Round 3 proof row, a dedicated Round 3
+  validation overview for pending/partial/persisted/eliminated/resolved
+  outcomes, and Tournament Automation facts.
   Workbench scenario-run rows and selected-run details expose whether each run
   counts as completed-use proof.
 

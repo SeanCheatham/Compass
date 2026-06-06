@@ -279,6 +279,15 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
+  private var roundThreeImplementationRevisionValidationOverview:
+    [ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem]
+  {
+    ProductTournamentRoundThreeImplementationRevisionValidationOverview.items(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
+  }
+
   private var productImplementationEvidenceTransitionCanApply: Bool {
     productImplementationEvidenceTransitionProposal != nil
       && !isApplyingProductImplementationEvidenceTransition
@@ -944,6 +953,14 @@ struct ProductTournamentWorkbenchTab: View {
               ForEach(roundThreeProductImplementationOverview.prefix(3)) { item in
                 roundThreeProductImplementationOverviewRow(item)
               }
+              if !roundThreeImplementationRevisionValidationOverview.isEmpty {
+                Text("Implementation Revision Validation")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                ForEach(roundThreeImplementationRevisionValidationOverview.prefix(5)) { item in
+                  roundThreeImplementationRevisionValidationRow(item)
+                }
+              }
               if let proposal = productImplementationEvidenceTransitionProposal {
                 WorkbenchValueBlock(
                   title: proposal.title,
@@ -1393,6 +1410,57 @@ struct ProductTournamentWorkbenchTab: View {
             WorkbenchFact(label: "Validation", value: validationSummary)
               .help(item.implementationRevisionValidationDetail ?? validationSummary)
           }
+          Text(item.displayDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .accessibilityIdentifier(item.workbenchAccessibilityID)
+    .help(item.helpSummary)
+  }
+
+  private func roundThreeImplementationRevisionValidationRow(
+    _ item: ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem
+  ) -> some View {
+    Button {
+      selectedExperimentID = item.experimentID
+      if let revisionScenarioID = item.revisionScenarioID {
+        selectedScenarioID = revisionScenarioID
+      }
+    } label: {
+      HStack(alignment: .top, spacing: 9) {
+        Image(systemName: item.displaySystemImage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .frame(width: 16, alignment: .center)
+          .padding(.top, 2)
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(item.contenderTitle)
+              .font(.callout.weight(.semibold))
+              .lineLimit(2)
+            Spacer()
+            WorkbenchStatusPill(text: item.outcome.title)
+          }
+          Text(item.displaySubtitle)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          WorkbenchFact(label: "Track", value: item.experimentID)
+          WorkbenchFact(label: "Audit", value: item.revisionAuditID)
+          if let revisionScenarioID = item.revisionScenarioID {
+            WorkbenchFact(label: "Scenario", value: revisionScenarioID)
+          }
+          WorkbenchFact(label: "Validation", value: item.validationSummary)
+          WorkbenchFact(label: "Persisted gaps", value: item.persistedGapSummary)
+          WorkbenchFact(label: "Resolved gaps", value: item.resolvedGapSummary)
           Text(item.displayDetail)
             .font(.caption)
             .foregroundStyle(.secondary)
