@@ -37,6 +37,22 @@ struct ProductTournamentFeasibilityHandoffTests {
       evidenceIndex: index
     )
     let handoff = try #require(handoffs.first)
+    let implementationTarget = try #require(
+      ProductTournamentRoundImplementationTargetResolver.defaultActiveRoundTwoTarget(
+        in: transition.config
+      )
+    )
+    let siblingExperimentID = try #require(
+      transition.config.tournamentContenders.first {
+        $0.tournamentID == tournament.id && $0.experimentID != experiment.id
+      }?.experimentID
+    )
+    let siblingResolvedTarget = try #require(
+      ProductTournamentRoundImplementationTargetResolver.roundTwoTarget(
+        forExperimentInTargetTournament: siblingExperimentID,
+        in: transition.config
+      )
+    )
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: transition.config,
       evidenceIndex: index
@@ -59,6 +75,11 @@ struct ProductTournamentFeasibilityHandoffTests {
     try #require(handoff.experimentID == experiment.id)
     try #require(handoff.branchName == experiment.branchName)
     try #require(handoff.worktreeID == experiment.worktreeID)
+    try #require(implementationTarget.tournamentID == tournament.id)
+    try #require(implementationTarget.roundID == feasibilityRound.id)
+    try #require(implementationTarget.contenderID == contender.id)
+    try #require(implementationTarget.experimentID == experiment.id)
+    try #require(siblingResolvedTarget == implementationTarget)
     try #require(handoff.planRecommendation == .advanceToFeasibility)
     try #require((handoff.planReadinessScore ?? 0) >= 66)
     try #require(handoff.coreTechnologyProof.contains(experiment.title))
@@ -105,6 +126,16 @@ struct ProductTournamentFeasibilityHandoffTests {
       ProductTournamentFeasibilityAdvisor.handoffs(
         config: config,
         evidenceIndex: index
+      ).isEmpty
+    )
+    try #require(
+      ProductTournamentRoundImplementationTargetResolver.defaultActiveRoundTwoTarget(
+        in: config
+      ) == nil
+    )
+    try #require(
+      ProductTournamentRoundImplementationTargetResolver.activeRoundTwoTargets(
+        in: config
       ).isEmpty
     )
   }

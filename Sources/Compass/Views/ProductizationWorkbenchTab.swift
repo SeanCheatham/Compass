@@ -215,6 +215,43 @@ struct ProductizationWorkbenchTab: View {
     )
   }
 
+  private var defaultRoundTwoImplementationTarget: ProductTournamentRoundImplementationTarget? {
+    ProductTournamentRoundImplementationTargetResolver.defaultActiveRoundTwoTarget(in: config)
+  }
+
+  private var selectedRoundTwoImplementationTarget: ProductTournamentRoundImplementationTarget? {
+    guard let experimentID = selectedExperiment?.id ?? selectedExperimentID else {
+      return defaultRoundTwoImplementationTarget
+    }
+    return ProductTournamentRoundImplementationTargetResolver.roundTwoTarget(
+      forExperimentInTargetTournament: experimentID,
+      in: config
+    )
+  }
+
+  private var selectedRoundTwoTargetHandoff: ProductTournamentFeasibilityHandoff? {
+    guard let target = selectedRoundTwoImplementationTarget else { return nil }
+    return feasibilityHandoffs.first {
+      $0.tournamentID == target.tournamentID
+        && $0.roundID == target.roundID
+        && $0.contenderID == target.contenderID
+        && $0.experimentID == target.experimentID
+    }
+  }
+
+  private var selectedExperimentMatchesRoundTwoTarget: Bool {
+    guard
+      let experimentID = selectedExperiment?.id,
+      let target = selectedRoundTwoImplementationTarget
+    else { return true }
+    return target.experimentID == experimentID
+  }
+
+  private var selectedRoundTwoBlockedMessage: String? {
+    guard let experimentID = selectedExperiment?.id else { return nil }
+    return roundTwoLaunchBlockedMessage(experimentID: experimentID)
+  }
+
   private var selectedExperiment: ProductExperiment? {
     guard let selectedExperimentID else { return config.experiments.first }
     return config.experiments.first { $0.id == selectedExperimentID } ?? config.experiments.first
@@ -265,7 +302,9 @@ struct ProductizationWorkbenchTab: View {
   }
 
   private var suggestedCohortCanRun: Bool {
-    contractAvailable == true && selectedSuggestedCohortReadiness?.canRun == true
+    contractAvailable == true
+      && selectedSuggestedCohortReadiness?.canRun == true
+      && selectedExperimentMatchesRoundTwoTarget
   }
 
   private var scenariosForSelectedExperiment: [ProductScenario] {
@@ -363,6 +402,7 @@ struct ProductizationWorkbenchTab: View {
       && !isRunningFactoryStep
       && !isRunningFactoryCycle
       && !isRunningScenario
+      && factoryAutopilotStepMatchesRoundTwoTarget
   }
 
   private var factoryAutopilotCycleCanRun: Bool {
@@ -370,6 +410,17 @@ struct ProductizationWorkbenchTab: View {
       && !isRunningFactoryStep
       && !isRunningFactoryCycle
       && !isRunningScenario
+      && factoryAutopilotStepMatchesRoundTwoTarget
+  }
+
+  private var factoryAutopilotStepMatchesRoundTwoTarget: Bool {
+    guard let step = factoryAutopilotStep else { return true }
+    return roundTwoLaunchBlockedMessage(experimentID: step.experimentID) == nil
+  }
+
+  private var factoryAutopilotRoundTwoBlockedMessage: String? {
+    guard let step = factoryAutopilotStep else { return nil }
+    return roundTwoLaunchBlockedMessage(experimentID: step.experimentID)
   }
 
   private var latestFactoryCycleAudit: ProductFactoryCycleAudit? {
@@ -410,11 +461,15 @@ struct ProductizationWorkbenchTab: View {
         }
       }
     }
-    .task(id: config.experiments.map(\.id).joined(separator: "|")) {
+    .task(id: experimentSelectionTaskID) {
+      let preferredExperimentID =
+        defaultRoundTwoImplementationTarget?.experimentID ?? config.experiments.first?.id
       if selectedExperimentID == nil
         || !config.experiments.contains(where: { $0.id == selectedExperimentID })
+        || (defaultRoundTwoImplementationTarget != nil
+          && selectedExperimentID != defaultRoundTwoImplementationTarget?.experimentID)
       {
-        selectedExperimentID = config.experiments.first?.id
+        selectedExperimentID = preferredExperimentID
       }
       if selectedRunID == nil
         || !runsForSelectedExperiment.contains(where: { $0.runID == selectedRunID })
@@ -466,6 +521,17 @@ struct ProductizationWorkbenchTab: View {
       experiment?.decision.rawValue ?? "",
       experiment?.currentSha ?? "",
       "\(config.decisions.count)",
+    ].joined(separator: "|")
+  }
+
+  private var experimentSelectionTaskID: String {
+    let target = defaultRoundTwoImplementationTarget
+    return [
+      config.experiments.map(\.id).joined(separator: ","),
+      target?.tournamentID ?? "",
+      target?.roundID ?? "",
+      target?.contenderID ?? "",
+      target?.experimentID ?? "",
     ].joined(separator: "|")
   }
 
@@ -1012,6 +1078,10 @@ struct ProductizationWorkbenchTab: View {
       config: config,
       evidenceIndex: evidenceIndex
     )
+    let roundTwoTarget = ProductTournamentRoundImplementationTargetResolver.roundTwoTarget(
+      forExperimentInTargetTournament: experiment.id,
+      in: config
+    )
     return Button {
       selectedExperimentID = experiment.id
     } label: {
@@ -1029,6 +1099,14 @@ struct ProductizationWorkbenchTab: View {
         WorkbenchFact(label: "Worktree", value: experiment.worktreeID)
         WorkbenchFact(
           label: "Commit", value: experiment.currentSha ?? experiment.baseSha ?? "not created")
+        if let roundTwoTarget {
+          WorkbenchFact(
+            label: "Round 2",
+            value: roundTwoTarget.experimentID == experiment.id
+              ? "selected implementation target"
+              : "evidence locked to \(roundTwoTargetExperimentTitle(roundTwoTarget))"
+          )
+        }
         Text(experiment.prototypeScope)
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -1328,6 +1406,9 @@ struct ProductizationWorkbenchTab: View {
               value: "\(factoryAutopilotCohortMode.productFactoryLabel) cohort"
             )
           }
+          if let factoryAutopilotRoundTwoBlockedMessage {
+            WorkbenchFact(label: "Round 2", value: factoryAutopilotRoundTwoBlockedMessage)
+          }
           if let latestFactoryCycleAudit {
             WorkbenchFact(label: "Last Cycle", value: latestFactoryCycleAudit.summary)
           }
@@ -1429,6 +1510,7 @@ struct ProductizationWorkbenchTab: View {
               ? (experiment.currentSha ?? experiment.baseSha ?? "no commit")
               : scenarioTargetCommit
           )
+          roundTwoImplementationTargetNotice
           if let contractAvailable {
             Label(
               contractAvailable
@@ -1463,6 +1545,10 @@ struct ProductizationWorkbenchTab: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(isRunningScenario || !scenarioCanRun)
+            .help(
+              selectedRoundTwoBlockedMessage
+                ?? "Run this scenario with a model-free simulated user."
+            )
 
             Button {
               Task { await runScenarioPersonaModel() }
@@ -1475,9 +1561,10 @@ struct ProductizationWorkbenchTab: View {
             .buttonStyle(.bordered)
             .disabled(isRunningScenario || !personaScenarioCanRun)
             .help(
-              FoundationModelsAvailability.isAvailable
-                ? "Run with an AI simulated user"
-                : ProductizationPersonaActionModelError.unavailable.localizedDescription
+              selectedRoundTwoBlockedMessage
+                ?? (FoundationModelsAvailability.isAvailable
+                  ? "Run with an AI simulated user"
+                  : ProductizationPersonaActionModelError.unavailable.localizedDescription)
             )
           }
           HStack(spacing: 8) {
@@ -1491,6 +1578,10 @@ struct ProductizationWorkbenchTab: View {
             }
             .buttonStyle(.bordered)
             .disabled(isRunningScenario || !scenarioCohortCanRun)
+            .help(
+              selectedRoundTwoBlockedMessage
+                ?? "Run the selected scenario cohort with model-free simulated users."
+            )
 
             Button {
               Task { await runScenarioCohortPersonaModel() }
@@ -1503,14 +1594,87 @@ struct ProductizationWorkbenchTab: View {
             .buttonStyle(.bordered)
             .disabled(isRunningScenario || !personaCohortCanRun)
             .help(
-              FoundationModelsAvailability.isAvailable
-                ? "Run the cohort with AI simulated users"
-                : ProductizationPersonaActionModelError.unavailable.localizedDescription
+              selectedRoundTwoBlockedMessage
+                ?? (FoundationModelsAvailability.isAvailable
+                  ? "Run the cohort with AI simulated users"
+                  : ProductizationPersonaActionModelError.unavailable.localizedDescription)
             )
           }
         }
       }
     }
+  }
+
+  @ViewBuilder
+  private var roundTwoImplementationTargetNotice: some View {
+    if let target = selectedRoundTwoImplementationTarget {
+      let isSelectedTarget = selectedExperiment?.id == target.experimentID
+      VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .center, spacing: 8) {
+          Label(
+            isSelectedTarget ? "Round 2 target selected" : "Round 2 target locked",
+            systemImage: isSelectedTarget ? "scope" : "lock"
+          )
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(isSelectedTarget ? Color.secondary : Color.orange)
+          Spacer()
+          if !isSelectedTarget {
+            Button {
+              selectRoundTwoImplementationTarget(target)
+            } label: {
+              Label("Select Target", systemImage: "scope")
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+        WorkbenchFact(
+          label: "Track",
+          value: "\(roundTwoTargetExperimentTitle(target)) (\(target.experimentID))"
+        )
+        WorkbenchFact(
+          label: "Contender",
+          value: "\(roundTwoTargetContenderTitle(target)) (\(target.contenderID))"
+        )
+        if let handoff = selectedRoundTwoTargetHandoff {
+          WorkbenchFact(label: "Proof", value: handoff.coreTechnologyProof)
+          WorkbenchFact(
+            label: "Acceptance",
+            value: handoff.acceptanceSignals.prefix(3).joined(separator: "; ")
+          )
+        } else {
+          WorkbenchFact(label: "Round", value: target.roundID)
+        }
+        if !isSelectedTarget, let selectedExperiment {
+          Text(
+            "Scenario evidence for \(selectedExperiment.title) is paused while this Round 2 proof targets \(roundTwoTargetExperimentTitle(target))."
+          )
+          .font(.caption)
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(
+        (isSelectedTarget ? Color.secondary.opacity(0.08) : Color.orange.opacity(0.10)),
+        in: RoundedRectangle(cornerRadius: 8)
+      )
+    }
+  }
+
+  private func selectRoundTwoImplementationTarget(
+    _ target: ProductTournamentRoundImplementationTarget
+  ) {
+    selectedExperimentID = target.experimentID
+    selectedScenarioID =
+      config.scenarios
+      .filter { $0.experimentID == target.experimentID }
+      .sorted { lhs, rhs in
+        if lhs.updatedAt == rhs.updatedAt { return lhs.title < rhs.title }
+        return lhs.updatedAt > rhs.updatedAt
+      }
+      .first?.id
+    scenarioRunMessage = nil
   }
 
   private var scenarioSelectionBinding: Binding<String> {
@@ -1536,6 +1700,7 @@ struct ProductizationWorkbenchTab: View {
       && scenarioEnabled
       && scenarioCohortEnabled
       && contractAvailable == true
+      && selectedExperimentMatchesRoundTwoTarget
       && !(scenarioTargetCommit.isEmpty && selectedExperiment?.currentSha == nil
         && selectedExperiment?.baseSha == nil)
   }
@@ -1549,6 +1714,7 @@ struct ProductizationWorkbenchTab: View {
       && !scenarioCohortID.isEmpty
       && scenarioCohortEnabled
       && contractAvailable == true
+      && selectedExperimentMatchesRoundTwoTarget
       && !(scenarioTargetCommit.isEmpty && selectedExperiment?.currentSha == nil
         && selectedExperiment?.baseSha == nil)
   }
@@ -1623,6 +1789,9 @@ struct ProductizationWorkbenchTab: View {
               WorkbenchFact(label: "Blocked", value: blockedReason)
             }
           }
+          if let selectedRoundTwoBlockedMessage {
+            WorkbenchFact(label: "Round 2", value: selectedRoundTwoBlockedMessage)
+          }
           Text(nextAction.detail)
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -1636,6 +1805,10 @@ struct ProductizationWorkbenchTab: View {
               }
               .buttonStyle(.bordered)
               .disabled(isRunningScenario || !suggestedCohortCanRun)
+              .help(
+                selectedRoundTwoBlockedMessage
+                  ?? "Run the suggested cohort with model-free simulated users."
+              )
 
               Button {
                 Task { await runSuggestedCohort(mode: .personaModel) }
@@ -1646,6 +1819,12 @@ struct ProductizationWorkbenchTab: View {
               .disabled(
                 isRunningScenario || !suggestedCohortCanRun
                   || !FoundationModelsAvailability.isAvailable
+              )
+              .help(
+                selectedRoundTwoBlockedMessage
+                  ?? (FoundationModelsAvailability.isAvailable
+                    ? "Run the suggested cohort with AI simulated users."
+                    : ProductizationPersonaActionModelError.unavailable.localizedDescription)
               )
             }
           }
@@ -2368,6 +2547,11 @@ struct ProductizationWorkbenchTab: View {
 
   private func runFactoryAutopilotStep() async {
     guard let step = factoryAutopilotStep, step.canExecute else { return }
+    if let blockedMessage = roundTwoLaunchBlockedMessage(experimentID: step.experimentID) {
+      selectedExperimentID = step.experimentID
+      scenarioRunMessage = blockedMessage
+      return
+    }
     selectedExperimentID = step.experimentID
     isRunningFactoryStep = true
     defer { isRunningFactoryStep = false }
@@ -2493,6 +2677,14 @@ struct ProductizationWorkbenchTab: View {
       }
       guard seenStepIDs.insert(step.id).inserted else {
         stopReason = .repeatedStep(stepID: step.id, title: step.title)
+        break
+      }
+      if let blockedMessage = roundTwoLaunchBlockedMessage(experimentID: step.experimentID) {
+        stopReason = .executionFailed(
+          stepID: step.id,
+          title: step.title,
+          message: blockedMessage
+        )
         break
       }
       selectedExperimentID = step.experimentID
@@ -2748,6 +2940,10 @@ struct ProductizationWorkbenchTab: View {
       return nil
     case .runCohort:
       guard let cohortID = step.cohortID else { return nil }
+      if let blockedMessage = roundTwoLaunchBlockedMessage(experimentID: step.experimentID) {
+        scenarioRunMessage = blockedMessage
+        return nil
+      }
       guard
         step.action.requiredSimulationMode != .personaModel
           || FoundationModelsAvailability.isAvailable
@@ -2855,6 +3051,10 @@ struct ProductizationWorkbenchTab: View {
     guard let experiment = selectedExperiment,
       let targetScenarioID = scenarioID ?? selectedScenarioID
     else { return }
+    if let blockedMessage = roundTwoLaunchBlockedMessage(experimentID: experiment.id) {
+      scenarioRunMessage = blockedMessage
+      return
+    }
     if saveDraftFirst && scenarioDraftCanSave {
       await saveScenarioDraft()
     }
@@ -2894,6 +3094,10 @@ struct ProductizationWorkbenchTab: View {
     guard let experiment = selectedExperiment,
       !(cohortID ?? scenarioCohortID).isEmpty
     else { return }
+    if let blockedMessage = roundTwoLaunchBlockedMessage(experimentID: experiment.id) {
+      scenarioRunMessage = blockedMessage
+      return
+    }
     let targetCohortID = cohortID ?? scenarioCohortID
     if saveDraftFirst && scenarioDraftCanSave {
       await saveScenarioDraft()
@@ -3007,6 +3211,31 @@ struct ProductizationWorkbenchTab: View {
     contractAvailable = await project.productizationScenarioContractAvailable(
       experimentID: experiment.id
     )
+  }
+
+  private func roundTwoLaunchBlockedMessage(experimentID: String) -> String? {
+    guard
+      let target = ProductTournamentRoundImplementationTargetResolver.roundTwoTarget(
+        forExperimentInTargetTournament: experimentID,
+        in: config
+      ),
+      target.experimentID != experimentID
+    else { return nil }
+
+    return
+      "Round 2 evidence is locked to \(roundTwoTargetExperimentTitle(target)) (\(target.experimentID)) for contender \(roundTwoTargetContenderTitle(target))."
+  }
+
+  private func roundTwoTargetExperimentTitle(
+    _ target: ProductTournamentRoundImplementationTarget
+  ) -> String {
+    config.experiments.first { $0.id == target.experimentID }?.title ?? target.experimentID
+  }
+
+  private func roundTwoTargetContenderTitle(
+    _ target: ProductTournamentRoundImplementationTarget
+  ) -> String {
+    config.tournamentContenders.first { $0.id == target.contenderID }?.title ?? target.contenderID
   }
 
   private func score(_ value: Int?) -> String {

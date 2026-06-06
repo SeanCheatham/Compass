@@ -788,7 +788,7 @@ enum ProductizationScenarioCoordinator {
     in config: ProductizationConfig
   ) throws {
     guard
-      let target = roundTwoImplementationTarget(
+      let target = ProductTournamentRoundImplementationTargetResolver.roundTwoTarget(
         forExperimentInTargetTournament: experimentID,
         in: config
       ),
@@ -802,70 +802,6 @@ enum ProductizationScenarioCoordinator {
       roundID: target.roundID,
       contenderID: target.contenderID
     )
-  }
-
-  private static func roundTwoImplementationTarget(
-    forExperimentInTargetTournament experimentID: String,
-    in config: ProductizationConfig
-  ) -> ProductTournamentRoundImplementationTarget? {
-    guard
-      let contender = config.tournamentContenders.first(where: {
-        $0.experimentID == experimentID
-      }),
-      let tournament = config.tournaments.first(where: {
-        $0.id == contender.tournamentID && ($0.status == .active || $0.status == .drafting)
-      }),
-      let round = activeCoreTechnologyRound(for: tournament, in: config)
-    else { return nil }
-
-    let candidateIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
-    let candidates = candidateIDs.compactMap { contenderID in
-      config.tournamentContenders.first {
-        $0.id == contenderID
-          && $0.tournamentID == tournament.id
-          && $0.isRoundTwoImplementationCandidate
-          && $0.experimentID != nil
-      }
-    }
-    guard candidates.count == 1, let target = candidates.first,
-      let targetExperimentID = target.experimentID
-    else {
-      return nil
-    }
-
-    return ProductTournamentRoundImplementationTarget(
-      tournamentID: tournament.id,
-      roundID: round.id,
-      contenderID: target.id,
-      experimentID: targetExperimentID
-    )
-  }
-
-  private static func activeCoreTechnologyRound(
-    for tournament: ProductTournament,
-    in config: ProductizationConfig
-  ) -> ProductTournamentRound? {
-    let currentRound = tournament.currentRoundID.flatMap { roundID in
-      config.tournamentRounds.first { $0.id == roundID && $0.tournamentID == tournament.id }
-    }
-    if let currentRound,
-      currentRound.kind == .coreTechnology,
-      currentRound.status == .active
-    {
-      return currentRound
-    }
-    guard tournament.currentRoundID == nil else { return nil }
-    return config.tournamentRounds
-      .filter {
-        $0.tournamentID == tournament.id
-          && $0.kind == .coreTechnology
-          && $0.status == .active
-      }
-      .sorted {
-        if $0.ordinal == $1.ordinal { return $0.id < $1.id }
-        return $0.ordinal < $1.ordinal
-      }
-      .first
   }
 
   private static func targetCommit(
@@ -897,24 +833,6 @@ enum ProductizationScenarioCoordinator {
     return try transcript.map {
       String(decoding: try encoder.encode($0), as: UTF8.self)
     }.joined(separator: "\n")
-  }
-}
-
-private struct ProductTournamentRoundImplementationTarget: Equatable, Sendable {
-  var tournamentID: String
-  var roundID: String
-  var contenderID: String
-  var experimentID: String
-}
-
-extension ProductTournamentContender {
-  fileprivate var isRoundTwoImplementationCandidate: Bool {
-    switch status {
-    case .narrowed, .needsRevision:
-      return true
-    case .competing, .winner, .eliminated, .archived:
-      return false
-    }
   }
 }
 
