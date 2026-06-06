@@ -1,3 +1,5 @@
+import Foundation
+
 struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   var latestCycleSummary: String
   var latestCycleHelp: String
@@ -5,6 +7,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
   var latestPreparationHelp: String?
   var latestEvidenceSummary: String
   var latestEvidenceHelp: String?
+  var latestActedPressureGroupSummary: String?
+  var latestActedPressureGroupHelp: String?
   var postPreparationEvidenceSummary: String?
   var postPreparationEvidenceHelp: String?
   var latestRoundTwoProofGapValidationSummary: String?
@@ -28,6 +32,7 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
         || audit.failedEvidenceRunCount > 0
         || audit.skippedScenarioCount > 0
     }
+    let actedPressureGroupAudit = audits.first { !$0.actedProofPressureGroupSummaries.isEmpty }
 
     let latestPreparationSummary: String?
     let latestPreparationHelp: String?
@@ -68,6 +73,12 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       latestPreparationHelp: latestPreparationHelp,
       latestEvidenceSummary: evidenceAudit.map(makeEvidenceSummary(for:)) ?? "none recorded",
       latestEvidenceHelp: evidenceAudit.map(helpSummary(for:)),
+      latestActedPressureGroupSummary: actedPressureGroupAudit.flatMap(
+        makeActedPressureGroupSummary(for:)
+      ),
+      latestActedPressureGroupHelp: actedPressureGroupAudit.map(
+        makeActedPressureGroupHelp(for:)
+      ),
       postPreparationEvidenceSummary: postPreparationEvidence?.summary,
       postPreparationEvidenceHelp: postPreparationEvidence?.help,
       latestRoundTwoProofGapValidationSummary: roundTwoValidation.map(
@@ -136,6 +147,29 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       "\(audit.evidenceRunStepCount) evidence step(s), \(audit.completedEvidenceRunCount) completed, \(audit.failedEvidenceRunCount) needing review, \(audit.skippedScenarioCount) skipped\(runIDs)\(moreRuns)"
   }
 
+  private static func makeActedPressureGroupSummary(
+    for audit: TournamentAutomationCycleAudit
+  ) -> String? {
+    let summaries = audit.actedProofPressureGroupSummaries.prefix(2)
+      .map(ActedPressureGroupContext.init(summary:))
+      .map(\.displaySummary)
+    guard !summaries.isEmpty else { return nil }
+    return bounded(summaries.joined(separator: " | "), limit: 260)
+  }
+
+  private static func makeActedPressureGroupHelp(
+    for audit: TournamentAutomationCycleAudit
+  ) -> String {
+    let contexts = audit.actedProofPressureGroupSummaries.prefix(3)
+      .map(ActedPressureGroupContext.init(summary:))
+      .map(\.helpSummary)
+      .joined(separator: " | ")
+    return bounded(
+      "audit \(audit.id); \(contexts); stop \(audit.stopReason.rawValue); \(audit.stopDetail)",
+      limit: 500
+    )
+  }
+
   private static func makePostPreparationEvidenceCue(
     for step: TournamentAutomationStep?,
     preparationAudit: TournamentAutomationCycleAudit?,
@@ -201,5 +235,50 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
 
   private static func bounded(_ value: String, limit: Int) -> String {
     StringUtils.boundedText(value, limit: limit)
+  }
+
+  private struct ActedPressureGroupContext {
+    var group: String?
+    var anchor: String?
+    var contender: String?
+    var status: String?
+    var next: String?
+    var rawSummary: String
+
+    init(summary: String) {
+      self.rawSummary = summary
+      let fields = summary
+        .split(separator: ";", omittingEmptySubsequences: true)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      for field in fields {
+        if field.hasPrefix("pressure_group ") {
+          group = String(field.dropFirst("pressure_group ".count))
+        } else if field.hasPrefix("anchor ") {
+          anchor = String(field.dropFirst("anchor ".count))
+        } else if field.hasPrefix("contender ") {
+          contender = String(field.dropFirst("contender ".count))
+        } else if field.hasPrefix("status ") {
+          status = String(field.dropFirst("status ".count))
+        } else if field.hasPrefix("next ") {
+          next = String(field.dropFirst("next ".count))
+        }
+      }
+    }
+
+    var displaySummary: String {
+      let parts = [
+        group,
+        contender,
+        status,
+        next.map { "next \($0)" },
+      ].compactMap { $0 }
+      guard !parts.isEmpty else { return rawSummary }
+      return parts.joined(separator: "; ")
+    }
+
+    var helpSummary: String {
+      let anchorPart = anchor.map { "; anchor \($0)" } ?? ""
+      return "\(displaySummary)\(anchorPart)"
+    }
   }
 }

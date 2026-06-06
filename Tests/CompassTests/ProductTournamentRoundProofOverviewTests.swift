@@ -423,6 +423,9 @@ struct ProductTournamentRoundProofOverviewTests {
         endingProofDebtSummary:
           "\(step.experimentID): contender \(contenderID), round \(roundID), Round 1 plan proof had 4 proof debt item(s).",
         proofTargetSummaries: [target.auditSummary],
+        actedProofPressureGroupSummaries: [
+          "pressure_group Proof runs; anchor round-1:\(step.experimentID):buyer; contender Continue; status More proof; next Ready: Run Plan Proof"
+        ],
         stopReason: .reachedStepLimit,
         stopDetail: "Reached one proof scoreboard step.",
         userMessage: "Scoreboard top proof reduced proof debt for \(contenderID)."
@@ -558,6 +561,8 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(digest.contains("run_pair last cleared 2 proof debt"))
     try #require(digest.contains("top_action_status More proof"))
     try #require(workbenchBody.contains("Proof Scoreboard"))
+    try #require(workbenchBody.contains("Last Group"))
+    try #require(workbenchBody.contains("Proof runs; Continue; More proof"))
     try #require(workbenchBody.contains("WorkbenchStatusFact"))
     try #require(workbenchBody.contains("AccessibilityAttachmentModifier"))
   }

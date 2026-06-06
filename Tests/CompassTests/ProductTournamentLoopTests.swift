@@ -3791,6 +3791,9 @@ struct ProductTournamentLoopTests {
       evidenceRunStepCount: 1,
       evidenceRunIDs: ["promote-a"],
       completedEvidenceRunCount: 1,
+      actedProofPressureGroupSummaries: [
+        "pressure_group Proof runs; anchor round-1:\(experiment.id):buyer; contender Continue; status More proof; next Ready: Run Plan Proof"
+      ],
       stopReason: .noExecutableStep,
       stopDetail: "No executable tournament automation step remains.",
       userMessage: "Tournament automation cycle ran 1 step(s)."
@@ -3813,6 +3816,15 @@ struct ProductTournamentLoopTests {
     try #require(
       evidenceFacts.latestEvidenceHelp?.contains(
         "No executable tournament automation step remains.") == true)
+    try #require(
+      evidenceFacts.latestActedPressureGroupSummary
+        == "Proof runs; Continue; More proof; next Ready: Run Plan Proof")
+    try #require(
+      evidenceFacts.latestActedPressureGroupHelp?.contains("audit tournament-cycle-evidence")
+        == true)
+    try #require(
+      evidenceFacts.latestActedPressureGroupHelp?.contains("anchor round-1:\(experiment.id):buyer")
+        == true)
     try #require(evidenceFacts.postPreparationEvidenceSummary == nil)
   }
 

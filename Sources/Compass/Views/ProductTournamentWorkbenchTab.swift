@@ -2112,6 +2112,15 @@ struct ProductTournamentWorkbenchTab: View {
               latestTournamentAutomationCycleFacts.latestEvidenceHelp
                 ?? "No tournament evidence run has been recorded in recent cycle audits."
             )
+            if let latestActedPressureGroupSummary =
+              latestTournamentAutomationCycleFacts.latestActedPressureGroupSummary
+            {
+              WorkbenchFact(label: "Last Group", value: latestActedPressureGroupSummary)
+                .help(
+                  latestTournamentAutomationCycleFacts.latestActedPressureGroupHelp
+                    ?? latestActedPressureGroupSummary
+                )
+            }
             if let postPreparationEvidenceSummary =
               latestTournamentAutomationCycleFacts.postPreparationEvidenceSummary
             {
