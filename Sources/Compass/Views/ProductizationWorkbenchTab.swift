@@ -7,6 +7,9 @@ struct ProductizationWorkbenchTab: View {
   @State private var selectedRunID: String?
   @State private var selectedRecord: ProductizationEvidenceRecord?
   @State private var recordError: String?
+  @State private var selectedPlanEvaluationID: String?
+  @State private var selectedPlanEvaluationRecord: ProductTournamentPlanEvaluationRecord?
+  @State private var planEvaluationRecordError: String?
   @State private var gitPreview: ProductExperimentGitRolloutPreview?
   @State private var gitPreviewError: String?
   @State private var isLoadingGitPreview = false
@@ -282,6 +285,13 @@ struct ProductizationWorkbenchTab: View {
       .sorted { $0.title < $1.title }
   }
 
+  private var planEvaluationsForBoard: [ProductTournamentPlanEvaluationSummary] {
+    let tournamentIDs = Set(config.tournaments.map(\.id))
+    return evidenceIndex.planEvaluationSummaries.filter { summary in
+      tournamentIDs.isEmpty || tournamentIDs.contains(summary.tournamentID)
+    }
+  }
+
   private var experimentsForBoard: [ProductExperiment] {
     ProductFactoryExperimentRanker.rankedExperiments(
       config: config,
@@ -420,6 +430,14 @@ struct ProductizationWorkbenchTab: View {
     .task(id: contractStatusTaskID) {
       await loadContractStatus()
     }
+    .task(id: planEvaluationSelectionTaskID) {
+      if selectedPlanEvaluationID == nil
+        || !planEvaluationsForBoard.contains(where: { $0.evaluationID == selectedPlanEvaluationID })
+      {
+        selectedPlanEvaluationID = planEvaluationsForBoard.first?.evaluationID
+      }
+      loadSelectedPlanEvaluationRecord()
+    }
     .onChange(of: selectedExperimentID) { _, _ in
       selectedRunID = runsForSelectedExperiment.first?.runID
       loadSelectedRecord()
@@ -431,6 +449,9 @@ struct ProductizationWorkbenchTab: View {
     }
     .onChange(of: selectedRunID) { _, _ in
       loadSelectedRecord()
+    }
+    .onChange(of: selectedPlanEvaluationID) { _, _ in
+      loadSelectedPlanEvaluationRecord()
     }
     .onChange(of: selectedScenarioID) { _, _ in
       loadScenarioDraft()
@@ -455,6 +476,10 @@ struct ProductizationWorkbenchTab: View {
       experiment?.currentSha ?? "",
       "\(config.scenarios.count)",
     ].joined(separator: "|")
+  }
+
+  private var planEvaluationSelectionTaskID: String {
+    planEvaluationsForBoard.map(\.evaluationID).joined(separator: "|")
   }
 
   private var header: some View {
@@ -1271,6 +1296,8 @@ struct ProductizationWorkbenchTab: View {
       VStack(alignment: .leading, spacing: 10) {
         factoryAutopilot
         aggregateEvidence
+        planEvaluationEvidence
+        selectedPlanEvaluationDetail
         selectedExperimentActions
         scenarioAuthoring
         evidenceRuns
@@ -1661,6 +1688,150 @@ struct ProductizationWorkbenchTab: View {
     }
   }
 
+  private var planEvaluationEvidence: some View {
+    WorkbenchSection("Plan Evaluations", systemImage: "doc.text.magnifyingglass") {
+      VStack(alignment: .leading, spacing: 8) {
+        if planEvaluationsForBoard.isEmpty {
+          WorkbenchEmptyLine("No Round 1 plan evaluations recorded yet.")
+        } else {
+          ForEach(planEvaluationsForBoard.prefix(8)) { summary in
+            planEvaluationRow(summary)
+          }
+        }
+      }
+    }
+  }
+
+  private func planEvaluationRow(
+    _ summary: ProductTournamentPlanEvaluationSummary
+  ) -> some View {
+    Button {
+      selectedPlanEvaluationID = summary.evaluationID
+      if let experimentID = summary.experimentID {
+        selectedExperimentID = experimentID
+      }
+    } label: {
+      VStack(alignment: .leading, spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text(summary.personaName)
+            .font(.callout.weight(.semibold))
+            .lineLimit(1)
+          Spacer()
+          WorkbenchStatusPill(text: summary.verdict.rawValue)
+        }
+        WorkbenchFact(label: "Contender", value: summary.contenderID)
+        WorkbenchFact(label: "Round", value: summary.roundID)
+        WorkbenchFact(
+          label: "Scores",
+          value:
+            "pain \(score(summary.scores.painRecognition)), workflow \(score(summary.scores.workflowImprovement)), pay \(score(summary.scores.willingnessToPay ?? summary.willingnessToPayScore))"
+        )
+        if let estimatedMonthlyPriceCents = summary.estimatedMonthlyPriceCents {
+          WorkbenchFact(label: "Price", value: priceLabel(cents: estimatedMonthlyPriceCents))
+        }
+        if let objection = summary.objections.first {
+          WorkbenchFact(label: "Objection", value: objection)
+        }
+        Text(summary.summary)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(
+        selectedPlanEvaluationID == summary.evaluationID
+          ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08),
+        in: RoundedRectangle(cornerRadius: 8)
+      )
+    }
+    .buttonStyle(.plain)
+    .help(
+      summary.currentAlternativeComparison.isEmpty
+        ? summary.summary : summary.currentAlternativeComparison)
+  }
+
+  @ViewBuilder
+  private var selectedPlanEvaluationDetail: some View {
+    if let record = selectedPlanEvaluationRecord {
+      WorkbenchSection("Selected Plan Evaluation", systemImage: "doc.richtext") {
+        VStack(alignment: .leading, spacing: 8) {
+          HStack(spacing: 6) {
+            WorkbenchMetric(
+              label: "Pain", value: score(record.scores.painRecognition), systemImage: "scope")
+            WorkbenchMetric(
+              label: "Workflow", value: score(record.scores.workflowImprovement),
+              systemImage: "flowchart")
+            WorkbenchMetric(
+              label: "Pay",
+              value: score(record.scores.willingnessToPay ?? record.willingnessToPayScore),
+              systemImage: "dollarsign.circle"
+            )
+          }
+          HStack(spacing: 6) {
+            WorkbenchMetric(
+              label: "Alternative", value: score(record.scores.alternativeAdvantage),
+              systemImage: "arrow.left.arrow.right")
+            WorkbenchMetric(
+              label: "Switch", value: score(record.scores.switchingReadiness),
+              systemImage: "arrow.triangle.2.circlepath")
+            WorkbenchMetric(
+              label: "Pull", value: score(record.scores.continuedUsePull),
+              systemImage: "repeat")
+          }
+          WorkbenchFact(label: "Evaluation", value: record.id)
+          WorkbenchFact(label: "Persona", value: "\(record.personaName) (\(record.personaID))")
+          WorkbenchFact(label: "Tournament", value: record.tournamentID)
+          WorkbenchFact(label: "Round", value: record.roundID)
+          WorkbenchFact(label: "Contender", value: record.contenderID)
+          WorkbenchFact(label: "Solution", value: record.solutionID)
+          if let experimentID = record.experimentID {
+            WorkbenchFact(label: "Track", value: experimentID)
+          }
+          WorkbenchFact(label: "Mode", value: record.mode.rawValue)
+          WorkbenchFact(label: "Model", value: record.model)
+          if let estimatedMonthlyPriceCents = record.estimatedMonthlyPriceCents {
+            WorkbenchFact(label: "Price", value: priceLabel(cents: estimatedMonthlyPriceCents))
+          }
+          if !record.currentAlternativeComparison.isEmpty {
+            WorkbenchFact(label: "Alternative", value: record.currentAlternativeComparison)
+          }
+          planEvaluationDetailList(label: "Strengths", values: record.planStrengths)
+          planEvaluationDetailList(label: "Risks", values: record.planRisks)
+          planEvaluationDetailList(label: "Objections", values: record.objections)
+          planEvaluationDetailList(label: "Missing", values: record.missingCapabilities)
+          planEvaluationDetailList(label: "Rationale", values: record.rationale)
+          Text(record.summary)
+            .font(.callout)
+            .textSelection(.enabled)
+        }
+      }
+    } else if let planEvaluationRecordError {
+      ContentUnavailableView(
+        "Plan Evaluation Unavailable",
+        systemImage: "exclamationmark.triangle",
+        description: Text(planEvaluationRecordError)
+      )
+    }
+  }
+
+  @ViewBuilder
+  private func planEvaluationDetailList(label: String, values: [String]) -> some View {
+    if !values.isEmpty {
+      VStack(alignment: .leading, spacing: 4) {
+        Text(label)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        ForEach(Array(values.prefix(5).enumerated()), id: \.offset) { _, value in
+          Text("- \(value)")
+            .font(.caption)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+  }
+
   @ViewBuilder
   private var selectedExperimentActions: some View {
     if let experiment = selectedExperiment {
@@ -1949,6 +2120,23 @@ struct ProductizationWorkbenchTab: View {
     } catch {
       selectedRecord = nil
       recordError = error.localizedDescription
+    }
+  }
+
+  private func loadSelectedPlanEvaluationRecord() {
+    guard let selectedPlanEvaluationID else {
+      selectedPlanEvaluationRecord = nil
+      planEvaluationRecordError = nil
+      return
+    }
+    do {
+      selectedPlanEvaluationRecord = try project.readProductTournamentPlanEvaluationRecord(
+        id: selectedPlanEvaluationID
+      )
+      planEvaluationRecordError = nil
+    } catch {
+      selectedPlanEvaluationRecord = nil
+      planEvaluationRecordError = error.localizedDescription
     }
   }
 
@@ -2751,6 +2939,10 @@ struct ProductizationWorkbenchTab: View {
     )
     if let outcome {
       planEvaluationMessage = outcome.userMessage
+      if let latestRecordID = outcome.latestRecordID {
+        selectedPlanEvaluationID = latestRecordID
+        loadSelectedPlanEvaluationRecord()
+      }
     } else {
       planEvaluationMessage = project.errorMessage
     }

@@ -765,12 +765,57 @@ struct ProductizationEvidenceStoreTests {
       traceJSON: #"{"trace":true}"#,
       transcriptJSONL: #"{"raw":"persona transcript should stay out of prompts"}"#
     )
+    let tournament = try #require(config.tournaments.first)
+    let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let contender = try #require(config.tournamentContenders.first)
+    let planEvaluation = ProductTournamentPlanEvaluationRecord(
+      id: "smoke-plan-eval",
+      tournamentID: tournament.id,
+      roundID: planRound.id,
+      contenderID: contender.id,
+      solutionID: contender.solutionID,
+      experimentID: contender.experimentID,
+      painID: config.painHypotheses[0].id,
+      personaID: config.userSegments[0].id,
+      personaName: config.userSegments[0].name,
+      currentWorkflowID: config.currentWorkflows[0].id,
+      alternativeID: config.alternatives[0].id,
+      startedAt: 12,
+      endedAt: 13,
+      scores: ProductizationEvidenceScores(
+        painRecognition: 4,
+        workflowImprovement: 4,
+        alternativeAdvantage: 3,
+        switchingReadiness: 3,
+        continuedUsePull: 4,
+        willingnessToPay: 4
+      ),
+      willingnessToPayScore: 4,
+      estimatedMonthlyPriceCents: 4900,
+      objections: ["The buyer needs feasibility proof before sponsorship."],
+      currentAlternativeComparison: "The plan beats the spreadsheet if the core import works.",
+      verdict: .promising,
+      summary: "The plan evaluation found willingness to sponsor after feasibility proof.",
+      rationale: ["The plan directly attacks the weekly reporting pain."],
+      planStrengths: ["Clear buyer pain and workflow relief"],
+      planRisks: ["Import feasibility remains unproven"],
+      promptVersions: ["test.plan"]
+    )
+    let storedPlanEvaluation = try workspace.writeProductTournamentPlanEvaluationRecord(
+      planEvaluation
+    )
 
     let project = CompassProject(repoURL: root)
     await project.refresh()
 
     try #require(project.productizationConfig.experiments[0].decision == .keepGoing)
     try #require(project.productizationEvidenceIndex.summaries.map(\.runID) == ["smoke-run"])
+    try #require(
+      project.productizationEvidenceIndex.planEvaluationSummaries.map(\.evaluationID)
+        == ["smoke-plan-eval"])
+    try #require(
+      try project.readProductTournamentPlanEvaluationRecord(id: "smoke-plan-eval")
+        == storedPlanEvaluation)
     _ = ProductizationWorkbenchTab(project: project).body
 
     let prompt = try Prompts.planPrompt(

@@ -110,13 +110,14 @@ contenders, rounds, solution bets, experiment branches, scenarios, and decisions
 `.compass/productization/` for `evidence-index.json` and separate run artifacts
 for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
 Tournament workbench lists pain hypotheses, contenders, rounds, implementation
-tracks, Round 1 plan evaluations, scenario runs, feedback scores, objections,
-missing capabilities, failure kinds, decision history, and copyable Markdown
-summaries. Later-round scenario evidence is stamped with tournament, round, and
-contender IDs when a narrowed contender is active in Round 2 or Round 3, so
-agentic-user feedback remains comparable across tournament rounds. The workbench
-can apply the best actionable Round 1 and Round 2 recommendations to stored
-tournament state. Plan and Reflect receive only a compact advisory summary:
+tracks, selectable Round 1 plan evaluations with buyer objections and
+willingness-to-pay rationale, scenario runs, feedback scores, objections, missing
+capabilities, failure kinds, decision history, and copyable Markdown summaries.
+Later-round scenario evidence is stamped with tournament, round, and contender
+IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
+feedback remains comparable across tournament rounds. The workbench can apply the
+best actionable Round 1 and Round 2 recommendations to stored tournament state.
+Plan and Reflect receive only a compact advisory summary:
 current tournament round, contender plans, Round 1 plan readiness,
 willingness-to-pay signals, Round 2 feasibility handoffs and evidence
 transitions, Round 3 prototype winner recommendations, latest evidence per active
