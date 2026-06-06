@@ -4,14 +4,14 @@ enum ProductTournamentRoundEvidenceRecommendation: String, Codable, CaseIterable
   Sendable
 {
   case gatherEvidence = "gather_evidence"
-  case advanceToPrototype = "advance_to_prototype"
+  case advanceToProductImplementation = "advance_to_product_implementation"
   case reviseCoreTechnology = "revise_core_technology"
   case eliminate
 
   var title: String {
     switch self {
     case .gatherEvidence: return "Gather Evidence"
-    case .advanceToPrototype: return "Advance"
+    case .advanceToProductImplementation: return "Advance"
     case .reviseCoreTechnology: return "Revise"
     case .eliminate: return "Eliminate"
     }
@@ -53,7 +53,7 @@ struct ProductTournamentRoundEvidenceTransitionProposal: Codable, Equatable, Ide
 
   var isActionable: Bool {
     switch recommendation {
-    case .advanceToPrototype, .reviseCoreTechnology, .eliminate:
+    case .advanceToProductImplementation, .reviseCoreTechnology, .eliminate:
       return true
     case .gatherEvidence:
       return false
@@ -83,7 +83,7 @@ struct ProductTournamentRoundEvidenceTransitionOutcome: Equatable, Sendable {
 
   var userMessage: String {
     switch proposal.recommendation {
-    case .advanceToPrototype:
+    case .advanceToProductImplementation:
       return
         "Advanced \(proposal.contenderTitle) to Round 3 product implementation from Round 2 feasibility evidence."
     case .reviseCoreTechnology:
@@ -103,7 +103,7 @@ enum ProductTournamentRoundEvidenceTransitionError: LocalizedError, Equatable {
   case unknownContender(String)
   case missingRoundEvidence(String)
   case recommendationNotActionable(String, ProductTournamentRoundEvidenceRecommendation)
-  case missingPrototypeRound(String)
+  case missingProductImplementationRound(String)
 
   var errorDescription: String? {
     switch self {
@@ -120,7 +120,7 @@ enum ProductTournamentRoundEvidenceTransitionError: LocalizedError, Equatable {
     case .recommendationNotActionable(let contenderID, let recommendation):
       return
         "Round 2 recommendation \(recommendation.rawValue) for contender \(contenderID) is not a tournament transition."
-    case .missingPrototypeRound(let tournamentID):
+    case .missingProductImplementationRound(let tournamentID):
       return "Product tournament \(tournamentID) has no Round 3 product implementation round."
     }
   }
@@ -223,17 +223,17 @@ enum ProductTournamentRoundEvidenceTransitioner {
     let destinationRoundID: String?
 
     switch proposal.recommendation {
-    case .advanceToPrototype:
-      let prototypeRound = try roundThreePrototypeRound(
+    case .advanceToProductImplementation:
+      let productImplementationRound = try roundThreeProductImplementationRound(
         for: tournament, after: round, config: config)
-      destinationRoundID = prototypeRound.id
+      destinationRoundID = productImplementationRound.id
       updateTournament(tournament.id, in: &next, timestamp: timestamp) { tournament in
-        tournament.currentRoundID = prototypeRound.id
+        tournament.currentRoundID = productImplementationRound.id
       }
       updateRound(round.id, in: &next, timestamp: timestamp) { round in
         round.status = .completed
       }
-      updateRound(prototypeRound.id, in: &next, timestamp: timestamp) { round in
+      updateRound(productImplementationRound.id, in: &next, timestamp: timestamp) { round in
         round.status = .active
         round.contenderIDs = [proposal.contenderID]
       }
@@ -491,7 +491,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
       && missingCapabilityCount == 0
       && repeatedObjectionCount == 0
     {
-      return .advanceToPrototype
+      return .advanceToProductImplementation
     }
     return .reviseCoreTechnology
   }
@@ -509,7 +509,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     let score = "\(Int(readinessScore.rounded()))"
     let averageLabel = format(averageScore)
     switch recommendation {
-    case .advanceToPrototype:
+    case .advanceToProductImplementation:
       return (
         "Advance to Round 3",
         "Readiness \(score)/100 with average feasibility evidence \(averageLabel)/5 across \(distinctPersonaCount) persona(s) and \(experienceUseProofCount) experience-use proof(s)."
@@ -521,7 +521,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
         : "mixed simulated-user pull"
       return (
         "Revise Core Technology",
-        "Readiness \(score)/100; \(blocker) before prototype fidelity."
+        "Readiness \(score)/100; \(blocker) before product implementation fidelity."
       )
     case .eliminate:
       return (
@@ -563,10 +563,11 @@ enum ProductTournamentRoundEvidenceTransitioner {
       lines.append("\(repeatedObjectionCount) repeated objection cluster(s) remain.")
     }
     switch recommendation {
-    case .advanceToPrototype:
+    case .advanceToProductImplementation:
       lines.append("Core technology evidence is strong enough to justify Round 3 fidelity.")
     case .reviseCoreTechnology:
-      lines.append("Core technology should be revised before increasing prototype fidelity.")
+      lines.append(
+        "Core technology should be revised before increasing product implementation fidelity.")
     case .eliminate:
       lines.append("Feasibility evidence is weak enough to stop this contender.")
     case .gatherEvidence:
@@ -640,7 +641,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
       .first
   }
 
-  private static func roundThreePrototypeRound(
+  private static func roundThreeProductImplementationRound(
     for tournament: ProductTournament,
     after round: ProductTournamentRound,
     config: ProductTournamentConfig
@@ -648,12 +649,12 @@ enum ProductTournamentRoundEvidenceTransitioner {
     let rounds = tournament.roundIDs.compactMap { roundID in
       config.tournamentRounds.first { $0.id == roundID }
     }
-    if let prototype = rounds.first(where: {
+    if let productImplementation = rounds.first(where: {
       $0.kind == .productImplementation && $0.ordinal > round.ordinal
     }) {
-      return prototype
+      return productImplementation
     }
-    throw ProductTournamentRoundEvidenceTransitionError.missingPrototypeRound(tournament.id)
+    throw ProductTournamentRoundEvidenceTransitionError.missingProductImplementationRound(tournament.id)
   }
 
   private static func priority(
@@ -661,7 +662,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     readinessScore: Double
   ) -> Int {
     switch recommendation {
-    case .advanceToPrototype:
+    case .advanceToProductImplementation:
       return 10_000 + Int(readinessScore.rounded())
     case .eliminate:
       return 8_000 + Int((100 - readinessScore).rounded())

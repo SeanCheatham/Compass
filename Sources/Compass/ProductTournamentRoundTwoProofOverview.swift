@@ -53,7 +53,7 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
 
   var displaySystemImage: String {
     switch recommendation {
-    case .advanceToPrototype:
+    case .advanceToProductImplementation:
       return "arrow.up.forward.circle"
     case .reviseCoreTechnology:
       return "hammer"

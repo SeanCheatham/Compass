@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Identifiable {
+struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, Sendable, Identifiable {
   var id: String { "\(roundID)-\(contenderID)" }
 
   var tournamentID: String
@@ -13,7 +13,7 @@ struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Id
   var branchName: String
   var worktreeID: String
   var prototypeScope: String
-  var recommendation: ProductTournamentPrototypeEvidenceRecommendation
+  var recommendation: ProductTournamentProductImplementationEvidenceRecommendation
   var readinessScore: Double
   var averageScore: Double
   var willingnessToPayScore: Double
@@ -21,7 +21,7 @@ struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Id
   var completedRunCount: Int
   var distinctPersonaCount: Int
   var currentAlternativeProofCount: Int
-  var prototypeUseProofCount: Int
+  var implementationUseProofCount: Int
   var missingCapabilityCount: Int
   var evidenceRunIDs: [String]
   var detail: String
@@ -36,7 +36,7 @@ struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Id
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
     return
-      "- round_3_product_implementation_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), branch \(branchName), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), prototype_use_proofs \(prototypeUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: prototype_scope \(Self.bounded(prototypeScope, limit: 220)); next \(Self.bounded(detail, limit: 220))."
+      "- round_3_product_implementation_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), branch \(branchName), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), implementation_use_proofs \(implementationUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: implementation_scope \(Self.bounded(prototypeScope, limit: 220)); next \(Self.bounded(detail, limit: 220))."
   }
 
   var displaySubtitle: String {
@@ -44,14 +44,14 @@ struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Id
   }
 
   var displayDetail: String {
-    "\(detail) Prototype: \(prototypeScope)"
+    "\(detail) Product implementation: \(prototypeScope)"
   }
 
   var displaySystemImage: String {
     switch recommendation {
     case .selectWinner:
       return "crown"
-    case .revisePrototype:
+    case .reviseImplementation:
       return "hammer"
     case .eliminate:
       return "xmark.octagon"
@@ -73,13 +73,13 @@ struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Id
       "Branch \(branchName)",
       "Worktree \(worktreeID)",
       displaySubtitle,
-      "Prototype scope: \(prototypeScope)",
+      "Implementation scope: \(prototypeScope)",
     ]
     if !evidenceRunIDs.isEmpty {
       parts.append("Evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))")
     }
     parts.append("\(currentAlternativeProofCount) current-alternative proof(s)")
-    parts.append("\(prototypeUseProofCount) prototype-use proof(s)")
+    parts.append("\(implementationUseProofCount) implementation-use proof(s)")
     parts.append("\(missingCapabilityCount) missing capability signal(s)")
     return parts.joined(separator: "\n")
   }
@@ -93,14 +93,14 @@ struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Id
   }
 }
 
-enum ProductTournamentRoundThreePrototypeOverview {
+enum ProductTournamentRoundThreeProductImplementationOverview {
   static func items(
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     limit: Int = 4
-  ) -> [ProductTournamentRoundThreePrototypeOverviewItem] {
+  ) -> [ProductTournamentRoundThreeProductImplementationOverviewItem] {
     guard limit > 0 else { return [] }
-    return ProductTournamentPrototypeEvidenceTransitioner.proposals(
+    return ProductTournamentProductImplementationEvidenceTransitioner.proposals(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -112,7 +112,7 @@ enum ProductTournamentRoundThreePrototypeOverview {
         let experimentID = contender.experimentID,
         let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
       else { return nil }
-      return ProductTournamentRoundThreePrototypeOverviewItem(
+      return ProductTournamentRoundThreeProductImplementationOverviewItem(
         tournamentID: proposal.tournamentID,
         roundID: proposal.roundID,
         roundTitle: proposal.roundTitle,
@@ -131,7 +131,7 @@ enum ProductTournamentRoundThreePrototypeOverview {
         completedRunCount: proposal.completedRunCount,
         distinctPersonaCount: proposal.distinctPersonaCount,
         currentAlternativeProofCount: proposal.currentAlternativeProofCount,
-        prototypeUseProofCount: proposal.prototypeUseProofCount,
+        implementationUseProofCount: proposal.implementationUseProofCount,
         missingCapabilityCount: proposal.missingCapabilityCount,
         evidenceRunIDs: proposal.evidenceRunIDs,
         detail: proposal.detail

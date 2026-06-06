@@ -274,7 +274,7 @@ enum ProductTournamentScenarioCoordinator {
       alternativeID: alternativeID,
       title: existingScenario?.title ?? "\(experiment.title) revision proof",
       task:
-        "Revise the product contender for \(targetName). Prototype change to inspect: \(brief.prototypeChange) Scenario change: \(brief.scenarioChange) Trigger: \(brief.triggerSummary)",
+        "Revise the product contender for \(targetName). Product implementation change to inspect: \(brief.implementationChange) Scenario change: \(brief.scenarioChange) Trigger: \(brief.triggerSummary)",
       successSignal:
         "The simulated user can say whether the revision resolved the original rationale. Proof plan: \(brief.proofPlan)",
       targetCommitSha: experiment.currentSha ?? experiment.baseSha,

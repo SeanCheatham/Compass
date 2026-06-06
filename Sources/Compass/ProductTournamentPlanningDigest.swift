@@ -28,11 +28,11 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     lines += roundEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
-    lines += ProductTournamentRoundThreePrototypeOverview.contextLines(
+    lines += ProductTournamentRoundThreeProductImplementationOverview.contextLines(
       config: config,
       evidenceIndex: evidenceIndex
     )
-    lines += prototypeEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
+    lines += productImplementationEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationCycleAuditLines(config: config)
     lines += tournamentAutomationPlanProofAuditLines(config: config)
     lines += TournamentPlanProofDeltaOverview.contextLines(
@@ -291,11 +291,11 @@ enum ProductTournamentPlanningDigestFormatter {
       + proposals.prefix(3).map { proposal in bounded(proposal.digestLine, 620) }
   }
 
-  private static func prototypeEvidenceTransitionLines(
+  private static func productImplementationEvidenceTransitionLines(
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
-    let proposals = ProductTournamentPrototypeEvidenceTransitioner.proposals(
+    let proposals = ProductTournamentProductImplementationEvidenceTransitioner.proposals(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -598,7 +598,7 @@ enum ProductTournamentPlanningDigestFormatter {
         metadata.append("target_decision \(targetDecision.rawValue)")
       }
       lines.append(
-        "- \(brief.experimentID): \(metadata.joined(separator: "; ")); \(bounded(brief.title, 140)); prototype \(bounded(brief.prototypeChange, 220)); scenario \(bounded(brief.scenarioChange, 220)); proof \(bounded(brief.proofPlan, 220))."
+        "- \(brief.experimentID): \(metadata.joined(separator: "; ")); \(bounded(brief.title, 140)); implementation \(bounded(brief.implementationChange, 220)); scenario \(bounded(brief.scenarioChange, 220)); proof \(bounded(brief.proofPlan, 220))."
       )
     }
     return lines

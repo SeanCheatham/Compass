@@ -33,14 +33,14 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var runningPlanEvaluationContenderID: String?
   @State private var isApplyingPlanTransition = false
   @State private var isApplyingRoundEvidenceTransition = false
-  @State private var isApplyingPrototypeEvidenceTransition = false
+  @State private var isApplyingProductImplementationEvidenceTransition = false
   @State private var isRunningTournamentStep = false
   @State private var isRunningTournamentAutomationCycle = false
   @State private var scenarioRunMessage: String?
   @State private var planEvaluationMessage: String?
   @State private var planTransitionMessage: String?
   @State private var roundEvidenceTransitionMessage: String?
-  @State private var prototypeEvidenceTransitionMessage: String?
+  @State private var productImplementationEvidenceTransitionMessage: String?
   @State private var contractAvailable: Bool?
 
   private var config: ProductTournamentConfig { project.productTournamentConfig }
@@ -117,7 +117,7 @@ struct ProductTournamentWorkbenchTab: View {
       .first
   }
 
-  private var activePrototypeRoundForEvidence: ProductTournamentRound? {
+  private var activeProductImplementationRoundForEvidence: ProductTournamentRound? {
     guard let tournament = activeTournamentForRoundEvidence else { return nil }
     if let currentRoundID = tournament.currentRoundID,
       let current = config.tournamentRounds.first(where: { $0.id == currentRoundID }),
@@ -143,7 +143,7 @@ struct ProductTournamentWorkbenchTab: View {
       && !isRunningPlanEvaluation
       && !isApplyingPlanTransition
       && !isApplyingRoundEvidenceTransition
-      && !isApplyingPrototypeEvidenceTransition
+      && !isApplyingProductImplementationEvidenceTransition
       && !isRunningTournamentStep
       && !isRunningTournamentAutomationCycle
       && !isRunningScenario
@@ -234,7 +234,7 @@ struct ProductTournamentWorkbenchTab: View {
     planTransitionProposal != nil
       && !isApplyingPlanTransition
       && !isApplyingRoundEvidenceTransition
-      && !isApplyingPrototypeEvidenceTransition
+      && !isApplyingProductImplementationEvidenceTransition
       && !isRunningPlanEvaluation
       && !isRunningTournamentStep
       && !isRunningTournamentAutomationCycle
@@ -253,7 +253,7 @@ struct ProductTournamentWorkbenchTab: View {
   private var roundEvidenceTransitionCanApply: Bool {
     roundEvidenceTransitionProposal != nil
       && !isApplyingRoundEvidenceTransition
-      && !isApplyingPrototypeEvidenceTransition
+      && !isApplyingProductImplementationEvidenceTransition
       && !isApplyingPlanTransition
       && !isRunningPlanEvaluation
       && !isRunningTournamentStep
@@ -261,27 +261,27 @@ struct ProductTournamentWorkbenchTab: View {
       && !isRunningScenario
   }
 
-  private var prototypeEvidenceTransitionProposal:
-    ProductTournamentPrototypeEvidenceTransitionProposal?
+  private var productImplementationEvidenceTransitionProposal:
+    ProductTournamentProductImplementationEvidenceTransitionProposal?
   {
-    ProductTournamentPrototypeEvidenceTransitioner.bestProposal(
+    ProductTournamentProductImplementationEvidenceTransitioner.bestProposal(
       tournamentID: activeTournamentForRoundEvidence?.id,
-      roundID: activePrototypeRoundForEvidence?.id,
+      roundID: activeProductImplementationRoundForEvidence?.id,
       config: config,
       evidenceIndex: evidenceIndex
     )
   }
 
-  private var roundThreePrototypeOverview: [ProductTournamentRoundThreePrototypeOverviewItem] {
-    ProductTournamentRoundThreePrototypeOverview.items(
+  private var roundThreeProductImplementationOverview: [ProductTournamentRoundThreeProductImplementationOverviewItem] {
+    ProductTournamentRoundThreeProductImplementationOverview.items(
       config: config,
       evidenceIndex: evidenceIndex
     )
   }
 
-  private var prototypeEvidenceTransitionCanApply: Bool {
-    prototypeEvidenceTransitionProposal != nil
-      && !isApplyingPrototypeEvidenceTransition
+  private var productImplementationEvidenceTransitionCanApply: Bool {
+    productImplementationEvidenceTransitionProposal != nil
+      && !isApplyingProductImplementationEvidenceTransition
       && !isApplyingRoundEvidenceTransition
       && !isApplyingPlanTransition
       && !isRunningPlanEvaluation
@@ -916,35 +916,35 @@ struct ProductTournamentWorkbenchTab: View {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
               Button {
-                Task { await applyPrototypeEvidenceTransition() }
+                Task { await applyProductImplementationEvidenceTransition() }
               } label: {
                 Label(
-                  isApplyingPrototypeEvidenceTransition ? "Applying" : "Apply Round 3",
+                  isApplyingProductImplementationEvidenceTransition ? "Applying" : "Apply Round 3",
                   systemImage: "checkmark.seal"
                 )
               }
               .buttonStyle(.bordered)
-              .disabled(!prototypeEvidenceTransitionCanApply)
+              .disabled(!productImplementationEvidenceTransitionCanApply)
               .help(
-                prototypeEvidenceTransitionProposal?.detail
+                productImplementationEvidenceTransitionProposal?.detail
                   ?? "No actionable Round 3 product implementation recommendation yet."
               )
 
-              if let prototypeEvidenceTransitionMessage {
-                Text(prototypeEvidenceTransitionMessage)
+              if let productImplementationEvidenceTransitionMessage {
+                Text(productImplementationEvidenceTransitionMessage)
                   .font(.caption)
                   .foregroundStyle(.secondary)
                   .lineLimit(2)
               }
             }
-            if !roundThreePrototypeOverview.isEmpty {
-              Text("Prototype Winner Proof")
+            if !roundThreeProductImplementationOverview.isEmpty {
+              Text("Product Implementation Winner Proof")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-              ForEach(roundThreePrototypeOverview.prefix(3)) { item in
-                roundThreePrototypeOverviewRow(item)
+              ForEach(roundThreeProductImplementationOverview.prefix(3)) { item in
+                roundThreeProductImplementationOverviewRow(item)
               }
-              if let proposal = prototypeEvidenceTransitionProposal {
+              if let proposal = productImplementationEvidenceTransitionProposal {
                 WorkbenchValueBlock(
                   title: proposal.title,
                   subtitle:
@@ -1348,8 +1348,8 @@ struct ProductTournamentWorkbenchTab: View {
     .help(item.helpSummary)
   }
 
-  private func roundThreePrototypeOverviewRow(
-    _ item: ProductTournamentRoundThreePrototypeOverviewItem
+  private func roundThreeProductImplementationOverviewRow(
+    _ item: ProductTournamentRoundThreeProductImplementationOverviewItem
   ) -> some View {
     Button {
       selectedExperimentID = item.experimentID
@@ -1373,7 +1373,7 @@ struct ProductTournamentWorkbenchTab: View {
             .foregroundStyle(.secondary)
             .lineLimit(2)
           WorkbenchFact(label: "Track", value: item.experimentID)
-          WorkbenchFact(label: "Prototype", value: item.prototypeScope)
+          WorkbenchFact(label: "Implementation", value: item.prototypeScope)
           WorkbenchFact(label: "Alternative proof", value: "\(item.currentAlternativeProofCount)")
           Text(item.displayDetail)
             .font(.caption)
@@ -1592,7 +1592,7 @@ struct ProductTournamentWorkbenchTab: View {
           }
           WorkbenchFact(label: "Experiment", value: brief.experimentID)
           WorkbenchFact(label: "Source", value: brief.displaySubtitle)
-          WorkbenchFact(label: "Prototype", value: brief.prototypeChange)
+          WorkbenchFact(label: "Implementation", value: brief.implementationChange)
           WorkbenchFact(label: "Scenario", value: brief.scenarioChange)
           WorkbenchFact(label: "Proof", value: brief.proofPlan)
           if let targetPersonaName = brief.targetPersonaName {
@@ -3609,20 +3609,20 @@ struct ProductTournamentWorkbenchTab: View {
     }
   }
 
-  private func applyPrototypeEvidenceTransition() async {
+  private func applyProductImplementationEvidenceTransition() async {
     guard let tournament = activeTournamentForRoundEvidence,
-      let round = activePrototypeRoundForEvidence
+      let round = activeProductImplementationRoundForEvidence
     else { return }
-    isApplyingPrototypeEvidenceTransition = true
-    defer { isApplyingPrototypeEvidenceTransition = false }
-    let outcome = await project.applyBestProductTournamentPrototypeEvidenceTransition(
+    isApplyingProductImplementationEvidenceTransition = true
+    defer { isApplyingProductImplementationEvidenceTransition = false }
+    let outcome = await project.applyBestProductTournamentProductImplementationEvidenceTransition(
       tournamentID: tournament.id,
       roundID: round.id
     )
     if let outcome {
-      prototypeEvidenceTransitionMessage = outcome.userMessage
+      productImplementationEvidenceTransitionMessage = outcome.userMessage
     } else {
-      prototypeEvidenceTransitionMessage = project.errorMessage
+      productImplementationEvidenceTransitionMessage = project.errorMessage
     }
   }
 

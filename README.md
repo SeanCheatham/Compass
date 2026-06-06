@@ -115,11 +115,11 @@ and advances them through rounds:
   implementation revision, or eliminate the remaining contender. A Round 3
   product implementation proof overview keeps the active contender's
   winner-readiness, willingness-to-pay, current-alternative proof,
-  prototype-use proof, persona breadth, missing capabilities, and next
+  implementation-use proof, persona breadth, missing capabilities, and next
   transition recommendation visible in both the Workbench and Product
   Tournament Context until the tournament winner is selected. Winner selection
-  requires three completed prototype-use proofs derived from completed traces,
-  along with current-alternative comparison and willingness-to-pay evidence.
+  requires three completed implementation-use proofs derived from completed
+  traces, along with current-alternative comparison and willingness-to-pay evidence.
   Workbench scenario-run rows and selected-run details expose whether each run
   counts as completed-use proof.
 
@@ -168,10 +168,11 @@ the exact focused proof action, such as buyer, price/ROI, persona, or plan proof
 and disable it once the contender is ready for the Round 2 feasibility transition.
 Tournament automation proof targets also surface those focused Round 1 actions
 with contender and round IDs, so Plan/Reflect can queue plan-only proof before a
-prototype or core-technology artifact exists. While the active tournament has no
-tournament experience evidence yet, automation turns that target into a runnable
-`run_plan_proof` step that executes focused model-free plan evidence first, then
-prefers Foundation Models persona-model plan proof before Round 1 transition
+product implementation or core-technology artifact exists. While the active
+tournament has no tournament experience evidence yet, automation turns that
+target into a runnable `run_plan_proof` step that executes focused model-free
+plan evidence first, then prefers Foundation Models persona-model plan proof
+before Round 1 transition
 when the contender only has deterministic plan evaluations. Both write Round 1
 plan-evaluation evidence for that contender. Cycle audits report the before/after
 Round 1 plan-proof debt for automation steps directly, so a focused plan run

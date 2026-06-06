@@ -4,7 +4,7 @@ import Testing
 @testable import Compass
 
 struct ProductTournamentRoundEvidenceTransitionTests {
-  @Test func strongFeasibilityEvidenceAdvancesContenderToPrototypeRound() throws {
+  @Test func strongFeasibilityEvidenceAdvancesContenderToProductImplementationRound() throws {
     let fixture = try roundTwoFixture()
     let records = try evidenceRecords(
       fixture: fixture,
@@ -32,8 +32,8 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       outcome.config.tournaments.first { $0.id == fixture.tournament.id })
     let updatedCoreRound = try #require(
       outcome.config.tournamentRounds.first { $0.id == fixture.coreRound.id })
-    let updatedPrototypeRound = try #require(
-      outcome.config.tournamentRounds.first { $0.id == fixture.prototypeRound.id })
+    let updatedProductImplementationRound = try #require(
+      outcome.config.tournamentRounds.first { $0.id == fixture.productImplementationRound.id })
     let updatedContender = try #require(
       outcome.config.tournamentContenders.first { $0.id == fixture.contender.id })
     let updatedExperiment = try #require(
@@ -56,31 +56,31 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       evidenceIndex: index
     )
 
-    try #require(proposal.recommendation == .advanceToPrototype)
+    try #require(proposal.recommendation == .advanceToProductImplementation)
     try #require(proofOverview.count == 1)
-    try #require(proofOverviewItem.recommendation == .advanceToPrototype)
+    try #require(proofOverviewItem.recommendation == .advanceToProductImplementation)
     try #require(proofOverviewItem.completedRunCount == 2)
     try #require(proofOverviewItem.distinctPersonaCount == 2)
     try #require(proofOverviewItem.experienceUseProofCount == 2)
     try #require(proofOverviewItem.evidenceRunIDs.contains("\(fixture.contender.id)-round-2-0"))
     try #require(proofOverviewItem.contextLine.contains("round_2_proof contender"))
     try #require(proofOverviewItem.contextLine.contains("core_technology_proof"))
-    try #require(proofOverviewItem.contextLine.contains("recommendation advance_to_prototype"))
+    try #require(proofOverviewItem.contextLine.contains("recommendation advance_to_product_implementation"))
     try #require(proofOverviewItem.contextLine.contains("experience_use_proofs 2"))
-    try #require(updatedTournament.currentRoundID == fixture.prototypeRound.id)
+    try #require(updatedTournament.currentRoundID == fixture.productImplementationRound.id)
     try #require(updatedCoreRound.status == .completed)
-    try #require(updatedPrototypeRound.status == .active)
-    try #require(updatedPrototypeRound.contenderIDs == [fixture.contender.id])
+    try #require(updatedProductImplementationRound.status == .active)
+    try #require(updatedProductImplementationRound.contenderIDs == [fixture.contender.id])
     try #require(updatedContender.status == .narrowed)
     try #require(updatedExperiment.decision == .keepGoing)
-    try #require(outcome.toRoundID == fixture.prototypeRound.id)
+    try #require(outcome.toRoundID == fixture.productImplementationRound.id)
     try #require(outcome.userMessage.contains("Round 3"))
     try #require(digest.contains("Round 2 core-technology proof overview"))
     try #require(digest.contains("round_2_proof contender \(fixture.contender.id)"))
-    try #require(digest.contains("recommendation advance_to_prototype"))
+    try #require(digest.contains("recommendation advance_to_product_implementation"))
     try #require(digest.contains("core_technology_proof"))
     try #require(digest.contains("Round 2 evidence transition"))
-    try #require(digest.contains("recommendation advance_to_prototype"))
+    try #require(digest.contains("recommendation advance_to_product_implementation"))
     try #require(postTransitionProofOverview.isEmpty)
     try #require(!postTransitionDigest.contains("Round 2 core-technology proof overview"))
   }
@@ -109,8 +109,8 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       outcome.config.tournaments.first { $0.id == fixture.tournament.id })
     let updatedContender = try #require(
       outcome.config.tournamentContenders.first { $0.id == fixture.contender.id })
-    let updatedPrototypeRound = try #require(
-      outcome.config.tournamentRounds.first { $0.id == fixture.prototypeRound.id })
+    let updatedProductImplementationRound = try #require(
+      outcome.config.tournamentRounds.first { $0.id == fixture.productImplementationRound.id })
     let updatedExperiment = try #require(
       outcome.config.tournamentExperiments.first { $0.id == fixture.experiment.id })
     let updatedProductTournamentContenderPlan = try #require(
@@ -119,7 +119,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(outcome.proposal.recommendation == .eliminate)
     try #require(updatedTournament.currentRoundID == fixture.coreRound.id)
     try #require(updatedContender.status == .eliminated)
-    try #require(!updatedPrototypeRound.contenderIDs.contains(fixture.contender.id))
+    try #require(!updatedProductImplementationRound.contenderIDs.contains(fixture.contender.id))
     try #require(updatedExperiment.decision == .kill)
     try #require(updatedProductTournamentContenderPlan.status == .rejected)
     try #require(outcome.toRoundID == nil)
@@ -307,7 +307,7 @@ private struct RoundTwoFixture {
   var config: ProductTournamentConfig
   var tournament: ProductTournament
   var coreRound: ProductTournamentRound
-  var prototypeRound: ProductTournamentRound
+  var productImplementationRound: ProductTournamentRound
   var contender: ProductTournamentContender
   var experiment: ProductTournamentExperiment
   var contenderPlan: ProductTournamentContenderPlan
@@ -322,7 +322,7 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
   let tournament = try #require(config.tournaments.first)
   let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
   let coreRound = try #require(config.tournamentRounds.first { $0.kind == .coreTechnology })
-  let prototypeRound = try #require(config.tournamentRounds.first { $0.kind == .productImplementation })
+  let productImplementationRound = try #require(config.tournamentRounds.first { $0.kind == .productImplementation })
   let contender = try #require(config.tournamentContenders.first)
   let experimentID = try #require(contender.experimentID)
   let experiment = try #require(config.tournamentExperiments.first { $0.id == experimentID })
@@ -337,7 +337,7 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
     config.tournamentRounds[index].status = .active
     config.tournamentRounds[index].contenderIDs = [contender.id]
   }
-  if let index = config.tournamentRounds.firstIndex(where: { $0.id == prototypeRound.id }) {
+  if let index = config.tournamentRounds.firstIndex(where: { $0.id == productImplementationRound.id }) {
     config.tournamentRounds[index].status = .planned
   }
   if let index = config.tournamentContenders.firstIndex(where: { $0.id == contender.id }) {
@@ -348,7 +348,7 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
     config: config,
     tournament: tournament,
     coreRound: coreRound,
-    prototypeRound: prototypeRound,
+    productImplementationRound: productImplementationRound,
     contender: contender,
     experiment: experiment,
     contenderPlan: contenderPlan

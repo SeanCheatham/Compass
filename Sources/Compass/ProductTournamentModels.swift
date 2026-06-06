@@ -199,7 +199,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let proofContenderID = "\(slug)-proof-contender"
     let planRoundID = "\(slug)-round-1-plans"
     let feasibilityRoundID = "\(slug)-round-2-feasibility"
-    let prototypeRoundID = "\(slug)-round-3-prototype"
+    let productImplementationRoundID = "\(slug)-round-3-product-implementation"
     let workflowExperimentID = "\(slug)-workflow-prototype"
     let proofExperimentID = "\(slug)-proof-prototype"
     let workflowOperatorScenarioID = "\(workflowExperimentID)-operator-starter-scenario"
@@ -575,7 +575,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         createdAt: timestamp
       ),
       ProductTournamentRound(
-        id: prototypeRoundID,
+        id: productImplementationRoundID,
         tournamentID: tournamentID,
         ordinal: 3,
         kind: .productImplementation,

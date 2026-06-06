@@ -1818,16 +1818,16 @@ struct ProductTournamentLoopTests {
     try #require(action.detail.contains("before lift/cut"))
     try #require(step.canExecute)
     try #require(step.action.title == "Resolve simulated-user rationale signal")
-    try #require(revisionBrief.title == "Revise prototype for simulated-user rationale")
+    try #require(revisionBrief.title == "Revise product implementation for simulated-user rationale")
     try #require(revisionBrief.targetPersonaID == buyer.id)
     try #require(revisionBrief.targetScenarioID == buyerScenario.id)
-    try #require(revisionBrief.prototypeChange.contains("proof artifact"))
+    try #require(revisionBrief.implementationChange.contains("proof artifact"))
     try #require(revisionBrief.scenarioChange.contains("Budget owner"))
     try #require(revisionBrief.proofPlan.contains("current alternative"))
     try #require(digest.contains("Tournament automation rationale signals"))
     try #require(digest.contains("Tournament automation revision briefs"))
     try #require(digest.contains("action revise_product_contender"))
-    try #require(digest.contains("prototype"))
+    try #require(digest.contains("implementation"))
     try #require(digest.contains("resolve_rationale_signal"))
     try #require(digest.contains("rationale-buyer"))
   }
@@ -1984,7 +1984,7 @@ struct ProductTournamentLoopTests {
     try #require(revisionStep.id.contains("apply_revision"))
     try #require(revisionStep.targetScenarioID == buyerScenario.id)
     try #require(revisionBrief.title == "Retarget contender revision for simulated-user rationale")
-    try #require(revisionBrief.prototypeChange.contains("same rationale survived"))
+    try #require(revisionBrief.implementationChange.contains("same rationale survived"))
     try #require(revisionBrief.proofPlan.contains("current alternative"))
     let revisionAudit = TournamentAutomationCycleAudit(
       id: "tournament-cycle-applied-revision",
@@ -2389,7 +2389,7 @@ struct ProductTournamentLoopTests {
     try #require(action.targetScenarioID == buyerScenario.id)
     try #require(action.targetDecision == .narrow)
     try #require(action.detail.contains("needed csv import proof"))
-    try #require(action.detail.contains("Update the prototype or scenario"))
+    try #require(action.detail.contains("Update the product implementation or scenario"))
     try #require(revisionBrief.targetDecision == .narrow)
     try #require(revisionBrief.auditSummary.contains("target_decision narrow"))
     try #require(signal.nextActionTitle == "Resolve simulated-user rationale signal")
@@ -2420,7 +2420,8 @@ struct ProductTournamentLoopTests {
         currentWorkflowID: workflow.id,
         alternativeID: alternative.id,
         title: "Buyer persona-model check",
-        task: "Use the prototype to decide whether the evidence is good enough to sponsor.",
+        task:
+          "Use the product implementation to decide whether the evidence is good enough to sponsor.",
         successSignal: "The buyer can make a clear continue or stop decision.",
         targetCommitSha: "head-sha",
         createdAt: 20
@@ -2560,7 +2561,8 @@ struct ProductTournamentLoopTests {
         currentWorkflowID: operatorScenario.currentWorkflowID,
         alternativeID: config.alternatives.first { $0.kind == .doNothing }?.id,
         title: "Buyer persona-model check",
-        task: "Use the prototype to decide whether the evidence is good enough to sponsor.",
+        task:
+          "Use the product implementation to decide whether the evidence is good enough to sponsor.",
         successSignal: "The buyer can make a clear continue or stop decision.",
         targetCommitSha: "head-sha",
         createdAt: 21
@@ -3896,7 +3898,7 @@ struct ProductTournamentLoopTests {
       endedAt: 200,
       verdict: .strongPull,
       scores: strongScores,
-      currentAlternativeComparison: "The prototype beat the spreadsheet.",
+      currentAlternativeComparison: "The product implementation beat the spreadsheet.",
       scenarioID: scenario.id,
       decisionIntent: ProductTournamentSimulationDecisionIntent(
         currentDecision: .keepGoing,
@@ -3965,7 +3967,7 @@ struct ProductTournamentLoopTests {
       endedAt: 200,
       verdict: .strongPull,
       scores: strongScores,
-      currentAlternativeComparison: "The prototype beat the spreadsheet.",
+      currentAlternativeComparison: "The product implementation beat the spreadsheet.",
       scenarioID: scenario.id,
       decisionIntent: ProductTournamentSimulationDecisionIntent(
         currentDecision: .keepGoing,
@@ -4466,7 +4468,7 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    let target = try activateRoundThreePrototypeTarget(in: &config)
+    let target = try activateRoundThreeProductImplementationTarget(in: &config)
     let experiment = try #require(
       config.tournamentExperiments.first { $0.id == target.experimentID })
     let records = scopedTournamentEvidenceRecords(
@@ -4808,11 +4810,11 @@ private func activateRoundTwoImplementationTarget(
   )
 }
 
-private func activateRoundThreePrototypeTarget(
+private func activateRoundThreeProductImplementationTarget(
   in config: inout ProductTournamentConfig
 ) throws -> ProductTournamentRoundImplementationTarget {
   let roundTwoTarget = try activateRoundTwoImplementationTarget(in: &config)
-  let prototypeRoundIndex = try #require(
+  let productImplementationRoundIndex = try #require(
     config.tournamentRounds.firstIndex {
       $0.tournamentID == roundTwoTarget.tournamentID && $0.kind == .productImplementation
     })
@@ -4822,14 +4824,14 @@ private func activateRoundThreePrototypeTarget(
     config.tournaments.firstIndex { $0.id == roundTwoTarget.tournamentID })
 
   config.tournamentRounds[coreRoundIndex].status = .completed
-  config.tournamentRounds[prototypeRoundIndex].status = .active
-  config.tournamentRounds[prototypeRoundIndex].contenderIDs = [roundTwoTarget.contenderID]
+  config.tournamentRounds[productImplementationRoundIndex].status = .active
+  config.tournamentRounds[productImplementationRoundIndex].contenderIDs = [roundTwoTarget.contenderID]
   config.tournaments[tournamentIndex].currentRoundID =
-    config.tournamentRounds[prototypeRoundIndex].id
+    config.tournamentRounds[productImplementationRoundIndex].id
 
   return ProductTournamentRoundImplementationTarget(
     tournamentID: roundTwoTarget.tournamentID,
-    roundID: config.tournamentRounds[prototypeRoundIndex].id,
+    roundID: config.tournamentRounds[productImplementationRoundIndex].id,
     contenderID: roundTwoTarget.contenderID,
     experimentID: roundTwoTarget.experimentID
   )

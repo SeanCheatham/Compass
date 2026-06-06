@@ -1,24 +1,24 @@
 import Foundation
 
-enum ProductTournamentPrototypeEvidenceRecommendation: String, Codable, CaseIterable, Equatable,
+enum ProductTournamentProductImplementationEvidenceRecommendation: String, Codable, CaseIterable, Equatable,
   Sendable
 {
   case gatherEvidence = "gather_evidence"
   case selectWinner = "select_winner"
-  case revisePrototype = "revise_prototype"
+  case reviseImplementation = "revise_implementation"
   case eliminate
 
   var title: String {
     switch self {
     case .gatherEvidence: return "Gather Evidence"
     case .selectWinner: return "Select Winner"
-    case .revisePrototype: return "Revise"
+    case .reviseImplementation: return "Revise"
     case .eliminate: return "Eliminate"
     }
   }
 }
 
-struct ProductTournamentPrototypeEvidenceTransitionProposal: Codable, Equatable, Identifiable,
+struct ProductTournamentProductImplementationEvidenceTransitionProposal: Codable, Equatable, Identifiable,
   Sendable
 {
   var id: String {
@@ -30,7 +30,7 @@ struct ProductTournamentPrototypeEvidenceTransitionProposal: Codable, Equatable,
   var roundTitle: String
   var contenderID: String
   var contenderTitle: String
-  var recommendation: ProductTournamentPrototypeEvidenceRecommendation
+  var recommendation: ProductTournamentProductImplementationEvidenceRecommendation
   var readinessScore: Double
   var averageScore: Double
   var willingnessToPayScore: Double
@@ -39,7 +39,7 @@ struct ProductTournamentPrototypeEvidenceTransitionProposal: Codable, Equatable,
   var failedRunCount: Int
   var distinctPersonaCount: Int
   var currentAlternativeProofCount: Int
-  var prototypeUseProofCount: Int
+  var implementationUseProofCount: Int
   var strongOrPromisingCount: Int
   var weakOrRejectedCount: Int
   var missingCapabilityCount: Int
@@ -55,7 +55,7 @@ struct ProductTournamentPrototypeEvidenceTransitionProposal: Codable, Equatable,
 
   var isActionable: Bool {
     switch recommendation {
-    case .selectWinner, .revisePrototype, .eliminate:
+    case .selectWinner, .reviseImplementation, .eliminate:
       return true
     case .gatherEvidence:
       return false
@@ -68,7 +68,7 @@ struct ProductTournamentPrototypeEvidenceTransitionProposal: Codable, Equatable,
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
     return
-      "- round_3_product_implementation contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), prototype_use_proofs \(prototypeUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
+      "- round_3_product_implementation contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), implementation_use_proofs \(implementationUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
   }
 
   private static func format(_ value: Double) -> String {
@@ -76,8 +76,8 @@ struct ProductTournamentPrototypeEvidenceTransitionProposal: Codable, Equatable,
   }
 }
 
-struct ProductTournamentPrototypeEvidenceTransitionOutcome: Equatable, Sendable {
-  var proposal: ProductTournamentPrototypeEvidenceTransitionProposal
+struct ProductTournamentProductImplementationEvidenceTransitionOutcome: Equatable, Sendable {
+  var proposal: ProductTournamentProductImplementationEvidenceTransitionProposal
   var config: ProductTournamentConfig
   var affectedContenderIDs: [String]
   var fromRoundID: String
@@ -88,7 +88,7 @@ struct ProductTournamentPrototypeEvidenceTransitionOutcome: Equatable, Sendable 
     case .selectWinner:
       return
         "Selected \(proposal.contenderTitle) as the product tournament winner from Round 3 product implementation evidence."
-    case .revisePrototype:
+    case .reviseImplementation:
       return "Marked \(proposal.contenderTitle) for Round 3 product implementation revision."
     case .eliminate:
       return "Eliminated \(proposal.contenderTitle) after Round 3 product implementation evidence."
@@ -99,13 +99,13 @@ struct ProductTournamentPrototypeEvidenceTransitionOutcome: Equatable, Sendable 
   }
 }
 
-enum ProductTournamentPrototypeEvidenceTransitionError: LocalizedError, Equatable {
+enum ProductTournamentProductImplementationEvidenceTransitionError: LocalizedError, Equatable {
   case unknownTournament(String)
   case unknownRound(String)
   case unsupportedRound(String)
   case unknownContender(String)
-  case missingPrototypeEvidence(String)
-  case recommendationNotActionable(String, ProductTournamentPrototypeEvidenceRecommendation)
+  case missingProductImplementationEvidence(String)
+  case recommendationNotActionable(String, ProductTournamentProductImplementationEvidenceRecommendation)
 
   var errorDescription: String? {
     switch self {
@@ -117,7 +117,7 @@ enum ProductTournamentPrototypeEvidenceTransitionError: LocalizedError, Equatabl
       return "Product tournament round \(id) is not a product implementation round."
     case .unknownContender(let id):
       return "Product tournament contender \(id) was not found."
-    case .missingPrototypeEvidence(let contenderID):
+    case .missingProductImplementationEvidence(let contenderID):
       return "No scoped Round 3 product implementation evidence exists for contender \(contenderID)."
     case .recommendationNotActionable(let contenderID, let recommendation):
       return
@@ -126,14 +126,14 @@ enum ProductTournamentPrototypeEvidenceTransitionError: LocalizedError, Equatabl
   }
 }
 
-enum ProductTournamentPrototypeEvidenceTransitioner {
+enum ProductTournamentProductImplementationEvidenceTransitioner {
   static func proposals(
     tournamentID: String? = nil,
     roundID: String? = nil,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
-  ) -> [ProductTournamentPrototypeEvidenceTransitionProposal] {
-    activePrototypeRounds(
+  ) -> [ProductTournamentProductImplementationEvidenceTransitionProposal] {
+    activeProductImplementationRounds(
       tournamentID: tournamentID,
       roundID: roundID,
       config: config
@@ -160,7 +160,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     roundID: String? = nil,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
-  ) -> ProductTournamentPrototypeEvidenceTransitionProposal? {
+  ) -> ProductTournamentProductImplementationEvidenceTransitionProposal? {
     proposals(
       tournamentID: tournamentID,
       roundID: roundID,
@@ -176,7 +176,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     to config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     now: Date = Date()
-  ) throws -> ProductTournamentPrototypeEvidenceTransitionOutcome {
+  ) throws -> ProductTournamentProductImplementationEvidenceTransitionOutcome {
     guard
       let proposal = bestProposal(
         tournamentID: tournamentID,
@@ -188,35 +188,35 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       let contenderID =
         selectedTournament(tournamentID: tournamentID, config: config)?.contenderIDs.first
         ?? "unknown"
-      throw ProductTournamentPrototypeEvidenceTransitionError.missingPrototypeEvidence(contenderID)
+      throw ProductTournamentProductImplementationEvidenceTransitionError.missingProductImplementationEvidence(contenderID)
     }
     return try apply(proposal: proposal, to: config, now: now)
   }
 
   static func apply(
-    proposal: ProductTournamentPrototypeEvidenceTransitionProposal,
+    proposal: ProductTournamentProductImplementationEvidenceTransitionProposal,
     to config: ProductTournamentConfig,
     now: Date = Date()
-  ) throws -> ProductTournamentPrototypeEvidenceTransitionOutcome {
+  ) throws -> ProductTournamentProductImplementationEvidenceTransitionOutcome {
     guard proposal.isActionable else {
-      throw ProductTournamentPrototypeEvidenceTransitionError.recommendationNotActionable(
+      throw ProductTournamentProductImplementationEvidenceTransitionError.recommendationNotActionable(
         proposal.contenderID,
         proposal.recommendation
       )
     }
     guard let tournament = config.tournaments.first(where: { $0.id == proposal.tournamentID })
     else {
-      throw ProductTournamentPrototypeEvidenceTransitionError.unknownTournament(
+      throw ProductTournamentProductImplementationEvidenceTransitionError.unknownTournament(
         proposal.tournamentID)
     }
     guard let round = config.tournamentRounds.first(where: { $0.id == proposal.roundID }) else {
-      throw ProductTournamentPrototypeEvidenceTransitionError.unknownRound(proposal.roundID)
+      throw ProductTournamentProductImplementationEvidenceTransitionError.unknownRound(proposal.roundID)
     }
     guard round.kind == .productImplementation else {
-      throw ProductTournamentPrototypeEvidenceTransitionError.unsupportedRound(round.id)
+      throw ProductTournamentProductImplementationEvidenceTransitionError.unsupportedRound(round.id)
     }
     guard config.tournamentContenders.contains(where: { $0.id == proposal.contenderID }) else {
-      throw ProductTournamentPrototypeEvidenceTransitionError.unknownContender(
+      throw ProductTournamentProductImplementationEvidenceTransitionError.unknownContender(
         proposal.contenderID)
     }
 
@@ -261,7 +261,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
         contenderPlan.status = .promoted
       }
 
-    case .revisePrototype:
+    case .reviseImplementation:
       updateTournament(tournament.id, in: &next, timestamp: timestamp) { tournament in
         tournament.status = .active
         tournament.currentRoundID = round.id
@@ -298,7 +298,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       break
     }
 
-    return ProductTournamentPrototypeEvidenceTransitionOutcome(
+    return ProductTournamentProductImplementationEvidenceTransitionOutcome(
       proposal: proposal,
       config: next,
       affectedContenderIDs: affectedContenderIDs,
@@ -312,12 +312,12 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     round: ProductTournamentRound,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
-  ) -> [ProductTournamentPrototypeEvidenceTransitionProposal] {
+  ) -> [ProductTournamentProductImplementationEvidenceTransitionProposal] {
     let contenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
     return contenderIDs.compactMap { contenderID in
       guard
         let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
-        contender.isRoundThreePrototypeTransitionCandidate
+        contender.isRoundThreeProductImplementationTransitionCandidate
       else { return nil }
       let summaries = evidenceIndex.summaries.filter {
         $0.tournamentID == tournament.id
@@ -338,7 +338,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     tournament: ProductTournament,
     round: ProductTournamentRound,
     contender: ProductTournamentContender
-  ) -> ProductTournamentPrototypeEvidenceTransitionProposal {
+  ) -> ProductTournamentProductImplementationEvidenceTransitionProposal {
     let summaries = rawSummaries.sorted { lhs, rhs in
       if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
       return lhs.endedAt > rhs.endedAt
@@ -347,7 +347,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     let failedCount = summaries.count - completed.count
     let distinctPersonaCount = Set(completed.map(\.personaID).filter { !$0.isEmpty }).count
     let currentAlternativeProofCount = completed.filter(hasCurrentAlternativeProof).count
-    let prototypeUseProofCount = completed.filter(hasPrototypeUseProof).count
+    let implementationUseProofCount = completed.filter(hasImplementationUseProof).count
     let scoreValues = completed.flatMap { summary in
       [
         summary.scores.painRecognition,
@@ -392,7 +392,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       completedRunCount: completed.count,
       distinctPersonaCount: distinctPersonaCount,
       currentAlternativeProofCount: currentAlternativeProofCount,
-      prototypeUseProofCount: prototypeUseProofCount,
+      implementationUseProofCount: implementationUseProofCount,
       readinessScore: readinessScore,
       averageScore: averageScore,
       willingnessToPayScore: willingnessToPayScore,
@@ -411,11 +411,11 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       runCount: summaries.count,
       distinctPersonaCount: distinctPersonaCount,
       currentAlternativeProofCount: currentAlternativeProofCount,
-      prototypeUseProofCount: prototypeUseProofCount,
+      implementationUseProofCount: implementationUseProofCount,
       missingCapabilityCount: missingCapabilityCount
     )
 
-    return ProductTournamentPrototypeEvidenceTransitionProposal(
+    return ProductTournamentProductImplementationEvidenceTransitionProposal(
       tournamentID: tournament.id,
       roundID: round.id,
       roundTitle: round.title,
@@ -430,7 +430,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       failedRunCount: failedCount,
       distinctPersonaCount: distinctPersonaCount,
       currentAlternativeProofCount: currentAlternativeProofCount,
-      prototypeUseProofCount: prototypeUseProofCount,
+      implementationUseProofCount: implementationUseProofCount,
       strongOrPromisingCount: strongCount,
       weakOrRejectedCount: weakCount,
       missingCapabilityCount: missingCapabilityCount,
@@ -443,7 +443,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
         runCount: summaries.count,
         distinctPersonaCount: distinctPersonaCount,
         currentAlternativeProofCount: currentAlternativeProofCount,
-        prototypeUseProofCount: prototypeUseProofCount,
+        implementationUseProofCount: implementationUseProofCount,
         readinessScore: readinessScore,
         averageScore: averageScore,
         willingnessToPayScore: willingnessToPayScore,
@@ -506,7 +506,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     completedRunCount: Int,
     distinctPersonaCount: Int,
     currentAlternativeProofCount: Int,
-    prototypeUseProofCount: Int,
+    implementationUseProofCount: Int,
     readinessScore: Double,
     averageScore: Double,
     willingnessToPayScore: Double,
@@ -514,7 +514,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     weakOrRejectedCount: Int,
     missingCapabilityCount: Int,
     repeatedObjectionCount: Int
-  ) -> ProductTournamentPrototypeEvidenceRecommendation {
+  ) -> ProductTournamentProductImplementationEvidenceRecommendation {
     guard completedRunCount > 0 else { return .gatherEvidence }
     if completedRunCount >= 2
       && (readinessScore <= 30 || averageScore > 0 && averageScore <= 2.2
@@ -523,7 +523,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       return .eliminate
     }
     if completedRunCount < 3 || distinctPersonaCount < 2 || currentAlternativeProofCount < 2
-      || prototypeUseProofCount < 3
+      || implementationUseProofCount < 3
     {
       return .gatherEvidence
     }
@@ -536,11 +536,11 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     {
       return .selectWinner
     }
-    return .revisePrototype
+    return .reviseImplementation
   }
 
   private static func copy(
-    recommendation: ProductTournamentPrototypeEvidenceRecommendation,
+    recommendation: ProductTournamentProductImplementationEvidenceRecommendation,
     readinessScore: Double,
     averageScore: Double,
     willingnessToPayScore: Double,
@@ -548,7 +548,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     runCount: Int,
     distinctPersonaCount: Int,
     currentAlternativeProofCount: Int,
-    prototypeUseProofCount: Int,
+    implementationUseProofCount: Int,
     missingCapabilityCount: Int
   ) -> (String, String) {
     let score = "\(Int(readinessScore.rounded()))"
@@ -558,15 +558,15 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     case .selectWinner:
       return (
         "Select Tournament Winner",
-        "Readiness \(score)/100 with prototype score \(averageLabel)/5, willingness to pay \(payLabel)/5, and \(prototypeUseProofCount) prototype-use proof(s)."
+        "Readiness \(score)/100 with implementation score \(averageLabel)/5, willingness to pay \(payLabel)/5, and \(implementationUseProofCount) implementation-use proof(s)."
       )
-    case .revisePrototype:
+    case .reviseImplementation:
       let blocker =
         missingCapabilityCount > 0
         ? "\(missingCapabilityCount) missing capability signal(s)"
-        : "mixed prototype pull"
+        : "mixed implementation pull"
       return (
-        "Revise Prototype",
+        "Revise Implementation",
         "Readiness \(score)/100; \(blocker) before selecting a winner."
       )
     case .eliminate:
@@ -577,7 +577,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     case .gatherEvidence:
       return (
         "Gather More Evidence",
-        "\(completedRunCount) completed of \(runCount) run(s), \(distinctPersonaCount) persona(s), \(currentAlternativeProofCount) current-alternative proof(s), \(prototypeUseProofCount) prototype-use proof(s); Round 3 needs broader winner evidence."
+        "\(completedRunCount) completed of \(runCount) run(s), \(distinctPersonaCount) persona(s), \(currentAlternativeProofCount) current-alternative proof(s), \(implementationUseProofCount) implementation-use proof(s); Round 3 needs broader winner evidence."
       )
     }
   }
@@ -587,24 +587,24 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     runCount: Int,
     distinctPersonaCount: Int,
     currentAlternativeProofCount: Int,
-    prototypeUseProofCount: Int,
+    implementationUseProofCount: Int,
     readinessScore: Double,
     averageScore: Double,
     willingnessToPayScore: Double,
     missingCapabilityCount: Int,
     repeatedObjectionCount: Int,
-    recommendation: ProductTournamentPrototypeEvidenceRecommendation
+    recommendation: ProductTournamentProductImplementationEvidenceRecommendation
   ) -> [String] {
     var lines = [
       "\(completedRunCount) completed of \(runCount) Round 3 run(s) across \(distinctPersonaCount) persona(s)."
     ]
     lines.append("\(currentAlternativeProofCount) run(s) compare against the current alternative.")
     lines.append(
-      "\(prototypeUseProofCount) run(s) completed the expected tournament experience trace before judging the prototype."
+      "\(implementationUseProofCount) run(s) completed the expected tournament experience trace before judging the implementation."
     )
     if averageScore > 0 {
       lines.append(
-        "Average prototype score \(format(averageScore))/5; readiness \(format(readinessScore))/100."
+        "Average implementation score \(format(averageScore))/5; readiness \(format(readinessScore))/100."
       )
     }
     if willingnessToPayScore > 0 {
@@ -618,18 +618,18 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     }
     switch recommendation {
     case .selectWinner:
-      lines.append("Prototype evidence is strong enough to select a tournament winner.")
-    case .revisePrototype:
-      lines.append("Prototype evidence needs a revision before winner selection.")
+      lines.append("Product implementation evidence is strong enough to select a tournament winner.")
+    case .reviseImplementation:
+      lines.append("Product implementation evidence needs a revision before winner selection.")
     case .eliminate:
-      lines.append("Prototype evidence is weak enough to stop this contender.")
+      lines.append("Product implementation evidence is weak enough to stop this contender.")
     case .gatherEvidence:
       lines.append("Run more scoped Round 3 scenarios before selecting a winner.")
     }
     return lines
   }
 
-  private static func activePrototypeRounds(
+  private static func activeProductImplementationRounds(
     tournamentID: String?,
     roundID: String?,
     config: ProductTournamentConfig
@@ -691,7 +691,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
   }
 
   private static func priority(
-    for recommendation: ProductTournamentPrototypeEvidenceRecommendation,
+    for recommendation: ProductTournamentProductImplementationEvidenceRecommendation,
     readinessScore: Double
   ) -> Int {
     switch recommendation {
@@ -699,7 +699,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       return 10_000 + Int(readinessScore.rounded())
     case .eliminate:
       return 8_000 + Int((100 - readinessScore).rounded())
-    case .revisePrototype:
+    case .reviseImplementation:
       return 6_000 + Int((100 - readinessScore).rounded())
     case .gatherEvidence:
       return Int(readinessScore.rounded())
@@ -725,7 +725,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       && !comparison.contains("no current-alternative comparison")
   }
 
-  private static func hasPrototypeUseProof(_ summary: ProductTournamentEvidenceSummary) -> Bool {
+  private static func hasImplementationUseProof(_ summary: ProductTournamentEvidenceSummary) -> Bool {
     summary.completedUseProof
   }
 
@@ -831,10 +831,10 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
 
 @MainActor
 extension CompassProject {
-  func applyBestProductTournamentPrototypeEvidenceTransition(
+  func applyBestProductTournamentProductImplementationEvidenceTransition(
     tournamentID: String? = nil,
     roundID: String? = nil
-  ) async -> ProductTournamentPrototypeEvidenceTransitionOutcome? {
+  ) async -> ProductTournamentProductImplementationEvidenceTransitionOutcome? {
     do {
       guard let workspace else {
         fail(AppModelError.noRepositorySelected)
@@ -842,7 +842,7 @@ extension CompassProject {
       }
       let config = try workspace.readProductTournamentConfig()
       let evidenceIndex = workspace.readProductTournamentEvidenceIndex()
-      let outcome = try ProductTournamentPrototypeEvidenceTransitioner.applyBestProposal(
+      let outcome = try ProductTournamentProductImplementationEvidenceTransitioner.applyBestProposal(
         tournamentID: tournamentID,
         roundID: roundID,
         to: config,
@@ -861,7 +861,7 @@ extension CompassProject {
 }
 
 extension ProductTournamentContender {
-  fileprivate var isRoundThreePrototypeTransitionCandidate: Bool {
+  fileprivate var isRoundThreeProductImplementationTransitionCandidate: Bool {
     switch status {
     case .narrowed, .needsRevision:
       return true

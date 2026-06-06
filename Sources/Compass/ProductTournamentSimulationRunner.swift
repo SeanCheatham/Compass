@@ -520,7 +520,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
 
       You are simulating a skeptical target user, not helping the product team.
       Pick the next action the persona would actually take while evaluating
-      whether this prototype beats the current workflow.
+      whether this product implementation beats the current workflow.
       Do not advance toward success just because an action is available; prefer
       actions that expose switching objections, missing capability proof, or
       reasons the user would keep the current alternative.
@@ -535,7 +535,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
       Alternatives: \(bounded(alternatives, 500)).
       Contender: \(bounded(request.contender.title, 160)); \(bounded(request.contender.valueProposition, 500)).
       Required proof: \(bounded(requiredProof, 500)).
-      Prototype scope: \(bounded(request.experiment.prototypeScope, 500)).
+      Implementation scope: \(bounded(request.experiment.prototypeScope, 500)).
       \(bounded(decisionIntent, 700)).
       Scenario task: \(bounded(request.scenarioTask, 500)).
       Scenario success signal: \(bounded(request.scenarioSuccessSignal, 400)).
@@ -546,7 +546,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
       Tournament scorecard to stress-test: pain recognition, workflow improvement,
       alternative advantage, switching readiness, continued-use pull.
       A good simulated user action should increase evidence for one of those
-      dimensions or reveal why the prototype fails it.
+      dimensions or reveal why the product implementation fails it.
       \(repairNote ?? "")
 
       Allowed actions:

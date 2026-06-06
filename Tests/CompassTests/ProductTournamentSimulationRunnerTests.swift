@@ -238,7 +238,7 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(stream.prompts[0].contains("Decision criteria"))
     try #require(stream.prompts[0].contains("Current workflow failure modes"))
     try #require(stream.prompts[0].contains("Required proof"))
-    try #require(stream.prompts[0].contains("Prototype scope"))
+    try #require(stream.prompts[0].contains("Implementation scope"))
     try #require(stream.prompts[0].contains("Scenario task"))
     try #require(stream.prompts[0].contains("Scenario success signal"))
     try #require(stream.prompts[0].contains("Tournament decision intent"))
@@ -504,13 +504,13 @@ private func defaultTournamentTrace(
       switchingObjectionReduced: actionIDs.contains("reduce_switching_objection"),
       willingnessToPayScore: actionIDs.contains("provide_requested_input") ? 4 : 2,
       sponsorshipIntent: actionIDs.contains("provide_requested_input")
-        ? "The simulated user would sponsor the Reporting Helper prototype."
+        ? "The simulated user would sponsor the Reporting Helper product implementation."
         : "The simulated user needs more proof before sponsorship.",
       missingCapabilityIDs: actionIDs.contains("provide_requested_input")
         ? [] : ["workflow_completion"],
       evidenceSummary: actionIDs.contains("provide_requested_input")
-        ? "The prototype completed the workflow and addressed the current alternative."
-        : "The prototype has not completed the workflow yet."
+        ? "The product implementation completed the workflow and addressed the current alternative."
+        : "The product implementation has not completed the workflow yet."
     )
   )
 }

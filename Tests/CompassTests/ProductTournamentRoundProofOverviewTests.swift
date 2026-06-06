@@ -20,7 +20,7 @@ struct ProductTournamentRoundProofOverviewTests {
         ],
         absentWorkbenchHeadings: [
           "Core Technology Proof",
-          "Prototype Winner Proof",
+          "Product Implementation Winner Proof",
         ]
       ),
       ProofOverviewCase(
@@ -36,15 +36,15 @@ struct ProductTournamentRoundProofOverviewTests {
         ],
         absentWorkbenchHeadings: [
           "Round 1 Proof Deltas",
-          "Prototype Winner Proof",
+          "Product Implementation Winner Proof",
         ]
       ),
       ProofOverviewCase(
-        name: "round-3-prototype",
+        name: "round-3-product-implementation",
         activeKind: .productImplementation,
         config: roundThreeConfig(),
         expectedDigestHeading: "Round 3 product implementation proof overview",
-        expectedWorkbenchHeading: "Prototype Winner Proof",
+        expectedWorkbenchHeading: "Product Implementation Winner Proof",
         expectedWorkbenchAccessibilityIDPrefix: "round-3-proof-overview-",
         absentDigestHeadings: [
           "Round 1 plan-proof contender overview",
@@ -139,7 +139,7 @@ private struct ProofOverviewCase {
       return [item.contextLine]
     case .productImplementation:
       let item = try #require(
-        ProductTournamentRoundThreePrototypeOverview.items(
+        ProductTournamentRoundThreeProductImplementationOverview.items(
           config: config,
           evidenceIndex: evidenceIndex
         ).first
@@ -174,7 +174,7 @@ private struct ProofOverviewCase {
       ]
     case .productImplementation:
       let item = try #require(
-        ProductTournamentRoundThreePrototypeOverview.items(
+        ProductTournamentRoundThreeProductImplementationOverview.items(
           config: config,
           evidenceIndex: evidenceIndex
         ).first
@@ -210,7 +210,7 @@ private func configWithActiveRound(
   let contender = try #require(config.tournamentContenders.first)
   let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
   let coreRound = try #require(config.tournamentRounds.first { $0.kind == .coreTechnology })
-  let prototypeRound = try #require(config.tournamentRounds.first { $0.kind == .productImplementation })
+  let productImplementationRound = try #require(config.tournamentRounds.first { $0.kind == .productImplementation })
 
   let activeRound: ProductTournamentRound
   switch activeKind {
@@ -219,7 +219,7 @@ private func configWithActiveRound(
   case .coreTechnology:
     activeRound = coreRound
   case .productImplementation:
-    activeRound = prototypeRound
+    activeRound = productImplementationRound
   }
 
   if let tournamentIndex = config.tournaments.firstIndex(where: { $0.id == tournament.id }) {

@@ -96,11 +96,11 @@ struct ProductTournamentScenarioRunTests {
     let brief = TournamentAutomationRevisionBrief(
       experimentID: experiment.id,
       source: .personaModelRationale,
-      title: "Revise prototype for simulated-user rationale",
+      title: "Revise product implementation for simulated-user rationale",
       priority: 86,
       triggerSummary:
         "Repeated simulated-user rationale appeared in 2 current runs: needed proof before switching.",
-      prototypeChange:
+      implementationChange:
         "make the proof artifact inspectable with source context and decision criteria.",
       scenarioChange:
         "Make Budget owner inspect the evidence trail before deciding whether to switch.",

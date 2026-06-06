@@ -1266,7 +1266,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetCohortID: target?.cohortID,
         requiredSimulationMode: .personaModel,
         summary:
-          "Targeted promotion proof contradicted promotion in \(count) run(s); narrow the contender or revise the prototype before asking for another lift proof."
+          "Targeted promotion proof contradicted promotion in \(count) run(s); narrow the contender or revise the product implementation before asking for another lift proof."
       )
     case .kill, .archived:
       let canRun = target?.scenarioID != nil && target?.cohortID != nil
@@ -1394,7 +1394,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
         targetScenarioID: target?.scenarioID,
         targetCohortID: target?.cohortID,
         summary:
-          "Targeted \(targetDecision.rawValue) proof supported reshaping this contender in \(count) run(s); revise the prototype and scenario before more lift/cut evidence."
+          "Targeted \(targetDecision.rawValue) proof supported reshaping this contender in \(count) run(s); revise the product implementation and scenario before more lift/cut evidence."
       )
     case .keepGoing, .notRun:
       return nil
@@ -1536,7 +1536,7 @@ enum TournamentAutomationRationaleSignalAdvisor {
     let rationaleText = aggregateSignal.rationale.trimmingCharacters(in: .whitespacesAndNewlines)
     let rationalePunctuation = rationaleText.hasSuffix(".") ? "" : "."
     let summary =
-      "Repeated simulated-user rationale appeared in \(aggregateSignal.count) current run(s): \(rationaleText)\(rationalePunctuation)\(targetLabel) Resolve this reason with prototype, scenario, or current-alternative proof before lift/cut."
+      "Repeated simulated-user rationale appeared in \(aggregateSignal.count) current run(s): \(rationaleText)\(rationalePunctuation)\(targetLabel) Resolve this reason with product implementation, scenario, or current-alternative proof before lift/cut."
     return TournamentAutomationRationaleSignal(
       experimentID: experiment.id,
       rationale: aggregateSignal.rationale,
@@ -1720,7 +1720,7 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
   var title: String
   var priority: Int
   var triggerSummary: String
-  var prototypeChange: String
+  var implementationChange: String
   var scenarioChange: String
   var proofPlan: String
   var targetPersonaID: String?
@@ -1738,7 +1738,7 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
   var displayDetail: String {
     var parts = [
       "Trigger: \(triggerSummary)",
-      "Prototype: \(prototypeChange)",
+      "Product implementation: \(implementationChange)",
       "Scenario: \(scenarioChange)",
       "Proof: \(proofPlan)",
     ]
@@ -1766,7 +1766,7 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
     if let targetCohortID {
       parts.append("cohort \(targetCohortID)")
     }
-    parts.append("prototype \(prototypeChange)")
+    parts.append("implementation \(implementationChange)")
     parts.append("proof \(proofPlan)")
     return StringUtils.boundedText(parts.joined(separator: "; "), limit: 420)
   }
@@ -1777,7 +1777,7 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
     title: String,
     priority: Int,
     triggerSummary: String,
-    prototypeChange: String,
+    implementationChange: String,
     scenarioChange: String,
     proofPlan: String,
     targetPersonaID: String? = nil,
@@ -1802,9 +1802,9 @@ struct TournamentAutomationRevisionBrief: Equatable, Sendable, Identifiable {
       fallback: "persona-model evidence found a contender revision trigger.",
       limit: 320
     )
-    self.prototypeChange = ProductTournamentModelText.cleanedText(
-      prototypeChange,
-      fallback: "Update the prototype to address the evidence trigger.",
+    self.implementationChange = ProductTournamentModelText.cleanedText(
+      implementationChange,
+      fallback: "Update the product implementation to address the evidence trigger.",
       limit: 360
     )
     self.scenarioChange = ProductTournamentModelText.cleanedText(
@@ -1889,7 +1889,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
       title: revision.title,
       priority: action?.priority ?? signal.urgencyScore,
       triggerSummary: signal.summary,
-      prototypeChange: revision.prototypeChange,
+      implementationChange: revision.implementationChange,
       scenarioChange: revision.scenarioChange,
       proofPlan: revision.proofPlan,
       targetPersonaID: signal.targetPersonaID,
@@ -1929,7 +1929,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
       title: revision.title,
       priority: action?.priority ?? signal.priority,
       triggerSummary: signal.summary,
-      prototypeChange: revision.prototypeChange,
+      implementationChange: revision.implementationChange,
       scenarioChange: revision.scenarioChange,
       proofPlan: revision.proofPlan,
       targetPersonaID: signal.targetPersonaID,
@@ -1943,7 +1943,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
 
   private struct RevisionPlan: Equatable, Sendable {
     var title: String
-    var prototypeChange: String
+    var implementationChange: String
     var scenarioChange: String
     var proofPlan: String
   }
@@ -1962,11 +1962,11 @@ enum TournamentAutomationRevisionBriefAdvisor {
       return RevisionPlan(
         title: isRetargeted
           ? "Retarget contender revision for simulated-user rationale"
-          : "Revise prototype for simulated-user rationale",
-        prototypeChange:
-          "\(retargetPrefix)add a visible import or spreadsheet handoff path that proves the prototype can absorb real current-workflow data.",
+          : "Revise product implementation for simulated-user rationale",
+        implementationChange:
+          "\(retargetPrefix)add a visible import or spreadsheet handoff path that proves the product implementation can absorb real current-workflow data.",
         scenarioChange:
-          "Ask \(targetName) to bring a realistic spreadsheet, CSV, or manual artifact into the scenario and judge whether the prototype preserves context.",
+          "Ask \(targetName) to bring a realistic spreadsheet, CSV, or manual artifact into the scenario and judge whether the product implementation preserves context.",
         proofPlan:
           "Rerun the targeted persona-model scenario and compare import effort, missing fields, and confidence against the manual spreadsheet alternative."
       )
@@ -1975,9 +1975,9 @@ enum TournamentAutomationRevisionBriefAdvisor {
       return RevisionPlan(
         title: isRetargeted
           ? "Retarget contender revision for simulated-user rationale"
-          : "Revise prototype for simulated-user rationale",
-        prototypeChange:
-          "\(retargetPrefix)add sponsor-facing proof of cost, risk reduction, or decision confidence directly in the prototype flow.",
+          : "Revise product implementation for simulated-user rationale",
+        implementationChange:
+          "\(retargetPrefix)add sponsor-facing proof of cost, risk reduction, or decision confidence directly in the product implementation flow.",
         scenarioChange:
           "Frame the next scenario around \(targetName)'s investment decision and require an explicit continue, narrow, kill, or promote rationale.",
         proofPlan:
@@ -1988,9 +1988,9 @@ enum TournamentAutomationRevisionBriefAdvisor {
       return RevisionPlan(
         title: isRetargeted
           ? "Retarget contender revision for simulated-user rationale"
-          : "Revise prototype for simulated-user rationale",
-        prototypeChange:
-          "\(retargetPrefix)make the proof artifact inspectable: show source context, decision criteria, and why the prototype beats the current workflow.",
+          : "Revise product implementation for simulated-user rationale",
+        implementationChange:
+          "\(retargetPrefix)make the proof artifact inspectable: show source context, decision criteria, and why the product implementation beats the current workflow.",
         scenarioChange:
           "Make \(targetName) inspect the evidence trail before choosing whether to switch or keep the current alternative.",
         proofPlan:
@@ -2001,11 +2001,11 @@ enum TournamentAutomationRevisionBriefAdvisor {
       return RevisionPlan(
         title: isRetargeted
           ? "Retarget contender revision for simulated-user rationale"
-          : "Revise prototype for simulated-user rationale",
-        prototypeChange:
+          : "Revise product implementation for simulated-user rationale",
+        implementationChange:
           "\(retargetPrefix)reduce switching friction by making the first successful workflow moment obvious and reversible.",
         scenarioChange:
-          "Put \(targetName) at the exact switching decision between the prototype and the current manual workflow.",
+          "Put \(targetName) at the exact switching decision between the product implementation and the current manual workflow.",
         proofPlan:
           "Rerun persona-model proof and compare setup effort, risk, and first-use value against the current alternative."
       )
@@ -2014,8 +2014,8 @@ enum TournamentAutomationRevisionBriefAdvisor {
       return RevisionPlan(
         title: isRetargeted
           ? "Retarget contender revision for simulated-user rationale"
-          : "Revise prototype for simulated-user rationale",
-        prototypeChange:
+          : "Revise product implementation for simulated-user rationale",
+        implementationChange:
           "\(retargetPrefix)remove ambiguity in the next action and expose the missing capability where the simulated user got stuck.",
         scenarioChange:
           "Rewrite the scenario around the moment \(targetName) could not complete, trust, or interpret the workflow.",
@@ -2026,8 +2026,8 @@ enum TournamentAutomationRevisionBriefAdvisor {
     return RevisionPlan(
       title: isRetargeted
         ? "Retarget contender revision for simulated-user rationale"
-        : "Revise prototype for simulated-user rationale",
-      prototypeChange:
+        : "Revise product implementation for simulated-user rationale",
+      implementationChange:
         "\(retargetPrefix)turn the repeated rationale into a visible product affordance, not just a better explanation.",
       scenarioChange:
         "Retarget the next scenario so \(targetName) must confront the repeated rationale before giving a tournament verdict.",
@@ -2044,17 +2044,17 @@ enum TournamentAutomationRevisionBriefAdvisor {
     case (.promote, .contradictsTarget), (.promoted, .contradictsTarget):
       return RevisionPlan(
         title: "Revise contradicted promotion proof",
-        prototypeChange:
-          "narrow the promoted promise to the workflow moment that can prove current-alternative advantage for \(targetName), and remove unsupported lift claims from the prototype.",
+        implementationChange:
+          "narrow the promoted promise to the workflow moment that can prove current-alternative advantage for \(targetName), and remove unsupported lift claims from the product implementation.",
         scenarioChange:
-          "Retarget the scenario so \(targetName) must compare the revised prototype against the current alternative before giving a promote, narrow, or kill rationale.",
+          "Retarget the scenario so \(targetName) must compare the revised product implementation against the current alternative before giving a promote, narrow, or kill rationale.",
         proofPlan:
           "Rerun targeted persona-model promotion proof and require alternative advantage, switching readiness, and continued-use pull to clear the contradiction."
       )
     case (.kill, .contradictsTarget), (.archived, .contradictsTarget):
       return RevisionPlan(
         title: "Revise contradicted stop proof",
-        prototypeChange:
+        implementationChange:
           "make the pull that contradicted killing visible in the first successful workflow moment, with explicit before/after value against the current alternative.",
         scenarioChange:
           "Retarget the scenario so \(targetName) tests whether that pull repeats or collapses under realistic switching objections.",
@@ -2064,8 +2064,8 @@ enum TournamentAutomationRevisionBriefAdvisor {
     case (.narrow, .supportsTarget), (.pivot, .supportsTarget):
       return RevisionPlan(
         title: "Apply supported reshape proof",
-        prototypeChange:
-          "reshape the prototype around the smaller product contender that the targeted proof supported, preserving only the capabilities that created pull.",
+        implementationChange:
+          "reshape the product implementation around the smaller product contender that the targeted proof supported, preserving only the capabilities that created pull.",
         scenarioChange:
           "Retarget the scenario to the narrower workflow and require \(targetName) to judge whether the narrower promise beats the current alternative.",
         proofPlan:
@@ -2074,8 +2074,8 @@ enum TournamentAutomationRevisionBriefAdvisor {
     case (_, .inconclusive):
       return RevisionPlan(
         title: "Sharpen inconclusive tournament proof",
-        prototypeChange:
-          "make the decision criteria visible in the prototype so the simulated user can judge pain recognition, alternative advantage, switching readiness, and continued-use pull.",
+        implementationChange:
+          "make the decision criteria visible in the product implementation so the simulated user can judge pain recognition, alternative advantage, switching readiness, and continued-use pull.",
         scenarioChange:
           "Rewrite the scenario around a single forced tournament decision for \(targetName), with explicit current-alternative comparison.",
         proofPlan:
@@ -2084,7 +2084,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
     default:
       return RevisionPlan(
         title: signal.title,
-        prototypeChange:
+        implementationChange:
           "translate the targeted proof outcome into a visible product change before the same tournament decision is tested again.",
         scenarioChange:
           "Retarget the scenario to the proof outcome and require \(targetName) to explain whether the product contender should continue, narrow, pivot, kill, or promote.",
@@ -4170,7 +4170,7 @@ enum TournamentAutomationPlanner {
       )
     }
 
-    if let proposal = ProductTournamentPrototypeEvidenceTransitioner.proposals(
+    if let proposal = ProductTournamentProductImplementationEvidenceTransitioner.proposals(
       config: config,
       evidenceIndex: evidenceIndex
     )
@@ -4380,7 +4380,7 @@ enum TournamentAutomationPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent tournament automation cycle \(audit.id) already applied this contender revision; run fresh targeted persona-model evidence or change the prototype before applying it again."
+        "Recent tournament automation cycle \(audit.id) already applied this contender revision; run fresh targeted persona-model evidence or change the product implementation before applying it again."
       return blocked
     }
     if step.canExecute,
@@ -4394,7 +4394,7 @@ enum TournamentAutomationPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent tournament automation cycle \(audit.id) already attempted this targeted tournament proof outcome and the same outcome is still present; revise the prototype, scenario, target persona, or decision criteria before retrying."
+        "Recent tournament automation cycle \(audit.id) already attempted this targeted tournament proof outcome and the same outcome is still present; revise the product implementation, scenario, target persona, or decision criteria before retrying."
       return blocked
     }
     if step.canExecute,
@@ -4408,7 +4408,7 @@ enum TournamentAutomationPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent tournament automation cycle \(audit.id) already attempted this split-evidence target and the current tournament evidence is still split; revise the scenario, persona, prototype, or decision criteria before retrying."
+        "Recent tournament automation cycle \(audit.id) already attempted this split-evidence target and the current tournament evidence is still split; revise the scenario, persona, product implementation, or decision criteria before retrying."
       return blocked
     }
     if step.canExecute,
@@ -4422,7 +4422,7 @@ enum TournamentAutomationPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent tournament automation cycle \(audit.id) already attempted this simulated-user rationale signal and the same rationale is still present; revise the prototype, scenario, or current-alternative proof before retrying."
+        "Recent tournament automation cycle \(audit.id) already attempted this simulated-user rationale signal and the same rationale is still present; revise the product implementation, scenario, or current-alternative proof before retrying."
       return blocked
     }
     guard step.canExecute,
@@ -4625,7 +4625,7 @@ enum TournamentAutomationRoundTransitionStepExecutor {
         config: config,
         evidenceIndex: evidenceIndex
       )
-      let outcome = try ProductTournamentPrototypeEvidenceTransitioner.apply(
+      let outcome = try ProductTournamentProductImplementationEvidenceTransitioner.apply(
         proposal: proposal,
         to: config,
         now: now
@@ -4693,9 +4693,9 @@ enum TournamentAutomationRoundTransitionStepExecutor {
     contenderID: String,
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
-  ) throws -> ProductTournamentPrototypeEvidenceTransitionProposal {
+  ) throws -> ProductTournamentProductImplementationEvidenceTransitionProposal {
     guard
-      let proposal = ProductTournamentPrototypeEvidenceTransitioner.proposals(
+      let proposal = ProductTournamentProductImplementationEvidenceTransitioner.proposals(
         tournamentID: tournamentID,
         roundID: roundID,
         config: config,
@@ -5072,10 +5072,10 @@ enum ProductTournamentNextActionAdvisor {
           "\(rationaleSignal.summary) Rerun persona-model scenario `\(scenarioID)` for \(targetPersonaName) in cohort `\(cohortID)` after this rationale has been addressed."
       } else if let targetPersonaName = rationaleSignal.targetPersonaName {
         targetDetail =
-          "\(rationaleSignal.summary) Update the prototype or scenario for \(targetPersonaName), then rerun persona-model proof before investing further."
+          "\(rationaleSignal.summary) Update the product implementation or scenario for \(targetPersonaName), then rerun persona-model proof before investing further."
       } else {
         targetDetail =
-          "\(rationaleSignal.summary) Update the prototype, scenario, or decision criteria, then rerun persona-model proof before investing further."
+          "\(rationaleSignal.summary) Update the product implementation, scenario, or decision criteria, then rerun persona-model proof before investing further."
       }
       return applyingRecentCycleGuards(
         to: ProductTournamentNextAction(
@@ -5104,7 +5104,7 @@ enum ProductTournamentNextActionAdvisor {
         kind: .refineContender,
         title: "Narrow the product contender",
         detail:
-          "Current tournament evidence points to missing capabilities or repeated objections; narrow the next prototype before more rollout work.",
+          "Current tournament evidence points to missing capabilities or repeated objections; narrow the next product implementation before more rollout work.",
         priority: 75
       )
     case .pivot:
@@ -5481,7 +5481,7 @@ enum ProductTournamentNextActionAdvisor {
         kind: .refineContender,
         title: "Retarget tournament proof outcome",
         detail:
-          "Recent tournament automation cycle \(audit.id) reran the same targeted tournament proof outcome and it is still present (\(audit.summary)); revise the prototype, scenario, target persona, or decision criteria before retrying.",
+          "Recent tournament automation cycle \(audit.id) reran the same targeted tournament proof outcome and it is still present (\(audit.summary)); revise the product implementation, scenario, target persona, or decision criteria before retrying.",
         priority: min(98, max(action.priority + 1, 87)),
         requiredSimulationMode: .personaModel,
         targetPersonaID: action.targetPersonaID,
@@ -5501,7 +5501,7 @@ enum ProductTournamentNextActionAdvisor {
         kind: .refineContender,
         title: "Retarget split tournament evidence",
         detail:
-          "Recent tournament automation cycle \(audit.id) reran the split-evidence target without resolving the contradiction (\(audit.summary)); revise the scenario, persona, prototype, or decision criteria before retrying.",
+          "Recent tournament automation cycle \(audit.id) reran the split-evidence target without resolving the contradiction (\(audit.summary)); revise the scenario, persona, product implementation, or decision criteria before retrying.",
         priority: min(98, max(action.priority + 1, 86)),
         targetPersonaID: action.targetPersonaID,
         targetPersonaName: action.targetPersonaName,
@@ -5548,7 +5548,7 @@ enum ProductTournamentNextActionAdvisor {
         kind: .refineContender,
         title: "Retarget simulated-user rationale signal",
         detail:
-          "Recent tournament automation cycle \(audit.id) reran the same simulated-user rationale target and the rationale is still present (\(audit.summary)); revise the prototype, scenario, current-alternative proof, or decision criteria before retrying.",
+          "Recent tournament automation cycle \(audit.id) reran the same simulated-user rationale target and the rationale is still present (\(audit.summary)); revise the product implementation, scenario, current-alternative proof, or decision criteria before retrying.",
         priority: min(98, max(action.priority + 1, 86)),
         requiredSimulationMode: .personaModel,
         targetPersonaID: action.targetPersonaID,

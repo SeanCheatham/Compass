@@ -318,7 +318,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     roundIDs: [
       "round-incident-plans",
       "round-incident-core-technology",
-      "round-incident-prototype",
+      "round-incident-product-implementation",
     ],
     currentRoundID: "round-incident-plans",
     status: .active,
@@ -383,7 +383,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
       updatedAt: timestamp
     ),
     ProductTournamentRound(
-      id: "round-incident-prototype",
+      id: "round-incident-product-implementation",
       tournamentID: tournament.id,
       ordinal: 3,
       kind: .productImplementation,
