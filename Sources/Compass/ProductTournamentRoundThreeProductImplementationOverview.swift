@@ -17,6 +17,7 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
   var readinessScore: Double
   var averageScore: Double
   var willingnessToPayScore: Double
+  var willingnessToPayProofCount: Int
   var runCount: Int
   var completedRunCount: Int
   var distinctPersonaCount: Int
@@ -25,6 +26,8 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
   var missingCapabilityCount: Int
   var evidenceRunIDs: [String]
   var detail: String
+  var proofGaps: [String]
+  var nextValidationTarget: String
 
   var scoreLabel: String {
     "\(Int(readinessScore.rounded()))"
@@ -35,8 +38,12 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
       evidenceRunIDs.isEmpty
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
+    let gaps =
+      proofGaps.isEmpty
+      ? "none"
+      : proofGaps.prefix(4).joined(separator: "; ")
     return
-      "- round_3_product_implementation_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), branch \(branchName), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), implementation_use_proofs \(implementationUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: implementation_scope \(Self.bounded(implementationScope, limit: 220)); next \(Self.bounded(detail, limit: 220))."
+      "- round_3_product_implementation_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), branch \(branchName), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, willingness_to_pay_proofs \(willingnessToPayProofCount), completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), implementation_use_proofs \(implementationUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence), proof_gaps \(Self.bounded(gaps, limit: 260))]: implementation_scope \(Self.bounded(implementationScope, limit: 220)); next \(Self.bounded(detail, limit: 220)); next_validation \(Self.bounded(nextValidationTarget, limit: 220))."
   }
 
   var displaySubtitle: String {
@@ -44,7 +51,7 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
   }
 
   var displayDetail: String {
-    "\(detail) Product implementation: \(implementationScope)"
+    "\(detail) Next validation: \(nextValidationTarget) Product implementation: \(implementationScope)"
   }
 
   var displaySystemImage: String {
@@ -80,7 +87,12 @@ struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, 
     }
     parts.append("\(currentAlternativeProofCount) current-alternative proof(s)")
     parts.append("\(implementationUseProofCount) implementation-use proof(s)")
+    parts.append("\(willingnessToPayProofCount) willingness-to-pay proof(s)")
     parts.append("\(missingCapabilityCount) missing capability signal(s)")
+    if !proofGaps.isEmpty {
+      parts.append("Proof gaps: \(proofGaps.prefix(4).joined(separator: "; "))")
+    }
+    parts.append("Next validation: \(nextValidationTarget)")
     return parts.joined(separator: "\n")
   }
 
@@ -127,6 +139,7 @@ enum ProductTournamentRoundThreeProductImplementationOverview {
         readinessScore: proposal.readinessScore,
         averageScore: proposal.averageScore,
         willingnessToPayScore: proposal.willingnessToPayScore,
+        willingnessToPayProofCount: proposal.willingnessToPayProofCount,
         runCount: proposal.runCount,
         completedRunCount: proposal.completedRunCount,
         distinctPersonaCount: proposal.distinctPersonaCount,
@@ -134,7 +147,9 @@ enum ProductTournamentRoundThreeProductImplementationOverview {
         implementationUseProofCount: proposal.implementationUseProofCount,
         missingCapabilityCount: proposal.missingCapabilityCount,
         evidenceRunIDs: proposal.evidenceRunIDs,
-        detail: proposal.detail
+        detail: proposal.detail,
+        proofGaps: proposal.proofGaps,
+        nextValidationTarget: proposal.nextValidationTarget
       )
     }
     .prefix(limit)

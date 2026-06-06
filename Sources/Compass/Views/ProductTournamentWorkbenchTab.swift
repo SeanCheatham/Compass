@@ -1385,6 +1385,10 @@ struct ProductTournamentWorkbenchTab: View {
           WorkbenchFact(label: "Track", value: item.experimentID)
           WorkbenchFact(label: "Implementation", value: item.implementationScope)
           WorkbenchFact(label: "Alternative proof", value: "\(item.currentAlternativeProofCount)")
+          WorkbenchFact(label: "Pay proof", value: "\(item.willingnessToPayProofCount)")
+          if !item.proofGaps.isEmpty {
+            WorkbenchFact(label: "Proof gaps", value: item.proofGaps.prefix(2).joined(separator: "; "))
+          }
           Text(item.displayDetail)
             .font(.caption)
             .foregroundStyle(.secondary)

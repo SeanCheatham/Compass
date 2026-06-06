@@ -34,6 +34,7 @@ struct ProductTournamentProductImplementationEvidenceTransitionProposal: Codable
   var readinessScore: Double
   var averageScore: Double
   var willingnessToPayScore: Double
+  var willingnessToPayProofCount: Int
   var runCount: Int
   var completedRunCount: Int
   var failedRunCount: Int
@@ -47,6 +48,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionProposal: Codable
   var priority: Int
   var title: String
   var detail: String
+  var proofGaps: [String]
+  var nextValidationTarget: String
   var rationale: [String]
 
   var scoreLabel: String {
@@ -67,12 +70,20 @@ struct ProductTournamentProductImplementationEvidenceTransitionProposal: Codable
       evidenceRunIDs.isEmpty
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
+    let gaps =
+      proofGaps.isEmpty
+      ? "none"
+      : proofGaps.prefix(4).joined(separator: "; ")
     return
-      "- round_3_product_implementation contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), implementation_use_proofs \(implementationUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
+      "- round_3_product_implementation contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, willingness_to_pay_proofs \(willingnessToPayProofCount), completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), implementation_use_proofs \(implementationUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence), proof_gaps \(Self.bounded(gaps, limit: 260))]: \(detail); next_validation \(Self.bounded(nextValidationTarget, limit: 220))"
   }
 
   private static func format(_ value: Double) -> String {
     value == 0 ? "0" : String(format: "%.1f", value)
+  }
+
+  private static func bounded(_ value: String, limit: Int) -> String {
+    StringUtils.boundedText(value, limit: limit)
   }
 }
 
@@ -373,6 +384,7 @@ enum ProductTournamentProductImplementationEvidenceTransitioner {
       explicitWillingnessToPayScore > 0 ? explicitWillingnessToPayScore : fallbackPullScore
     let missingCapabilityCount = completed.flatMap(\.missingCapabilities).count
     let repeatedObjectionCount = repeatedObjectionCount(in: completed)
+    let willingnessToPayProofCount = completed.filter(hasWillingnessToPayProof).count
     let strongCount = completed.filter {
       $0.verdict == .strongPull || $0.verdict == .promising
     }.count
@@ -393,6 +405,7 @@ enum ProductTournamentProductImplementationEvidenceTransitioner {
       distinctPersonaCount: distinctPersonaCount,
       currentAlternativeProofCount: currentAlternativeProofCount,
       implementationUseProofCount: implementationUseProofCount,
+      willingnessToPayProofCount: willingnessToPayProofCount,
       readinessScore: readinessScore,
       averageScore: averageScore,
       willingnessToPayScore: willingnessToPayScore,
@@ -414,6 +427,25 @@ enum ProductTournamentProductImplementationEvidenceTransitioner {
       implementationUseProofCount: implementationUseProofCount,
       missingCapabilityCount: missingCapabilityCount
     )
+    let proofGaps = proofGaps(
+      summaries: summaries,
+      completedRunCount: completed.count,
+      distinctPersonaCount: distinctPersonaCount,
+      currentAlternativeProofCount: currentAlternativeProofCount,
+      implementationUseProofCount: implementationUseProofCount,
+      willingnessToPayProofCount: willingnessToPayProofCount,
+      readinessScore: readinessScore,
+      averageScore: averageScore,
+      willingnessToPayScore: willingnessToPayScore,
+      weakOrRejectedCount: weakCount,
+      missingCapabilities: completed.flatMap(\.missingCapabilities),
+      objections: completed.flatMap(\.objections),
+      recommendation: recommendation
+    )
+    let nextValidationTarget = nextValidationTarget(
+      for: recommendation,
+      proofGaps: proofGaps
+    )
 
     return ProductTournamentProductImplementationEvidenceTransitionProposal(
       tournamentID: tournament.id,
@@ -425,6 +457,7 @@ enum ProductTournamentProductImplementationEvidenceTransitioner {
       readinessScore: readinessScore,
       averageScore: roundedScore(averageScore, upperBound: 5),
       willingnessToPayScore: roundedScore(willingnessToPayScore, upperBound: 5),
+      willingnessToPayProofCount: willingnessToPayProofCount,
       runCount: summaries.count,
       completedRunCount: completed.count,
       failedRunCount: failedCount,
@@ -438,12 +471,15 @@ enum ProductTournamentProductImplementationEvidenceTransitioner {
       priority: priority,
       title: title,
       detail: detail,
+      proofGaps: proofGaps,
+      nextValidationTarget: nextValidationTarget,
       rationale: rationale(
         completedRunCount: completed.count,
         runCount: summaries.count,
         distinctPersonaCount: distinctPersonaCount,
         currentAlternativeProofCount: currentAlternativeProofCount,
         implementationUseProofCount: implementationUseProofCount,
+        willingnessToPayProofCount: willingnessToPayProofCount,
         readinessScore: readinessScore,
         averageScore: averageScore,
         willingnessToPayScore: willingnessToPayScore,
@@ -507,6 +543,7 @@ enum ProductTournamentProductImplementationEvidenceTransitioner {
     distinctPersonaCount: Int,
     currentAlternativeProofCount: Int,
     implementationUseProofCount: Int,
+    willingnessToPayProofCount: Int,
     readinessScore: Double,
     averageScore: Double,
     willingnessToPayScore: Double,
@@ -523,7 +560,7 @@ enum ProductTournamentProductImplementationEvidenceTransitioner {
       return .eliminate
     }
     if completedRunCount < 3 || distinctPersonaCount < 2 || currentAlternativeProofCount < 2
-      || implementationUseProofCount < 3
+      || implementationUseProofCount < 3 || willingnessToPayProofCount < 2
     {
       return .gatherEvidence
     }
@@ -588,6 +625,7 @@ enum ProductTournamentProductImplementationEvidenceTransitioner {
     distinctPersonaCount: Int,
     currentAlternativeProofCount: Int,
     implementationUseProofCount: Int,
+    willingnessToPayProofCount: Int,
     readinessScore: Double,
     averageScore: Double,
     willingnessToPayScore: Double,
@@ -602,6 +640,7 @@ enum ProductTournamentProductImplementationEvidenceTransitioner {
     lines.append(
       "\(implementationUseProofCount) run(s) completed the expected tournament experience trace before judging the implementation."
     )
+    lines.append("\(willingnessToPayProofCount) run(s) captured explicit willingness-to-pay or sponsorship proof.")
     if averageScore > 0 {
       lines.append(
         "Average implementation score \(format(averageScore))/5; readiness \(format(readinessScore))/100."
@@ -627,6 +666,115 @@ enum ProductTournamentProductImplementationEvidenceTransitioner {
       lines.append("Run more scoped Round 3 scenarios before selecting a winner.")
     }
     return lines
+  }
+
+  private static func proofGaps(
+    summaries: [ProductTournamentEvidenceSummary],
+    completedRunCount: Int,
+    distinctPersonaCount: Int,
+    currentAlternativeProofCount: Int,
+    implementationUseProofCount: Int,
+    willingnessToPayProofCount: Int,
+    readinessScore: Double,
+    averageScore: Double,
+    willingnessToPayScore: Double,
+    weakOrRejectedCount: Int,
+    missingCapabilities: [String],
+    objections: [String],
+    recommendation: ProductTournamentProductImplementationEvidenceRecommendation
+  ) -> [String] {
+    var gaps: [String] = []
+    if summaries.isEmpty {
+      gaps.append("no scoped Round 3 product implementation evidence yet")
+    }
+    if completedRunCount < 3 {
+      gaps.append("needs \(3 - completedRunCount) more completed Round 3 run(s)")
+    }
+    if distinctPersonaCount < 2 {
+      gaps.append("needs \(2 - distinctPersonaCount) more persona(s)")
+    }
+    if currentAlternativeProofCount < 2 {
+      gaps.append("needs \(2 - currentAlternativeProofCount) current-alternative comparison(s)")
+    }
+    if implementationUseProofCount < 3 {
+      gaps.append("needs \(3 - implementationUseProofCount) implementation-use trace(s)")
+    }
+    if willingnessToPayProofCount < 2 {
+      gaps.append("needs \(2 - willingnessToPayProofCount) explicit willingness-to-pay proof(s)")
+    }
+    gaps += countedLabels(
+      missingCapabilities,
+      prefix: "missing capability",
+      minimumCount: 1
+    )
+    gaps += countedLabels(
+      objections,
+      prefix: "repeated objection",
+      minimumCount: 2
+    )
+    if completedRunCount >= 2, averageScore > 0, averageScore < 3.6 {
+      gaps.append("average implementation score \(format(averageScore))/5 below 3.6")
+    }
+    if completedRunCount >= 2, willingnessToPayScore > 0, willingnessToPayScore < 3.6 {
+      gaps.append("willingness to pay \(format(willingnessToPayScore))/5 below 3.6")
+    }
+    if weakOrRejectedCount >= 2 {
+      gaps.append("\(weakOrRejectedCount) weak or rejected verdict(s)")
+    }
+    if recommendation == .reviseImplementation, readinessScore < 76 {
+      gaps.append("readiness \(format(readinessScore))/100 below winner threshold")
+    }
+    return Array(gaps.prefix(8))
+  }
+
+  private static func nextValidationTarget(
+    for recommendation: ProductTournamentProductImplementationEvidenceRecommendation,
+    proofGaps: [String]
+  ) -> String {
+    let gaps =
+      proofGaps.isEmpty
+      ? "no remaining Round 3 proof gaps"
+      : proofGaps.prefix(3).joined(separator: "; ")
+    switch recommendation {
+    case .selectWinner:
+      return
+        "Select the tournament winner and preserve the evidence trail for implementation-use, current-alternative, and willingness-to-pay proof."
+    case .reviseImplementation:
+      return
+        "Revise the low-medium fidelity product implementation against \(gaps), then rerun scoped Round 3 implementation-use and willingness-to-pay validation."
+    case .eliminate:
+      return "Stop this contender unless new scoped Round 3 evidence rebuts \(gaps)."
+    case .gatherEvidence:
+      return "Run scoped Round 3 product implementation evidence for \(gaps)."
+    }
+  }
+
+  private static func countedLabels(
+    _ values: [String],
+    prefix: String,
+    minimumCount: Int
+  ) -> [String] {
+    var counts: [String: Int] = [:]
+    var display: [String: String] = [:]
+    for value in values {
+      let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+      let normalized = normalizedEvidenceText(trimmed)
+      guard !normalized.isEmpty else { continue }
+      counts[normalized, default: 0] += 1
+      if display[normalized] == nil {
+        display[normalized] = StringUtils.boundedText(trimmed, limit: 80)
+      }
+    }
+    return counts
+      .filter { $0.value >= minimumCount }
+      .sorted {
+        if $0.value == $1.value { return $0.key < $1.key }
+        return $0.value > $1.value
+      }
+      .prefix(3)
+      .map { key, count in
+        "\(prefix) \(display[key] ?? key) (\(count)x)"
+      }
   }
 
   private static func activeProductImplementationRounds(
@@ -727,6 +875,22 @@ enum ProductTournamentProductImplementationEvidenceTransitioner {
 
   private static func hasImplementationUseProof(_ summary: ProductTournamentEvidenceSummary) -> Bool {
     summary.completedUseProof
+  }
+
+  private static func hasWillingnessToPayProof(_ summary: ProductTournamentEvidenceSummary) -> Bool {
+    let intent = normalizedEvidenceText(summary.sponsorshipIntent)
+    guard !intent.isEmpty else { return false }
+    return !isDerivedSponsorshipIntent(intent)
+  }
+
+  private static func isDerivedSponsorshipIntent(_ normalized: String) -> Bool {
+    let derived = [
+      "the simulated user shows strong willingness to pay for or sponsor this contender",
+      "the simulated user shows moderate willingness to pay for or sponsor this contender after more proof",
+      "the simulated user recognizes some contender value but is not ready to pay or sponsor",
+      "the simulated user shows weak willingness to pay for or sponsor this contender",
+    ]
+    return derived.contains(normalized)
   }
 
   private static func repeatedObjectionCount(

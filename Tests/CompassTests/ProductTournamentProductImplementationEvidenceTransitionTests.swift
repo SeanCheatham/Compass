@@ -70,11 +70,17 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(proofOverviewItem.completedRunCount == 3)
     try #require(proofOverviewItem.currentAlternativeProofCount == 3)
     try #require(proofOverviewItem.implementationUseProofCount == 3)
+    try #require(proofOverviewItem.willingnessToPayProofCount == 3)
     try #require(proofOverviewItem.evidenceRunIDs.contains("\(fixture.contender.id)-round-3-0"))
+    try #require(proposal.proofGaps.isEmpty)
+    try #require(proposal.nextValidationTarget.contains("Select the tournament winner"))
     try #require(proofOverviewItem.contextLine.contains("round_3_product_implementation_proof contender"))
     try #require(proofOverviewItem.contextLine.contains("recommendation select_winner"))
     try #require(proofOverviewItem.contextLine.contains("willingness_to_pay 5.0/5"))
+    try #require(proofOverviewItem.contextLine.contains("willingness_to_pay_proofs 3"))
     try #require(proofOverviewItem.contextLine.contains("implementation_use_proofs 3"))
+    try #require(proofOverviewItem.contextLine.contains("proof_gaps none"))
+    try #require(proofOverviewItem.contextLine.contains("next_validation"))
     try #require(updatedTournament.status == .completed)
     try #require(updatedTournament.currentRoundID == fixture.productImplementationRound.id)
     try #require(updatedProductImplementationRound.status == .completed)
@@ -92,6 +98,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(digest.contains("round_3_product_implementation_proof contender \(fixture.contender.id)"))
     try #require(digest.contains("recommendation select_winner"))
     try #require(digest.contains("willingness_to_pay 5.0/5"))
+    try #require(digest.contains("proof_gaps none"))
+    try #require(digest.contains("next_validation"))
     try #require(digest.contains("Round 3 product implementation transition"))
     try #require(digest.contains("recommendation select_winner"))
     try #require(postWinnerProofOverview.isEmpty)
@@ -134,6 +142,10 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     )
 
     try #require(outcome.proposal.recommendation == .reviseImplementation)
+    try #require(outcome.proposal.proofGaps.contains { $0.contains("sponsor_export") })
+    try #require(
+      outcome.proposal.proofGaps.contains { $0.contains("willingness to pay 2.0/5") })
+    try #require(outcome.proposal.nextValidationTarget.contains("Revise the low-medium fidelity"))
     try #require(updatedTournament.status == .active)
     try #require(updatedTournament.currentRoundID == fixture.productImplementationRound.id)
     try #require(updatedProductImplementationRound.status == .active)
@@ -175,6 +187,9 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
       outcome.config.contenderPlans.first { $0.id == fixture.contender.contenderPlanID })
 
     try #require(outcome.proposal.recommendation == .eliminate)
+    try #require(outcome.proposal.proofGaps.contains { $0.contains("workflow_advantage") })
+    try #require(outcome.proposal.proofGaps.contains { $0.contains("weak or rejected") })
+    try #require(outcome.proposal.nextValidationTarget.contains("Stop this contender"))
     try #require(updatedTournament.status == .active)
     try #require(updatedTournament.currentRoundID == fixture.productImplementationRound.id)
     try #require(updatedContender.status == .eliminated)
@@ -205,6 +220,9 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     )
 
     try #require(proposal.recommendation == .gatherEvidence)
+    try #require(proposal.proofGaps.contains { $0.contains("needs 1 more completed") })
+    try #require(proposal.proofGaps.contains { $0.contains("needs 1 implementation-use") })
+    try #require(proposal.nextValidationTarget.contains("Run scoped Round 3"))
     try #require(!proposal.isActionable)
     try #require(
       ProductTournamentProductImplementationEvidenceTransitioner.bestProposal(
@@ -240,7 +258,11 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
 
     try #require(proposal.recommendation == .gatherEvidence)
     try #require(proposal.implementationUseProofCount == 0)
+    try #require(proposal.proofGaps.contains { $0.contains("needs 3 implementation-use") })
+    try #require(proposal.nextValidationTarget.contains("implementation-use"))
     try #require(proposal.digestLine.contains("implementation_use_proofs 0"))
+    try #require(proposal.digestLine.contains("proof_gaps"))
+    try #require(proposal.digestLine.contains("next_validation"))
     try #require(proposal.detail.contains("0 implementation-use proof"))
     try #require(
       ProductTournamentProductImplementationEvidenceTransitioner.bestProposal(
@@ -279,7 +301,80 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(records.allSatisfy { !$0.personaActionRationales.isEmpty })
     try #require(proposal.recommendation == .gatherEvidence)
     try #require(proposal.implementationUseProofCount == 0)
+    try #require(proposal.proofGaps.contains { $0.contains("needs 3 implementation-use") })
     try #require(proposal.detail.contains("0 implementation-use proof"))
+  }
+
+  @Test func strongProductImplementationScoresWithoutExplicitPayProofOnlyGatherEvidence() throws {
+    let fixture = try roundThreeFixture()
+    let records = productImplementationEvidenceRecords(
+      fixture: fixture,
+      count: 3,
+      score: 5,
+      willingnessToPay: nil,
+      verdict: .strongPull,
+      summary: "The implementation looks useful, but no price or sponsorship intent was captured."
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+
+    let proposal = try #require(
+      ProductTournamentProductImplementationEvidenceTransitioner.proposals(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.productImplementationRound.id,
+        config: fixture.config,
+        evidenceIndex: index
+      ).first
+    )
+
+    try #require(proposal.recommendation == .gatherEvidence)
+    try #require(proposal.willingnessToPayProofCount == 0)
+    try #require(proposal.proofGaps.contains { $0.contains("explicit willingness-to-pay") })
+    try #require(proposal.digestLine.contains("willingness_to_pay_proofs 0"))
+    try #require(proposal.nextValidationTarget.contains("willingness-to-pay"))
+    try #require(
+      ProductTournamentProductImplementationEvidenceTransitioner.bestProposal(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.productImplementationRound.id,
+        config: fixture.config,
+        evidenceIndex: index
+      ) == nil
+    )
+  }
+
+  @Test func derivedSponsorshipIntentDoesNotCountAsExplicitPayProof() throws {
+    let fixture = try roundThreeFixture()
+    let records = productImplementationEvidenceRecords(
+      fixture: fixture,
+      count: 3,
+      score: 5,
+      willingnessToPay: 5,
+      verdict: .strongPull,
+      summary: "The implementation looks useful, but only the derived sponsor sentence was present.",
+      sponsorshipIntent:
+        "The simulated user shows strong willingness to pay for or sponsor this contender."
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+
+    let proposal = try #require(
+      ProductTournamentProductImplementationEvidenceTransitioner.proposals(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.productImplementationRound.id,
+        config: fixture.config,
+        evidenceIndex: index
+      ).first
+    )
+
+    try #require(proposal.recommendation == .gatherEvidence)
+    try #require(proposal.willingnessToPayProofCount == 0)
+    try #require(proposal.proofGaps.contains { $0.contains("explicit willingness-to-pay") })
+    try #require(
+      ProductTournamentProductImplementationEvidenceTransitioner.bestProposal(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.productImplementationRound.id,
+        config: fixture.config,
+        evidenceIndex: index
+      ) == nil
+    )
   }
 
   @Test func roundThreeProductImplementationOverviewShowsActiveWinnerProofBeforeEvidence() throws {
@@ -309,10 +404,17 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(item.completedRunCount == 0)
     try #require(item.runCount == 0)
     try #require(item.currentAlternativeProofCount == 0)
+    try #require(item.willingnessToPayProofCount == 0)
+    try #require(item.proofGaps.contains { $0.contains("no scoped Round 3") })
+    try #require(item.nextValidationTarget.contains("Run scoped Round 3"))
     try #require(item.displaySubtitle.contains("Gather Evidence"))
     try #require(item.contextLine.contains("no scoped evidence"))
     try #require(item.contextLine.contains("implementation_scope"))
+    try #require(item.contextLine.contains("proof_gaps"))
+    try #require(item.contextLine.contains("next_validation"))
     try #require(item.contextLine.contains(fixture.experiment.id))
+    try #require(item.helpSummary.contains("Proof gaps"))
+    try #require(item.helpSummary.contains("Next validation"))
     try #require(item.helpSummary.contains(fixture.experiment.branchName))
     try #require(contextLines.first == "Round 3 product implementation proof overview:")
     try #require(contextLines.joined(separator: "\n").contains("recommendation gather_evidence"))
@@ -381,11 +483,12 @@ private func productImplementationEvidenceRecords(
   fixture: RoundThreeFixture,
   count: Int,
   score: Int,
-  willingnessToPay: Int,
+  willingnessToPay: Int?,
   verdict: ProductTournamentEvidenceVerdict,
   objections: [String] = [],
   missingCapabilities: [String] = [],
   summary: String,
+  sponsorshipIntent: String? = nil,
   includeImplementationUseProof: Bool = true,
   completedUseProof: Bool? = nil
 ) -> [ProductTournamentEvidenceRecord] {
@@ -423,9 +526,12 @@ private func productImplementationEvidenceRecords(
       missingCapabilities: missingCapabilities,
       currentAlternativeComparison: "The product implementation beat the current spreadsheet workaround.",
       willingnessToPayScore: willingnessToPay,
-      sponsorshipIntent: willingnessToPay >= 4
-        ? "The simulated user would pay for or sponsor this product implementation."
-        : "The simulated user is not ready to sponsor this product implementation.",
+      sponsorshipIntent: sponsorshipIntent
+        ?? willingnessToPay.map {
+          $0 >= 4
+            ? "The simulated user would pay for or sponsor this product implementation."
+            : "The simulated user is not ready to sponsor this product implementation."
+        } ?? "",
       personaActionRationales: includeImplementationUseProof
         ? [
           "The simulated user exercised the low-medium fidelity product implementation before judging sponsorship."

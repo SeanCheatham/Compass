@@ -129,12 +129,14 @@ and advances them through rounds:
   Scoped Round 3 evidence can select a tournament winner, force a final product
   implementation revision, or eliminate the remaining contender. A Round 3
   product implementation proof overview keeps the active contender's
-  winner-readiness, willingness-to-pay, current-alternative proof,
-  implementation-use proof, persona breadth, missing capabilities, and next
-  transition recommendation visible in both the Workbench and Product
-  Tournament Context until the tournament winner is selected. Winner selection
-  requires three completed implementation-use proofs derived from completed
-  traces, along with current-alternative comparison and willingness-to-pay evidence.
+  winner-readiness, willingness-to-pay, explicit willingness-to-pay proof count,
+  current-alternative proof, implementation-use proof, persona breadth, missing
+  capabilities, proof gaps, next validation target, and next transition
+  recommendation visible in both the Workbench and Product Tournament Context
+  until the tournament winner is selected. Winner selection requires three
+  completed implementation-use proofs derived from completed traces, two
+  current-alternative comparisons, two explicit willingness-to-pay or sponsorship
+  proofs, and evidence from at least two personas.
   Workbench scenario-run rows and selected-run details expose whether each run
   counts as completed-use proof.
 
