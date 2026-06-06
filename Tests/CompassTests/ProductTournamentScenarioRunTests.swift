@@ -12,7 +12,7 @@ struct ProductTournamentScenarioRunTests {
     )
     config.scenarios = []
     config.scenarioCohorts = []
-    let experiment = config.experiments[0]
+    let experiment = config.tournamentExperiments[0]
     let draft = ProductScenarioDraft(
       id: "scenario-support",
       experimentID: experiment.id,
@@ -81,9 +81,9 @@ struct ProductTournamentScenarioRunTests {
       rawPain: "Support teams lose workflow context.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
     let scenario = try #require(
       config.scenarios.first {
@@ -148,7 +148,7 @@ struct ProductTournamentScenarioRunTests {
     let scenario = config.scenarios[0]
 
     let request = try await ProductTournamentScenarioCoordinator.request(
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       scenarioID: scenario.id,
       in: config,
       projectTitle: "Scenario Helper",
@@ -158,7 +158,7 @@ struct ProductTournamentScenarioRunTests {
     let input = request.experienceInput(actions: [])
 
     try #require(request.commitSha == head)
-    try #require(request.decisionIntent?.currentDecision == config.experiments[0].decision)
+    try #require(request.decisionIntent?.currentDecision == config.tournamentExperiments[0].decision)
     try #require(request.decisionIntent?.targetDecision == .promote)
     try #require(request.maxTurns == scenario.maxTurns)
     try #require(request.appCommandTimeout == scenario.appCommandTimeoutSeconds)
@@ -171,7 +171,7 @@ struct ProductTournamentScenarioRunTests {
     try #require(input.alternatives.map(\.id) == [scenario.alternativeID])
 
     let personaRequest = try await ProductTournamentScenarioCoordinator.request(
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       scenarioID: scenario.id,
       in: config,
       projectTitle: "Scenario Helper",
@@ -186,8 +186,8 @@ struct ProductTournamentScenarioRunTests {
     defer { try? FileManager.default.removeItem(at: root) }
     let head = try await setupScenarioRepo(at: root)
     let config = try makeScenarioRunConfig(commitSha: head)
-    try #require(config.experiments.indices.contains(1))
-    let selectedExperimentID = config.experiments[1].id
+    try #require(config.tournamentExperiments.indices.contains(1))
+    let selectedExperimentID = config.tournamentExperiments[1].id
     let scenario = config.scenarios[0]
 
     do {
@@ -222,11 +222,11 @@ struct ProductTournamentScenarioRunTests {
     defer { try? FileManager.default.removeItem(at: root) }
     let head = try await setupScenarioRepo(at: root)
     var config = try makeScenarioRunConfig(commitSha: head)
-    try #require(config.experiments.indices.contains(1))
-    let selectedExperimentID = config.experiments[1].id
-    config.experiments[1].currentSha = head
+    try #require(config.tournamentExperiments.indices.contains(1))
+    let selectedExperimentID = config.tournamentExperiments[1].id
+    config.tournamentExperiments[1].currentSha = head
     let secondDraft = ProductTournamentScenarioCoordinator.defaultDraft(
-      for: config.experiments[1],
+      for: config.tournamentExperiments[1],
       in: config,
       now: Date(timeIntervalSince1970: 30)
     )
@@ -239,7 +239,7 @@ struct ProductTournamentScenarioRunTests {
       config.scenarios.first { $0.experimentID == selectedExperimentID }
     )
     let targetScope = try activateRoundTwoTournamentScope(in: &config)
-    let expectedExperimentID = config.experiments[0].id
+    let expectedExperimentID = config.tournamentExperiments[0].id
 
     do {
       _ = try await ProductTournamentScenarioCoordinator.request(
@@ -284,7 +284,7 @@ struct ProductTournamentScenarioRunTests {
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
 
     let outcome = try await ProductTournamentScenarioCoordinator.runModelFree(
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       scenarioID: config.scenarios[0].id,
       in: workspace,
       projectTitle: "Scenario Helper",
@@ -311,7 +311,7 @@ struct ProductTournamentScenarioRunTests {
     try #require(index.summaries.map(\.runID) == [outcome.record.id])
     try #require(index.summaries.first?.completedUseProof == true)
     try #require(index.aggregate.tournamentReadinessByExperiment.first?.averageScore == 4)
-    try #require(saved.experiments[0].evidenceSummary.contains("completed the scenario"))
+    try #require(saved.tournamentExperiments[0].evidenceSummary.contains("completed the scenario"))
   }
 
   @Test func modelFreeRunStampsActiveTournamentRoundScope() async throws {
@@ -326,7 +326,7 @@ struct ProductTournamentScenarioRunTests {
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
 
     let outcome = try await ProductTournamentScenarioCoordinator.runModelFree(
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       scenarioID: config.scenarios[0].id,
       in: workspace,
       projectTitle: "Scenario Helper",
@@ -380,7 +380,7 @@ struct ProductTournamentScenarioRunTests {
     ])
 
     let outcome = try await ProductTournamentScenarioCoordinator.runPersonaModel(
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       scenarioID: config.scenarios[0].id,
       in: workspace,
       projectTitle: "Scenario Helper",
@@ -459,7 +459,7 @@ struct ProductTournamentScenarioRunTests {
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: true)
 
     let outcome = try await ProductTournamentScenarioCoordinator.runCohortModelFree(
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       cohortID: cohort.id,
       in: workspace,
       projectTitle: "Scenario Helper",
@@ -488,7 +488,7 @@ struct ProductTournamentScenarioRunTests {
     let appRunner = MockScenarioExperienceAppRunner(contractAvailable: false)
 
     let outcome = try await ProductTournamentScenarioCoordinator.runModelFree(
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       scenarioID: config.scenarios[0].id,
       in: workspace,
       projectTitle: "Scenario Helper",
@@ -508,11 +508,11 @@ struct ProductTournamentScenarioRunTests {
     defer { try? FileManager.default.removeItem(at: root) }
     let head = try await setupScenarioRepo(at: root)
     var config = try makeScenarioRunConfig(commitSha: head)
-    config.experiments[0].currentSha = "different-commit"
+    config.tournamentExperiments[0].currentSha = "different-commit"
 
     do {
       _ = try await ProductTournamentScenarioCoordinator.request(
-        experimentID: config.experiments[0].id,
+        experimentID: config.tournamentExperiments[0].id,
         scenarioID: config.scenarios[0].id,
         in: config,
         projectTitle: "Scenario Helper",
@@ -544,7 +544,7 @@ struct ProductTournamentScenarioRunTests {
     }
 
     let outcome = try await ProductTournamentScenarioCoordinator.runModelFree(
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       scenarioID: config.scenarios[0].id,
       in: workspace,
       projectTitle: "Scenario Helper",
@@ -637,10 +637,10 @@ private func makeScenarioRunConfig(commitSha: String) throws -> ProductTournamen
     rawPain: "Support teams lose workflow context.",
     now: Date(timeIntervalSince1970: 10)
   )
-  config.experiments[0].currentSha = commitSha
+  config.tournamentExperiments[0].currentSha = commitSha
   config.scenarios = []
   config.scenarioCohorts = []
-  let experiment = config.experiments[0]
+  let experiment = config.tournamentExperiments[0]
   let draft = ProductScenarioDraft(
     id: "scenario-support",
     experimentID: experiment.id,
@@ -664,7 +664,7 @@ private func makeScenarioRunConfig(commitSha: String) throws -> ProductTournamen
 private func activateRoundTwoTournamentScope(
   in config: inout ProductTournamentConfig
 ) throws -> ProductTournamentEvidenceScope {
-  let experimentID = config.experiments[0].id
+  let experimentID = config.tournamentExperiments[0].id
   let contenderIndex = try #require(
     config.tournamentContenders.firstIndex { $0.experimentID == experimentID })
   let tournamentIndex = try #require(

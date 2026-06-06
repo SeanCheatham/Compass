@@ -86,7 +86,7 @@ enum ProductTournamentFeasibilityAdvisor {
         contender.status == .narrowed || contender.status == .needsRevision,
         let hypothesis = config.productHypotheses.first(where: { $0.id == contender.productHypothesisID }),
         let experimentID = contender.experimentID,
-        let experiment = config.experiments.first(where: { $0.id == experimentID })
+        let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
       else { return nil }
 
       let readiness = evidenceIndex.aggregate.planReadinessByContender.first {

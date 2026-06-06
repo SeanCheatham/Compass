@@ -533,7 +533,7 @@ enum TournamentAutomationEvidenceTensionAdvisor {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [TournamentAutomationEvidenceTension] {
-    config.experiments.compactMap { experiment in
+    config.tournamentExperiments.compactMap { experiment in
       tension(for: experiment, config: config, evidenceIndex: evidenceIndex)
     }
     .sorted { lhs, rhs in
@@ -1133,7 +1133,7 @@ enum TournamentAutomationTargetedProofOutcomeAdvisor {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [TournamentAutomationTargetedProofOutcomeSignal] {
-    config.experiments.compactMap { experiment in
+    config.tournamentExperiments.compactMap { experiment in
       signal(for: experiment, config: config, evidenceIndex: evidenceIndex)
     }
     .sorted { lhs, rhs in
@@ -1500,7 +1500,7 @@ enum TournamentAutomationRationaleSignalAdvisor {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [TournamentAutomationRationaleSignal] {
-    config.experiments.compactMap { experiment in
+    config.tournamentExperiments.compactMap { experiment in
       signal(for: experiment, config: config, evidenceIndex: evidenceIndex)
     }
     .sorted { lhs, rhs in
@@ -1839,7 +1839,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [TournamentAutomationRevisionBrief] {
-    config.experiments.compactMap {
+    config.tournamentExperiments.compactMap {
       brief(for: $0, config: config, evidenceIndex: evidenceIndex)
     }
     .sorted { lhs, rhs in
@@ -2464,7 +2464,7 @@ enum TournamentAutomationExperimentRanker {
         evidenceIndex: evidenceIndex
       ).map { ($0.experimentID, $0) }
     )
-    return config.experiments.sorted { lhs, rhs in
+    return config.tournamentExperiments.sorted { lhs, rhs in
       let lhsSignal = signals[lhs.id]
       let rhsSignal = signals[rhs.id]
       let lhsUrgency = lhsSignal?.urgencyScore ?? 0
@@ -2481,7 +2481,7 @@ enum TournamentAutomationExperimentRanker {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [TournamentAutomationExperimentSignal] {
-    config.experiments.map {
+    config.tournamentExperiments.map {
       signal(for: $0, config: config, evidenceIndex: evidenceIndex)
     }
   }
@@ -3297,7 +3297,7 @@ enum TournamentAutomationProofDebtSnapshotter {
     preferredStep: TournamentAutomationStep? = nil
   ) -> TournamentAutomationProofDebtSnapshot? {
     guard
-      let experiment = config.experiments.first(where: { $0.id == experimentID })
+      let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
     else { return nil }
 
     if let preferredStep,
@@ -4782,7 +4782,7 @@ enum ProductTournamentNextActionAdvisor {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentNextAction] {
-    config.experiments.compactMap { experiment in
+    config.tournamentExperiments.compactMap { experiment in
       nextAction(for: experiment, config: config, evidenceIndex: evidenceIndex)
     }
     .sorted { lhs, rhs in
@@ -5896,7 +5896,7 @@ enum ProductTournamentDecisionAdvisor {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentDecisionProposal] {
-    return config.experiments.compactMap { experiment in
+    return config.tournamentExperiments.compactMap { experiment in
       guard let readiness = evidenceIndex.currentTournamentReadiness(for: experiment),
         let target = targetDecision(for: readiness, current: experiment.decision),
         target != experiment.decision,
@@ -6044,12 +6044,12 @@ enum ProductTournamentReflectDecisionApplier {
 
     for update in updates {
       guard
-        let experimentIndex = next.experiments.firstIndex(where: { $0.id == update.experimentID })
+        let experimentIndex = next.tournamentExperiments.firstIndex(where: { $0.id == update.experimentID })
       else {
         throw ProductTournamentDecisionTransitionError.unknownExperiment(update.experimentID)
       }
 
-      let currentDecision = next.experiments[experimentIndex].decision
+      let currentDecision = next.tournamentExperiments[experimentIndex].decision
       try ProductTournamentDecisionTransitionValidator.validate(
         experimentID: update.experimentID,
         from: currentDecision,
@@ -6057,12 +6057,12 @@ enum ProductTournamentReflectDecisionApplier {
         summary: update.summary
       )
 
-      next.experiments[experimentIndex].decision = update.decision
-      next.experiments[experimentIndex].evidenceSummary =
+      next.tournamentExperiments[experimentIndex].decision = update.decision
+      next.tournamentExperiments[experimentIndex].evidenceSummary =
         update.summary.isEmpty
-        ? next.experiments[experimentIndex].evidenceSummary
+        ? next.tournamentExperiments[experimentIndex].evidenceSummary
         : update.summary
-      next.experiments[experimentIndex].updatedAt = timestamp
+      next.tournamentExperiments[experimentIndex].updatedAt = timestamp
 
       decisionSequence += 1
       next.decisions.append(
@@ -6073,11 +6073,11 @@ enum ProductTournamentReflectDecisionApplier {
           decision: update.decision,
           summary: update.summary,
           evidenceRunIDs: update.evidenceRunIDs,
-          branchName: next.experiments[experimentIndex].branchName,
-          beforeSha: next.experiments[experimentIndex].currentSha
-            ?? next.experiments[experimentIndex].baseSha,
-          afterSha: next.experiments[experimentIndex].currentSha
-            ?? next.experiments[experimentIndex].baseSha,
+          branchName: next.tournamentExperiments[experimentIndex].branchName,
+          beforeSha: next.tournamentExperiments[experimentIndex].currentSha
+            ?? next.tournamentExperiments[experimentIndex].baseSha,
+          afterSha: next.tournamentExperiments[experimentIndex].currentSha
+            ?? next.tournamentExperiments[experimentIndex].baseSha,
           decidedAt: timestamp,
           decidedBy: update.decidedBy
         )

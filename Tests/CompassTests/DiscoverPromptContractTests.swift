@@ -26,6 +26,7 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains("Name the user segment before naming the app"))
     try #require(prompt.contains("Round 1 compares product"))
     try #require(prompt.contains("candidateExperiments"))
+    try #require(prompt.contains("tournamentExperiments"))
     try #require(prompt.contains("productHypotheses"))
     try #require(prompt.contains("productHypothesisID"))
     try #require(prompt.contains("contenderPlan"))
@@ -48,7 +49,7 @@ struct DiscoverPromptContractTests {
     try #require(config.painHypotheses.count == 1)
     try #require(config.productHypotheses.count == 2)
     try #require(config.productHypotheses[0].contenderPlan.contains("focused board"))
-    try #require(config.experiments.count == 1)
+    try #require(config.tournamentExperiments.count == 1)
     try #require(config.tournaments.count == 1)
     try #require(config.tournamentContenders.count == 2)
     try #require(
@@ -337,7 +338,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
       currentWorkflows: [workflow],
       alternatives: [alternative],
       productHypotheses: [commandBoard, timeline],
-      experiments: [experiment],
+      tournamentExperiments: [experiment],
       tournaments: [tournament],
       tournamentContenders: [commandBoardContender, timelineContender],
       tournamentRounds: rounds,

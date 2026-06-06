@@ -94,8 +94,8 @@ struct PlanTransitionValidatorTests {
       rawPain: "Reporting teams cannot compare product contenders.",
       now: Date(timeIntervalSince1970: 1)
     )
-    let first = config.experiments[0]
-    let second = config.experiments[1]
+    let first = config.tournamentExperiments[0]
+    let second = config.tournamentExperiments[1]
     let current = makeState(candidates: "- Improve active experiments")
     let next = makeState(
       immediate: PlanNext(
@@ -123,8 +123,8 @@ struct PlanTransitionValidatorTests {
       rawPain: "Reporting teams cannot compare product contenders.",
       now: Date(timeIntervalSince1970: 1)
     )
-    let first = config.experiments[0]
-    let second = config.experiments[1]
+    let first = config.tournamentExperiments[0]
+    let second = config.tournamentExperiments[1]
     let current = makeState(candidates: "- Improve active experiments")
     let next = makeState(
       immediate: PlanNext(

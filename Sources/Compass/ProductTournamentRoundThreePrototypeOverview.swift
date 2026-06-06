@@ -110,7 +110,7 @@ enum ProductTournamentRoundThreePrototypeOverview {
           $0.id == proposal.contenderID && $0.tournamentID == proposal.tournamentID
         }),
         let experimentID = contender.experimentID,
-        let experiment = config.experiments.first(where: { $0.id == experimentID })
+        let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
       else { return nil }
       return ProductTournamentRoundThreePrototypeOverviewItem(
         tournamentID: proposal.tournamentID,

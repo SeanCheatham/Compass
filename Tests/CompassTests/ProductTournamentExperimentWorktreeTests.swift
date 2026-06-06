@@ -37,7 +37,7 @@ struct ProductTournamentExperimentWorktreeTests {
     )
     let saved = try workspace.readProductTournamentConfig()
     let savedFirst = try #require(
-      saved.experiments.first { $0.id == "experiment-command-board" }
+      saved.tournamentExperiments.first { $0.id == "experiment-command-board" }
     )
 
     try #require(updatedFirst.currentSha != initialMainSha)
@@ -86,7 +86,7 @@ struct ProductTournamentExperimentWorktreeTests {
     let workspace = CompassWorkspace(repoURL: root)
     try workspace.initialize()
     try writeFile("dirty.txt", contents: "uncommitted\n", at: root)
-    let experiment = makeBranchingProductTournamentConfig().experiments[0]
+    let experiment = makeBranchingProductTournamentConfig().tournamentExperiments[0]
 
     do {
       _ = try await ProductTournamentExperimentWorktreeManager.ensureWorktree(for: experiment, in: workspace)
@@ -255,7 +255,7 @@ private func makeBranchingProductTournamentConfig() -> ProductTournamentConfig {
     currentWorkflows: [],
     alternatives: [],
     productHypotheses: [hypothesis],
-    experiments: [first, second],
+    tournamentExperiments: [first, second],
     scenarioCohorts: [],
     decisions: []
   )

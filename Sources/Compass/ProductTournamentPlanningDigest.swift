@@ -308,7 +308,7 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     maxExperiments: Int
   ) -> [String] {
-    let experiments = config.experiments.sorted { lhs, rhs in
+    let experiments = config.tournamentExperiments.sorted { lhs, rhs in
       if lhs.decision == rhs.decision { return lhs.updatedAt > rhs.updatedAt }
       return experimentDecisionRank(lhs.decision) < experimentDecisionRank(rhs.decision)
     }
@@ -835,14 +835,14 @@ enum ProductTournamentPlanningDigestFormatter {
     maxEvidenceSignals: Int
   ) -> [String] {
     var lines: [String] = []
-    let currentSummaries = config.experiments
+    let currentSummaries = config.tournamentExperiments
       .flatMap { index.summaries(for: $0) }
       .sorted { lhs, rhs in
         if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
         return lhs.endedAt > rhs.endedAt
       }
     let currentAggregate = ProductTournamentEvidenceAggregateSummary(summaries: currentSummaries)
-    let staleCount = config.experiments
+    let staleCount = config.tournamentExperiments
       .map { index.staleSummaryCount(for: $0) }
       .reduce(0, +)
     if staleCount > 0 {
@@ -960,7 +960,7 @@ enum ProductTournamentPlanningDigestFormatter {
       lines.append("Targeted tournament proof outcomes: \(outcomes).")
     }
 
-    let currentReadiness = config.experiments
+    let currentReadiness = config.tournamentExperiments
       .compactMap { index.currentTournamentReadiness(for: $0) }
       .sorted { lhs, rhs in
         if lhs.readinessScore == rhs.readinessScore {

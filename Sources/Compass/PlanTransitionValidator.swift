@@ -213,7 +213,7 @@ enum PlanTransitionValidator {
     immediate: PlanNext,
     productTournamentConfig: ProductTournamentConfig?
   ) throws {
-    guard let productTournamentConfig, productTournamentConfig.experiments.count > 1 else { return }
+    guard let productTournamentConfig, productTournamentConfig.tournamentExperiments.count > 1 else { return }
     let handoffText = [
       immediate.plan,
       immediate.selectedBecause,
@@ -246,7 +246,7 @@ enum PlanTransitionValidator {
     guard !normalizedText.isEmpty else { return [] }
 
     var matches: [String] = []
-    for experiment in productTournamentConfig.experiments {
+    for experiment in productTournamentConfig.tournamentExperiments {
       let tokens = [
         experiment.id,
         experiment.branchName,

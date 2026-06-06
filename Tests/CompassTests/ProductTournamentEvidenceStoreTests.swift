@@ -119,9 +119,9 @@ struct ProductTournamentEvidenceStoreTests {
       rawPain: "Reporting work needs targeted evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].currentSha = "abc123"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].currentSha = "abc123"
+    let experiment = config.tournamentExperiments[0]
     let intent = ProductTournamentSimulationDecisionIntent(
       currentDecision: .keepGoing,
       targetDecision: .promote
@@ -422,9 +422,9 @@ struct ProductTournamentEvidenceStoreTests {
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
     )
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
@@ -486,7 +486,7 @@ struct ProductTournamentEvidenceStoreTests {
         startedAt: 40,
         endedAt: 45,
         executedStepIDs: ["step-run-cohort"],
-        experimentIDs: [config.experiments[0].id],
+        experimentIDs: [config.tournamentExperiments[0].id],
         messages: [
           "Model-free cohort ran 1 scenario(s): 0 completed, 1 needing review, 0 skipped."
         ],
@@ -499,14 +499,14 @@ struct ProductTournamentEvidenceStoreTests {
         startingProofDebtCount: 8,
         endingProofDebtCount: 7,
         startingProofDebtSummary:
-          "\(config.experiments[0].id): 2 completed run(s), 2 persona(s), 2 AI-user persona(s), 2 AI-user current-alternative proof(s)",
+          "\(config.tournamentExperiments[0].id): 2 completed run(s), 2 persona(s), 2 AI-user persona(s), 2 AI-user current-alternative proof(s)",
         endingProofDebtSummary:
-          "\(config.experiments[0].id): 1 completed run(s), 2 persona(s), 2 AI-user persona(s), 2 AI-user current-alternative proof(s)",
+          "\(config.tournamentExperiments[0].id): 1 completed run(s), 2 persona(s), 2 AI-user persona(s), 2 AI-user current-alternative proof(s)",
         evidenceTensionSummaries: [
-          "\(config.experiments[0].id): resolve split tournament evidence; score 82/100; strong_pull vs rejected; target Budget owner"
+          "\(config.tournamentExperiments[0].id): resolve split tournament evidence; score 82/100; strong_pull vs rejected; target Budget owner"
         ],
         proofTargetSummaries: [
-          "\(config.experiments[0].id): run targeted AI-user persona proof; target Budget owner; debt 2 AI-user persona(s)"
+          "\(config.tournamentExperiments[0].id): run targeted AI-user persona proof; target Budget owner; debt 2 AI-user persona(s)"
         ],
         stopReason: .executionFailed,
         stopDetail: "Stopped because Run evidence cohort failed: contract missing.",
@@ -516,10 +516,10 @@ struct ProductTournamentEvidenceStoreTests {
     )
     let record = makeEvidenceRecord(
       id: "digest-run",
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       productHypothesisID: config.productHypotheses[0].id,
       painID: config.painHypotheses[0].id,
-      branchName: config.experiments[0].branchName,
+      branchName: config.tournamentExperiments[0].branchName,
       verdict: .promising,
       objections: ["Still needs CSV import"],
       missingCapabilities: ["csv_import"],
@@ -584,10 +584,10 @@ struct ProductTournamentEvidenceStoreTests {
     let records = [
       makeEvidenceRecord(
         id: "rationale-one",
-        experimentID: config.experiments[0].id,
+        experimentID: config.tournamentExperiments[0].id,
         productHypothesisID: config.productHypotheses[0].id,
         painID: config.painHypotheses[0].id,
-        branchName: config.experiments[0].branchName,
+        branchName: config.tournamentExperiments[0].branchName,
         personaID: "operator",
         mode: .personaModel,
         personaActionRationales: [
@@ -596,10 +596,10 @@ struct ProductTournamentEvidenceStoreTests {
       ),
       makeEvidenceRecord(
         id: "rationale-two",
-        experimentID: config.experiments[0].id,
+        experimentID: config.tournamentExperiments[0].id,
         productHypothesisID: config.productHypotheses[0].id,
         painID: config.painHypotheses[0].id,
-        branchName: config.experiments[0].branchName,
+        branchName: config.tournamentExperiments[0].branchName,
         personaID: "buyer",
         mode: .personaModel,
         endedAt: 30,
@@ -625,11 +625,11 @@ struct ProductTournamentEvidenceStoreTests {
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    for index in config.experiments.indices.dropFirst() {
-      config.experiments[index].decision = .promoted
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    for index in config.tournamentExperiments.indices.dropFirst() {
+      config.tournamentExperiments[index].decision = .promoted
     }
     try completePlanOnlyRound(in: &config)
     let runnable = try #require(
@@ -680,20 +680,20 @@ struct ProductTournamentEvidenceStoreTests {
     )
     let first = makeEvidenceRecord(
       id: "prompt-run-one",
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       productHypothesisID: config.productHypotheses[0].id,
       painID: config.painHypotheses[0].id,
-      branchName: config.experiments[0].branchName,
+      branchName: config.tournamentExperiments[0].branchName,
       objections: ["The spreadsheet is already trusted"],
       missingCapabilities: ["csv_import"],
       comparison: "Beat the spreadsheet on review speed."
     )
     let second = makeEvidenceRecord(
       id: "prompt-run-two",
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       productHypothesisID: config.productHypotheses[0].id,
       painID: config.painHypotheses[0].id,
-      branchName: config.experiments[0].branchName,
+      branchName: config.tournamentExperiments[0].branchName,
       endedAt: 30,
       objections: ["The spreadsheet is already trusted"],
       missingCapabilities: ["csv_import"],
@@ -727,7 +727,7 @@ struct ProductTournamentEvidenceStoreTests {
 
     for prompt in [plan, reflect] {
       try #require(prompt.contains("## Product Tournament Context"))
-      try #require(prompt.contains(config.experiments[0].branchName))
+      try #require(prompt.contains(config.tournamentExperiments[0].branchName))
       try #require(prompt.contains("Tournament automation step"))
       try #require(prompt.contains("executable false"))
       try #require(prompt.contains("cycle executable 0"))
@@ -760,17 +760,17 @@ struct ProductTournamentEvidenceStoreTests {
       rawPain: "Weekly reporting takes too long.",
       now: Date(timeIntervalSince1970: 1_700_000_000)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
     try workspace.writeProductTournamentConfig(config)
 
     let record = makeEvidenceRecord(
       id: "smoke-run",
-      experimentID: config.experiments[0].id,
+      experimentID: config.tournamentExperiments[0].id,
       productHypothesisID: config.productHypotheses[0].id,
       painID: config.painHypotheses[0].id,
-      branchName: config.experiments[0].branchName,
+      branchName: config.tournamentExperiments[0].branchName,
       commitSha: "head-sha",
       objections: ["Spreadsheet is already trusted"],
       missingCapabilities: ["csv_import"],
@@ -825,7 +825,7 @@ struct ProductTournamentEvidenceStoreTests {
     let project = CompassProject(repoURL: root)
     await project.refresh()
 
-    try #require(project.productTournamentConfig.experiments[0].decision == .keepGoing)
+    try #require(project.productTournamentConfig.tournamentExperiments[0].decision == .keepGoing)
     try #require(project.productTournamentEvidenceIndex.summaries.map(\.runID) == ["smoke-run"])
     try #require(
       project.productTournamentEvidenceIndex.planEvaluationSummaries.map(\.evaluationID)
@@ -853,7 +853,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(workbenchBody.contains("Persona Round 1"))
     try #require(workbenchBody.contains("completedUseProof: true"))
     try #require(prompt.contains("smoke-run"))
-    try #require(prompt.contains(config.experiments[0].branchName))
+    try #require(prompt.contains(config.tournamentExperiments[0].branchName))
     try #require(prompt.contains("csv_import"))
     try #require(prompt.contains("completed_use_proof yes"))
     try #require(prompt.contains("plan_modes persona_model 0 model_free 1"))
@@ -861,17 +861,17 @@ struct ProductTournamentEvidenceStoreTests {
 
     await project.applyProductTournamentExperimentRolloutAction(
       .promoteOrConfirm,
-      experimentID: config.experiments[0].id
+      experimentID: config.tournamentExperiments[0].id
     )
 
     let saved = try workspace.readProductTournamentConfig()
     let savedExperiment = try #require(
-      saved.experiments.first { $0.id == config.experiments[0].id })
+      saved.tournamentExperiments.first { $0.id == config.tournamentExperiments[0].id })
     let savedDecision = try #require(saved.decisions.last)
     try #require(project.errorMessage == nil)
     try #require(savedExperiment.decision == .promote)
     try #require(savedDecision.decision == .promote)
-    try #require(savedDecision.branchName == config.experiments[0].branchName)
+    try #require(savedDecision.branchName == config.tournamentExperiments[0].branchName)
     try #require(savedDecision.beforeSha == "head-sha")
     try #require(savedDecision.evidenceRunIDs == ["smoke-run"])
   }

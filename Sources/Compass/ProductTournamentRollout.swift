@@ -160,12 +160,12 @@ enum ProductTournamentExperimentRolloutWorkflow {
     decidedBy: String = "Product Tournament Workbench"
   ) throws -> ProductTournamentConfig {
     var next = config
-    guard let experimentIndex = next.experiments.firstIndex(where: { $0.id == experimentID })
+    guard let experimentIndex = next.tournamentExperiments.firstIndex(where: { $0.id == experimentID })
     else {
       throw ProductTournamentExperimentRolloutError.unknownExperiment(experimentID)
     }
 
-    let experiment = next.experiments[experimentIndex]
+    let experiment = next.tournamentExperiments[experimentIndex]
     let target = action.targetDecision(from: experiment.decision)
     let summary = summary(for: action, experiment: experiment)
     try ProductTournamentDecisionTransitionValidator.validate(
@@ -179,9 +179,9 @@ enum ProductTournamentExperimentRolloutWorkflow {
     let evidenceRunIDs = evidenceRunIDs(for: experiment, evidenceIndex: evidenceIndex)
     let beforeSha = experiment.currentSha ?? experiment.baseSha
 
-    next.experiments[experimentIndex].decision = target
-    next.experiments[experimentIndex].evidenceSummary = summary
-    next.experiments[experimentIndex].updatedAt = timestamp
+    next.tournamentExperiments[experimentIndex].decision = target
+    next.tournamentExperiments[experimentIndex].evidenceSummary = summary
+    next.tournamentExperiments[experimentIndex].updatedAt = timestamp
 
     if let solutionIndex = next.productHypotheses.firstIndex(where: { $0.id == experiment.productHypothesisID }) {
       switch target {
@@ -205,8 +205,8 @@ enum ProductTournamentExperimentRolloutWorkflow {
         evidenceRunIDs: evidenceRunIDs,
         branchName: experiment.branchName,
         beforeSha: beforeSha,
-        afterSha: next.experiments[experimentIndex].currentSha
-          ?? next.experiments[experimentIndex].baseSha,
+        afterSha: next.tournamentExperiments[experimentIndex].currentSha
+          ?? next.tournamentExperiments[experimentIndex].baseSha,
         decidedAt: timestamp,
         decidedBy: decidedBy
       )
@@ -256,7 +256,7 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     guard CompassWorkspace.isGitRepository(repoURL) else {
       throw ProductTournamentExperimentGitRolloutError.missingGitRepository(repoURL)
     }
-    guard let experiment = config.experiments.first(where: { $0.id == experimentID }) else {
+    guard let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID }) else {
       throw ProductTournamentExperimentGitRolloutError.unknownExperiment(experimentID)
     }
     try await ProductTournamentExperimentGit.validateBranchName(experiment.branchName, in: repoURL)
@@ -323,11 +323,11 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     now: Date = Date(),
     decidedBy: String = "Product Tournament Workbench"
   ) async throws -> ProductTournamentExperimentGitRolloutResult {
-    guard let experimentIndex = config.experiments.firstIndex(where: { $0.id == experimentID })
+    guard let experimentIndex = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID })
     else {
       throw ProductTournamentExperimentGitRolloutError.unknownExperiment(experimentID)
     }
-    let experiment = config.experiments[experimentIndex]
+    let experiment = config.tournamentExperiments[experimentIndex]
     guard experiment.decision == .promote else {
       throw ProductTournamentExperimentGitRolloutError.expectedDecision(
         experimentID: experiment.id,
@@ -418,11 +418,11 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     guard CompassWorkspace.isGitRepository(repoURL) else {
       throw ProductTournamentExperimentGitRolloutError.missingGitRepository(repoURL)
     }
-    guard let experimentIndex = config.experiments.firstIndex(where: { $0.id == experimentID })
+    guard let experimentIndex = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID })
     else {
       throw ProductTournamentExperimentGitRolloutError.unknownExperiment(experimentID)
     }
-    let experiment = config.experiments[experimentIndex]
+    let experiment = config.tournamentExperiments[experimentIndex]
     guard experiment.decision == .kill else {
       throw ProductTournamentExperimentGitRolloutError.expectedDecision(
         experimentID: experiment.id,
@@ -494,11 +494,11 @@ enum ProductTournamentExperimentGitRolloutWorkflow {
     decidedBy: String
   ) -> ProductTournamentConfig {
     var next = config
-    let experiment = next.experiments[experimentIndex]
+    let experiment = next.tournamentExperiments[experimentIndex]
     let timestamp = now.timeIntervalSince1970
-    next.experiments[experimentIndex].decision = target
-    next.experiments[experimentIndex].evidenceSummary = summary
-    next.experiments[experimentIndex].updatedAt = timestamp
+    next.tournamentExperiments[experimentIndex].decision = target
+    next.tournamentExperiments[experimentIndex].evidenceSummary = summary
+    next.tournamentExperiments[experimentIndex].updatedAt = timestamp
     if let solutionIndex = next.productHypotheses.firstIndex(where: { $0.id == experiment.productHypothesisID }) {
       switch target {
       case .promoted:
@@ -724,12 +724,12 @@ extension CompassProject {
         fail(AppModelError.noRepositorySelected)
         return
       }
-      let actionTitle = productTournamentConfig.experiments
+      let actionTitle = productTournamentConfig.tournamentExperiments
         .first { $0.id == experimentID }
         .map { action.title(from: $0.decision) }
         ?? action.rawValue
       if action == .promoteOrConfirm,
-        productTournamentConfig.experiments.first(where: { $0.id == experimentID })?.decision == .promote
+        productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentID })?.decision == .promote
       {
         let result = try await workspace.promoteProductTournamentExperiment(experimentID: experimentID)
         productTournamentConfig = result.config
@@ -740,7 +740,7 @@ extension CompassProject {
         return
       }
       if action == .killOrArchive,
-        productTournamentConfig.experiments.first(where: { $0.id == experimentID })?.decision == .kill
+        productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentID })?.decision == .kill
       {
         let result = try await workspace.archiveProductTournamentExperiment(experimentID: experimentID)
         productTournamentConfig = result.config

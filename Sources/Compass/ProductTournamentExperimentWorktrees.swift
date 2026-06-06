@@ -235,18 +235,18 @@ extension CompassWorkspace {
     experimentID: String
   ) async throws -> ProductTournamentExperimentWorktree {
     var config = try readProductTournamentConfig()
-    guard let index = config.experiments.firstIndex(where: { $0.id == experimentID }) else {
+    guard let index = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID }) else {
       throw ProductTournamentExperimentWorktreeError.experimentNotFound(experimentID)
     }
     let prepared = try await ProductTournamentExperimentWorktreeManager.ensureWorktree(
-      for: config.experiments[index],
+      for: config.tournamentExperiments[index],
       in: self
     )
-    if config.experiments[index].baseSha == nil {
-      config.experiments[index].baseSha = prepared.baseSha
+    if config.tournamentExperiments[index].baseSha == nil {
+      config.tournamentExperiments[index].baseSha = prepared.baseSha
     }
-    config.experiments[index].currentSha = prepared.currentSha
-    config.experiments[index].updatedAt = Date().timeIntervalSince1970
+    config.tournamentExperiments[index].currentSha = prepared.currentSha
+    config.tournamentExperiments[index].updatedAt = Date().timeIntervalSince1970
     try writeProductTournamentConfig(config)
     return prepared
   }

@@ -356,7 +356,7 @@ private func makeTournamentRequest(
   )
   let pain = config.painHypotheses[0]
   let hypothesis = config.productHypotheses[0]
-  var experiment = config.experiments[0]
+  var experiment = config.tournamentExperiments[0]
   experiment.currentSha = "abc123"
   if targetDecision != nil {
     experiment.decision = .keepGoing

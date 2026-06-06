@@ -24,14 +24,14 @@ extension Prompts {
       - Create a tournament with explicit rounds: Round 1 compares product
         plans with no built product, Round 2 proves the core technology, and
         Round 3 evaluates low-medium fidelity prototype versions.
-      - Make each candidate experiment small enough to become the Round 2 or
+      - Make each candidate tournament experiment small enough to become the Round 2 or
         Round 3 Rust desktop track for one contender.
       - Include willingness-to-pay or willingness-to-sponsor signals in the
         tournament evaluation focus when buyer evidence matters.
       - Record unknowns that would materially change the product direction.
       - Use "assumption" for guesses. Do not invent evidence.
 
-      Candidate experiment rules:
+      Candidate tournament experiment rules:
       - `candidateExperiments` are implementation tracks for tournament
         contenders after the plan-only round; do not treat them as Round 1.
       - `productHypothesisID` must reference a product hypothesis in `stateEdits` or
@@ -211,7 +211,7 @@ struct DiscoverPromptOutput: Codable, Equatable {
         painID: hypothesis.painID
       )
     }
-    for experiment in config.experiments {
+    for experiment in config.tournamentExperiments {
       guard productHypothesisIDs.contains(experiment.productHypothesisID) else {
         throw DiscoverPromptValidationError.experimentReferencesMissingProductHypothesis(
           experimentID: experiment.id,
@@ -226,7 +226,7 @@ struct DiscoverPromptOutput: Codable, Equatable {
     let tournamentIDs = Set(config.tournaments.map(\.id))
     let contenderIDs = Set(config.tournamentContenders.map(\.id))
     let roundIDs = Set(config.tournamentRounds.map(\.id))
-    let experimentIDs = Set(config.experiments.map(\.id))
+    let experimentIDs = Set(config.tournamentExperiments.map(\.id))
     let scenarioCohortIDs = Set(config.scenarioCohorts.map(\.id))
     for tournament in config.tournaments {
       guard painIDs.contains(tournament.painID) else {
@@ -321,7 +321,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
   var currentWorkflows: [CurrentWorkflow]
   var alternatives: [Alternative]
   var productHypotheses: [ProductHypothesis]
-  var experiments: [ProductTournamentExperiment]
+  var tournamentExperiments: [ProductTournamentExperiment]
   var tournaments: [ProductTournament]
   var tournamentContenders: [ProductTournamentContender]
   var tournamentRounds: [ProductTournamentRound]
@@ -335,7 +335,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     case currentWorkflows
     case alternatives
     case productHypotheses
-    case experiments
+    case tournamentExperiments
     case tournaments
     case tournamentContenders
     case tournamentRounds
@@ -350,7 +350,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     currentWorkflows: [CurrentWorkflow] = [],
     alternatives: [Alternative] = [],
     productHypotheses: [ProductHypothesis] = [],
-    experiments: [ProductTournamentExperiment] = [],
+    tournamentExperiments: [ProductTournamentExperiment] = [],
     tournaments: [ProductTournament] = [],
     tournamentContenders: [ProductTournamentContender] = [],
     tournamentRounds: [ProductTournamentRound] = [],
@@ -363,7 +363,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     self.currentWorkflows = currentWorkflows
     self.alternatives = alternatives
     self.productHypotheses = productHypotheses
-    self.experiments = experiments
+    self.tournamentExperiments = tournamentExperiments
     self.tournaments = tournaments
     self.tournamentContenders = tournamentContenders
     self.tournamentRounds = tournamentRounds
@@ -383,7 +383,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
       productHypotheses: try container.decodeIfPresent(
         [ProductHypothesis].self, forKey: .productHypotheses) ?? [],
-      experiments: try container.decodeIfPresent([ProductTournamentExperiment].self, forKey: .experiments)
+      tournamentExperiments: try container.decodeIfPresent([ProductTournamentExperiment].self, forKey: .tournamentExperiments)
         ?? [],
       tournaments: try container.decodeIfPresent([ProductTournament].self, forKey: .tournaments)
         ?? [],
@@ -414,7 +414,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     upsert(&next.currentWorkflows, edits: currentWorkflows, id: \.id)
     upsert(&next.alternatives, edits: alternatives, id: \.id)
     upsert(&next.productHypotheses, edits: productHypotheses, id: \.id)
-    upsert(&next.experiments, edits: experiments, id: \.id)
+    upsert(&next.tournamentExperiments, edits: tournamentExperiments, id: \.id)
     upsert(&next.tournaments, edits: tournaments, id: \.id)
     upsert(&next.tournamentContenders, edits: tournamentContenders, id: \.id)
     upsert(&next.tournamentRounds, edits: tournamentRounds, id: \.id)
@@ -558,7 +558,7 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
     case .roundReferencesMissingCohort(let roundID, let cohortID):
       return "Product tournament round \(roundID) references missing scenario cohort \(cohortID)."
     case .candidateReferencesMissingProductHypothesis(let productHypothesisID):
-      return "Candidate experiment references missing product hypothesis \(productHypothesisID)."
+      return "Candidate tournament experiment references missing product hypothesis \(productHypothesisID)."
     case .invalidBranchSlug(let slug):
       return "Invalid discovery branch slug or branch name: \(slug)."
     case .openQuestionsUsedInsteadOfActionableNextSteps(let text):

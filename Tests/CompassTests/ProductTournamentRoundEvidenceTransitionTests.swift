@@ -37,7 +37,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     let updatedContender = try #require(
       outcome.config.tournamentContenders.first { $0.id == fixture.contender.id })
     let updatedExperiment = try #require(
-      outcome.config.experiments.first { $0.id == fixture.experiment.id })
+      outcome.config.tournamentExperiments.first { $0.id == fixture.experiment.id })
     let digest = ProductTournamentPlanningDigestFormatter.promptText(
       config: fixture.config,
       evidenceIndex: index
@@ -112,7 +112,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     let updatedPrototypeRound = try #require(
       outcome.config.tournamentRounds.first { $0.id == fixture.prototypeRound.id })
     let updatedExperiment = try #require(
-      outcome.config.experiments.first { $0.id == fixture.experiment.id })
+      outcome.config.tournamentExperiments.first { $0.id == fixture.experiment.id })
     let updatedSolution = try #require(
       outcome.config.productHypotheses.first { $0.id == fixture.contender.productHypothesisID })
 
@@ -153,7 +153,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     let updatedContender = try #require(
       outcome.config.tournamentContenders.first { $0.id == fixture.contender.id })
     let updatedExperiment = try #require(
-      outcome.config.experiments.first { $0.id == fixture.experiment.id })
+      outcome.config.tournamentExperiments.first { $0.id == fixture.experiment.id })
     let followUpScope = ProductTournamentEvidenceScopeResolver.scope(
       experimentID: fixture.experiment.id,
       in: outcome.config
@@ -325,7 +325,7 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
   let prototypeRound = try #require(config.tournamentRounds.first { $0.kind == .prototype })
   let contender = try #require(config.tournamentContenders.first)
   let experimentID = try #require(contender.experimentID)
-  let experiment = try #require(config.experiments.first { $0.id == experimentID })
+  let experiment = try #require(config.tournamentExperiments.first { $0.id == experimentID })
   let hypothesis = try #require(config.productHypotheses.first { $0.id == contender.productHypothesisID })
 
   config.tournaments[0].currentRoundID = coreRound.id

@@ -51,7 +51,7 @@
         "currentWorkflows",
         "alternatives",
         "productHypotheses",
-        "experiments",
+        "tournamentExperiments",
         "tournaments",
         "tournamentContenders",
         "tournamentRounds",
@@ -90,7 +90,7 @@
           "maxItems": 8,
           "items": { "$ref": "#/$defs/productHypothesis" }
         },
-        "experiments": {
+        "tournamentExperiments": {
           "type": "array",
           "maxItems": 8,
           "items": { "$ref": "#/$defs/productTournamentExperiment" }

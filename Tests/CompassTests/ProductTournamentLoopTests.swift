@@ -72,7 +72,7 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    let experiment = config.experiments[0]
+    let experiment = config.tournamentExperiments[0]
     let update = ProductTournamentReflectDecisionUpdate(
       experimentID: experiment.id,
       decision: .keepGoing,
@@ -86,7 +86,7 @@ struct ProductTournamentLoopTests {
       to: config,
       now: Date(timeIntervalSince1970: 20)
     )
-    let savedExperiment = try #require(next.experiments.first { $0.id == experiment.id })
+    let savedExperiment = try #require(next.tournamentExperiments.first { $0.id == experiment.id })
     let savedDecision = try #require(next.decisions.last)
 
     try #require(savedExperiment.decision == .keepGoing)
@@ -111,8 +111,8 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[1].decision = .keepGoing
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[1].decision = .keepGoing
     let weakExperiment = ProductTournamentExperiment(
       id: "reporting-weak-contender",
       productHypothesisID: config.productHypotheses[0].id,
@@ -126,7 +126,7 @@ struct ProductTournamentLoopTests {
       decision: .keepGoing,
       createdAt: 10
     )
-    config.experiments.append(weakExperiment)
+    config.tournamentExperiments.append(weakExperiment)
 
     let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
@@ -153,7 +153,7 @@ struct ProductTournamentLoopTests {
       records: [
         makeDecisionAdvisorRecord(
           id: "promote-a",
-          experiment: config.experiments[0],
+          experiment: config.tournamentExperiments[0],
           config: config,
           personaID: "operator",
           mode: .personaModel,
@@ -163,7 +163,7 @@ struct ProductTournamentLoopTests {
         ),
         makeDecisionAdvisorRecord(
           id: "promote-b",
-          experiment: config.experiments[0],
+          experiment: config.tournamentExperiments[0],
           config: config,
           personaID: "buyer",
           mode: .personaModel,
@@ -173,7 +173,7 @@ struct ProductTournamentLoopTests {
         ),
         makeDecisionAdvisorRecord(
           id: "promote-c",
-          experiment: config.experiments[0],
+          experiment: config.tournamentExperiments[0],
           config: config,
           personaID: "operator",
           endedAt: 100,
@@ -182,7 +182,7 @@ struct ProductTournamentLoopTests {
         ),
         makeDecisionAdvisorRecord(
           id: "narrow-a",
-          experiment: config.experiments[1],
+          experiment: config.tournamentExperiments[1],
           config: config,
           personaID: "operator",
           endedAt: 280,
@@ -192,7 +192,7 @@ struct ProductTournamentLoopTests {
         ),
         makeDecisionAdvisorRecord(
           id: "narrow-b",
-          experiment: config.experiments[1],
+          experiment: config.tournamentExperiments[1],
           config: config,
           personaID: "buyer",
           endedAt: 270,
@@ -237,8 +237,8 @@ struct ProductTournamentLoopTests {
       config: config,
       evidenceIndex: index
     )
-    let promote = try #require(proposals.first { $0.experimentID == config.experiments[0].id })
-    let narrow = try #require(proposals.first { $0.experimentID == config.experiments[1].id })
+    let promote = try #require(proposals.first { $0.experimentID == config.tournamentExperiments[0].id })
+    let narrow = try #require(proposals.first { $0.experimentID == config.tournamentExperiments[1].id })
     let kill = try #require(proposals.first { $0.experimentID == weakExperiment.id })
 
     try #require(promote.update.decision == .promote)
@@ -277,10 +277,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
     let buyerScenario = try #require(
@@ -546,10 +546,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
     let operatorScenario = try #require(
@@ -653,10 +653,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
     let weakScores = ProductTournamentEvidenceScores(
@@ -751,7 +751,7 @@ struct ProductTournamentLoopTests {
     let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
     let contender = try #require(config.tournamentContenders.first)
     let experiment = try #require(
-      config.experiments.first { $0.id == contender.experimentID })
+      config.tournamentExperiments.first { $0.id == contender.experimentID })
     let emptyIndex = ProductTournamentEvidenceIndex.build(records: [])
 
     let initialTarget = try #require(
@@ -1068,7 +1068,7 @@ struct ProductTournamentLoopTests {
     try #require(noFoundationStep.title == "Apply Round 1 transition")
 
     let modelFreeExperiment = try #require(
-      modelFreeConfig.experiments.first { $0.id == initialStep.experimentID })
+      modelFreeConfig.tournamentExperiments.first { $0.id == initialStep.experimentID })
     let personaTarget = try #require(
       TournamentAutomationProofTargetAdvisor.target(
         for: modelFreeExperiment,
@@ -1161,10 +1161,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
     let weakScores = ProductTournamentEvidenceScores(
@@ -1321,10 +1321,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let scenarioID = "\(experiment.id)-buyer-starter-scenario"
     let promoteAction = ProductTournamentNextAction(
       experimentID: experiment.id,
@@ -1396,10 +1396,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
     let weakScores = ProductTournamentEvidenceScores(
@@ -1469,10 +1469,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
     let weakScores = ProductTournamentEvidenceScores(
@@ -1559,10 +1559,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
@@ -1623,10 +1623,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
@@ -1665,10 +1665,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let index = makeTournamentPromotionEvidenceIndex(
       experiment: experiment,
       config: config,
@@ -1709,10 +1709,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let operatorSegment = config.userSegments[0]
     let buyer = config.userSegments[1]
     let operatorScenario = try #require(
@@ -1833,13 +1833,13 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    for index in config.experiments.indices.dropFirst() {
-      config.experiments[index].decision = .promoted
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    for index in config.tournamentExperiments.indices.dropFirst() {
+      config.tournamentExperiments[index].decision = .promoted
     }
-    let experiment = config.experiments[0]
+    let experiment = config.tournamentExperiments[0]
     let operatorSegment = config.userSegments[0]
     let buyer = config.userSegments[1]
     let operatorScenario = try #require(
@@ -2237,10 +2237,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let index = makeTournamentPromotionEvidenceIndex(
       config: config,
       personaActionRationales: [
@@ -2283,10 +2283,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .narrow
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .narrow
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let operatorSegment = config.userSegments[0]
     let buyer = config.userSegments[1]
     let operatorScenario = try #require(
@@ -2395,10 +2395,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
     let workflow = try #require(config.currentWorkflows.first)
     let alternative = try #require(config.alternatives.first { $0.kind == .doNothing })
@@ -2501,13 +2501,13 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    for index in config.experiments.indices.dropFirst() {
-      config.experiments[index].decision = .promoted
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    for index in config.tournamentExperiments.indices.dropFirst() {
+      config.tournamentExperiments[index].decision = .promoted
     }
-    let experiment = config.experiments[0]
+    let experiment = config.tournamentExperiments[0]
     let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
     config.scenarios.removeAll { $0.experimentID == experiment.id && $0.segmentID == buyer.id }
     for index in config.scenarioCohorts.indices
@@ -2647,13 +2647,13 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    for index in config.experiments.indices.dropFirst() {
-      config.experiments[index].decision = .promoted
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    for index in config.tournamentExperiments.indices.dropFirst() {
+      config.tournamentExperiments[index].decision = .promoted
     }
-    let experiment = config.experiments[0]
+    let experiment = config.tournamentExperiments[0]
     let buyer = try #require(config.userSegments.first { $0.name == "Budget owner" })
     config.scenarios.removeAll { $0.experimentID == experiment.id && $0.segmentID == buyer.id }
     for index in config.scenarioCohorts.indices
@@ -2726,11 +2726,11 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    for index in config.experiments.indices.dropFirst() {
-      config.experiments[index].decision = .promoted
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    for index in config.tournamentExperiments.indices.dropFirst() {
+      config.tournamentExperiments[index].decision = .promoted
     }
     let index = makeTournamentPromotionEvidenceIndex(
       config: config,
@@ -2790,19 +2790,19 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    try #require(config.experiments.indices.contains(1))
-    for index in config.experiments.indices.prefix(2) {
-      config.experiments[index].decision = .keepGoing
-      config.experiments[index].baseSha = "base-\(index)"
-      config.experiments[index].currentSha = "head-\(index)"
+    try #require(config.tournamentExperiments.indices.contains(1))
+    for index in config.tournamentExperiments.indices.prefix(2) {
+      config.tournamentExperiments[index].decision = .keepGoing
+      config.tournamentExperiments[index].baseSha = "base-\(index)"
+      config.tournamentExperiments[index].currentSha = "head-\(index)"
     }
     let implementationTarget = try activateRoundTwoImplementationTarget(in: &config)
     let targetExperiment = try #require(
-      config.experiments.first { $0.id == implementationTarget.experimentID }
+      config.tournamentExperiments.first { $0.id == implementationTarget.experimentID }
     )
-    let siblingExperiment = config.experiments[1]
+    let siblingExperiment = config.tournamentExperiments[1]
     let evidenceIndex = makeProofDebtEvidenceIndex(
-      experiments: [targetExperiment, siblingExperiment],
+      tournamentExperiments: [targetExperiment, siblingExperiment],
       config: config
     )
 
@@ -2835,14 +2835,14 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    try #require(config.experiments.indices.contains(1))
-    for index in config.experiments.indices.prefix(2) {
-      config.experiments[index].decision = .keepGoing
-      config.experiments[index].baseSha = "base-\(index)"
-      config.experiments[index].currentSha = "head-\(index)"
+    try #require(config.tournamentExperiments.indices.contains(1))
+    for index in config.tournamentExperiments.indices.prefix(2) {
+      config.tournamentExperiments[index].decision = .keepGoing
+      config.tournamentExperiments[index].baseSha = "base-\(index)"
+      config.tournamentExperiments[index].currentSha = "head-\(index)"
     }
     let implementationTarget = try activateRoundTwoImplementationTarget(in: &config)
-    let siblingExperiment = config.experiments[1]
+    let siblingExperiment = config.tournamentExperiments[1]
 
     let steps = TournamentAutomationPlanner.steps(
       config: config,
@@ -2876,13 +2876,13 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    try #require(config.experiments.count >= 2)
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    config.experiments[1].decision = .keepGoing
-    config.experiments[1].baseSha = "base-sha"
-    config.experiments[1].currentSha = "head-sha"
+    try #require(config.tournamentExperiments.count >= 2)
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    config.tournamentExperiments[1].decision = .keepGoing
+    config.tournamentExperiments[1].baseSha = "base-sha"
+    config.tournamentExperiments[1].currentSha = "head-sha"
     let index = makeTournamentPromotionEvidenceIndex(config: config)
 
     let ranked = TournamentAutomationExperimentRanker.rankedExperiments(
@@ -2890,17 +2890,17 @@ struct ProductTournamentLoopTests {
       evidenceIndex: index
     )
     let firstSignal = TournamentAutomationExperimentRanker.signal(
-      for: config.experiments[0],
+      for: config.tournamentExperiments[0],
       config: config,
       evidenceIndex: index
     )
     let secondSignal = TournamentAutomationExperimentRanker.signal(
-      for: config.experiments[1],
+      for: config.tournamentExperiments[1],
       config: config,
       evidenceIndex: index
     )
 
-    try #require(ranked.first?.id == config.experiments[0].id)
+    try #require(ranked.first?.id == config.tournamentExperiments[0].id)
     try #require(firstSignal.nextActionKind == .applyDecision)
     try #require(firstSignal.readinessRecommendation == .promote)
     try #require(firstSignal.pressure == .lift)
@@ -2918,20 +2918,20 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
     let index = makeTournamentPromotionEvidenceIndex(
       config: config,
       includeAIUserEvidence: false
     )
 
     let signal = TournamentAutomationExperimentRanker.signal(
-      for: config.experiments[0],
+      for: config.tournamentExperiments[0],
       config: config,
       evidenceIndex: index
     )
-    let readiness = try #require(index.currentTournamentReadiness(for: config.experiments[0]))
+    let readiness = try #require(index.currentTournamentReadiness(for: config.tournamentExperiments[0]))
 
     try #require(!readiness.proofDebt.isClear)
     try #require(readiness.proofDebt.aiUserPersonaDeficit == 2)
@@ -2950,9 +2950,9 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
     let index = makeTournamentPromotionEvidenceIndex(config: config)
 
     let step = try #require(
@@ -2964,8 +2964,8 @@ struct ProductTournamentLoopTests {
     try #require(step.canExecute)
     try #require(step.kind == .applyDecision)
     try #require(step.action.kind == .applyDecision)
-    try #require(step.experimentID == config.experiments[0].id)
-    try #require(step.detail.contains(config.experiments[0].title))
+    try #require(step.experimentID == config.tournamentExperiments[0].id)
+    try #require(step.detail.contains(config.tournamentExperiments[0].title))
   }
 
   @Test func tournamentAutomationRunsRunnableCohortWhenEvidenceIsMissing() throws {
@@ -2974,9 +2974,9 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
     try completePlanOnlyRound(in: &config)
 
     let step = try #require(
@@ -3011,11 +3011,11 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    for index in config.experiments.indices.dropFirst() {
-      config.experiments[index].decision = .promoted
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    for index in config.tournamentExperiments.indices.dropFirst() {
+      config.tournamentExperiments[index].decision = .promoted
     }
     try completePlanOnlyRound(in: &config)
     let runnable = try #require(
@@ -3048,7 +3048,7 @@ struct ProductTournamentLoopTests {
       ))
     let action = try #require(
       ProductTournamentNextActionAdvisor.nextAction(
-        for: config.experiments[0],
+        for: config.tournamentExperiments[0],
         config: config,
         evidenceIndex: .empty
       ))
@@ -3057,7 +3057,7 @@ struct ProductTournamentLoopTests {
       evidenceIndex: .empty
     )
     let signal = TournamentAutomationExperimentRanker.signal(
-      for: config.experiments[0],
+      for: config.tournamentExperiments[0],
       config: config,
       evidenceIndex: .empty
     )
@@ -3087,11 +3087,11 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    for index in config.experiments.indices.dropFirst() {
-      config.experiments[index].decision = .promoted
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    for index in config.tournamentExperiments.indices.dropFirst() {
+      config.tournamentExperiments[index].decision = .promoted
     }
     try completePlanOnlyRound(in: &config)
     let runnable = try #require(
@@ -3120,7 +3120,7 @@ struct ProductTournamentLoopTests {
       records: [
         makeDecisionAdvisorRecord(
           id: "repair-run",
-          experiment: config.experiments[0],
+          experiment: config.tournamentExperiments[0],
           config: config,
           personaID: "operator",
           endedAt: 120,
@@ -3152,13 +3152,13 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    for index in config.experiments.indices.dropFirst() {
-      config.experiments[index].decision = .promoted
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    for index in config.tournamentExperiments.indices.dropFirst() {
+      config.tournamentExperiments[index].decision = .promoted
     }
-    let experiment = config.experiments[0]
+    let experiment = config.tournamentExperiments[0]
     let evidenceIndex = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
@@ -3344,13 +3344,13 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    for index in config.experiments.indices.dropFirst() {
-      config.experiments[index].decision = .promoted
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    for index in config.tournamentExperiments.indices.dropFirst() {
+      config.tournamentExperiments[index].decision = .promoted
     }
-    let experiment = config.experiments[0]
+    let experiment = config.tournamentExperiments[0]
     let operatorID = config.userSegments[0].id
     let buyer = try #require(config.userSegments.dropFirst().first)
     config.scenarios.removeAll {
@@ -3481,10 +3481,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    for index in config.experiments.indices {
-      config.experiments[index].decision = .keepGoing
-      config.experiments[index].baseSha = "base-\(index)"
-      config.experiments[index].currentSha = "head-\(index)"
+    for index in config.tournamentExperiments.indices {
+      config.tournamentExperiments[index].decision = .keepGoing
+      config.tournamentExperiments[index].baseSha = "base-\(index)"
+      config.tournamentExperiments[index].currentSha = "head-\(index)"
     }
     try completePlanOnlyRound(in: &config)
 
@@ -3510,7 +3510,7 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].decision = .keepGoing
     try completePlanOnlyRound(in: &config)
 
     let plan = TournamentAutomationPlanner.cyclePlan(
@@ -3534,9 +3534,9 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
     try completePlanOnlyRound(in: &config)
     let step = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
@@ -3566,9 +3566,9 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
     let index = makeTournamentPromotionEvidenceIndex(
       config: config,
       includeAIUserEvidence: false
@@ -3625,9 +3625,9 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
     let index = makeTournamentPromotionEvidenceIndex(config: config)
     let step = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
@@ -3705,7 +3705,7 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    let experiment = try #require(config.experiments.first)
+    let experiment = try #require(config.tournamentExperiments.first)
     let tournament = try #require(config.tournaments.first)
     let round = try #require(config.tournamentRounds.first { $0.kind == .prototype })
     let contender = try #require(
@@ -3775,10 +3775,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
     let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
@@ -3861,10 +3861,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
     let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
@@ -3930,10 +3930,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
     let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
@@ -4042,10 +4042,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
     let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
@@ -4151,9 +4151,9 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
     try completePlanOnlyRound(in: &config)
     let step = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
@@ -4192,9 +4192,9 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
     let step = try #require(
       TournamentAutomationPlanner.nextExecutableStep(
         config: config,
@@ -4293,10 +4293,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
     let index = makeTournamentPromotionEvidenceIndex(config: config)
     let action = try #require(
       ProductTournamentNextActionAdvisor.nextAction(
@@ -4311,7 +4311,7 @@ struct ProductTournamentLoopTests {
       evidenceIndex: index,
       now: Date(timeIntervalSince1970: 400)
     )
-    let savedExperiment = try #require(next.experiments.first { $0.id == experiment.id })
+    let savedExperiment = try #require(next.tournamentExperiments.first { $0.id == experiment.id })
     let decision = try #require(next.decisions.last)
 
     try #require(action.kind == .applyDecision)
@@ -4349,7 +4349,7 @@ struct ProductTournamentLoopTests {
       ))
     let contenderID = try #require(planProofStep.contenderID)
     let contender = try #require(config.tournamentContenders.first { $0.id == contenderID })
-    let experiment = try #require(config.experiments.first { $0.id == contender.experimentID })
+    let experiment = try #require(config.tournamentExperiments.first { $0.id == contender.experimentID })
     _ = try TournamentAutomationPlanProofStepExecutor.run(
       planProofStep,
       in: workspace,
@@ -4394,7 +4394,7 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 10)
     )
     let target = try activateRoundTwoImplementationTarget(in: &config)
-    let experiment = try #require(config.experiments.first { $0.id == target.experimentID })
+    let experiment = try #require(config.tournamentExperiments.first { $0.id == target.experimentID })
     let records = scopedTournamentEvidenceRecords(
       prefix: "automation-round-2",
       experiment: experiment,
@@ -4449,7 +4449,7 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 10)
     )
     let target = try activateRoundThreePrototypeTarget(in: &config)
-    let experiment = try #require(config.experiments.first { $0.id == target.experimentID })
+    let experiment = try #require(config.tournamentExperiments.first { $0.id == target.experimentID })
     let records = scopedTournamentEvidenceRecords(
       prefix: "automation-round-3",
       experiment: experiment,
@@ -4490,7 +4490,7 @@ struct ProductTournamentLoopTests {
     let savedTournament = try #require(saved.tournaments.first { $0.id == target.tournamentID })
     let savedContender = try #require(
       saved.tournamentContenders.first { $0.id == target.contenderID })
-    let savedExperiment = try #require(saved.experiments.first { $0.id == target.experimentID })
+    let savedExperiment = try #require(saved.tournamentExperiments.first { $0.id == target.experimentID })
 
     try #require(outcome.roundKind == .prototype)
     try #require(outcome.userMessage.contains("winner"))
@@ -4505,10 +4505,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    var staleExperiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    var staleExperiment = config.tournamentExperiments[0]
     staleExperiment.currentSha = "old-sha"
     let index = makeTournamentPromotionEvidenceIndex(experiment: staleExperiment, config: config)
 
@@ -4518,7 +4518,7 @@ struct ProductTournamentLoopTests {
     )
     let action = try #require(
       ProductTournamentNextActionAdvisor.nextAction(
-        for: config.experiments[0],
+        for: config.tournamentExperiments[0],
         config: config,
         evidenceIndex: index
       ))
@@ -4530,13 +4530,13 @@ struct ProductTournamentLoopTests {
     try #require(action.cohortID == config.scenarioCohorts[0].id)
     do {
       _ = try ProductTournamentDecisionAdvisor.applyingRecommendedDecision(
-        experimentID: config.experiments[0].id,
+        experimentID: config.tournamentExperiments[0].id,
         to: config,
         evidenceIndex: index
       )
       #expect(Bool(false), "Expected stale evidence to produce no tournament proposal.")
     } catch let error as ProductTournamentDecisionAdvisorError {
-      try #require(error == .noProposal(config.experiments[0].id))
+      try #require(error == .noProposal(config.tournamentExperiments[0].id))
     }
   }
 
@@ -4546,10 +4546,10 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
+    let experiment = config.tournamentExperiments[0]
 
     let action = try #require(
       ProductTournamentNextActionAdvisor.nextAction(
@@ -4581,9 +4581,9 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    config.experiments[0].baseSha = "base-sha"
-    config.experiments[0].currentSha = "head-sha"
+    config.tournamentExperiments[0].decision = .keepGoing
+    config.tournamentExperiments[0].baseSha = "base-sha"
+    config.tournamentExperiments[0].currentSha = "head-sha"
     config.scenarioCohorts = config.scenarioCohorts.map {
       ProductScenarioCohort(
         id: $0.id,
@@ -4597,7 +4597,7 @@ struct ProductTournamentLoopTests {
 
     let action = try #require(
       ProductTournamentNextActionAdvisor.nextAction(
-        for: config.experiments[0],
+        for: config.tournamentExperiments[0],
         config: config,
         evidenceIndex: .empty
       ))
@@ -4613,8 +4613,8 @@ struct ProductTournamentLoopTests {
       rawPain: "Reporting work needs evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
-    config.experiments[0].decision = .keepGoing
-    let experiment = config.experiments[0]
+    config.tournamentExperiments[0].decision = .keepGoing
+    let experiment = config.tournamentExperiments[0]
 
     let action = try #require(
       ProductTournamentNextActionAdvisor.nextAction(
@@ -4638,7 +4638,7 @@ struct ProductTournamentLoopTests {
 
   @Test func rolloutWorkflowPromotesExperimentWithBranchCommitAndEvidenceTrail() throws {
     let config = makeRolloutConfig(decision: .keepGoing)
-    let experiment = config.experiments[0]
+    let experiment = config.tournamentExperiments[0]
     let evidenceIndex = makeRolloutEvidenceIndex(config: config)
 
     try #require(ProductTournamentExperimentRolloutWorkflow.canApply(.promoteOrConfirm, to: experiment))
@@ -4651,7 +4651,7 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 50),
       decidedBy: "Workbench"
     )
-    let readyExperiment = try #require(marked.experiments.first { $0.id == experiment.id })
+    let readyExperiment = try #require(marked.tournamentExperiments.first { $0.id == experiment.id })
     let readyDecision = try #require(marked.decisions.last)
 
     try #require(readyExperiment.decision == .promote)
@@ -4670,7 +4670,7 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 60),
       decidedBy: "Workbench"
     )
-    let promotedExperiment = try #require(promoted.experiments.first { $0.id == experiment.id })
+    let promotedExperiment = try #require(promoted.tournamentExperiments.first { $0.id == experiment.id })
     let promotedSolution = try #require(
       promoted.productHypotheses.first { $0.id == experiment.productHypothesisID }
     )
@@ -4684,7 +4684,7 @@ struct ProductTournamentLoopTests {
 
   @Test func rolloutWorkflowKillsThenArchivesWithoutDeletingExperimentLineage() throws {
     let config = makeRolloutConfig(decision: .keepGoing)
-    let experiment = config.experiments[0]
+    let experiment = config.tournamentExperiments[0]
     let evidenceIndex = makeRolloutEvidenceIndex(config: config)
 
     try #require(ProductTournamentExperimentRolloutWorkflow.canApply(.killOrArchive, to: experiment))
@@ -4697,7 +4697,7 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 70),
       decidedBy: "Workbench"
     )
-    let killedExperiment = try #require(killed.experiments.first { $0.id == experiment.id })
+    let killedExperiment = try #require(killed.tournamentExperiments.first { $0.id == experiment.id })
     let rejectedSolution = try #require(
       killed.productHypotheses.first { $0.id == experiment.productHypothesisID }
     )
@@ -4715,7 +4715,7 @@ struct ProductTournamentLoopTests {
       now: Date(timeIntervalSince1970: 80),
       decidedBy: "Workbench"
     )
-    let archivedExperiment = try #require(archived.experiments.first { $0.id == experiment.id })
+    let archivedExperiment = try #require(archived.tournamentExperiments.first { $0.id == experiment.id })
     let parkedSolution = try #require(
       archived.productHypotheses.first { $0.id == experiment.productHypothesisID }
     )
@@ -4738,16 +4738,16 @@ private func makeRolloutConfig(decision: ProductTournamentExperimentDecision) ->
     rawPain: "Reporting work needs evidence.",
     now: Date(timeIntervalSince1970: 10)
   )
-  config.experiments[0].decision = decision
-  config.experiments[0].baseSha = "base-sha"
-  config.experiments[0].currentSha = "head-sha"
+  config.tournamentExperiments[0].decision = decision
+  config.tournamentExperiments[0].baseSha = "base-sha"
+  config.tournamentExperiments[0].currentSha = "head-sha"
   return config
 }
 
 private func activateRoundTwoImplementationTarget(
   in config: inout ProductTournamentConfig
 ) throws -> ProductTournamentRoundImplementationTarget {
-  let experimentID = config.experiments[0].id
+  let experimentID = config.tournamentExperiments[0].id
   let contenderIndex = try #require(
     config.tournamentContenders.firstIndex { $0.experimentID == experimentID })
   let tournamentIndex = try #require(
@@ -4817,7 +4817,7 @@ private func completePlanOnlyRound(in config: inout ProductTournamentConfig) thr
 }
 
 private func makeProofDebtEvidenceIndex(
-  experiments: [ProductTournamentExperiment],
+  tournamentExperiments: [ProductTournamentExperiment],
   config: ProductTournamentConfig
 ) -> ProductTournamentEvidenceIndex {
   let scores = ProductTournamentEvidenceScores(
@@ -4830,7 +4830,7 @@ private func makeProofDebtEvidenceIndex(
   let personaIDs = config.userSegments.map(\.id)
   let firstPersonaID = personaIDs.first ?? "operator"
   let secondPersonaID = personaIDs.dropFirst().first ?? firstPersonaID
-  let records = experiments.flatMap { experiment in
+  let records = tournamentExperiments.flatMap { experiment in
     [
       makeDecisionAdvisorRecord(
         id: "\(experiment.id)-proof-a",
@@ -4916,11 +4916,11 @@ private actor TournamentAutomationPlanEvaluationModelStream {
 private func makeRolloutEvidenceIndex(config: ProductTournamentConfig) -> ProductTournamentEvidenceIndex {
   let record = ProductTournamentEvidenceRecord(
     id: "rollout-run",
-    experimentID: config.experiments[0].id,
+    experimentID: config.tournamentExperiments[0].id,
     productHypothesisID: config.productHypotheses[0].id,
     painID: config.painHypotheses[0].id,
-    branchName: config.experiments[0].branchName,
-    commitSha: config.experiments[0].currentSha ?? "head-sha",
+    branchName: config.tournamentExperiments[0].branchName,
+    commitSha: config.tournamentExperiments[0].currentSha ?? "head-sha",
     scenarioID: "scenario-one",
     personaID: config.userSegments[0].id,
     mode: .modelFree,
@@ -5003,7 +5003,7 @@ private func makeTournamentPromotionEvidenceIndex(
     switchingReadiness: 5,
     continuedUsePull: 5
   )
-  let experiment = experiment ?? config.experiments[0]
+  let experiment = experiment ?? config.tournamentExperiments[0]
   let operatorID = config.userSegments.first?.id ?? "operator"
   let buyerID = config.userSegments.dropFirst().first?.id ?? "buyer"
   let comparison = includeCurrentAlternativeProof ? "Compared against the current workflow." : ""

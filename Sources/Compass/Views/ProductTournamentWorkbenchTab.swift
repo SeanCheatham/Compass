@@ -340,8 +340,8 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private var selectedExperiment: ProductTournamentExperiment? {
-    guard let selectedExperimentID else { return config.experiments.first }
-    return config.experiments.first { $0.id == selectedExperimentID } ?? config.experiments.first
+    guard let selectedExperimentID else { return config.tournamentExperiments.first }
+    return config.tournamentExperiments.first { $0.id == selectedExperimentID } ?? config.tournamentExperiments.first
   }
 
   private var runsForSelectedExperiment: [ProductTournamentEvidenceSummary] {
@@ -555,9 +555,9 @@ struct ProductTournamentWorkbenchTab: View {
     }
     .task(id: experimentSelectionTaskID) {
       let preferredExperimentID =
-        defaultRoundTwoImplementationTarget?.experimentID ?? config.experiments.first?.id
+        defaultRoundTwoImplementationTarget?.experimentID ?? config.tournamentExperiments.first?.id
       if selectedExperimentID == nil
-        || !config.experiments.contains(where: { $0.id == selectedExperimentID })
+        || !config.tournamentExperiments.contains(where: { $0.id == selectedExperimentID })
         || (defaultRoundTwoImplementationTarget != nil
           && selectedExperimentID != defaultRoundTwoImplementationTarget?.experimentID)
       {
@@ -619,7 +619,7 @@ struct ProductTournamentWorkbenchTab: View {
   private var experimentSelectionTaskID: String {
     let target = defaultRoundTwoImplementationTarget
     return [
-      config.experiments.map(\.id).joined(separator: ","),
+      config.tournamentExperiments.map(\.id).joined(separator: ","),
       target?.tournamentID ?? "",
       target?.roundID ?? "",
       target?.contenderID ?? "",
@@ -983,7 +983,7 @@ struct ProductTournamentWorkbenchTab: View {
           "Implementation Tracks", systemImage: "point.3.connected.trianglepath.dotted"
         ) {
           VStack(alignment: .leading, spacing: 8) {
-            if config.experiments.isEmpty {
+            if config.tournamentExperiments.isEmpty {
               WorkbenchEmptyLine("No contender implementation branches yet.")
             } else {
               ForEach(experimentsForBoard) { experiment in
@@ -1071,7 +1071,7 @@ struct ProductTournamentWorkbenchTab: View {
 
   private func contenderRow(_ contender: ProductTournamentContender) -> some View {
     let experiment = contender.experimentID.flatMap { experimentID in
-      config.experiments.first { $0.id == experimentID }
+      config.tournamentExperiments.first { $0.id == experimentID }
     }
     let planReadiness = planReadiness(for: contender)
     let nextProofTarget = planProofTargetSummary(for: contender, readiness: planReadiness)
@@ -2930,7 +2930,7 @@ struct ProductTournamentWorkbenchTab: View {
         ?? []
       : []
     let personaRationaleSignalSummaries: [String]
-    if let stepExperiment = project.productTournamentConfig.experiments.first(where: {
+    if let stepExperiment = project.productTournamentConfig.tournamentExperiments.first(where: {
       $0.id == step.experimentID
     }),
       let rationaleSignal = TournamentAutomationRationaleSignalAdvisor.signal(
@@ -3097,7 +3097,7 @@ struct ProductTournamentWorkbenchTab: View {
       {
         revisionBriefSummaries.append(revisionBrief.auditSummary)
       }
-      if let stepExperiment = project.productTournamentConfig.experiments.first(where: {
+      if let stepExperiment = project.productTournamentConfig.tournamentExperiments.first(where: {
         $0.id == step.experimentID
       }),
         let rationaleSignal = TournamentAutomationRationaleSignalAdvisor.signal(
@@ -3196,7 +3196,7 @@ struct ProductTournamentWorkbenchTab: View {
     forExperimentID experimentID: String
   ) -> TournamentAutomationProofTarget? {
     guard
-      let experiment = project.productTournamentConfig.experiments.first(where: {
+      let experiment = project.productTournamentConfig.tournamentExperiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
@@ -3231,7 +3231,7 @@ struct ProductTournamentWorkbenchTab: View {
     forExperimentID experimentID: String
   ) -> TournamentAutomationEvidenceTension? {
     guard
-      let experiment = project.productTournamentConfig.experiments.first(where: {
+      let experiment = project.productTournamentConfig.tournamentExperiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
@@ -3246,7 +3246,7 @@ struct ProductTournamentWorkbenchTab: View {
     forExperimentID experimentID: String
   ) -> TournamentAutomationTargetedProofOutcomeSignal? {
     guard
-      let experiment = project.productTournamentConfig.experiments.first(where: {
+      let experiment = project.productTournamentConfig.tournamentExperiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
@@ -3261,7 +3261,7 @@ struct ProductTournamentWorkbenchTab: View {
     forExperimentID experimentID: String
   ) -> TournamentAutomationRevisionBrief? {
     guard
-      let experiment = project.productTournamentConfig.experiments.first(where: {
+      let experiment = project.productTournamentConfig.tournamentExperiments.first(where: {
         $0.id == experimentID
       })
     else { return nil }
@@ -3641,7 +3641,7 @@ struct ProductTournamentWorkbenchTab: View {
   private func roundTwoTargetExperimentTitle(
     _ target: ProductTournamentRoundImplementationTarget
   ) -> String {
-    config.experiments.first { $0.id == target.experimentID }?.title ?? target.experimentID
+    config.tournamentExperiments.first { $0.id == target.experimentID }?.title ?? target.experimentID
   }
 
   private func roundTwoTargetContenderTitle(

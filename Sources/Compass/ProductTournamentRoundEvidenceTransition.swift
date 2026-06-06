@@ -749,10 +749,10 @@ enum ProductTournamentRoundEvidenceTransitioner {
     guard
       let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
       let experimentID = contender.experimentID,
-      let index = config.experiments.firstIndex(where: { $0.id == experimentID })
+      let index = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID })
     else { return }
-    mutate(&config.experiments[index])
-    config.experiments[index].updatedAt = timestamp
+    mutate(&config.tournamentExperiments[index])
+    config.tournamentExperiments[index].updatedAt = timestamp
   }
 
   private static func updateProductHypothesis(

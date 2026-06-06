@@ -16,7 +16,7 @@ struct ProductTournamentFeasibilityHandoffTests {
       config.tournamentRounds.first { $0.kind == .coreTechnology })
     let contender = try #require(config.tournamentContenders.first)
     let experimentID = try #require(contender.experimentID)
-    let experiment = try #require(config.experiments.first { $0.id == experimentID })
+    let experiment = try #require(config.tournamentExperiments.first { $0.id == experimentID })
     let records = try strongPlanRecords(
       for: contender,
       tournament: tournament,

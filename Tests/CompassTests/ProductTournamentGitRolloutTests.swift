@@ -36,7 +36,7 @@ struct ProductTournamentGitRolloutTests {
     )
     let promoted = try workspace.readProductTournamentConfig()
     let experiment = try #require(
-      promoted.experiments.first { $0.id == "experiment-fast-forward" }
+      promoted.tournamentExperiments.first { $0.id == "experiment-fast-forward" }
     )
     let hypothesis = try #require(promoted.productHypotheses.first)
     let decision = try #require(promoted.decisions.last)
@@ -149,7 +149,7 @@ struct ProductTournamentGitRolloutTests {
     }
 
     try #require(try await gitOutput(["rev-parse", "main"], in: root) == baseSha)
-    try #require(try workspace.readProductTournamentConfig().experiments[0].decision == .promote)
+    try #require(try workspace.readProductTournamentConfig().tournamentExperiments[0].decision == .promote)
   }
 
   @Test func archiveCreatesArchiveRefAndPreservesExperimentLineage() async throws {
@@ -189,7 +189,7 @@ struct ProductTournamentGitRolloutTests {
       now: Date(timeIntervalSince1970: 120)
     )
     let saved = try workspace.readProductTournamentConfig()
-    let experiment = try #require(saved.experiments.first { $0.id == "experiment-archive" })
+    let experiment = try #require(saved.tournamentExperiments.first { $0.id == "experiment-archive" })
     let hypothesis = try #require(saved.productHypotheses.first)
     let decision = try #require(saved.decisions.last)
     let archiveBranch = try #require(result.archiveBranchName)
@@ -294,7 +294,7 @@ private func makeGitRolloutConfig(
     currentWorkflows: [],
     alternatives: [],
     productHypotheses: [hypothesis],
-    experiments: [experiment],
+    tournamentExperiments: [experiment],
     scenarioCohorts: [],
     decisions: []
   )
@@ -303,11 +303,11 @@ private func makeGitRolloutConfig(
 private func makeGitRolloutEvidence(config: ProductTournamentConfig) -> ProductTournamentEvidenceRecord {
   ProductTournamentEvidenceRecord(
     id: "rollout-run",
-    experimentID: config.experiments[0].id,
+    experimentID: config.tournamentExperiments[0].id,
     productHypothesisID: config.productHypotheses[0].id,
     painID: config.painHypotheses[0].id,
-    branchName: config.experiments[0].branchName,
-    commitSha: config.experiments[0].currentSha ?? "unknown",
+    branchName: config.tournamentExperiments[0].branchName,
+    commitSha: config.tournamentExperiments[0].currentSha ?? "unknown",
     scenarioID: "scenario-rollout",
     personaID: "segment-rollout",
     mode: .modelFree,

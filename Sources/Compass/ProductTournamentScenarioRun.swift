@@ -220,7 +220,7 @@ enum ProductTournamentScenarioCoordinator {
     in config: ProductTournamentConfig,
     now: Date = Date()
   ) throws -> ProductScenarioDraft {
-    guard let experiment = config.experiments.first(where: { $0.id == brief.experimentID }) else {
+    guard let experiment = config.tournamentExperiments.first(where: { $0.id == brief.experimentID }) else {
       throw ProductTournamentScenarioRunError.unknownExperiment(brief.experimentID)
     }
     let fallback = defaultDraft(for: experiment, in: config, now: now)
@@ -347,7 +347,7 @@ enum ProductTournamentScenarioCoordinator {
     now: Date = Date()
   ) throws -> ProductTournamentConfig {
     var next = config
-    guard let experiment = next.experiments.first(where: { $0.id == draft.experimentID }) else {
+    guard let experiment = next.tournamentExperiments.first(where: { $0.id == draft.experimentID }) else {
       throw ProductTournamentScenarioRunError.unknownExperiment(draft.experimentID)
     }
     guard next.userSegments.contains(where: { $0.id == draft.segmentID }) else {
@@ -427,7 +427,7 @@ enum ProductTournamentScenarioCoordinator {
     mode: ProductTournamentSimulationMode = .modelFree,
     targetDecision: ProductTournamentExperimentDecision? = nil
   ) async throws -> ProductTournamentSimulationRequest {
-    guard let experiment = config.experiments.first(where: { $0.id == experimentID }) else {
+    guard let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID }) else {
       throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
     guard let scenario = config.scenarios.first(where: { $0.id == scenarioID }) else {
@@ -521,7 +521,7 @@ enum ProductTournamentScenarioCoordinator {
     workspace: CompassWorkspace,
     appRunner: ProductTournamentExperienceAppRunning = ProductTournamentExperienceCLIAppRunner()
   ) async throws -> Bool {
-    guard let experiment = config.experiments.first(where: { $0.id == experimentID }) else {
+    guard let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID }) else {
       throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
     return await appRunner.productTournamentExperienceContractAvailable(
@@ -658,7 +658,7 @@ enum ProductTournamentScenarioCoordinator {
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioCohortRunOutcome {
     let config = try workspace.readProductTournamentConfig()
-    guard config.experiments.contains(where: { $0.id == experimentID }) else {
+    guard config.tournamentExperiments.contains(where: { $0.id == experimentID }) else {
       throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
     guard
@@ -719,11 +719,11 @@ enum ProductTournamentScenarioCoordinator {
     now: Date = Date()
   ) async throws -> ProductTournamentScenarioRunOutcome {
     var config = try workspace.readProductTournamentConfig()
-    guard let experimentIndex = config.experiments.firstIndex(where: { $0.id == experimentID })
+    guard let experimentIndex = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID })
     else {
       throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
     }
-    let experiment = config.experiments[experimentIndex]
+    let experiment = config.tournamentExperiments[experimentIndex]
     let workingDirectory = generatedAppWorkingDirectory(for: experiment, in: workspace)
     let request = try await request(
       experimentID: experimentID,
@@ -759,8 +759,8 @@ enum ProductTournamentScenarioCoordinator {
       traceJSON: result.experienceTraceJSON,
       transcriptJSONL: transcriptJSONL(result.rawPersonaActionTranscript)
     )
-    config.experiments[experimentIndex].evidenceSummary = stored.summary
-    config.experiments[experimentIndex].updatedAt = endedAt
+    config.tournamentExperiments[experimentIndex].evidenceSummary = stored.summary
+    config.tournamentExperiments[experimentIndex].updatedAt = endedAt
     try workspace.writeProductTournamentConfig(config)
     return ProductTournamentScenarioRunOutcome(
       request: request,
@@ -948,7 +948,7 @@ extension CompassProject {
         return nil
       }
       guard
-        let experiment = productTournamentConfig.experiments.first(where: { $0.id == experimentID })
+        let experiment = productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentID })
       else {
         throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
       }
@@ -991,7 +991,7 @@ extension CompassProject {
         return nil
       }
       guard
-        let experiment = productTournamentConfig.experiments.first(where: { $0.id == experimentID })
+        let experiment = productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentID })
       else {
         throw ProductTournamentScenarioRunError.unknownExperiment(experimentID)
       }

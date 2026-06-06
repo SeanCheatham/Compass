@@ -15,6 +15,9 @@ struct ProductTournamentConfigTests {
 
     try #require(FileManager.default.fileExists(atPath: workspace.productTournamentConfigURL.path))
     try #require(FileManager.default.fileExists(atPath: workspace.productTournamentURL.path))
+    let payload = try String(contentsOf: workspace.productTournamentConfigURL, encoding: .utf8)
+    try #require(payload.contains("\"tournamentExperiments\""))
+    try #require(!payload.contains("\"experiments\""))
     try #require(try workspace.readProductTournamentConfig() == config)
   }
 
@@ -54,7 +57,7 @@ struct ProductTournamentConfigTests {
         "currentWorkflows": [],
         "alternatives": [],
         "productHypotheses": [],
-        "experiments": [],
+        "tournamentExperiments": [],
         "scenarioCohorts": [],
         "decisions": []
       }
@@ -144,14 +147,14 @@ struct ProductTournamentConfigTests {
       now: Date(timeIntervalSince1970: 1_700_000_000)
     )
 
-    try #require(config.schemaVersion == 1)
+    try #require(config.schemaVersion == 2)
     try #require(config.rawPain.contains("Finance operators"))
     try #require(config.painHypotheses.count == 1)
     try #require(config.userSegments.count == 2)
     try #require(config.currentWorkflows.count == 1)
     try #require(config.alternatives.count == 2)
     try #require(config.productHypotheses.count == 2)
-    try #require(config.experiments.count == 2)
+    try #require(config.tournamentExperiments.count == 2)
     try #require(config.tournaments.count == 1)
     try #require(config.tournamentContenders.count == 2)
     try #require(config.tournamentRounds.count == 3)
@@ -159,7 +162,7 @@ struct ProductTournamentConfigTests {
     try #require(config.scenarioCohorts.count == 2)
     try #require(Set(config.userSegments.map(\.id)).count == config.userSegments.count)
     try #require(Set(config.productHypotheses.map(\.id)).count == config.productHypotheses.count)
-    try #require(Set(config.experiments.map(\.id)).count == config.experiments.count)
+    try #require(Set(config.tournamentExperiments.map(\.id)).count == config.tournamentExperiments.count)
     try #require(
       Set(config.tournamentContenders.map(\.id)).count == config.tournamentContenders.count)
     try #require(Set(config.tournamentRounds.map(\.id)).count == config.tournamentRounds.count)
@@ -167,8 +170,8 @@ struct ProductTournamentConfigTests {
     try #require(config.painHypotheses[0].status == .active)
     try #require(config.productHypotheses.contains { $0.status == .active })
     try #require(config.productHypotheses.allSatisfy { $0.painID == config.painHypotheses[0].id })
-    try #require(config.experiments.allSatisfy { !$0.branchName.isEmpty })
-    try #require(config.experiments.allSatisfy { !$0.worktreeID.isEmpty })
+    try #require(config.tournamentExperiments.allSatisfy { !$0.branchName.isEmpty })
+    try #require(config.tournamentExperiments.allSatisfy { !$0.worktreeID.isEmpty })
     let tournament = try #require(config.tournaments.first)
     try #require(tournament.contenderIDs == config.tournamentContenders.map(\.id))
     try #require(tournament.roundIDs == config.tournamentRounds.map(\.id))
@@ -181,7 +184,7 @@ struct ProductTournamentConfigTests {
     try #require(config.tournamentContenders.allSatisfy { $0.status == .competing })
     try #require(config.tournamentContenders.allSatisfy { $0.experimentID != nil })
     try #require(config.scenarioCohorts.allSatisfy { $0.scenarioIDs.count == 2 })
-    for experiment in config.experiments {
+    for experiment in config.tournamentExperiments {
       let scenarioSegmentIDs = Set(
         config.scenarios
           .filter { $0.experimentID == experiment.id }
@@ -194,7 +197,7 @@ struct ProductTournamentConfigTests {
       Set(config.scenarioCohorts.flatMap(\.scenarioIDs)).isSubset(
         of: Set(config.scenarios.map(\.id)))
     )
-    try #require(config.experiments[0].createdAt == 1_700_000_000)
+    try #require(config.tournamentExperiments[0].createdAt == 1_700_000_000)
   }
 
   @Test func projectRefreshLoadsSeededProductTournamentConfigWhenMissing() async throws {
@@ -365,7 +368,7 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     currentWorkflows: [workflow],
     alternatives: [alternative],
     productHypotheses: [hypothesis],
-    experiments: [experiment],
+    tournamentExperiments: [experiment],
     scenarios: [scenario],
     scenarioCohorts: [cohort],
     decisions: [decision],

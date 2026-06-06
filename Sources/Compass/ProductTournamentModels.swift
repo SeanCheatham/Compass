@@ -1,7 +1,7 @@
 import Foundation
 
 struct ProductTournamentConfig: Codable, Equatable, Sendable {
-  static let supportedSchemaVersion = 1
+  static let supportedSchemaVersion = 2
 
   var schemaVersion: Int
   var rawPain: String
@@ -10,7 +10,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
   var currentWorkflows: [CurrentWorkflow]
   var alternatives: [Alternative]
   var productHypotheses: [ProductHypothesis]
-  var experiments: [ProductTournamentExperiment]
+  var tournamentExperiments: [ProductTournamentExperiment]
   var tournaments: [ProductTournament]
   var tournamentContenders: [ProductTournamentContender]
   var tournamentRounds: [ProductTournamentRound]
@@ -26,7 +26,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     currentWorkflows: [],
     alternatives: [],
     productHypotheses: [],
-    experiments: [],
+    tournamentExperiments: [],
     tournaments: [],
     tournamentContenders: [],
     tournamentRounds: [],
@@ -44,7 +44,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     case currentWorkflows
     case alternatives
     case productHypotheses
-    case experiments
+    case tournamentExperiments
     case tournaments
     case tournamentContenders
     case tournamentRounds
@@ -62,7 +62,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     currentWorkflows: [CurrentWorkflow],
     alternatives: [Alternative],
     productHypotheses: [ProductHypothesis],
-    experiments: [ProductTournamentExperiment],
+    tournamentExperiments: [ProductTournamentExperiment],
     tournaments: [ProductTournament] = [],
     tournamentContenders: [ProductTournamentContender] = [],
     tournamentRounds: [ProductTournamentRound] = [],
@@ -78,7 +78,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     self.currentWorkflows = currentWorkflows
     self.alternatives = alternatives
     self.productHypotheses = productHypotheses
-    self.experiments = experiments
+    self.tournamentExperiments = tournamentExperiments
     self.tournaments = tournaments
     self.tournamentContenders = tournamentContenders
     self.tournamentRounds = tournamentRounds
@@ -108,7 +108,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
       productHypotheses: try container.decodeIfPresent(
         [ProductHypothesis].self, forKey: .productHypotheses) ?? [],
-      experiments: try container.decodeIfPresent([ProductTournamentExperiment].self, forKey: .experiments)
+      tournamentExperiments: try container.decodeIfPresent([ProductTournamentExperiment].self, forKey: .tournamentExperiments)
         ?? [],
       tournaments: try container.decodeIfPresent([ProductTournament].self, forKey: .tournaments)
         ?? [],
@@ -139,7 +139,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       && currentWorkflows.isEmpty
       && alternatives.isEmpty
       && productHypotheses.isEmpty
-      && experiments.isEmpty
+      && tournamentExperiments.isEmpty
       && tournaments.isEmpty
       && tournamentContenders.isEmpty
       && tournamentRounds.isEmpty
@@ -606,7 +606,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       currentWorkflows: [workflow],
       alternatives: alternatives,
       productHypotheses: productHypotheses,
-      experiments: experiments,
+      tournamentExperiments: experiments,
       tournaments: [tournament],
       tournamentContenders: contenders,
       tournamentRounds: rounds,

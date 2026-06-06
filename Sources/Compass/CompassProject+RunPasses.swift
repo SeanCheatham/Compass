@@ -858,7 +858,7 @@ extension CompassProject {
       productTournamentConfig: productTournamentConfig
     )
     guard experimentIDs.count == 1,
-      let experiment = productTournamentConfig.experiments.first(where: { $0.id == experimentIDs[0] })
+      let experiment = productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentIDs[0] })
     else { return }
 
     sessions[sessionIndex].tournamentExperimentID = experiment.id
@@ -880,10 +880,10 @@ extension CompassProject {
     sessionIndex: Int
   ) {
     guard sessions.indices.contains(sessionIndex), let latest = updates.last,
-      let experiment = nextConfig.experiments.first(where: { $0.id == latest.experimentID })
+      let experiment = nextConfig.tournamentExperiments.first(where: { $0.id == latest.experimentID })
     else { return }
 
-    let previousExperiment = previousConfig.experiments.first { $0.id == latest.experimentID }
+    let previousExperiment = previousConfig.tournamentExperiments.first { $0.id == latest.experimentID }
     sessions[sessionIndex].tournamentExperimentID = experiment.id
     sessions[sessionIndex].tournamentProductHypothesisID = experiment.productHypothesisID
     sessions[sessionIndex].tournamentPainID = productTournamentPainID(
@@ -916,7 +916,7 @@ extension CompassProject {
     let normalizedText = normalizedProductTournamentMatchText(text)
     guard !normalizedText.isEmpty else { return [] }
     var matches: [String] = []
-    for experiment in productTournamentConfig.experiments {
+    for experiment in productTournamentConfig.tournamentExperiments {
       let tokens = [
         experiment.id,
         experiment.branchName,
