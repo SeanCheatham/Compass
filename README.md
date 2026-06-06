@@ -153,7 +153,8 @@ and advances them through rounds:
   shows that validation state in the Round 3 proof row, a dedicated Round 3
   validation overview for pending/partial/persisted/eliminated/resolved
   outcomes, row-level next automation steps including implementation-worktree
-  preparation when validation targets lack commits, and Tournament Automation facts.
+  preparation when validation targets lack commits, target-commit preparation
+  detail in row help, and Tournament Automation facts.
   Workbench scenario-run rows and selected-run details expose whether each run
   counts as completed-use proof.
 

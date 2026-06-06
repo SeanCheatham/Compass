@@ -630,6 +630,12 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(validationItem.nextStepDetail.contains(validationFixture.fixture.experiment.title))
     try #require(validationItem.nextStepDetail.contains("Prepare implementation worktree"))
     try #require(
+      validationItem.nextStepDetail.contains(
+        "Round 3 implementation revision validation scenario needs"
+      ))
+    try #require(validationItem.nextStepDetail.contains("target commit"))
+    try #require(validationItem.nextStepDetail.contains(cohortID))
+    try #require(
       nextStep.action.detail.contains(
         "Round 3 implementation revision validation scenario needs"
       ))
@@ -637,6 +643,7 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(nextStep.action.detail.contains(cohortID))
     try #require(
       validationItem.helpSummary.contains("Next step: Ready: Prepare implementation worktree"))
+    try #require(validationItem.helpSummary.contains("target commit"))
   }
 
   @Test func twoStrongProductImplementationRunsOnlyGatherMoreEvidence() throws {

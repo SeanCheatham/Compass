@@ -43,7 +43,14 @@ struct ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem:
   }
 
   var nextStepDetail: String {
-    nextStep?.detail ?? result.nextValidationTarget
+    guard let nextStep else { return result.nextValidationTarget }
+    if nextStep.kind == .prepareWorktree {
+      let actionDetail = nextStep.action.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !actionDetail.isEmpty {
+        return "\(nextStep.experimentTitle): \(nextStep.action.title). \(actionDetail)"
+      }
+    }
+    return nextStep.detail
   }
 
   var nextStepSystemImage: String {
