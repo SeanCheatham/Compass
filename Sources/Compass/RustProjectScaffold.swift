@@ -219,7 +219,7 @@ struct RustProjectScaffold: Equatable, Sendable {
     `product-tournament-trace-check` to prove this generated app can replay the
     deterministic model-free product journey. Use `product-tournament-smoke`
     when you also need coverage and desktop visual verification, then use a live
-    persona model only for manual product review. Treat repeated objections and
+    persona model only for manual contender review. Treat repeated objections and
     low scores as signals to investigate, not as automatic proof that the product
     is good or bad.
 

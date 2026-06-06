@@ -591,7 +591,7 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     case .kill:
       lines.append("Evidence is consistently weak enough to stop this contender.")
     case .pivot:
-      lines.append("The pain is recognized, but this product shape is not creating enough pull.")
+      lines.append("The pain is recognized, but this contender shape is not creating enough pull.")
     case .narrow:
       lines.append("Evidence points to a smaller next proof before broader investment.")
     case .keepGoing:
@@ -1373,13 +1373,13 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     guard let willingnessToPayScore else { return "" }
     switch willingnessToPayScore {
     case 4...:
-      return "The simulated user shows strong willingness to pay for or sponsor this product."
+      return "The simulated user shows strong willingness to pay for or sponsor this contender."
     case 3:
-      return "The simulated user shows moderate willingness to pay or sponsor after more proof."
+      return "The simulated user shows moderate willingness to pay for or sponsor this contender after more proof."
     case 2:
-      return "The simulated user recognizes some value but is not ready to pay or sponsor."
+      return "The simulated user recognizes some contender value but is not ready to pay or sponsor."
     default:
-      return "The simulated user shows weak willingness to pay or sponsor."
+      return "The simulated user shows weak willingness to pay for or sponsor this contender."
     }
   }
 

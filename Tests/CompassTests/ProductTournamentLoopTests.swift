@@ -5013,8 +5013,8 @@ private func scopedTournamentEvidenceRecords(
       willingnessToPayScore: willingnessToPay,
       sponsorshipIntent: willingnessToPay.map {
         $0 >= 4
-          ? "The simulated user would pay for or sponsor this product."
-          : "The simulated user is not ready to sponsor this product."
+          ? "The simulated user would pay for or sponsor this contender."
+          : "The simulated user is not ready to sponsor this contender."
       } ?? ""
     )
   }
