@@ -37,6 +37,7 @@ struct ProductTournamentRoundEvidenceTransitionProposal: Codable, Equatable, Ide
   var completedRunCount: Int
   var failedRunCount: Int
   var distinctPersonaCount: Int
+  var experienceUseProofCount: Int
   var strongOrPromisingCount: Int
   var weakOrRejectedCount: Int
   var missingCapabilityCount: Int
@@ -65,7 +66,7 @@ struct ProductTournamentRoundEvidenceTransitionProposal: Codable, Equatable, Ide
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
     return
-      "- round_2_evidence contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
+      "- round_2_evidence contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), experience_use_proofs \(experienceUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
   }
 
   private static func format(_ value: Double) -> String {
@@ -339,6 +340,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     let completed = summaries.filter(\.isCompleted)
     let failedCount = summaries.count - completed.count
     let distinctPersonaCount = Set(completed.map(\.personaID).filter { !$0.isEmpty }).count
+    let experienceUseProofCount = completed.filter(hasExperienceUseProof).count
     let scoreValues = completed.flatMap { summary in
       [
         summary.scores.painRecognition,
@@ -367,6 +369,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     let recommendation = recommendation(
       completedRunCount: completed.count,
       distinctPersonaCount: distinctPersonaCount,
+      experienceUseProofCount: experienceUseProofCount,
       readinessScore: readinessScore,
       averageScore: averageScore,
       strongOrPromisingCount: strongCount,
@@ -382,6 +385,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
       completedRunCount: completed.count,
       runCount: summaries.count,
       distinctPersonaCount: distinctPersonaCount,
+      experienceUseProofCount: experienceUseProofCount,
       missingCapabilityCount: missingCapabilityCount
     )
 
@@ -398,6 +402,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
       completedRunCount: completed.count,
       failedRunCount: failedCount,
       distinctPersonaCount: distinctPersonaCount,
+      experienceUseProofCount: experienceUseProofCount,
       strongOrPromisingCount: strongCount,
       weakOrRejectedCount: weakCount,
       missingCapabilityCount: missingCapabilityCount,
@@ -409,6 +414,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
         completedRunCount: completed.count,
         runCount: summaries.count,
         distinctPersonaCount: distinctPersonaCount,
+        experienceUseProofCount: experienceUseProofCount,
         readinessScore: readinessScore,
         averageScore: averageScore,
         missingCapabilityCount: missingCapabilityCount,
@@ -458,6 +464,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
   private static func recommendation(
     completedRunCount: Int,
     distinctPersonaCount: Int,
+    experienceUseProofCount: Int,
     readinessScore: Double,
     averageScore: Double,
     strongOrPromisingCount: Int,
@@ -472,11 +479,12 @@ enum ProductTournamentRoundEvidenceTransitioner {
     {
       return .eliminate
     }
-    if completedRunCount < 2 || distinctPersonaCount < 2 {
+    if completedRunCount < 2 || distinctPersonaCount < 2 || experienceUseProofCount < 2 {
       return .gatherEvidence
     }
     if completedRunCount >= 2
       && distinctPersonaCount >= 2
+      && experienceUseProofCount >= 2
       && readinessScore >= 66
       && averageScore >= 3.4
       && strongOrPromisingCount >= 2
@@ -495,6 +503,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     completedRunCount: Int,
     runCount: Int,
     distinctPersonaCount: Int,
+    experienceUseProofCount: Int,
     missingCapabilityCount: Int
   ) -> (String, String) {
     let score = "\(Int(readinessScore.rounded()))"
@@ -503,7 +512,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     case .advanceToPrototype:
       return (
         "Advance to Round 3",
-        "Readiness \(score)/100 with average feasibility evidence \(averageLabel)/5 across \(distinctPersonaCount) persona(s)."
+        "Readiness \(score)/100 with average feasibility evidence \(averageLabel)/5 across \(distinctPersonaCount) persona(s) and \(experienceUseProofCount) experience-use proof(s)."
       )
     case .reviseCoreTechnology:
       let blocker =
@@ -522,7 +531,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     case .gatherEvidence:
       return (
         "Gather More Evidence",
-        "\(completedRunCount) completed of \(runCount) run(s); Round 2 needs at least 2 personas before transition."
+        "\(completedRunCount) completed of \(runCount) run(s), \(distinctPersonaCount) persona(s), \(experienceUseProofCount) experience-use proof(s); Round 2 needs 2 personas and 2 use traces before transition."
       )
     }
   }
@@ -531,6 +540,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     completedRunCount: Int,
     runCount: Int,
     distinctPersonaCount: Int,
+    experienceUseProofCount: Int,
     readinessScore: Double,
     averageScore: Double,
     missingCapabilityCount: Int,
@@ -540,6 +550,7 @@ enum ProductTournamentRoundEvidenceTransitioner {
     var lines = [
       "\(completedRunCount) completed of \(runCount) Round 2 run(s) across \(distinctPersonaCount) persona(s)."
     ]
+    lines.append("\(experienceUseProofCount) run(s) include trace or persona-action proof that the contender was exercised.")
     if averageScore > 0 {
       lines.append(
         "Average feasibility score \(format(averageScore))/5; readiness \(format(readinessScore))/100."
@@ -562,6 +573,13 @@ enum ProductTournamentRoundEvidenceTransitioner {
       lines.append("Run more scoped Round 2 scenarios before advancing or eliminating.")
     }
     return lines
+  }
+
+  private static func hasExperienceUseProof(_ summary: ProductTournamentEvidenceSummary) -> Bool {
+    if summary.traceHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+      return true
+    }
+    return !summary.personaActionRationales.isEmpty
   }
 
   private static func activeCoreTechnologyRounds(

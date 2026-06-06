@@ -61,10 +61,12 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(proofOverviewItem.recommendation == .advanceToPrototype)
     try #require(proofOverviewItem.completedRunCount == 2)
     try #require(proofOverviewItem.distinctPersonaCount == 2)
+    try #require(proofOverviewItem.experienceUseProofCount == 2)
     try #require(proofOverviewItem.evidenceRunIDs.contains("\(fixture.contender.id)-round-2-0"))
     try #require(proofOverviewItem.contextLine.contains("round_2_proof contender"))
     try #require(proofOverviewItem.contextLine.contains("core_technology_proof"))
     try #require(proofOverviewItem.contextLine.contains("recommendation advance_to_prototype"))
+    try #require(proofOverviewItem.contextLine.contains("experience_use_proofs 2"))
     try #require(updatedTournament.currentRoundID == fixture.prototypeRound.id)
     try #require(updatedCoreRound.status == .completed)
     try #require(updatedPrototypeRound.status == .active)
@@ -198,6 +200,40 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     )
   }
 
+  @Test func strongFeasibilityScoresWithoutUseProofOnlyGatherEvidence() throws {
+    let fixture = try roundTwoFixture()
+    let records = try evidenceRecords(
+      fixture: fixture,
+      score: 5,
+      verdict: .strongPull,
+      summary: "The scorecard is strong but no trace proves the contender was exercised.",
+      includeExperienceUseProof: false
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+
+    let proposal = try #require(
+      ProductTournamentRoundEvidenceTransitioner.proposals(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.coreRound.id,
+        config: fixture.config,
+        evidenceIndex: index
+      ).first
+    )
+
+    try #require(proposal.recommendation == .gatherEvidence)
+    try #require(proposal.experienceUseProofCount == 0)
+    try #require(proposal.digestLine.contains("experience_use_proofs 0"))
+    try #require(proposal.detail.contains("2 use traces"))
+    try #require(
+      ProductTournamentRoundEvidenceTransitioner.bestProposal(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.coreRound.id,
+        config: fixture.config,
+        evidenceIndex: index
+      ) == nil
+    )
+  }
+
   @Test func roundTwoProofOverviewShowsActiveCoreTechnologyProofBeforeEvidence() throws {
     let fixture = try roundTwoFixture()
     let index = ProductTournamentEvidenceIndex.build(records: [])
@@ -296,7 +332,8 @@ private func evidenceRecords(
   verdict: ProductTournamentEvidenceVerdict,
   objections: [String] = [],
   missingCapabilities: [String] = [],
-  summary: String
+  summary: String,
+  includeExperienceUseProof: Bool = true
 ) throws -> [ProductTournamentEvidenceRecord] {
   fixture.config.userSegments.prefix(2).enumerated().map { index, segment in
     ProductTournamentEvidenceRecord(
@@ -315,6 +352,7 @@ private func evidenceRecords(
       status: .completed,
       startedAt: Double(index),
       endedAt: Double(index + 1),
+      traceHash: includeExperienceUseProof ? "round-2-trace-\(index)" : nil,
       scores: ProductTournamentEvidenceScores(
         painRecognition: score,
         workflowImprovement: score,
@@ -325,6 +363,9 @@ private func evidenceRecords(
       objections: objections,
       missingCapabilities: missingCapabilities,
       currentAlternativeComparison: "The simulated user compared against the current workaround.",
+      personaActionRationales: includeExperienceUseProof
+        ? ["The simulated user exercised the core technology proof before judging feasibility."]
+        : [],
       verdict: verdict,
       summary: summary
     )

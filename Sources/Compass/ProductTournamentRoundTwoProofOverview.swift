@@ -21,6 +21,7 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
   var runCount: Int
   var completedRunCount: Int
   var distinctPersonaCount: Int
+  var experienceUseProofCount: Int
   var missingCapabilityCount: Int
   var evidenceRunIDs: [String]
   var detail: String
@@ -39,7 +40,7 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
       ? "no acceptance signals"
       : acceptanceSignals.prefix(4).joined(separator: "; ")
     return
-      "- round_2_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: core_technology_proof \(Self.bounded(coreTechnologyProof, limit: 220)); next \(Self.bounded(detail, limit: 220)); acceptance \(Self.bounded(acceptance, limit: 180)); risk \(Self.bounded(riskFocus, limit: 120))."
+      "- round_2_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), experience_use_proofs \(experienceUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: core_technology_proof \(Self.bounded(coreTechnologyProof, limit: 220)); next \(Self.bounded(detail, limit: 220)); acceptance \(Self.bounded(acceptance, limit: 180)); risk \(Self.bounded(riskFocus, limit: 120))."
   }
 
   var displaySubtitle: String {
@@ -76,6 +77,7 @@ struct ProductTournamentRoundTwoProofOverviewItem: Equatable, Sendable, Identifi
       "Branch \(branchName)",
       "Worktree \(worktreeID)",
       displaySubtitle,
+      "\(experienceUseProofCount) experience-use proof(s)",
       "Core technology proof: \(coreTechnologyProof)",
     ]
     if !evidenceRunIDs.isEmpty {
@@ -145,6 +147,7 @@ enum ProductTournamentRoundTwoProofOverview {
         runCount: proposal.runCount,
         completedRunCount: proposal.completedRunCount,
         distinctPersonaCount: proposal.distinctPersonaCount,
+        experienceUseProofCount: proposal.experienceUseProofCount,
         missingCapabilityCount: proposal.missingCapabilityCount,
         evidenceRunIDs: proposal.evidenceRunIDs,
         detail: proposal.detail

@@ -39,6 +39,7 @@ struct ProductTournamentPrototypeEvidenceTransitionProposal: Codable, Equatable,
   var failedRunCount: Int
   var distinctPersonaCount: Int
   var currentAlternativeProofCount: Int
+  var prototypeUseProofCount: Int
   var strongOrPromisingCount: Int
   var weakOrRejectedCount: Int
   var missingCapabilityCount: Int
@@ -67,7 +68,7 @@ struct ProductTournamentPrototypeEvidenceTransitionProposal: Codable, Equatable,
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
     return
-      "- round_3_prototype contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
+      "- round_3_prototype contender \(contenderID) [round \(roundID), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), prototype_use_proofs \(prototypeUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: \(detail)"
   }
 
   private static func format(_ value: Double) -> String {
@@ -345,6 +346,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     let failedCount = summaries.count - completed.count
     let distinctPersonaCount = Set(completed.map(\.personaID).filter { !$0.isEmpty }).count
     let currentAlternativeProofCount = completed.filter(hasCurrentAlternativeProof).count
+    let prototypeUseProofCount = completed.filter(hasPrototypeUseProof).count
     let scoreValues = completed.flatMap { summary in
       [
         summary.scores.painRecognition,
@@ -389,6 +391,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       completedRunCount: completed.count,
       distinctPersonaCount: distinctPersonaCount,
       currentAlternativeProofCount: currentAlternativeProofCount,
+      prototypeUseProofCount: prototypeUseProofCount,
       readinessScore: readinessScore,
       averageScore: averageScore,
       willingnessToPayScore: willingnessToPayScore,
@@ -407,6 +410,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       runCount: summaries.count,
       distinctPersonaCount: distinctPersonaCount,
       currentAlternativeProofCount: currentAlternativeProofCount,
+      prototypeUseProofCount: prototypeUseProofCount,
       missingCapabilityCount: missingCapabilityCount
     )
 
@@ -425,6 +429,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       failedRunCount: failedCount,
       distinctPersonaCount: distinctPersonaCount,
       currentAlternativeProofCount: currentAlternativeProofCount,
+      prototypeUseProofCount: prototypeUseProofCount,
       strongOrPromisingCount: strongCount,
       weakOrRejectedCount: weakCount,
       missingCapabilityCount: missingCapabilityCount,
@@ -437,6 +442,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
         runCount: summaries.count,
         distinctPersonaCount: distinctPersonaCount,
         currentAlternativeProofCount: currentAlternativeProofCount,
+        prototypeUseProofCount: prototypeUseProofCount,
         readinessScore: readinessScore,
         averageScore: averageScore,
         willingnessToPayScore: willingnessToPayScore,
@@ -499,6 +505,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     completedRunCount: Int,
     distinctPersonaCount: Int,
     currentAlternativeProofCount: Int,
+    prototypeUseProofCount: Int,
     readinessScore: Double,
     averageScore: Double,
     willingnessToPayScore: Double,
@@ -514,7 +521,9 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     {
       return .eliminate
     }
-    if completedRunCount < 3 || distinctPersonaCount < 2 || currentAlternativeProofCount < 2 {
+    if completedRunCount < 3 || distinctPersonaCount < 2 || currentAlternativeProofCount < 2
+      || prototypeUseProofCount < 3
+    {
       return .gatherEvidence
     }
     if readinessScore >= 76
@@ -538,6 +547,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     runCount: Int,
     distinctPersonaCount: Int,
     currentAlternativeProofCount: Int,
+    prototypeUseProofCount: Int,
     missingCapabilityCount: Int
   ) -> (String, String) {
     let score = "\(Int(readinessScore.rounded()))"
@@ -547,7 +557,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     case .selectWinner:
       return (
         "Select Tournament Winner",
-        "Readiness \(score)/100 with prototype score \(averageLabel)/5 and willingness to pay \(payLabel)/5."
+        "Readiness \(score)/100 with prototype score \(averageLabel)/5, willingness to pay \(payLabel)/5, and \(prototypeUseProofCount) prototype-use proof(s)."
       )
     case .revisePrototype:
       let blocker =
@@ -566,7 +576,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     case .gatherEvidence:
       return (
         "Gather More Evidence",
-        "\(completedRunCount) completed of \(runCount) run(s), \(distinctPersonaCount) persona(s), \(currentAlternativeProofCount) current-alternative proof(s); Round 3 needs broader winner evidence."
+        "\(completedRunCount) completed of \(runCount) run(s), \(distinctPersonaCount) persona(s), \(currentAlternativeProofCount) current-alternative proof(s), \(prototypeUseProofCount) prototype-use proof(s); Round 3 needs broader winner evidence."
       )
     }
   }
@@ -576,6 +586,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     runCount: Int,
     distinctPersonaCount: Int,
     currentAlternativeProofCount: Int,
+    prototypeUseProofCount: Int,
     readinessScore: Double,
     averageScore: Double,
     willingnessToPayScore: Double,
@@ -587,6 +598,9 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       "\(completedRunCount) completed of \(runCount) Round 3 run(s) across \(distinctPersonaCount) persona(s)."
     ]
     lines.append("\(currentAlternativeProofCount) run(s) compare against the current alternative.")
+    lines.append(
+      "\(prototypeUseProofCount) run(s) include trace or persona-action proof that the prototype was exercised."
+    )
     if averageScore > 0 {
       lines.append(
         "Average prototype score \(format(averageScore))/5; readiness \(format(readinessScore))/100."
@@ -708,6 +722,13 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
       && !comparison.contains("no current alternative comparison")
       && !comparison.contains("no current alternative")
       && !comparison.contains("no current-alternative comparison")
+  }
+
+  private static func hasPrototypeUseProof(_ summary: ProductTournamentEvidenceSummary) -> Bool {
+    if summary.traceHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+      return true
+    }
+    return !summary.personaActionRationales.isEmpty
   }
 
   private static func repeatedObjectionCount(

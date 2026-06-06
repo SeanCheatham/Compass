@@ -97,20 +97,24 @@ and advances them through rounds:
   `round_2_evidence_lock` line naming the paused sibling experiments so the next
   handoff stays focused on the single core-technology proof. A Round 2
   core-technology proof overview summarizes that active target's readiness,
-  scoped evidence, persona breadth, missing capabilities, and next transition
-  recommendation in both the Workbench and Product Tournament Context. Scoped
-  Round 2 scenario evidence then drives the next tournament transition: advance
-  the contender to Round 3, mark the core technology for revision, or eliminate
-  the contender before adding prototype fidelity.
+  scoped evidence, persona breadth, experience-use proof, missing capabilities,
+  and next transition recommendation in both the Workbench and Product
+  Tournament Context. Scoped Round 2 scenario evidence then drives the next
+  tournament transition: advance the contender to Round 3, mark the core
+  technology for revision, or eliminate the contender before adding prototype
+  fidelity. Advancement requires completed evidence from two personas plus trace
+  or persona-action proof that simulated users actually exercised the contender.
 - **Round 3: prototype.** Agentic users exercise low-medium fidelity product
   versions and evaluate workflow improvement, switching readiness, continued-use
   pull, and explicit price or sponsorship intent. Scoped prototype evidence can
   select a tournament winner, force a final prototype revision, or eliminate the
   remaining contender. A Round 3 prototype proof overview keeps the active
   contender's winner-readiness, willingness-to-pay, current-alternative proof,
-  persona breadth, missing capabilities, and next transition recommendation
-  visible in both the Workbench and Product Tournament Context until the
-  tournament winner is selected.
+  prototype-use proof, persona breadth, missing capabilities, and next
+  transition recommendation visible in both the Workbench and Product
+  Tournament Context until the tournament winner is selected. Winner selection
+  requires three completed prototype-use proofs along with current-alternative
+  comparison and willingness-to-pay evidence.
 
 Simulation is not user research, a sales forecast, or a Verify gate. It is a
 skeptical, repeatable product-pressure loop: a scenario works through the app's
@@ -177,11 +181,11 @@ proof.
 Plan and Reflect receive only a compact advisory summary:
 current tournament round, contender plans, Round 1 plan readiness and plan proof
 debt, focused Round 1 proof actions, buyer/sponsor signals, willingness-to-pay
-signals, Round 2 feasibility handoffs, core-technology proof overview, and
-evidence transitions, Round 3 prototype proof overview and winner
-recommendations, latest evidence per active scenario, repeated objections,
-low-score clusters, verdict distribution, failures, current alternative
-comparisons, and generated-product willingness to pay or sponsor.
+signals, Round 2 feasibility handoffs, core-technology proof overview,
+experience-use proof counts, evidence transitions, Round 3 prototype proof
+overview and winner recommendations, latest evidence per active scenario,
+repeated objections, low-score clusters, verdict distribution, failures, current
+alternative comparisons, and generated-product willingness to pay or sponsor.
 Raw transcripts stay out of prompt context unless a human inspects them in the
 app.
 

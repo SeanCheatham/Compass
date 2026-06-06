@@ -67,10 +67,12 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
     try #require(proofOverviewItem.recommendation == .selectWinner)
     try #require(proofOverviewItem.completedRunCount == 3)
     try #require(proofOverviewItem.currentAlternativeProofCount == 3)
+    try #require(proofOverviewItem.prototypeUseProofCount == 3)
     try #require(proofOverviewItem.evidenceRunIDs.contains("\(fixture.contender.id)-round-3-0"))
     try #require(proofOverviewItem.contextLine.contains("round_3_prototype_proof contender"))
     try #require(proofOverviewItem.contextLine.contains("recommendation select_winner"))
     try #require(proofOverviewItem.contextLine.contains("willingness_to_pay 5.0/5"))
+    try #require(proofOverviewItem.contextLine.contains("prototype_use_proofs 3"))
     try #require(updatedTournament.status == .completed)
     try #require(updatedTournament.currentRoundID == fixture.prototypeRound.id)
     try #require(updatedPrototypeRound.status == .completed)
@@ -212,6 +214,42 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
     )
   }
 
+  @Test func strongPrototypeScoresWithoutUseProofOnlyGatherEvidence() throws {
+    let fixture = try roundThreeFixture()
+    let records = prototypeEvidenceRecords(
+      fixture: fixture,
+      count: 3,
+      score: 5,
+      willingnessToPay: 5,
+      verdict: .strongPull,
+      summary: "The scorecard is strong but no trace proves the prototype was exercised.",
+      includePrototypeUseProof: false
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: records)
+
+    let proposal = try #require(
+      ProductTournamentPrototypeEvidenceTransitioner.proposals(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.prototypeRound.id,
+        config: fixture.config,
+        evidenceIndex: index
+      ).first
+    )
+
+    try #require(proposal.recommendation == .gatherEvidence)
+    try #require(proposal.prototypeUseProofCount == 0)
+    try #require(proposal.digestLine.contains("prototype_use_proofs 0"))
+    try #require(proposal.detail.contains("0 prototype-use proof"))
+    try #require(
+      ProductTournamentPrototypeEvidenceTransitioner.bestProposal(
+        tournamentID: fixture.tournament.id,
+        roundID: fixture.prototypeRound.id,
+        config: fixture.config,
+        evidenceIndex: index
+      ) == nil
+    )
+  }
+
   @Test func roundThreePrototypeOverviewShowsActiveWinnerProofBeforeEvidence() throws {
     let fixture = try roundThreeFixture()
     let index = ProductTournamentEvidenceIndex.build(records: [])
@@ -314,7 +352,8 @@ private func prototypeEvidenceRecords(
   verdict: ProductTournamentEvidenceVerdict,
   objections: [String] = [],
   missingCapabilities: [String] = [],
-  summary: String
+  summary: String,
+  includePrototypeUseProof: Bool = true
 ) -> [ProductTournamentEvidenceRecord] {
   let segments = Array(fixture.config.userSegments)
   return (0..<count).map { index in
@@ -335,6 +374,7 @@ private func prototypeEvidenceRecords(
       status: .completed,
       startedAt: Double(index),
       endedAt: Double(index + 1),
+      traceHash: includePrototypeUseProof ? "round-3-trace-\(index)" : nil,
       scores: ProductTournamentEvidenceScores(
         painRecognition: score,
         workflowImprovement: score,
@@ -350,6 +390,9 @@ private func prototypeEvidenceRecords(
       sponsorshipIntent: willingnessToPay >= 4
         ? "The simulated user would pay for or sponsor this prototype."
         : "The simulated user is not ready to sponsor this prototype.",
+      personaActionRationales: includePrototypeUseProof
+        ? ["The simulated user exercised the low-medium fidelity prototype before judging sponsorship."]
+        : [],
       verdict: verdict,
       summary: summary
     )

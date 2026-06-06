@@ -21,6 +21,7 @@ struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Id
   var completedRunCount: Int
   var distinctPersonaCount: Int
   var currentAlternativeProofCount: Int
+  var prototypeUseProofCount: Int
   var missingCapabilityCount: Int
   var evidenceRunIDs: [String]
   var detail: String
@@ -35,7 +36,7 @@ struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Id
       ? "no scoped evidence"
       : "evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))"
     return
-      "- round_3_prototype_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), branch \(branchName), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: prototype_scope \(Self.bounded(prototypeScope, limit: 220)); next \(Self.bounded(detail, limit: 220))."
+      "- round_3_prototype_proof contender \(contenderID) [round \(roundID), experiment \(experimentID), branch \(branchName), recommendation \(recommendation.rawValue), readiness \(scoreLabel)/100, average \(Self.format(averageScore))/5, willingness_to_pay \(Self.format(willingnessToPayScore))/5, completed \(completedRunCount)/\(runCount), personas \(distinctPersonaCount), current_alternative_proofs \(currentAlternativeProofCount), prototype_use_proofs \(prototypeUseProofCount), missing_capabilities \(missingCapabilityCount), \(evidence)]: prototype_scope \(Self.bounded(prototypeScope, limit: 220)); next \(Self.bounded(detail, limit: 220))."
   }
 
   var displaySubtitle: String {
@@ -78,6 +79,7 @@ struct ProductTournamentRoundThreePrototypeOverviewItem: Equatable, Sendable, Id
       parts.append("Evidence \(evidenceRunIDs.prefix(4).joined(separator: ", "))")
     }
     parts.append("\(currentAlternativeProofCount) current-alternative proof(s)")
+    parts.append("\(prototypeUseProofCount) prototype-use proof(s)")
     parts.append("\(missingCapabilityCount) missing capability signal(s)")
     return parts.joined(separator: "\n")
   }
@@ -129,6 +131,7 @@ enum ProductTournamentRoundThreePrototypeOverview {
         completedRunCount: proposal.completedRunCount,
         distinctPersonaCount: proposal.distinctPersonaCount,
         currentAlternativeProofCount: proposal.currentAlternativeProofCount,
+        prototypeUseProofCount: proposal.prototypeUseProofCount,
         missingCapabilityCount: proposal.missingCapabilityCount,
         evidenceRunIDs: proposal.evidenceRunIDs,
         detail: proposal.detail
