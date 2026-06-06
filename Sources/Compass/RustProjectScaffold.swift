@@ -205,7 +205,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     Product experiments use `run_product_tournament_experience(ProductTournamentExperienceInput) ->
     ProductTournamentExperienceTrace` as a semantic app journey. The input carries
-    the pain, solution, experiment, current workflow, alternatives, and PMF
+    the pain, solution, experiment, current workflow, alternatives, and tournament
     decision intent being evaluated. The generated app owns the allowed action list for each state,
     and `app-cli product-tournament-experience --input '<json>'` deterministically
     replays a supplied action prefix. Persona agents may choose only from the
@@ -993,7 +993,7 @@ struct RustProjectScaffold: Equatable, Sendable {
                     intent.target_decision, intent.current_decision, intent.directive
                 )
             })
-            .unwrap_or_else(|| "discover the next PMF decision".to_owned());
+            .unwrap_or_else(|| "discover the next tournament decision".to_owned());
         product_tournament_experience_state(
             "initial",
             "Ready to evaluate pain relief",

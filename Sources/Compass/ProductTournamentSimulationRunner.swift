@@ -507,7 +507,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
         let focus = intent.scorecardFocus.joined(separator: ", ")
         return
           "Product decision intent: current `\(intent.currentDecision.rawValue)`, target `\(intent.targetDecision.rawValue)`. \(intent.directive) Scorecard focus: \(focus)."
-      } ?? "Product decision intent: discover the next PMF decision."
+      } ?? "Product decision intent: discover the next tournament decision."
     return """
       \(title)
 
@@ -536,7 +536,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
       Prior actions: \(priorActions).
       Current screen: \(bounded(trace.initialState.headline, 120)) - \(bounded(trace.initialState.body, 500)).
       Observations: \(bounded(observations, 500)).
-      PMF scorecard to stress-test: pain recognition, workflow improvement,
+      Tournament scorecard to stress-test: pain recognition, workflow improvement,
       alternative advantage, switching readiness, continued-use pull.
       A good simulated user action should increase evidence for one of those
       dimensions or reveal why the prototype fails it.

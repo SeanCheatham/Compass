@@ -103,7 +103,7 @@ struct ProductTournamentEvidenceStoreTests {
   @Test func storePreservesDecisionIntentAcrossRecordIndexMarkdownAndDigest() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
-      rawPain: "Factory users need targeted PMF evidence.",
+      rawPain: "Factory users need targeted tournament evidence.",
       now: Date(timeIntervalSince1970: 10)
     )
     config.experiments[0].decision = .keepGoing
@@ -156,7 +156,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(digest.contains("intent-run"))
     try #require(digest.contains("target_decision promote"))
     try #require(digest.contains("intent_outcome supports_target"))
-    try #require(digest.contains("Targeted PMF proof outcomes"))
+    try #require(digest.contains("Targeted tournament proof outcomes"))
     try #require(digest.contains("intent_focus alternative advantage"))
   }
 
@@ -385,7 +385,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(good.proofDebt.isClear)
     try #require(good.proofDebt.summary == "proof complete")
     try #require(good.rationale.contains { $0.contains("2 AI-user run(s) across 2 persona(s)") })
-    try #require(good.rationale.contains { $0.contains("Average PMF score") })
+    try #require(good.rationale.contains { $0.contains("Average tournament score") })
 
     try #require(bad.recommendation == .kill)
     try #require(bad.aiUserCompletedRunCount == 2)
@@ -490,7 +490,7 @@ struct ProductTournamentEvidenceStoreTests {
         endingProofDebtSummary:
           "\(config.experiments[0].id): 1 completed run(s), 2 persona(s), 2 AI-user persona(s), 2 AI-user current-alternative proof(s)",
         evidenceTensionSummaries: [
-          "\(config.experiments[0].id): resolve split PMF evidence; score 82/100; strong_pull vs rejected; target Budget owner"
+          "\(config.experiments[0].id): resolve split tournament evidence; score 82/100; strong_pull vs rejected; target Budget owner"
         ],
         proofTargetSummaries: [
           "\(config.experiments[0].id): run targeted AI-user persona proof; target Budget owner; debt 2 AI-user persona(s)"
@@ -523,7 +523,7 @@ struct ProductTournamentEvidenceStoreTests {
     )
 
     try #require(text.contains("Top current-commit evidence signals and objections"))
-    try #require(text.contains("Current-commit product-market-fit readiness"))
+    try #require(text.contains("Current-commit product tournament readiness"))
     try #require(text.contains("proof-debt"))
     try #require(text.contains("2 AI-user persona(s)"))
     try #require(text.contains("ai-user 0"))
@@ -541,7 +541,7 @@ struct ProductTournamentEvidenceStoreTests {
     try #require(text.contains("runs digest-run"))
     try #require(text.contains("proof debt 8 -> 7 (-1)"))
     try #require(text.contains("evidence tensions"))
-    try #require(text.contains("resolve split PMF evidence"))
+    try #require(text.contains("resolve split tournament evidence"))
     try #require(text.contains("targets"))
     try #require(text.contains("proof targets"))
     try #require(text.contains("run targeted AI-user persona proof"))

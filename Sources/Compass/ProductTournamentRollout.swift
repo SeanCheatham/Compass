@@ -790,7 +790,7 @@ extension CompassProject {
       try workspace.writeProductTournamentConfig(next)
       productTournamentConfig = next
       log(
-        "Applied PMF recommendation for product experiment \(experimentID): \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue).",
+        "Applied tournament recommendation for product experiment \(experimentID): \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue).",
         level: .success
       )
     } catch {

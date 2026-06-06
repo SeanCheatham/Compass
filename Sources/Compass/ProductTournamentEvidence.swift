@@ -518,7 +518,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
     ]
     if averageScore > 0 {
       lines.append(
-        "Average PMF score \(format(averageScore))/5; readiness \(format(readinessScore))/100.")
+        "Average tournament score \(format(averageScore))/5; readiness \(format(readinessScore))/100.")
     } else {
       lines.append(
         "No persona scorecard is available yet; readiness depends on run status and verdicts.")
@@ -565,7 +565,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
         lines.append(
           "Stopping a bet requires AI-user rejection evidence across at least 2 personas.")
       } else {
-        lines.append("Decisive PMF decisions require AI-user evidence across at least 2 personas.")
+        lines.append("Decisive tournament decisions require AI-user evidence across at least 2 personas.")
       }
     }
     if aiUserCurrentAlternativePersonaCount < 2 && !completed.isEmpty {
@@ -575,7 +575,7 @@ struct ProductMarketFitReadiness: Codable, Equatable, Identifiable, Sendable {
         )
       } else {
         lines.append(
-          "Decisive PMF decisions require current-alternative proof from at least 2 AI-user personas."
+          "Decisive tournament decisions require current-alternative proof from at least 2 AI-user personas."
         )
       }
     }

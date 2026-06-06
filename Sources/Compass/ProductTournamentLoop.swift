@@ -321,7 +321,7 @@ struct ProductFactoryDecisionCandidate: Equatable, Sendable, Identifiable {
     )
     self.summary = ProductTournamentModelText.cleanedText(
       proposal.update.summary,
-      fallback: "PMF decision candidate is ready.",
+      fallback: "Tournament decision candidate is ready.",
       limit: 1_000
     )
   }
@@ -467,7 +467,7 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
 
   init(
     experimentID: String,
-    label: String = "resolve split PMF evidence",
+    label: String = "resolve split tournament evidence",
     readinessScore: Int,
     strongestVerdict: ProductTournamentEvidenceVerdict,
     weakestVerdict: ProductTournamentEvidenceVerdict,
@@ -486,7 +486,7 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
     )
     self.label = ProductTournamentModelText.cleanedText(
       label,
-      fallback: "resolve split PMF evidence",
+      fallback: "resolve split tournament evidence",
       limit: 120
     )
     self.readinessScore = min(100, max(0, readinessScore))
@@ -520,7 +520,7 @@ struct ProductFactoryEvidenceTension: Equatable, Sendable, Identifiable {
     self.summary = ProductTournamentModelText.cleanedText(
       summary,
       fallback:
-        "Current PMF evidence contains both pull and rejection; resolve the split before lift/cut decisions.",
+        "Current tournament evidence contains both pull and rejection; resolve the split before lift/cut decisions.",
       limit: 1_000
     )
   }
@@ -573,7 +573,7 @@ enum ProductFactoryEvidenceTensionAdvisor {
     guard !positive.isEmpty, !negative.isEmpty else { return nil }
 
     let summary =
-      "Current PMF evidence is split: \(positive.count) pull signal(s) and \(negative.count) rejection signal(s) on the current commit. Run a targeted AI-user comparison or narrow the scenario before applying lift/cut decisions."
+      "Current tournament evidence is split: \(positive.count) pull signal(s) and \(negative.count) rejection signal(s) on the current commit. Run a targeted AI-user comparison or narrow the scenario before applying lift/cut decisions."
     let target = config.flatMap {
       tensionTarget(for: negative, experiment: experiment, config: $0)
     }
@@ -831,7 +831,7 @@ struct ProductFactoryExperimentSignal: Equatable, Sendable, Identifiable {
   }
 
   var pmfLabel: String {
-    guard let readinessScore else { return "No current PMF evidence" }
+    guard let readinessScore else { return "No current tournament evidence" }
     let recommendation = readinessRecommendation?.title ?? "Review"
     return "\(readinessScore)/100, \(recommendation)"
   }
@@ -960,7 +960,7 @@ struct ProductFactoryRationaleSignal: Equatable, Sendable, Identifiable {
     self.summary = ProductTournamentModelText.cleanedText(
       summary,
       fallback:
-        "Repeated AI-user rationale points to a PMF proof gap; resolve it before lift/cut decisions.",
+        "Repeated AI-user rationale points to a tournament proof gap; resolve it before lift/cut decisions.",
       limit: 1_000
     )
   }
@@ -1027,7 +1027,7 @@ struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiab
 
   var auditSummary: String {
     var parts = [
-      "\(experimentID): targeted PMF proof outcome",
+      "\(experimentID): targeted tournament proof outcome",
       "target_decision \(targetDecision.rawValue)",
       "outcome \(outcome.rawValue)",
       "count \(count)",
@@ -1079,7 +1079,7 @@ struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiab
     self.actionKind = actionKind
     self.title = ProductTournamentModelText.cleanedText(
       title,
-      fallback: "Resolve targeted PMF proof outcome",
+      fallback: "Resolve targeted tournament proof outcome",
       limit: 160
     )
     self.priority = max(0, priority)
@@ -1105,7 +1105,7 @@ struct ProductFactoryTargetedProofOutcomeSignal: Equatable, Sendable, Identifiab
     self.summary = ProductTournamentModelText.cleanedText(
       summary,
       fallback:
-        "A targeted PMF proof answered the requested decision; update the product-factory queue before rerunning the same proof.",
+        "A targeted tournament proof answered the requested decision; update the product-factory queue before rerunning the same proof.",
       limit: 1_000
     )
   }
@@ -1338,7 +1338,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
         targetScenarioID: target?.scenarioID,
         targetCohortID: target?.cohortID,
         summary:
-          "Targeted promotion proof supported lift in \(count) run(s), but the formal PMF decision advisor did not apply it automatically; review transition state and evidence."
+          "Targeted promotion proof supported lift in \(count) run(s), but the formal tournament decision advisor did not apply it automatically; review transition state and evidence."
       )
     case .kill, .archived:
       guard readiness?.proofDebt.isClear == true else { return nil }
@@ -1357,7 +1357,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
         targetScenarioID: target?.scenarioID,
         targetCohortID: target?.cohortID,
         summary:
-          "Targeted stop proof supported killing the bet in \(count) run(s), but the formal PMF decision advisor did not apply it automatically; review transition state and evidence."
+          "Targeted stop proof supported killing the bet in \(count) run(s), but the formal tournament decision advisor did not apply it automatically; review transition state and evidence."
       )
     case .narrow, .pivot:
       return ProductFactoryTargetedProofOutcomeSignal(
@@ -1397,7 +1397,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
       outcome: .inconclusive,
       recommendedDecision: targetDecision,
       actionKind: canRun ? .rerunCohort : .refineBet,
-      title: "Retarget inconclusive PMF proof",
+      title: "Retarget inconclusive tournament proof",
       priority: 76,
       count: count,
       runIDs: runIDs,
@@ -1897,7 +1897,7 @@ enum ProductFactoryRevisionBriefAdvisor {
       config: config,
       evidenceIndex: evidenceIndex
     )
-    let isRetargeted = action?.title == "Retarget targeted PMF proof"
+    let isRetargeted = action?.title == "Retarget tournament proof outcome"
     guard signal.actionKind == .refineBet || isRetargeted else { return nil }
     guard action?.title == signal.title || isRetargeted else {
       return nil
@@ -2010,7 +2010,7 @@ enum ProductFactoryRevisionBriefAdvisor {
       prototypeChange:
         "\(retargetPrefix)turn the repeated rationale into a visible product affordance, not just a better explanation.",
       scenarioChange:
-        "Retarget the next scenario so \(targetName) must confront the repeated rationale before giving a PMF verdict.",
+        "Retarget the next scenario so \(targetName) must confront the repeated rationale before giving a tournament verdict.",
       proofPlan:
         "Rerun targeted AI-user proof and require a current-alternative comparison that says whether the rationale is resolved."
     )
@@ -2053,11 +2053,11 @@ enum ProductFactoryRevisionBriefAdvisor {
       )
     case (_, .inconclusive):
       return RevisionPlan(
-        title: "Sharpen inconclusive PMF proof",
+        title: "Sharpen inconclusive tournament proof",
         prototypeChange:
           "make the decision criteria visible in the prototype so the AI user can judge pain recognition, alternative advantage, switching readiness, and continued-use pull.",
         scenarioChange:
-          "Rewrite the scenario around a single forced PMF decision for \(targetName), with explicit current-alternative comparison.",
+          "Rewrite the scenario around a single forced tournament decision for \(targetName), with explicit current-alternative comparison.",
         proofPlan:
           "Rerun targeted AI-user proof and require the result to support or contradict \(signal.targetDecision.rawValue), not remain inconclusive."
       )
@@ -2065,7 +2065,7 @@ enum ProductFactoryRevisionBriefAdvisor {
       return RevisionPlan(
         title: signal.title,
         prototypeChange:
-          "translate the targeted proof outcome into a visible product change before the same PMF decision is tested again.",
+          "translate the targeted proof outcome into a visible product change before the same tournament decision is tested again.",
         scenarioChange:
           "Retarget the scenario to the proof outcome and require \(targetName) to explain whether the product bet should continue, narrow, pivot, kill, or promote.",
         proofPlan:
@@ -2163,7 +2163,7 @@ struct ProductFactoryProofTarget: Equatable, Sendable, Identifiable {
     self.experimentID = ProductTournamentModelText.identifier(experimentID, fallback: "experiment")
     self.label = ProductTournamentModelText.cleanedText(
       label,
-      fallback: "close PMF proof debt",
+      fallback: "close tournament proof debt",
       limit: 160
     )
     self.readinessScore = min(100, max(0, readinessScore))
@@ -2273,7 +2273,7 @@ enum ProductFactoryProofTargetAdvisor {
     if readiness.proofDebt.aiUserCurrentAlternativeDeficit > 0 {
       return "add AI-user current-alternative proof"
     }
-    return "close remaining PMF proof debt"
+    return "close remaining tournament proof debt"
   }
 }
 
@@ -2434,7 +2434,7 @@ struct ProductFactoryAutopilotStep: Equatable, Sendable, Identifiable {
   var title: String {
     switch kind {
     case .applyDecision:
-      return "Apply PMF decision"
+      return "Apply tournament decision"
     case .runCohort:
       return action.kind == .rerunCohort ? "Rerun evidence cohort" : "Run evidence cohort"
     case .applyRevision:
@@ -2850,7 +2850,7 @@ struct ProductFactoryAutopilotCycleOutcome: Equatable, Sendable {
       ? ", targeted proof \(targetedPromoteProofCount) promote, \(targetedKillProofCount) kill"
       : ""
     return
-      "Cycle outcomes: \(appliedDecisionCount) PMF decision(s) applied (\(promotedDecisionCount) promote, \(killedDecisionCount) kill), \(evidenceRunStepCount) evidence step(s)\(targetedProof)\(evidenceOutcome)."
+      "Cycle outcomes: \(appliedDecisionCount) tournament decision(s) applied (\(promotedDecisionCount) promote, \(killedDecisionCount) kill), \(evidenceRunStepCount) evidence step(s)\(targetedProof)\(evidenceOutcome)."
   }
 
   private var hasEvidenceRunOutcomes: Bool {
@@ -3140,7 +3140,7 @@ enum ProductFactoryCycleLearningAdvisor {
         config: config,
         evidenceIndex: evidenceIndex
       ),
-      currentSignal.title == action.title || action.title == "Validate targeted PMF revision"
+      currentSignal.title == action.title || action.title == "Validate targeted tournament proof revision"
     else { return nil }
     let stepIDs = targetedScenarioStepIDs(for: action)
     return config.factoryCycleAudits
@@ -3337,7 +3337,7 @@ enum ProductFactoryCycleLearningAdvisor {
     _ action: ProductMarketFitNextAction
   ) -> Bool {
     (action.kind == .runCohort || action.kind == .rerunCohort)
-      && action.title == "Resolve split PMF evidence"
+      && action.title == "Resolve split tournament evidence"
       && action.targetScenarioID != nil
       && action.requiredSimulationMode == .personaModel
   }
@@ -3459,7 +3459,7 @@ enum ProductFactoryCycleLearningAdvisor {
     signal: ProductFactoryTargetedProofOutcomeSignal
   ) -> Bool {
     audit.targetedProofOutcomeSummaries.contains { summary in
-      let labelMatches = summary.localizedCaseInsensitiveContains("targeted PMF proof outcome")
+      let labelMatches = summary.localizedCaseInsensitiveContains("targeted tournament proof outcome")
       let targetDecisionMatches = summary.contains(
         "target_decision \(signal.targetDecision.rawValue)"
       )
@@ -3748,7 +3748,7 @@ enum ProductFactoryAutopilotPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent factory cycle \(audit.id) already attempted this targeted PMF proof outcome and the same outcome is still present; revise the prototype, scenario, target persona, or decision criteria before retrying."
+        "Recent factory cycle \(audit.id) already attempted this targeted tournament proof outcome and the same outcome is still present; revise the prototype, scenario, target persona, or decision criteria before retrying."
       return blocked
     }
     if step.canExecute,
@@ -3762,7 +3762,7 @@ enum ProductFactoryAutopilotPlanner {
       var blocked = step
       blocked.canExecute = false
       blocked.blockedReason =
-        "Recent factory cycle \(audit.id) already attempted this split-evidence target and the current PMF evidence is still split; revise the scenario, persona, prototype, or decision criteria before retrying."
+        "Recent factory cycle \(audit.id) already attempted this split-evidence target and the current tournament evidence is still split; revise the scenario, persona, prototype, or decision criteria before retrying."
       return blocked
     }
     if step.canExecute,
@@ -3847,7 +3847,7 @@ enum ProductMarketFitDecisionAdvisorError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .noProposal(let experimentID):
-      return "No PMF decision recommendation is available for product experiment \(experimentID)."
+      return "No tournament decision recommendation is available for product experiment \(experimentID)."
     }
   }
 }
@@ -3886,7 +3886,7 @@ enum ProductMarketFitNextActionAdvisor {
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
         kind: .applyDecision,
-        title: "Apply PMF decision",
+        title: "Apply tournament decision",
         detail:
           "Current evidence supports \(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue) using \(proposal.update.evidenceRunIDs.count) current run(s).",
         priority: 100,
@@ -3904,7 +3904,7 @@ enum ProductMarketFitNextActionAdvisor {
           kind: .refineBet,
           title: "Define evidence cohort",
           detail:
-            "No enabled scenario cohort is ready for this experiment; define an enabled cohort before the factory can gather PMF evidence.",
+            "No enabled scenario cohort is ready for this experiment; define an enabled cohort before the factory can gather tournament evidence.",
           priority: staleCount > 0 ? 96 : 91
         )
       }
@@ -3934,7 +3934,7 @@ enum ProductMarketFitNextActionAdvisor {
         kind: .repairFailures,
         title: "Repair evidence run failures",
         detail:
-          "\(readiness.failedRunCount) of \(readiness.runCount) current run(s) failed; fix the generated app contract or runner before trusting PMF signals.",
+          "\(readiness.failedRunCount) of \(readiness.runCount) current run(s) failed; fix the generated app contract or runner before trusting tournament signals.",
         priority: 85
       )
     }
@@ -4032,7 +4032,7 @@ enum ProductMarketFitNextActionAdvisor {
           title: "Run AI-user alternative challenge",
           decisionGate: "promotion",
           gateReason:
-            "decisive PMF decisions require current-alternative proof from at least 2 AI-user personas",
+            "decisive tournament decisions require current-alternative proof from at least 2 AI-user personas",
           targetDecision: .promote,
           priority: 77,
           observedCount: readiness.aiUserCurrentAlternativePersonaCount,
@@ -4054,7 +4054,7 @@ enum ProductMarketFitNextActionAdvisor {
           title: "Run AI-user alternative rejection check",
           decisionGate: "stopping the experiment",
           gateReason:
-            "decisive PMF decisions require current-alternative proof from at least 2 AI-user personas",
+            "decisive tournament decisions require current-alternative proof from at least 2 AI-user personas",
           targetDecision: .kill,
           priority: 81,
           observedCount: readiness.aiUserCurrentAlternativePersonaCount,
@@ -4093,7 +4093,7 @@ enum ProductMarketFitNextActionAdvisor {
         to: ProductMarketFitNextAction(
           experimentID: experiment.id,
           kind: canRunTarget ? .runCohort : .refineBet,
-          title: "Resolve split PMF evidence",
+          title: "Resolve split tournament evidence",
           detail: detail,
           priority: tension.urgencyScore,
           cohortID: actionCohortID,
@@ -4162,7 +4162,7 @@ enum ProductMarketFitNextActionAdvisor {
         kind: .refineBet,
         title: "Narrow the product bet",
         detail:
-          "Current PMF evidence points to missing capabilities or repeated objections; narrow the next prototype before more rollout work.",
+          "Current tournament evidence points to missing capabilities or repeated objections; narrow the next prototype before more rollout work.",
         priority: 75
       )
     case .pivot:
@@ -4199,9 +4199,9 @@ enum ProductMarketFitNextActionAdvisor {
           kind: cohort == nil ? .refineBet : .runCohort,
           title: "Run another evidence cohort",
           detail: cohort.map {
-            "Current PMF readiness is \(readiness.scoreLabel)/100; run cohort `\($0.id)` or add a scenario variant before changing the product decision."
+            "Current tournament readiness is \(readiness.scoreLabel)/100; run cohort `\($0.id)` or add a scenario variant before changing the product decision."
           }
-            ?? "Current PMF readiness is \(readiness.scoreLabel)/100; define another enabled scenario cohort before changing the product decision.",
+            ?? "Current tournament readiness is \(readiness.scoreLabel)/100; define another enabled scenario cohort before changing the product decision.",
           priority: 70,
           cohortID: cohort?.id
         ),
@@ -4535,9 +4535,9 @@ enum ProductMarketFitNextActionAdvisor {
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
         kind: .refineBet,
-        title: "Retarget targeted PMF proof",
+        title: "Retarget tournament proof outcome",
         detail:
-          "Recent factory cycle \(audit.id) reran the same targeted PMF proof outcome and it is still present (\(audit.summary)); revise the prototype, scenario, target persona, or decision criteria before retrying.",
+          "Recent factory cycle \(audit.id) reran the same targeted tournament proof outcome and it is still present (\(audit.summary)); revise the prototype, scenario, target persona, or decision criteria before retrying.",
         priority: min(98, max(action.priority + 1, 87)),
         requiredSimulationMode: .personaModel,
         targetPersonaID: action.targetPersonaID,
@@ -4555,7 +4555,7 @@ enum ProductMarketFitNextActionAdvisor {
       return ProductMarketFitNextAction(
         experimentID: experiment.id,
         kind: .refineBet,
-        title: "Retarget split PMF evidence",
+        title: "Retarget split tournament evidence",
         detail:
           "Recent factory cycle \(audit.id) reran the split-evidence target without resolving the contradiction (\(audit.summary)); revise the scenario, persona, prototype, or decision criteria before retrying.",
         priority: min(98, max(action.priority + 1, 86)),
@@ -4667,9 +4667,9 @@ enum ProductMarketFitNextActionAdvisor {
     return ProductMarketFitNextAction(
       experimentID: experiment.id,
       kind: .rerunCohort,
-      title: "Validate targeted PMF revision",
+      title: "Validate targeted tournament proof revision",
       detail:
-        "Recent factory cycle \(audit.id) applied a targeted PMF proof revision; rerun the persona-model scenario for \(targetName) before applying the same revision again.",
+        "Recent factory cycle \(audit.id) applied a targeted tournament proof revision; rerun the persona-model scenario for \(targetName) before applying the same revision again.",
       priority: min(99, max(action.priority + 3, 90)),
       cohortID: cohortID,
       requiredSimulationMode: .personaModel,
@@ -4996,7 +4996,7 @@ enum ProductMarketFitDecisionAdvisor {
         decision: target,
         summary: summary,
         evidenceRunIDs: readiness.evidenceRunIDs,
-        decidedBy: "PMF Decision Advisor"
+        decidedBy: "Product Tournament Decision Advisor"
       )
       return ProductMarketFitDecisionProposal(
         experimentID: experiment.id,
@@ -5097,7 +5097,7 @@ enum ProductMarketFitDecisionAdvisor {
       "\(readiness.aiUserCompletedRunCount) AI-user run(s) across \(readiness.aiUserDistinctPersonaCount) persona(s); current-alternative proof from \(readiness.aiUserCurrentAlternativePersonaCount) AI-user persona(s)."
     return StringUtils.boundedText(
       """
-      PMF readiness \(readiness.scoreLabel)/100 recommends \(target.rawValue) for \(experiment.title): \(rationale) \(proof) Supporting \(evidence).
+      Tournament readiness \(readiness.scoreLabel)/100 recommends \(target.rawValue) for \(experiment.title): \(rationale) \(proof) Supporting \(evidence).
       """,
       limit: 1_000
     )

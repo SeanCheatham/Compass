@@ -223,7 +223,7 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(choice.action.id == "inspect_pain")
     try #require(choice.promptVersionID == "product_tournament.persona_action.foundation_models.v3")
     try #require(stream.prompts[0].contains("skeptical target user"))
-    try #require(stream.prompts[0].contains("PMF scorecard to stress-test"))
+    try #require(stream.prompts[0].contains("Tournament scorecard to stress-test"))
     try #require(stream.prompts[0].contains("switching readiness"))
     try #require(stream.prompts[0].contains("reasons the user would keep the current alternative"))
     try #require(stream.prompts[0].contains("Persona constraints"))

@@ -236,12 +236,12 @@ struct ProductTournamentLoopTests {
 
     try #require(promote.update.decision == .promote)
     try #require(promote.update.evidenceRunIDs.first == "promote-a")
-    try #require(promote.update.summary.contains("PMF readiness"))
+    try #require(promote.update.summary.contains("Tournament readiness"))
     try #require(promote.update.summary.contains("current-alternative proof from 2"))
     try #require(narrow.update.decision == .narrow)
     try #require(narrow.update.summary.contains("csv_import"))
     try #require(kill.update.decision == .kill)
-    try #require(kill.update.decidedBy == "PMF Decision Advisor")
+    try #require(kill.update.decidedBy == "Product Tournament Decision Advisor")
     try #require(kill.update.summary.contains("current-alternative proof from 2"))
     try #require(candidates.count == 3)
     let liftCandidate = try #require(candidates.first { $0.experimentID == promote.experimentID })
@@ -385,7 +385,7 @@ struct ProductTournamentLoopTests {
 
     try #require(readiness.recommendation == .promote)
     try #require(readiness.proofDebt.isClear)
-    try #require(tension.label == "resolve split PMF evidence")
+    try #require(tension.label == "resolve split tournament evidence")
     try #require(tension.positiveEvidenceRunIDs.first == "split-promote-a")
     try #require(tension.negativeEvidenceRunIDs == ["split-reject-a"])
     try #require(tension.targetPersonaID == buyerID)
@@ -406,7 +406,7 @@ struct ProductTournamentLoopTests {
         evidenceIndex: index
       ).isEmpty)
     try #require(action.kind == .runCohort)
-    try #require(action.title == "Resolve split PMF evidence")
+    try #require(action.title == "Resolve split tournament evidence")
     try #require(action.cohortID == config.scenarioCohorts[0].id)
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetPersonaID == buyerID)
@@ -430,7 +430,7 @@ struct ProductTournamentLoopTests {
         to: config,
         evidenceIndex: index
       )
-      #expect(Bool(false), "Expected split evidence to block automatic PMF promotion.")
+      #expect(Bool(false), "Expected split evidence to block automatic tournament promotion.")
     } catch let error as ProductMarketFitDecisionAdvisorError {
       try #require(error == .noProposal(experiment.id))
     }
@@ -507,7 +507,7 @@ struct ProductTournamentLoopTests {
 
     try #require(learningAudit.id == stalledAudit.id)
     try #require(stalledAction.kind == .refineBet)
-    try #require(stalledAction.title == "Retarget split PMF evidence")
+    try #require(stalledAction.title == "Retarget split tournament evidence")
     try #require(stalledAction.detail.contains(stalledAudit.id))
     try #require(
       stalledAction.detail.contains("still split") || stalledAction.detail.contains("contradiction")
@@ -529,7 +529,7 @@ struct ProductTournamentLoopTests {
       config: stalledConfig,
       evidenceIndex: index
     )
-    try #require(stalledDigest.contains("Retarget split PMF evidence"))
+    try #require(stalledDigest.contains("Retarget split tournament evidence"))
     try #require(stalledDigest.contains("target_decision promote"))
   }
 
@@ -633,7 +633,7 @@ struct ProductTournamentLoopTests {
         config: config,
         evidenceIndex: index
       ).isEmpty)
-    try #require(action.title == "Resolve split PMF evidence")
+    try #require(action.title == "Resolve split tournament evidence")
     try #require(action.requiredSimulationMode == .personaModel)
     try #require(action.targetScenarioID == operatorScenario.id)
     try #require(action.targetDecision == .kill)
@@ -1846,7 +1846,7 @@ struct ProductTournamentLoopTests {
 
     try #require(signal.count == 3)
     try #require(action.kind == .applyDecision)
-    try #require(action.title == "Apply PMF decision")
+    try #require(action.title == "Apply tournament decision")
     try #require(
       ProductFactoryRevisionBriefAdvisor.brief(
         for: experiment,
@@ -2488,7 +2488,7 @@ struct ProductTournamentLoopTests {
     try #require(firstSignal.urgencyScore > secondSignal.urgencyScore)
     try #require(secondSignal.nextActionKind == .runCohort)
     try #require(secondSignal.pressure == .learn)
-    try #require(secondSignal.pmfLabel == "No current PMF evidence")
+    try #require(secondSignal.pmfLabel == "No current tournament evidence")
   }
 
   @Test func productFactoryRankerSurfacesPMFProofDebt() throws {
@@ -3125,7 +3125,7 @@ struct ProductTournamentLoopTests {
     )
 
     try #require(outcome.userMessage.contains("Factory cycle ran 1 step(s)."))
-    try #require(outcome.userMessage.contains("0 PMF decision(s) applied"))
+    try #require(outcome.userMessage.contains("0 tournament decision(s) applied"))
     try #require(outcome.userMessage.contains("1 evidence step(s)"))
     try #require(outcome.userMessage.contains("Model-free cohort ran 1 scenario(s)"))
     try #require(outcome.userMessage.contains("Stopped before repeating Run evidence cohort."))
@@ -3174,7 +3174,7 @@ struct ProductTournamentLoopTests {
     try #require(outcome.targetedPromoteProofCount == 1)
     try #require(outcome.targetedKillProofCount == 0)
     try #require(outcome.evidenceRunStepCount == 1)
-    try #require(outcome.userMessage.contains("0 PMF decision(s) applied (0 promote, 0 kill)"))
+    try #require(outcome.userMessage.contains("0 tournament decision(s) applied (0 promote, 0 kill)"))
     try #require(outcome.userMessage.contains("targeted proof 1 promote, 0 kill"))
     try #require(outcome.userMessage.contains("1 evidence step(s)"))
     try #require(audit.appliedDecisionCount == 0)
@@ -3216,7 +3216,7 @@ struct ProductTournamentLoopTests {
 
     let outcome = ProductFactoryAutopilotCycleOutcome(
       executedSteps: [step],
-      messages: ["Applied PMF advice for \(step.experimentTitle)."],
+      messages: ["Applied tournament advice for \(step.experimentTitle)."],
       maxSteps: 3,
       stopReason: .noExecutableStep,
       decisionCandidateSummaries: [candidate.auditSummary],
@@ -3234,7 +3234,7 @@ struct ProductTournamentLoopTests {
     try #require(outcome.promotedDecisionCount == 1)
     try #require(outcome.killedDecisionCount == 0)
     try #require(outcome.evidenceRunStepCount == 0)
-    try #require(outcome.userMessage.contains("1 PMF decision(s) applied (1 promote, 0 kill)"))
+    try #require(outcome.userMessage.contains("1 tournament decision(s) applied (1 promote, 0 kill)"))
     try #require(outcome.userMessage.contains("Decision candidates:"))
     try #require(outcome.userMessage.contains("continue -> promote"))
     try #require(outcome.userMessage.contains("AI-user rationale signals:"))
@@ -3526,7 +3526,7 @@ struct ProductTournamentLoopTests {
 
     try #require(learningAudit.id == stalledAudit.id)
     try #require(retarget.kind == .refineBet)
-    try #require(retarget.title == "Retarget targeted PMF proof")
+    try #require(retarget.title == "Retarget tournament proof outcome")
     try #require(retarget.detail.contains(stalledAudit.id))
     try #require(retarget.targetDecision == .promote)
     try #require(revisionBrief.source == .targetedProofOutcome)
@@ -3638,7 +3638,7 @@ struct ProductTournamentLoopTests {
 
     try #require(appliedAudit.id == revisionAudit.id)
     try #require(validationAction.kind == .rerunCohort)
-    try #require(validationAction.title == "Validate targeted PMF revision")
+    try #require(validationAction.title == "Validate targeted tournament proof revision")
     try #require(validationAction.detail.contains(revisionAudit.id))
     try #require(validationAction.cohortID == signal.targetCohortID)
     try #require(validationAction.targetScenarioID == scenario.id)
@@ -3705,11 +3705,11 @@ struct ProductTournamentLoopTests {
     let longScenarioID =
       "\(step.experimentID)-budget-owner-current-alternative-switching-proof-scenario"
     let tensionSummary =
-      "\(step.experimentID): resolve split PMF evidence; score 82/100; strong_pull vs rejected; target_decision promote; target Budget owner; scenario \(longScenarioID); evidence split-a, split-b; Current PMF evidence is split."
+      "\(step.experimentID): resolve split tournament evidence; score 82/100; strong_pull vs rejected; target_decision promote; target Budget owner; scenario \(longScenarioID); evidence split-a, split-b; Current tournament evidence is split."
     let proofTargetSummary =
       "\(step.experimentID): run targeted AI-user validation proof; target_decision promote; target Budget owner; scenario \(longScenarioID); debt 2 completed run(s), 2 persona(s), 1 AI-user current-alternative proof(s)"
     let targetedProofOutcomeSummary =
-      "\(step.experimentID): targeted PMF proof outcome; target_decision kill; outcome contradicts_target; count 2; action run_cohort; recommended_decision promote; target Budget owner; scenario \(longScenarioID); runs stop-a, stop-b"
+      "\(step.experimentID): targeted tournament proof outcome; target_decision kill; outcome contradicts_target; count 2; action run_cohort; recommended_decision promote; target Budget owner; scenario \(longScenarioID); runs stop-a, stop-b"
     let outcome = ProductFactoryAutopilotCycleOutcome(
       executedSteps: [step],
       messages: ["Model-free cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
@@ -3752,7 +3752,7 @@ struct ProductTournamentLoopTests {
     try #require(audit.startingProofDebtSummary?.contains("2 completed run") == true)
     try #require(audit.endingProofDebtSummary?.contains("1 completed run") == true)
     try #require(audit.evidenceTensionSummaries.count == 1)
-    try #require(audit.evidenceTensionSummaries[0].contains("resolve split PMF evidence"))
+    try #require(audit.evidenceTensionSummaries[0].contains("resolve split tournament evidence"))
     try #require(audit.evidenceTensionSummaries[0].contains("target_decision promote"))
     try #require(audit.evidenceTensionSummaries[0].contains(longScenarioID))
     try #require(audit.proofTargetSummaries.count == 1)
@@ -3760,7 +3760,7 @@ struct ProductTournamentLoopTests {
     try #require(audit.proofTargetSummaries[0].contains("target_decision promote"))
     try #require(audit.proofTargetSummaries[0].contains(longScenarioID))
     try #require(audit.targetedProofOutcomeSummaries.count == 1)
-    try #require(audit.targetedProofOutcomeSummaries[0].contains("targeted PMF proof outcome"))
+    try #require(audit.targetedProofOutcomeSummaries[0].contains("targeted tournament proof outcome"))
     try #require(audit.targetedProofOutcomeSummaries[0].contains("outcome contradicts_target"))
     try #require(audit.targetedProofOutcomeSummaries[0].contains("recommended_decision promote"))
     try #require(audit.revisionBriefSummaries.count == 1)
@@ -3776,7 +3776,7 @@ struct ProductTournamentLoopTests {
     try #require(audit.summary.contains("runs run-one"))
     try #require(audit.summary.contains("proof debt 8 -> 6 (-2)"))
     try #require(audit.summary.contains("tensions"))
-    try #require(audit.summary.contains("resolve split PMF evidence"))
+    try #require(audit.summary.contains("resolve split tournament evidence"))
     try #require(audit.summary.contains("targets"))
     try #require(audit.summary.contains("targeted AI-user validation proof"))
     try #require(audit.summary.contains("target_decision promote"))
@@ -3817,16 +3817,16 @@ struct ProductTournamentLoopTests {
     let decision = try #require(next.decisions.last)
 
     try #require(action.kind == .applyDecision)
-    try #require(action.title == "Apply PMF decision")
+    try #require(action.title == "Apply tournament decision")
     try #require(action.detail.contains("continue -> promote"))
     try #require(action.targetDecision == .promote)
     try #require(action.cohortID == nil)
     try #require(savedExperiment.decision == .promote)
-    try #require(savedExperiment.evidenceSummary.contains("PMF readiness"))
+    try #require(savedExperiment.evidenceSummary.contains("Tournament readiness"))
     try #require(savedExperiment.evidenceSummary.contains("current-alternative proof"))
     try #require(decision.decision == .promote)
     try #require(decision.evidenceRunIDs == ["promote-a", "promote-b", "promote-c"])
-    try #require(decision.decidedBy == "PMF Decision Advisor")
+    try #require(decision.decidedBy == "Product Tournament Decision Advisor")
     try #require(decision.beforeSha == experiment.currentSha)
     try #require(decision.afterSha == experiment.currentSha)
   }
@@ -3866,7 +3866,7 @@ struct ProductTournamentLoopTests {
         to: config,
         evidenceIndex: index
       )
-      #expect(Bool(false), "Expected stale evidence to produce no PMF proposal.")
+      #expect(Bool(false), "Expected stale evidence to produce no tournament proposal.")
     } catch let error as ProductMarketFitDecisionAdvisorError {
       try #require(error == .noProposal(config.experiments[0].id))
     }

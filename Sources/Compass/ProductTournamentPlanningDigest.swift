@@ -790,7 +790,7 @@ enum ProductTournamentPlanningDigestFormatter {
       .reduce(0, +)
     if staleCount > 0 {
       lines.append(
-        "Stale product tournament evidence ignored for current PMF decisions: \(staleCount) run(s) from older experiment commits."
+        "Stale product tournament evidence ignored for current tournament decisions: \(staleCount) run(s) from older experiment commits."
       )
     }
 
@@ -899,7 +899,7 @@ enum ProductTournamentPlanningDigestFormatter {
             "\(outcome.targetDecision.rawValue) \(outcome.outcome.rawValue) (\(outcome.count)x\(runs))"
         }
         .joined(separator: "; ")
-      lines.append("Targeted PMF proof outcomes: \(outcomes).")
+      lines.append("Targeted tournament proof outcomes: \(outcomes).")
     }
 
     let currentReadiness = config.experiments
@@ -911,7 +911,7 @@ enum ProductTournamentPlanningDigestFormatter {
         return lhs.readinessScore > rhs.readinessScore
       }
     if !currentReadiness.isEmpty {
-      lines.append("Current-commit product-market-fit readiness:")
+      lines.append("Current-commit product tournament readiness:")
       for readiness in currentReadiness.prefix(4) {
         let evidence =
           readiness.evidenceRunIDs.isEmpty

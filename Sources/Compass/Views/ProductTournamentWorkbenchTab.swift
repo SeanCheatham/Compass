@@ -860,7 +860,7 @@ struct ProductTournamentWorkbenchTab: View {
         WorkbenchSection("Proof Targets", systemImage: "target") {
           VStack(alignment: .leading, spacing: 8) {
             if factoryProofTargets.isEmpty {
-              WorkbenchEmptyLine("No PMF proof debt queued.")
+              WorkbenchEmptyLine("No tournament proof debt queued.")
             } else {
               ForEach(factoryProofTargets.prefix(4)) { target in
                 proofTargetRow(target)
@@ -872,7 +872,7 @@ struct ProductTournamentWorkbenchTab: View {
         WorkbenchSection("Targeted Proof Outcomes", systemImage: "arrow.triangle.branch") {
           VStack(alignment: .leading, spacing: 8) {
             if factoryTargetedProofOutcomeSignals.isEmpty {
-              WorkbenchEmptyLine("No targeted PMF proof outcomes queued.")
+              WorkbenchEmptyLine("No targeted tournament proof outcomes queued.")
             } else {
               ForEach(factoryTargetedProofOutcomeSignals.prefix(4)) { signal in
                 targetedProofOutcomeRow(signal)
@@ -908,7 +908,7 @@ struct ProductTournamentWorkbenchTab: View {
         WorkbenchSection("Evidence Tensions", systemImage: "exclamationmark.triangle") {
           VStack(alignment: .leading, spacing: 8) {
             if factoryEvidenceTensions.isEmpty {
-              WorkbenchEmptyLine("No split PMF evidence detected.")
+              WorkbenchEmptyLine("No split tournament evidence detected.")
             } else {
               ForEach(factoryEvidenceTensions.prefix(4)) { tension in
                 evidenceTensionRow(tension)
@@ -920,7 +920,7 @@ struct ProductTournamentWorkbenchTab: View {
         WorkbenchSection("Decision Candidates", systemImage: "checkmark.seal") {
           VStack(alignment: .leading, spacing: 8) {
             if factoryDecisionCandidates.isEmpty {
-              WorkbenchEmptyLine("No PMF lift/cut decisions queued.")
+              WorkbenchEmptyLine("No tournament lift/cut decisions queued.")
             } else {
               ForEach(factoryDecisionCandidates.prefix(4)) { candidate in
                 decisionCandidateRow(candidate)
@@ -1093,7 +1093,7 @@ struct ProductTournamentWorkbenchTab: View {
           Spacer()
           WorkbenchStatusPill(text: experiment.decision.rawValue)
         }
-        WorkbenchFact(label: "PMF", value: signal.pmfLabel)
+        WorkbenchFact(label: "Readiness", value: signal.pmfLabel)
         WorkbenchFact(label: "Next", value: signal.nextActionLabel)
         WorkbenchFact(label: "Branch", value: experiment.branchName)
         WorkbenchFact(label: "Worktree", value: experiment.worktreeID)
@@ -1349,7 +1349,7 @@ struct ProductTournamentWorkbenchTab: View {
           WorkbenchStatusPill(text: candidate.pressure.title)
         }
         WorkbenchFact(label: "Experiment", value: candidate.experimentID)
-        WorkbenchFact(label: "PMF", value: "\(candidate.readinessScore)/100")
+        WorkbenchFact(label: "Readiness", value: "\(candidate.readinessScore)/100")
         WorkbenchFact(
           label: "Evidence",
           value: candidate.evidenceRunIDs.isEmpty
@@ -1732,7 +1732,8 @@ struct ProductTournamentWorkbenchTab: View {
             label: "Runs", value: "\(evidenceIndex.summaries.count)", systemImage: "number")
           if let readiness = selectedPMFReadiness {
             WorkbenchMetric(
-              label: "PMF", value: readiness.scoreLabel, systemImage: "chart.line.uptrend.xyaxis")
+              label: "Readiness", value: readiness.scoreLabel,
+              systemImage: "chart.line.uptrend.xyaxis")
           }
           WorkbenchMetric(
             label: "Failures",
@@ -2023,7 +2024,7 @@ struct ProductTournamentWorkbenchTab: View {
             .textSelection(.enabled)
           if let proposal = selectedPMFDecisionProposal {
             WorkbenchFact(
-              label: "PMF advice",
+              label: "Tournament advice",
               value:
                 "\(proposal.currentDecision.rawValue) -> \(proposal.update.decision.rawValue)"
             )
@@ -2038,7 +2039,7 @@ struct ProductTournamentWorkbenchTab: View {
                 )
               }
             } label: {
-              Label("Apply PMF Advice", systemImage: "checkmark.seal")
+              Label("Apply Tournament Advice", systemImage: "checkmark.seal")
             }
             .buttonStyle(.borderedProminent)
           }
@@ -2935,7 +2936,7 @@ struct ProductTournamentWorkbenchTab: View {
       await project.applyProductMarketFitDecisionRecommendation(experimentID: step.experimentID)
       if project.productTournamentConfig.decisions.count > decisionCount {
         return ProductFactoryAutopilotStepResult(
-          message: "Applied PMF advice for \(step.experimentTitle)."
+          message: "Applied tournament advice for \(step.experimentTitle)."
         )
       }
       return nil
