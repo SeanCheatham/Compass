@@ -137,6 +137,9 @@ scores, objections, missing capabilities, failure kinds, decision history, and
 copyable Markdown summaries. Contender rows in the active plan-only round label
 the exact focused proof action, such as buyer, price/ROI, persona, or plan proof,
 and disable it once the contender is ready for the Round 2 feasibility transition.
+Tournament automation proof targets also surface those focused Round 1 actions
+with contender and round IDs, so Plan/Reflect can queue plan-only proof before a
+prototype or core-technology artifact exists.
 Later-round scenario evidence is stamped with tournament, round, and contender
 IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
 feedback remains comparable across tournament rounds. The workbench can apply the

@@ -1235,6 +1235,12 @@ struct ProductTournamentWorkbenchTab: View {
         if let nextActionTitle = target.nextActionTitle {
           WorkbenchFact(label: "Next", value: nextActionTitle)
         }
+        if let contenderID = target.contenderID {
+          WorkbenchFact(label: "Contender", value: contenderID)
+        }
+        if let roundID = target.roundID {
+          WorkbenchFact(label: "Round", value: roundID)
+        }
         if let targetScenarioID = target.targetScenarioID {
           WorkbenchFact(label: "Scenario", value: targetScenarioID)
         } else if let cohortID = target.cohortID {

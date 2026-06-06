@@ -2089,6 +2089,8 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
   var nextActionTitle: String?
   var nextActionKind: ProductTournamentNextActionKind?
   var nextActionPriority: Int
+  var contenderID: String?
+  var roundID: String?
   var cohortID: String?
   var targetScenarioID: String?
   var targetPersonaID: String?
@@ -2113,6 +2115,8 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
     }
     if let targetDecision {
       parts.append("decision \(targetDecision.rawValue)")
+    } else if let contenderID {
+      parts.append("contender \(contenderID)")
     }
     return parts.joined(separator: ", ")
   }
@@ -2129,6 +2133,11 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
       parts.append("Scenario: \(targetScenarioID)")
     } else if let cohortID {
       parts.append("Cohort: \(cohortID)")
+    } else if let roundID {
+      parts.append("Round: \(roundID)")
+    }
+    if let contenderID {
+      parts.append("Contender: \(contenderID)")
     }
     if targetScenarioID == nil, let targetPersonaName {
       parts.append("Persona: \(targetPersonaName)")
@@ -2148,6 +2157,11 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
       parts.append("scenario \(targetScenarioID)")
     } else if let cohortID {
       parts.append("cohort \(cohortID)")
+    } else if let roundID {
+      parts.append("round \(roundID)")
+    }
+    if let contenderID {
+      parts.append("contender \(contenderID)")
     }
     parts.append("debt \(debtSummary)")
     return StringUtils.boundedText(parts.joined(separator: "; "), limit: 360)
@@ -2158,7 +2172,11 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
     label: String,
     readinessScore: Int,
     debtSummary: String,
-    nextAction: ProductTournamentNextAction?
+    nextAction: ProductTournamentNextAction?,
+    contenderID: String? = nil,
+    roundID: String? = nil,
+    planProofActionTitle: String? = nil,
+    planProofPriority: Int = 0
   ) {
     self.experimentID = ProductTournamentModelText.identifier(experimentID, fallback: "experiment")
     self.label = ProductTournamentModelText.cleanedText(
@@ -2172,9 +2190,14 @@ struct TournamentAutomationProofTarget: Equatable, Sendable, Identifiable {
       fallback: "proof incomplete",
       limit: 240
     )
-    self.nextActionTitle = nextAction?.title
+    self.nextActionTitle = nextAction?.title ?? planProofActionTitle
     self.nextActionKind = nextAction?.kind
-    self.nextActionPriority = nextAction?.priority ?? 0
+    self.nextActionPriority = nextAction?.priority ?? planProofPriority
+    self.contenderID = ProductTournamentModelText.optionalIdentifier(
+      contenderID,
+      fallback: "contender"
+    )
+    self.roundID = ProductTournamentModelText.optionalIdentifier(roundID, fallback: "round")
     self.cohortID = nextAction?.cohortID
     self.targetScenarioID = nextAction?.targetScenarioID
     self.targetPersonaID = nextAction?.targetPersonaID
@@ -2213,21 +2236,110 @@ enum TournamentAutomationProofTargetAdvisor {
         in: config
       )
     else { return nil }
-    guard let readiness = evidenceIndex.currentTournamentReadiness(for: experiment),
+    if let readiness = evidenceIndex.currentTournamentReadiness(for: experiment),
       !readiness.proofDebt.isClear
-    else { return nil }
-    let action = ProductTournamentNextActionAdvisor.nextAction(
+    {
+      let action = ProductTournamentNextActionAdvisor.nextAction(
+        for: experiment,
+        config: config,
+        evidenceIndex: evidenceIndex
+      )
+      return TournamentAutomationProofTarget(
+        experimentID: experiment.id,
+        label: label(readiness: readiness, action: action),
+        readinessScore: Int(readiness.readinessScore.rounded()),
+        debtSummary: readiness.proofDebt.summary,
+        nextAction: action
+      )
+    }
+    return planProofTarget(
       for: experiment,
       config: config,
       evidenceIndex: evidenceIndex
     )
+  }
+
+  private static func planProofTarget(
+    for experiment: ProductExperiment,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> TournamentAutomationProofTarget? {
+    guard
+      let contender = config.tournamentContenders.first(where: { $0.experimentID == experiment.id }),
+      isPlanProofEligible(contender.status),
+      let planScope = activePlanRound(for: contender, config: config)
+    else { return nil }
+    let completed = evidenceIndex.planEvaluations(for: planScope.tournament, round: planScope.round)
+      .filter { $0.contenderID == contender.id && $0.isCompleted }
+    let readiness = completed.isEmpty ? nil : ProductTournamentPlanReadiness(summaries: completed)
+    let proofDebt =
+      readiness?.planProofDebt
+      ?? ProductTournamentPlanProofDebt(
+        completedEvaluationCount: 0,
+        distinctPersonaCount: 0,
+        buyerOrSponsorPersonaCount: 0,
+        averageWillingnessToPayScore: 0
+      )
+    guard proofDebt.hasActionableFocusedProof else { return nil }
     return TournamentAutomationProofTarget(
       experimentID: experiment.id,
-      label: label(readiness: readiness, action: action),
-      readinessScore: Int(readiness.readinessScore.rounded()),
-      debtSummary: readiness.proofDebt.summary,
-      nextAction: action
+      label: proofDebt.focusedActionTitle,
+      readinessScore: Int((readiness?.readinessScore ?? 0).rounded()),
+      debtSummary: proofDebt.summary,
+      nextAction: nil,
+      contenderID: contender.id,
+      roundID: planScope.round.id,
+      planProofActionTitle: proofDebt.focusedActionTitle,
+      planProofPriority: 92
     )
+  }
+
+  private static func activePlanRound(
+    for contender: ProductTournamentContender,
+    config: ProductTournamentConfig
+  ) -> (tournament: ProductTournament, round: ProductTournamentRound)? {
+    guard
+      let tournament = config.tournaments.first(where: {
+        $0.id == contender.tournamentID && ($0.status == .active || $0.status == .drafting)
+      })
+    else { return nil }
+    if let currentRoundID = tournament.currentRoundID,
+      let current = config.tournamentRounds.first(where: {
+        $0.id == currentRoundID
+          && $0.tournamentID == tournament.id
+          && $0.kind == .productPlans
+          && $0.status != .completed
+      }),
+      round(current, contains: contender.id, tournament: tournament)
+    {
+      return (tournament, current)
+    }
+    let fallback = config.tournamentRounds
+      .filter {
+        $0.tournamentID == tournament.id
+          && $0.kind == .productPlans
+          && $0.status != .completed
+          && round($0, contains: contender.id, tournament: tournament)
+      }
+      .sorted { lhs, rhs in
+        if lhs.ordinal == rhs.ordinal { return lhs.id < rhs.id }
+        return lhs.ordinal < rhs.ordinal
+      }
+      .first
+    return fallback.map { (tournament, $0) }
+  }
+
+  private static func round(
+    _ round: ProductTournamentRound,
+    contains contenderID: String,
+    tournament: ProductTournament
+  ) -> Bool {
+    let contenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
+    return contenderIDs.contains(contenderID)
+  }
+
+  private static func isPlanProofEligible(_ status: ProductTournamentContenderStatus) -> Bool {
+    status == .competing || status == .narrowed || status == .needsRevision
   }
 
   private static func label(

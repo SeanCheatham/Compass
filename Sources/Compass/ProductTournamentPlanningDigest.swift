@@ -601,6 +601,12 @@ enum ProductTournamentPlanningDigestFormatter {
       if let nextActionTitle = target.nextActionTitle {
         metadata.append("next \(bounded(nextActionTitle, 100))")
       }
+      if let contenderID = target.contenderID {
+        metadata.append("contender \(contenderID)")
+      }
+      if let roundID = target.roundID {
+        metadata.append("round \(roundID)")
+      }
       if let cohortID = target.cohortID {
         metadata.append("cohort \(cohortID)")
       }

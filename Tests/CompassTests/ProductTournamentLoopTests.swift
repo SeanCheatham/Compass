@@ -734,6 +734,71 @@ struct ProductTournamentLoopTests {
     try #require(digest.contains("target_decision kill"))
   }
 
+  @Test func tournamentAutomationProofTargetsIncludeRoundOneFocusedPlanProof() throws {
+    let config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "LedgerLift",
+      rawPain: "Finance operators lose weekly reporting context.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    let tournament = try #require(config.tournaments.first)
+    let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let contender = try #require(config.tournamentContenders.first)
+    let experiment = try #require(
+      config.experiments.first { $0.id == contender.experimentID })
+    let emptyIndex = ProductTournamentEvidenceIndex.build(records: [])
+
+    let initialTarget = try #require(
+      TournamentAutomationProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: emptyIndex
+      ))
+    let initialDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: emptyIndex
+    )
+
+    try #require(initialTarget.label == "Run Plan Proof")
+    try #require(initialTarget.nextActionTitle == "Run Plan Proof")
+    try #require(initialTarget.contenderID == contender.id)
+    try #require(initialTarget.roundID == planRound.id)
+    try #require(initialTarget.displaySubtitle.contains("contender \(contender.id)"))
+    try #require(initialTarget.displayDetail.contains("Round: \(planRound.id)"))
+    try #require(initialTarget.auditSummary.contains("contender \(contender.id)"))
+    try #require(initialDigest.contains("Tournament automation proof targets"))
+    try #require(initialDigest.contains("target Run Plan Proof"))
+    try #require(initialDigest.contains("contender \(contender.id)"))
+    try #require(initialDigest.contains("round \(planRound.id)"))
+
+    let operatorSegment = try #require(
+      config.userSegments.first { $0.id == contender.targetSegmentIDs.first })
+    let operatorOnlyIndex = ProductTournamentEvidenceIndex.build(
+      records: [],
+      planEvaluationRecords: [
+        try makePlanProofRecord(
+          id: "operator-only-plan-proof",
+          tournament: tournament,
+          round: planRound,
+          contender: contender,
+          config: config,
+          segment: operatorSegment
+        )
+      ]
+    )
+    let followUpTarget = try #require(
+      TournamentAutomationProofTargetAdvisor.target(
+        for: experiment,
+        config: config,
+        evidenceIndex: operatorOnlyIndex
+      ))
+
+    try #require(followUpTarget.label == "Run Buyer Proof")
+    try #require(followUpTarget.nextActionTitle == "Run Buyer Proof")
+    try #require(followUpTarget.debtSummary.contains("buyer/sponsor signal"))
+    try #require(followUpTarget.contenderID == contender.id)
+    try #require(followUpTarget.roundID == planRound.id)
+  }
+
   @Test func tournamentAutomationStalledProofTargetRequiresMatchingDecisionIntent() throws {
     var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "Factory",
@@ -4149,6 +4214,46 @@ private func makeProofDebtEvidenceIndex(
     ]
   }
   return ProductTournamentEvidenceIndex.build(records: records)
+}
+
+private func makePlanProofRecord(
+  id: String,
+  tournament: ProductTournament,
+  round: ProductTournamentRound,
+  contender: ProductTournamentContender,
+  config: ProductTournamentConfig,
+  segment: UserSegment
+) throws -> ProductTournamentPlanEvaluationRecord {
+  let solution = try #require(config.solutionHypotheses.first { $0.id == contender.solutionID })
+  return ProductTournamentPlanEvaluationRecord(
+    id: id,
+    tournamentID: tournament.id,
+    roundID: round.id,
+    contenderID: contender.id,
+    solutionID: contender.solutionID,
+    experimentID: contender.experimentID,
+    painID: solution.painID,
+    personaID: segment.id,
+    personaName: segment.name,
+    currentWorkflowID: segment.currentWorkflowIDs.first,
+    alternativeID: segment.alternativeIDs.first,
+    startedAt: 1,
+    endedAt: 2,
+    scores: ProductTournamentEvidenceScores(
+      painRecognition: 5,
+      workflowImprovement: 5,
+      alternativeAdvantage: 5,
+      switchingReadiness: 5,
+      continuedUsePull: 5,
+      willingnessToPay: 5
+    ),
+    willingnessToPayScore: 5,
+    estimatedMonthlyPriceCents: 9900,
+    commercialProofSummary: "priced at $99/month with operator value proof",
+    currentAlternativeComparison: "The plan beats the current spreadsheet workaround.",
+    verdict: .strongPull,
+    summary: "\(segment.name) strongly liked the plan."
+  )
 }
 
 private func makeRolloutEvidenceIndex(config: ProductTournamentConfig) -> ProductTournamentEvidenceIndex {
