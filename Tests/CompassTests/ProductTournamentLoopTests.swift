@@ -858,6 +858,18 @@ struct ProductTournamentLoopTests {
     try #require(planProofAudit.startingProofDebtSummary?.contains("Round 1 plan proof") == true)
     try #require(planProofAudit.endingProofDebtSummary?.contains("plan proof complete") == true)
     try #require(planProofAudit.userMessage.contains("Proof debt improved by 6"))
+    let planProofDigest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: config.recordingTournamentAutomationCycleAudit(planProofAudit),
+      evidenceIndex: executedIndex
+    )
+    try #require(planProofDigest.contains("Round 1 plan-proof automation deltas"))
+    try #require(planProofDigest.contains("proof_debt 6 -> 0 (-6)"))
+    try #require(planProofDigest.contains("starting_plan_proof_debt"))
+    try #require(planProofDigest.contains("2 plan evaluation(s)"))
+    try #require(planProofDigest.contains("ending_plan_proof_debt"))
+    try #require(planProofDigest.contains("plan proof complete"))
+    try #require(planProofDigest.contains(initialStep.id))
+    try #require(planProofDigest.contains(executionOutcome.records[0].id))
 
     let operatorSegment = try #require(
       config.userSegments.first { $0.id == contender.targetSegmentIDs.first })

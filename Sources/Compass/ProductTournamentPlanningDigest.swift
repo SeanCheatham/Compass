@@ -26,6 +26,7 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += roundEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += prototypeEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationCycleAuditLines(config: config)
+    lines += tournamentAutomationPlanProofAuditLines(config: config)
     lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
     lines += solutionLines(config: config, maxSolutionHypotheses: maxSolutionHypotheses)
     lines += experimentLines(config: config, maxExperiments: maxExperiments)
@@ -791,6 +792,63 @@ enum ProductTournamentPlanningDigestFormatter {
           "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedProofOutcomes)\(rationaleSignals)\(revisionBriefs)"
           + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
+  }
+
+  private static func tournamentAutomationPlanProofAuditLines(
+    config: ProductTournamentConfig
+  ) -> [String] {
+    let audits = config.tournamentAutomationCycleAudits
+      .sorted { lhs, rhs in
+        if lhs.endedAt == rhs.endedAt { return lhs.id < rhs.id }
+        return lhs.endedAt > rhs.endedAt
+      }
+      .filter(isPlanProofAutomationAudit)
+      .prefix(3)
+    guard !audits.isEmpty else { return [] }
+
+    return ["Round 1 plan-proof automation deltas:"]
+      + audits.map { audit in
+        let experiments =
+          audit.experimentIDs.isEmpty
+          ? "no experiments"
+          : "experiments \(audit.experimentIDs.joined(separator: ", "))"
+        let steps =
+          audit.executedStepIDs.isEmpty
+          ? "no steps"
+          : "steps \(audit.executedStepIDs.prefix(3).joined(separator: ", "))"
+        let proofDebtChange: String
+        if let starting = audit.startingProofDebtCount,
+          let ending = audit.endingProofDebtCount,
+          let delta = audit.proofDebtDelta
+        {
+          let sign = delta > 0 ? "+" : ""
+          proofDebtChange = "proof_debt \(starting) -> \(ending) (\(sign)\(delta))"
+        } else {
+          proofDebtChange = "proof_debt unavailable"
+        }
+        let startingSummary =
+          audit.startingProofDebtSummary.map {
+            "; starting_plan_proof_debt \(bounded($0, 260))"
+          } ?? ""
+        let endingSummary =
+          audit.endingProofDebtSummary.map {
+            "; ending_plan_proof_debt \(bounded($0, 260))"
+          } ?? ""
+        let runIDs =
+          audit.evidenceRunIDs.isEmpty
+          ? ""
+          : "; evidence \(audit.evidenceRunIDs.prefix(4).joined(separator: ", "))"
+        return
+          "- \(bounded(audit.id, 100)): \(experiments); \(steps); \(proofDebtChange)\(startingSummary)\(endingSummary)\(runIDs); stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 220))."
+      }
+  }
+
+  private static func isPlanProofAutomationAudit(_ audit: TournamentAutomationCycleAudit) -> Bool {
+    audit.executedStepIDs.contains {
+      $0.contains(ProductTournamentNextActionKind.runPlanProof.rawValue)
+    }
+      || audit.startingProofDebtSummary?.localizedCaseInsensitiveContains("plan proof") == true
+      || audit.endingProofDebtSummary?.localizedCaseInsensitiveContains("plan proof") == true
   }
 
   private static func evidenceSignalLines(
