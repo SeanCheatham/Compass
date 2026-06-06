@@ -820,6 +820,8 @@ struct ProductTournamentEvidenceStoreTests {
         == storedPlanEvaluation)
     let workbenchBody = String(reflecting: ProductTournamentWorkbenchTab(project: project).body)
 
+    try #require(WorkspaceTab.allCases.contains(.productTournament))
+    try #require(!WorkspaceTab.allCases.map(\.rawValue).contains("productization"))
     let prompt = try Prompts.planPrompt(
       state: .empty,
       completedCount: 0,

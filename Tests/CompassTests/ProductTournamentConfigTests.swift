@@ -73,6 +73,21 @@ struct ProductTournamentConfigTests {
     }
   }
 
+  @Test func productScenarioUsesProductTournamentFallbackTitle() throws {
+    let scenario = ProductScenario(
+      id: "scenario-blank-title",
+      experimentID: "experiment-one",
+      segmentID: "segment-one",
+      currentWorkflowID: "workflow-one",
+      title: "   ",
+      task: "Try the workflow.",
+      successSignal: "Evidence shows whether the workflow helps.",
+      createdAt: 10
+    )
+
+    try #require(scenario.title == "Product Tournament scenario")
+  }
+
   @Test func recordingFactoryCycleAuditKeepsLatestBoundedHistory() throws {
     let base = ProductTournamentConfig.empty
     let first = ProductFactoryCycleAudit(

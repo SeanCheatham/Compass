@@ -1177,7 +1177,7 @@ struct ProductScenario: Codable, Equatable, Identifiable, Sendable {
     )
     self.title = ProductTournamentModelText.cleanedText(
       title,
-      fallback: "Productization scenario",
+      fallback: "Product Tournament scenario",
       limit: 180
     )
     self.task = ProductTournamentModelText.cleanedText(

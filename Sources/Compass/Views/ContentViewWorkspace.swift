@@ -1070,7 +1070,7 @@ struct WorkspaceContent: View {
         VisionTab(project: project)
       case .lessons:
         LessonsTab(project: project)
-      case .productization:
+      case .productTournament:
         ProductTournamentWorkbenchTab(project: project)
       case .world:
         WorldTab(
@@ -1095,7 +1095,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
   case assumptions
   case vision
   case lessons
-  case productization
+  case productTournament
   case world
 
   var id: Self { self }
@@ -1108,7 +1108,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .assumptions: return "Assumptions"
     case .vision: return "Vision"
     case .lessons: return "Lessons"
-    case .productization: return "Tournament"
+    case .productTournament: return "Tournament"
     case .world: return "World"
     }
   }
@@ -1121,7 +1121,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .assumptions: return "checklist.checked"
     case .vision: return "scope"
     case .lessons: return "book.closed"
-    case .productization: return "trophy"
+    case .productTournament: return "trophy"
     case .world: return "cube.transparent"
     }
   }
@@ -1130,7 +1130,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .assumptions:
       return 116
-    case .productization:
+    case .productTournament:
       return 98
     default:
       return 82
