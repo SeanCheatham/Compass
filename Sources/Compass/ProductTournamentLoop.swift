@@ -2779,6 +2779,7 @@ struct TournamentAutomationCyclePlan: Equatable, Sendable {
   var blockedSteps: [TournamentAutomationStep]
   var maxSteps: Int
   var capped: Bool
+  var refreshesQueueAfterStateChange: Bool
 
   var canRun: Bool { !executableSteps.isEmpty }
 
@@ -2795,7 +2796,11 @@ struct TournamentAutomationCyclePlan: Equatable, Sendable {
       return "No tournament automation action queued."
     }
     let cappedText = capped ? ", capped at \(maxSteps)" : ""
-    return "\(executableSteps.count) executable tournament automation step(s)\(cappedText)."
+    let refreshText =
+      refreshesQueueAfterStateChange
+      ? " Queue refreshes after state-changing steps."
+      : ""
+    return "\(executableSteps.count) executable tournament automation step(s)\(cappedText).\(refreshText)"
   }
 
   var queueSummary: String {
@@ -2810,19 +2815,26 @@ struct TournamentAutomationCyclePlan: Equatable, Sendable {
       executableSteps
       .map { "\($0.experimentTitle): \($0.queueTitle)" }
       .joined(separator: " -> ")
-    return capped ? "\(queued) -> plus more queued" : queued
+    let refreshText =
+      refreshesQueueAfterStateChange
+      ? " -> refresh queue for newly unblocked evidence"
+      : ""
+    return capped ? "\(queued)\(refreshText) -> plus more queued" : "\(queued)\(refreshText)"
   }
 
   init(
     executableSteps: [TournamentAutomationStep],
     blockedSteps: [TournamentAutomationStep],
     maxSteps: Int,
-    capped: Bool
+    capped: Bool,
+    refreshesQueueAfterStateChange: Bool = false
   ) {
     self.executableSteps = executableSteps
     self.blockedSteps = blockedSteps
     self.maxSteps = max(1, maxSteps)
     self.capped = capped
+    self.refreshesQueueAfterStateChange =
+      refreshesQueueAfterStateChange && self.maxSteps > 1 && !executableSteps.isEmpty
   }
 }
 
@@ -4327,7 +4339,10 @@ enum TournamentAutomationPlanner {
       executableSteps: selectedExecutableSteps,
       blockedSteps: allSteps.filter { !$0.canExecute },
       maxSteps: limit,
-      capped: executableSteps.count > selectedExecutableSteps.count
+      capped: executableSteps.count > selectedExecutableSteps.count,
+      refreshesQueueAfterStateChange: selectedExecutableSteps.contains {
+        $0.kind == .prepareWorktree
+      }
     )
   }
 

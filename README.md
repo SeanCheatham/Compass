@@ -168,6 +168,9 @@ prepared or refreshed, Compass binds its starter scenario target to the current
 branch commit unless the scenario is pinned to a different commit. The
 Workbench and Tournament Automation now queue the prepare/refresh step when a
 candidate starter cohort is otherwise ready but lacks a recorded target commit.
+Tournament Automation cycles refresh the queue after that state-changing step,
+so a cycle can continue into newly unblocked simulated-user evidence while a
+single-step run still stops after preparation.
 The Tournament workbench lists pain hypotheses, contenders, rounds, implementation
 tracks, selectable Round 1 plan evaluations with buyer objections and
 willingness-to-pay rationale, per-plan commercial proof, evaluation mode/model

@@ -4695,6 +4695,11 @@ struct ProductTournamentLoopTests {
       config: config,
       evidenceIndex: .empty
     )
+    let singleStepPlan = TournamentAutomationPlanner.cyclePlan(
+      config: config,
+      evidenceIndex: .empty,
+      maxSteps: 1
+    )
 
     try #require(action.kind == .prepareWorktree)
     try #require(action.title == "Prepare implementation worktree")
@@ -4706,7 +4711,12 @@ struct ProductTournamentLoopTests {
     try #require(step.id.contains("prepare_worktree"))
     try #require(plan.canRun)
     try #require(plan.executableSteps.map(\.kind) == [.prepareWorktree])
+    try #require(plan.refreshesQueueAfterStateChange)
+    try #require(plan.summary.contains("Queue refreshes after state-changing steps"))
     try #require(plan.queueSummary.contains("Prepare implementation worktree"))
+    try #require(plan.queueSummary.contains("refresh queue for newly unblocked evidence"))
+    try #require(!singleStepPlan.refreshesQueueAfterStateChange)
+    try #require(!singleStepPlan.queueSummary.contains("refresh queue"))
   }
 
   @Test func rolloutWorkflowPromotesExperimentWithBranchCommitAndEvidenceTrail() throws {
