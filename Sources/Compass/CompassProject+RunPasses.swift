@@ -100,7 +100,7 @@ extension CompassProject {
         forgeProfile: forgeProfile,
         coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace),
         productizationConfig: productizationConfigForPrompt,
-        productizationEvidenceIndex: workspace.readProductTournamentEvidenceIndex(),
+        productTournamentEvidenceIndex: workspace.readProductTournamentEvidenceIndex(),
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
       let promptURL = try workspace.writeSessionArtifact(
@@ -663,7 +663,7 @@ extension CompassProject {
       recentSessions: Array(recentSessions),
       iteration: iteration,
       productizationConfig: productizationConfigForPrompt,
-      productizationEvidenceIndex: workspace.readProductTournamentEvidenceIndex(),
+      productTournamentEvidenceIndex: workspace.readProductTournamentEvidenceIndex(),
       hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
     )
 

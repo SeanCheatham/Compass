@@ -129,7 +129,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     tournamentID: String? = nil,
     roundID: String? = nil,
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentPrototypeEvidenceTransitionProposal] {
     activePrototypeRounds(
       tournamentID: tournamentID,
@@ -157,7 +157,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     tournamentID: String? = nil,
     roundID: String? = nil,
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentPrototypeEvidenceTransitionProposal? {
     proposals(
       tournamentID: tournamentID,
@@ -172,7 +172,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     tournamentID: String? = nil,
     roundID: String? = nil,
     to config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex,
+    evidenceIndex: ProductTournamentEvidenceIndex,
     now: Date = Date()
   ) throws -> ProductTournamentPrototypeEvidenceTransitionOutcome {
     guard
@@ -309,7 +309,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     for tournament: ProductTournament,
     round: ProductTournamentRound,
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentPrototypeEvidenceTransitionProposal] {
     let contenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
     return contenderIDs.compactMap { contenderID in
@@ -332,7 +332,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
   }
 
   private static func proposal(
-    for rawSummaries: [ProductizationEvidenceSummary],
+    for rawSummaries: [ProductTournamentEvidenceSummary],
     tournament: ProductTournament,
     round: ProductTournamentRound,
     contender: ProductTournamentContender
@@ -448,8 +448,8 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
   }
 
   private static func readinessScore(
-    summaries: [ProductizationEvidenceSummary],
-    completed: [ProductizationEvidenceSummary],
+    summaries: [ProductTournamentEvidenceSummary],
+    completed: [ProductTournamentEvidenceSummary],
     averageScore: Double,
     willingnessToPayScore: Double,
     distinctPersonaCount: Int,
@@ -691,7 +691,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     }
   }
 
-  private static func verdictContribution(_ verdict: ProductizationEvidenceVerdict) -> Double {
+  private static func verdictContribution(_ verdict: ProductTournamentEvidenceVerdict) -> Double {
     switch verdict {
     case .strongPull: return 18
     case .promising: return 14
@@ -701,7 +701,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
     }
   }
 
-  private static func hasCurrentAlternativeProof(_ summary: ProductizationEvidenceSummary) -> Bool {
+  private static func hasCurrentAlternativeProof(_ summary: ProductTournamentEvidenceSummary) -> Bool {
     let comparison = normalizedEvidenceText(summary.currentAlternativeComparison)
     guard !comparison.isEmpty else { return false }
     return !comparison.contains("did not address")
@@ -711,7 +711,7 @@ enum ProductTournamentPrototypeEvidenceTransitioner {
   }
 
   private static func repeatedObjectionCount(
-    in summaries: [ProductizationEvidenceSummary]
+    in summaries: [ProductTournamentEvidenceSummary]
   ) -> Int {
     var counts: [String: Int] = [:]
     for objection in summaries.flatMap(\.objections) {
@@ -831,7 +831,7 @@ extension CompassProject {
       )
       try workspace.writeProductTournamentConfig(outcome.config)
       productizationConfig = outcome.config
-      productizationEvidenceIndex = evidenceIndex
+      productTournamentEvidenceIndex = evidenceIndex
       log(outcome.userMessage, level: .success)
       return outcome
     } catch {

@@ -3,7 +3,7 @@ import Foundation
 enum ProductizationPlanningDigestFormatter {
   static func promptText(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex,
+    evidenceIndex: ProductTournamentEvidenceIndex,
     maxPainHypotheses: Int = 3,
     maxSolutionHypotheses: Int = 5,
     maxExperiments: Int = 6,
@@ -83,7 +83,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func tournamentLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let tournaments = config.tournaments
       .filter { $0.status == .active || $0.status == .drafting }
@@ -207,7 +207,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func feasibilityHandoffLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let handoffs = ProductTournamentFeasibilityAdvisor.handoffs(
       config: config,
@@ -220,7 +220,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func roundTwoImplementationTargetLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let handoffs = ProductTournamentFeasibilityAdvisor.handoffs(
       config: config,
@@ -258,7 +258,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func roundEvidenceTransitionLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let proposals = ProductTournamentRoundEvidenceTransitioner.proposals(
       config: config,
@@ -271,7 +271,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func prototypeEvidenceTransitionLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let proposals = ProductTournamentPrototypeEvidenceTransitioner.proposals(
       config: config,
@@ -350,7 +350,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func decisionProposalLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let candidates = ProductFactoryDecisionCandidateAdvisor.candidates(
       config: config,
@@ -379,7 +379,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func evidenceTensionLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let tensions = ProductFactoryEvidenceTensionAdvisor.tensions(
       config: config,
@@ -425,7 +425,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func portfolioPressureLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let signals = ProductFactoryExperimentRanker.experimentSignals(
       config: config,
@@ -462,7 +462,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func rationaleSignalLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let signals = ProductFactoryRationaleSignalAdvisor.signals(
       config: config,
@@ -503,7 +503,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func targetedProofOutcomeLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let signals = ProductFactoryTargetedProofOutcomeAdvisor.signals(
       config: config,
@@ -546,7 +546,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func revisionBriefLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let briefs = ProductFactoryRevisionBriefAdvisor.briefs(
       config: config,
@@ -584,7 +584,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func proofTargetLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let targets = ProductFactoryProofTargetAdvisor.targets(
       config: config,
@@ -625,7 +625,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func autopilotLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     guard
       let step = ProductFactoryAutopilotPlanner.nextStep(
@@ -682,7 +682,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func nextActionLines(
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     let actions = ProductMarketFitNextActionAdvisor.actions(
       config: config,
@@ -774,7 +774,7 @@ enum ProductizationPlanningDigestFormatter {
 
   private static func evidenceSignalLines(
     config: ProductizationConfig,
-    index: ProductizationEvidenceIndex,
+    index: ProductTournamentEvidenceIndex,
     maxEvidenceSignals: Int
   ) -> [String] {
     var lines: [String] = []
@@ -784,7 +784,7 @@ enum ProductizationPlanningDigestFormatter {
         if lhs.endedAt == rhs.endedAt { return lhs.runID < rhs.runID }
         return lhs.endedAt > rhs.endedAt
       }
-    let currentAggregate = ProductizationEvidenceAggregateSummary(summaries: currentSummaries)
+    let currentAggregate = ProductTournamentEvidenceAggregateSummary(summaries: currentSummaries)
     let staleCount = config.experiments
       .map { index.staleSummaryCount(for: $0) }
       .reduce(0, +)

@@ -338,7 +338,7 @@ struct ProductTournamentScenarioRunTests {
       config: try workspace.readProductTournamentConfig(),
       evidenceIndex: index
     )
-    let markdown = ProductizationEvidenceMarkdownExporter.markdown(record: stored)
+    let markdown = ProductTournamentEvidenceMarkdownExporter.markdown(record: stored)
 
     try #require(outcome.record.tournamentID == scope.tournamentID)
     try #require(outcome.record.roundID == scope.roundID)

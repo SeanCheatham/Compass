@@ -155,7 +155,7 @@ enum ProductExperimentRolloutWorkflow {
     _ action: ProductExperimentRolloutAction,
     experimentID: String,
     to config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex,
+    evidenceIndex: ProductTournamentEvidenceIndex,
     now: Date = Date(),
     decidedBy: String = "Product Tournament Workbench"
   ) throws -> ProductizationConfig {
@@ -216,7 +216,7 @@ enum ProductExperimentRolloutWorkflow {
 
   static func evidenceRunIDs(
     for experiment: ProductExperiment,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
     evidenceIndex.summaries(for: experiment)
       .prefix(8)
@@ -318,7 +318,7 @@ enum ProductExperimentGitRolloutWorkflow {
     experimentID: String,
     in config: ProductizationConfig,
     repoURL: URL,
-    evidenceIndex: ProductizationEvidenceIndex,
+    evidenceIndex: ProductTournamentEvidenceIndex,
     acceptedBranchName: String? = nil,
     now: Date = Date(),
     decidedBy: String = "Product Tournament Workbench"
@@ -410,7 +410,7 @@ enum ProductExperimentGitRolloutWorkflow {
     experimentID: String,
     in config: ProductizationConfig,
     repoURL: URL,
-    evidenceIndex: ProductizationEvidenceIndex,
+    evidenceIndex: ProductTournamentEvidenceIndex,
     acceptedBranchName: String? = nil,
     now: Date = Date(),
     decidedBy: String = "Product Tournament Workbench"
@@ -754,7 +754,7 @@ extension CompassProject {
         action,
         experimentID: experimentID,
         to: productizationConfig,
-        evidenceIndex: productizationEvidenceIndex
+        evidenceIndex: productTournamentEvidenceIndex
       )
       try workspace.writeProductTournamentConfig(next)
       productizationConfig = next
@@ -777,7 +777,7 @@ extension CompassProject {
         let proposal = ProductMarketFitDecisionAdvisor.proposal(
           experimentID: experimentID,
           config: productizationConfig,
-          evidenceIndex: productizationEvidenceIndex
+          evidenceIndex: productTournamentEvidenceIndex
         )
       else {
         throw ProductMarketFitDecisionAdvisorError.noProposal(experimentID)
@@ -785,7 +785,7 @@ extension CompassProject {
       let next = try ProductMarketFitDecisionAdvisor.applyingRecommendedDecision(
         experimentID: experimentID,
         to: productizationConfig,
-        evidenceIndex: productizationEvidenceIndex
+        evidenceIndex: productTournamentEvidenceIndex
       )
       try workspace.writeProductTournamentConfig(next)
       productizationConfig = next

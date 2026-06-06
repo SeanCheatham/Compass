@@ -14,7 +14,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       verdict: .strongPull,
       summary: "The prototype beats the current workaround and creates sponsor pull."
     )
-    let index = ProductizationEvidenceIndex.build(records: records)
+    let index = ProductTournamentEvidenceIndex.build(records: records)
 
     let proposal = try #require(
       ProductTournamentPrototypeEvidenceTransitioner.bestProposal(
@@ -79,7 +79,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       missingCapabilities: ["sponsor_export"],
       summary: "The prototype needs one more fidelity pass."
     )
-    let index = ProductizationEvidenceIndex.build(records: records)
+    let index = ProductTournamentEvidenceIndex.build(records: records)
 
     let outcome = try ProductTournamentPrototypeEvidenceTransitioner.applyBestProposal(
       tournamentID: fixture.tournament.id,
@@ -124,7 +124,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       missingCapabilities: ["workflow_advantage"],
       summary: "The prototype does not create enough pull."
     )
-    let index = ProductizationEvidenceIndex.build(records: records)
+    let index = ProductTournamentEvidenceIndex.build(records: records)
 
     let outcome = try ProductTournamentPrototypeEvidenceTransitioner.applyBestProposal(
       tournamentID: fixture.tournament.id,
@@ -162,7 +162,7 @@ struct ProductTournamentPrototypeEvidenceTransitionTests {
       verdict: .strongPull,
       summary: "Two strong prototype runs are promising."
     )
-    let index = ProductizationEvidenceIndex.build(records: records)
+    let index = ProductTournamentEvidenceIndex.build(records: records)
 
     let proposal = try #require(
       ProductTournamentPrototypeEvidenceTransitioner.proposals(
@@ -244,15 +244,15 @@ private func prototypeEvidenceRecords(
   count: Int,
   score: Int,
   willingnessToPay: Int,
-  verdict: ProductizationEvidenceVerdict,
+  verdict: ProductTournamentEvidenceVerdict,
   objections: [String] = [],
   missingCapabilities: [String] = [],
   summary: String
-) -> [ProductizationEvidenceRecord] {
+) -> [ProductTournamentEvidenceRecord] {
   let segments = Array(fixture.config.userSegments)
   return (0..<count).map { index in
     let segment = segments[index % max(1, segments.count)]
-    return ProductizationEvidenceRecord(
+    return ProductTournamentEvidenceRecord(
       id: "\(fixture.contender.id)-round-3-\(index)",
       experimentID: fixture.experiment.id,
       solutionID: fixture.contender.solutionID,
@@ -268,7 +268,7 @@ private func prototypeEvidenceRecords(
       status: .completed,
       startedAt: Double(index),
       endedAt: Double(index + 1),
-      scores: ProductizationEvidenceScores(
+      scores: ProductTournamentEvidenceScores(
         painRecognition: score,
         workflowImprovement: score,
         alternativeAdvantage: score,

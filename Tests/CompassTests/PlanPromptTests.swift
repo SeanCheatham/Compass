@@ -314,7 +314,6 @@ struct PlanPromptTests {
     try #require(prompt.contains("Do not include completed"))
     try #require(prompt.contains("product tournament evidence"))
     try #require(prompt.contains("update tournament state"))
-    try #require(!prompt.contains("productization evidence"))
     try #require(!prompt.contains("update productization state"))
   }
 

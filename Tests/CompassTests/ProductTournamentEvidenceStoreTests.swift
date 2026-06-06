@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct ProductizationEvidenceStoreTests {
+struct ProductTournamentEvidenceStoreTests {
   @Test func storeWritesRunDirectoryArtifactsAndIndex() throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
@@ -60,7 +60,7 @@ struct ProductizationEvidenceStoreTests {
       alternativeID: "alternative-spreadsheet",
       startedAt: 10,
       endedAt: 11,
-      scores: ProductizationEvidenceScores(
+      scores: ProductTournamentEvidenceScores(
         painRecognition: 4,
         workflowImprovement: 4,
         alternativeAdvantage: 3,
@@ -95,7 +95,7 @@ struct ProductizationEvidenceStoreTests {
     let readiness = try #require(index.aggregate.planReadinessByContender.first)
     try #require(readiness.contenderID == "contender-reporting-desk")
     try #require(readiness.averageWillingnessToPayScore == 4)
-    let markdown = ProductizationEvidenceMarkdownExporter.markdown(planEvaluation: stored)
+    let markdown = ProductTournamentEvidenceMarkdownExporter.markdown(planEvaluation: stored)
     try #require(markdown.contains("Willingness To Pay: 4/5"))
     try #require(markdown.contains("$99/month"))
   }
@@ -113,7 +113,7 @@ struct ProductizationEvidenceStoreTests {
       currentDecision: .keepGoing,
       targetDecision: .promote
     )
-    let scores = ProductizationEvidenceScores(
+    let scores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
       alternativeAdvantage: 4,
@@ -134,10 +134,10 @@ struct ProductizationEvidenceStoreTests {
       scores: scores
     )
 
-    let index = ProductizationEvidenceIndex.build(records: [record])
+    let index = ProductTournamentEvidenceIndex.build(records: [record])
     let summary = try #require(index.summaries.first)
     let outcome = try #require(index.aggregate.decisionIntentOutcomes.first)
-    let markdown = ProductizationEvidenceMarkdownExporter.markdown(record: record)
+    let markdown = ProductTournamentEvidenceMarkdownExporter.markdown(record: record)
     let digest = ProductizationPlanningDigestFormatter.promptText(
       config: config,
       evidenceIndex: index
@@ -161,14 +161,14 @@ struct ProductizationEvidenceStoreTests {
   }
 
   @Test func decisionIntentEvaluationClassifiesLiftAndCutProof() throws {
-    let strongScores = ProductizationEvidenceScores(
+    let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
       alternativeAdvantage: 4,
       switchingReadiness: 4,
       continuedUsePull: 5
     )
-    let weakScores = ProductizationEvidenceScores(
+    let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
       alternativeAdvantage: 1,
@@ -256,7 +256,7 @@ struct ProductizationEvidenceStoreTests {
       )
     )
 
-    let index = ProductizationEvidenceIndex.build(records: [first, second, failure])
+    let index = ProductTournamentEvidenceIndex.build(records: [first, second, failure])
 
     try #require(index.aggregate.latestRunByExperiment["experiment-one"] == "second")
     try #require(
@@ -277,21 +277,21 @@ struct ProductizationEvidenceStoreTests {
   }
 
   @Test func indexBuildsProductMarketFitReadinessRecommendations() throws {
-    let strongScores = ProductizationEvidenceScores(
+    let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
       alternativeAdvantage: 4,
       switchingReadiness: 5,
       continuedUsePull: 5
     )
-    let weakScores = ProductizationEvidenceScores(
+    let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
       alternativeAdvantage: 2,
       switchingReadiness: 1,
       continuedUsePull: 2
     )
-    let narrowScores = ProductizationEvidenceScores(
+    let narrowScores = ProductTournamentEvidenceScores(
       painRecognition: 4,
       workflowImprovement: 3,
       alternativeAdvantage: 3,
@@ -367,7 +367,7 @@ struct ProductizationEvidenceStoreTests {
       ),
     ]
 
-    let readiness = ProductizationEvidenceIndex.build(records: records)
+    let readiness = ProductTournamentEvidenceIndex.build(records: records)
       .aggregate.pmfReadinessByExperiment
     let good = try #require(readiness.first { $0.experimentID == "good-experiment" })
     let bad = try #require(readiness.first { $0.experimentID == "bad-experiment" })
@@ -412,7 +412,7 @@ struct ProductizationEvidenceStoreTests {
     config.experiments[0].baseSha = "base-sha"
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
-    let strongScores = ProductizationEvidenceScores(
+    let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
       alternativeAdvantage: 5,
@@ -449,7 +449,7 @@ struct ProductizationEvidenceStoreTests {
       ),
     ]
 
-    let index = ProductizationEvidenceIndex.build(records: records)
+    let index = ProductTournamentEvidenceIndex.build(records: records)
     let readiness = try #require(index.currentPMFReadiness(for: experiment))
 
     try #require(index.staleSummaryCount(for: experiment) == 2)
@@ -461,7 +461,7 @@ struct ProductizationEvidenceStoreTests {
         .evidenceRunIDs.first == "old-a")
   }
 
-  @Test func planningDigestIncludesBoundedProductizationEvidence() throws {
+  @Test func planningDigestIncludesBoundedProductTournamentEvidence() throws {
     var config = ProductizationConfig.seedDefaults(
       projectTitle: "Reporting Helper",
       rawPain: "Weekly reporting takes too long.",
@@ -515,7 +515,7 @@ struct ProductizationEvidenceStoreTests {
         "turn 1 choose valid action compare_current_alternative: Wanted proof against the spreadsheet before switching."
       ]
     )
-    let index = ProductizationEvidenceIndex.build(records: [record])
+    let index = ProductTournamentEvidenceIndex.build(records: [record])
 
     let text = ProductizationPlanningDigestFormatter.promptText(
       config: config,
@@ -596,7 +596,7 @@ struct ProductizationEvidenceStoreTests {
     ]
     let text = ProductizationPlanningDigestFormatter.promptText(
       config: config,
-      evidenceIndex: ProductizationEvidenceIndex.build(records: records)
+      evidenceIndex: ProductTournamentEvidenceIndex.build(records: records)
     )
 
     try #require(text.contains("AI-user rationale signals"))
@@ -687,7 +687,7 @@ struct ProductizationEvidenceStoreTests {
         "turn 2 choose valid action reduce_switching_objection: Needed import proof before trusting a switch."
       ]
     )
-    let index = ProductizationEvidenceIndex.build(records: [first, second])
+    let index = ProductTournamentEvidenceIndex.build(records: [first, second])
 
     let plan = try Prompts.planPrompt(
       state: .empty,
@@ -698,7 +698,7 @@ struct ProductizationEvidenceStoreTests {
       vision: "",
       focus: .feature,
       productizationConfig: config,
-      productizationEvidenceIndex: index
+      productTournamentEvidenceIndex: index
     )
     let reflect = try Prompts.reflectPrompt(
       state: .empty,
@@ -707,7 +707,7 @@ struct ProductizationEvidenceStoreTests {
       recentSessions: [],
       iteration: 1,
       productizationConfig: config,
-      productizationEvidenceIndex: index
+      productTournamentEvidenceIndex: index
     )
 
     for prompt in [plan, reflect] {
@@ -784,7 +784,7 @@ struct ProductizationEvidenceStoreTests {
       alternativeID: config.alternatives[0].id,
       startedAt: 12,
       endedAt: 13,
-      scores: ProductizationEvidenceScores(
+      scores: ProductTournamentEvidenceScores(
         painRecognition: 4,
         workflowImprovement: 4,
         alternativeAdvantage: 3,
@@ -811,9 +811,9 @@ struct ProductizationEvidenceStoreTests {
     await project.refresh()
 
     try #require(project.productizationConfig.experiments[0].decision == .keepGoing)
-    try #require(project.productizationEvidenceIndex.summaries.map(\.runID) == ["smoke-run"])
+    try #require(project.productTournamentEvidenceIndex.summaries.map(\.runID) == ["smoke-run"])
     try #require(
-      project.productizationEvidenceIndex.planEvaluationSummaries.map(\.evaluationID)
+      project.productTournamentEvidenceIndex.planEvaluationSummaries.map(\.evaluationID)
         == ["smoke-plan-eval"])
     try #require(
       try project.readProductTournamentPlanEvaluationRecord(id: "smoke-plan-eval")
@@ -829,7 +829,7 @@ struct ProductizationEvidenceStoreTests {
       vision: "",
       focus: .feature,
       productizationConfig: project.productizationConfig,
-      productizationEvidenceIndex: project.productizationEvidenceIndex
+      productTournamentEvidenceIndex: project.productTournamentEvidenceIndex
     )
 
     try #require(workbenchBody.contains("Checking tournament experience contract"))
@@ -871,12 +871,12 @@ private func makeEvidenceRecord(
   status: ProductTournamentRunStatus = .completed,
   startedAt: Double = 10,
   endedAt: Double = 20,
-  verdict: ProductizationEvidenceVerdict = .promising,
+  verdict: ProductTournamentEvidenceVerdict = .promising,
   objections: [String] = [],
   missingCapabilities: [String] = [],
   comparison: String = "Compared with the current alternative.",
   personaActionRationales: [String] = [],
-  scores: ProductizationEvidenceScores = ProductizationEvidenceScores(
+  scores: ProductTournamentEvidenceScores = ProductTournamentEvidenceScores(
     painRecognition: 4,
     workflowImprovement: 3,
     alternativeAdvantage: 3,
@@ -884,8 +884,8 @@ private func makeEvidenceRecord(
     continuedUsePull: 3
   ),
   failure: ProductTournamentRunFailure? = nil
-) -> ProductizationEvidenceRecord {
-  ProductizationEvidenceRecord(
+) -> ProductTournamentEvidenceRecord {
+  ProductTournamentEvidenceRecord(
     id: id,
     experimentID: experimentID,
     solutionID: solutionID,
@@ -916,7 +916,7 @@ private func makeEvidenceRecord(
 private func makeTempDir() throws -> URL {
   let url = FileManager.default.temporaryDirectory
     .appending(
-      path: "ProductizationEvidenceStoreTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+      path: "ProductTournamentEvidenceStoreTests-\(UUID().uuidString)", directoryHint: .isDirectory)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url.standardizedFileURL
 }

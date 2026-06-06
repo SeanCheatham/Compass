@@ -26,8 +26,8 @@ struct CompassWorkspace {
   var productTournamentURL: URL {
     compassURL.appending(path: "product-tournament", directoryHint: .isDirectory)
   }
-  var productTournamentEvidenceStore: ProductizationEvidenceStore {
-    ProductizationEvidenceStore(workspace: self)
+  var productTournamentEvidenceStore: ProductTournamentEvidenceStore {
+    ProductTournamentEvidenceStore(workspace: self)
   }
   var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
   var sessionsRecordURL: URL { sessionRecordStore.activeRecordURL }
@@ -278,11 +278,11 @@ struct CompassWorkspace {
     return nextConfig
   }
 
-  func readProductTournamentEvidenceIndex() -> ProductizationEvidenceIndex {
+  func readProductTournamentEvidenceIndex() -> ProductTournamentEvidenceIndex {
     (try? productTournamentEvidenceStore.readIndex()) ?? .empty
   }
 
-  func readProductTournamentEvidenceRecord(id: String) throws -> ProductizationEvidenceRecord {
+  func readProductTournamentEvidenceRecord(id: String) throws -> ProductTournamentEvidenceRecord {
     try productTournamentEvidenceStore.readRecord(id: id)
   }
 
@@ -294,12 +294,12 @@ struct CompassWorkspace {
 
   @discardableResult
   func writeProductTournamentEvidenceRecord(
-    _ record: ProductizationEvidenceRecord,
+    _ record: ProductTournamentEvidenceRecord,
     traceJSON: String? = nil,
     feedbackJSON: String? = nil,
     transcriptJSONL: String? = nil,
     summaryMarkdown: String? = nil
-  ) throws -> ProductizationEvidenceRecord {
+  ) throws -> ProductTournamentEvidenceRecord {
     try productTournamentEvidenceStore.writeRecord(
       record,
       traceJSON: traceJSON,

@@ -23,7 +23,7 @@ struct ProductTournamentFeasibilityHandoffTests {
       round: planRound,
       config: config
     )
-    let index = ProductizationEvidenceIndex.build(records: [], planEvaluationRecords: records)
+    let index = ProductTournamentEvidenceIndex.build(records: [], planEvaluationRecords: records)
     let transition = try ProductTournamentPlanTransitioner.applyBestProposal(
       tournamentID: tournament.id,
       roundID: planRound.id,
@@ -71,7 +71,7 @@ struct ProductTournamentFeasibilityHandoffTests {
       vision: "",
       focus: .feature,
       productizationConfig: transition.config,
-      productizationEvidenceIndex: index
+      productTournamentEvidenceIndex: index
     )
     let reflectPrompt = try Prompts.reflectPrompt(
       state: .empty,
@@ -80,7 +80,7 @@ struct ProductTournamentFeasibilityHandoffTests {
       recentSessions: [],
       iteration: 1,
       productizationConfig: transition.config,
-      productizationEvidenceIndex: index
+      productTournamentEvidenceIndex: index
     )
 
     try #require(handoffs.count == 1)
@@ -149,7 +149,7 @@ struct ProductTournamentFeasibilityHandoffTests {
       round: planRound,
       config: config
     )
-    let index = ProductizationEvidenceIndex.build(records: [], planEvaluationRecords: records)
+    let index = ProductTournamentEvidenceIndex.build(records: [], planEvaluationRecords: records)
 
     try #require(
       ProductTournamentFeasibilityAdvisor.handoffs(
@@ -201,7 +201,7 @@ private func strongPlanRecords(
       personaName: segment.name,
       startedAt: Double(index),
       endedAt: Double(index + 1),
-      scores: ProductizationEvidenceScores(
+      scores: ProductTournamentEvidenceScores(
         painRecognition: 5,
         workflowImprovement: 5,
         alternativeAdvantage: 5,

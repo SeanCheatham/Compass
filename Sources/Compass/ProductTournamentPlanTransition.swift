@@ -79,7 +79,7 @@ enum ProductTournamentPlanTransitioner {
     tournamentID: String? = nil,
     roundID: String? = nil,
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentPlanTransitionProposal] {
     guard
       let tournament = selectedTournament(tournamentID: tournamentID, config: config),
@@ -116,7 +116,7 @@ enum ProductTournamentPlanTransitioner {
     tournamentID: String? = nil,
     roundID: String? = nil,
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentPlanTransitionProposal? {
     proposals(
       tournamentID: tournamentID,
@@ -131,7 +131,7 @@ enum ProductTournamentPlanTransitioner {
     tournamentID: String? = nil,
     roundID: String? = nil,
     to config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex,
+    evidenceIndex: ProductTournamentEvidenceIndex,
     now: Date = Date()
   ) throws -> ProductTournamentPlanTransitionOutcome {
     guard

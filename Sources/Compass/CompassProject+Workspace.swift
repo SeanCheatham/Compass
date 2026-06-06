@@ -33,7 +33,7 @@ extension CompassProject {
       assumptions = []
       vision = ""
       productizationConfig = .empty
-      productizationEvidenceIndex = .empty
+      productTournamentEvidenceIndex = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -65,7 +65,7 @@ extension CompassProject {
       assumptions = []
       vision = ""
       productizationConfig = .empty
-      productizationEvidenceIndex = .empty
+      productTournamentEvidenceIndex = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -92,7 +92,7 @@ extension CompassProject {
       projectTitle: workspace.repoURL.lastPathComponent,
       rawPain: rawProductPain.isEmpty ? vision : rawProductPain
     )
-    productizationEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
+    productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
     sessions = workspace.readSessions()
     archivedSessions = []
     hasOlderArchivedSessions = workspace.hasArchivedSessions()
@@ -114,13 +114,13 @@ extension CompassProject {
 
   func reloadProductTournamentEvidenceIndex() async {
     guard let workspace else {
-      productizationEvidenceIndex = .empty
+      productTournamentEvidenceIndex = .empty
       return
     }
-    productizationEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
+    productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
   }
 
-  func readProductTournamentEvidenceRecord(id: String) throws -> ProductizationEvidenceRecord {
+  func readProductTournamentEvidenceRecord(id: String) throws -> ProductTournamentEvidenceRecord {
     guard let workspace else {
       throw AppModelError.noRepositorySelected
     }

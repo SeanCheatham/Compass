@@ -80,7 +80,7 @@ struct ProductScenarioDraft: Equatable, Sendable {
 struct ProductTournamentScenarioRunOutcome {
   var request: ProductTournamentSimulationRequest
   var result: ProductTournamentRunResult
-  var record: ProductizationEvidenceRecord
+  var record: ProductTournamentEvidenceRecord
   var workingDirectory: URL
 
   var userMessage: String {
@@ -747,7 +747,7 @@ enum ProductTournamentScenarioCoordinator {
       experimentID: experimentID,
       in: config
     )
-    let record = ProductizationEvidenceRecord(
+    let record = ProductTournamentEvidenceRecord(
       runResult: result,
       tournamentScope: tournamentScope,
       id: "\(scenarioID)-\(Int(endedAt))",
@@ -970,7 +970,7 @@ extension CompassProject {
         targetDecision: targetDecision
       )
       productizationConfig = try workspace.readProductTournamentConfig()
-      productizationEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
+      productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
       log(outcome.userMessage, level: outcome.result.isSuccess ? .success : .warning)
       return outcome
     } catch {
@@ -1013,7 +1013,7 @@ extension CompassProject {
         targetDecision: targetDecision
       )
       productizationConfig = try workspace.readProductTournamentConfig()
-      productizationEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
+      productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
       log(outcome.userMessage, level: outcome.isSuccess ? .success : .warning)
       return outcome
     } catch {

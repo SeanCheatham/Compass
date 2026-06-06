@@ -17,7 +17,7 @@ struct ProductTournamentPlanTransitionTests {
     let contender = try #require(config.tournamentContenders.first)
     let records = try strongRecords(
       for: contender, tournament: tournament, round: planRound, config: config)
-    let index = ProductizationEvidenceIndex.build(records: [], planEvaluationRecords: records)
+    let index = ProductTournamentEvidenceIndex.build(records: [], planEvaluationRecords: records)
 
     let proposal = try #require(
       ProductTournamentPlanTransitioner.bestProposal(
@@ -72,7 +72,7 @@ struct ProductTournamentPlanTransitionTests {
     let contender = try #require(config.tournamentContenders.last)
     let records = try weakRecords(
       for: contender, tournament: tournament, round: planRound, config: config)
-    let index = ProductizationEvidenceIndex.build(records: [], planEvaluationRecords: records)
+    let index = ProductTournamentEvidenceIndex.build(records: [], planEvaluationRecords: records)
 
     let outcome = try ProductTournamentPlanTransitioner.applyBestProposal(
       tournamentID: tournament.id,
@@ -109,7 +109,7 @@ struct ProductTournamentPlanTransitionTests {
     let contender = try #require(config.tournamentContenders.first)
     let records = try revisionRecords(
       for: contender, tournament: tournament, round: planRound, config: config)
-    let index = ProductizationEvidenceIndex.build(records: [], planEvaluationRecords: records)
+    let index = ProductTournamentEvidenceIndex.build(records: [], planEvaluationRecords: records)
 
     let outcome = try ProductTournamentPlanTransitioner.applyBestProposal(
       tournamentID: tournament.id,
@@ -199,7 +199,7 @@ private func records(
   config: ProductizationConfig,
   score: Int,
   willingnessToPay: Int,
-  verdict: ProductizationEvidenceVerdict,
+  verdict: ProductTournamentEvidenceVerdict,
   objections: [String] = [],
   missingCapabilities: [String] = [],
   summary: String
@@ -219,7 +219,7 @@ private func records(
       personaName: segment.name,
       startedAt: Double(index),
       endedAt: Double(index + 1),
-      scores: ProductizationEvidenceScores(
+      scores: ProductTournamentEvidenceScores(
         painRecognition: score,
         workflowImprovement: score,
         alternativeAdvantage: score,

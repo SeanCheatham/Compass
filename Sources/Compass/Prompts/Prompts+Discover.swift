@@ -90,7 +90,7 @@ struct DiscoveryPromptContext: Equatable {
   var lessons: String
   var assumptions: String
   var productizationConfig: ProductizationConfig
-  var evidenceIndex: ProductizationEvidenceIndex
+  var evidenceIndex: ProductTournamentEvidenceIndex
   var repositoryShape: String
 
   init(
@@ -100,7 +100,7 @@ struct DiscoveryPromptContext: Equatable {
     lessons: String = "",
     assumptions: String = "",
     productizationConfig: ProductizationConfig = .empty,
-    evidenceIndex: ProductizationEvidenceIndex = .empty,
+    evidenceIndex: ProductTournamentEvidenceIndex = .empty,
     repositoryShape: String = ""
   ) {
     self.rawPain = StringUtils.boundedText(rawPain, limit: 4_000)

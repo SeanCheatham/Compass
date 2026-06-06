@@ -6,12 +6,12 @@ struct ProductTournamentEvidenceScope: Codable, Equatable, Sendable {
   var contenderID: String
 
   init(tournamentID: String, roundID: String, contenderID: String) {
-    self.tournamentID = ProductizationEvidenceRecord.cleanedIdentifier(
+    self.tournamentID = ProductTournamentEvidenceRecord.cleanedIdentifier(
       tournamentID,
       fallback: "tournament"
     )
-    self.roundID = ProductizationEvidenceRecord.cleanedIdentifier(roundID, fallback: "round")
-    self.contenderID = ProductizationEvidenceRecord.cleanedIdentifier(
+    self.roundID = ProductTournamentEvidenceRecord.cleanedIdentifier(roundID, fallback: "round")
+    self.contenderID = ProductTournamentEvidenceRecord.cleanedIdentifier(
       contenderID,
       fallback: "contender"
     )

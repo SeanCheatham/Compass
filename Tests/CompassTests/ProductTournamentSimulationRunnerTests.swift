@@ -25,7 +25,7 @@ struct ProductTournamentSimulationRunnerTests {
     try #require(result.tournamentTrace?.painReliefSignals.currentAlternativeAddressed == true)
     try #require(appRunner.inputs.filter { $0.actions.count == 5 }.count == 3)
 
-    let record = ProductizationEvidenceRecord(
+    let record = ProductTournamentEvidenceRecord(
       runResult: result,
       id: "runner-score",
       startedAt: 10,
@@ -342,7 +342,7 @@ private final class ScriptedProductTournamentPersonaSelector: ProductTournamentP
 }
 
 private func makeTournamentRequest(
-  generatedAppWorkingDirectory: URL = URL(fileURLWithPath: "/tmp/productization-runner-fixture"),
+  generatedAppWorkingDirectory: URL = URL(fileURLWithPath: "/tmp/product-tournament-runner-fixture"),
   mode: ProductTournamentSimulationMode = .modelFree,
   targetDecision: ProductExperimentDecision? = nil,
   maxTurns: Int = 6,

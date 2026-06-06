@@ -59,7 +59,7 @@ enum ProductTournamentFeasibilityAdvisor {
   static func handoffs(
     tournamentID: String? = nil,
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentFeasibilityHandoff] {
     activeCoreTechnologyRounds(tournamentID: tournamentID, config: config)
       .flatMap { tournament, round in
@@ -77,7 +77,7 @@ enum ProductTournamentFeasibilityAdvisor {
     for tournament: ProductTournament,
     round: ProductTournamentRound,
     config: ProductizationConfig,
-    evidenceIndex: ProductizationEvidenceIndex
+    evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [ProductTournamentFeasibilityHandoff] {
     let contenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
     return contenderIDs.compactMap { contenderID in

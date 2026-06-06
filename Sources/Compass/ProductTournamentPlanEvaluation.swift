@@ -186,7 +186,7 @@ enum ProductTournamentPlanEvaluator {
         continuedUsePull,
       ]
     )
-    let scores = ProductizationEvidenceScores(
+    let scores = ProductTournamentEvidenceScores(
       painRecognition: painRecognition,
       workflowImprovement: workflowImprovement,
       alternativeAdvantage: alternativeAdvantage,
@@ -456,7 +456,7 @@ enum ProductTournamentPlanEvaluator {
   private static func verdict(
     averageScore: Double,
     willingnessToPayScore: Int
-  ) -> ProductizationEvidenceVerdict {
+  ) -> ProductTournamentEvidenceVerdict {
     if averageScore >= 4.4 && willingnessToPayScore >= 4 { return .strongPull }
     if averageScore >= 3.5 && willingnessToPayScore >= 3 { return .promising }
     if averageScore >= 2.7 { return .unclear }
@@ -523,7 +523,7 @@ enum ProductTournamentPlanEvaluator {
   private static func summary(
     contender: ProductTournamentContender,
     segment: UserSegment,
-    verdict: ProductizationEvidenceVerdict,
+    verdict: ProductTournamentEvidenceVerdict,
     willingnessToPay: Int,
     price: Int?
   ) -> String {
@@ -535,9 +535,9 @@ enum ProductTournamentPlanEvaluator {
   private static func rationale(
     contender: ProductTournamentContender,
     segment: UserSegment,
-    scores: ProductizationEvidenceScores,
+    scores: ProductTournamentEvidenceScores,
     willingnessToPay: Int,
-    verdict: ProductizationEvidenceVerdict
+    verdict: ProductTournamentEvidenceVerdict
   ) -> [String] {
     [
       "\(segment.name) evaluated the plan without a built product.",
@@ -585,7 +585,7 @@ extension CompassProject {
         projectID: id
       )
       productizationConfig = try workspace.readProductTournamentConfig()
-      productizationEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
+      productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
       log(outcome.userMessage, level: outcome.isSuccess ? .success : .warning)
       return outcome
     } catch {
@@ -613,7 +613,7 @@ extension CompassProject {
       )
       try workspace.writeProductTournamentConfig(outcome.config)
       productizationConfig = outcome.config
-      productizationEvidenceIndex = evidenceIndex
+      productTournamentEvidenceIndex = evidenceIndex
       log(outcome.userMessage, level: .success)
       return outcome
     } catch {

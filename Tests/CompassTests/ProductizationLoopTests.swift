@@ -121,28 +121,28 @@ struct ProductizationLoopTests {
     )
     config.experiments.append(badExperiment)
 
-    let strongScores = ProductizationEvidenceScores(
+    let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
       alternativeAdvantage: 4,
       switchingReadiness: 5,
       continuedUsePull: 5
     )
-    let narrowScores = ProductizationEvidenceScores(
+    let narrowScores = ProductTournamentEvidenceScores(
       painRecognition: 4,
       workflowImprovement: 3,
       alternativeAdvantage: 3,
       switchingReadiness: 3,
       continuedUsePull: 4
     )
-    let weakScores = ProductizationEvidenceScores(
+    let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
       alternativeAdvantage: 2,
       switchingReadiness: 1,
       continuedUsePull: 2
     )
-    let index = ProductizationEvidenceIndex.build(
+    let index = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "promote-a",
@@ -282,21 +282,21 @@ struct ProductizationLoopTests {
     let operatorScenario = try #require(
       config.scenarios.first { $0.experimentID == experiment.id && $0.segmentID == operatorID }
     )
-    let strongScores = ProductizationEvidenceScores(
+    let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
       alternativeAdvantage: 5,
       switchingReadiness: 5,
       continuedUsePull: 5
     )
-    let rejectedScores = ProductizationEvidenceScores(
+    let rejectedScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 1,
       alternativeAdvantage: 1,
       switchingReadiness: 1,
       continuedUsePull: 1
     )
-    let index = ProductizationEvidenceIndex.build(
+    let index = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "split-promote-a",
@@ -551,21 +551,21 @@ struct ProductizationLoopTests {
     let buyerScenario = try #require(
       config.scenarios.first { $0.experimentID == experiment.id && $0.segmentID == buyerID }
     )
-    let strongScores = ProductizationEvidenceScores(
+    let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
       alternativeAdvantage: 5,
       switchingReadiness: 5,
       continuedUsePull: 5
     )
-    let weakScores = ProductizationEvidenceScores(
+    let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
       alternativeAdvantage: 1,
       switchingReadiness: 1,
       continuedUsePull: 1
     )
-    let index = ProductizationEvidenceIndex.build(
+    let index = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "split-kill-pull",
@@ -652,14 +652,14 @@ struct ProductizationLoopTests {
     let experiment = config.experiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
-    let weakScores = ProductizationEvidenceScores(
+    let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
       alternativeAdvantage: 2,
       switchingReadiness: 1,
       continuedUsePull: 2
     )
-    let index = ProductizationEvidenceIndex.build(
+    let index = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "weak-a",
@@ -746,14 +746,14 @@ struct ProductizationLoopTests {
     let experiment = config.experiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
-    let weakScores = ProductizationEvidenceScores(
+    let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
       alternativeAdvantage: 2,
       switchingReadiness: 1,
       continuedUsePull: 2
     )
-    let index = ProductizationEvidenceIndex.build(
+    let index = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "weak-a",
@@ -981,14 +981,14 @@ struct ProductizationLoopTests {
     let experiment = config.experiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
-    let weakScores = ProductizationEvidenceScores(
+    let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
       alternativeAdvantage: 2,
       switchingReadiness: 1,
       continuedUsePull: 2
     )
-    let index = ProductizationEvidenceIndex.build(
+    let index = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "weak-a",
@@ -1054,14 +1054,14 @@ struct ProductizationLoopTests {
     let experiment = config.experiments[0]
     let operatorID = try #require(config.userSegments.first?.id)
     let buyerID = try #require(config.userSegments.dropFirst().first?.id)
-    let weakScores = ProductizationEvidenceScores(
+    let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
       alternativeAdvantage: 2,
       switchingReadiness: 1,
       continuedUsePull: 2
     )
-    let index = ProductizationEvidenceIndex.build(
+    let index = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "weak-a",
@@ -1302,14 +1302,14 @@ struct ProductizationLoopTests {
       config.scenarios.first {
         $0.experimentID == experiment.id && $0.segmentID == buyer.id
       })
-    let scores = ProductizationEvidenceScores(
+    let scores = ProductTournamentEvidenceScores(
       painRecognition: 4,
       workflowImprovement: 4,
       alternativeAdvantage: 4,
       switchingReadiness: 4,
       continuedUsePull: 4
     )
-    let index = ProductizationEvidenceIndex.build(
+    let index = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "rationale-operator",
@@ -1429,7 +1429,7 @@ struct ProductizationLoopTests {
       config.scenarios.first {
         $0.experimentID == experiment.id && $0.segmentID == buyer.id
       })
-    let scores = ProductizationEvidenceScores(
+    let scores = ProductTournamentEvidenceScores(
       painRecognition: 4,
       workflowImprovement: 4,
       alternativeAdvantage: 4,
@@ -1468,7 +1468,7 @@ struct ProductizationLoopTests {
         ]
       ),
     ]
-    let index = ProductizationEvidenceIndex.build(records: rationaleRecords)
+    let index = ProductTournamentEvidenceIndex.build(records: rationaleRecords)
 
     let signal = try #require(
       ProductFactoryRationaleSignalAdvisor.signal(
@@ -1626,7 +1626,7 @@ struct ProductizationLoopTests {
         "Needed proof against the manual workflow before switching."
       ]
     )
-    let validationIndex = ProductizationEvidenceIndex.build(
+    let validationIndex = ProductTournamentEvidenceIndex.build(
       records: rationaleRecords + [validationRecord]
     )
     let validationSignal = try #require(
@@ -1730,7 +1730,7 @@ struct ProductizationLoopTests {
         "Needed proof against the manual workflow before switching."
       ]
     )
-    let secondValidationIndex = ProductizationEvidenceIndex.build(
+    let secondValidationIndex = ProductTournamentEvidenceIndex.build(
       records: rationaleRecords + [validationRecord, secondValidationRecord]
     )
     let secondValidationSignal = try #require(
@@ -1876,14 +1876,14 @@ struct ProductizationLoopTests {
       config.scenarios.first {
         $0.experimentID == experiment.id && $0.segmentID == buyer.id
       })
-    let scores = ProductizationEvidenceScores(
+    let scores = ProductTournamentEvidenceScores(
       painRecognition: 4,
       workflowImprovement: 3,
       alternativeAdvantage: 3,
       switchingReadiness: 3,
       continuedUsePull: 3
     )
-    let index = ProductizationEvidenceIndex.build(
+    let index = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "csv-operator",
@@ -2008,14 +2008,14 @@ struct ProductizationLoopTests {
     let operatorScenario = try #require(
       config.scenarios.first { $0.experimentID == experiment.id && $0.segmentID != buyer.id }
     )
-    let scores = ProductizationEvidenceScores(
+    let scores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
       alternativeAdvantage: 5,
       switchingReadiness: 5,
       continuedUsePull: 5
     )
-    let index = ProductizationEvidenceIndex.build(
+    let index = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "operator-ai",
@@ -2692,7 +2692,7 @@ struct ProductizationLoopTests {
           "Factory cycle ran no steps. Stopped because Run evidence cohort failed: contract missing."
       )
     )
-    let evidenceIndex = ProductizationEvidenceIndex.build(
+    let evidenceIndex = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "repair-run",
@@ -2701,7 +2701,7 @@ struct ProductizationLoopTests {
           personaID: "operator",
           endedAt: 120,
           verdict: .promising,
-          scores: ProductizationEvidenceScores(
+          scores: ProductTournamentEvidenceScores(
             painRecognition: 4,
             workflowImprovement: 4,
             alternativeAdvantage: 3,
@@ -2735,7 +2735,7 @@ struct ProductizationLoopTests {
       config.experiments[index].decision = .promoted
     }
     let experiment = config.experiments[0]
-    let evidenceIndex = ProductizationEvidenceIndex.build(
+    let evidenceIndex = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "first-pass",
@@ -2744,7 +2744,7 @@ struct ProductizationLoopTests {
           personaID: config.userSegments[0].id,
           endedAt: 30,
           verdict: .promising,
-          scores: ProductizationEvidenceScores(
+          scores: ProductTournamentEvidenceScores(
             painRecognition: 4,
             workflowImprovement: 4,
             alternativeAdvantage: 3,
@@ -2946,7 +2946,7 @@ struct ProductizationLoopTests {
         tags: cohort.tags
       )
     }
-    let evidenceIndex = ProductizationEvidenceIndex.build(
+    let evidenceIndex = ProductTournamentEvidenceIndex.build(
       records: [
         makeDecisionAdvisorRecord(
           id: "operator-ai-user-pass",
@@ -2956,7 +2956,7 @@ struct ProductizationLoopTests {
           mode: .personaModel,
           endedAt: 30,
           verdict: .promising,
-          scores: ProductizationEvidenceScores(
+          scores: ProductTournamentEvidenceScores(
             painRecognition: 4,
             workflowImprovement: 4,
             alternativeAdvantage: 3,
@@ -3283,7 +3283,7 @@ struct ProductizationLoopTests {
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
     let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
-    let weakScores = ProductizationEvidenceScores(
+    let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
       alternativeAdvantage: 1,
@@ -3306,7 +3306,7 @@ struct ProductizationLoopTests {
         targetDecision: .promote
       )
     )
-    let index = ProductizationEvidenceIndex.build(records: [record])
+    let index = ProductTournamentEvidenceIndex.build(records: [record])
 
     let signal = try #require(
       ProductFactoryTargetedProofOutcomeAdvisor.signal(
@@ -3369,7 +3369,7 @@ struct ProductizationLoopTests {
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
     let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
-    let strongScores = ProductizationEvidenceScores(
+    let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
       alternativeAdvantage: 4,
@@ -3392,7 +3392,7 @@ struct ProductizationLoopTests {
         targetDecision: .kill
       )
     )
-    let index = ProductizationEvidenceIndex.build(records: [record])
+    let index = ProductTournamentEvidenceIndex.build(records: [record])
 
     let signal = try #require(
       ProductFactoryTargetedProofOutcomeAdvisor.signal(
@@ -3438,7 +3438,7 @@ struct ProductizationLoopTests {
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
     let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
-    let strongScores = ProductizationEvidenceScores(
+    let strongScores = ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 5,
       alternativeAdvantage: 4,
@@ -3461,7 +3461,7 @@ struct ProductizationLoopTests {
         targetDecision: .kill
       )
     )
-    let index = ProductizationEvidenceIndex.build(records: [record])
+    let index = ProductTournamentEvidenceIndex.build(records: [record])
     let signal = try #require(
       ProductFactoryTargetedProofOutcomeAdvisor.signal(
         for: experiment,
@@ -3550,7 +3550,7 @@ struct ProductizationLoopTests {
     config.experiments[0].currentSha = "head-sha"
     let experiment = config.experiments[0]
     let scenario = try #require(config.scenarios.first { $0.experimentID == experiment.id })
-    let weakScores = ProductizationEvidenceScores(
+    let weakScores = ProductTournamentEvidenceScores(
       painRecognition: 2,
       workflowImprovement: 1,
       alternativeAdvantage: 1,
@@ -3573,7 +3573,7 @@ struct ProductizationLoopTests {
         targetDecision: .promote
       )
     )
-    let index = ProductizationEvidenceIndex.build(records: [record])
+    let index = ProductTournamentEvidenceIndex.build(records: [record])
     let signal = try #require(
       ProductFactoryTargetedProofOutcomeAdvisor.signal(
         for: experiment,
@@ -4115,8 +4115,8 @@ private func activateRoundTwoImplementationTarget(
 private func makeProofDebtEvidenceIndex(
   experiments: [ProductExperiment],
   config: ProductizationConfig
-) -> ProductizationEvidenceIndex {
-  let scores = ProductizationEvidenceScores(
+) -> ProductTournamentEvidenceIndex {
+  let scores = ProductTournamentEvidenceScores(
     painRecognition: 5,
     workflowImprovement: 5,
     alternativeAdvantage: 5,
@@ -4148,11 +4148,11 @@ private func makeProofDebtEvidenceIndex(
       ),
     ]
   }
-  return ProductizationEvidenceIndex.build(records: records)
+  return ProductTournamentEvidenceIndex.build(records: records)
 }
 
-private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> ProductizationEvidenceIndex {
-  let record = ProductizationEvidenceRecord(
+private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> ProductTournamentEvidenceIndex {
+  let record = ProductTournamentEvidenceRecord(
     id: "rollout-run",
     experimentID: config.experiments[0].id,
     solutionID: config.solutionHypotheses[0].id,
@@ -4167,7 +4167,7 @@ private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> Productiz
     endedAt: 30,
     traceHash: "trace-rollout",
     model: "model-free",
-    scores: ProductizationEvidenceScores(
+    scores: ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 4,
       alternativeAdvantage: 4,
@@ -4180,7 +4180,7 @@ private func makeRolloutEvidenceIndex(config: ProductizationConfig) -> Productiz
     verdict: .strongPull,
     summary: "Evidence supports the rollout decision."
   )
-  return ProductizationEvidenceIndex.build(records: [record])
+  return ProductTournamentEvidenceIndex.build(records: [record])
 }
 
 private func makePMFPromotionEvidenceIndex(
@@ -4190,8 +4190,8 @@ private func makePMFPromotionEvidenceIndex(
   includeAIUserPersonaBreadth: Bool = true,
   includeCurrentAlternativeProof: Bool = true,
   personaActionRationales: [String] = []
-) -> ProductizationEvidenceIndex {
-  let scores = ProductizationEvidenceScores(
+) -> ProductTournamentEvidenceIndex {
+  let scores = ProductTournamentEvidenceScores(
     painRecognition: 5,
     workflowImprovement: 5,
     alternativeAdvantage: 5,
@@ -4202,7 +4202,7 @@ private func makePMFPromotionEvidenceIndex(
   let operatorID = config.userSegments.first?.id ?? "operator"
   let buyerID = config.userSegments.dropFirst().first?.id ?? "buyer"
   let comparison = includeCurrentAlternativeProof ? "Compared against the current workflow." : ""
-  return ProductizationEvidenceIndex.build(
+  return ProductTournamentEvidenceIndex.build(
     records: [
       makeDecisionAdvisorRecord(
         id: "promote-a",
@@ -4250,17 +4250,17 @@ private func makeDecisionAdvisorRecord(
   personaID: String,
   mode: ProductTournamentSimulationMode = .modelFree,
   endedAt: Double,
-  verdict: ProductizationEvidenceVerdict,
-  scores: ProductizationEvidenceScores,
+  verdict: ProductTournamentEvidenceVerdict,
+  scores: ProductTournamentEvidenceScores,
   objections: [String] = [],
   missingCapabilities: [String] = [],
   currentAlternativeComparison: String = "Compared against the current workflow.",
   scenarioID: String? = nil,
   personaActionRationales: [String] = [],
   decisionIntent: ProductTournamentSimulationDecisionIntent? = nil
-) -> ProductizationEvidenceRecord {
+) -> ProductTournamentEvidenceRecord {
   let solution = config.solutionHypotheses.first { $0.id == experiment.solutionID }
-  return ProductizationEvidenceRecord(
+  return ProductTournamentEvidenceRecord(
     id: id,
     experimentID: experiment.id,
     solutionID: experiment.solutionID,

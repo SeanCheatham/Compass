@@ -12,7 +12,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       verdict: .strongPull,
       summary: "The core technology works against the current workaround."
     )
-    let index = ProductizationEvidenceIndex.build(records: records)
+    let index = ProductTournamentEvidenceIndex.build(records: records)
 
     let proposal = try #require(
       ProductTournamentRoundEvidenceTransitioner.bestProposal(
@@ -66,7 +66,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       missingCapabilities: ["current_alternative_advantage"],
       summary: "The feasibility proof is too weak."
     )
-    let index = ProductizationEvidenceIndex.build(records: records)
+    let index = ProductTournamentEvidenceIndex.build(records: records)
 
     let outcome = try ProductTournamentRoundEvidenceTransitioner.applyBestProposal(
       tournamentID: fixture.tournament.id,
@@ -107,7 +107,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       missingCapabilities: ["inspectable_source_artifact"],
       summary: "The core technology is plausible but needs revision."
     )
-    let index = ProductizationEvidenceIndex.build(records: records)
+    let index = ProductTournamentEvidenceIndex.build(records: records)
 
     let outcome = try ProductTournamentRoundEvidenceTransitioner.applyBestProposal(
       tournamentID: fixture.tournament.id,
@@ -148,7 +148,7 @@ struct ProductTournamentRoundEvidenceTransitionTests {
       verdict: .strongPull,
       summary: "One strong feasibility run is promising."
     )[0]
-    let index = ProductizationEvidenceIndex.build(records: [record])
+    let index = ProductTournamentEvidenceIndex.build(records: [record])
 
     let proposal = try #require(
       ProductTournamentRoundEvidenceTransitioner.proposals(
@@ -226,13 +226,13 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
 private func evidenceRecords(
   fixture: RoundTwoFixture,
   score: Int,
-  verdict: ProductizationEvidenceVerdict,
+  verdict: ProductTournamentEvidenceVerdict,
   objections: [String] = [],
   missingCapabilities: [String] = [],
   summary: String
-) throws -> [ProductizationEvidenceRecord] {
+) throws -> [ProductTournamentEvidenceRecord] {
   fixture.config.userSegments.prefix(2).enumerated().map { index, segment in
-    ProductizationEvidenceRecord(
+    ProductTournamentEvidenceRecord(
       id: "\(fixture.contender.id)-round-2-\(index)",
       experimentID: fixture.experiment.id,
       solutionID: fixture.contender.solutionID,
@@ -248,7 +248,7 @@ private func evidenceRecords(
       status: .completed,
       startedAt: Double(index),
       endedAt: Double(index + 1),
-      scores: ProductizationEvidenceScores(
+      scores: ProductTournamentEvidenceScores(
         painRecognition: score,
         workflowImprovement: score,
         alternativeAdvantage: score,

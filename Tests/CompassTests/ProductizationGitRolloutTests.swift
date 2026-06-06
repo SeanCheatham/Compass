@@ -300,8 +300,8 @@ private func makeGitRolloutConfig(
   )
 }
 
-private func makeGitRolloutEvidence(config: ProductizationConfig) -> ProductizationEvidenceRecord {
-  ProductizationEvidenceRecord(
+private func makeGitRolloutEvidence(config: ProductizationConfig) -> ProductTournamentEvidenceRecord {
+  ProductTournamentEvidenceRecord(
     id: "rollout-run",
     experimentID: config.experiments[0].id,
     solutionID: config.solutionHypotheses[0].id,
@@ -316,7 +316,7 @@ private func makeGitRolloutEvidence(config: ProductizationConfig) -> Productizat
     endedAt: 2,
     traceHash: "trace-rollout",
     model: "model-free",
-    scores: ProductizationEvidenceScores(
+    scores: ProductTournamentEvidenceScores(
       painRecognition: 5,
       workflowImprovement: 4,
       alternativeAdvantage: 4,

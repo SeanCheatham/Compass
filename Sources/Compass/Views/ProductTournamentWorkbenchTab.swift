@@ -5,7 +5,7 @@ struct ProductTournamentWorkbenchTab: View {
   @ObservedObject var project: CompassProject
   @State private var selectedExperimentID: String?
   @State private var selectedRunID: String?
-  @State private var selectedRecord: ProductizationEvidenceRecord?
+  @State private var selectedRecord: ProductTournamentEvidenceRecord?
   @State private var recordError: String?
   @State private var selectedPlanEvaluationID: String?
   @State private var selectedPlanEvaluationRecord: ProductTournamentPlanEvaluationRecord?
@@ -43,7 +43,7 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var contractAvailable: Bool?
 
   private var config: ProductizationConfig { project.productizationConfig }
-  private var evidenceIndex: ProductizationEvidenceIndex { project.productizationEvidenceIndex }
+  private var evidenceIndex: ProductTournamentEvidenceIndex { project.productTournamentEvidenceIndex }
 
   private var tournamentsForBoard: [ProductTournament] {
     config.tournaments.sorted { lhs, rhs in
@@ -257,7 +257,7 @@ struct ProductTournamentWorkbenchTab: View {
     return config.experiments.first { $0.id == selectedExperimentID } ?? config.experiments.first
   }
 
-  private var runsForSelectedExperiment: [ProductizationEvidenceSummary] {
+  private var runsForSelectedExperiment: [ProductTournamentEvidenceSummary] {
     guard let selectedExperiment else { return [] }
     return evidenceIndex.summaries(for: selectedExperiment)
   }
@@ -2236,7 +2236,7 @@ struct ProductTournamentWorkbenchTab: View {
           Text(record.summary)
             .font(.callout)
             .textSelection(.enabled)
-          ProductizationEvidenceCopyButton(record: record)
+          ProductTournamentEvidenceCopyButton(record: record)
         }
       }
     } else if let recordError {
@@ -2582,7 +2582,7 @@ struct ProductTournamentWorkbenchTab: View {
       let rationaleSignal = ProductFactoryRationaleSignalAdvisor.signal(
         for: stepExperiment,
         config: project.productizationConfig,
-        evidenceIndex: project.productizationEvidenceIndex
+        evidenceIndex: project.productTournamentEvidenceIndex
       )
     {
       personaRationaleSignalSummaries = [rationaleSignal.auditSummary]
@@ -2652,14 +2652,14 @@ struct ProductTournamentWorkbenchTab: View {
     var proofTargetSummaries: [String] = []
     var targetedProofOutcomeSummaries = ProductFactoryTargetedProofOutcomeAdvisor.signals(
       config: project.productizationConfig,
-      evidenceIndex: project.productizationEvidenceIndex
+      evidenceIndex: project.productTournamentEvidenceIndex
     )
     .prefix(3)
     .map(\.auditSummary)
     var revisionBriefSummaries: [String] = []
     var personaRationaleSignalSummaries = ProductFactoryRationaleSignalAdvisor.signals(
       config: project.productizationConfig,
-      evidenceIndex: project.productizationEvidenceIndex
+      evidenceIndex: project.productTournamentEvidenceIndex
     )
     .prefix(3)
     .map(\.auditSummary)
@@ -2669,7 +2669,7 @@ struct ProductTournamentWorkbenchTab: View {
       guard
         let step = ProductFactoryAutopilotPlanner.nextExecutableStep(
           config: project.productizationConfig,
-          evidenceIndex: project.productizationEvidenceIndex,
+          evidenceIndex: project.productTournamentEvidenceIndex,
           isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
         )
       else {
@@ -2735,7 +2735,7 @@ struct ProductTournamentWorkbenchTab: View {
         let rationaleSignal = ProductFactoryRationaleSignalAdvisor.signal(
           for: stepExperiment,
           config: project.productizationConfig,
-          evidenceIndex: project.productizationEvidenceIndex
+          evidenceIndex: project.productTournamentEvidenceIndex
         ),
         !personaRationaleSignalSummaries.contains(rationaleSignal.auditSummary)
       {
@@ -2821,7 +2821,7 @@ struct ProductTournamentWorkbenchTab: View {
         $0.id == experimentID
       })
     else { return nil }
-    return project.productizationEvidenceIndex.currentPMFReadiness(for: experiment)?.proofDebt
+    return project.productTournamentEvidenceIndex.currentPMFReadiness(for: experiment)?.proofDebt
       ?? ProductMarketFitProofDebt(
         completedRunCount: 0,
         distinctPersonaCount: 0,
@@ -2842,7 +2842,7 @@ struct ProductTournamentWorkbenchTab: View {
     return ProductFactoryProofTargetAdvisor.target(
       for: experiment,
       config: project.productizationConfig,
-      evidenceIndex: project.productizationEvidenceIndex
+      evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
 
@@ -2851,7 +2851,7 @@ struct ProductTournamentWorkbenchTab: View {
   ) -> ProductFactoryDecisionCandidate? {
     ProductFactoryDecisionCandidateAdvisor.candidates(
       config: project.productizationConfig,
-      evidenceIndex: project.productizationEvidenceIndex
+      evidenceIndex: project.productTournamentEvidenceIndex
     )
     .first { $0.experimentID == experimentID }
   }
@@ -2867,7 +2867,7 @@ struct ProductTournamentWorkbenchTab: View {
     return ProductFactoryEvidenceTensionAdvisor.tension(
       for: experiment,
       config: project.productizationConfig,
-      evidenceIndex: project.productizationEvidenceIndex
+      evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
 
@@ -2882,7 +2882,7 @@ struct ProductTournamentWorkbenchTab: View {
     return ProductFactoryTargetedProofOutcomeAdvisor.signal(
       for: experiment,
       config: project.productizationConfig,
-      evidenceIndex: project.productizationEvidenceIndex
+      evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
 
@@ -2897,7 +2897,7 @@ struct ProductTournamentWorkbenchTab: View {
     return ProductFactoryRevisionBriefAdvisor.brief(
       for: experiment,
       config: project.productizationConfig,
-      evidenceIndex: project.productizationEvidenceIndex
+      evidenceIndex: project.productTournamentEvidenceIndex
     )
   }
 
@@ -3252,7 +3252,7 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private func evidenceIntentSummary(
-    _ summary: ProductizationEvidenceSummary,
+    _ summary: ProductTournamentEvidenceSummary,
     intent: ProductTournamentSimulationDecisionIntent
   ) -> String {
     var parts = [
@@ -3412,13 +3412,13 @@ private struct WorkbenchEmptyLine: View {
   }
 }
 
-private struct ProductizationEvidenceCopyButton: View {
-  var record: ProductizationEvidenceRecord
+private struct ProductTournamentEvidenceCopyButton: View {
+  var record: ProductTournamentEvidenceRecord
   @State private var copied = false
 
   var body: some View {
     Button {
-      copyTextToPasteboard(ProductizationEvidenceMarkdownExporter.markdown(record: record))
+      copyTextToPasteboard(ProductTournamentEvidenceMarkdownExporter.markdown(record: record))
       copied = true
       Task { @MainActor in
         try? await Task.sleep(nanoseconds: 1_200_000_000)
