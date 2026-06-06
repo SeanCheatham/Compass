@@ -1,5 +1,87 @@
 import Foundation
 
+struct ProductTournamentImplementationTrackBrief: Codable, Equatable, Sendable {
+  var scopeSummary: String
+  var expectedEvidenceSignal: String?
+  var killCriteria: String?
+
+  var isCandidateDerived: Bool {
+    expectedEvidenceSignal != nil || killCriteria != nil
+  }
+
+  var contextFragments: [String] {
+    var fragments: [String] = []
+    if let expectedEvidenceSignal {
+      fragments.append("expected_evidence \(expectedEvidenceSignal)")
+    }
+    if let killCriteria {
+      fragments.append("kill_criteria \(killCriteria)")
+    }
+    fragments.append("implementation_scope \(scopeSummary)")
+    return fragments
+  }
+
+  init(experiment: ProductTournamentExperiment) {
+    self = Self.parse(experiment.implementationScope)
+  }
+
+  private init(
+    scopeSummary: String,
+    expectedEvidenceSignal: String?,
+    killCriteria: String?
+  ) {
+    self.scopeSummary = scopeSummary
+    self.expectedEvidenceSignal = expectedEvidenceSignal
+    self.killCriteria = killCriteria
+  }
+
+  private static func parse(_ value: String) -> ProductTournamentImplementationTrackBrief {
+    let expectedMarker = "Expected evidence:"
+    let killMarker = "Kill or reframe if:"
+    let expectedRange = value.range(of: expectedMarker)
+    let killRange = value.range(of: killMarker)
+    let firstMarker = [expectedRange, killRange]
+      .compactMap { $0 }
+      .sorted { $0.lowerBound < $1.lowerBound }
+      .first
+    let scopeSummary = cleaned(
+      firstMarker.map { String(value[..<$0.lowerBound]) } ?? value,
+      fallback: "Smallest product implementation needed for evidence",
+      limit: 500
+    )
+    let expectedEvidenceSignal: String?
+    if let expectedRange {
+      let end = killRange?.lowerBound ?? value.endIndex
+      expectedEvidenceSignal = optionalCleaned(
+        String(value[expectedRange.upperBound..<end]),
+        limit: 500
+      )
+    } else {
+      expectedEvidenceSignal = nil
+    }
+    let killCriteria = killRange.map {
+      optionalCleaned(String(value[$0.upperBound...]), limit: 500)
+    } ?? nil
+    return ProductTournamentImplementationTrackBrief(
+      scopeSummary: scopeSummary,
+      expectedEvidenceSignal: expectedEvidenceSignal,
+      killCriteria: killCriteria
+    )
+  }
+
+  private static func cleaned(_ value: String, fallback: String, limit: Int) -> String {
+    optionalCleaned(value, limit: limit) ?? fallback
+  }
+
+  private static func optionalCleaned(_ value: String, limit: Int) -> String? {
+    let trimmed = value.trimmingCharacters(
+      in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".;"))
+    )
+    let bounded = StringUtils.boundedText(trimmed, limit: limit)
+    return bounded.isEmpty ? nil : bounded
+  }
+}
+
 struct ProductTournamentFeasibilityHandoff: Codable, Equatable, Identifiable, Sendable {
   var id: String { "\(tournamentID)-\(roundID)-\(contenderID)-feasibility" }
 
@@ -22,6 +104,7 @@ struct ProductTournamentFeasibilityHandoff: Codable, Equatable, Identifiable, Se
   var coreTechnologyProof: String
   var acceptanceSignals: [String]
   var riskFocus: String
+  var implementationBrief: ProductTournamentImplementationTrackBrief
 
   var scoreLabel: String {
     guard let planReadinessScore else { return "n/a" }
@@ -39,8 +122,9 @@ struct ProductTournamentFeasibilityHandoff: Codable, Equatable, Identifiable, Se
       planEvaluationIDs.isEmpty
       ? "no plan evaluations"
       : "plan_evidence \(planEvaluationIDs.prefix(4).joined(separator: ", "))"
+    let implementation = implementationBrief.contextFragments.prefix(3).joined(separator: "; ")
     return
-      "- round_2_feasibility contender \(contenderID) [contender_plan \(contenderPlanID), experiment \(experimentID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), \(plan), \(evaluations)]: proof \(coreTechnologyProof); acceptance \(acceptanceSignals.prefix(4).joined(separator: "; ")); risk \(riskFocus)."
+      "- round_2_feasibility contender \(contenderID) [contender_plan \(contenderPlanID), experiment \(experimentID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), \(plan), \(evaluations)]: \(implementation); proof \(coreTechnologyProof); acceptance \(acceptanceSignals.prefix(4).joined(separator: "; ")); risk \(riskFocus)."
   }
 
   var implementationTargetLine: String {
@@ -50,8 +134,9 @@ struct ProductTournamentFeasibilityHandoff: Codable, Equatable, Identifiable, Se
       acceptanceSignals.isEmpty
       ? "no acceptance signals"
       : acceptanceSignals.prefix(4).joined(separator: "; ")
+    let implementation = implementationBrief.contextFragments.prefix(3).joined(separator: "; ")
     return
-      "- round_2_implementation_target selected_experiment \(experimentID) [tournament \(tournamentID), round \(roundID), only_contender \(contenderID), contender_plan \(contenderPlanID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), do_not_build_competing_contenders true]: core_technology_proof \(coreTechnologyProof); acceptance \(acceptance); risk \(riskFocus)."
+      "- round_2_implementation_target selected_experiment \(experimentID) [tournament \(tournamentID), round \(roundID), only_contender \(contenderID), contender_plan \(contenderPlanID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), do_not_build_competing_contenders true]: \(implementation); core_technology_proof \(coreTechnologyProof); acceptance \(acceptance); risk \(riskFocus)."
   }
 }
 
@@ -94,7 +179,12 @@ enum ProductTournamentFeasibilityAdvisor {
       }
       let scenarioCohortIDs =
         round.scenarioCohortIDs.isEmpty ? experiment.scenarioCohortIDs : round.scenarioCohortIDs
-      let acceptanceSignals = acceptanceSignals(for: round, contenderPlan: contenderPlan)
+      let implementationBrief = ProductTournamentImplementationTrackBrief(experiment: experiment)
+      let acceptanceSignals = acceptanceSignals(
+        for: round,
+        contenderPlan: contenderPlan,
+        implementationBrief: implementationBrief
+      )
       return ProductTournamentFeasibilityHandoff(
         tournamentID: tournament.id,
         roundID: round.id,
@@ -119,7 +209,8 @@ enum ProductTournamentFeasibilityAdvisor {
           round: round
         ),
         acceptanceSignals: acceptanceSignals,
-        riskFocus: contender.primaryRisk
+        riskFocus: contender.primaryRisk,
+        implementationBrief: implementationBrief
       )
     }
   }
@@ -158,11 +249,13 @@ enum ProductTournamentFeasibilityAdvisor {
 
   private static func acceptanceSignals(
     for round: ProductTournamentRound,
-    contenderPlan: ProductTournamentContenderPlan
+    contenderPlan: ProductTournamentContenderPlan,
+    implementationBrief: ProductTournamentImplementationTrackBrief
   ) -> [String] {
     let signals =
       round.evaluationFocus
       + contenderPlan.requiredProof
+      + [implementationBrief.expectedEvidenceSignal].compactMap { $0 }
       + [
         "The core technology proves the hard part before Round 3 product implementation fidelity.",
         "The surviving contender is tested against the current workaround.",
@@ -177,8 +270,9 @@ enum ProductTournamentFeasibilityAdvisor {
     round: ProductTournamentRound
   ) -> String {
     let proof = contenderPlan.requiredProof.first ?? round.evaluationFocus.first ?? round.goal
+    let implementationBrief = ProductTournamentImplementationTrackBrief(experiment: experiment)
     return StringUtils.boundedText(
-      "Build only \(experiment.title) for \(contender.title): \(experiment.implementationScope). Prove \(proof) before adding Round 3 fidelity.",
+      "Build only \(experiment.title) for \(contender.title): \(implementationBrief.scopeSummary). Prove \(proof) before adding Round 3 fidelity.",
       limit: 360
     )
   }

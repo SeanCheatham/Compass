@@ -251,6 +251,17 @@ enum ProductTournamentPlanningDigestFormatter {
     guard let target = handoffs.first else { return [] }
     var lines = ["Round 2 implementation target:"]
     lines.append(bounded(target.implementationTargetLine, 760))
+    if target.implementationBrief.isCandidateDerived {
+      let expectedEvidence =
+        target.implementationBrief.expectedEvidenceSignal ?? "no expected evidence signal"
+      let killCriteria = target.implementationBrief.killCriteria ?? "no kill criteria"
+      lines.append(
+        bounded(
+          "- round_2_candidate_track_signal selected_experiment \(target.experimentID) [tournament \(target.tournamentID), round \(target.roundID), only_contender \(target.contenderID)]: expected_evidence \(expectedEvidence); kill_criteria \(killCriteria); implementation_scope \(target.implementationBrief.scopeSummary).",
+          760
+        )
+      )
+    }
     let implementationTarget = ProductTournamentRoundImplementationTarget(
       tournamentID: target.tournamentID,
       roundID: target.roundID,

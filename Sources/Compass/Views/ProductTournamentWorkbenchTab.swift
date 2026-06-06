@@ -1289,6 +1289,12 @@ struct ProductTournamentWorkbenchTab: View {
           label: "Acceptance",
           value: handoff.acceptanceSignals.prefix(3).joined(separator: "; ")
         )
+        if let expectedEvidenceSignal = handoff.implementationBrief.expectedEvidenceSignal {
+          WorkbenchFact(label: "Evidence signal", value: expectedEvidenceSignal)
+        }
+        if let killCriteria = handoff.implementationBrief.killCriteria {
+          WorkbenchFact(label: "Kill criteria", value: killCriteria)
+        }
         Text(handoff.coreTechnologyProof)
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -1392,6 +1398,7 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private func experimentRow(_ experiment: ProductTournamentExperiment) -> some View {
+    let implementationBrief = ProductTournamentImplementationTrackBrief(experiment: experiment)
     let signal = TournamentAutomationExperimentRanker.signal(
       for: experiment,
       config: config,
@@ -1416,8 +1423,17 @@ struct ProductTournamentWorkbenchTab: View {
         WorkbenchFact(label: "Next", value: signal.nextActionLabel)
         WorkbenchFact(label: "Branch", value: experiment.branchName)
         WorkbenchFact(label: "Worktree", value: experiment.worktreeID)
+        if implementationBrief.isCandidateDerived {
+          WorkbenchFact(label: "Origin", value: "Discover candidate track")
+        }
         WorkbenchFact(
           label: "Commit", value: experiment.currentSha ?? experiment.baseSha ?? "not created")
+        if let expectedEvidenceSignal = implementationBrief.expectedEvidenceSignal {
+          WorkbenchFact(label: "Evidence signal", value: expectedEvidenceSignal)
+        }
+        if let killCriteria = implementationBrief.killCriteria {
+          WorkbenchFact(label: "Kill criteria", value: killCriteria)
+        }
         if let roundTwoTarget {
           WorkbenchFact(
             label: "Round 2",
@@ -1426,7 +1442,7 @@ struct ProductTournamentWorkbenchTab: View {
               : "evidence locked to \(roundTwoTargetExperimentTitle(roundTwoTarget))"
           )
         }
-        Text(experiment.implementationScope)
+        Text(implementationBrief.scopeSummary)
           .font(.caption)
           .foregroundStyle(.secondary)
           .lineLimit(2)
@@ -1979,6 +1995,12 @@ struct ProductTournamentWorkbenchTab: View {
             label: "Acceptance",
             value: handoff.acceptanceSignals.prefix(3).joined(separator: "; ")
           )
+          if let expectedEvidenceSignal = handoff.implementationBrief.expectedEvidenceSignal {
+            WorkbenchFact(label: "Evidence signal", value: expectedEvidenceSignal)
+          }
+          if let killCriteria = handoff.implementationBrief.killCriteria {
+            WorkbenchFact(label: "Kill criteria", value: killCriteria)
+          }
         } else {
           WorkbenchFact(label: "Round", value: target.roundID)
         }

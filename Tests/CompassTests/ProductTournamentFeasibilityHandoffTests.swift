@@ -177,6 +177,89 @@ struct ProductTournamentFeasibilityHandoffTests {
       ) == []
     )
   }
+
+  @Test func roundTwoHandoffSurfacesCandidateImplementationProofSignals() throws {
+    var config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Reporting Helper",
+      rawPain: "Weekly reporting takes too long.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let tournament = try #require(config.tournaments.first)
+    let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    let contender = try #require(config.tournamentContenders.first)
+    let experimentID = try #require(contender.experimentID)
+    let records = try strongPlanRecords(
+      for: contender,
+      tournament: tournament,
+      round: planRound,
+      config: config
+    )
+    let index = ProductTournamentEvidenceIndex.build(records: [], planEvaluationRecords: records)
+    let transition = try ProductTournamentPlanTransitioner.applyBestProposal(
+      tournamentID: tournament.id,
+      roundID: planRound.id,
+      to: config,
+      evidenceIndex: index,
+      now: Date(timeIntervalSince1970: 2_000)
+    )
+    config = transition.config
+    let experimentIndex = try #require(
+      config.tournamentExperiments.firstIndex { $0.id == experimentID }
+    )
+    config.tournamentExperiments[experimentIndex].implementationScope =
+      """
+      Build Reporting Coach as the smallest workflow slice: draft a reviewed weekly report from scattered updates. Expected evidence: Persona creates a clearer report than the spreadsheet. Kill or reframe if: Persona still prefers the spreadsheet checklist.
+      """
+
+    let handoff = try #require(
+      ProductTournamentFeasibilityAdvisor.handoffs(
+        config: config,
+        evidenceIndex: index
+      ).first
+    )
+    let digest = ProductTournamentPlanningDigestFormatter.promptText(
+      config: config,
+      evidenceIndex: index
+    )
+    let planPrompt = try Prompts.planPrompt(
+      state: .empty,
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature,
+      productTournamentConfig: config,
+      productTournamentEvidenceIndex: index
+    )
+
+    try #require(handoff.implementationBrief.isCandidateDerived)
+    try #require(
+      handoff.implementationBrief.scopeSummary.contains(
+        "draft a reviewed weekly report from scattered updates"
+      )
+    )
+    try #require(
+      handoff.implementationBrief.expectedEvidenceSignal
+        == "Persona creates a clearer report than the spreadsheet"
+    )
+    try #require(
+      handoff.implementationBrief.killCriteria
+        == "Persona still prefers the spreadsheet checklist"
+    )
+    try #require(
+      handoff.acceptanceSignals.contains("Persona creates a clearer report than the spreadsheet")
+    )
+    try #require(handoff.coreTechnologyProof.contains("draft a reviewed weekly report"))
+    try #require(handoff.implementationTargetLine.contains("expected_evidence"))
+    try #require(handoff.implementationTargetLine.contains("kill_criteria"))
+    try #require(digest.contains("round_2_candidate_track_signal"))
+    try #require(digest.contains("expected_evidence Persona creates a clearer report"))
+    try #require(digest.contains("kill_criteria Persona still prefers the spreadsheet checklist"))
+    try #require(planPrompt.contains("round_2_candidate_track_signal"))
+    try #require(planPrompt.contains("expected_evidence Persona creates a clearer report"))
+    try #require(planPrompt.contains("kill_criteria Persona still prefers the spreadsheet checklist"))
+  }
 }
 
 private func strongPlanRecords(
