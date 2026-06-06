@@ -152,7 +152,7 @@ enum ProductTournamentPlanningDigestFormatter {
         .compactMap { $0 }
         .joined(separator: ", ")
         lines.append(
-          "- Contender \(contender.id) [\(contender.status.rawValue), sol \(contender.solutionID), exp \(experiment), seg \(segments), \(planEvidence)]: \(bounded(contender.valueProposition, 100)); risk \(bounded(contender.primaryRisk, 60))."
+          "- Contender \(contender.id) [\(contender.status.rawValue), hypothesis \(contender.solutionID), exp \(experiment), seg \(segments), \(planEvidence)]: \(bounded(contender.valueProposition, 100)); risk \(bounded(contender.primaryRisk, 60))."
         )
       }
 
@@ -201,12 +201,12 @@ enum ProductTournamentPlanningDigestFormatter {
       }
     guard !solutions.isEmpty else {
       return [
-        "Solution hypotheses:",
-        "- No active or candidate solution hypothesis is configured.",
+        "Product hypotheses:",
+        "- No active or candidate product hypothesis is configured.",
       ]
     }
 
-    var lines = ["Solution hypotheses:"]
+    var lines = ["Product hypotheses:"]
     for solution in solutions.prefix(maxSolutionHypotheses) {
       let segments =
         solution.targetSegmentIDs.isEmpty
@@ -222,7 +222,7 @@ enum ProductTournamentPlanningDigestFormatter {
     }
     if solutions.count > maxSolutionHypotheses {
       lines.append(
-        "- \(solutions.count - maxSolutionHypotheses) more solution hypothesis/hypotheses omitted.")
+        "- \(solutions.count - maxSolutionHypotheses) more product hypothesis/hypotheses omitted.")
     }
     return lines
   }
@@ -327,7 +327,7 @@ enum ProductTournamentPlanningDigestFormatter {
         ? "no evidence recorded"
         : bounded(experiment.evidenceSummary, 120)
       lines.append(
-        "- \(bounded(experiment.title, 120)) [\(experiment.decision.rawValue)]: solution \(experiment.solutionID), branch \(bounded(experiment.branchName, 140)), sha \(sha); scope \(bounded(experiment.prototypeScope, 140)); evidence \(evidenceSummary)."
+        "- \(bounded(experiment.title, 120)) [\(experiment.decision.rawValue)]: hypothesis \(experiment.solutionID), branch \(bounded(experiment.branchName, 140)), sha \(sha); scope \(bounded(experiment.prototypeScope, 140)); evidence \(evidenceSummary)."
       )
     }
     if experiments.count > maxExperiments {

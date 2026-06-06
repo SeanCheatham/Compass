@@ -40,7 +40,7 @@ struct ProductTournamentFeasibilityHandoff: Codable, Equatable, Identifiable, Se
       ? "no plan evaluations"
       : "plan_evidence \(planEvaluationIDs.prefix(4).joined(separator: ", "))"
     return
-      "- round_2_feasibility contender \(contenderID) [solution \(solutionID), experiment \(experimentID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), \(plan), \(evaluations)]: proof \(coreTechnologyProof); acceptance \(acceptanceSignals.prefix(4).joined(separator: "; ")); risk \(riskFocus)."
+      "- round_2_feasibility contender \(contenderID) [hypothesis \(solutionID), experiment \(experimentID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), \(plan), \(evaluations)]: proof \(coreTechnologyProof); acceptance \(acceptanceSignals.prefix(4).joined(separator: "; ")); risk \(riskFocus)."
   }
 
   var implementationTargetLine: String {
@@ -51,7 +51,7 @@ struct ProductTournamentFeasibilityHandoff: Codable, Equatable, Identifiable, Se
       ? "no acceptance signals"
       : acceptanceSignals.prefix(4).joined(separator: "; ")
     return
-      "- round_2_implementation_target selected_experiment \(experimentID) [tournament \(tournamentID), round \(roundID), only_contender \(contenderID), solution \(solutionID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), do_not_build_competing_contenders true]: core_technology_proof \(coreTechnologyProof); acceptance \(acceptance); risk \(riskFocus)."
+      "- round_2_implementation_target selected_experiment \(experimentID) [tournament \(tournamentID), round \(roundID), only_contender \(contenderID), hypothesis \(solutionID), branch \(branchName), worktree \(worktreeID), cohorts \(cohorts), do_not_build_competing_contenders true]: core_technology_proof \(coreTechnologyProof); acceptance \(acceptance); risk \(riskFocus)."
   }
 }
 

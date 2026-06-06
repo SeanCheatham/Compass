@@ -134,7 +134,7 @@ of normal automated tests.
 
 Tournament state and evidence use the product tournament storage namespace:
 `.compass/product-tournament.json` for pain hypotheses, tournaments,
-contenders, rounds, solution hypotheses, experiment branches, scenarios, and decisions;
+contenders, rounds, product hypotheses, experiment branches, scenarios, and decisions;
 `.compass/product-tournament/` for `evidence-index.json` and separate run artifacts
 for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
 Tournament workbench lists pain hypotheses, contenders, rounds, implementation

@@ -27,6 +27,8 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains("Round 1 compares product"))
     try #require(prompt.contains("candidateExperiments"))
     try #require(prompt.contains("contenderPlan"))
+    try #require(prompt.contains("product hypothesis"))
+    try #require(!prompt.contains("reference a solution"))
     try #require(!prompt.contains("workflowBet"))
     try #require(prompt.contains("current tournament state"))
     try #require(prompt.contains("Support leads lose escalation decisions"))

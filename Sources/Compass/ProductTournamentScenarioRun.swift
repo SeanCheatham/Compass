@@ -177,7 +177,7 @@ enum ProductTournamentScenarioRunError: LocalizedError, Equatable {
     case .unknownScenario(let id):
       return "Product scenario \(id) was not found in product tournament state."
     case .unknownSolution(let id):
-      return "Product solution \(id) was not found in product tournament state."
+      return "Product hypothesis \(id) was not found in product tournament state."
     case .unknownPain(let id):
       return "Pain hypothesis \(id) was not found in product tournament state."
     case .unknownSegment(let id):

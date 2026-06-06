@@ -68,7 +68,7 @@ enum ProductTournamentPlanEvaluationError: LocalizedError, Equatable {
     case .unknownContender(let id):
       return "Product tournament contender \(id) was not found."
     case .unknownSolution(let id):
-      return "Product solution \(id) was not found."
+      return "Product hypothesis \(id) was not found."
     case .unknownPain(let id):
       return "Pain hypothesis \(id) was not found."
     case .roundRequiresBuiltProduct(let id):

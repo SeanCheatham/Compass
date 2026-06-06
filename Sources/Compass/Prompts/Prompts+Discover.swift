@@ -23,7 +23,7 @@ extension Prompts {
       - Generate multiple competing product contenders when the pain is broad.
       - Create a tournament with explicit rounds: Round 1 compares product
         plans with no built product, Round 2 proves the core technology, and
-        Round 3 evaluates low-medium fidelity product versions.
+        Round 3 evaluates low-medium fidelity prototype versions.
       - Make each candidate experiment small enough to become the Round 2 or
         Round 3 Rust desktop track for one contender.
       - Include willingness-to-pay or willingness-to-sponsor signals in the
@@ -34,7 +34,7 @@ extension Prompts {
       Candidate experiment rules:
       - `candidateExperiments` are implementation tracks for tournament
         contenders after the plan-only round; do not treat them as Round 1.
-      - `solutionHypothesisID` must reference a solution in `stateEdits` or
+      - `solutionHypothesisID` must reference a product hypothesis in `stateEdits` or
         current tournament state.
       - `branchSlug` must be a single safe git-ref component such as
         `runbook-desk-triage-board`; do not include `refs/`, spaces, or shell
@@ -529,9 +529,9 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
     case .segmentReferencesMissingPain(let segmentID, let painID):
       return "User segment \(segmentID) references missing pain \(painID)."
     case .solutionReferencesMissingPain(let solutionID, let painID):
-      return "Solution hypothesis \(solutionID) references missing pain \(painID)."
+      return "Product hypothesis \(solutionID) references missing pain \(painID)."
     case .experimentReferencesMissingSolution(let experimentID, let solutionID):
-      return "Product experiment \(experimentID) references missing solution \(solutionID)."
+      return "Product experiment \(experimentID) references missing product hypothesis \(solutionID)."
     case .tournamentReferencesMissingPain(let tournamentID, let painID):
       return "Product tournament \(tournamentID) references missing pain \(painID)."
     case .tournamentReferencesMissingContender(let tournamentID, let contenderID):
@@ -541,7 +541,7 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
     case .contenderReferencesMissingTournament(let contenderID, let tournamentID):
       return "Product contender \(contenderID) references missing tournament \(tournamentID)."
     case .contenderReferencesMissingSolution(let contenderID, let solutionID):
-      return "Product contender \(contenderID) references missing solution \(solutionID)."
+      return "Product contender \(contenderID) references missing product hypothesis \(solutionID)."
     case .contenderReferencesMissingExperiment(let contenderID, let experimentID):
       return "Product contender \(contenderID) references missing experiment \(experimentID)."
     case .roundReferencesMissingTournament(let roundID, let tournamentID):
@@ -551,7 +551,7 @@ enum DiscoverPromptValidationError: LocalizedError, Equatable {
     case .roundReferencesMissingCohort(let roundID, let cohortID):
       return "Product tournament round \(roundID) references missing scenario cohort \(cohortID)."
     case .candidateReferencesMissingSolution(let solutionID):
-      return "Candidate experiment references missing solution \(solutionID)."
+      return "Candidate experiment references missing product hypothesis \(solutionID)."
     case .invalidBranchSlug(let slug):
       return "Invalid discovery branch slug or branch name: \(slug)."
     case .openQuestionsUsedInsteadOfActionableNextSteps(let text):

@@ -526,7 +526,7 @@ struct ProductTournamentFoundationModelsPersonaSelector: ProductTournamentPerson
       Current workflow: \(bounded(request.currentWorkflow.title, 160)); \(bounded(request.currentWorkflow.estimatedCost, 240)).
       Current workflow failure modes: \(bounded(workflowFailureModes, 500)).
       Alternatives: \(bounded(alternatives, 500)).
-      Solution promise: \(bounded(request.solution.promise, 500)).
+      Product hypothesis promise: \(bounded(request.solution.promise, 500)).
       Required proof: \(bounded(requiredProof, 500)).
       Prototype scope: \(bounded(request.experiment.prototypeScope, 500)).
       \(bounded(decisionIntent, 700)).

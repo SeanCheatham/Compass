@@ -150,7 +150,7 @@ extension Prompts {
         it or rescope so Develop can make progress.
       - Treat product tournament evidence as advisory product pressure, not an
         engineering failure or Verify bypass. It can motivate product changes,
-        reprioritize roadmap work, challenge the pain or solution hypothesis,
+        reprioritize roadmap work, challenge the pain or product hypothesis,
         or expose evidence gaps, but normal build/test/verify discipline still
         applies.
       - Start tournament planning from the active pain hypotheses, product
@@ -165,7 +165,7 @@ extension Prompts {
         `needs_revision` contenders before more implementation, and do not spend
         implementation work on eliminated contenders.
       - Round 2 should prove the core technology for a surviving contender.
-        Round 3 should exercise a low-medium fidelity product version.
+        Round 3 should exercise a low-medium fidelity prototype version.
       - When Product Tournament Context includes a "Round 2 implementation target",
         treat it as the current implementation target: the Immediate handoff
         must name `selected_experiment`, use that branch/worktree, build only
@@ -197,8 +197,8 @@ extension Prompts {
         prefer an increment that improves the deterministic experience contract,
         creates a better scenario, or makes simulation easier to run. Do not
         blindly optimize for simulated praise.
-      - If weak evidence comes from a shallow prototype, plan a better product
-        slice before declaring the pain invalid.
+      - If weak evidence comes from a shallow prototype, plan a sharper
+        contender or prototype slice before declaring the pain invalid.
       - If drafts are empty, choose a useful candidate that matches the focus, or
         originate a new candidate from the repo, lessons, completed history, and
         strategic context.

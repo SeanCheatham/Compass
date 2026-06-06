@@ -573,7 +573,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         kind: .prototype,
         title: "Round 3: low-medium fidelity product",
         goal:
-          "Let agentic users exercise low-medium fidelity product versions and judge adoption, switching, and willingness to pay.",
+          "Let agentic users exercise low-medium fidelity prototype versions and judge adoption, switching, and willingness to pay.",
         evaluationFocus: [
           "Workflow improvement",
           "Switching readiness",
@@ -821,7 +821,7 @@ struct SolutionHypothesis: Codable, Equatable, Identifiable, Sendable {
     self.id = ProductTournamentModelText.identifier(id, fallback: "solution")
     self.painID = ProductTournamentModelText.identifier(painID, fallback: "pain")
     self.title = ProductTournamentModelText.cleanedText(
-      title, fallback: "Solution hypothesis", limit: 180)
+      title, fallback: "Product hypothesis", limit: 180)
     self.promise = ProductTournamentModelText.cleanedText(
       promise, fallback: "Relieve the target pain", limit: 500)
     self.contenderPlan = ProductTournamentModelText.cleanedText(
