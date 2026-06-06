@@ -689,7 +689,7 @@ extension CompassProject {
       decode: ReflectSummary.self
     )
 
-    let productDecisionUpdateCount = try applyProductizationDecisionUpdates(
+    let productDecisionUpdateCount = try applyProductTournamentDecisionUpdates(
       result.productDecisionUpdates,
       from: productizationConfigForPrompt,
       workspace: workspace,
@@ -817,21 +817,21 @@ extension CompassProject {
     }
   }
 
-  func applyProductizationDecisionUpdates(
-    _ updates: [ProductizationReflectDecisionUpdate],
+  func applyProductTournamentDecisionUpdates(
+    _ updates: [ProductTournamentReflectDecisionUpdate],
     from currentConfig: ProductizationConfig,
     workspace: CompassWorkspace,
     sessionIndex: Int
   ) throws -> Int {
     guard !updates.isEmpty else { return 0 }
-    let nextConfig = try ProductizationReflectDecisionApplier.applying(
+    let nextConfig = try ProductTournamentReflectDecisionApplier.applying(
       updates,
       to: currentConfig
     )
     try workspace.writeProductTournamentConfig(nextConfig)
     productizationConfig = nextConfig
 
-    recordProductizationDecisionMetadata(
+    recordProductTournamentDecisionMetadata(
       updates,
       previousConfig: currentConfig,
       nextConfig: nextConfig,
@@ -873,8 +873,8 @@ extension CompassProject {
     sessions[sessionIndex].productDecision = experiment.decision
   }
 
-  func recordProductizationDecisionMetadata(
-    _ updates: [ProductizationReflectDecisionUpdate],
+  func recordProductTournamentDecisionMetadata(
+    _ updates: [ProductTournamentReflectDecisionUpdate],
     previousConfig: ProductizationConfig,
     nextConfig: ProductizationConfig,
     sessionIndex: Int

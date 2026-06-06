@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProductizationReflectDecisionUpdate: Codable, Equatable, Sendable {
+struct ProductTournamentReflectDecisionUpdate: Codable, Equatable, Sendable {
   var experimentID: String
   var decision: ProductExperimentDecision
   var summary: String
@@ -134,7 +134,7 @@ struct ProductizationReflectDecisionUpdate: Codable, Equatable, Sendable {
   }
 }
 
-enum ProductizationDecisionTransitionError: LocalizedError, Equatable {
+enum ProductTournamentDecisionTransitionError: LocalizedError, Equatable {
   case invalidTransition(
     experimentID: String,
     from: ProductExperimentDecision,
@@ -147,7 +147,7 @@ enum ProductizationDecisionTransitionError: LocalizedError, Equatable {
     switch self {
     case .invalidTransition(let experimentID, let from, let to):
       return
-        "Reflect tried to move product experiment \(experimentID) from \(from.rawValue) to \(to.rawValue), which is not an allowed productization transition."
+        "Reflect tried to move product experiment \(experimentID) from \(from.rawValue) to \(to.rawValue), which is not an allowed product tournament transition."
     case .missingSummary(let experimentID, let decision):
       return
         "Reflect tried to mark product experiment \(experimentID) as \(decision.rawValue) without a decision summary."
@@ -157,7 +157,7 @@ enum ProductizationDecisionTransitionError: LocalizedError, Equatable {
   }
 }
 
-enum ProductizationDecisionTransitionValidator {
+enum ProductTournamentDecisionTransitionValidator {
   static func validate(
     experimentID: String,
     from current: ProductExperimentDecision,
@@ -167,14 +167,14 @@ enum ProductizationDecisionTransitionValidator {
     if requiresSummary(proposed)
       && summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     {
-      throw ProductizationDecisionTransitionError.missingSummary(
+      throw ProductTournamentDecisionTransitionError.missingSummary(
         experimentID: experimentID,
         decision: proposed
       )
     }
 
     guard allowedNextDecisions(from: current).contains(proposed) else {
-      throw ProductizationDecisionTransitionError.invalidTransition(
+      throw ProductTournamentDecisionTransitionError.invalidTransition(
         experimentID: experimentID,
         from: current,
         to: proposed
@@ -216,7 +216,7 @@ enum ProductizationDecisionTransitionValidator {
 struct ProductMarketFitDecisionProposal: Equatable, Sendable {
   var experimentID: String
   var currentDecision: ProductExperimentDecision
-  var update: ProductizationReflectDecisionUpdate
+  var update: ProductTournamentReflectDecisionUpdate
   var readiness: ProductMarketFitReadiness
 }
 
@@ -1448,7 +1448,7 @@ enum ProductFactoryTargetedProofOutcomeAdvisor {
     current: ProductExperimentDecision
   ) -> ProductExperimentDecision? {
     if decision == current { return decision }
-    return ProductizationDecisionTransitionValidator.allowedNextDecisions(from: current)
+    return ProductTournamentDecisionTransitionValidator.allowedNextDecisions(from: current)
       .contains(decision)
       ? decision
       : nil
@@ -1552,7 +1552,7 @@ enum ProductFactoryRationaleSignalAdvisor {
     }
     guard let target,
       target == currentDecision
-        || ProductizationDecisionTransitionValidator.allowedNextDecisions(
+        || ProductTournamentDecisionTransitionValidator.allowedNextDecisions(
           from: currentDecision
         ).contains(target)
     else { return nil }
@@ -4982,7 +4982,7 @@ enum ProductMarketFitDecisionAdvisor {
       else { return nil }
       let summary = summary(for: readiness, target: target, experiment: experiment)
       do {
-        try ProductizationDecisionTransitionValidator.validate(
+        try ProductTournamentDecisionTransitionValidator.validate(
           experimentID: experiment.id,
           from: experiment.decision,
           to: target,
@@ -4991,7 +4991,7 @@ enum ProductMarketFitDecisionAdvisor {
       } catch {
         return nil
       }
-      let update = ProductizationReflectDecisionUpdate(
+      let update = ProductTournamentReflectDecisionUpdate(
         experimentID: experiment.id,
         decision: target,
         summary: summary,
@@ -5031,7 +5031,7 @@ enum ProductMarketFitDecisionAdvisor {
     else {
       throw ProductMarketFitDecisionAdvisorError.noProposal(experimentID)
     }
-    return try ProductizationReflectDecisionApplier.applying(
+    return try ProductTournamentReflectDecisionApplier.applying(
       [proposal.update],
       to: config,
       now: now
@@ -5104,9 +5104,9 @@ enum ProductMarketFitDecisionAdvisor {
   }
 }
 
-enum ProductizationReflectDecisionApplier {
+enum ProductTournamentReflectDecisionApplier {
   static func applying(
-    _ updates: [ProductizationReflectDecisionUpdate],
+    _ updates: [ProductTournamentReflectDecisionUpdate],
     to config: ProductizationConfig,
     now: Date = Date()
   ) throws -> ProductizationConfig {
@@ -5120,11 +5120,11 @@ enum ProductizationReflectDecisionApplier {
       guard
         let experimentIndex = next.experiments.firstIndex(where: { $0.id == update.experimentID })
       else {
-        throw ProductizationDecisionTransitionError.unknownExperiment(update.experimentID)
+        throw ProductTournamentDecisionTransitionError.unknownExperiment(update.experimentID)
       }
 
       let currentDecision = next.experiments[experimentIndex].decision
-      try ProductizationDecisionTransitionValidator.validate(
+      try ProductTournamentDecisionTransitionValidator.validate(
         experimentID: update.experimentID,
         from: currentDecision,
         to: update.decision,

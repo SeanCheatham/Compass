@@ -4,26 +4,26 @@ import Testing
 @testable import Compass
 
 struct ProductizationLoopTests {
-  @Test func decisionTransitionValidatorAllowsDocumentedProductizationPath() throws {
-    try ProductizationDecisionTransitionValidator.validate(
+  @Test func decisionTransitionValidatorAllowsDocumentedTournamentPath() throws {
+    try ProductTournamentDecisionTransitionValidator.validate(
       experimentID: "experiment-one",
       from: .notRun,
       to: .keepGoing,
       summary: ""
     )
-    try ProductizationDecisionTransitionValidator.validate(
+    try ProductTournamentDecisionTransitionValidator.validate(
       experimentID: "experiment-one",
       from: .keepGoing,
       to: .narrow,
       summary: ""
     )
-    try ProductizationDecisionTransitionValidator.validate(
+    try ProductTournamentDecisionTransitionValidator.validate(
       experimentID: "experiment-one",
       from: .narrow,
       to: .promote,
       summary: "Evidence and Verify support promotion."
     )
-    try ProductizationDecisionTransitionValidator.validate(
+    try ProductTournamentDecisionTransitionValidator.validate(
       experimentID: "experiment-one",
       from: .promote,
       to: .promoted,
@@ -31,16 +31,16 @@ struct ProductizationLoopTests {
     )
   }
 
-  @Test func decisionTransitionValidatorRejectsUndocumentedProductizationPath() throws {
+  @Test func decisionTransitionValidatorRejectsUndocumentedTournamentPath() throws {
     do {
-      try ProductizationDecisionTransitionValidator.validate(
+      try ProductTournamentDecisionTransitionValidator.validate(
         experimentID: "experiment-one",
         from: .pivot,
         to: .promote,
         summary: "Too large a leap."
       )
       Issue.record("Expected pivot -> promote to be rejected.")
-    } catch let error as ProductizationDecisionTransitionError {
+    } catch let error as ProductTournamentDecisionTransitionError {
       try #require(
         error
           == .invalidTransition(
@@ -54,14 +54,14 @@ struct ProductizationLoopTests {
 
   @Test func decisionTransitionValidatorRequiresSummaryForKillAndPromote() throws {
     do {
-      try ProductizationDecisionTransitionValidator.validate(
+      try ProductTournamentDecisionTransitionValidator.validate(
         experimentID: "experiment-one",
         from: .keepGoing,
         to: .kill,
         summary: "  "
       )
       Issue.record("Expected kill without summary to be rejected.")
-    } catch let error as ProductizationDecisionTransitionError {
+    } catch let error as ProductTournamentDecisionTransitionError {
       try #require(error == .missingSummary(experimentID: "experiment-one", decision: .kill))
     }
   }
@@ -73,7 +73,7 @@ struct ProductizationLoopTests {
       now: Date(timeIntervalSince1970: 10)
     )
     let experiment = config.experiments[0]
-    let update = ProductizationReflectDecisionUpdate(
+    let update = ProductTournamentReflectDecisionUpdate(
       experimentID: experiment.id,
       decision: .keepGoing,
       summary: "The deterministic run exposed one clear missing capability.",
@@ -81,7 +81,7 @@ struct ProductizationLoopTests {
       decidedBy: "Reflect"
     )
 
-    let next = try ProductizationReflectDecisionApplier.applying(
+    let next = try ProductTournamentReflectDecisionApplier.applying(
       [update],
       to: config,
       now: Date(timeIntervalSince1970: 20)

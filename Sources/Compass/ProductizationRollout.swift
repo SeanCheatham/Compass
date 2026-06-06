@@ -139,7 +139,7 @@ enum ProductExperimentRolloutWorkflow {
     to experiment: ProductExperiment
   ) -> Bool {
     do {
-      try ProductizationDecisionTransitionValidator.validate(
+      try ProductTournamentDecisionTransitionValidator.validate(
         experimentID: experiment.id,
         from: experiment.decision,
         to: action.targetDecision(from: experiment.decision),
@@ -168,7 +168,7 @@ enum ProductExperimentRolloutWorkflow {
     let experiment = next.experiments[experimentIndex]
     let target = action.targetDecision(from: experiment.decision)
     let summary = summary(for: action, experiment: experiment)
-    try ProductizationDecisionTransitionValidator.validate(
+    try ProductTournamentDecisionTransitionValidator.validate(
       experimentID: experiment.id,
       from: experiment.decision,
       to: target,

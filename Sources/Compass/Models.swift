@@ -1325,7 +1325,7 @@ struct ReflectSummary: Codable, Equatable {
   var state: PlanProposal?
   var summary: String
   var lessonEdits: [LessonEdit]
-  var productDecisionUpdates: [ProductizationReflectDecisionUpdate]
+  var productDecisionUpdates: [ProductTournamentReflectDecisionUpdate]
 
   enum CodingKeys: String, CodingKey {
     case state
@@ -1350,7 +1350,7 @@ struct ReflectSummary: Codable, Equatable {
     state: PlanProposal?,
     summary: String,
     lessonEdits: [LessonEdit] = [],
-    productDecisionUpdates: [ProductizationReflectDecisionUpdate] = []
+    productDecisionUpdates: [ProductTournamentReflectDecisionUpdate] = []
   ) {
     self.state = state
     self.summary = summary
@@ -1420,12 +1420,12 @@ struct ReflectSummary: Codable, Equatable {
     from container: KeyedDecodingContainer<CodingKeys>,
     preferredKey: CodingKeys,
     aliases: [CodingKeys]
-  ) throws -> [ProductizationReflectDecisionUpdate]? {
+  ) throws -> [ProductTournamentReflectDecisionUpdate]? {
     var firstTypeError: Error?
     for key in [preferredKey] + aliases where container.contains(key) {
       do {
         return try container.decodeIfPresent(
-          [ProductizationReflectDecisionUpdate].self,
+          [ProductTournamentReflectDecisionUpdate].self,
           forKey: key
         )
       } catch {
