@@ -1,9 +1,12 @@
 # Compass
 
-Compass is a macOS-native app for running recursive Plan / Develop / Reflect
-loops over a Git repository. It talks to any OpenAI-compatible chat
-completions endpoint (default: MiniMax), drives the loop with its own tool
-dispatcher, and keeps per-repository state in `.compass/` so multiple
+Compass is a macOS-native workspace for running an agentic autonomous product
+tournament over a Git repository. The user starts with a durable pain point;
+Compass turns that pain into competing product contenders, validates them with
+agentic simulated users, and drives the winning direction toward a product plan
+plus an MVP/prototype implementation. Text can run through Apple's on-device
+Foundation Models out of the box or through an OpenAI-compatible HTTP provider,
+and Compass keeps per-repository tournament state in `.compass/` so multiple
 projects can run side by side from one desktop workspace.
 
 Compass requires macOS 26 or newer on Apple Silicon. Its private workspace
@@ -407,29 +410,32 @@ The SwiftPM executable still builds (`swift run Compass`) and is fine for
 non-VM work, but `VZVirtualMachine` APIs will fail without the entitlement,
 so the private workspace is disabled in that mode.
 
-## Configure the agent endpoint
+## Configure the Text provider
 
-Compass talks to an OpenAI-compatible chat completions endpoint using
-[MacPaw/OpenAI](https://github.com/MacPaw/OpenAI). The base URL, API key,
-default model, and per-phase model overrides are configured in **Compass →
-Settings…** (⌘,). The API key is stored in a `0600` file under
-`~/Library/Application Support/Compass/secrets/`; the rest lives in
+Compass's Text capability defaults to Apple's on-device Foundation Models when
+available, so a fresh install does not require an API key. Settings can switch
+Text to an OpenAI-compatible HTTP provider such as MiniMax Token or OpenAI API;
+those network-backed paths use [MacPaw/OpenAI](https://github.com/MacPaw/OpenAI).
+The base URL, API key, default model, and per-phase model overrides are
+configured in **Compass → Settings…** (⌘,). API keys are stored in a `0600`
+file under `~/Library/Application Support/Compass/secrets/`; the rest lives in
 UserDefaults under the app's bundle id and persists across launches.
 
-Environment variables seed empty fields on first launch — useful for
-scripted setup / CI:
+Environment variables seed empty HTTP-provider fields on first launch — useful
+for scripted setup / CI. Providing `COMPASS_AGENT_API_KEY` selects MiniMax Token
+for Text; otherwise Text stays on the Foundation Models default.
 
 | Variable                              | Default                          |
 | ------------------------------------- | -------------------------------- |
 | `COMPASS_AGENT_BASE_URL`              | `https://api.minimax.io/v1`      |
-| `COMPASS_AGENT_API_KEY`               | _(no default, required)_         |
+| `COMPASS_AGENT_API_KEY`               | _(no default; only required for HTTP Text providers)_ |
 | `COMPASS_AGENT_MODEL`                 | `MiniMax-M2.7`                   |
 | `COMPASS_AGENT_MODEL_PLAN`            | _(falls back to default model)_  |
 | `COMPASS_AGENT_MODEL_DEV`             | _(falls back to default model)_  |
 | `COMPASS_AGENT_MODEL_REFLECT`         | _(falls back to default model)_  |
 | `COMPASS_AGENT_MODEL_CRITIC`          | _(falls back to default model; point at a different / stronger model than Develop for independent adversarial review)_ |
 | `COMPASS_AGENT_MODEL_CODEMAP`         | _(falls back to default model; use a cheap small model for the per-file summary fan-out)_ |
-| `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` | `200000` (`0` disables compaction) |
+| `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` | Provider/model default (`0` disables compaction) |
 | `COMPASS_REFLECT_EVERY`               | `5` (Reflect cadence in iterations) |
 
 Each Plan / Develop / Reflect iteration reports its token usage back to
@@ -441,16 +447,15 @@ fresh headroom. Set the variable to `0` to disable auto-compaction (e.g.
 for a model that returns clear 400s on overflow and you want them to
 bubble up).
 
-Any endpoint that implements OpenAI-style streaming chat completions with
-`tools` / `tool_choice` / multi-turn `tool_calls` works. MiniMax-M2.7 is
-the default MiniMax text model, and swapping to a different provider or
-model is a Settings-only change. MiniMax Token's Text settings include a
-version menu for MiniMax 2.7 (200k context) and MiniMax 3 (1M context).
-By default, MiniMax routes Plan through MiniMax 3 and keeps Develop,
-Reflect, Critic, and codemap summaries on the selected base version
-(MiniMax 2.7 by default). The per-phase MiniMax menus can opt any role
-into 2.7 or 3 explicitly; `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` still
-overrides auto-compaction.
+Any HTTP endpoint that implements OpenAI-style streaming chat completions with
+`tools` / `tool_choice` / multi-turn `tool_calls` works. MiniMax-M2.7 is the
+default MiniMax text model, and swapping to a different provider or model is a
+Settings-only change. MiniMax Token's Text settings include a version menu for
+MiniMax 2.7 (200k context) and MiniMax 3 (1M context). By default, MiniMax
+routes Plan through MiniMax 3 and keeps Develop, Reflect, Critic, and codemap
+summaries on the selected base version (MiniMax 2.7 by default). The per-phase
+MiniMax menus can opt any role into 2.7 or 3 explicitly;
+`COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` still overrides auto-compaction.
 
 ## Workflow
 
