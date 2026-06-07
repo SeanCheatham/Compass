@@ -245,7 +245,7 @@ struct PlanTransitionValidatorTests {
       completed: ["done"],
       immediate: nil,
       candidates: "",
-      strategicContext: "Build toward the Explore layer"
+      strategicContext: "Build toward the tournament workbench"
     )
 
     try PlanTransitionValidator.validate(from: current, to: next)
@@ -255,7 +255,7 @@ struct PlanTransitionValidatorTests {
     let current = makeState(
       completed: ["done"],
       candidates: "",
-      strategicContext: "Build toward the Explore layer"
+      strategicContext: "Build toward the tournament workbench"
     )
     let next = makeState(completed: ["done"], immediate: nil, candidates: "", strategicContext: "")
 
@@ -367,16 +367,16 @@ struct PlanSubmitResultValidationTests {
       PlanState(
         completed: ["Prior slice"],
         immediate: nil,
-        candidates: testPlanCandidates("- Build toward the Explore layer"),
-        strategicContext: testStrategicContext("Build toward the Explore layer")
+        candidates: testPlanCandidates("- Build toward the tournament workbench"),
+        strategicContext: testStrategicContext("Build toward the tournament workbench")
       )
     )
 
     let payload = PlanRunResult(
       state: testPlanProposal(
         immediate: nil,
-        candidates: "- Build toward the Explore layer",
-        strategicContext: "Build toward the Explore layer"
+        candidates: "- Build toward the tournament workbench",
+        strategicContext: "Build toward the tournament workbench"
       )
     )
     let args = try JSONEncoder().encode(payload)

@@ -1,13 +1,13 @@
 import Foundation
 
-/// ## Explore Layer: Architecture Graph Visualization
+/// ## Change Inspection: Architecture Graph Visualization
 ///
 /// `CodemapGraphViz` generates a shareable SVG architecture graph from a
 /// `CodemapFileSystem` snapshot, exposing the output via
 /// ``ArchitectureGraph/exportSVG(from:)``.
 ///
-/// ``CodemapGraphViz`` is a thin wrapper that bridges the Explore layer's
-/// file-system scanner and the import-graph renderer. It is used by
+/// ``CodemapGraphViz`` is a thin wrapper that bridges codemap storage and the
+/// import-graph renderer. It is used by
 /// ``ArchitectureGraphPopover`` when the user requests a downloadable SVG
 /// artifact of the codebase's import graph.
 ///

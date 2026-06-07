@@ -5,7 +5,7 @@ import Testing
 @testable import Compass
 
 /// Tests verifying `RepoQnA.answer()` guard behaviors that mirror the three
-/// guard-path scenarios from `QnAPopover.submitQuestion()` (ContentViewPlanTab.swift:1413).
+/// guard-path scenarios from `QnAPopover.submitQuestion()` in Plan history.
 ///
 /// Due to the Swift 6.3.2 toolchain limitation (`swift build --target CompassTests`
 /// fails due to a linker error in SwiftTestingMacros), SwiftUI view instantiation

@@ -543,14 +543,15 @@ Everything lives in `.compass/` inside each selected repository:
 └── COMPASS.md        # User-owned project vision.
 ```
 
-## Explore
+## Change Inspection
 
-Explore is an AI-powered layer that helps users understand software produced
-by Compass. Rather than leaving generated code opaque, it surfaces meaning —
-what changed, why, and how the pieces fit together — using Apple's on-device
-Foundation Models so explanations stay local and fast.
+Compass keeps a small change-inspection layer so tournament operators can audit
+what an agent built, why files exist, and how implementation commits fit
+together. These helpers are used from Plan history and related proof surfaces;
+they are support tools for the product tournament loop, not a standalone product
+mode.
 
-Explore has eight main components (some with both a model and a view layer):
+Change inspection has eight main components:
 
 - **`CodemapFileSystem`** (`Sources/Compass/Explore/CodemapFileSystem.swift`) —
   File-system scanner that walks the repository tree and produces a
@@ -560,10 +561,10 @@ Explore has eight main components (some with both a model and a view layer):
   Available on all macOS versions. Entry point: ``CodemapFileSystem(rootURL:).buildSourceTree()``.
 
 - **`CodemapGraphViz`** (`Sources/Compass/Explore/CodemapGraphViz.swift`) —
-  Exports the import graph as an SVG for rendering in the Explore tab.
-  Provides ``CodemapGraphVizExport`` which walks all indexed source files,
-  resolves import declarations, and produces a styled graph.  Entry point:
-  ``CodemapGraphVizExport.export(codemap:)``.
+  Exports the import graph as an SVG for rendering in Plan history popovers.
+  Wraps ``ArchitectureGraph/exportSVG(from:)`` and writes
+  `codemap-overview.svg` at the repository root. Entry point:
+  ``CodemapGraphViz.writeOverviewSVG()``.
 
 - **`CommitExplainer`** (`Sources/Compass/Explore/CommitExplainer.swift`) —
   Takes a git diff and produces a plain-English summary in roughly three
@@ -623,14 +624,14 @@ Explore has eight main components (some with both a model and a view layer):
 
 | Component | File | Description |
 | --- | --- | --- |
-| ``CodemapFileSystem`` | `Sources/Compass/Explore/CodemapFileSystem.swift` | File-system scanner; entry point for the Explore tab's tree builder |
+| ``CodemapFileSystem`` | `Sources/Compass/Explore/CodemapFileSystem.swift` | File-system scanner; entry point for the repository snapshot tree builder |
 | ``CodemapGraphViz`` | `Sources/Compass/Explore/CodemapGraphViz.swift` | SVG export of the import graph; used by ``ArchitectureGraphPopover`` |
 | ``CommitExplainer`` | `Sources/Compass/Explore/CommitExplainer.swift` | Summarises a single diff in plain English; also serves ``WhyGeneratedPopover`` |
 | ``CommitTourGenerator`` | `Sources/Compass/Explore/CommitTourGenerator.swift` | Synthesises a multi-commit diff into a 3–5 sentence guided-tour narrative |
 | ``ExploreRepositorySnapshot`` | `Sources/Compass/Explore/ExploreRepositorySnapshot.swift` | Immutable snapshot of file tree + indexed codemap entries |
 | ``FileExplainer`` | `Sources/Compass/Explore/FileExplainer.swift` | Categorises changed files and produces per-file diff summaries |
-| ``ArchitectureGraphPopover`` | `Sources/Compass/Views/ContentViewPlanTab.swift` | SwiftUI popover for the Explore tab; renders the SVG from ``CodemapGraphViz`` |
-| ``WhyGeneratedPopover`` | `Sources/Compass/Views/ContentViewPlanTab.swift` | SwiftUI popover for the Explore tab; shows the "why this file exists" explanation |
+| ``ArchitectureGraphPopover`` | `Sources/Compass/Views/Plan/PlanExplore.swift` | SwiftUI popover for Plan history; renders the SVG from ``CodemapGraphViz`` |
+| ``WhyGeneratedPopover`` | `Sources/Compass/Views/Plan/PlanExplore.swift` | SwiftUI popover for Plan history; shows the "why this file exists" explanation |
 | ``RepoQnA`` | `Sources/Compass/Explore/RepoQnA.swift` | Free-text Q&A about repository changes using on-device Foundation Models |
 
 ## Development

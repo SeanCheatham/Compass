@@ -3,9 +3,10 @@ import Foundation
 #if canImport(FoundationModels)
   import FoundationModels
 
-  /// Serializes lightweight `LanguageModelSession` use (draft preview, Explore,
-  /// live summaries). The on-device stack misbehaves when multiple sessions
-  /// run concurrently; the agent runtime owns its own long-lived session.
+  /// Serializes lightweight `LanguageModelSession` use (draft preview, change
+  /// inspection, live summaries). The on-device stack misbehaves when multiple
+  /// sessions run concurrently; the agent runtime owns its own long-lived
+  /// session.
   @available(macOS 26.0, *)
   actor FoundationModelsSessionGate {
     static let shared = FoundationModelsSessionGate()
@@ -19,7 +20,7 @@ import Foundation
 #endif
 
 /// Unified availability guard and streaming entry point for Apple's on-device
-/// Foundation Models in the Explore layer.
+/// Foundation Models in change-inspection helpers and the agent runtime.
 ///
 /// ## Availability check (`isAvailable`)
 ///
@@ -32,8 +33,8 @@ import Foundation
 ///
 /// ## Streaming entry point (`_streamText(prompt:)`)
 ///
-/// `_streamText(prompt:)` is the single streaming entry point used by all four Explore
-/// components:
+/// `_streamText(prompt:)` is the single streaming entry point used by the
+/// lightweight local-model components:
 /// - ``CommitExplainer`` — explains individual commits
 /// - ``CommitTourGenerator`` — generates guided repository tours
 /// - ``RepoQnA`` — answers questions grounded in repository state
