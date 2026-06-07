@@ -967,7 +967,28 @@ extension CompassProject {
       verifyIssues.append("[verify] Develop reported failure: \(summary.feedback)")
     }
 
-    if summary.bypassVerify == true {
+    let autoRepair = VerifyBypassAutoRepair.repair(
+      plannedCommand: next.verify,
+      developSummary: summary,
+      forgeProfile: forgeProfile
+    )
+    if summary.bypassVerify == true, let autoRepair {
+      log(
+        "Post-check: auto-repairing verify bypass with `\(autoRepair.command)`.",
+        level: .warning
+      )
+      appendSessionNote(
+        """
+        [verify] Auto-repaired Develop verify bypass (\(autoRepair.reason.rawValue)).
+        Planned verify command: `\(next.verify)`
+        Repaired verify command: `\(autoRepair.command)`
+        \(autoRepair.note)
+        """,
+        to: sessionIndex
+      )
+    }
+
+    if summary.bypassVerify == true, autoRepair == nil {
       requiresPlanRepair = true
       let issue = """
         [verify] Verify was skipped because Develop reported the planned command is wrong or out of scope.
@@ -981,6 +1002,7 @@ extension CompassProject {
         level: .warning
       )
     } else {
+      let verifyCommand = autoRepair?.command ?? next.verify
       phase = .verifying
       let timeoutMs = verifyTimeoutMs(for: next)
       logExecutionEnvironmentPreflight(
@@ -991,7 +1013,7 @@ extension CompassProject {
         attempt: attempt
       )
       log(
-        "Post-check: running verify command `\(next.verify)` (timeout \(timeoutMs)ms).",
+        "Post-check: running verify command `\(verifyCommand)` (timeout \(timeoutMs)ms).",
         level: .info)
       feedback(.verifyStarted)
       // Verify runs in the same workspace the agent just operated
@@ -1005,7 +1027,7 @@ extension CompassProject {
       // guaranteed to be the same as what we tested against.
       let verifyStartedAt = Date()
       let verify = try await runVerifyCommand(
-        command: next.verify,
+        command: verifyCommand,
         hostWorkingDirectory: workingDirectory,
         timeoutSeconds: TimeInterval(timeoutMs) / 1000,
         launchPlan: launchPlan,
@@ -1013,7 +1035,7 @@ extension CompassProject {
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
       recordVerifyAuditOutput(
-        command: next.verify,
+        command: verifyCommand,
         result: verify,
         sessionIndex: sessionIndex,
         attempt: attempt,
@@ -1034,17 +1056,29 @@ extension CompassProject {
       } else {
         let verifyTail = tail(verify.stdout + verify.stderr, max: 4000)
         let output = VerifyOutput(
-          command: next.verify,
+          command: verifyCommand,
           exitCode: Int(verify.exitCode),
           tail: verifyTail
         )
         let message = """
-          [verify] Verify command `\(next.verify)` exited with code \(output.exitCode ?? -1). Output (tail):
+          [verify] Verify command `\(verifyCommand)` exited with code \(output.exitCode ?? -1). Output (tail):
           ```
           \(output.tail)
           ```
           """
         verifyIssues.append(message)
+        if let autoRepair {
+          requiresPlanRepair = true
+          verifyIssues.append(
+            """
+            [verify] Auto-repaired verify command failed after Develop requested bypassVerify=true.
+            Planned verify command: `\(next.verify)`
+            Repaired verify command: `\(autoRepair.command)`
+            Develop handoff: \(summary.feedback)
+            Plan should now replace the verify command or rescope Immediate Work.
+            """
+          )
+        }
         verifyOutput = output
         log("Verify failed (exit \(verify.exitCode)).", level: .error)
       }
