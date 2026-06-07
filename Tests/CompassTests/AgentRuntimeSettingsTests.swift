@@ -4,6 +4,14 @@ import Testing
 @testable import Compass
 
 struct AgentRuntimeSettingsTests {
+  @Test func testSyntheticDefaultsMatchFoundationModelsTextProvider() throws {
+    let settings = AgentRuntimeSettings()
+    try #require(settings.textProvider == .appleFoundationModels)
+    try #require(
+      settings.contextWindowTokens
+        == AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
+  }
+
   @Test func testDefaultsFromEmptyEnvironmentSelectFoundationModels() throws {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([:])
     try #require(settings.textProvider == .appleFoundationModels)

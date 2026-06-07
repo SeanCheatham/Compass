@@ -49,20 +49,20 @@ typealias MediaAssignment = CapabilityAssignment
 struct AgentRuntimeSettings: Equatable, Sendable {
   /// Generic fallback context window used by the synthetic init
   /// default (tests and ad-hoc constructions that don't go through
-  /// `AgentSettingsStore.load()`). Real runs resolve the value from
-  /// the selected Text provider and model (see `AgentProviderKind`), so
-  /// each provider/model's actual ceiling — 4096 for Foundation
-  /// Models, 200k or 1M for MiniMax, 128k for OpenAI — drives
-  /// auto-compaction.
+  /// `AgentSettingsStore.load()`). It matches the out-of-box Text
+  /// provider; real runs resolve the value from the selected Text
+  /// provider and model (see `AgentProviderKind`), so each
+  /// provider/model's actual ceiling — 4096 for Foundation Models,
+  /// 200k or 1M for MiniMax, 128k for OpenAI — drives auto-compaction.
   /// `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` overrides whichever value
   /// the resolver picked; `0` disables auto-compaction entirely.
-  static let defaultContextWindowTokens =
-    AgentProviderKind.minimaxToken.defaultTextContextWindowTokens
-
   /// Out-of-the-box text provider. Foundation Models runs on-device
   /// with no credentials and is available on every Apple Silicon Mac
   /// that meets Compass's deployment target.
   static let defaultTextProvider: AgentProviderKind = .appleFoundationModels
+
+  static let defaultContextWindowTokens =
+    defaultTextProvider.defaultTextContextWindowTokens
 
   static var defaultBaseURLString: String {
     AgentProviderKind.minimaxToken.defaultBaseURLString ?? ""
