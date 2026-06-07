@@ -173,27 +173,6 @@ struct CompassApp: App {
         }
         .disabled(selectedProjectVisionPayload == nil)
 
-        Button("Copy Assumption Memory") {
-          if let payload = selectedAssumptionMemoryPayload {
-            copyTextToPasteboard(payload.text)
-          }
-        }
-        .disabled(selectedAssumptionMemoryPayload == nil)
-
-        Button("Copy Draft Queue") {
-          if let payload = selectedDraftQueuePayload {
-            copyTextToPasteboard(payload.text)
-          }
-        }
-        .disabled(selectedDraftQueuePayload == nil)
-
-        Button("Copy Project Lessons") {
-          if let payload = selectedProjectLessonsPayload {
-            copyTextToPasteboard(payload.text)
-          }
-        }
-        .disabled(selectedProjectLessonsPayload == nil)
-
         Button(PauseMode.afterIteration.label) {
           model.selectedProject?.requestPause(.afterIteration)
         }
@@ -273,14 +252,6 @@ struct CompassApp: App {
     )
   }
 
-  private var selectedAssumptionMemoryPayload: AssumptionReviewClipboardPayload? {
-    guard isOnboardingComplete, let project = model.selectedProject else { return nil }
-    let ledger = AssumptionLedger(assumptions: project.assumptions)
-    let guide = AssumptionReviewGuide(ledger: ledger)
-    let payload = AssumptionReviewClipboardPayload(ledger: ledger, guide: guide)
-    return payload.isEmpty ? nil : payload
-  }
-
   private var selectedProjectRecoveryPayload: ProjectRecoveryClipboardPayload? {
     guard isOnboardingComplete, let project = model.selectedProject else { return nil }
     let status = project.reliabilityStatus
@@ -293,20 +264,6 @@ struct CompassApp: App {
     guard isOnboardingComplete, let project = model.selectedProject else { return nil }
     let guide = ProjectVisionGuide(vision: project.vision)
     let payload = ProjectVisionClipboardPayload(guide: guide)
-    return payload.isEmpty ? nil : payload
-  }
-
-  private var selectedDraftQueuePayload: DraftIntakeClipboardPayload? {
-    guard isOnboardingComplete, let project = model.selectedProject else { return nil }
-    let guide = DraftIntakeGuide(drafts: project.drafts)
-    let payload = DraftIntakeClipboardPayload(guide: guide)
-    return payload.isEmpty ? nil : payload
-  }
-
-  private var selectedProjectLessonsPayload: ProjectLessonsClipboardPayload? {
-    guard isOnboardingComplete, let project = model.selectedProject else { return nil }
-    let guide = ProjectLessonsGuide(lessons: project.lessons)
-    let payload = ProjectLessonsClipboardPayload(guide: guide)
     return payload.isEmpty ? nil : payload
   }
 

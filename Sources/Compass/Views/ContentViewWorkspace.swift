@@ -19,7 +19,7 @@ struct NoProjectView: View {
 
 struct MainWorkspaceView: View {
   @ObservedObject var project: CompassProject
-  @State private var selectedTab: WorkspaceTab = .live
+  @State private var selectedTab: WorkspaceTab = .activity
 
   var body: some View {
     VStack(spacing: 0) {
@@ -1061,18 +1061,10 @@ struct WorkspaceContent: View {
   var body: some View {
     ZStack(alignment: .topLeading) {
       switch selectedTab {
-      case .live:
-        LiveTab(project: project)
-      case .plan:
-        PlanTab(project: project)
-      case .drafts:
-        DraftsTab(project: project)
-      case .assumptions:
-        AssumptionsTab(project: project)
       case .vision:
         VisionTab(project: project)
-      case .lessons:
-        LessonsTab(project: project)
+      case .activity:
+        ActivityTab(project: project)
       case .productTournament:
         ProductTournamentWorkbenchTab(project: project)
       }
@@ -1081,44 +1073,30 @@ struct WorkspaceContent: View {
 }
 
 enum WorkspaceTab: String, CaseIterable, Identifiable {
-  case live
-  case plan
-  case drafts
-  case assumptions
   case vision
-  case lessons
+  case activity
   case productTournament
 
   var id: Self { self }
 
   var title: String {
     switch self {
-    case .live: return "Live"
-    case .plan: return "Plan"
-    case .drafts: return "Drafts"
-    case .assumptions: return "Assumptions"
     case .vision: return "Vision"
-    case .lessons: return "Lessons"
+    case .activity: return "Activity"
     case .productTournament: return "Tournament"
     }
   }
 
   var systemImage: String {
     switch self {
-    case .live: return "waveform.path.ecg"
-    case .plan: return "map"
-    case .drafts: return "square.and.pencil"
-    case .assumptions: return "checklist.checked"
     case .vision: return "scope"
-    case .lessons: return "book.closed"
+    case .activity: return "waveform.path.ecg"
     case .productTournament: return "trophy"
     }
   }
 
   var minWidth: CGFloat {
     switch self {
-    case .assumptions:
-      return 116
     case .productTournament:
       return 98
     default:
