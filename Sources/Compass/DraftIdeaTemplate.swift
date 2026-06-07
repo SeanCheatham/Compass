@@ -29,12 +29,12 @@ enum DraftIdeaLibrary {
 
   private static let feedbackIdea = DraftIdeaTemplate(
     id: "plain-feedback",
-    title: "Plain Feedback",
+    title: "Validation Signal",
     systemImage: "text.bubble",
     text: """
-      Change: surface progress and failures in plain language
-      Because: users need confidence while Compass works in the background
-      Done when: the UI shows what happened, what is blocked, and what to try next
+      Change: collect clearer simulated-user validation signals for the active contender
+      Because: tournament decisions should explain pain recognition, switching objections, and willingness to pay
+      Done when: the Workbench shows the next proof target and the latest evidence summary for that contender
       """
   )
 
@@ -87,12 +87,12 @@ enum DraftIdeaLibrary {
     case .other, .unknown:
       return DraftIdeaTemplate(
         id: "project-tour",
-        title: "Project Tour",
-        systemImage: "map",
+        title: "Pain Discovery",
+        systemImage: "scope",
         text: """
-          Change: make the project easier for a new user to inspect
-          Because: users need a quick way to understand what matters before requesting work
-          Done when: Compass shows the important areas and a clear next action
+          Change: clarify the pain, current workflow, and alternatives before building
+          Because: contenders should compete on a real user problem instead of a vague feature idea
+          Done when: Project Vision shows the affected user, current workaround, success signal, and guardrails
           """
       )
     }

@@ -16,7 +16,7 @@ struct SidebarView: View {
             model.selectSandbox()
           }
         }
-        Text("Agent-powered macOS workspace")
+        Text("Product tournament workspace")
           .font(.callout)
           .foregroundStyle(.secondary)
       }

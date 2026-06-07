@@ -25,10 +25,17 @@ struct ProjectIntakeGuideTests {
     try #require(guide.steps[1].detail.contains("current alternatives"))
     try #require(guide.steps[1].detail.contains("guardrails"))
     try #require(guide.steps[1].detail.contains("Project Vision"))
+    try #require(guide.steps[2].title == "Seed the tournament")
+    try #require(guide.steps[2].detail.contains("contender ideas"))
+    try #require(guide.steps[2].detail.contains("validation questions"))
     try #require(guide.signals.map(\.id) == [
       "git", "verification", "project-vision", "plain-language-goal",
     ])
     try #require(guide.signals.contains { $0.id == "project-vision" && $0.label == "Pain context" })
+    try #require(
+      guide.signals.contains {
+        $0.id == "plain-language-goal" && $0.label == "Pain or validation note"
+      })
     try #require(guide.allowsNarration)
     try #require(guide.narrationIdentifier.contains("count:0"))
     try #require(guide.narrationIdentifier.contains("Add Your First Project"))
@@ -67,7 +74,9 @@ struct ProjectIntakeGuideTests {
     try #require(payload.text.contains("Status: No projects yet"))
     try #require(payload.text.contains("- Choose a Git folder:"))
     try #require(payload.text.contains("- Describe the pain:"))
+    try #require(payload.text.contains("- Seed the tournament:"))
     try #require(payload.text.contains("Pain context:"))
+    try #require(payload.text.contains("contender ideas or validation questions"))
     try #require(payload.text.contains("Good project signals:"))
     try #require(payload.text.count <= ProjectIntakeGuide.handoffLimit)
   }

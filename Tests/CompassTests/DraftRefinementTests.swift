@@ -114,6 +114,7 @@ struct DraftRefinementTests {
       ])
     try #require(ideas[0].title == "Rust Desktop")
     try #require(ideas[1].systemImage == "text.bubble")
+    try #require(ideas[1].title == "Validation Signal")
     try #require(ideas[2].text.contains("legacy Swift"))
   }
 

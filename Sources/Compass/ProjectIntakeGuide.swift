@@ -64,10 +64,10 @@ struct ProjectIntakeGuide: Equatable, Sendable {
         ),
         Step(
           id: "write-first-draft",
-          title: "Write a first draft",
+          title: "Seed the tournament",
           detail:
-            "Use Drafts for plain-language requests like \"make onboarding clearer\" or \"add a weekly export\".",
-          systemImage: "text.bubble",
+            "Use Drafts for plain-language pain notes, contender ideas, or validation questions Compass should turn into tournament state.",
+          systemImage: "trophy",
           isPrimary: false
         ),
         Step(
@@ -160,9 +160,9 @@ struct ProjectIntakeGuide: Equatable, Sendable {
       ),
       Signal(
         id: "plain-language-goal",
-        label: "Plain-language goal",
+        label: "Pain or validation note",
         detail:
-          "The user does not need a technical spec; Compass can refine rough requests into better drafts.",
+          "The user does not need a technical spec; Compass can refine rough pain, contender, and validation notes into tournament-ready drafts.",
         systemImage: "quote.bubble"
       ),
     ]
@@ -200,7 +200,7 @@ struct ProjectIntakeClipboardPayload: Equatable, Sendable {
       "Recipient instructions:",
       "- Help the user add or select a real Git repository. Do not invent a repo path.",
       "- Keep guidance plain-language and product-focused; the user may not know build tooling.",
-      "- After a project is selected, capture the user pain, current workflow, alternatives, success signals, and guardrails in Project Vision; use Drafts for goals, and let Compass discover, plan, develop, and verify.",
+      "- After a project is selected, capture the user pain, current workflow, alternatives, success signals, and guardrails in Project Vision; use Drafts for contender ideas or validation questions, and let Compass discover, plan, develop, and verify.",
       "",
       "Status: \(guide.statusLabel)",
       "Recommended action: \(guide.actionLabel)",
