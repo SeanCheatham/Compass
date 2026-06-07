@@ -605,6 +605,7 @@ struct ProductTournamentWorkbenchTab: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       header
+      PlanRunContextSection(project: project)
       if config.isEmpty {
         ContentUnavailableView(
           "No Product Tournament State",

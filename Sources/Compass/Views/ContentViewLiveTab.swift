@@ -1,8 +1,14 @@
 import AppKit
 import SwiftUI
 
+enum LiveTabLayout: Equatable {
+  case standalone
+  case embedded(feedHeight: CGFloat = 320)
+}
+
 struct LiveTab: View {
   @ObservedObject var project: CompassProject
+  var layout: LiveTabLayout = .standalone
   @State private var liveTimelineGuideNarration: LiveTimelineGuideNarration?
   @State private var recoveryGuideNarration: ProjectRecoveryGuideNarration?
   @State private var liveActivitySummaryCache: [String: LiveActivitySummary] = [:]
@@ -77,6 +83,7 @@ struct LiveTab: View {
           .padding(10)
         }
         .background(.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .applyLiveFeedFrame(layout: layout)
         .onChange(of: project.liveLog.count) {
           scrollToLiveEnd(proxy, liveActivityPlan: liveActivityPlan)
         }
@@ -96,9 +103,9 @@ struct LiveTab: View {
           refreshLiveActivitySummaries(for: liveActivityPlan.frozenClusters)
         }
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .applyLiveTabOuterFrame(layout: layout)
     .task(id: timelineGuide.narrationIdentifier) {
       liveTimelineGuideNarration = nil
       guard !project.isRunning, !project.isAutoPlaying else { return }
@@ -1094,5 +1101,28 @@ struct CopyLiveFailureButton: View {
     .controlSize(.small)
     .disabled(payload.isEmpty)
     .help(ClipboardHelpText.liveFailure)
+  }
+}
+
+private extension View {
+  @ViewBuilder
+  func applyLiveFeedFrame(layout: LiveTabLayout) -> some View {
+    switch layout {
+    case .standalone:
+      frame(maxWidth: .infinity, maxHeight: .infinity)
+    case .embedded(let feedHeight):
+      frame(maxWidth: .infinity)
+        .frame(height: feedHeight)
+    }
+  }
+
+  @ViewBuilder
+  func applyLiveTabOuterFrame(layout: LiveTabLayout) -> some View {
+    switch layout {
+    case .standalone:
+      frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    case .embedded:
+      self
+    }
   }
 }

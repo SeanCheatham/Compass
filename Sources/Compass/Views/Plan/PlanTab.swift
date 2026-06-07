@@ -1,22 +1,15 @@
 import SwiftUI
 
-struct PlanTab: View {
+struct PlanRunContextSection: View {
   @ObservedObject var project: CompassProject
   @State private var selectedItemID = PlanTimelineItem.immediateID
-  @State private var showAllSessionHistory = false
-  @State private var sessionHistoryFilter = PlanSessionHistoryFilter.all
   @State private var tournamentBriefNarration: PlanTournamentBriefNarration?
 
   var body: some View {
     let items = PlanTimelineItem.items(for: project.state)
     let executionEnvironment = project.agentExecutionEnvironment
     let launchPlan = executionEnvironment.launchPlan(repoURL: project.repoURL)
-    let overview = PlanWorkflowOverview(
-      state: project.state,
-      languageProfile: project.languageProfile,
-      launchPlan: launchPlan
-    )
-    let historySessions = showAllSessionHistory ? project.allSessions : project.sessions
+    let historySessions = project.sessions
     let sessionHistory = PlanSessionHistory.displayItems(
       for: historySessions,
       auditManifests: auditManifests(for: historySessions)
@@ -33,71 +26,27 @@ struct PlanTab: View {
       languageProfile: project.languageProfile,
       forgeProfile: project.forgeProfile
     )
-    let sessionHistoryDisplay = PlanSessionHistoryDisplay(
-      items: sessionHistory,
-      mode: showAllSessionHistory ? .all : .recent,
-      filter: sessionHistoryFilter,
-      runCues: reliabilityFeedback.recentRunCues
-    )
 
-    ScrollView {
-      VStack(alignment: .leading, spacing: 18) {
-        PlanTimelineHeader(
-          items: items,
-          selectedItemID: $selectedItemID,
-          completedCount: project.state.completed.count
-        )
+    VStack(alignment: .leading, spacing: 18) {
+      PlanTournamentBriefView(
+        brief: tournamentBrief,
+        narration: matchingNarration(for: tournamentBrief)
+      )
 
-        PlanTournamentBriefView(
-          brief: tournamentBrief,
-          narration: matchingNarration(for: tournamentBrief)
-        )
+      PlanTimelineHeader(
+        items: items,
+        selectedItemID: $selectedItemID,
+        completedCount: project.state.completed.count
+      )
 
-        PlanWorkflowOverviewView(
-          overview: overview,
-          selectedKind: PlanWorkflowOverview.Kind(timelineItemID: selectedItemID)
-        ) { kind in
-          let destinationID = kind.timelineItemID
-          guard items.contains(where: { $0.id == destinationID }) else {
-            return
-          }
-
-          withAnimation(.easeInOut(duration: 0.2)) {
-            selectedItemID = destinationID
-          }
-        }
-
-        PlanReliabilityFeedbackView(feedback: reliabilityFeedback)
-
-        PlanFocusPanel(
-          item: selectedItem(in: items),
-          languageProfile: project.languageProfile,
-          forgeProfile: project.forgeProfile
-        )
-
-        PlanSessionHistorySection(
-          display: sessionHistoryDisplay,
-          showAllRuns: $showAllSessionHistory,
-          selectedFilter: $sessionHistoryFilter,
-          runCues: reliabilityFeedback.recentRunCues,
-          repoURL: project.repoURL,
-          hasOlderArchivedSessions: project.hasOlderArchivedSessions,
-          isLoadingArchivedSessions: project.isLoadingArchivedSessions,
-          onLoadArchivedSessions: {
-            await project.loadArchivedSessionsIfNeeded()
-          }
-        )
-      }
-      .frame(maxWidth: 1060, alignment: .leading)
+      PlanFocusPanel(
+        item: selectedItem(in: items),
+        languageProfile: project.languageProfile,
+        forgeProfile: project.forgeProfile
+      )
     }
     .onAppear {
       normalizeSelection(for: items)
-    }
-    .onChange(of: showAllSessionHistory) { _, showAll in
-      guard showAll else { return }
-      Task {
-        await project.loadArchivedSessionsIfNeeded()
-      }
     }
     .onChange(of: project.state) {
       normalizeSelection(for: PlanTimelineItem.items(for: project.state))
@@ -132,5 +81,74 @@ struct PlanTab: View {
       return nil
     }
     return tournamentBriefNarration
+  }
+}
+
+struct PlanTab: View {
+  @ObservedObject var project: CompassProject
+  @State private var showAllSessionHistory = false
+  @State private var sessionHistoryFilter = PlanSessionHistoryFilter.all
+
+  var body: some View {
+    let historySessions = showAllSessionHistory ? project.allSessions : project.sessions
+    let sessionHistory = PlanSessionHistory.displayItems(
+      for: historySessions,
+      auditManifests: auditManifests(for: historySessions)
+    )
+    let reliabilityFeedback = PlanReliabilityFeedback(
+      state: project.state,
+      sessions: historySessions,
+      historyItems: sessionHistory
+    )
+    let sessionHistoryDisplay = PlanSessionHistoryDisplay(
+      items: sessionHistory,
+      mode: showAllSessionHistory ? .all : .recent,
+      filter: sessionHistoryFilter,
+      runCues: reliabilityFeedback.recentRunCues
+    )
+
+    ScrollView {
+      VStack(alignment: .leading, spacing: 18) {
+        PlanRunContextSection(project: project)
+
+        PlanWorkflowOverviewView(
+          overview: PlanWorkflowOverview(
+            state: project.state,
+            languageProfile: project.languageProfile,
+            launchPlan: project.agentExecutionEnvironment.launchPlan(repoURL: project.repoURL)
+          ),
+          selectedKind: .immediate
+        ) { _ in }
+
+        PlanReliabilityFeedbackView(feedback: reliabilityFeedback)
+
+        PlanSessionHistorySection(
+          display: sessionHistoryDisplay,
+          showAllRuns: $showAllSessionHistory,
+          selectedFilter: $sessionHistoryFilter,
+          runCues: reliabilityFeedback.recentRunCues,
+          repoURL: project.repoURL,
+          hasOlderArchivedSessions: project.hasOlderArchivedSessions,
+          isLoadingArchivedSessions: project.isLoadingArchivedSessions,
+          onLoadArchivedSessions: {
+            await project.loadArchivedSessionsIfNeeded()
+          }
+        )
+      }
+      .frame(maxWidth: 1060, alignment: .leading)
+    }
+    .onChange(of: showAllSessionHistory) { _, showAll in
+      guard showAll else { return }
+      Task {
+        await project.loadArchivedSessionsIfNeeded()
+      }
+    }
+  }
+
+  private func auditManifests(for sessions: [SessionRecord]) -> [Int: SessionAuditManifest] {
+    guard let workspace = project.workspace else { return [:] }
+    return sessions.reduce(into: [Int: SessionAuditManifest]()) { result, session in
+      result[session.session] = workspace.readSessionAuditManifest(session: session.session)
+    }
   }
 }

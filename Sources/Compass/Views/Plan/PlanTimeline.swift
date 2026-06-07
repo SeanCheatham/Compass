@@ -9,8 +9,8 @@ struct PlanTimelineHeader: View {
     VStack(alignment: .leading, spacing: 14) {
       HStack(alignment: .firstTextBaseline) {
         VStack(alignment: .leading, spacing: 3) {
-          SectionHeader("Plan", systemImage: "map")
-          Text("Completed work fades into the rail; upcoming intent stays prominent.")
+          SectionHeader("Immediate Work", systemImage: "map")
+          Text("Completed work fades into the rail; upcoming tournament intent stays prominent.")
             .font(.callout)
             .foregroundStyle(.secondary)
         }

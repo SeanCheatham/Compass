@@ -2,32 +2,71 @@ import SwiftUI
 
 struct ActivityTab: View {
   @ObservedObject var project: CompassProject
-  @State private var section: Section = .now
-
-  enum Section: String, CaseIterable, Identifiable {
-    case now = "Now"
-    case overview = "Overview"
-
-    var id: Self { self }
-  }
+  @State private var showAllSessionHistory = false
+  @State private var sessionHistoryFilter = PlanSessionHistoryFilter.all
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Picker("Activity section", selection: $section) {
-        ForEach(Section.allCases) { section in
-          Text(section.rawValue).tag(section)
-        }
-      }
-      .pickerStyle(.segmented)
-      .frame(maxWidth: 280, alignment: .leading)
+    let historySessions = showAllSessionHistory ? project.allSessions : project.sessions
+    let sessionHistory = PlanSessionHistory.displayItems(
+      for: historySessions,
+      auditManifests: auditManifests(for: historySessions)
+    )
+    let reliabilityFeedback = PlanReliabilityFeedback(
+      state: project.state,
+      sessions: historySessions,
+      historyItems: sessionHistory
+    )
+    let sessionHistoryDisplay = PlanSessionHistoryDisplay(
+      items: sessionHistory,
+      mode: showAllSessionHistory ? .all : .recent,
+      filter: sessionHistoryFilter,
+      runCues: reliabilityFeedback.recentRunCues
+    )
 
-      switch section {
-      case .now:
-        LiveTab(project: project)
-      case .overview:
-        PlanTab(project: project)
+    ScrollView {
+      VStack(alignment: .leading, spacing: 18) {
+        LiveTab(
+          project: project,
+          layout: .embedded(feedHeight: liveFeedHeight)
+        )
+
+        PlanReliabilityFeedbackView(feedback: reliabilityFeedback)
+
+        PlanSessionHistorySection(
+          display: sessionHistoryDisplay,
+          showAllRuns: $showAllSessionHistory,
+          selectedFilter: $sessionHistoryFilter,
+          runCues: reliabilityFeedback.recentRunCues,
+          repoURL: project.repoURL,
+          hasOlderArchivedSessions: project.hasOlderArchivedSessions,
+          isLoadingArchivedSessions: project.isLoadingArchivedSessions,
+          onLoadArchivedSessions: {
+            await project.loadArchivedSessionsIfNeeded()
+          }
+        )
+      }
+      .frame(maxWidth: 1060, alignment: .leading)
+      .padding(.bottom, 8)
+    }
+    .onChange(of: showAllSessionHistory) { _, showAll in
+      guard showAll else { return }
+      Task {
+        await project.loadArchivedSessionsIfNeeded()
       }
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+
+  private var liveFeedHeight: CGFloat {
+    if project.isRunning || project.isAutoPlaying {
+      return 360
+    }
+    return project.liveLog.isEmpty ? 220 : 300
+  }
+
+  private func auditManifests(for sessions: [SessionRecord]) -> [Int: SessionAuditManifest] {
+    guard let workspace = project.workspace else { return [:] }
+    return sessions.reduce(into: [Int: SessionAuditManifest]()) { result, session in
+      result[session.session] = workspace.readSessionAuditManifest(session: session.session)
+    }
   }
 }

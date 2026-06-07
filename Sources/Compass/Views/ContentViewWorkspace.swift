@@ -19,7 +19,7 @@ struct NoProjectView: View {
 
 struct MainWorkspaceView: View {
   @ObservedObject var project: CompassProject
-  @State private var selectedTab: WorkspaceTab = .activity
+  @State private var selectedTab: WorkspaceTab = .productTournament
 
   var body: some View {
     VStack(spacing: 0) {
@@ -1073,9 +1073,9 @@ struct WorkspaceContent: View {
 }
 
 enum WorkspaceTab: String, CaseIterable, Identifiable {
-  case vision
-  case activity
   case productTournament
+  case activity
+  case vision
 
   var id: Self { self }
 
