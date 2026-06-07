@@ -19,7 +19,6 @@ enum ClipboardHelpText {
   static let tournamentBrief = "Copy a concise Product Tournament brief."
   static let immediateWork = "Copy a concise Immediate Work note."
   static let planRepair = "Copy a focused Plan repair note."
-  static let worldAtlas = "Copy a concise World Atlas note."
 
   static let allUserFacing: [String] = [
     setup,
@@ -41,6 +40,5 @@ enum ClipboardHelpText {
     tournamentBrief,
     immediateWork,
     planRepair,
-    worldAtlas,
   ]
 }

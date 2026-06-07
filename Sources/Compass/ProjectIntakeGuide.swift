@@ -83,7 +83,7 @@ struct ProjectIntakeGuide: Equatable, Sendable {
       title = "Choose a Project"
       statusLabel = projectCount == 1 ? "1 project available" : "\(projectCount) projects available"
       detail =
-        "Select a repository in the sidebar to open its live run controls, drafts, world map, and verification history."
+        "Select a repository in the sidebar to open its tournament workbench, live run controls, drafts, and verification history."
       actionLabel = "Add Missing Repo"
       systemImageName = "sidebar.left"
       steps = [

@@ -60,9 +60,9 @@ final class LanguageRegistry: @unchecked Sendable {
     var callTypes: Set<String>
   }
 
-  /// Tree-sitter node names used by the World tab's static runtime-path
-  /// extractor. Kept beside the grammar registry so adding a language has one
-  /// obvious place to define both symbol indexing and control-flow scanning.
+  /// Tree-sitter node names used by static control-flow analysis. Kept beside
+  /// the grammar registry so adding a language has one obvious place to define
+  /// both symbol indexing and flow scanning.
   static func runtimeNodeKinds(for language: CodemapLanguage) -> RuntimeNodeKinds {
     switch language {
     case .swift:

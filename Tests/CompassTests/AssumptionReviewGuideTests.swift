@@ -46,9 +46,9 @@ struct AssumptionReviewGuideTests {
         ),
         record(
           id: "olderImplicit",
-          text: "The user prefers World-first UX.",
+          text: "The user prefers tournament-first UX.",
           status: .implicit,
-          impact: "World polish should lead the next slice.",
+          impact: "Tournament polish should lead the next slice.",
           updatedAt: 20
         ),
         record(

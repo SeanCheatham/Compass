@@ -1075,17 +1075,6 @@ struct WorkspaceContent: View {
         LessonsTab(project: project)
       case .productTournament:
         ProductTournamentWorkbenchTab(project: project)
-      case .world:
-        WorldTab(
-          repoURL: project.repoURL,
-          workspace: project.workspace,
-          isActive: selectedTab == .world,
-          liveLog: project.liveLog,
-          sessionRecords: { project.allSessions },
-          onLoadArchivedSessions: {
-            await project.loadArchivedSessionsIfNeeded()
-          }
-        )
       }
     }
   }
@@ -1099,7 +1088,6 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
   case vision
   case lessons
   case productTournament
-  case world
 
   var id: Self { self }
 
@@ -1112,7 +1100,6 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .vision: return "Vision"
     case .lessons: return "Lessons"
     case .productTournament: return "Tournament"
-    case .world: return "World"
     }
   }
 
@@ -1125,7 +1112,6 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .vision: return "scope"
     case .lessons: return "book.closed"
     case .productTournament: return "trophy"
-    case .world: return "cube.transparent"
     }
   }
 
