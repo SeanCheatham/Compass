@@ -111,6 +111,39 @@ struct ProductDecisionCockpitTests {
     try #require(useProof.strength == .progressing)
   }
 
+  @Test func evidenceMatrixMapsPayIntentAndProductUseSignals() throws {
+    let config = roundThreeWinnerConfig()
+    let winner = config.tournamentContenders[0]
+    let evidenceIndex = ProductTournamentEvidenceIndex.build(
+      records: [
+        evidenceRecord(
+          id: "product-use-run-one",
+          config: config,
+          contender: winner,
+          personaID: "operator-persona",
+          endedAt: 20
+        )
+      ],
+      now: Date(timeIntervalSince1970: 30)
+    )
+    let cockpit = ProductDecisionCockpit.build(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: true
+    )
+    let row = try #require(cockpit.evidenceMatrix.rows.first { $0.contenderID == winner.id })
+    let payIntent = try #require(row.signals.first { $0.dimension == .payIntent })
+    let useProof = try #require(row.signals.first { $0.dimension == .productUseProof })
+    let personaBreadth = try #require(row.signals.first { $0.dimension == .personaBreadth })
+
+    try #require(row.signals.map(\.dimension) == EvidenceDimension.defaultOrder)
+    try #require(payIntent.countLabel == "2.0/5")
+    try #require(payIntent.strength == .risk)
+    try #require(useProof.countLabel == "1/2")
+    try #require(useProof.primaryPhrase == "Product use proof 1/2")
+    try #require(personaBreadth.countLabel == "1/2")
+  }
+
   @Test func latestProofMovementSummaryComesFromScoreboardAudit() throws {
     var config = seededConfig()
     let evidenceIndex = ProductTournamentEvidenceIndex.empty

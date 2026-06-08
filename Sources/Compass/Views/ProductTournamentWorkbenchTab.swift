@@ -676,6 +676,11 @@ struct ProductTournamentWorkbenchTab: View {
               selectedContenderID: selectedCockpitContenderID,
               onSelectContender: selectCockpitContender
             )
+            ProductEvidenceMatrixView(
+              cockpit: productDecisionCockpit,
+              selectedContenderID: selectedCockpitContenderID,
+              onSelectEvidence: selectCockpitEvidence
+            )
             PlanRunContextSection(project: project)
           }
           .padding(.trailing, 4)
@@ -4325,6 +4330,25 @@ struct ProductTournamentWorkbenchTab: View {
       selectedScenarioID = scenarioID
     }
     loadScenarioDraft()
+  }
+
+  private func selectCockpitEvidence(_ lane: ContenderLane, signal: EvidenceSignal) {
+    selectCockpitContender(lane)
+    if let planEvaluationID = signal.sourceAuditReferences.first(where: {
+      $0.kind == .planEvaluation
+    })?.value {
+      selectedPlanEvaluationID = planEvaluationID
+      loadSelectedPlanEvaluationRecord()
+    }
+    if let evidenceRunID = signal.sourceAuditReferences.first(where: {
+      $0.kind == .evidenceRun
+    })?.value {
+      selectedRunID = evidenceRunID
+      if let summary = evidenceIndex.summaries.first(where: { $0.runID == evidenceRunID }) {
+        selectedScenarioID = summary.scenarioID
+      }
+      loadSelectedRecord()
+    }
   }
 
   private func selectProofScoreboardRow(
