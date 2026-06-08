@@ -38,6 +38,11 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var isApplyingProductImplementationEvidenceTransition = false
   @State private var isRunningTournamentStep = false
   @State private var isRunningTournamentAutomationCycle = false
+  @State private var pausePortfolioAfterCurrentBatch = false
+  @State private var cancelledPortfolioLaneID: String?
+  @State private var evidenceConcurrencyLimit = 2
+  @State private var personaLLMConcurrencyLimit = 1
+  @State private var simulationConcurrencyLimit = 2
   @State private var scenarioRunMessage: String?
   @State private var planEvaluationMessage: String?
   @State private var planTransitionMessage: String?
@@ -461,6 +466,22 @@ struct ProductTournamentWorkbenchTab: View {
 
   private var tournamentAutomationCyclePlan: TournamentAutomationCyclePlan {
     workbenchState.automationCyclePlan
+  }
+
+  private var tournamentLaneStates: [ProductTournamentLaneState] {
+    workbenchState.laneStates
+  }
+
+  private var tournamentPortfolioSchedule: TournamentPortfolioSchedule {
+    workbenchState.portfolioSchedule
+  }
+
+  private var tournamentJudgingBarriers: [ProductTournamentJudgingBarrier] {
+    workbenchState.judgingBarriers
+  }
+
+  private var tournamentRolloutFlags: CompassRuntimeFeatureFlags {
+    workbenchState.rolloutFlags
   }
 
   private var tournamentAutomationCanRun: Bool {
@@ -2106,6 +2127,7 @@ struct ProductTournamentWorkbenchTab: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
         tournamentAutomation
+        tournamentPortfolioPreview
         selectedProofScoreboardDetail
         aggregateEvidence
         planEvaluationEvidence
@@ -2289,6 +2311,125 @@ struct ProductTournamentWorkbenchTab: View {
         }
       }
     }
+  }
+
+  private var tournamentPortfolioPreview: some View {
+    WorkbenchSection("Portfolio Lanes", systemImage: "rectangle.3.group.bubble.left") {
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(spacing: 6) {
+          WorkbenchStatusPill(
+            text: tournamentRolloutFlags.tournamentSchedulerPreview ? "Preview on" : "Sequential"
+          )
+          WorkbenchStatusPill(
+            text: tournamentRolloutFlags.tournamentParallelEvidence ? "Evidence parallel" : "Evidence serial"
+          )
+          WorkbenchStatusPill(
+            text: tournamentRolloutFlags.tournamentParallelDevelop ? "Develop parallel" : "Develop serial"
+          )
+        }
+
+        if tournamentLaneStates.isEmpty {
+          WorkbenchEmptyLine("No active product lanes.")
+        } else {
+          VStack(alignment: .leading, spacing: 8) {
+            ForEach(tournamentLaneStates.prefix(4)) { lane in
+              laneBoardRow(lane)
+            }
+          }
+        }
+
+        Divider()
+
+        WorkbenchFact(label: "Selected", value: tournamentPortfolioSchedule.selectedSummary)
+        WorkbenchFact(label: "Deferred", value: tournamentPortfolioSchedule.deferredSummary)
+        if let barrier = tournamentJudgingBarriers.first {
+          WorkbenchFact(label: "Barrier", value: barrier.summary)
+        } else {
+          WorkbenchFact(label: "Barrier", value: "No judging barrier active.")
+        }
+        WorkbenchFact(
+          label: "In Flight",
+          value:
+            tournamentRolloutFlags.tournamentParallelEvidence
+            ? "\(tournamentPortfolioSchedule.parallelizableEvidenceWork.count) evidence-ready task(s)"
+            : "Parallel evidence disabled"
+        )
+
+        VStack(alignment: .leading, spacing: 8) {
+          HStack(spacing: 8) {
+            Button {
+              Task { await runTournamentAutomationStep() }
+            } label: {
+              Label("Run Lane", systemImage: "play.fill")
+            }
+            .buttonStyle(.bordered)
+            .disabled(!tournamentAutomationCanRun)
+
+            Button {
+              Task { await runTournamentAutomationCycle() }
+            } label: {
+              Label("Run Portfolio", systemImage: "forward.frame.fill")
+            }
+            .buttonStyle(.bordered)
+            .disabled(!tournamentAutomationCycleCanRun || pausePortfolioAfterCurrentBatch)
+
+            Toggle("Pause after batch", isOn: $pausePortfolioAfterCurrentBatch)
+              .toggleStyle(.checkbox)
+          }
+          HStack(spacing: 8) {
+            Button {
+              cancelledPortfolioLaneID = tournamentLaneStates.first?.id
+            } label: {
+              Label("Cancel Lane", systemImage: "xmark.circle")
+            }
+            .buttonStyle(.bordered)
+            .disabled(tournamentLaneStates.isEmpty)
+
+            Button {
+              cancelledPortfolioLaneID = "all"
+              pausePortfolioAfterCurrentBatch = true
+            } label: {
+              Label("Cancel All", systemImage: "stop.circle")
+            }
+            .buttonStyle(.bordered)
+
+            if let cancelledPortfolioLaneID {
+              WorkbenchStatusPill(text: "cancel \(cancelledPortfolioLaneID)")
+            }
+          }
+
+          Stepper("Evidence \(evidenceConcurrencyLimit)", value: $evidenceConcurrencyLimit, in: 1...8)
+          Stepper("LLM \(personaLLMConcurrencyLimit)", value: $personaLLMConcurrencyLimit, in: 1...4)
+          Stepper("Simulation \(simulationConcurrencyLimit)", value: $simulationConcurrencyLimit, in: 1...8)
+        }
+        .font(.caption)
+      }
+    }
+  }
+
+  private func laneBoardRow(_ lane: ProductTournamentLaneState) -> some View {
+    VStack(alignment: .leading, spacing: 5) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text(lane.contenderTitle ?? lane.experimentTitle)
+          .font(.caption.weight(.semibold))
+          .lineLimit(1)
+        Spacer()
+        WorkbenchStatusPill(text: lane.status.label)
+      }
+      WorkbenchFact(label: "Branch", value: lane.branchName)
+      WorkbenchFact(label: "Worktree", value: lane.worktreeID)
+      WorkbenchFact(label: "Evidence", value: lane.latestEvidenceIDs.joined(separator: ", "))
+      WorkbenchFact(label: "Debt", value: lane.proofDebtSummary)
+      if let blockedReason = lane.blockedReason {
+        WorkbenchFact(label: "Blocked", value: blockedReason)
+      }
+      if let stepID = lane.activeStepID {
+        WorkbenchFact(label: "Next", value: stepID)
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   @ViewBuilder

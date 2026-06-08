@@ -7,6 +7,9 @@ struct CompassRuntimeFeatureFlags: Equatable, Sendable {
   var rustAgentExecutor: Bool
   var rustGuestAgent: Bool
   var linuxGuest: Bool
+  var tournamentSchedulerPreview: Bool
+  var tournamentParallelEvidence: Bool
+  var tournamentParallelDevelop: Bool
 
   init(environment: [String: String] = ProcessInfo.processInfo.environment) {
     rustDaemonEnabled = environment["COMPASS_RUST_DAEMON_DISABLED"] != "1"
@@ -15,6 +18,9 @@ struct CompassRuntimeFeatureFlags: Equatable, Sendable {
     rustAgentExecutor = environment["COMPASS_RUST_AGENT_EXECUTOR"] == "1"
     rustGuestAgent = environment["COMPASS_RUST_GUEST_AGENT"] == "1"
     linuxGuest = environment["COMPASS_LINUX_GUEST"] == "1"
+    tournamentSchedulerPreview = environment["COMPASS_TOURNAMENT_SCHEDULER_PREVIEW"] == "1"
+    tournamentParallelEvidence = environment["COMPASS_TOURNAMENT_PARALLEL_EVIDENCE"] == "1"
+    tournamentParallelDevelop = environment["COMPASS_TOURNAMENT_PARALLEL_DEVELOP"] == "1"
   }
 
   var copyText: String {
@@ -25,6 +31,9 @@ struct CompassRuntimeFeatureFlags: Equatable, Sendable {
       "rustAgentExecutor=\(rustAgentExecutor)",
       "rustGuestAgent=\(rustGuestAgent)",
       "linuxGuest=\(linuxGuest)",
+      "tournamentSchedulerPreview=\(tournamentSchedulerPreview)",
+      "tournamentParallelEvidence=\(tournamentParallelEvidence)",
+      "tournamentParallelDevelop=\(tournamentParallelDevelop)",
     ].joined(separator: "\n")
   }
 }
