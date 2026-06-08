@@ -51,6 +51,51 @@ struct RustDesktopVisualVerifierTests {
     )
   }
 
+  @Test func parsesSemanticSnapshotPathFromXtaskOutput() throws {
+    let output = """
+      COMPASS_VISUAL_ARTIFACT_DIR=.compass/visual-verify
+      COMPASS_VISUAL_SEMANTIC_SNAPSHOT_PATH=.compass/visual-verify/semantic-snapshot.json
+      COMPASS_VISUAL_SCREENSHOT_PATH=.compass/visual-verify/screenshot.png
+      """
+
+    #expect(
+      RustDesktopVisualVerification.semanticSnapshotPath(from: output)
+        == ".compass/visual-verify/semantic-snapshot.json"
+    )
+  }
+
+  @Test func detectsLegacyCompassScaffoldSnapshot() throws {
+    let snapshot = """
+      {"nodes":[{"id":"root.heading","text":"Compass Rust Desktop"}]}
+      """
+
+    #expect(RustDesktopVisualVerification.isLegacyCompassScaffoldSnapshot(snapshot))
+    #expect(
+      !RustDesktopVisualVerification.isLegacyCompassScaffoldSnapshot(
+        #"{"nodes":[{"id":"root.heading","text":"Remotaid"}]}"#
+      )
+    )
+  }
+
+  @Test func readsSemanticSnapshotTextFromVisualVerifyArtifacts() throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let snapshotURL = root.appending(path: ".compass/visual-verify/semantic-snapshot.json")
+    try FileManager.default.createDirectory(
+      at: snapshotURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try #"{"nodes":[{"text":"Remotaid"}]}"#.write(to: snapshotURL, atomically: true, encoding: .utf8)
+
+    let text = RustDesktopVisualVerification.semanticSnapshotText(
+      output: "",
+      workingDirectory: root
+    )
+
+    let snapshotText = try #require(text)
+    try #require(snapshotText.contains("Remotaid"))
+  }
+
   @MainActor
   @Test func blessedDesktopScaffoldRequiresSharedVMRoute() async throws {
     let root = try makeTempDir()

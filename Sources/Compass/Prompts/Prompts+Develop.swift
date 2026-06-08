@@ -108,6 +108,10 @@ extension Prompts {
         (`gui-replay` traces and snapshots) alongside the eframe/egui rendering.
         Treat semantic snapshots as the deterministic assertion target and
         screenshots as human-facing proof.
+      - Rust desktop visual proof must show the project or contender UI being
+        built. Replace untouched scaffold labels such as `Compass Rust Desktop`,
+        `Visual verification target`, and generic demo panels before treating
+        `visual_verify` screenshots as proof.
       - When structured Rust tools return "Repair hints", treat those hints as
         stronger evidence than guesses from raw logs; apply the smallest
         relevant repair and rerun the structured tool or verify command.

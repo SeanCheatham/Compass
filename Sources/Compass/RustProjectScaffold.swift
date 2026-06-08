@@ -5,9 +5,9 @@ struct RustProjectScaffold: Equatable, Sendable {
     var projectName: String
     var windowTitle: String
 
-    init(projectName: String = "Compass Rust App", windowTitle: String = "Compass Rust Desktop") {
+    init(projectName: String = "Generated Rust App", windowTitle: String? = nil) {
       self.projectName = projectName
-      self.windowTitle = windowTitle
+      self.windowTitle = windowTitle ?? projectName
     }
   }
 
@@ -37,8 +37,8 @@ struct RustProjectScaffold: Equatable, Sendable {
   }
 
   static func files(options: Options = Options()) -> [ScaffoldFile] {
-    let projectName = boundedLine(options.projectName, fallback: "Compass Rust App")
-    let windowTitle = boundedLine(options.windowTitle, fallback: "Compass Rust Desktop")
+    let projectName = boundedLine(options.projectName, fallback: "Generated Rust App")
+    let windowTitle = boundedLine(options.windowTitle, fallback: projectName)
     return [
       ScaffoldFile(path: ".gitignore", contents: gitignore()),
       ScaffoldFile(path: "compass-scaffold.toml", contents: scaffoldMetadata()),
@@ -869,7 +869,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             }
         }
 
-        gui_semantic_snapshot(state, input_status, replay_events)
+        gui_semantic_snapshot("Generated Rust desktop", state, input_status, replay_events)
     }
 
     impl Default for ProductTournamentExperienceInput {
@@ -1459,17 +1459,19 @@ struct RustProjectScaffold: Equatable, Sendable {
     }
 
     pub fn gui_semantic_snapshot(
+        app_title: impl Into<String>,
         state: DemoState,
         input_status: String,
         replay_events: Vec<String>,
     ) -> GuiSemanticSnapshot {
+        let app_title = app_title.into();
         GuiSemanticSnapshot {
             schema_version: 1,
             nodes: vec![
                 GuiNode {
                     id: "root.heading".to_owned(),
                     role: "heading".to_owned(),
-                    text: "Compass Rust Desktop".to_owned(),
+                    text: app_title,
                     state: "visible".to_owned(),
                 },
                 GuiNode {
@@ -2205,6 +2207,7 @@ struct RustProjectScaffold: Equatable, Sendable {
 
     struct CompassRustApp {
         state: DemoState,
+        window_title: String,
         ready_file: Option<PathBuf>,
         screenshot_file: Option<PathBuf>,
         input_file: Option<PathBuf>,
@@ -2221,6 +2224,7 @@ struct RustProjectScaffold: Equatable, Sendable {
         fn new(config: LaunchConfig) -> Self {
             Self {
                 state: DemoState::deterministic(&config.seed),
+                window_title: config.window_title,
                 ready_file: config.ready_file,
                 screenshot_file: config.screenshot_file,
                 input_file: config.input_file,
@@ -2259,8 +2263,8 @@ struct RustProjectScaffold: Equatable, Sendable {
             self.observe_visual_input();
 
             egui::CentralPanel::default().show(ctx, |ui| {
-                ui.heading("Compass Rust Desktop");
-                ui.label("Visual verification target");
+                ui.heading(&self.window_title);
+                ui.label("Generated desktop verification surface");
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label("Project health");
@@ -2296,6 +2300,7 @@ struct RustProjectScaffold: Equatable, Sendable {
             if input_ready && !self.wrote_semantic_snapshot {
                 if let Some(path) = self.semantic_snapshot_file.as_ref() {
                     let snapshot = gui_semantic_snapshot(
+                        self.window_title.clone(),
                         self.state.clone(),
                         self.semantic_input_status(),
                         vec!["desktop:rendered".to_owned()],

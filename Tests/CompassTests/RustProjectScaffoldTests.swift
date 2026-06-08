@@ -172,12 +172,17 @@ struct RustProjectScaffoldTests {
     try #require(traceSchema.contains(#""targetCommitSha""#))
   }
 
-  @Test func desktopTemplateHasStableVisualVerificationLabels() throws {
+  @Test func desktopTemplateUsesProjectTitleForVisualVerificationLabels() throws {
     let desktop = try #require(
-      RustProjectScaffold.files().first { $0.path == "crates/app-desktop/src/main.rs" }?.contents)
+      RustProjectScaffold.files(
+        options: RustProjectScaffold.Options(projectName: "Remotaid")
+      ).first { $0.path == "crates/app-desktop/src/main.rs" }?.contents)
 
-    try #require(desktop.contains("Compass Rust Desktop"))
-    try #require(desktop.contains("Visual verification target"))
+    try #require(desktop.contains(#"window_title: "Remotaid".to_owned()"#))
+    try #require(desktop.contains("ui.heading(&self.window_title)"))
+    try #require(desktop.contains("Generated desktop verification surface"))
+    try #require(!desktop.contains("Compass Rust Desktop"))
+    try #require(!desktop.contains("Visual verification target"))
     try #require(desktop.contains("Project health"))
     try #require(desktop.contains("--visual-ready-file"))
     try #require(desktop.contains("--visual-pid-file"))

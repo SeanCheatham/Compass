@@ -3,6 +3,10 @@ import Foundation
 struct RustDesktopVisualVerification: Equatable, Sendable {
   static let screenshotBeginMarker = "COMPASS_VISUAL_SCREENSHOT_BASE64_BEGIN"
   static let screenshotEndMarker = "COMPASS_VISUAL_SCREENSHOT_BASE64_END"
+  static let semanticSnapshotPathMarker = "COMPASS_VISUAL_SEMANTIC_SNAPSHOT_PATH="
+
+  static let legacyCompassScaffoldIssue =
+    "[verify] Rust desktop visual verification captured the untouched Compass scaffold UI. Replace the generated `Compass Rust Desktop` visual target with project-specific desktop UI and semantic snapshot content, then rerun visual verification."
 
   static let discoveryCommand = """
     if [ -f Cargo.toml ] && [ -f crates/app-desktop/Cargo.toml ] && [ -f xtask/Cargo.toml ]; then
@@ -69,6 +73,47 @@ struct RustDesktopVisualVerification: Equatable, Sendable {
       return nil
     }
     return path
+  }
+
+  static func semanticSnapshotPath(from output: String) -> String? {
+    for line in output.split(whereSeparator: \.isNewline) {
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      if trimmed.hasPrefix(semanticSnapshotPathMarker) {
+        let path = trimmed.dropFirst(semanticSnapshotPathMarker.count)
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+        return path.isEmpty ? nil : path
+      }
+    }
+
+    guard let data = output.data(using: .utf8),
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let dataObject = object["data"] as? [String: Any],
+      let path = dataObject["semantic_snapshot_path"] as? String,
+      !path.isEmpty
+    else {
+      return nil
+    }
+    return path
+  }
+
+  static func isLegacyCompassScaffoldSnapshot(_ text: String) -> Bool {
+    text.contains("Compass Rust Desktop")
+  }
+
+  static func semanticSnapshotText(
+    output: String,
+    workingDirectory: URL,
+    fileManager: FileManager = .default
+  ) -> String? {
+    let path = semanticSnapshotPath(from: output) ?? ".compass/visual-verify/semantic-snapshot.json"
+    let url: URL
+    if path.hasPrefix("/") {
+      url = URL(fileURLWithPath: path)
+    } else {
+      url = workingDirectory.appending(path: path)
+    }
+    guard fileManager.fileExists(atPath: url.path) else { return nil }
+    return try? String(contentsOf: url, encoding: .utf8)
   }
 }
 
@@ -139,6 +184,18 @@ extension CompassProject {
         return [
           "[verify] Rust desktop visual verification passed its process check but did not emit a screenshot artifact for audit."
         ]
+      }
+      if let semanticSnapshot = RustDesktopVisualVerification.semanticSnapshotText(
+        output: combinedOutput,
+        workingDirectory: workingDirectory
+      ),
+        RustDesktopVisualVerification.isLegacyCompassScaffoldSnapshot(semanticSnapshot)
+      {
+        log(
+          "Rust desktop visual verification captured the untouched Compass scaffold UI.",
+          level: .error
+        )
+        return [RustDesktopVisualVerification.legacyCompassScaffoldIssue]
       }
 
       log("Rust desktop visual verification passed.", level: .success)

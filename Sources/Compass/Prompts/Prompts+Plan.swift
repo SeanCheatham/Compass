@@ -97,7 +97,9 @@ extension Prompts {
         replayable path without relying on GUI automation or ambient host state.
         For GUI behavior, prefer semantic replay traces and snapshots
         (`gui-replay`) as the deterministic assertion surface; use screenshots
-        as rendering proof, not as the only source of truth.
+        as rendering proof, not as the only source of truth. Desktop visual
+        proof should show the project or contender UI being built, not the
+        untouched Compass scaffold labels or generic demo panel.
         Standard checks are `cargo fmt --all --check`,
         `cargo clippy --workspace --all-targets --all-features -- -D warnings`,
         `cargo test --workspace --all-features`, `cargo build --workspace`,
