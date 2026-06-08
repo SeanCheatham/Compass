@@ -5695,6 +5695,11 @@ enum TournamentAutomationRoundTransitionStepExecutor {
 
     let result: (message: String, config: ProductTournamentConfig, toRoundID: String?)
     switch round.kind {
+    case .marketCompilation:
+      throw TournamentAutomationRoundTransitionStepError.unsupportedRound(
+        roundID,
+        round.kind
+      )
     case .productPlans:
       let proposal = try planProposal(
         tournamentID: tournamentID,

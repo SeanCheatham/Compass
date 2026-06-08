@@ -41,6 +41,8 @@ struct ProductProofDebtCopy: Equatable, Sendable {
 enum ProductPresentationLanguage {
   static func roundLabel(kind: ProductTournamentRoundKind, ordinal: Int) -> String {
     switch kind {
+    case .marketCompilation:
+      return "Round \(ordinal): Market"
     case .productPlans:
       return "Round \(ordinal): Plan proof"
     case .coreTechnology:
@@ -52,6 +54,8 @@ enum ProductPresentationLanguage {
 
   static func roundGateLabel(kind: ProductTournamentRoundKind) -> String {
     switch kind {
+    case .marketCompilation:
+      return "Market compilation gate"
     case .productPlans:
       return "Plan proof gate"
     case .coreTechnology:

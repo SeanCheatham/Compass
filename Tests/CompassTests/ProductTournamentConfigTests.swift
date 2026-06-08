@@ -85,12 +85,13 @@ struct ProductTournamentConfigTests {
     let workspace = CompassWorkspace(repoURL: root)
     let payload = """
       {
-        "schemaVersion": 5,
+        "schemaVersion": 6,
         "rawPain": "Pain",
         "painHypotheses": [],
         "userSegments": [],
         "currentWorkflows": [],
         "alternatives": [],
+        "markets": [],
         "contenderPlans": [],
         "tournamentExperiments": [],
         "tournaments": [],
@@ -188,20 +189,22 @@ struct ProductTournamentConfigTests {
       now: Date(timeIntervalSince1970: 1_700_000_000)
     )
 
-    try #require(config.schemaVersion == 5)
+    try #require(config.schemaVersion == 6)
     try #require(config.rawPain.contains("Finance operators"))
     try #require(config.painHypotheses.count == 1)
     try #require(config.userSegments.count == 2)
     try #require(config.currentWorkflows.count == 1)
     try #require(config.alternatives.count == 2)
+    try #require(config.markets.count == 1)
     try #require(config.contenderPlans.count == 2)
     try #require(config.tournamentExperiments.count == 2)
     try #require(config.tournaments.count == 1)
     try #require(config.tournamentContenders.count == 2)
-    try #require(config.tournamentRounds.count == 3)
+    try #require(config.tournamentRounds.count == 4)
     try #require(config.scenarios.count == 4)
     try #require(config.scenarioCohorts.count == 2)
     try #require(Set(config.userSegments.map(\.id)).count == config.userSegments.count)
+    try #require(Set(config.markets.map(\.id)).count == config.markets.count)
     try #require(Set(config.contenderPlans.map(\.id)).count == config.contenderPlans.count)
     try #require(
       Set(config.tournamentExperiments.map(\.id)).count == config.tournamentExperiments.count)
@@ -218,13 +221,20 @@ struct ProductTournamentConfigTests {
     try #require(tournament.contenderIDs == config.tournamentContenders.map(\.id))
     try #require(tournament.roundIDs == config.tournamentRounds.map(\.id))
     try #require(tournament.currentRoundID == config.tournamentRounds[0].id)
+    let market = try #require(config.markets.first)
+    try #require(market.painID == config.painHypotheses[0].id)
+    try #require(market.actors.contains { $0.role == .economicBuyer })
+    try #require(!market.incumbents.isEmpty)
+    try #require(!market.channels.isEmpty)
+    try #require(market.marketProofDebt.total > 0)
     try #require(
       config.tournamentRounds.map(\.kind) == [
-        .productPlans, .coreTechnology, .productImplementation,
+        .marketCompilation, .productPlans, .coreTechnology, .productImplementation,
       ])
     try #require(config.tournamentRounds[0].requiresBuiltProduct == false)
-    try #require(config.tournamentRounds[1].requiresBuiltProduct)
-    try #require(config.tournamentRounds[2].evaluationFocus.contains("Continued-use pull"))
+    try #require(config.tournamentRounds[1].requiresBuiltProduct == false)
+    try #require(config.tournamentRounds[2].requiresBuiltProduct)
+    try #require(config.tournamentRounds[3].evaluationFocus.contains("Continued-use pull"))
     try #require(config.tournamentContenders.allSatisfy { $0.status == .competing })
     try #require(config.tournamentContenders.allSatisfy { $0.experimentID != nil })
     try #require(config.scenarioCohorts.allSatisfy { $0.scenarioIDs.count == 2 })
@@ -304,12 +314,16 @@ struct ProductTournamentConfigTests {
     let rounds = readModel.rounds(in: tournament)
 
     try #require(activeTournaments.count == 1)
-    try #require(rounds.map(\.kind) == [.productPlans, .coreTechnology, .productImplementation])
+    try #require(
+      rounds.map(\.kind) == [
+        .marketCompilation, .productPlans, .coreTechnology, .productImplementation,
+      ])
     try #require(tournament.currentRoundID == rounds[0].id)
     try #require(readModel.activeRound(in: tournament)?.id == rounds[0].id)
     try #require(rounds[0].status == .active)
     try #require(rounds[1].status != .active)
     try #require(rounds[2].status != .active)
+    try #require(rounds[3].status != .active)
   }
 
   @Test func seededProductTournamentCurrentlyHasDuplicateStatusSources() throws {
@@ -326,7 +340,8 @@ struct ProductTournamentConfigTests {
     try #require(Set(config.tournamentExperiments.map(\.decision)) == [.notRun])
     try #require(tournament.status == .active)
     try #require(tournament.currentRoundID != nil)
-    try #require(roundStatuses[.productPlans] == .active)
+    try #require(roundStatuses[.marketCompilation] == .active)
+    try #require(roundStatuses[.productPlans] == .planned)
     try #require(roundStatuses[.coreTechnology] == .planned)
     try #require(roundStatuses[.productImplementation] == .planned)
     try #require(ProductTournamentConfigStatusConsistency.issues(in: config).isEmpty)
@@ -389,7 +404,7 @@ struct ProductTournamentConfigTests {
     let node = try #require(readModel.contenderNodes(in: tournament).first)
     let experiment = try #require(node.experiment)
 
-    try #require(round.kind == .productPlans)
+    try #require(round.kind == .marketCompilation)
     try #require(readModel.pain(for: tournament)?.id == tournament.painID)
     try #require(readModel.contenders(in: tournament).map(\.id) == tournament.contenderIDs)
     try #require(readModel.plan(for: node.contender)?.id == node.plan.id)

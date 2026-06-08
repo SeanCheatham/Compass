@@ -3,6 +3,7 @@ import Foundation
 struct ProductDecisionCockpit: Equatable, Sendable {
   var isEmpty: Bool
   var activePain: PainSummary?
+  var activeMarket: MarketSummary?
   var activeTournament: TournamentSummary?
   var activeRound: RoundSummary?
   var contenders: [ContenderLane]
@@ -27,6 +28,10 @@ struct ProductDecisionCockpit: Equatable, Sendable {
         activePain: fallbackPain.map {
           painSummary(for: $0, readModel: readModel, config: config)
         },
+        activeMarket: ProductDecisionCockpitBuilder.marketSummary(
+          for: config.markets.first,
+          config: config
+        ),
         activeTournament: nil,
         activeRound: nil,
         contenders: [],
@@ -100,6 +105,10 @@ struct ProductDecisionCockpit: Equatable, Sendable {
     return ProductDecisionCockpit(
       isEmpty: false,
       activePain: pain.map { painSummary(for: $0, readModel: readModel, config: config) },
+      activeMarket: ProductDecisionCockpitBuilder.marketSummary(
+        for: pain.flatMap { matchingMarket(for: $0, in: config) } ?? config.markets.first,
+        config: config
+      ),
       activeTournament: TournamentSummary(
         id: tournament.id,
         title: bounded(tournament.title, limit: 120),
@@ -123,6 +132,17 @@ struct ProductDecisionCockpit: Equatable, Sendable {
       auditReferences: allAuditReferences
     )
   }
+}
+
+struct MarketSummary: Equatable, Sendable {
+  var id: String
+  var category: String
+  var summary: String
+  var buyerActor: String
+  var incumbent: String
+  var bestChannel: String
+  var proofDebtSummary: String
+  var proofDebtTotal: Int
 }
 
 struct PainSummary: Equatable, Sendable {
@@ -359,6 +379,34 @@ private enum ProductDecisionCockpitBuilder {
       costImpact: bounded(cost, limit: 180),
       unresolvedUnknownCount: pain.unknowns.count,
       unknowns: pain.unknowns.map { bounded($0, limit: 160) }
+    )
+  }
+
+  static func marketSummary(
+    for market: ProductMarket?,
+    config: ProductTournamentConfig
+  ) -> MarketSummary? {
+    guard let market else { return nil }
+    let buyer =
+      market.actors.first { $0.role == .economicBuyer }
+      ?? market.actors.first { $0.role == .managerSponsor }
+    let incumbent = market.incumbents.first
+    let bestChannel = market.channels.sorted { lhs, rhs in
+      if lhs.reachability == rhs.reachability { return lhs.costRisk < rhs.costRisk }
+      return lhs.reachability > rhs.reachability
+    }.first
+    return MarketSummary(
+      id: market.id,
+      category: bounded(market.category, limit: 120),
+      summary: bounded(market.summary, limit: 220),
+      buyerActor: buyer.map { bounded("\($0.name) (\($0.role.rawValue))", limit: 120) }
+        ?? "Buyer not identified",
+      incumbent: incumbent.map { bounded($0.name, limit: 120) } ?? "Incumbent not identified",
+      bestChannel: bestChannel.map {
+        bounded("\($0.kind.rawValue): \($0.audience)", limit: 140)
+      } ?? "Channel not identified",
+      proofDebtSummary: market.marketProofDebt.summary,
+      proofDebtTotal: market.marketProofDebt.total
     )
   }
 
@@ -1177,6 +1225,8 @@ private func uniqueAuditReferences(_ references: [AuditReference]) -> [AuditRefe
 
 private func productRoundTitle(for round: ProductTournamentRound) -> String {
   switch round.kind {
+  case .marketCompilation:
+    return "Round \(round.ordinal): Market compilation"
   case .productPlans:
     return "Round \(round.ordinal): Plan proof"
   case .coreTechnology:
@@ -1420,6 +1470,13 @@ private func contenderStatusRank(_ status: ProductTournamentContenderStatus) -> 
   case .eliminated: return 4
   case .archived: return 5
   }
+}
+
+private func matchingMarket(
+  for pain: PainHypothesis,
+  in config: ProductTournamentConfig
+) -> ProductMarket? {
+  config.markets.first { $0.painID == pain.id }
 }
 
 private func formatScore(_ value: Double) -> String {

@@ -1,7 +1,7 @@
 import Foundation
 
 struct ProductTournamentConfig: Codable, Equatable, Sendable {
-  static let supportedSchemaVersion = 5
+  static let supportedSchemaVersion = 6
 
   var schemaVersion: Int
   var rawPain: String
@@ -9,6 +9,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
   var userSegments: [UserSegment]
   var currentWorkflows: [CurrentWorkflow]
   var alternatives: [Alternative]
+  var markets: [ProductMarket]
   var contenderPlans: [ProductTournamentContenderPlan]
   var tournamentExperiments: [ProductTournamentExperiment]
   var tournaments: [ProductTournament]
@@ -25,6 +26,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     userSegments: [],
     currentWorkflows: [],
     alternatives: [],
+    markets: [],
     contenderPlans: [],
     tournamentExperiments: [],
     tournaments: [],
@@ -43,6 +45,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     case userSegments
     case currentWorkflows
     case alternatives
+    case markets
     case contenderPlans
     case tournamentExperiments
     case tournaments
@@ -61,6 +64,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     userSegments: [UserSegment],
     currentWorkflows: [CurrentWorkflow],
     alternatives: [Alternative],
+    markets: [ProductMarket] = [],
     contenderPlans: [ProductTournamentContenderPlan],
     tournamentExperiments: [ProductTournamentExperiment],
     tournaments: [ProductTournament] = [],
@@ -77,6 +81,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     self.userSegments = userSegments
     self.currentWorkflows = currentWorkflows
     self.alternatives = alternatives
+    self.markets = markets
     self.contenderPlans = contenderPlans
     self.tournamentExperiments = tournamentExperiments
     self.tournaments = tournaments
@@ -113,6 +118,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       currentWorkflows: try container.decodeIfPresent(
         [CurrentWorkflow].self, forKey: .currentWorkflows) ?? [],
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
+      markets: try container.decodeIfPresent([ProductMarket].self, forKey: .markets) ?? [],
       contenderPlans: try container.decodeIfPresent(
         [ProductTournamentContenderPlan].self, forKey: .contenderPlans) ?? [],
       tournamentExperiments: try container.decodeIfPresent(
@@ -146,6 +152,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       && userSegments.isEmpty
       && currentWorkflows.isEmpty
       && alternatives.isEmpty
+      && markets.isEmpty
       && contenderPlans.isEmpty
       && tournamentExperiments.isEmpty
       && tournaments.isEmpty
@@ -199,6 +206,17 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let tournamentID = "\(slug)-tournament"
     let workflowContenderID = "\(slug)-workflow-contender"
     let proofContenderID = "\(slug)-proof-contender"
+    let marketID = "\(slug)-market"
+    let operatorActorID = "\(slug)-operator-actor"
+    let buyerActorID = "\(slug)-buyer-actor"
+    let gatekeeperActorID = "\(slug)-gatekeeper-actor"
+    let incumbentDefenderActorID = "\(slug)-incumbent-defender-actor"
+    let buyingCommitteeID = "\(slug)-buying-committee"
+    let incumbentID = "\(slug)-incumbent-pressure"
+    let channelID = "\(slug)-founder-led-channel"
+    let budgetID = "\(slug)-budget-model"
+    let adoptionTimelineID = "\(slug)-adoption-timeline"
+    let marketRoundID = "\(slug)-round-0-market"
     let planRoundID = "\(slug)-round-1-plans"
     let feasibilityRoundID = "\(slug)-round-2-feasibility"
     let productImplementationRoundID = "\(slug)-round-3-product-implementation"
@@ -340,6 +358,240 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
           "Treats subjective enthusiasm as weak until paired with concrete workflow proof."
       ),
     ]
+
+    let marketActors = [
+      MarketActor(
+        id: operatorActorID,
+        marketID: marketID,
+        segmentID: operatorSegmentID,
+        role: .operator,
+        name: "Hands-on operator",
+        jobToBeDone:
+          "Get through the painful workflow with less ambiguity than the current workaround.",
+        successCriteria: [
+          "The product names the real workflow moment.",
+          "The next action is clearer than the manual workaround.",
+        ],
+        objections: [
+          "Setup may take longer than the pain itself.",
+          "The workflow may not recur often enough to create a habit.",
+        ],
+        informationSources: ["Current tool stack", "Team workflow memory"],
+        trustThreshold: "Must see a specific workflow win before changing behavior."
+      ),
+      MarketActor(
+        id: buyerActorID,
+        marketID: marketID,
+        segmentID: buyerSegmentID,
+        role: .economicBuyer,
+        name: "Budget owner",
+        jobToBeDone:
+          "Decide whether the pain costs enough time, risk, or rework to sponsor a solution.",
+        successCriteria: [
+          "Cost of inaction is concrete.",
+          "Adoption risk is lower than the status quo cost.",
+        ],
+        objections: [
+          "The product may be a feature rather than a budget-worthy workflow.",
+          "Evidence may not show repeat use or team value.",
+        ],
+        informationSources: ["Team operating reviews", "Workflow metrics"],
+        trustThreshold: "Needs buyer-owned ROI logic and repeat-use proof."
+      ),
+      MarketActor(
+        id: gatekeeperActorID,
+        marketID: marketID,
+        role: .technicalGatekeeper,
+        name: "Technical gatekeeper",
+        jobToBeDone: "Protect the team from risky tools, brittle setup, and data leakage.",
+        successCriteria: [
+          "The product is easy to trial.",
+          "Sensitive workflow context remains controlled.",
+        ],
+        objections: [
+          "Security and integration concerns could outweigh workflow relief.",
+          "A lightweight internal script may be safer.",
+        ],
+        informationSources: ["Security review", "Implementation plan"],
+        trustThreshold: "Needs a narrow pilot scope and clear data boundaries."
+      ),
+      MarketActor(
+        id: incumbentDefenderActorID,
+        marketID: marketID,
+        role: .incumbentDefender,
+        name: "Incumbent defender",
+        jobToBeDone:
+          "Argue why the current workflow is good enough and no new product should be bought.",
+        successCriteria: [
+          "Existing habits keep working.",
+          "No migration, procurement, or training is required.",
+        ],
+        objections: [
+          "The current workaround is already known.",
+          "The new product may not beat the switching cost.",
+        ],
+        informationSources: ["Existing workflow", "Team habits"],
+        trustThreshold: "Would only concede after clear proof the current alternative fails."
+      ),
+    ]
+
+    let market = ProductMarket(
+      id: marketID,
+      painID: painID,
+      category: "\(title) workflow operations",
+      summary:
+        "Synthetic market for teams whose current workflow loses context, owners, or proof during a recurring operational handoff.",
+      marketForces: [
+        MarketForce(
+          id: "\(marketID)-urgency",
+          marketID: marketID,
+          kind: .urgency,
+          summary: "Urgency depends on how often the workflow creates rework or missed decisions.",
+          strength: 2,
+          evidenceBasis: "Synthetic assumption from project intake."
+        ),
+        MarketForce(
+          id: "\(marketID)-alternative-gravity",
+          marketID: marketID,
+          kind: .alternativeGravity,
+          summary: "Manual notes, spreadsheets, and doing nothing are familiar enough to resist change.",
+          strength: 4,
+          evidenceBasis: "Synthetic assumption from seeded alternatives."
+        ),
+        MarketForce(
+          id: "\(marketID)-budget-clarity",
+          marketID: marketID,
+          kind: .budgetClarity,
+          summary: "Budget clarity is weak until the buyer can tie the pain to time, risk, or rework.",
+          strength: 2,
+          evidenceBasis: "Synthetic assumption from unknown ROI."
+        ),
+      ],
+      actors: marketActors,
+      buyingCommittees: [
+        BuyingCommittee(
+          id: buyingCommitteeID,
+          marketID: marketID,
+          name: "\(title) pilot committee",
+          actorIDs: [operatorActorID, buyerActorID, gatekeeperActorID, incumbentDefenderActorID],
+          decisionProcess:
+            "Operator proves workflow relief, buyer checks ROI, gatekeeper narrows risk, incumbent defender argues for status quo.",
+          approvalThreshold:
+            "Approve only if the product beats the incumbent in a recurring workflow and the buyer owns the budget.",
+          vetoRisks: [
+            "No explicit economic buyer.",
+            "Current workaround remains good enough.",
+            "Security or setup risk is higher than the pain.",
+          ]
+        )
+      ],
+      incumbents: [
+        IncumbentPressure(
+          id: incumbentID,
+          marketID: marketID,
+          alternativeID: manualAlternativeID,
+          name: "Manual workflow plus shared document",
+          category: "Manual/internal workaround",
+          whyItWinsToday: [
+            "Already adopted.",
+            "No procurement, setup, or migration.",
+          ],
+          switchingMoat: [
+            "Team habit.",
+            "Low immediate cost to keep doing nothing.",
+          ],
+          copyRisk:
+            "Existing tools could add a checklist or template that absorbs the narrow feature.",
+          failureOpening:
+            "The workaround loses when rework becomes frequent enough that a buyer can name the cost."
+        )
+      ],
+      channels: [
+        AcquisitionChannel(
+          id: channelID,
+          marketID: marketID,
+          kind: .founderLedSales,
+          audience: "Operators and sponsors who already feel the workflow pain.",
+          userIntent: "They want a clearer path through the painful handoff.",
+          messageFit:
+            "Lead with the exact recurring workflow failure and proof against the current workaround.",
+          reachability: 2,
+          costRisk: 3,
+          proofRequired: [
+            "A specific buyer-owned pain narrative.",
+            "A short pilot script with current-alternative comparison.",
+          ]
+        )
+      ],
+      budgetModels: [
+        BudgetModel(
+          id: budgetID,
+          marketID: marketID,
+          buyerActorID: buyerActorID,
+          budgetSource: "Team operations or productivity budget.",
+          priceToleranceCentsMonthly: nil,
+          procurementThresholdCentsAnnual: nil,
+          roiLogic:
+            "Payment requires showing recurring time, rework, or coordination risk reduction.",
+          objectionTriggers: [
+            "Pain frequency is low.",
+            "The product cannot show repeat use.",
+            "The buyer cannot assign a budget line.",
+          ]
+        )
+      ],
+      adoptionTimelines: [
+        AdoptionTimeline(
+          id: adoptionTimelineID,
+          marketID: marketID,
+          name: "\(title) adoption timeline",
+          stages: [
+            AdoptionStage(
+              id: "\(adoptionTimelineID)-first-encounter",
+              dayOffset: 0,
+              trigger: "Actor sees a pitch or pilot prompt.",
+              userQuestion: "Does this describe my painful workflow better than generic tooling?",
+              passSignal: "The actor recognizes a specific urgent job.",
+              failSignal: "The pitch sounds like a generic productivity app."
+            ),
+            AdoptionStage(
+              id: "\(adoptionTimelineID)-activation",
+              dayOffset: 1,
+              trigger: "Operator tries the smallest workflow proof.",
+              userQuestion: "Can I get a useful result faster than the current workaround?",
+              passSignal: "One real workflow moment is completed with clearer next action.",
+              failSignal: "The operator returns to the manual workaround."
+            ),
+            AdoptionStage(
+              id: "\(adoptionTimelineID)-second-use",
+              dayOffset: 7,
+              trigger: "The same workflow pain recurs.",
+              userQuestion: "Do I come back because the job repeats?",
+              passSignal: "The product is reused without prompting.",
+              failSignal: "Initial novelty fades and the current alternative wins."
+            ),
+            AdoptionStage(
+              id: "\(adoptionTimelineID)-budget",
+              dayOffset: 21,
+              trigger: "Sponsor decides whether a pilot deserves budget.",
+              userQuestion: "Can I justify payment or sponsorship?",
+              passSignal: "Buyer can tie proof to time, risk, or rework savings.",
+              failSignal: "No budget owner or ROI logic appears."
+            ),
+          ]
+        )
+      ],
+      marketProofDebt: MarketProofDebt(
+        attentionDeficit: 2,
+        urgencyDeficit: 2,
+        buyerClarityDeficit: 1,
+        budgetFitDeficit: 2,
+        incumbentDefeatDeficit: 2,
+        channelFitDeficit: 2,
+        retentionDeficit: 2,
+        committeeDeficit: 2
+      )
+    )
 
     let contenderPlans = [
       ProductTournamentContenderPlan(
@@ -541,6 +793,25 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let cohortIDs = cohorts.map(\.id)
     let rounds = [
       ProductTournamentRound(
+        id: marketRoundID,
+        tournamentID: tournamentID,
+        ordinal: 0,
+        kind: .marketCompilation,
+        title: "Round 0: synthetic market",
+        goal:
+          "Compile the synthetic market before product plans advance: actors, buyer, incumbent, channel, budget, adoption, and market proof debt.",
+        evaluationFocus: [
+          "Buyer and operator clarity",
+          "Incumbent/current alternative pressure",
+          "Reachable channel",
+          "Market proof debt",
+        ],
+        contenderIDs: [],
+        scenarioCohortIDs: [],
+        status: .active,
+        createdAt: timestamp
+      ),
+      ProductTournamentRound(
         id: planRoundID,
         tournamentID: tournamentID,
         ordinal: 1,
@@ -555,7 +826,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         ],
         contenderIDs: contenderIDs,
         scenarioCohortIDs: [],
-        status: .active,
+        status: .planned,
         createdAt: timestamp
       ),
       ProductTournamentRound(
@@ -603,7 +874,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       premise: painText,
       contenderIDs: contenderIDs,
       roundIDs: rounds.map(\.id),
-      currentRoundID: planRoundID,
+      currentRoundID: marketRoundID,
       status: .active,
       createdAt: timestamp
     )
@@ -614,6 +885,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       userSegments: userSegments,
       currentWorkflows: [workflow],
       alternatives: alternatives,
+      markets: [market],
       contenderPlans: contenderPlans,
       tournamentExperiments: experiments,
       tournaments: [tournament],
@@ -1091,7 +1363,7 @@ struct ProductTournamentRound: Codable, Equatable, Identifiable, Sendable {
   ) {
     self.id = ProductTournamentModelText.identifier(id, fallback: "round")
     self.tournamentID = ProductTournamentModelText.identifier(tournamentID, fallback: "tournament")
-    self.ordinal = max(1, ordinal)
+    self.ordinal = max(0, ordinal)
     self.kind = kind
     self.title = ProductTournamentModelText.cleanedText(
       title,
@@ -1117,12 +1389,14 @@ struct ProductTournamentRound: Codable, Equatable, Identifiable, Sendable {
 }
 
 enum ProductTournamentRoundKind: String, Codable, CaseIterable, Equatable, Sendable {
+  case marketCompilation = "market_compilation"
   case productPlans = "product_plans"
   case coreTechnology = "core_technology"
   case productImplementation = "product_implementation"
 
   var title: String {
     switch self {
+    case .marketCompilation: return "Market compilation"
     case .productPlans: return "Product plans"
     case .coreTechnology: return "Core technology"
     case .productImplementation: return "Product implementation"
@@ -1131,7 +1405,7 @@ enum ProductTournamentRoundKind: String, Codable, CaseIterable, Equatable, Senda
 
   var requiresBuiltProduct: Bool {
     switch self {
-    case .productPlans:
+    case .marketCompilation, .productPlans:
       return false
     case .coreTechnology, .productImplementation:
       return true

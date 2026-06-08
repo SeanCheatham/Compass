@@ -20,6 +20,7 @@ enum ProductTournamentPlanningDigestFormatter {
     }
 
     lines += painLines(config: config, maxPainHypotheses: maxPainHypotheses)
+    lines += marketLines(config: config)
     lines += tournamentLines(config: config, evidenceIndex: evidenceIndex)
     lines += roundTwoImplementationTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += feasibilityHandoffLines(config: config, evidenceIndex: evidenceIndex)
@@ -187,6 +188,62 @@ enum ProductTournamentPlanningDigestFormatter {
     }
     if tournaments.count > 3 {
       lines.append("- \(tournaments.count - 3) more tournament(s) omitted.")
+    }
+    return lines
+  }
+
+  private static func marketLines(config: ProductTournamentConfig) -> [String] {
+    guard !config.markets.isEmpty else {
+      return [
+        "Synthetic market:",
+        "- No synthetic market is compiled yet; compile actors, buyer, incumbent, channel, budget, adoption path, and market proof debt before product planning advances.",
+      ]
+    }
+
+    var lines = ["Synthetic market:"]
+    for market in config.markets.prefix(3) {
+      lines.append(
+        "- \(bounded(market.category, 120)) [market \(market.id), pain \(market.painID), proof_debt \(market.marketProofDebt.summary)]: \(bounded(market.summary, 220))."
+      )
+      let actors = market.actors.prefix(6).map {
+        "\($0.role.rawValue) \($0.id): \(bounded($0.jobToBeDone, 90))"
+      }.joined(separator: "; ")
+      if !actors.isEmpty {
+        lines.append("- Market actors: \(bounded(actors, 520)).")
+      }
+      let committees = market.buyingCommittees.prefix(3).map {
+        "\($0.id): actors \($0.actorIDs.joined(separator: ",")); threshold \(bounded($0.approvalThreshold, 100))"
+      }.joined(separator: "; ")
+      if !committees.isEmpty {
+        lines.append("- Buying committees: \(bounded(committees, 420)).")
+      }
+      let incumbents = market.incumbents.prefix(3).map {
+        "\($0.id) \($0.name): wins_today \(bounded($0.whyItWinsToday.joined(separator: ", "), 120)); moat \(bounded($0.switchingMoat.joined(separator: ", "), 100))"
+      }.joined(separator: "; ")
+      if !incumbents.isEmpty {
+        lines.append("- Incumbents: \(bounded(incumbents, 420)).")
+      }
+      let channels = market.channels.prefix(4).map {
+        "\($0.id) \($0.kind.rawValue): reach \($0.reachability)/5 cost_risk \($0.costRisk)/5 audience \(bounded($0.audience, 90))"
+      }.joined(separator: "; ")
+      if !channels.isEmpty {
+        lines.append("- Acquisition channels: \(bounded(channels, 420)).")
+      }
+      let budgets = market.budgetModels.prefix(3).map {
+        "\($0.id): buyer \($0.buyerActorID ?? "unknown"); source \(bounded($0.budgetSource, 90)); roi \(bounded($0.roiLogic, 110))"
+      }.joined(separator: "; ")
+      if !budgets.isEmpty {
+        lines.append("- Budget models: \(bounded(budgets, 420)).")
+      }
+      let forces = market.marketForces.prefix(5).map {
+        "\($0.kind.rawValue) \($0.strength)/5 \(bounded($0.summary, 90))"
+      }.joined(separator: "; ")
+      if !forces.isEmpty {
+        lines.append("- Market forces: \(bounded(forces, 480)).")
+      }
+    }
+    if config.markets.count > 3 {
+      lines.append("- \(config.markets.count - 3) more market(s) omitted.")
     }
     return lines
   }

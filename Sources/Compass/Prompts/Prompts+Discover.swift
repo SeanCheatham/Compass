@@ -218,6 +218,86 @@ struct DiscoverPromptOutput: Codable, Equatable {
         painID: segment.painID
       )
     }
+    for market in config.markets {
+      guard painIDs.contains(market.painID) else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Market \(market.id) references missing pain \(market.painID)."
+        )
+      }
+      let marketActorIDs = Set(market.actors.map(\.id))
+      let segmentIDs = Set(config.userSegments.map(\.id))
+      let alternativeIDs = Set(config.alternatives.map(\.id))
+      for actor in market.actors {
+        guard actor.marketID == market.id else {
+          throw DiscoverPromptValidationError.invalidJSON(
+            "Market actor \(actor.id) references market \(actor.marketID), expected \(market.id)."
+          )
+        }
+        if let segmentID = actor.segmentID, !segmentIDs.contains(segmentID) {
+          throw DiscoverPromptValidationError.invalidJSON(
+            "Market actor \(actor.id) references missing segment \(segmentID)."
+          )
+        }
+      }
+      for committee in market.buyingCommittees {
+        guard committee.marketID == market.id else {
+          throw DiscoverPromptValidationError.invalidJSON(
+            "Buying committee \(committee.id) references market \(committee.marketID), expected \(market.id)."
+          )
+        }
+        for actorID in committee.actorIDs where !marketActorIDs.contains(actorID) {
+          throw DiscoverPromptValidationError.invalidJSON(
+            "Buying committee \(committee.id) references missing actor \(actorID)."
+          )
+        }
+      }
+      for incumbent in market.incumbents {
+        guard incumbent.marketID == market.id else {
+          throw DiscoverPromptValidationError.invalidJSON(
+            "Incumbent \(incumbent.id) references market \(incumbent.marketID), expected \(market.id)."
+          )
+        }
+        if let alternativeID = incumbent.alternativeID, !alternativeIDs.contains(alternativeID) {
+          throw DiscoverPromptValidationError.invalidJSON(
+            "Incumbent \(incumbent.id) references missing alternative \(alternativeID)."
+          )
+        }
+      }
+      for channel in market.channels where channel.marketID != market.id {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Channel \(channel.id) references market \(channel.marketID), expected \(market.id)."
+        )
+      }
+      for budget in market.budgetModels {
+        guard budget.marketID == market.id else {
+          throw DiscoverPromptValidationError.invalidJSON(
+            "Budget model \(budget.id) references market \(budget.marketID), expected \(market.id)."
+          )
+        }
+        if let buyerActorID = budget.buyerActorID {
+          guard let actor = market.actors.first(where: { $0.id == buyerActorID }) else {
+            throw DiscoverPromptValidationError.invalidJSON(
+              "Budget model \(budget.id) references missing buyer actor \(buyerActorID)."
+            )
+          }
+          guard actor.role == .economicBuyer || actor.role == .managerSponsor else {
+            throw DiscoverPromptValidationError.invalidJSON(
+              "Budget model \(budget.id) buyer actor \(buyerActorID) must be an economic buyer or sponsor."
+            )
+          }
+        }
+      }
+      for timeline in market.adoptionTimelines where timeline.marketID != market.id {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Adoption timeline \(timeline.id) references market \(timeline.marketID), expected \(market.id)."
+        )
+      }
+      for force in market.marketForces where force.marketID != market.id {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Market force \(force.id) references market \(force.marketID), expected \(market.id)."
+        )
+      }
+    }
 
     let contenderPlanIDs = Set(config.contenderPlans.map(\.id))
     for contenderPlan in config.contenderPlans where !painIDs.contains(contenderPlan.painID) {
@@ -632,6 +712,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
   var userSegments: [UserSegment]
   var currentWorkflows: [CurrentWorkflow]
   var alternatives: [Alternative]
+  var markets: [ProductMarket]
   var contenderPlans: [ProductTournamentContenderPlan]
   var tournamentExperiments: [ProductTournamentExperiment]
   var tournaments: [ProductTournament]
@@ -646,6 +727,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     case userSegments
     case currentWorkflows
     case alternatives
+    case markets
     case contenderPlans
     case tournamentExperiments
     case tournaments
@@ -661,6 +743,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     userSegments: [UserSegment] = [],
     currentWorkflows: [CurrentWorkflow] = [],
     alternatives: [Alternative] = [],
+    markets: [ProductMarket] = [],
     contenderPlans: [ProductTournamentContenderPlan] = [],
     tournamentExperiments: [ProductTournamentExperiment] = [],
     tournaments: [ProductTournament] = [],
@@ -674,6 +757,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     self.userSegments = userSegments
     self.currentWorkflows = currentWorkflows
     self.alternatives = alternatives
+    self.markets = markets
     self.contenderPlans = contenderPlans
     self.tournamentExperiments = tournamentExperiments
     self.tournaments = tournaments
@@ -703,6 +787,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
       currentWorkflows: try container.decodeIfPresent(
         [CurrentWorkflow].self, forKey: .currentWorkflows) ?? [],
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
+      markets: try container.decodeIfPresent([ProductMarket].self, forKey: .markets) ?? [],
       contenderPlans: try container.decodeIfPresent(
         [ProductTournamentContenderPlan].self, forKey: .contenderPlans) ?? [],
       tournamentExperiments: try container.decodeIfPresent(
@@ -736,6 +821,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     upsert(&next.userSegments, edits: userSegments, id: \.id)
     upsert(&next.currentWorkflows, edits: currentWorkflows, id: \.id)
     upsert(&next.alternatives, edits: alternatives, id: \.id)
+    upsert(&next.markets, edits: markets, id: \.id)
     upsert(&next.contenderPlans, edits: contenderPlans, id: \.id)
     upsert(&next.tournamentExperiments, edits: tournamentExperiments, id: \.id)
     upsert(&next.tournaments, edits: tournaments, id: \.id)

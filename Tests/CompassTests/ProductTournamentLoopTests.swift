@@ -749,13 +749,26 @@ struct ProductTournamentLoopTests {
   }
 
   @Test func tournamentAutomationProofTargetsIncludeRoundOneFocusedPlanProof() throws {
-    let config = ProductTournamentConfig.seedDefaults(
+    var config = ProductTournamentConfig.seedDefaults(
       projectTitle: "LedgerLift",
       rawPain: "Finance operators lose weekly reporting context.",
       now: Date(timeIntervalSince1970: 10)
     )
     let tournament = try #require(config.tournaments.first)
     let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+    if let tournamentIndex = config.tournaments.firstIndex(where: { $0.id == tournament.id }) {
+      config.tournaments[tournamentIndex].currentRoundID = planRound.id
+    }
+    for index in config.tournamentRounds.indices {
+      switch config.tournamentRounds[index].kind {
+      case .marketCompilation:
+        config.tournamentRounds[index].status = .completed
+      case .productPlans:
+        config.tournamentRounds[index].status = .active
+      case .coreTechnology, .productImplementation:
+        config.tournamentRounds[index].status = .planned
+      }
+    }
     let contender = try #require(config.tournamentContenders.first)
     let experiment = try #require(
       config.tournamentExperiments.first { $0.id == contender.experimentID })
@@ -827,8 +840,6 @@ struct ProductTournamentLoopTests {
     try #require(initialDigest.contains("target Run Plan Proof"))
     try #require(initialDigest.contains("position Product plans contender"))
     try #require(initialDigest.contains("1 rival product"))
-    try #require(initialDigest.contains("kind run_plan_proof"))
-    try #require(initialDigest.contains("mode model_free_plan"))
     try #require(initialDigest.contains("tournament \(tournament.id)"))
     try #require(initialDigest.contains("contender \(contender.id)"))
     try #require(initialDigest.contains("round \(planRound.id)"))

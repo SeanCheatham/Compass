@@ -114,6 +114,10 @@ struct ProductTournamentEngine {
     }
 
     switch round.kind {
+    case .marketCompilation:
+      throw ProductTournamentEngineError.unsupportedCommand(
+        "Round 0 market compilation does not use product-transition proof."
+      )
     case .productPlans:
       let proposal = try selectedPlanTransitionProposal(
         tournamentID: tournamentID,

@@ -719,6 +719,8 @@ private struct ProofOverviewCase {
     evidenceIndex: ProductTournamentEvidenceIndex
   ) throws -> [String] {
     switch activeKind {
+    case .marketCompilation:
+      return []
     case .productPlans:
       let item = try #require(
         TournamentPlanProofDeltaOverview.items(
@@ -750,6 +752,8 @@ private struct ProofOverviewCase {
     evidenceIndex: ProductTournamentEvidenceIndex
   ) throws -> [String] {
     switch activeKind {
+    case .marketCompilation:
+      return []
     case .productPlans:
       let item = try #require(
         TournamentPlanProofDeltaOverview.items(
@@ -807,12 +811,15 @@ private func configWithActiveRound(
   let tournament = try #require(config.tournaments.first)
   let contender = try #require(config.tournamentContenders.first)
   let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
+  let marketRound = try #require(config.tournamentRounds.first { $0.kind == .marketCompilation })
   let coreRound = try #require(config.tournamentRounds.first { $0.kind == .coreTechnology })
   let productImplementationRound = try #require(
     config.tournamentRounds.first { $0.kind == .productImplementation })
 
   let activeRound: ProductTournamentRound
   switch activeKind {
+  case .marketCompilation:
+    activeRound = marketRound
   case .productPlans:
     activeRound = planRound
   case .coreTechnology:
@@ -826,9 +833,12 @@ private func configWithActiveRound(
   }
   for index in config.tournamentRounds.indices {
     switch config.tournamentRounds[index].kind {
+    case .marketCompilation:
+      config.tournamentRounds[index].status =
+        activeKind == .marketCompilation ? .active : .completed
     case .productPlans:
       config.tournamentRounds[index].status =
-        activeKind == .productPlans ? .active : .completed
+        activeKind == .marketCompilation ? .planned : activeKind == .productPlans ? .active : .completed
     case .coreTechnology:
       config.tournamentRounds[index].status =
         activeKind == .coreTechnology
