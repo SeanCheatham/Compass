@@ -700,17 +700,39 @@ struct ProductTournamentWorkbenchTab: View {
               selectedContenderID: selectedCockpitContenderID,
               onSelectEvidence: selectCockpitEvidence
             )
+            ProductAuditDetailView(
+              title: "Cockpit Audit",
+              references: productDecisionCockpit.auditReferences
+            )
             PlanRunContextSection(project: project)
           }
           .padding(.trailing, 4)
         }
         .frame(minHeight: 360, idealHeight: 440, maxHeight: 620)
 
-        workbenchColumns
+        detailedWorkbenchDisclosure
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+  }
+
+  private var detailedWorkbenchDisclosure: some View {
+    DisclosureGroup {
+      workbenchColumns
+        .padding(.top, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    } label: {
+      Label("Detailed Workbench", systemImage: ProductIconRole.audit.systemImage)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+    }
+    .padding(10)
+    .background(Color.secondary.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(Color.secondary.opacity(0.16), lineWidth: 1)
+    )
   }
 
   private var workbenchColumns: some View {
