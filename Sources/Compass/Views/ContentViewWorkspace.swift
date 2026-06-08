@@ -1067,6 +1067,8 @@ struct WorkspaceContent: View {
         VisionTab(project: project)
       case .activity:
         ActivityTab(project: project)
+      case .observatory:
+        ProductTournamentObservatoryTab(project: project)
       case .productTournament:
         ProductTournamentWorkbenchTab(project: project)
       }
@@ -1077,6 +1079,7 @@ struct WorkspaceContent: View {
 
 enum WorkspaceTab: String, CaseIterable, Identifiable {
   case productTournament
+  case observatory
   case activity
   case vision
 
@@ -1086,6 +1089,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .vision: return "Brief"
     case .activity: return "Activity"
+    case .observatory: return "Observatory"
     case .productTournament: return "Tournament"
     }
   }
@@ -1094,12 +1098,15 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .vision: return "scope"
     case .activity: return "waveform.path.ecg"
+    case .observatory: return "rectangle.grid.3x2"
     case .productTournament: return "trophy"
     }
   }
 
   var minWidth: CGFloat {
     switch self {
+    case .observatory:
+      return 110
     case .productTournament:
       return 98
     default:
