@@ -3,5 +3,6 @@ resolver = "2"
 members = [
   "crates/compass-core",
   "crates/compass-engine",
+  "crates/compass-guest-agent",
   "crates/compassd",
 ]
