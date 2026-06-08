@@ -44,7 +44,8 @@ private struct WorkspaceOutlineFixture {
 
   init() throws {
     root = FileManager.default.temporaryDirectory
-      .appending(path: "AgentWorkspaceOutlineToolTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+      .appending(
+        path: "AgentWorkspaceOutlineToolTests-\(UUID().uuidString)", directoryHint: .isDirectory)
     repo = root.appending(path: "repo", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
     workspace = CompassWorkspace(repoURL: repo)
@@ -92,7 +93,8 @@ private struct WorkspaceOutlineFixture {
   func context(rustCargoService: (any RustCargoServicing)? = nil) -> AgentToolContext {
     AgentToolContext(
       workingDirectory: repo,
-      codemapStoreDirectory: workspace.compassURL.appending(path: "codemap", directoryHint: .isDirectory),
+      codemapStoreDirectory: workspace.compassURL.appending(
+        path: "codemap", directoryHint: .isDirectory),
       rustCargoService: rustCargoService
     )
   }

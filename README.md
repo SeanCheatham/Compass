@@ -406,7 +406,7 @@ profile by default; set `COMPASS_ALLOW_PROVISIONING_UPDATES=NO` to disable that.
 
 ```bash
 open Compass.xcodeproj
-# Press Cmd-B to build (check the log for "Copied Compass.app").
+# Press Cmd-B to build (check the log for "Copied CompassLocal.app").
 # Then launch /Applications/CompassLocal.app from Finder/Spotlight.
 ```
 
@@ -567,7 +567,7 @@ together. These helpers are used from Plan history and related proof surfaces;
 they are support tools for the product tournament loop, not a standalone product
 mode.
 
-Change inspection has eight main components:
+Change inspection has nine main components:
 
 - **`CodemapFileSystem`** (`Sources/Compass/Explore/CodemapFileSystem.swift`) —
   File-system scanner that walks the repository tree and produces a
@@ -618,8 +618,8 @@ Change inspection has eight main components:
   Answers free-text questions about repository changes using on-device
   Foundation Models. Uses `FoundationModelsAvailability.isAvailable` from the Foundation
   Models framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
-  Returns `nil` gracefully when Foundation Models is unavailable. See the
-  Vision document for the full feature description. Entry point: ``answer(question:repoURL:)``.
+  Returns `nil` gracefully when Foundation Models is unavailable. Entry point:
+  ``answer(question:repoURL:)``.
 
 - **`ArchitectureGraph`** (`Sources/Compass/Explore/ArchitectureGraph.swift`) —
   Produces a plain-English architectural description of a codebase's import graph.
@@ -646,6 +646,8 @@ Change inspection has eight main components:
 | ``CommitTourGenerator`` | `Sources/Compass/Explore/CommitTourGenerator.swift` | Synthesises a multi-commit diff into a 3–5 sentence guided-tour narrative |
 | ``ExploreRepositorySnapshot`` | `Sources/Compass/Explore/ExploreRepositorySnapshot.swift` | Immutable snapshot of file tree + indexed codemap entries |
 | ``FileExplainer`` | `Sources/Compass/Explore/FileExplainer.swift` | Categorises changed files and produces per-file diff summaries |
+| ``ArchitectureGraph`` | `Sources/Compass/Explore/ArchitectureGraph.swift` | Plain-English import-graph analysis for the codebase |
+| ``CommitNarrator`` | `Sources/Compass/Explore/CommitNarrator.swift` | One-sentence commit summaries for banners and inline labels |
 | ``ArchitectureGraphPopover`` | `Sources/Compass/Views/Plan/PlanExplore.swift` | SwiftUI popover for Plan history; renders the SVG from ``CodemapGraphViz`` |
 | ``WhyGeneratedPopover`` | `Sources/Compass/Views/Plan/PlanExplore.swift` | SwiftUI popover for Plan history; shows the "why this file exists" explanation |
 | ``RepoQnA`` | `Sources/Compass/Explore/RepoQnA.swift` | Free-text Q&A about repository changes using on-device Foundation Models |

@@ -112,7 +112,8 @@ struct ProjectVisionGuide: Equatable, Sendable {
       detail = "Missing: \(missingSignalText)."
       nextAction = NextAction(
         title: "Clarify the vision",
-        detail: "Add the missing signals before treating the vision as load-bearing product intent.",
+        detail:
+          "Add the missing signals before treating the vision as load-bearing product intent.",
         systemImage: "questionmark.circle"
       )
     }
@@ -364,7 +365,8 @@ struct ProjectVisionClipboardPayload: Equatable, Sendable {
       sections.append("")
       sections.append("Signal map:")
       for cue in guide.cues {
-        sections.append("- [\(cue.isSatisfied ? "present" : "missing")] \(cue.title): \(cue.detail)")
+        sections.append(
+          "- [\(cue.isSatisfied ? "present" : "missing")] \(cue.title): \(cue.detail)")
       }
     }
 

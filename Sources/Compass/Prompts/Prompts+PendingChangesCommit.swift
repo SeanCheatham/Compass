@@ -49,24 +49,24 @@ extension Prompts {
   static func pendingChangesCommitPrompt(status: String) -> String {
     let renderedStatus = status.trimmingCharacters(in: .newlines)
     return """
-    The host checkout is dirty before Compass can sync it into the Shared VM.
+      The host checkout is dirty before Compass can sync it into the Shared VM.
 
-    Current `git status --porcelain --untracked-files=all`:
-    ```text
-    \(renderedStatus.isEmpty ? "(empty)" : renderedStatus)
-    ```
+      Current `git status --porcelain --untracked-files=all`:
+      ```text
+      \(renderedStatus.isEmpty ? "(empty)" : renderedStatus)
+      ```
 
-    Commit the pending changes locally. Prefer this workflow:
-    1. Run `git status --porcelain --untracked-files=all`.
-    2. Inspect `git diff --stat`, `git diff`, and, when relevant,
-       `git diff --cached`.
-    3. Stage the legitimate pending files.
-    4. Create one local commit with an accurate message.
-    5. Confirm `git status --porcelain --untracked-files=all` is clean.
-    6. Call `submit_result`.
+      Commit the pending changes locally. Prefer this workflow:
+      1. Run `git status --porcelain --untracked-files=all`.
+      2. Inspect `git diff --stat`, `git diff`, and, when relevant,
+         `git diff --cached`.
+      3. Stage the legitimate pending files.
+      4. Create one local commit with an accurate message.
+      5. Confirm `git status --porcelain --untracked-files=all` is clean.
+      6. Call `submit_result`.
 
-    Do not push. Do not make product/code changes beyond committing the pending
-    work already present in this checkout.
-    """
+      Do not push. Do not make product/code changes beyond committing the pending
+      work already present in this checkout.
+      """
   }
 }

@@ -7,10 +7,12 @@ import Testing
 struct CompassDaemonClientTests {
   @Test func daemonLocatorFindsDevBinary() throws {
     let root = FileManager.default.temporaryDirectory
-      .appending(path: "CompassDaemonLocatorTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+      .appending(
+        path: "CompassDaemonLocatorTests-\(UUID().uuidString)", directoryHint: .isDirectory)
     defer { try? FileManager.default.removeItem(at: root) }
 
-    let binary = root
+    let binary =
+      root
       .appending(path: "target", directoryHint: .isDirectory)
       .appending(path: "debug", directoryHint: .isDirectory)
       .appending(path: "compassd")

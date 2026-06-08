@@ -188,7 +188,8 @@ struct OnboardingReadinessGuideTests {
     #expect(!resetCopy.contains("auxiliary"))
     #expect(!resetCopy.contains("platform identity"))
     #expect(!resetCopy.contains("artifacts"))
-    #expect(OnboardingWorkspaceRecoveryCopy.localRestoreButtonTitle == "Use downloaded restore file")
+    #expect(
+      OnboardingWorkspaceRecoveryCopy.localRestoreButtonTitle == "Use downloaded restore file")
     #expect(!OnboardingWorkspaceRecoveryCopy.localRestoreButtonTitle.contains("IPSW"))
   }
 

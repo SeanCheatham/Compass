@@ -171,7 +171,8 @@ struct SandboxReadinessGuideTests {
     let guide = SandboxReadinessGuide(readiness: .guestPrepping)
 
     try await withMockFoundationModels(
-      response: "Compass is finishing workspace setup now; Develop will unlock when commands can run."
+      response:
+        "Compass is finishing workspace setup now; Develop will unlock when commands can run."
     ) {
       let generatedNarration = await SandboxReadinessGuideNarrator.narrate(guide: guide)
       let narration = try #require(generatedNarration)

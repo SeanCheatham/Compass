@@ -218,7 +218,8 @@ struct LiveFailureInsight: Equatable, Sendable {
     if containsAny(
       normalized,
       [
-        "line range", "out of range", "edit conflict", "oldstring not found", "old string not found",
+        "line range", "out of range", "edit conflict", "oldstring not found",
+        "old string not found",
       ]
     ) {
       return (

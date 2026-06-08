@@ -1,6 +1,8 @@
 import Foundation
 
-struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, Sendable, Identifiable {
+struct ProductTournamentRoundThreeProductImplementationOverviewItem: Equatable, Sendable,
+  Identifiable
+{
   var id: String { "\(roundID)-\(contenderID)" }
 
   var tournamentID: String

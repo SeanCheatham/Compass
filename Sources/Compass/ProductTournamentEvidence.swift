@@ -86,7 +86,8 @@ struct ProductTournamentProofDebt: Codable, Equatable, Sendable {
       labels.append("\(personaModelSimulatedUserDeficit) persona-model simulated user(s)")
     }
     if personaModelCurrentAlternativeDeficit > 0 {
-      labels.append("\(personaModelCurrentAlternativeDeficit) persona-model current-alternative proof(s)")
+      labels.append(
+        "\(personaModelCurrentAlternativeDeficit) persona-model current-alternative proof(s)")
     }
     if failedRunCount > 0 {
       labels.append("\(failedRunCount) failed run(s) to repair")
@@ -284,7 +285,8 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     self.personaModelCompletedRunCount = max(0, personaModelCompletedRunCount)
     self.personaModelDistinctPersonaCount = max(0, personaModelDistinctPersonaCount)
     self.currentAlternativeComparisonCount = max(0, currentAlternativeComparisonCount)
-    self.personaModelCurrentAlternativePersonaCount = max(0, personaModelCurrentAlternativePersonaCount)
+    self.personaModelCurrentAlternativePersonaCount = max(
+      0, personaModelCurrentAlternativePersonaCount)
     self.modelFreeCompletedRunCount = max(0, modelFreeCompletedRunCount)
     self.distinctPersonaCount = max(0, distinctPersonaCount)
     self.latestRunID = ProductTournamentEvidenceRecord.optionalBounded(latestRunID, limit: 96)
@@ -315,7 +317,8 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
     let failedCount = summaries.count - completed.count
     let personaModelCompleted = completed.filter { $0.mode == .personaModel }
     let personaModelCompletedCount = personaModelCompleted.count
-    let personaModelUserCount = Set(personaModelCompleted.map(\.personaID).filter { !$0.isEmpty }).count
+    let personaModelUserCount = Set(personaModelCompleted.map(\.personaID).filter { !$0.isEmpty })
+      .count
     let currentAlternativeProof = completed.filter(Self.hasCurrentAlternativeProof)
     let personaModelCurrentAlternativePersonaCount = Set(
       personaModelCompleted.filter(Self.hasCurrentAlternativeProof)
@@ -473,7 +476,8 @@ struct ProductTournamentReadiness: Codable, Equatable, Identifiable, Sendable {
       && (readinessScore <= 30 || averageScore > 0 && averageScore <= 2.1
         || rejectedOrWeakCount >= 2)
     {
-      return personaModelDistinctPersonaCount >= 2 && personaModelCurrentAlternativePersonaCount >= 2
+      return personaModelDistinctPersonaCount >= 2
+        && personaModelCurrentAlternativePersonaCount >= 2
         ? .kill
         : .gatherEvidence
     }
@@ -1380,9 +1384,11 @@ struct ProductTournamentEvidenceRecord: Codable, Equatable, Identifiable, Sendab
     case 4...:
       return "The simulated user shows strong willingness to pay for or sponsor this contender."
     case 3:
-      return "The simulated user shows moderate willingness to pay for or sponsor this contender after more proof."
+      return
+        "The simulated user shows moderate willingness to pay for or sponsor this contender after more proof."
     case 2:
-      return "The simulated user recognizes some contender value but is not ready to pay or sponsor."
+      return
+        "The simulated user recognizes some contender value but is not ready to pay or sponsor."
     default:
       return "The simulated user shows weak willingness to pay for or sponsor this contender."
     }

@@ -36,7 +36,8 @@ struct AgentFindImplsTool: AgentTool {
     ])
   )
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     let args: Arguments
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
@@ -59,7 +60,9 @@ struct AgentFindImplsTool: AgentTool {
     if matches.isEmpty {
       return .ok("(no impls found)")
     }
-    return .ok(matches.map { "\($0.file):\($0.line)  impl \($0.traitName) for \($0.typeName)" }.joined(separator: "\n"))
+    return .ok(
+      matches.map { "\($0.file):\($0.line)  impl \($0.traitName) for \($0.typeName)" }.joined(
+        separator: "\n"))
   }
 }
 
@@ -81,7 +84,8 @@ struct AgentTraitUsersTool: AgentTool {
     ])
   )
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     let args: Arguments
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)

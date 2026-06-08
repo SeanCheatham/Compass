@@ -464,8 +464,10 @@ private struct ProductTournamentSettingsTab: View {
 
       if sortedProjects.isEmpty {
         Section("Projects") {
-          Text("Add a Git repository from the Compass sidebar to configure tournament verification options.")
-            .foregroundStyle(.secondary)
+          Text(
+            "Add a Git repository from the Compass sidebar to configure tournament verification options."
+          )
+          .foregroundStyle(.secondary)
         }
       } else {
         Section("Host Xcode Build/Test") {
@@ -493,7 +495,8 @@ private struct ProductTournamentSettingsTab: View {
     .padding()
     .task(id: tournamentGuide.narrationIdentifier) {
       tournamentNarration = nil
-      tournamentNarration = await ProductTournamentSettingsGuideNarrator.narrate(guide: tournamentGuide)
+      tournamentNarration = await ProductTournamentSettingsGuideNarrator.narrate(
+        guide: tournamentGuide)
     }
   }
 

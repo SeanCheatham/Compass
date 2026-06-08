@@ -68,7 +68,8 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(proposal.digestLine.contains("proof_gaps none"))
     try #require(proofOverviewItem.contextLine.contains("round_2_proof contender"))
     try #require(proofOverviewItem.contextLine.contains("core_technology_proof"))
-    try #require(proofOverviewItem.contextLine.contains("recommendation advance_to_product_implementation"))
+    try #require(
+      proofOverviewItem.contextLine.contains("recommendation advance_to_product_implementation"))
     try #require(proofOverviewItem.contextLine.contains("experience_use_proofs 2"))
     try #require(proofOverviewItem.contextLine.contains("proof_gaps none"))
     try #require(proofOverviewItem.contextLine.contains("next_validation"))
@@ -409,7 +410,8 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(postTransitionStep.id.contains("apply_revision"))
     try #require(postTransitionStep.action.title == postTransitionRevisionBrief.title)
     try #require(postTransitionStep.action.detail.contains("Proof"))
-    try #require(postTransitionStep.action.targetPersonaID == postTransitionRevisionBrief.targetPersonaID)
+    try #require(
+      postTransitionStep.action.targetPersonaID == postTransitionRevisionBrief.targetPersonaID)
     try #require(postTransitionStep.action.targetDecision == .narrow)
     try #require(postTransitionExperimentStep.kind == .applyRevision)
     try #require(postTransitionRevisionBrief.targetScenarioID == nil)
@@ -419,7 +421,8 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(revisionStepID.contains("apply_revision"))
     try #require(prepareValidationAction.kind == .prepareWorktree)
     try #require(prepareValidationAction.title == "Prepare implementation worktree")
-    try #require(prepareValidationAction.detail.contains("Round 2 revision validation scenario needs"))
+    try #require(
+      prepareValidationAction.detail.contains("Round 2 revision validation scenario needs"))
     try #require(prepareValidationAction.cohortID == revisionDraft.cohortID)
     try #require(prepareValidationStep.kind == .prepareWorktree)
     try #require(prepareValidationStep.canExecute)
@@ -507,13 +510,16 @@ struct ProductTournamentRoundEvidenceTransitionTests {
     try #require(validationResult.contextLine.contains("outcome resolved"))
     try #require(validationDigest.contains("Round 2 proof-gap revision validation"))
     try #require(validationDigest.contains("outcome resolved"))
-    try #require(validationDigest.contains("resolved missing capability inspectable_source_artifact"))
+    try #require(
+      validationDigest.contains("resolved missing capability inspectable_source_artifact"))
     try #require(validationTransitionStep.kind == .applyRoundTransition)
     try #require(validationTransitionStep.title == "Apply Round 2 transition")
     try #require(validationOverviewItem.proofGapValidation?.outcome == .resolved)
     try #require(validationOverviewItem.proofGapValidationSummary?.contains("Resolved") == true)
-    try #require(validationOverviewItem.proofGapValidationSummary?.contains("2/2 validation") == true)
-    try #require(validationOverviewItem.proofGapValidationDetail?.contains(revisionAudit.id) == true)
+    try #require(
+      validationOverviewItem.proofGapValidationSummary?.contains("2/2 validation") == true)
+    try #require(
+      validationOverviewItem.proofGapValidationDetail?.contains(revisionAudit.id) == true)
     try #require(validationOverviewItem.helpSummary.contains("Proof-gap validation: Resolved"))
     try #require(
       validationCycleFacts.latestRoundTwoProofGapValidationSummary?
@@ -945,7 +951,8 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
   let tournament = try #require(config.tournaments.first)
   let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
   let coreRound = try #require(config.tournamentRounds.first { $0.kind == .coreTechnology })
-  let productImplementationRound = try #require(config.tournamentRounds.first { $0.kind == .productImplementation })
+  let productImplementationRound = try #require(
+    config.tournamentRounds.first { $0.kind == .productImplementation })
   let contender = try #require(config.tournamentContenders.first)
   let experimentID = try #require(contender.experimentID)
   let experiment = try #require(config.tournamentExperiments.first { $0.id == experimentID })
@@ -960,7 +967,9 @@ private func roundTwoFixture() throws -> RoundTwoFixture {
     config.tournamentRounds[index].status = .active
     config.tournamentRounds[index].contenderIDs = [contender.id]
   }
-  if let index = config.tournamentRounds.firstIndex(where: { $0.id == productImplementationRound.id }) {
+  if let index = config.tournamentRounds.firstIndex(where: {
+    $0.id == productImplementationRound.id
+  }) {
     config.tournamentRounds[index].status = .planned
   }
   if let index = config.tournamentContenders.firstIndex(where: { $0.id == contender.id }) {

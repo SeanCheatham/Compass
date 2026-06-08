@@ -23,7 +23,8 @@ struct ProjectLessonsGuideTests {
   @Test
   func partialLessonsNameMissingSignals() {
     let guide = ProjectLessonsGuide(
-      lessons: "- Learned that verify output was too hard to inspect because the full log was hidden."
+      lessons:
+        "- Learned that verify output was too hard to inspect because the full log was hidden."
     )
 
     #expect(guide.status == .needsFocus)

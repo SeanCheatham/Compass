@@ -51,9 +51,11 @@ struct ProductTournamentStateV2: Codable, Equatable, Sendable {
     let tournament = readModel.activeTournament() ?? config.tournaments.first
     let pain = tournament.flatMap { readModel.pain(for: $0) } ?? config.painHypotheses.first
     let painID = pain?.id ?? tournament?.painID
-    let tournamentContenders = tournament.map { readModel.contenders(in: $0) }
+    let tournamentContenders =
+      tournament.map { readModel.contenders(in: $0) }
       ?? config.tournamentContenders
-    let tournamentRounds = tournament.map { readModel.rounds(in: $0) }
+    let tournamentRounds =
+      tournament.map { readModel.rounds(in: $0) }
       ?? config.tournamentRounds
 
     self.init(

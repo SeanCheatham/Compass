@@ -347,7 +347,9 @@ private struct RepositoryLanguageProfileScanner {
       let left = scores[lhs, default: 0]
       let right = scores[rhs, default: 0]
       if left == right {
-        return codeLanguages.firstIndex(of: lhs)! > codeLanguages.firstIndex(of: rhs)!
+        let lhsIndex = codeLanguages.firstIndex(of: lhs) ?? 0
+        let rhsIndex = codeLanguages.firstIndex(of: rhs) ?? 0
+        return lhsIndex > rhsIndex
       }
       return left < right
     }

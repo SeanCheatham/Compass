@@ -21,7 +21,8 @@ struct RustCodemapEnricher {
   }
 
   static func save(_ index: RustIndexData, workspace: CompassWorkspace) throws {
-    try FileManager.default.createDirectory(at: workspace.compassURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: workspace.compassURL, withIntermediateDirectories: true)
     try encode(index.moduleIndex, to: moduleIndexURL(workspace: workspace))
     try encode(index.traitIndex, to: traitIndexURL(workspace: workspace))
   }

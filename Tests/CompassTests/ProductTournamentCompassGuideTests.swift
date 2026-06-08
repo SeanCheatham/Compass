@@ -90,7 +90,9 @@ struct ProductTournamentCompassGuideTests {
 
     try #require(guide.rustHealth?.title == "Rust Product Tournament Needs Repair")
     try #require(guide.rustHealth?.nextAction == "./scripts/build-compass-engine.sh")
-    try #require(guide.handoffText.contains("Rust Product Tournament health: Rust Product Tournament Needs Repair"))
+    try #require(
+      guide.handoffText.contains(
+        "Rust Product Tournament health: Rust Product Tournament Needs Repair"))
   }
 
   @Test

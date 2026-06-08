@@ -42,6 +42,8 @@ struct CargoGraphStoreTests {
     let loaded = try #require(store.load(from: workspace))
 
     #expect(loaded == snapshot)
-    #expect(FileManager.default.fileExists(atPath: workspace.compassURL.appending(path: "cargo-graph.json").path))
+    #expect(
+      FileManager.default.fileExists(
+        atPath: workspace.compassURL.appending(path: "cargo-graph.json").path))
   }
 }

@@ -166,7 +166,8 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test func testRejectsNoImmediateWorkWhenCandidatesRemain() throws {
-    let current = makeState(completed: ["done"], candidates: "- Next queued item", strategicContext: "")
+    let current = makeState(
+      completed: ["done"], candidates: "- Next queued item", strategicContext: "")
     let next = makeState(
       completed: ["done"], immediate: nil, candidates: "- Next queued item", strategicContext: "")
 
@@ -673,12 +674,12 @@ struct PlanSubmitResultValidationTests {
         completed: [],
         immediate: PlanNext(
           plan: """
-            ## Outcome
-            Add Rust coverage for parser failures.
+              ## Outcome
+              Add Rust coverage for parser failures.
 
-            ## Acceptance checks
-            - Rust tests exercise parser failures.
-          """,
+              ## Acceptance checks
+              - Rust tests exercise parser failures.
+            """,
           verify: "cargo test"
         ),
         candidates: [],
@@ -1644,7 +1645,9 @@ struct PlanningEnvelopeDecoderTests {
 
     try #require(proposal.immediate == nil)
     try #require(proposal.candidates.map(\.title) == ["Harden weak-model recovery"])
-    try #require(proposal.strategicContext.thesis == "Keep reporting decisions understandable to non-engineers.")
+    try #require(
+      proposal.strategicContext.thesis
+        == "Keep reporting decisions understandable to non-engineers.")
     try #require(
       proposal.strategicContext.principles
         == ["Make model mistakes recoverable instead of mysterious."])

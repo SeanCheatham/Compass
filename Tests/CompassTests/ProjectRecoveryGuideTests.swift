@@ -117,9 +117,10 @@ struct ProjectRecoveryGuideTests {
 
     try #require(!guide.isEmpty)
     try #require(guide.title == "Finish the pending files")
-    try #require(guide.steps.map(\.title) == [
-      "Review pending file changes", "Choose what belongs", "Clean Worktree",
-    ])
+    try #require(
+      guide.steps.map(\.title) == [
+        "Review pending file changes", "Choose what belongs", "Clean Worktree",
+      ])
     try #require(guide.steps[0].detail.contains("1 pending change"))
     try #require(guide.steps[1].detail.contains("intended edits"))
     try #require(guide.steps[1].detail.contains("remove accidental leftovers"))
@@ -208,9 +209,9 @@ struct ProjectRecoveryGuideTests {
 
   private func rejectedPlanStatus(
     note: String = """
-      Verify command must collect test coverage for Swift Package projects. \
-      test verify must declare coverage: guest `swift test --enable-code-coverage`.
-      """
+    Verify command must collect test coverage for Swift Package projects. \
+    test verify must declare coverage: guest `swift test --enable-code-coverage`.
+    """
   ) -> ProjectReliabilityStatus {
     ProjectReliabilityStatus(
       feedback: PlanReliabilityFeedback(

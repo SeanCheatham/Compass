@@ -60,7 +60,8 @@ private struct RustIndexToolFixture {
   func context() -> AgentToolContext {
     AgentToolContext(
       workingDirectory: repo,
-      codemapStoreDirectory: workspace.compassURL.appending(path: "codemap", directoryHint: .isDirectory)
+      codemapStoreDirectory: workspace.compassURL.appending(
+        path: "codemap", directoryHint: .isDirectory)
     )
   }
 
@@ -103,7 +104,8 @@ private struct RustIndexToolFixture {
   }
 
   func writeCodemapEntries() throws {
-    let store = CodemapStore(directory: workspace.compassURL.appending(path: "codemap", directoryHint: .isDirectory))
+    let store = CodemapStore(
+      directory: workspace.compassURL.appending(path: "codemap", directoryHint: .isDirectory))
     try store.saveEntry(
       CodemapEntry(
         relativePath: "crates/app-core/src/lib.rs",

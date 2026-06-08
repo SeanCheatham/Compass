@@ -140,16 +140,18 @@ struct ProductTournamentGitRolloutTests {
       Issue.record("Expected stale experiment sha rejection.")
     } catch let error as ProductTournamentExperimentGitRolloutError {
       try #require(
-        error == .staleExperimentSha(
-          branchName: branchName,
-          expected: recordedExperimentSha,
-          actual: actualExperimentSha
-        )
+        error
+          == .staleExperimentSha(
+            branchName: branchName,
+            expected: recordedExperimentSha,
+            actual: actualExperimentSha
+          )
       )
     }
 
     try #require(try await gitOutput(["rev-parse", "main"], in: root) == baseSha)
-    try #require(try workspace.readProductTournamentConfig().tournamentExperiments[0].decision == .promote)
+    try #require(
+      try workspace.readProductTournamentConfig().tournamentExperiments[0].decision == .promote)
   }
 
   @Test func archiveCreatesArchiveRefAndPreservesExperimentLineage() async throws {
@@ -176,7 +178,8 @@ struct ProductTournamentGitRolloutTests {
     )
     try workspace.writeProductTournamentConfig(config)
     try workspace.writeProductTournamentEvidenceRecord(makeGitRolloutEvidence(config: config))
-    let worktreeURL = workspace.productTournamentExperimentWorktreeURL(experimentID: "experiment-archive")
+    let worktreeURL = workspace.productTournamentExperimentWorktreeURL(
+      experimentID: "experiment-archive")
     try FileManager.default.createDirectory(
       at: worktreeURL.deletingLastPathComponent(),
       withIntermediateDirectories: true
@@ -189,7 +192,8 @@ struct ProductTournamentGitRolloutTests {
       now: Date(timeIntervalSince1970: 120)
     )
     let saved = try workspace.readProductTournamentConfig()
-    let experiment = try #require(saved.tournamentExperiments.first { $0.id == "experiment-archive" })
+    let experiment = try #require(
+      saved.tournamentExperiments.first { $0.id == "experiment-archive" })
     let contenderPlan = try #require(saved.contenderPlans.first)
     let decision = try #require(saved.decisions.last)
     let archiveBranch = try #require(result.archiveBranchName)
@@ -198,7 +202,8 @@ struct ProductTournamentGitRolloutTests {
     try #require(try await gitOutput(["rev-parse", archiveBranch], in: root) == experimentSha)
     try #require(try await gitOutput(["rev-parse", branchName], in: root) == experimentSha)
     try #require(FileManager.default.fileExists(atPath: worktreeURL.path))
-    try #require(try await gitOutput(["rev-parse", "--abbrev-ref", "HEAD"], in: worktreeURL) == branchName)
+    try #require(
+      try await gitOutput(["rev-parse", "--abbrev-ref", "HEAD"], in: worktreeURL) == branchName)
     try #require(experiment.decision == .archived)
     try #require(experiment.worktreeID == "experiment-archive-worktree")
     try #require(contenderPlan.status == .parked)
@@ -300,7 +305,9 @@ private func makeGitRolloutConfig(
   )
 }
 
-private func makeGitRolloutEvidence(config: ProductTournamentConfig) -> ProductTournamentEvidenceRecord {
+private func makeGitRolloutEvidence(config: ProductTournamentConfig)
+  -> ProductTournamentEvidenceRecord
+{
   ProductTournamentEvidenceRecord(
     id: "rollout-run",
     experimentID: config.tournamentExperiments[0].id,

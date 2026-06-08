@@ -258,7 +258,9 @@ enum PlanCompletionRecorder {
     return nil
   }
 
-  private static func shouldReplaceStoredSummary(_ existing: String, with replacement: String) -> Bool {
+  private static func shouldReplaceStoredSummary(_ existing: String, with replacement: String)
+    -> Bool
+  {
     guard existing != replacement else { return false }
     let cleaned = cleanedSummaryLine(existing)
     let key = normalizedHeadingKey(cleaned)

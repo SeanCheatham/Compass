@@ -766,7 +766,8 @@ enum HeadlessPlanterProcessRunner {
     }
     let result = try await ProcessRunner.run(executable: executable, arguments: arguments)
     guard result.exitCode == 0 else {
-      let cap = CaptureResult(exitCode: result.exitCode, standardOutput: result.stdout, standardError: result.stderr)
+      let cap = CaptureResult(
+        exitCode: result.exitCode, standardOutput: result.stdout, standardError: result.stderr)
       throw SharedCompassVMHeadlessPlanter.Error.toolFailed(
         tool: executable, exitCode: result.exitCode, output: cap.combinedOutput
       )

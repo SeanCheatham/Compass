@@ -4,7 +4,8 @@ extension SharedCompassVMReadiness {
   var privateWorkspaceStatusSummary: String {
     switch self {
     case .unavailable(let reason):
-      return "Unavailable. \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(reason, limit: 180))"
+      return
+        "Unavailable. \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(reason, limit: 180))"
     case .notProvisioned:
       return "Not prepared"
     case .downloadingIPSW(let fraction):

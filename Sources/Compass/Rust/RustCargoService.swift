@@ -21,7 +21,8 @@ enum RustCargoServiceError: LocalizedError, Equatable {
   var errorDescription: String? {
     switch self {
     case .engineNotFound:
-      return "Could not locate compass-engine. Build it with `./scripts/build-compass-engine.sh` or install it in /usr/local/bin."
+      return
+        "Could not locate compass-engine. Build it with `./scripts/build-compass-engine.sh` or install it in /usr/local/bin."
     case .processFailed(let exitCode, let stderr):
       return "compass-engine failed with exit \(exitCode): \(stderr)"
     case .emptyOutput:

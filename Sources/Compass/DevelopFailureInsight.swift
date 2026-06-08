@@ -25,7 +25,8 @@ struct DevelopFailureInsight: Equatable {
     case .missingResult:
       guideTitle = "Finish the Develop handoff"
       inspectTitle = "Inspect the missing result"
-      inspectDetail = detail.isEmpty
+      inspectDetail =
+        detail.isEmpty
         ? "Develop ended before Compass received a `submit_result` handoff."
         : "Develop ended before Compass received a `submit_result` handoff: \(detail)"
       repairTitle = "Ask for one smaller finish"
@@ -35,17 +36,20 @@ struct DevelopFailureInsight: Equatable {
     case .malformedToolCall:
       guideTitle = "Repair the tool request"
       inspectTitle = "Inspect the malformed tool call"
-      inspectDetail = detail.isEmpty
+      inspectDetail =
+        detail.isEmpty
         ? "Compass rejected a tool call before trusting its result."
         : "Compass rejected a tool call before trusting its result: \(detail)"
       repairTitle = "Use simpler tool arguments"
       repairDetail =
         "Have Develop retry the same intent with required fields, project-relative paths, and smaller JSON payloads."
-      retryDetail = "Compass will retry Develop after the model has the concrete tool-shape failure."
+      retryDetail =
+        "Compass will retry Develop after the model has the concrete tool-shape failure."
     case .providerFailure:
       guideTitle = "Restore the model connection"
       inspectTitle = "Inspect the provider failure"
-      inspectDetail = detail.isEmpty
+      inspectDetail =
+        detail.isEmpty
         ? "The model provider failed before Develop could finish."
         : "The model provider failed before Develop could finish: \(detail)"
       repairTitle = "Check the active provider"

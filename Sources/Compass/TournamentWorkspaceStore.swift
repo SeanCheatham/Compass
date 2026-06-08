@@ -92,7 +92,9 @@ struct TournamentWorkspaceStore {
   }
 
   @discardableResult
-  func writeAuditRecord(_ audit: TournamentAutomationCycleAudit) throws -> TournamentAutomationCycleAudit {
+  func writeAuditRecord(_ audit: TournamentAutomationCycleAudit) throws
+    -> TournamentAutomationCycleAudit
+  {
     try FileManager.default.createDirectory(at: auditsURL, withIntermediateDirectories: true)
     let data = try Self.encoder().encode(audit)
     try data.write(
@@ -125,7 +127,8 @@ struct TournamentWorkspaceStore {
       at: planEvaluationsURL,
       withIntermediateDirectories: true
     )
-    let records = try readEvidenceRecords(from: scenarioRunsURL, as: ProductTournamentEvidenceRecord.self)
+    let records = try readEvidenceRecords(
+      from: scenarioRunsURL, as: ProductTournamentEvidenceRecord.self)
     let planEvaluationRecords = try readEvidenceRecords(
       from: planEvaluationsURL,
       as: ProductTournamentPlanEvaluationRecord.self

@@ -31,7 +31,9 @@ struct ProductTournamentExperimentWorktreeTests {
 
     try writeFile("experiment-only.txt", contents: "branch one\n", at: first.worktreeURL)
     try await git(["add", "experiment-only.txt"], in: first.worktreeURL)
-    try await git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "Experiment one"], in: first.worktreeURL)
+    try await git(
+      ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "Experiment one"],
+      in: first.worktreeURL)
     let updatedFirst = try await workspace.prepareProductTournamentExperimentWorktree(
       experimentID: "experiment-command-board"
     )
@@ -43,7 +45,8 @@ struct ProductTournamentExperimentWorktreeTests {
     try #require(updatedFirst.currentSha != initialMainSha)
     try #require(savedFirst.baseSha == initialMainSha)
     try #require(savedFirst.currentSha == updatedFirst.currentSha)
-    try #require(!FileManager.default.fileExists(atPath: root.appending(path: "experiment-only.txt").path))
+    try #require(
+      !FileManager.default.fileExists(atPath: root.appending(path: "experiment-only.txt").path))
     try #require(
       !FileManager.default.fileExists(
         atPath: second.worktreeURL.appending(path: "experiment-only.txt").path
@@ -268,7 +271,8 @@ struct ProductTournamentExperimentWorktreeTests {
       createdAt: 1
     )
 
-    await #expect(throws: ProductTournamentExperimentWorktreeError.invalidBranchName("bad branch")) {
+    await #expect(throws: ProductTournamentExperimentWorktreeError.invalidBranchName("bad branch"))
+    {
       _ = try await ProductTournamentExperimentWorktreeManager.ensureWorktree(
         for: experiment,
         in: workspace
@@ -286,7 +290,8 @@ struct ProductTournamentExperimentWorktreeTests {
     let experiment = makeBranchingProductTournamentConfig().tournamentExperiments[0]
 
     do {
-      _ = try await ProductTournamentExperimentWorktreeManager.ensureWorktree(for: experiment, in: workspace)
+      _ = try await ProductTournamentExperimentWorktreeManager.ensureWorktree(
+        for: experiment, in: workspace)
       #expect(Bool(false), "Expected dirty worktree rejection.")
     } catch let error as ProductTournamentExperimentWorktreeError {
       switch error {
@@ -389,7 +394,8 @@ struct ProductTournamentExperimentWorktreeTests {
 
     try #require(decoded == target)
     try #require(
-      decoded.readOnlyKey == "experiment-command-board|compass/exp/command-board|abc123|cohort-incident-lead"
+      decoded.readOnlyKey
+        == "experiment-command-board|compass/exp/command-board|abc123|cohort-incident-lead"
     )
   }
 }

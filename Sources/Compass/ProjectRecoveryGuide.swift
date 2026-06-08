@@ -152,7 +152,7 @@ struct ProjectRecoveryGuide: Equatable {
         title: "Replace the verify command",
         detail:
           "Use a real command Compass can run; do not use no-op commands or fallback clauses such as "
-            + "true, exit 0, echo no tests, none, n/a, not-running-tests, || true, or ; true.",
+          + "true, exit 0, echo no tests, none, n/a, not-running-tests, || true, or ; true.",
         retryDetail: retryDetail
       )
     }
@@ -240,7 +240,8 @@ struct ProjectRecoveryGuide: Equatable {
   ) -> String {
     let normalizedAction = actionLabel.lowercased()
     if normalizedAction.contains("plan") {
-      return "Ask Plan to create one repair slice from the captured verify output before Develop runs again."
+      return
+        "Ask Plan to create one repair slice from the captured verify output before Develop runs again."
     }
 
     return insight.retryDetail

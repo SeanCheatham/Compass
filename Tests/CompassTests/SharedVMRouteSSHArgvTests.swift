@@ -242,7 +242,8 @@ struct SharedVMRouteSSHArgvTests {
     try #require(args.contains(["-o", "ConnectTimeout=5"]))
     try #require(args.contains(["-o", "ControlMaster=auto"]))
     try #require(!args.contains("-T"))
-    try #require(args.suffix(2) == ["/tmp/CompassGuestAgent", "compass@10.0.0.42:/tmp/compass-guest-agent"])
+    try #require(
+      args.suffix(2) == ["/tmp/CompassGuestAgent", "compass@10.0.0.42:/tmp/compass-guest-agent"])
   }
 
   @Test

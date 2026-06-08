@@ -87,7 +87,8 @@ enum ToolRegistry {
           AgentPlanHistoryTool()
         ]
     case .reflect, .critic:
-      tools = inspectionTools(hostXcodeService: hostXcodeService, rustCargoService: rustCargoService)
+      tools = inspectionTools(
+        hostXcodeService: hostXcodeService, rustCargoService: rustCargoService)
     case .develop:
       tools = developTools()
       if rustCargoService != nil {

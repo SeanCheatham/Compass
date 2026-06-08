@@ -108,7 +108,8 @@ private actor RustEngineInvocationRecorder: RustEngineProcessRunning {
     self.result = result
   }
 
-  func run(_ invocation: RustEngineInvocation, timeout: TimeInterval) async throws -> ProcessResult {
+  func run(_ invocation: RustEngineInvocation, timeout: TimeInterval) async throws -> ProcessResult
+  {
     invocations.append(invocation)
     return result
   }

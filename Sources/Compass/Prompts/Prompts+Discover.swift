@@ -404,7 +404,8 @@ struct DiscoverPromptOutput: Codable, Equatable {
           currentSha: nil,
           implementationScope: Self.implementationScope(for: candidate),
           scenarioCohortIDs: [cohortID],
-          evidenceSummary: "Candidate implementation track from Discover; no evidence recorded yet.",
+          evidenceSummary:
+            "Candidate implementation track from Discover; no evidence recorded yet.",
           decision: .notRun,
           createdAt: timestamp,
           updatedAt: timestamp
@@ -453,7 +454,8 @@ struct DiscoverPromptOutput: Codable, Equatable {
     existingScenarioIDs: inout Set<String>
   ) -> ProductScenario? {
     guard
-      let contenderPlan = config.contenderPlans.first(where: { $0.id == contender.contenderPlanID }),
+      let contenderPlan = config.contenderPlans.first(where: { $0.id == contender.contenderPlanID }
+      ),
       let segment = scenarioSegment(
         for: contender,
         contenderPlan: contenderPlan,
@@ -476,9 +478,10 @@ struct DiscoverPromptOutput: Codable, Equatable {
       fallback: "\(cohortID)-scenario",
       existing: &existingScenarioIDs
     )
-    let alternativeComparison = alternative.map {
-      " Compare it with \($0.title)."
-    } ?? " Compare it with the current workaround."
+    let alternativeComparison =
+      alternative.map {
+        " Compare it with \($0.title)."
+      } ?? " Compare it with the current workaround."
     return ProductScenario(
       id: scenarioID,
       experimentID: experimentID,

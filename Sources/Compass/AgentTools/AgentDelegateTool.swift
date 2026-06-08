@@ -81,7 +81,8 @@ struct AgentDelegateTool: AgentTool {
           return values
         }
         if let rawValue = try? container.decode(String.self, forKey: key) {
-          return rawValue
+          return
+            rawValue
             .split(whereSeparator: { $0 == "," || $0 == "\n" })
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }

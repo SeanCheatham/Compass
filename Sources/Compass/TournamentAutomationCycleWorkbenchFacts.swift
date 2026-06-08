@@ -73,7 +73,8 @@ struct TournamentAutomationActedPressureGroupOutcome: Equatable, Sendable {
     var contender: String?
     var status: String?
     var next: String?
-    let fields = summary
+    let fields =
+      summary
       .split(separator: ";", omittingEmptySubsequences: true)
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     for field in fields {
@@ -221,10 +222,12 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       config: config,
       evidenceIndex: evidenceIndex
     )
-    let roundTwoValidation = ProductTournamentRoundTwoProofGapValidationAdvisor
+    let roundTwoValidation =
+      ProductTournamentRoundTwoProofGapValidationAdvisor
       .results(config: config, evidenceIndex: evidenceIndex, limit: 1)
       .first
-    let roundThreeValidation = ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
+    let roundThreeValidation =
+      ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
       .results(config: config, evidenceIndex: evidenceIndex, limit: 1)
       .first
 
@@ -496,8 +499,7 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
           actedSummary: $0
         )
       })
-      where outcome.isStillProofRun
-    {
+    where outcome.isStillProofRun {
       let matchingAudits = recentAudits.filter { recentAudit in
         guard recentAudit.stopReason != .executionFailed,
           recentAudit.endedAt <= audit.endedAt,
@@ -745,7 +747,7 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
 
     let enabledScenarioText =
       step.cohortReadiness.map { "\($0.enabledScenarioCount) enabled scenario(s)" }
-        ?? "enabled scenarios"
+      ?? "enabled scenarios"
     let mode = (step.action.requiredSimulationMode ?? .modelFree)
       .tournamentAutomationLabel
       .lowercased()
@@ -800,7 +802,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
 
     init(summary: String) {
       self.rawSummary = summary
-      let fields = summary
+      let fields =
+        summary
         .split(separator: ";", omittingEmptySubsequences: true)
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       for field in fields {
@@ -893,7 +896,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
       in scoreboardItems: [TournamentAutomationProofTargetScoreboardItem]
     ) -> String {
       let anchorPart = anchor.map { "; anchor \($0)" } ?? ""
-      return "\(displaySummary); outcome \(outcomeSummary(after: audit, in: scoreboardItems))\(anchorPart)"
+      return
+        "\(displaySummary); outcome \(outcomeSummary(after: audit, in: scoreboardItems))\(anchorPart)"
     }
 
     private func outcomeTransition(
@@ -944,7 +948,8 @@ struct TournamentAutomationCycleWorkbenchFacts: Equatable, Sendable {
     init?(summary: String) {
       guard summary.contains("source acted_proof_group") else { return nil }
       rawSummary = summary
-      let fields = summary
+      let fields =
+        summary
         .split(separator: ";", omittingEmptySubsequences: true)
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       guard let first = fields.first else { return nil }

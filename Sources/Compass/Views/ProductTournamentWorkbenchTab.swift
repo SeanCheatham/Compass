@@ -224,7 +224,9 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
-  private var roundThreeProductImplementationOverview: [ProductTournamentRoundThreeProductImplementationOverviewItem] {
+  private var roundThreeProductImplementationOverview:
+    [ProductTournamentRoundThreeProductImplementationOverviewItem]
+  {
     ProductTournamentRoundThreeProductImplementationOverview.items(
       config: config,
       evidenceIndex: evidenceIndex
@@ -477,7 +479,8 @@ struct ProductTournamentWorkbenchTab: View {
 
   private var selectedProofScoreboardRow: TournamentAutomationProofTargetScoreboardRow? {
     guard let selectedProofScoreboardRowID else { return nil }
-    return tournamentAutomationProofTargetScoreboard
+    return
+      tournamentAutomationProofTargetScoreboard
       .flatMap(\.rows)
       .first { $0.selectionID == selectedProofScoreboardRowID }
   }
@@ -991,7 +994,8 @@ struct ProductTournamentWorkbenchTab: View {
                 )
               }
             } else {
-              WorkbenchEmptyLine("No contender is active in Round 3 product implementation evidence yet.")
+              WorkbenchEmptyLine(
+                "No contender is active in Round 3 product implementation evidence yet.")
             }
           }
         }
@@ -1437,7 +1441,8 @@ struct ProductTournamentWorkbenchTab: View {
           WorkbenchFact(label: "Alternative proof", value: "\(item.currentAlternativeProofCount)")
           WorkbenchFact(label: "Pay proof", value: "\(item.willingnessToPayProofCount)")
           if !item.proofGaps.isEmpty {
-            WorkbenchFact(label: "Proof gaps", value: item.proofGaps.prefix(2).joined(separator: "; "))
+            WorkbenchFact(
+              label: "Proof gaps", value: item.proofGaps.prefix(2).joined(separator: "; "))
           }
           if let validationSummary = item.implementationRevisionValidationSummary {
             WorkbenchFact(label: "Validation", value: validationSummary)
@@ -1519,7 +1524,8 @@ struct ProductTournamentWorkbenchTab: View {
         .buttonStyle(.bordered)
         .disabled(isRunningTournamentStep || !nextStep.canExecute)
         .accessibilityIdentifier(item.runNextStepAccessibilityID)
-        .help(nextStep.canExecute ? item.nextStepDetail : nextStep.blockedReason ?? item.nextStepDetail)
+        .help(
+          nextStep.canExecute ? item.nextStepDetail : nextStep.blockedReason ?? item.nextStepDetail)
       }
     }
     .padding(10)
@@ -1615,7 +1621,7 @@ struct ProductTournamentWorkbenchTab: View {
         statusSystemImage: item.topActionStatusSystemImage,
         statusAccessibilityID: item.topActionStatusAccessibilityID
       )
-        .help(item.topActionDetail)
+      .help(item.topActionDetail)
       WorkbenchFact(label: "Targets", value: item.displayDetail)
       ForEach(item.displayReadinessGroups()) { group in
         VStack(alignment: .leading, spacing: 5) {
@@ -1641,7 +1647,7 @@ struct ProductTournamentWorkbenchTab: View {
                   statusSystemImage: row.nextStatusSystemImage,
                   statusAccessibilityID: row.nextStatusAccessibilityID
                 )
-                  .help(row.helpSummary)
+                .help(row.helpSummary)
               }
               .frame(maxWidth: .infinity, alignment: .leading)
               .contentShape(Rectangle())
@@ -2331,7 +2337,7 @@ struct ProductTournamentWorkbenchTab: View {
           statusText: row.nextStatusLabel,
           statusSystemImage: row.nextStatusSystemImage
         )
-          .help(row.postMovementNextDetail)
+        .help(row.postMovementNextDetail)
       }
       .accessibilityIdentifier(row.proofMovementAccessibilityID)
       .help(movement.resultStripSummary)
@@ -4304,7 +4310,8 @@ struct ProductTournamentWorkbenchTab: View {
       loadSelectedRecord()
     }
 
-    if let planEvaluationID = TournamentAutomationProofTargetScoreboard
+    if let planEvaluationID =
+      TournamentAutomationProofTargetScoreboard
       .firstKnownPlanEvaluationID(for: row, evidenceIndex: evidenceIndex)
     {
       selectedPlanEvaluationID = planEvaluationID
@@ -4336,7 +4343,7 @@ struct ProductTournamentWorkbenchTab: View {
         evidenceIndex: evidenceIndex,
         preferredStep: preferredStep,
         isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
-    )
+      )
     else { return }
 
     selectProofScoreboardRow(focus.row, preserveGroupSelection: true)
@@ -4552,12 +4559,12 @@ private struct WorkbenchStatusPill: View {
       }
       Text(text)
     }
-      .font(.caption2.weight(.semibold))
-      .foregroundStyle(.secondary)
-      .lineLimit(1)
-      .padding(.horizontal, 6)
-      .padding(.vertical, 3)
-      .background(.quaternary.opacity(0.55), in: Capsule())
+    .font(.caption2.weight(.semibold))
+    .foregroundStyle(.secondary)
+    .lineLimit(1)
+    .padding(.horizontal, 6)
+    .padding(.vertical, 3)
+    .background(.quaternary.opacity(0.55), in: Capsule())
   }
 }
 

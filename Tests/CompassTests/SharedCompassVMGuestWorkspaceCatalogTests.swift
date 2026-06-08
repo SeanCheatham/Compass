@@ -244,7 +244,8 @@ struct SharedCompassVMGuestWorkspaceCatalogTests {
   @Test
   func testGuestLayoutNamesCurrentMacOSAndFutureLinuxRoots() throws {
     try #require(SharedCompassVMGuestWorkspaceCatalog.guestLayout == .currentMacOS)
-    try #require(SharedCompassVMGuestLayout.currentMacOS.reposRoot == "/Users/compass/Compass/Repos")
+    try #require(
+      SharedCompassVMGuestLayout.currentMacOS.reposRoot == "/Users/compass/Compass/Repos")
     try #require(SharedCompassVMGuestLayout.futureLinux.reposRoot == "/home/compass/Compass/Repos")
     try #require(
       SharedCompassVMGuestLayout.futureLinux.worktreePath(

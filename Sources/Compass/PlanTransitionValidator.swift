@@ -213,7 +213,8 @@ enum PlanTransitionValidator {
     immediate: PlanNext,
     productTournamentConfig: ProductTournamentConfig?
   ) throws {
-    guard let productTournamentConfig, productTournamentConfig.tournamentExperiments.count > 1 else { return }
+    guard let productTournamentConfig, productTournamentConfig.tournamentExperiments.count > 1
+    else { return }
     let handoffText = [
       immediate.plan,
       immediate.selectedBecause,

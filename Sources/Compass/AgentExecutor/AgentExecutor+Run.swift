@@ -363,10 +363,12 @@ extension AgentExecutor {
     _ toolCall: PendingToolCall,
     availableToolNames: Set<String>
   ) -> PendingToolCall {
-    guard let canonical = canonicalToolName(
-      toolCall.name,
-      availableToolNames: availableToolNames
-    ) else {
+    guard
+      let canonical = canonicalToolName(
+        toolCall.name,
+        availableToolNames: availableToolNames
+      )
+    else {
       return toolCall
     }
     var canonicalized = toolCall

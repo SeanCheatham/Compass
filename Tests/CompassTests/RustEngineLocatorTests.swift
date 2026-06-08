@@ -9,7 +9,8 @@ struct RustEngineLocatorTests {
       .appending(path: "RustEngineLocatorTests-\(UUID().uuidString)", directoryHint: .isDirectory)
     defer { try? FileManager.default.removeItem(at: root) }
 
-    let binary = root
+    let binary =
+      root
       .appending(path: "target", directoryHint: .isDirectory)
       .appending(path: "release", directoryHint: .isDirectory)
       .appending(path: "compass-engine")

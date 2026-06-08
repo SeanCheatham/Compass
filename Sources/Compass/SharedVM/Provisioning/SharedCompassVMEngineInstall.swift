@@ -101,8 +101,8 @@ enum SharedCompassVMEngineInstall {
   }
 }
 
-private extension String {
-  var compassDirectoryComponent: String {
+extension String {
+  fileprivate var compassDirectoryComponent: String {
     (self as NSString).deletingLastPathComponent
   }
 }

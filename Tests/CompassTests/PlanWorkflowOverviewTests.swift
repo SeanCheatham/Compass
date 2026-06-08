@@ -31,11 +31,13 @@ struct PlanWorkflowOverviewTests {
   func testOverviewKindsMapToStableTimelineDestinations() throws {
     try #require(PlanWorkflowOverview.Kind.immediate.timelineItemID == "plan-immediate")
     try #require(PlanWorkflowOverview.Kind.candidates.timelineItemID == "plan-candidates")
-    try #require(PlanWorkflowOverview.Kind.strategicContext.timelineItemID == "plan-strategic-context")
+    try #require(
+      PlanWorkflowOverview.Kind.strategicContext.timelineItemID == "plan-strategic-context")
 
     try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-immediate") == .immediate)
     try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-candidates") == .candidates)
-    try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-strategic-context") == .strategicContext)
+    try #require(
+      PlanWorkflowOverview.Kind(timelineItemID: "plan-strategic-context") == .strategicContext)
     try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-history-0") == nil)
   }
 
@@ -97,10 +99,12 @@ struct PlanWorkflowOverviewTests {
     try #require(overview.strategicContext.isEmpty)
     try #require(
       overview.candidates.emptyMessage
-        == "No candidate directions yet. Plan can originate the next useful slice from the repo, drafts, feedback, or focus.")
+        == "No candidate directions yet. Plan can originate the next useful slice from the repo, drafts, feedback, or focus."
+    )
     try #require(
       overview.strategicContext.emptyMessage
-        == "No strategic context yet. Add durable thesis, principles, constraints, risks, or non-goals when they become clear.")
+        == "No strategic context yet. Add durable thesis, principles, constraints, risks, or non-goals when they become clear."
+    )
   }
 
   @Test
@@ -766,7 +770,8 @@ struct PlanWorkflowOverviewTests {
     try #require(guide.steps[0].isSatisfied)
     try #require(guide.steps[1].isSatisfied)
     try #require(!guide.steps[2].isSatisfied)
-    try #require(guide.steps[2].detail == "Remove fallback no-op clauses so failed checks still fail.")
+    try #require(
+      guide.steps[2].detail == "Remove fallback no-op clauses so failed checks still fail.")
     try #require(guide.suggestedVerifyCommand == "swift test")
   }
 

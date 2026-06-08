@@ -522,7 +522,8 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(movement.movementSystemImage == "arrow.down.circle")
     try #require(movement.resultStripSummary == "Proof movement 6 -> 4 (-2); cleared 2 proof debt")
     try #require(row.firstEvidenceRunID == "scoreboard-proof-run")
-    try #require(row.proofMovementAccessibilityID == "\(row.workbenchAccessibilityID)-proof-movement")
+    try #require(
+      row.proofMovementAccessibilityID == "\(row.workbenchAccessibilityID)-proof-movement")
     try #require(row.postMovementNextSummary == "Proof debt reduced; next Ready: Run Plan Proof")
     try #require(row.postMovementNextStatusLabel == "More proof")
     try #require(row.postMovementNextStatusSystemImage == "text.badge.checkmark")
@@ -556,7 +557,8 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(
       proofRunGroup.latestMovementContextSummary.contains("latest_result cleared 2 proof debt")
     )
-    try #require(proofRunGroup.latestMovementContextSummary.contains("audit scoreboard-proof-delta"))
+    try #require(
+      proofRunGroup.latestMovementContextSummary.contains("audit scoreboard-proof-delta"))
     try #require(proofRunGroup.latestMovementContextSummary.contains("proof_debt 6 -> 4 (-2)"))
     try #require(
       item.readinessGroupResultAccessibilityID(proofRunGroup)
@@ -756,7 +758,7 @@ private struct ProofOverviewCase {
         ).first
       )
       return [
-        item.workbenchAccessibilityID,
+        item.workbenchAccessibilityID
       ]
     case .coreTechnology:
       let item = try #require(
@@ -766,7 +768,7 @@ private struct ProofOverviewCase {
         ).first
       )
       return [
-        item.workbenchAccessibilityID,
+        item.workbenchAccessibilityID
       ]
     case .productImplementation:
       let item = try #require(
@@ -776,7 +778,7 @@ private struct ProofOverviewCase {
         ).first
       )
       return [
-        item.workbenchAccessibilityID,
+        item.workbenchAccessibilityID
       ]
     }
   }
@@ -806,7 +808,8 @@ private func configWithActiveRound(
   let contender = try #require(config.tournamentContenders.first)
   let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
   let coreRound = try #require(config.tournamentRounds.first { $0.kind == .coreTechnology })
-  let productImplementationRound = try #require(config.tournamentRounds.first { $0.kind == .productImplementation })
+  let productImplementationRound = try #require(
+    config.tournamentRounds.first { $0.kind == .productImplementation })
 
   let activeRound: ProductTournamentRound
   switch activeKind {
@@ -828,7 +831,8 @@ private func configWithActiveRound(
         activeKind == .productPlans ? .active : .completed
     case .coreTechnology:
       config.tournamentRounds[index].status =
-        activeKind == .coreTechnology ? .active : activeKind == .productImplementation ? .completed : .planned
+        activeKind == .coreTechnology
+        ? .active : activeKind == .productImplementation ? .completed : .planned
       config.tournamentRounds[index].contenderIDs = [contender.id]
     case .productImplementation:
       config.tournamentRounds[index].status =

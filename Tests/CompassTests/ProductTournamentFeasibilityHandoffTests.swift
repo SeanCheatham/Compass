@@ -258,7 +258,8 @@ struct ProductTournamentFeasibilityHandoffTests {
     try #require(digest.contains("kill_criteria Persona still prefers the spreadsheet checklist"))
     try #require(planPrompt.contains("round_2_candidate_track_signal"))
     try #require(planPrompt.contains("expected_evidence Persona creates a clearer report"))
-    try #require(planPrompt.contains("kill_criteria Persona still prefers the spreadsheet checklist"))
+    try #require(
+      planPrompt.contains("kill_criteria Persona still prefers the spreadsheet checklist"))
   }
 }
 
@@ -268,7 +269,8 @@ private func strongPlanRecords(
   round: ProductTournamentRound,
   config: ProductTournamentConfig
 ) throws -> [ProductTournamentPlanEvaluationRecord] {
-  let contenderPlan = try #require(config.contenderPlans.first { $0.id == contender.contenderPlanID })
+  let contenderPlan = try #require(
+    config.contenderPlans.first { $0.id == contender.contenderPlanID })
   return config.userSegments.prefix(2).enumerated().map { index, segment in
     ProductTournamentPlanEvaluationRecord(
       id: "\(contender.id)-feasibility-\(index)",

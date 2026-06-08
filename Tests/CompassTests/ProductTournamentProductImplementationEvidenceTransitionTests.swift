@@ -74,7 +74,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(proofOverviewItem.evidenceRunIDs.contains("\(fixture.contender.id)-round-3-0"))
     try #require(proposal.proofGaps.isEmpty)
     try #require(proposal.nextValidationTarget.contains("Select the tournament winner"))
-    try #require(proofOverviewItem.contextLine.contains("round_3_product_implementation_proof contender"))
+    try #require(
+      proofOverviewItem.contextLine.contains("round_3_product_implementation_proof contender"))
     try #require(proofOverviewItem.contextLine.contains("recommendation select_winner"))
     try #require(proofOverviewItem.contextLine.contains("willingness_to_pay 5.0/5"))
     try #require(proofOverviewItem.contextLine.contains("willingness_to_pay_proofs 3"))
@@ -95,7 +96,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(outcome.toRoundID == nil)
     try #require(outcome.userMessage.contains("winner"))
     try #require(digest.contains("Round 3 product implementation proof overview"))
-    try #require(digest.contains("round_3_product_implementation_proof contender \(fixture.contender.id)"))
+    try #require(
+      digest.contains("round_3_product_implementation_proof contender \(fixture.contender.id)"))
     try #require(digest.contains("recommendation select_winner"))
     try #require(digest.contains("willingness_to_pay 5.0/5"))
     try #require(digest.contains("proof_gaps none"))
@@ -238,7 +240,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
       scenarioID: revisionScenarioID,
       endedAt: 80
     )
-    let revisionAuditedConfig = config
+    let revisionAuditedConfig =
+      config
       .recordingTournamentAutomationCycleAudit(olderRevisionAudit)
       .recordingTournamentAutomationCycleAudit(revisionAudit)
     let recognizedAudit = TournamentAutomationCycleLearningAdvisor.appliedRevisionBriefAudit(
@@ -419,7 +422,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(
       validationOverviewItem.implementationRevisionValidation?.revisionAuditID == revisionAudit.id)
     try #require(
-      validationOverviewItem.implementationRevisionValidation?.revisionAuditID != olderRevisionAudit.id)
+      validationOverviewItem.implementationRevisionValidation?.revisionAuditID
+        != olderRevisionAudit.id)
     try #require(
       validationOverviewItem.implementationRevisionValidationSummary?
         .contains("Resolved") == true)
@@ -562,7 +566,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
         try #require(
           validationItem.nextStep?.action.title == "Validate Round 3 implementation revision")
         try #require(validationItem.nextStep?.canExecute == true)
-        try #require(validationItem.nextStep?.targetScenarioID == validationFixture.revisionScenarioID)
+        try #require(
+          validationItem.nextStep?.targetScenarioID == validationFixture.revisionScenarioID)
         try #require(validationItem.nextStepSystemImage == "play.rectangle.on.rectangle")
       case .partialValidation:
         try #require(validationItem.result.validationRunCount == 1)
@@ -675,14 +680,15 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     )
     let includesValidationSection = workbenchBody.contains("Implementation Revision Validation")
     let includesValidationRows =
-      workbenchBody.contains("ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem")
+      workbenchBody.contains(
+        "ProductTournamentRoundThreeImplementationRevisionValidationOverviewItem")
     let includesPrepareAction = workbenchBody.contains("Prepare implementation worktree")
     let includesTargetCommitReason =
       workbenchBody.contains("Round 3 implementation revision validation scenario needs")
-        && workbenchBody.contains("target commit")
+      && workbenchBody.contains("target commit")
     let exposesRunControlID =
       validationItem.runNextStepAccessibilityID
-        == "\(validationItem.workbenchAccessibilityID)-run-next-step"
+      == "\(validationItem.workbenchAccessibilityID)-run-next-step"
 
     try #require(validationItem.outcome == .pendingValidation)
     try #require(validationItem.nextStep?.kind == .prepareWorktree)
@@ -737,7 +743,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
       score: 5,
       willingnessToPay: 5,
       verdict: .strongPull,
-      summary: "The scorecard is strong but no trace proves the product implementation was exercised.",
+      summary:
+        "The scorecard is strong but no trace proves the product implementation was exercised.",
       includeImplementationUseProof: false
     )
     let index = ProductTournamentEvidenceIndex.build(records: records)
@@ -777,7 +784,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
       score: 5,
       willingnessToPay: 5,
       verdict: .strongPull,
-      summary: "The product implementation has trace artifacts, but no completed-use proof was derived.",
+      summary:
+        "The product implementation has trace artifacts, but no completed-use proof was derived.",
       includeImplementationUseProof: true,
       completedUseProof: false
     )
@@ -844,7 +852,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
       score: 5,
       willingnessToPay: 5,
       verdict: .strongPull,
-      summary: "The implementation looks useful, but only the derived sponsor sentence was present.",
+      summary:
+        "The implementation looks useful, but only the derived sponsor sentence was present.",
       sponsorshipIntent:
         "The simulated user shows strong willingness to pay for or sponsor this contender."
     )
@@ -914,7 +923,8 @@ struct ProductTournamentProductImplementationEvidenceTransitionTests {
     try #require(contextLines.first == "Round 3 product implementation proof overview:")
     try #require(contextLines.joined(separator: "\n").contains("recommendation gather_evidence"))
     try #require(digest.contains("Round 3 product implementation proof overview"))
-    try #require(digest.contains("round_3_product_implementation_proof contender \(fixture.contender.id)"))
+    try #require(
+      digest.contains("round_3_product_implementation_proof contender \(fixture.contender.id)"))
     try #require(digest.contains("recommendation gather_evidence"))
     try #require(digest.contains("no scoped evidence"))
   }
@@ -948,7 +958,8 @@ private func roundThreeFixture() throws -> RoundThreeFixture {
   let tournament = try #require(config.tournaments.first)
   let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
   let coreRound = try #require(config.tournamentRounds.first { $0.kind == .coreTechnology })
-  let productImplementationRound = try #require(config.tournamentRounds.first { $0.kind == .productImplementation })
+  let productImplementationRound = try #require(
+    config.tournamentRounds.first { $0.kind == .productImplementation })
   let contender = try #require(config.tournamentContenders.first)
   let losingContender = try #require(config.tournamentContenders.dropFirst().first)
   let experimentID = try #require(contender.experimentID)
@@ -964,7 +975,9 @@ private func roundThreeFixture() throws -> RoundThreeFixture {
     config.tournamentRounds[index].status = .completed
     config.tournamentRounds[index].contenderIDs = [contender.id]
   }
-  if let index = config.tournamentRounds.firstIndex(where: { $0.id == productImplementationRound.id }) {
+  if let index = config.tournamentRounds.firstIndex(where: {
+    $0.id == productImplementationRound.id
+  }) {
     config.tournamentRounds[index].status = .active
     config.tournamentRounds[index].contenderIDs = [contender.id]
   }
@@ -1122,7 +1135,8 @@ private func productImplementationEvidenceRecords(
       ),
       objections: objections,
       missingCapabilities: missingCapabilities,
-      currentAlternativeComparison: "The product implementation beat the current spreadsheet workaround.",
+      currentAlternativeComparison:
+        "The product implementation beat the current spreadsheet workaround.",
       willingnessToPayScore: willingnessToPay,
       sponsorshipIntent: sponsorshipIntent
         ?? willingnessToPay.map {

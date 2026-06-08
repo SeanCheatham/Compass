@@ -115,7 +115,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       alternatives: try container.decodeIfPresent([Alternative].self, forKey: .alternatives) ?? [],
       contenderPlans: try container.decodeIfPresent(
         [ProductTournamentContenderPlan].self, forKey: .contenderPlans) ?? [],
-      tournamentExperiments: try container.decodeIfPresent([ProductTournamentExperiment].self, forKey: .tournamentExperiments)
+      tournamentExperiments: try container.decodeIfPresent(
+        [ProductTournamentExperiment].self, forKey: .tournamentExperiments)
         ?? [],
       tournaments: try container.decodeIfPresent([ProductTournament].self, forKey: .tournaments)
         ?? [],
@@ -181,7 +182,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     now: Date = Date()
   ) -> ProductTournamentConfig {
     let timestamp = now.timeIntervalSince1970
-    let title = ProductTournamentModelText.cleanedText(projectTitle, fallback: "Project", limit: 120)
+    let title = ProductTournamentModelText.cleanedText(
+      projectTitle, fallback: "Project", limit: 120)
     let painText =
       ProductTournamentModelText.firstMeaningfulLine(in: rawPain)
       ?? "\(title) has an unresolved workflow pain that needs product discovery."
@@ -653,7 +655,8 @@ struct PainHypothesis: Codable, Equatable, Identifiable, Sendable {
     updatedAt: Double? = nil
   ) {
     self.id = ProductTournamentModelText.identifier(id, fallback: "pain")
-    self.title = ProductTournamentModelText.cleanedText(title, fallback: "Pain hypothesis", limit: 180)
+    self.title = ProductTournamentModelText.cleanedText(
+      title, fallback: "Pain hypothesis", limit: 180)
     self.rawPain = ProductTournamentModelText.cleanedText(
       rawPain, fallback: "Current workflow pain to explore", limit: 4_000)
     self.targetSituation = ProductTournamentModelText.cleanedText(
@@ -887,7 +890,8 @@ struct ProductTournamentExperiment: Codable, Equatable, Identifiable, Sendable {
     updatedAt: Double? = nil
   ) {
     self.id = ProductTournamentModelText.identifier(id, fallback: "experiment")
-    self.contenderPlanID = ProductTournamentModelText.identifier(contenderPlanID, fallback: "contender-plan")
+    self.contenderPlanID = ProductTournamentModelText.identifier(
+      contenderPlanID, fallback: "contender-plan")
     self.title = ProductTournamentModelText.cleanedText(
       title, fallback: "Tournament experiment", limit: 180)
     self.branchName = ProductTournamentModelText.cleanedText(
@@ -896,7 +900,8 @@ struct ProductTournamentExperiment: Codable, Equatable, Identifiable, Sendable {
     self.baseSha = ProductTournamentModelText.optionalCleanedText(baseSha, limit: 80)
     self.currentSha = ProductTournamentModelText.optionalCleanedText(currentSha, limit: 80)
     self.implementationScope = ProductTournamentModelText.cleanedText(
-      implementationScope, fallback: "Smallest product implementation needed for evidence", limit: 800)
+      implementationScope, fallback: "Smallest product implementation needed for evidence",
+      limit: 800)
     self.scenarioCohortIDs =
       ProductTournamentModelText.cleanedList(scenarioCohortIDs, limit: 120)
       .map { ProductTournamentModelText.identifier($0, fallback: "cohort") }
@@ -1008,7 +1013,8 @@ struct ProductTournamentContender: Codable, Equatable, Identifiable, Sendable {
   ) {
     self.id = ProductTournamentModelText.identifier(id, fallback: "contender")
     self.tournamentID = ProductTournamentModelText.identifier(tournamentID, fallback: "tournament")
-    self.contenderPlanID = ProductTournamentModelText.identifier(contenderPlanID, fallback: "contender-plan")
+    self.contenderPlanID = ProductTournamentModelText.identifier(
+      contenderPlanID, fallback: "contender-plan")
     self.experimentID = ProductTournamentModelText.optionalIdentifier(
       experimentID,
       fallback: "experiment"

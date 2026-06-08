@@ -3,7 +3,8 @@ import Foundation
 enum SharedCompassVMGuestAgentInstall {
   static let binaryGuestPath = "/usr/local/libexec/compass-guest-agent"
   static let remoteHelperGuestPath = "/usr/local/bin/git-remote-compass"
-  static let launchDaemonGuestPath = "/Library/LaunchDaemons/com.seancheatham.Compass.guest-agent.plist"
+  static let launchDaemonGuestPath =
+    "/Library/LaunchDaemons/com.seancheatham.Compass.guest-agent.plist"
   static let launchDaemonLabel = "com.seancheatham.Compass.guest-agent"
 
   enum InstallError: LocalizedError, CustomStringConvertible {
@@ -14,7 +15,8 @@ enum SharedCompassVMGuestAgentInstall {
     var description: String {
       switch self {
       case .missingBundledBinary(let candidates):
-        return "Could not locate CompassGuestAgent binary. Searched: \(candidates.joined(separator: ", "))"
+        return
+          "Could not locate CompassGuestAgent binary. Searched: \(candidates.joined(separator: ", "))"
       case .copyFailed(let exitCode, let stderr):
         return "copying CompassGuestAgent to the guest failed (exit \(exitCode)): \(stderr)"
       case .installFailed(let exitCode, let stderr):
@@ -135,7 +137,8 @@ enum SharedCompassVMGuestAgentInstall {
       executable: options.executablePath,
       arguments: SharedCompassVMGuestBridge.sshArguments(
         destination: destination,
-        remoteCommand: "\(SharedCompassVMGuestBridge.posixQuote(remoteHelperPath)) --version >/dev/null",
+        remoteCommand:
+          "\(SharedCompassVMGuestBridge.posixQuote(remoteHelperPath)) --version >/dev/null",
         options: options
       ),
       timeout: 8
@@ -144,8 +147,8 @@ enum SharedCompassVMGuestAgentInstall {
   }
 }
 
-private extension String {
-  var directoryComponent: String {
+extension String {
+  fileprivate var directoryComponent: String {
     (self as NSString).deletingLastPathComponent
   }
 }

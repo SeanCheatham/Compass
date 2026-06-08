@@ -109,7 +109,8 @@ struct ProjectVisionGuideTests {
     )
 
     #expect(initial.narrationIdentifier.contains("missing:Problem,Success signal,Guardrails"))
-    #expect(refined.narrationIdentifier.contains("present:Audience,Problem,Success signal,Guardrails"))
+    #expect(
+      refined.narrationIdentifier.contains("present:Audience,Problem,Success signal,Guardrails"))
     #expect(initial.narrationIdentifier != refined.narrationIdentifier)
   }
 

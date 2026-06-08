@@ -47,7 +47,8 @@ final class CompassDaemonClient {
   }
 
   func shutdown() async throws {
-    _ = try await send(method: "shutdown", resultType: CompassDaemonEmptyResult.self)
+    _ =
+      try await send(method: "shutdown", resultType: CompassDaemonEmptyResult.self)
       as CompassDaemonEmptyResult
   }
 

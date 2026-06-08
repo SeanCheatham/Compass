@@ -22,7 +22,8 @@ struct CargoGraphStore {
   }
 
   func save(_ snapshot: CargoGraphSnapshot, workspace: CompassWorkspace) throws {
-    try FileManager.default.createDirectory(at: workspace.compassURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: workspace.compassURL, withIntermediateDirectories: true)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     encoder.dateEncodingStrategy = .iso8601

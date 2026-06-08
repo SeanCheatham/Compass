@@ -508,7 +508,8 @@ struct ProductTournamentScenarioRunTests {
     try #require(transcript.contains(#""phase":"choose""#))
     try #require(transcript.contains(#""chosenActionID":"inspect_pain""#))
     try #require(transcript.contains(#""experimentID":"\#(config.tournamentExperiments[0].id)""#))
-    try #require(transcript.contains(#""branchName":"\#(config.tournamentExperiments[0].branchName)""#))
+    try #require(
+      transcript.contains(#""branchName":"\#(config.tournamentExperiments[0].branchName)""#))
     try #require(transcript.contains(#""commitSha":"\#(head)""#))
     try #require(transcript.contains(#""scenarioID":"\#(config.scenarios[0].id)""#))
     let summary = workspace.readProductTournamentEvidenceIndex().summaries.first

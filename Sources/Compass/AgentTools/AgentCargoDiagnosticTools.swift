@@ -9,7 +9,8 @@ struct AgentCargoCheckTool: AgentTool {
       "Run `cargo check` through compass-engine and return structured Rust diagnostics. Prefer this over raw bash cargo check for compile probes."
   )
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     try await RustCargoToolInvoker.invokeDiagnostics(
       command: .cargoCheck,
       arguments: arguments,
@@ -27,7 +28,8 @@ struct AgentClippyLintTool: AgentTool {
       "Run `cargo clippy --workspace --all-targets -- -D warnings` through compass-engine and return structured lint diagnostics."
   )
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     try await RustCargoToolInvoker.invokeDiagnostics(
       command: .clippyLint,
       arguments: arguments,
@@ -77,7 +79,8 @@ struct AgentCargoTestTool: AgentTool {
     parameters: RustCargoToolSpec.testParameters
   )
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     let args: Arguments
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
@@ -114,7 +117,9 @@ private enum RustCargoToolSpec {
     "type": "object",
     "additionalProperties": false,
     "properties": [
-      "package": ["type": "string", "description": "Optional Cargo package name to scope the run."],
+      "package": [
+        "type": "string", "description": "Optional Cargo package name to scope the run.",
+      ],
       "allFeatures": ["type": "boolean", "description": "Pass --all-features."],
       "timeoutMs": [
         "type": "integer",
@@ -129,7 +134,9 @@ private enum RustCargoToolSpec {
     "type": "object",
     "additionalProperties": false,
     "properties": [
-      "package": ["type": "string", "description": "Optional Cargo package name to scope the run."],
+      "package": [
+        "type": "string", "description": "Optional Cargo package name to scope the run.",
+      ],
       "test": ["type": "string", "description": "Optional integration test binary name."],
       "filter": ["type": "string", "description": "Optional libtest filter pattern."],
       "allFeatures": ["type": "boolean", "description": "Pass --all-features."],
@@ -214,7 +221,8 @@ private enum RustCargoToolInvoker {
 
   static func diagnosticArguments(_ args: DiagnosticArguments) -> [String] {
     var values: [String] = []
-    if let package = args.package?.trimmingCharacters(in: .whitespacesAndNewlines), !package.isEmpty {
+    if let package = args.package?.trimmingCharacters(in: .whitespacesAndNewlines), !package.isEmpty
+    {
       values += ["--package", package]
     }
     if args.allFeatures == true {
@@ -225,7 +233,8 @@ private enum RustCargoToolInvoker {
 
   static func testArguments(_ args: AgentCargoTestTool.Arguments) -> [String] {
     var values: [String] = []
-    if let package = args.package?.trimmingCharacters(in: .whitespacesAndNewlines), !package.isEmpty {
+    if let package = args.package?.trimmingCharacters(in: .whitespacesAndNewlines), !package.isEmpty
+    {
       values += ["--package", package]
     }
     if let test = args.test?.trimmingCharacters(in: .whitespacesAndNewlines), !test.isEmpty {
@@ -291,7 +300,9 @@ private enum RustCargoToolInvoker {
   static func appendAudit(_ audit: RustEngineAudit?, to lines: inout [String]) {
     guard let audit else { return }
     if let argv = audit.argv, !argv.isEmpty {
-      lines.append("audit argv: \(RustVerifyCommands.shellCommand(executable: argv[0], arguments: Array(argv.dropFirst())))")
+      lines.append(
+        "audit argv: \(RustVerifyCommands.shellCommand(executable: argv[0], arguments: Array(argv.dropFirst())))"
+      )
     }
     lines.append("audit duration: \(audit.durationMs)ms")
   }

@@ -61,40 +61,42 @@ struct DevelopVerifyBypassValidatorTests {
       DevelopSummary(
         status: .succeeded,
         summary: "Implemented the slice.",
-        feedback: "Draft readiness now appears in run controls; no follow-up unless copy needs tuning.",
+        feedback:
+          "Draft readiness now appears in run controls; no follow-up unless copy needs tuning.",
         bypassVerify: false
       )
     )
   }
 
   @Test func rejectsBypassWithoutVerifySpecificReason() throws {
-    let cases: [(summary: String, feedback: String, reason: DevelopVerifyBypassValidationError.Reason)] = [
-      (
-        "Implemented the slice.",
-        "Draft readiness now appears in run controls; no follow-up unless copy needs tuning.",
-        .missingReason
-      ),
-      (
-        "Implemented the slice and skipped verify.",
-        "Verify was skipped; next Plan can continue with the queue.",
-        .genericReason
-      ),
-      (
-        "Implemented the slice and skipped verify.",
-        "Verify is unavailable in this environment; next Plan can continue with the queue.",
-        .genericReason
-      ),
-      (
-        "Implemented the slice and skipped verify.",
-        "Verify command is wrong; next Plan should replace it.",
-        .genericReason
-      ),
-      (
-        "Implemented the slice and skipped verify.",
-        "The planned verify command is out of scope for this work.",
-        .genericReason
-      ),
-    ]
+    let cases:
+      [(summary: String, feedback: String, reason: DevelopVerifyBypassValidationError.Reason)] = [
+        (
+          "Implemented the slice.",
+          "Draft readiness now appears in run controls; no follow-up unless copy needs tuning.",
+          .missingReason
+        ),
+        (
+          "Implemented the slice and skipped verify.",
+          "Verify was skipped; next Plan can continue with the queue.",
+          .genericReason
+        ),
+        (
+          "Implemented the slice and skipped verify.",
+          "Verify is unavailable in this environment; next Plan can continue with the queue.",
+          .genericReason
+        ),
+        (
+          "Implemented the slice and skipped verify.",
+          "Verify command is wrong; next Plan should replace it.",
+          .genericReason
+        ),
+        (
+          "Implemented the slice and skipped verify.",
+          "The planned verify command is out of scope for this work.",
+          .genericReason
+        ),
+      ]
 
     for testCase in cases {
       do {

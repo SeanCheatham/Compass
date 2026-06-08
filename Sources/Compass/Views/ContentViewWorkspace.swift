@@ -954,7 +954,9 @@ private func productTournamentCompassColor(for tone: ProductTournamentCompassGui
   }
 }
 
-private func rustProductTournamentHealthColor(for status: RustProductTournamentHealth.Status) -> Color {
+private func rustProductTournamentHealthColor(for status: RustProductTournamentHealth.Status)
+  -> Color
+{
   switch status {
   case .healthy:
     return .green

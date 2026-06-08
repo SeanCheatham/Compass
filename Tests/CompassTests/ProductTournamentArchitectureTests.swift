@@ -10,7 +10,8 @@ struct ProductTournamentArchitectureTests {
     try state.validate()
     try #require(state.pain?.rawPain.contains("weekly reporting") == true)
     try #require(state.contenders.count == 2)
-    try #require(state.rounds.map(\.kind) == [.productPlans, .coreTechnology, .productImplementation])
+    try #require(
+      state.rounds.map(\.kind) == [.productPlans, .coreTechnology, .productImplementation])
     try #require(state.rounds.first?.lifecycle == .active)
     try #require(state.activeRoundID == state.rounds.first?.id)
     try #require(state.contenders.allSatisfy { $0.implementationTrack != nil })
@@ -45,10 +46,11 @@ struct ProductTournamentArchitectureTests {
     let errors = state.validationErrors()
 
     try #require(
-      errors.contains(.unknownRoundContender(
-        roundID: state.rounds[0].id,
-        contenderID: "missing-contender"
-      ))
+      errors.contains(
+        .unknownRoundContender(
+          roundID: state.rounds[0].id,
+          contenderID: "missing-contender"
+        ))
     )
     try #require(errors.contains(.winnerWithoutOutcome(state.contenders[0].id)))
   }
@@ -83,7 +85,8 @@ struct ProductTournamentArchitectureTests {
     let workspace = CompassWorkspace(repoURL: root)
     let store = workspace.tournamentStore
 
-    try FileManager.default.createDirectory(at: store.tournamentURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: store.tournamentURL, withIntermediateDirectories: true)
     try "{".write(to: store.stateURL, atomically: true, encoding: .utf8)
 
     #expect(throws: TournamentWorkspaceStoreError.self) {
@@ -114,7 +117,8 @@ struct ProductTournamentArchitectureTests {
       now: Date(timeIntervalSince1970: 2_000)
     )
     let stored = try workspace.readProductTournamentConfig()
-    let feasibilityRound = try #require(stored.tournamentRounds.first { $0.kind == .coreTechnology })
+    let feasibilityRound = try #require(
+      stored.tournamentRounds.first { $0.kind == .coreTechnology })
 
     try #require(stored == result.config)
     try #require(result.message.contains("Advanced"))
@@ -151,7 +155,8 @@ private func strongPlanEvaluationRecords(
   let tournament = try #require(config.tournaments.first)
   let round = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
   let contender = try #require(config.tournamentContenders.first)
-  let contenderPlan = try #require(config.contenderPlans.first { $0.id == contender.contenderPlanID })
+  let contenderPlan = try #require(
+    config.contenderPlans.first { $0.id == contender.contenderPlanID })
   return config.userSegments.prefix(2).enumerated().map { index, segment in
     ProductTournamentPlanEvaluationRecord(
       id: "\(contender.id)-engine-\(index)",

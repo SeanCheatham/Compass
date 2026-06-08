@@ -86,7 +86,8 @@ enum PlanVerifyCommandPolicy {
       while let flag = ["-e", "-n", "-ne", "-en"].first(where: {
         message == $0 || message.hasPrefix("\($0) ")
       }) {
-        message = message == flag
+        message =
+          message == flag
           ? ""
           : String(message.dropFirst(flag.count))
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -135,7 +136,8 @@ enum PlanVerifyCommandPolicy {
   }
 
   private static func placeholderKey(_ text: String) -> String {
-    var key = text
+    var key =
+      text
       .lowercased()
       .replacingOccurrences(of: #"\s+#.*$"#, with: "", options: .regularExpression)
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)

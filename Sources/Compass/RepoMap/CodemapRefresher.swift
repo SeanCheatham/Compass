@@ -152,7 +152,8 @@ struct CodemapRefresher: Sendable {
         arguments: [],
         timeout: 30
       )
-      let response = try JSONDecoder().decode(RustEngineResponse<SchemaContractsData>.self, from: data)
+      let response = try JSONDecoder().decode(
+        RustEngineResponse<SchemaContractsData>.self, from: data)
       guard response.ok, let contracts = response.data else { return }
       try SchemaContractsStore().save(contracts, workspace: workspace)
     } catch {

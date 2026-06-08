@@ -197,49 +197,49 @@ enum SharedCompassVMGitWorkspaceSync {
     quotedBranchName: String
   ) -> String {
     """
-      set -euo pipefail
-      export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-      GUEST_PATH=\(quotedGuestPath)
-      REMOTE_URL=\(quotedRemoteURL)
-      BRANCH=\(quotedBranchName)
-      if [ ! -d "$GUEST_PATH/.git" ]; then
-        rm -rf "$GUEST_PATH"
-        mkdir -p "$(dirname "$GUEST_PATH")"
-        git clone --branch "$BRANCH" "$REMOTE_URL" "$GUEST_PATH"
-        cd "$GUEST_PATH"
-        git config user.name "Compass Agent"
-        git config user.email "compass-agent@localhost"
-        echo COMPASS_GIT_OUTCOME=cloned
-        exit 0
-      fi
-
+    set -euo pipefail
+    export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+    GUEST_PATH=\(quotedGuestPath)
+    REMOTE_URL=\(quotedRemoteURL)
+    BRANCH=\(quotedBranchName)
+    if [ ! -d "$GUEST_PATH/.git" ]; then
+      rm -rf "$GUEST_PATH"
+      mkdir -p "$(dirname "$GUEST_PATH")"
+      git clone --branch "$BRANCH" "$REMOTE_URL" "$GUEST_PATH"
       cd "$GUEST_PATH"
       git config user.name "Compass Agent"
       git config user.email "compass-agent@localhost"
-      git remote set-url origin "$REMOTE_URL"
-      git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" --tags
-      if [ -n "$(git status --porcelain)" ]; then
-        echo COMPASS_GIT_OUTCOME=dirty
-        exit 0
-      fi
-      if ! git rev-parse --verify --quiet "$BRANCH" >/dev/null; then
-        git checkout -b "$BRANCH" "origin/${BRANCH}"
-        echo COMPASS_GIT_OUTCOME=reset
-        exit 0
-      fi
-      git checkout "$BRANCH"
-      if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/${BRANCH}")" ]; then
-        echo COMPASS_GIT_OUTCOME=current
-      elif git merge-base --is-ancestor HEAD "origin/${BRANCH}"; then
-        git reset --hard "origin/${BRANCH}"
-        echo COMPASS_GIT_OUTCOME=reset
-      elif git merge-base --is-ancestor "origin/${BRANCH}" HEAD; then
-        echo COMPASS_GIT_OUTCOME=local-ahead
-      else
-        git rebase "origin/${BRANCH}"
-        echo COMPASS_GIT_OUTCOME=rebased
-      fi
-      """
+      echo COMPASS_GIT_OUTCOME=cloned
+      exit 0
+    fi
+
+    cd "$GUEST_PATH"
+    git config user.name "Compass Agent"
+    git config user.email "compass-agent@localhost"
+    git remote set-url origin "$REMOTE_URL"
+    git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" --tags
+    if [ -n "$(git status --porcelain)" ]; then
+      echo COMPASS_GIT_OUTCOME=dirty
+      exit 0
+    fi
+    if ! git rev-parse --verify --quiet "$BRANCH" >/dev/null; then
+      git checkout -b "$BRANCH" "origin/${BRANCH}"
+      echo COMPASS_GIT_OUTCOME=reset
+      exit 0
+    fi
+    git checkout "$BRANCH"
+    if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/${BRANCH}")" ]; then
+      echo COMPASS_GIT_OUTCOME=current
+    elif git merge-base --is-ancestor HEAD "origin/${BRANCH}"; then
+      git reset --hard "origin/${BRANCH}"
+      echo COMPASS_GIT_OUTCOME=reset
+    elif git merge-base --is-ancestor "origin/${BRANCH}" HEAD; then
+      echo COMPASS_GIT_OUTCOME=local-ahead
+    else
+      git rebase "origin/${BRANCH}"
+      echo COMPASS_GIT_OUTCOME=rebased
+    fi
+    """
   }
 
   private static func validateGuestPath(_ path: String) throws {

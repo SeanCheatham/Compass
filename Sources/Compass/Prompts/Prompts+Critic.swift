@@ -36,7 +36,8 @@ extension Prompts {
         verifyOutput: verifyOutput
       )
     )
-    let rustProbeBlock = rustProbeSection.isEmpty ? "" : "\n\n## Suggested Rust review probes\n\(rustProbeSection)"
+    let rustProbeBlock =
+      rustProbeSection.isEmpty ? "" : "\n\n## Suggested Rust review probes\n\(rustProbeSection)"
     let priorBlock: String
     if priorCritiques.isEmpty {
       priorBlock = "_(this is the first critic review for this Develop pass)_"

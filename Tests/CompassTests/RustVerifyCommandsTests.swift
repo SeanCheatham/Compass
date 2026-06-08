@@ -25,9 +25,10 @@ struct RustVerifyCommandsTests {
       RustVerifyCommands.cargo(RustVerifyCommands.productTournamentSmokeWithScreenshot)
         == "cargo run -p xtask -- product-tournament-smoke --emit-base64"
     )
-    try #require(RustVerifyCommands.productTournamentSmokeCommands == [
-      "cargo run -p xtask -- product-tournament-smoke --emit-base64"
-    ])
+    try #require(
+      RustVerifyCommands.productTournamentSmokeCommands == [
+        "cargo run -p xtask -- product-tournament-smoke --emit-base64"
+      ])
   }
 
   @Test func compassEngineSmokeCommandsUseRepoAndJsonFlags() throws {

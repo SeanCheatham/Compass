@@ -332,7 +332,7 @@ struct SandboxReadinessClipboardPayload: Equatable, Sendable {
 enum PrivateWorkspaceCopy {
   static func userFacingInfrastructureDetail(_ text: String, limit: Int) -> String {
     var rewritten = StringUtils.boundedText(text, limit: limit)
-    [
+    let replacements = [
       ("Shared VM", "private workspace"),
       ("shared VM", "private workspace"),
       ("VM", "workspace"),
@@ -346,7 +346,8 @@ enum PrivateWorkspaceCopy {
       ("SSH", "secure connection"),
       ("local IPSW", "downloaded macOS restore image"),
       ("IPSW", "macOS restore image"),
-    ].forEach { original, replacement in
+    ]
+    for (original, replacement) in replacements {
       rewritten = rewritten.replacingOccurrences(of: original, with: replacement)
     }
     rewritten = rewritten.replacingOccurrences(

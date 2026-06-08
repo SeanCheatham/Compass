@@ -31,7 +31,8 @@ enum SharedCompassVMGitExchange {
       case .dirtyHostCheckout(let status):
         return "host checkout has uncommitted changes; commit or stash them first:\n\(status)"
       case .detachedHead(let detail):
-        return "host checkout is detached; check out a branch before using guest git mode: \(detail)"
+        return
+          "host checkout is detached; check out a branch before using guest git mode: \(detail)"
       case .invalidRepoID(let id):
         return "invalid Compass guest repo id: \(id)"
       case .invalidRef(let ref):

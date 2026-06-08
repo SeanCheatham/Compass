@@ -214,7 +214,8 @@ final class SharedCompassVMGitService: NSObject {
       case .invalidHeader(let header): return "invalid git service header: \(header)"
       case .invalidRepository(let repoID): return "invalid repository id: \(repoID)"
       case .unsupportedService(let service): return "unsupported git service: \(service)"
-      case .readFailed(let errno): return "git service read failed: \(String(cString: strerror(errno)))"
+      case .readFailed(let errno):
+        return "git service read failed: \(String(cString: strerror(errno)))"
       case .writeFailed(let errno):
         return "git service write failed: \(String(cString: strerror(errno)))"
       }

@@ -8,7 +8,9 @@ struct ProductTournamentSettingsGuideNarration: Equatable, Sendable {
 enum ProductTournamentSettingsGuideNarrator {
   static let maxCharacters = 360
 
-  static func narrate(guide: ProductTournamentSettingsGuide) async -> ProductTournamentSettingsGuideNarration? {
+  static func narrate(guide: ProductTournamentSettingsGuide) async
+    -> ProductTournamentSettingsGuideNarration?
+  {
     guard guide.tone != .empty else { return nil }
     guard FoundationModelsAvailability.isAvailable else { return nil }
 

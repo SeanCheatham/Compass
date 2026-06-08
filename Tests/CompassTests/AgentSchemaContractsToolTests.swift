@@ -6,7 +6,8 @@ import Testing
 struct AgentSchemaContractsToolTests {
   @Test func schemaContractsToolFormatsCachedMappings() async throws {
     let root = FileManager.default.temporaryDirectory
-      .appending(path: "AgentSchemaContractsToolTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+      .appending(
+        path: "AgentSchemaContractsToolTests-\(UUID().uuidString)", directoryHint: .isDirectory)
     defer { try? FileManager.default.removeItem(at: root) }
     let repo = root.appending(path: "repo", directoryHint: .isDirectory)
     let workspace = CompassWorkspace(repoURL: repo)
@@ -33,7 +34,8 @@ struct AgentSchemaContractsToolTests {
       arguments: Data(#"{"type":"DemoState"}"#.utf8),
       context: AgentToolContext(
         workingDirectory: repo,
-        codemapStoreDirectory: workspace.compassURL.appending(path: "codemap", directoryHint: .isDirectory)
+        codemapStoreDirectory: workspace.compassURL.appending(
+          path: "codemap", directoryHint: .isDirectory)
       )
     )
 

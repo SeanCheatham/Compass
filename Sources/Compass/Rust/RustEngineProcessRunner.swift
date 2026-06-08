@@ -19,7 +19,8 @@ protocol RustEngineProcessRunning: Sendable {
 }
 
 struct RustEngineProcessRunner: RustEngineProcessRunning {
-  func run(_ invocation: RustEngineInvocation, timeout: TimeInterval) async throws -> ProcessResult {
+  func run(_ invocation: RustEngineInvocation, timeout: TimeInterval) async throws -> ProcessResult
+  {
     let executable = invocation.executableURL.path
     if let pathPrefix = invocation.pathPrefix, !pathPrefix.isEmpty {
       return try await ProcessRunner.run(

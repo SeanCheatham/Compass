@@ -106,13 +106,16 @@ struct ProjectRunControlGuideTests {
         == "2 queued drafts. 1 of 2 ready. Missing across queue: Why, Success signal.")
     try #require(
       guide.primaryHelp
-        == "1 draft is ready for Plan; 1 draft needs detail. Plan will turn the queue into one executable slice.")
+        == "1 draft is ready for Plan; 1 draft needs detail. Plan will turn the queue into one executable slice."
+    )
     try #require(
       guide.options[0].detail
-        == "1 draft is ready for Plan; 1 draft needs detail. Drafts shows missing signals before Develop starts.")
+        == "1 draft is ready for Plan; 1 draft needs detail. Drafts shows missing signals before Develop starts."
+    )
     try #require(
       guide.options[1].detail
-        == "1 draft is ready for Plan; 1 draft needs detail. Ask Plan to use ready drafts and keep unclear drafts queued.")
+        == "1 draft is ready for Plan; 1 draft needs detail. Ask Plan to use ready drafts and keep unclear drafts queued."
+    )
     try #require(!guide.options[2].isEnabled)
     try #require(guide.decisionBadge.label == "Draft details")
     try #require(guide.decisionBadge.tone == .warning)
@@ -622,7 +625,8 @@ struct ProjectRunControlGuideTests {
     try #require(running.decisionBadge.label == "Running")
     try #require(running.decisionBadge.tone == .info)
     try #require(
-      missingRepository.primaryHelp == "Add a Git repository before running the Product Tournament.")
+      missingRepository.primaryHelp == "Add a Git repository before running the Product Tournament."
+    )
     try #require(missingRepository.options.allSatisfy { !$0.isEnabled })
     try #require(missingRepository.decisionBadge.label == "Needs repo")
     try #require(missingRepository.decisionBadge.tone == .warning)

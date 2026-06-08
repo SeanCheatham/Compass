@@ -480,7 +480,8 @@ enum CompassJSONSchemaTranslation {
   ) -> [String: Any]? {
     let resolved = root.map { resolveReference(in: dict, root: $0) } ?? dict
     guard let branches = resolved["anyOf"] as? [[String: Any]] else { return nil }
-    let concreteBranches = branches
+    let concreteBranches =
+      branches
       .map { branch in
         root.map { resolveReference(in: branch, root: $0) } ?? branch
       }

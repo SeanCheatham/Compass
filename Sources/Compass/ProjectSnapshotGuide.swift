@@ -128,7 +128,9 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
     sections.append("- Plan scope detail: \(guide.planScope.detail)")
 
     if guide.isCapped {
-      sections.append("- Queue visibility: first \(guide.entries.count) of \(guide.totalEntryCount) checked; \(guide.hiddenCountSentence) in the raw draft list.")
+      sections.append(
+        "- Queue visibility: first \(guide.entries.count) of \(guide.totalEntryCount) checked; \(guide.hiddenCountSentence) in the raw draft list."
+      )
     }
 
     guard !guide.entries.isEmpty else { return }
@@ -156,7 +158,8 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
     sections.append("- Status: \(guide.title) - \(guide.detail)")
     sections.append("- Prompt effect: \(guide.promptEffect)")
     sections.append("- Prompt lane: \(guide.promptLane.label) - \(guide.promptLane.detail)")
-    sections.append("- Review progress: \(guide.reviewProgress.label) - \(guide.reviewProgress.detail)")
+    sections.append(
+      "- Review progress: \(guide.reviewProgress.label) - \(guide.reviewProgress.detail)")
 
     guard !guide.queue.isEmpty else { return }
 
@@ -194,7 +197,8 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
     sections.append("- Status: \(guide.title) (\(guide.tone.rawValue))")
     sections.append("- Action: \(guide.actionLabel)")
     sections.append("- Detail: \(guide.detail)")
-    sections.append("- Runtime coverage: \(guide.runtimeCoverage.label) - \(guide.runtimeCoverage.detail)")
+    sections.append(
+      "- Runtime coverage: \(guide.runtimeCoverage.label) - \(guide.runtimeCoverage.detail)")
 
     guard !guide.rows.isEmpty else { return }
 
@@ -212,7 +216,8 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
     sections.append("Run history:")
     sections.append("- Status: \(guide.title) - \(guide.detail)")
     sections.append("- Visible runs: \(guide.statusLabel)")
-    sections.append("- Audit coverage: \(guide.auditCoverage.label) - \(guide.auditCoverage.detail)")
+    sections.append(
+      "- Audit coverage: \(guide.auditCoverage.label) - \(guide.auditCoverage.detail)")
 
     guard !guide.facts.isEmpty else { return }
 
@@ -262,7 +267,8 @@ struct ProjectSnapshotClipboardPayload: Equatable, Sendable {
   }
 
   private static func singleLine(_ value: String, limit: Int) -> String {
-    let normalized = value
+    let normalized =
+      value
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
     return StringUtils.boundedText(normalized, limit: limit)

@@ -38,11 +38,16 @@ enum RustVerifyScopePlanner {
         needsVisualVerify: visual
       )
     }
-    return full(reason: "Multiple crates or workspace-level files changed.", needsVisualVerify: visual)
+    return full(
+      reason: "Multiple crates or workspace-level files changed.", needsVisualVerify: visual)
   }
 
-  private static func full(reason: String, needsVisualVerify: Bool = false) -> RustVerifyScopeSuggestion {
-    .init(command: "cargo test --workspace --all-features", reason: reason, needsVisualVerify: needsVisualVerify)
+  private static func full(reason: String, needsVisualVerify: Bool = false)
+    -> RustVerifyScopeSuggestion
+  {
+    .init(
+      command: "cargo test --workspace --all-features", reason: reason,
+      needsVisualVerify: needsVisualVerify)
   }
 
   private static func affectedPackages(files: [String], graph: CargoGraphSnapshot?) -> Set<String> {

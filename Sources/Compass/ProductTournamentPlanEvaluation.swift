@@ -192,8 +192,10 @@ private struct ProductTournamentPlanCommercialSignals {
     if hasQuantifiedValueProof {
       signals.append("quantified value proof")
     }
-    return signals.isEmpty ? "no explicit price, ROI, or sponsorship proof" : signals.joined(
-      separator: ", ")
+    return signals.isEmpty
+      ? "no explicit price, ROI, or sponsorship proof"
+      : signals.joined(
+        separator: ", ")
   }
 
   init(text: String) {
@@ -262,8 +264,8 @@ enum ProductTournamentPlanEvaluator {
   static let personaModelPromptVersionID =
     "product_tournament.plan_evaluator.foundation_models.v1"
 
-  private static let defaultPersonaModelStreamText:
-    @Sendable (_ prompt: String) async -> String? = { prompt in
+  private static let defaultPersonaModelStreamText: @Sendable (_ prompt: String) async -> String? =
+    { prompt in
       guard FoundationModelsAvailability.isAvailable else { return nil }
       if #available(macOS 26.0, *) {
         return await FoundationModelsAvailability._streamText(prompt: prompt)
@@ -285,7 +287,8 @@ enum ProductTournamentPlanEvaluator {
       throw ProductTournamentPlanEvaluationError.unknownTournament(tournamentID)
     }
     let round = try planRound(roundID: roundID, tournament: tournament, config: config)
-    let roundContenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
+    let roundContenderIDs =
+      round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
     let contenderIDs: [String]
     if let focusedContenderID {
       guard roundContenderIDs.contains(focusedContenderID) else {
@@ -384,7 +387,8 @@ enum ProductTournamentPlanEvaluator {
       throw ProductTournamentPlanEvaluationError.unknownTournament(tournamentID)
     }
     let round = try planRound(roundID: roundID, tournament: tournament, config: config)
-    let roundContenderIDs = round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
+    let roundContenderIDs =
+      round.contenderIDs.isEmpty ? tournament.contenderIDs : round.contenderIDs
     let contenderIDs: [String]
     if let focusedContenderID {
       guard roundContenderIDs.contains(focusedContenderID) else {
@@ -855,11 +859,14 @@ enum ProductTournamentPlanEvaluator {
         painRecognition + workflowImprovement + alternativeAdvantage + switchingReadiness
           + continuedUsePull + willingnessToPay
       ) / 6
-    let parsedVerdict = modelResponse.verdict.flatMap(ProductTournamentEvidenceVerdict.init(rawValue:))
-    let selectedVerdict = parsedVerdict ?? verdict(
-      averageScore: average,
-      willingnessToPayScore: willingnessToPay
-    )
+    let parsedVerdict = modelResponse.verdict.flatMap(
+      ProductTournamentEvidenceVerdict.init(rawValue:))
+    let selectedVerdict =
+      parsedVerdict
+      ?? verdict(
+        averageScore: average,
+        willingnessToPayScore: willingnessToPay
+      )
 
     return ProductTournamentPlanEvaluationRecord(
       id: recordID(
@@ -903,7 +910,8 @@ enum ProductTournamentPlanEvaluator {
         fallback: baseline.currentAlternativeComparison
       ) ?? baseline.currentAlternativeComparison,
       verdict: selectedVerdict,
-      summary: cleanedOptional(modelResponse.summary, fallback: baseline.summary) ?? baseline.summary,
+      summary: cleanedOptional(modelResponse.summary, fallback: baseline.summary)
+        ?? baseline.summary,
       rationale: nonEmpty(modelResponse.rationale, fallback: baseline.rationale),
       planStrengths: nonEmpty(modelResponse.planStrengths, fallback: baseline.planStrengths),
       planRisks: nonEmpty(modelResponse.planRisks, fallback: baseline.planRisks),
@@ -1115,7 +1123,8 @@ enum ProductTournamentPlanEvaluator {
     for contender: ProductTournamentContender,
     config: ProductTournamentConfig
   ) throws -> ProductTournamentContenderPlan {
-    guard let contenderPlan = config.contenderPlans.first(where: { $0.id == contender.contenderPlanID })
+    guard
+      let contenderPlan = config.contenderPlans.first(where: { $0.id == contender.contenderPlanID })
     else {
       throw ProductTournamentPlanEvaluationError.unknownContenderPlan(contender.contenderPlanID)
     }
@@ -1368,7 +1377,9 @@ enum ProductTournamentPlanEvaluator {
     contenderPlan: ProductTournamentContenderPlan,
     commercialSignals: ProductTournamentPlanCommercialSignals
   ) -> [String] {
-    var strengths = [contender.valueProposition, contenderPlan.differentiator, contenderPlan.whyThisCouldWin]
+    var strengths = [
+      contender.valueProposition, contenderPlan.differentiator, contenderPlan.whyThisCouldWin,
+    ]
     if commercialSignals.hasCommercialProof {
       strengths.append("Commercial proof: \(commercialSignals.summary)")
     }
@@ -1475,12 +1486,13 @@ extension CompassProject {
       }
       let config = try workspace.readProductTournamentConfig()
       let evidenceIndex = workspace.readProductTournamentEvidenceIndex()
-      guard let proposal = ProductTournamentPlanTransitioner.bestProposal(
-        tournamentID: tournamentID,
-        roundID: roundID,
-        config: config,
-        evidenceIndex: evidenceIndex
-      )
+      guard
+        let proposal = ProductTournamentPlanTransitioner.bestProposal(
+          tournamentID: tournamentID,
+          roundID: roundID,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
       else {
         throw ProductTournamentEngineError.missingActionableTransition("any")
       }

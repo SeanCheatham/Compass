@@ -96,7 +96,9 @@ struct RustProductTournamentHealthTests {
     let health = RustProductTournamentHealth(inputs: inputs)
 
     #expect(health.status == .unknown)
-    #expect(health.checks.first { $0.id == "smoke-report" }?.nextAction?.contains("product-tournament-smoke") == true)
+    #expect(
+      health.checks.first { $0.id == "smoke-report" }?.nextAction?.contains(
+        "product-tournament-smoke") == true)
   }
 
   @Test func storeRoundTripsUnderCompassWorkspace() throws {
@@ -110,7 +112,8 @@ struct RustProductTournamentHealthTests {
     try store.save(health, workspace: workspace)
     let loaded = try #require(store.load(from: workspace))
 
-    #expect(store.url(for: workspace).lastPathComponent == RustProductTournamentHealthStore.filename)
+    #expect(
+      store.url(for: workspace).lastPathComponent == RustProductTournamentHealthStore.filename)
     #expect(loaded == health)
   }
 
@@ -176,7 +179,8 @@ struct RustProductTournamentHealthTests {
       data: CargoCheckData(
         exitCode: exitCode,
         diagnostics: [],
-        summary: RustDiagnosticSummary(errors: exitCode == 0 ? 0 : 1, warnings: 0, cratesAffected: [])
+        summary: RustDiagnosticSummary(
+          errors: exitCode == 0 ? 0 : 1, warnings: 0, cratesAffected: [])
       ),
       errors: []
     )

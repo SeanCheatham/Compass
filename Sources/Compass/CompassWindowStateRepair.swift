@@ -20,7 +20,8 @@ enum CompassWindowStateRepair {
   }
 
   static func frameHeight(from frameString: String) -> Double? {
-    let parts = frameString
+    let parts =
+      frameString
       .split { $0 == "," || $0 == " " }
       .compactMap { Double($0) }
     guard parts.count >= 4 else { return nil }
@@ -40,7 +41,8 @@ enum CompassWindowStateRepair {
     }
 
     let maximumReasonableHeight = windowHeight * corruptedHeightMultiplier
-    return splitFrames
+    return
+      splitFrames
       .compactMap(frameHeight)
       .contains { $0 > maximumReasonableHeight }
   }

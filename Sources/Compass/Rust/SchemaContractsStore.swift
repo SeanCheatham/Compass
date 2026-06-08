@@ -14,7 +14,8 @@ struct SchemaContractsStore {
   }
 
   func save(_ data: SchemaContractsData, workspace: CompassWorkspace) throws {
-    try FileManager.default.createDirectory(at: workspace.compassURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: workspace.compassURL, withIntermediateDirectories: true)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     try encoder.encode(data).write(to: url(for: workspace), options: .atomic)

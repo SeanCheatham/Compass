@@ -14,7 +14,8 @@ struct AgentScaffoldCheckTool: AgentTool {
     ])
   )
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     guard let service = context.rustCargoService else {
       return .failure("Rust cargo tools are not enabled for this project.", kind: .invalidArguments)
     }
@@ -25,7 +26,8 @@ struct AgentScaffoldCheckTool: AgentTool {
         arguments: [],
         timeout: 30
       )
-      let response = try JSONDecoder().decode(RustEngineResponse<ScaffoldCheckData>.self, from: data)
+      let response = try JSONDecoder().decode(
+        RustEngineResponse<ScaffoldCheckData>.self, from: data)
       guard response.ok, let payload = response.data else {
         return .failure(response.errors.joined(separator: "\n"), kind: .bashFailure)
       }
@@ -93,7 +95,8 @@ struct AgentCoverageGapsTool: AgentTool {
     ])
   )
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     let args: Arguments
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
@@ -104,7 +107,8 @@ struct AgentCoverageGapsTool: AgentTool {
       return .failure("Rust cargo tools are not enabled for this project.", kind: .invalidArguments)
     }
     var commandArgs: [String] = []
-    if let package = args.package?.trimmingCharacters(in: .whitespacesAndNewlines), !package.isEmpty {
+    if let package = args.package?.trimmingCharacters(in: .whitespacesAndNewlines), !package.isEmpty
+    {
       commandArgs += ["--package", package]
     }
     do {
@@ -120,7 +124,9 @@ struct AgentCoverageGapsTool: AgentTool {
       }
       var lines = ["overall line coverage: \(String(format: "%.1f", payload.overallLinePercent))%"]
       for file in payload.files.prefix(30) {
-        lines.append("- \(file.path): \(String(format: "%.1f", file.linePercent))% uncovered \(file.uncoveredLines.prefix(40).map(String.init).joined(separator: ","))")
+        lines.append(
+          "- \(file.path): \(String(format: "%.1f", file.linePercent))% uncovered \(file.uncoveredLines.prefix(40).map(String.init).joined(separator: ","))"
+        )
       }
       if !payload.logTail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         lines.append("[log tail]\n\(payload.logTail)")
@@ -146,7 +152,8 @@ struct AgentVisualVerifyTool: AgentTool {
     ])
   )
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     guard let service = context.rustCargoService else {
       return .failure("Rust cargo tools are not enabled for this project.", kind: .invalidArguments)
     }
@@ -162,15 +169,16 @@ struct AgentVisualVerifyTool: AgentTool {
         return .failure(response.errors.joined(separator: "\n"), kind: .bashFailure)
       }
       let status = payload.ok ? "passed" : "failed"
-      return .ok(withRustRepairHints(
-        """
-        visual_verify: \(status)
-        screenshot_path: \(payload.screenshotPath ?? "(none)")
-        log_tail:
-        \(payload.logTail)
-        """,
-        response.repairHints
-      ))
+      return .ok(
+        withRustRepairHints(
+          """
+          visual_verify: \(status)
+          screenshot_path: \(payload.screenshotPath ?? "(none)")
+          log_tail:
+          \(payload.logTail)
+          """,
+          response.repairHints
+        ))
     } catch {
       return .failure(error.localizedDescription, kind: .bashFailure)
     }

@@ -311,7 +311,8 @@ struct AssumptionReviewGuide: Equatable, Sendable {
       )
     }
     if implicitCount > 0 {
-      lanes.append(countLabel(implicitCount, singular: "tentative guess", plural: "tentative guesses"))
+      lanes.append(
+        countLabel(implicitCount, singular: "tentative guess", plural: "tentative guesses"))
     }
     if deniedCount > 0 {
       lanes.append(countLabel(deniedCount, singular: "correction", plural: "corrections"))

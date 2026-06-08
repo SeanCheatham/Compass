@@ -244,7 +244,8 @@ struct AgentExecutionLaunchPlan: Equatable {
       return "private workspace capacity is currently full."
     }
 
-    var rewritten = normalized
+    var rewritten =
+      normalized
       .replacingOccurrences(of: "Shared VM", with: "private workspace")
       .replacingOccurrences(of: "inside the guest", with: "inside the private workspace")
       .replacingOccurrences(of: "guest preparation", with: "private workspace setup")

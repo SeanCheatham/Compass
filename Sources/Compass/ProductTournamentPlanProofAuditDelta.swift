@@ -267,9 +267,8 @@ enum TournamentPlanProofDeltaOverview {
         if lhs.status == rhs.status { return lhs.updatedAt > rhs.updatedAt }
         return lhs.status == .active
       }
-    var scopedContenders: [
-      (tournamentID: String, roundID: String, contender: ProductTournamentContender)
-    ] = []
+    var scopedContenders:
+      [(tournamentID: String, roundID: String, contender: ProductTournamentContender)] = []
     var seenContenderIDs: Set<String> = []
 
     for tournament in tournaments {

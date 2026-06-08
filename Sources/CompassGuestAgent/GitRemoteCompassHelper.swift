@@ -76,11 +76,13 @@ enum GitRemoteCompassHelper {
       socketFD = try openHostSocket()
       try writeAll(Data("\(repoID) \(service)\n".utf8), to: socketFD)
       guard let response = readLineFromFD(socketFD, maxBytes: 4096) else {
-        writeString("git-remote-compass: host git service closed during handshake\n", to: STDERR_FILENO)
+        writeString(
+          "git-remote-compass: host git service closed during handshake\n", to: STDERR_FILENO)
         exit(2)
       }
       guard response == "ok" else {
-        writeString("git-remote-compass: host git service rejected request: \(response)\n", to: STDERR_FILENO)
+        writeString(
+          "git-remote-compass: host git service rejected request: \(response)\n", to: STDERR_FILENO)
         exit(2)
       }
     } catch {

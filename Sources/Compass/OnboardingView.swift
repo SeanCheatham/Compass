@@ -712,9 +712,11 @@ private struct SharedVMOnboardingPanel: View {
 
   private func unavailableSection(reason: String) -> some View {
     VStack(alignment: .leading, spacing: 6) {
-      Label("Private workspace unavailable on this Mac", systemImage: "exclamationmark.triangle.fill")
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(Color.orange)
+      Label(
+        "Private workspace unavailable on this Mac", systemImage: "exclamationmark.triangle.fill"
+      )
+      .font(.subheadline.weight(.semibold))
+      .foregroundStyle(Color.orange)
       Text(reason)
         .font(.callout)
         .foregroundStyle(.secondary)

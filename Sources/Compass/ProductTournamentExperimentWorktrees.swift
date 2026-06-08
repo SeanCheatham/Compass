@@ -235,7 +235,8 @@ extension CompassWorkspace {
     experimentID: String
   ) async throws -> ProductTournamentExperimentWorktree {
     var config = try readProductTournamentConfig()
-    guard let index = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID }) else {
+    guard let index = config.tournamentExperiments.firstIndex(where: { $0.id == experimentID })
+    else {
       throw ProductTournamentExperimentWorktreeError.experimentNotFound(experimentID)
     }
     let prepared = try await ProductTournamentExperimentWorktreeManager.ensureWorktree(
@@ -262,8 +263,8 @@ extension CompassWorkspace {
   }
 }
 
-private extension ProductTournamentConfig {
-  mutating func refreshCandidateStarterScenarioTargets(
+extension ProductTournamentConfig {
+  fileprivate mutating func refreshCandidateStarterScenarioTargets(
     experimentID: String,
     previousCommit: String?,
     currentCommit: String,

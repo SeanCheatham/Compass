@@ -94,7 +94,8 @@ struct ProjectRunControlGuide: Equatable {
       draftIntakeGuide: draftIntakeGuide,
       visionGuide: visionGuide
     ) {
-      loopDetail = "Capture Project Vision first, or let Plan infer the next slice from the repository."
+      loopDetail =
+        "Capture Project Vision first, or let Plan infer the next slice from the repository."
     } else {
       loopDetail = "Let Plan choose the next slice, then Develop it if one is found."
     }
@@ -284,7 +285,8 @@ struct ProjectRunControlGuide: Equatable {
       draftIntakeGuide: draftIntakeGuide,
       visionGuide: visionGuide
     ) {
-      return "Capture Project Vision first, or ask Plan to infer one executable next slice for review."
+      return
+        "Capture Project Vision first, or ask Plan to infer one executable next slice for review."
     }
 
     return handoffReadiness.hasImmediate
@@ -452,7 +454,8 @@ struct ProjectRunControlGuide: Equatable {
       draftIntakeGuide: draftIntakeGuide,
       visionGuide: visionGuide
     ) {
-      return "Project Vision is empty; Plan will otherwise infer one executable next slice from the repository."
+      return
+        "Project Vision is empty; Plan will otherwise infer one executable next slice from the repository."
     }
 
     return "Plan will choose one executable next slice from the repository and strategic context."
@@ -794,7 +797,8 @@ struct ProjectRunControlGuide: Equatable {
       draftIntakeGuide: draftIntakeGuide,
       visionGuide: visionGuide
     ) {
-      return "Capture Project Vision first, or run Plan if you want Compass to infer a starting slice."
+      return
+        "Capture Project Vision first, or run Plan if you want Compass to infer a starting slice."
     }
     return "Run Plan first, or let the full loop choose and build the next slice."
   }

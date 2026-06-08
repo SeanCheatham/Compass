@@ -102,7 +102,8 @@ struct TournamentAutomationProofTargetDebtMovement: Equatable, Sendable, Identif
       return
         "Latest audit added \(proofDebtDelta) proof debt (\(startingProofDebtCount) -> \(endingProofDebtCount))"
     }
-    return "Latest audit left proof debt unchanged (\(startingProofDebtCount) -> \(endingProofDebtCount))"
+    return
+      "Latest audit left proof debt unchanged (\(startingProofDebtCount) -> \(endingProofDebtCount))"
   }
 
   var lastRunSummary: String {
@@ -267,10 +268,11 @@ struct TournamentAutomationProofTargetScoreboardReadinessGroup: Equatable, Senda
 
   var latestMovementRow: TournamentAutomationProofTargetScoreboardRow? {
     rows
-      .compactMap { row -> (
-        row: TournamentAutomationProofTargetScoreboardRow,
-        movement: TournamentAutomationProofTargetDebtMovement
-      )? in
+      .compactMap {
+        row -> (
+          row: TournamentAutomationProofTargetScoreboardRow,
+          movement: TournamentAutomationProofTargetDebtMovement
+        )? in
         guard let movement = row.latestDebtMovement else { return nil }
         return (row, movement)
       }
@@ -767,7 +769,8 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
   }
 
   var readinessGroupActionSummary: String {
-    let summary = readinessGroups
+    let summary =
+      readinessGroups
       .prefix(4)
       .map { StringUtils.boundedText($0.actionContextSummary, limit: 140) }
       .joined(separator: " | ")
@@ -775,7 +778,8 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
   }
 
   var readinessGroupResultSummary: String {
-    let summary = readinessGroups
+    let summary =
+      readinessGroups
       .prefix(4)
       .map { StringUtils.boundedText($0.latestMovementContextSummary, limit: 180) }
       .joined(separator: " | ")
@@ -824,11 +828,12 @@ struct TournamentAutomationProofTargetScoreboardItem: Equatable, Sendable, Ident
 
   var contextLine: String {
     let rowText = rows.prefix(4).map(\.contextSummary).joined(separator: " | ")
-    let topAction = topActionRow.map { row in
-      let title = StringUtils.boundedText(row.contenderTitle, limit: 80)
-      let summary = StringUtils.boundedText(row.nextStepSummary, limit: 140)
-      return "top_action \(title): \(summary); top_action_status \(row.nextStatusLabel)"
-    } ?? "top_action none"
+    let topAction =
+      topActionRow.map { row in
+        let title = StringUtils.boundedText(row.contenderTitle, limit: 80)
+        let summary = StringUtils.boundedText(row.nextStepSummary, limit: 140)
+        return "top_action \(title): \(summary); top_action_status \(row.nextStatusLabel)"
+      } ?? "top_action none"
     let scope = [
       "tournament \(tournamentID ?? "unknown_tournament")",
       "targets \(targetCount)/\(contenderCount)",
@@ -1116,7 +1121,8 @@ enum TournamentAutomationProofTargetScoreboard {
       1,
       activeContenderCount(round: round, tournament: tournament, config: config)
     )
-    let rows = targets
+    let rows =
+      targets
       .map { target in
         row(
           for: target,
@@ -1204,21 +1210,19 @@ enum TournamentAutomationProofTargetScoreboard {
   }
 
   private static func auditSearchText(_ audit: TournamentAutomationCycleAudit) -> String {
-    (
-      audit.executedStepIDs + audit.experimentIDs + audit.messages + audit.evidenceRunIDs
-        + audit.decisionCandidateSummaries + audit.evidenceTensionSummaries
-        + audit.proofTargetSummaries + audit.targetedProofOutcomeSummaries
-        + audit.personaRationaleSignalSummaries + audit.revisionBriefSummaries
-        + [
-          audit.startingProofDebtSummary,
-          audit.endingProofDebtSummary,
-          audit.stopStepID,
-          audit.stopStepTitle,
-          audit.stopDetail,
-          audit.userMessage,
-        ].compactMap { $0 }
-    )
-    .joined(separator: " ")
+    (audit.executedStepIDs + audit.experimentIDs + audit.messages + audit.evidenceRunIDs
+      + audit.decisionCandidateSummaries + audit.evidenceTensionSummaries
+      + audit.proofTargetSummaries + audit.targetedProofOutcomeSummaries
+      + audit.personaRationaleSignalSummaries + audit.revisionBriefSummaries
+      + [
+        audit.startingProofDebtSummary,
+        audit.endingProofDebtSummary,
+        audit.stopStepID,
+        audit.stopStepTitle,
+        audit.stopDetail,
+        audit.userMessage,
+      ].compactMap { $0 })
+      .joined(separator: " ")
   }
 
   private static func proofTargetSummary(
@@ -1281,9 +1285,10 @@ enum TournamentAutomationProofTargetScoreboard {
     if lowercased.contains("round ") {
       sawScopeMarker = true
       guard let roundID = target.roundID,
-        lowercased.contains("round \(roundID.lowercased())") || lowercased.contains(
-          roundID.lowercased()
-        )
+        lowercased.contains("round \(roundID.lowercased())")
+          || lowercased.contains(
+            roundID.lowercased()
+          )
       else { return false }
     }
     if lowercased.contains("scenario ") {
@@ -1438,9 +1443,10 @@ enum TournamentAutomationProofTargetScoreboard {
     for target: TournamentAutomationProofTarget,
     config: ProductTournamentConfig
   ) -> ScopeKey {
-    let contender = target.contenderID.flatMap { contenderID in
-      config.tournamentContenders.first { $0.id == contenderID }
-    } ?? config.tournamentContenders.first { $0.experimentID == target.experimentID }
+    let contender =
+      target.contenderID.flatMap { contenderID in
+        config.tournamentContenders.first { $0.id == contenderID }
+      } ?? config.tournamentContenders.first { $0.experimentID == target.experimentID }
     let tournamentID = target.tournamentID ?? contender?.tournamentID
     let tournament = tournamentID.flatMap { id in config.tournaments.first { $0.id == id } }
     let roundID = target.roundID ?? tournament?.currentRoundID

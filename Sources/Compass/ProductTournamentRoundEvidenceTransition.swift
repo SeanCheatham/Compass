@@ -173,13 +173,16 @@ struct ProductTournamentRoundTwoProofGapValidationResult: Equatable, Sendable, I
       validationRunIDs.isEmpty
       ? "validation_runs none"
       : "validation_runs \(validationRunIDs.prefix(4).joined(separator: ", "))"
-    let audited = originalProofGaps.isEmpty
+    let audited =
+      originalProofGaps.isEmpty
       ? "audited gaps unavailable"
       : originalProofGaps.prefix(4).joined(separator: "; ")
-    let resolved = resolvedProofGaps.isEmpty
+    let resolved =
+      resolvedProofGaps.isEmpty
       ? "none"
       : resolvedProofGaps.prefix(4).joined(separator: "; ")
-    let persisted = persistedProofGaps.isEmpty
+    let persisted =
+      persistedProofGaps.isEmpty
       ? "none"
       : persistedProofGaps.prefix(4).joined(separator: "; ")
     return
@@ -244,7 +247,8 @@ enum ProductTournamentRoundTwoProofGapValidationAdvisor {
             )
           }
           && audit.revisionBriefSummaries.contains {
-            $0.contains("source \(TournamentAutomationRevisionBriefSource.roundTwoProofGap.rawValue)")
+            $0.contains(
+              "source \(TournamentAutomationRevisionBriefSource.roundTwoProofGap.rawValue)")
           }
       }
   }
@@ -275,7 +279,8 @@ enum ProductTournamentRoundTwoProofGapValidationAdvisor {
     let scopedScenarioIDs =
       scenarioIDs?.filter { !$0.isEmpty }
       ?? scenarioID.map { Set([$0]) }
-    return summaries
+    return
+      summaries
       .filter { summary in
         summary.endedAt > audit.endedAt
           && (scopedScenarioIDs?.contains(summary.scenarioID) ?? true)
@@ -437,9 +442,12 @@ enum ProductTournamentRoundTwoProofGapValidationAdvisor {
     from audit: TournamentAutomationCycleAudit
   ) -> [String] {
     for summary in audit.revisionBriefSummaries
-    where summary.contains("source \(TournamentAutomationRevisionBriefSource.roundTwoProofGap.rawValue)") {
+    where summary.contains(
+      "source \(TournamentAutomationRevisionBriefSource.roundTwoProofGap.rawValue)")
+    {
       let gapText = auditedProofGapText(in: summary)
-      let gaps = gapText
+      let gaps =
+        gapText
         .split(separator: ";")
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }
@@ -453,11 +461,13 @@ enum ProductTournamentRoundTwoProofGapValidationAdvisor {
   private static func auditedProofGapText(in summary: String) -> String {
     if let implementationRange = summary.range(of: "implementation Address ") {
       let text = String(summary[implementationRange.upperBound...])
-      return clipped(text, before: [
-        " in the core technology proof",
-        "; scenario",
-        "; proof",
-      ])
+      return clipped(
+        text,
+        before: [
+          " in the core technology proof",
+          "; scenario",
+          "; proof",
+        ])
     }
     if let triggerRange = summary.range(of: "recommends revising contender"),
       let colonRange = summary[triggerRange.upperBound...].range(of: ":")
@@ -487,7 +497,8 @@ enum ProductTournamentRoundTwoProofGapValidationAdvisor {
   }
 
   private static func gapKey(_ value: String) -> String {
-    let normalized = value
+    let normalized =
+      value
       .lowercased()
       .replacingOccurrences(of: #"[^a-z0-9]+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -874,7 +885,8 @@ enum ProductTournamentRoundEvidenceTransitioner {
   ) -> [ProductTournamentEvidenceSummary] {
     guard
       let experimentID = contender.experimentID,
-      let audit = ProductTournamentRoundTwoProofGapValidationAdvisor
+      let audit =
+        ProductTournamentRoundTwoProofGapValidationAdvisor
         .latestAppliedProofGapRevisionAudit(
           for: experimentID,
           config: config
@@ -884,7 +896,8 @@ enum ProductTournamentRoundEvidenceTransitioner {
       from: audit,
       experimentID: experimentID
     )
-    let validationSummaries = ProductTournamentRoundTwoProofGapValidationAdvisor
+    let validationSummaries =
+      ProductTournamentRoundTwoProofGapValidationAdvisor
       .validationSummaries(
         in: summaries,
         after: audit,
@@ -1024,7 +1037,9 @@ enum ProductTournamentRoundEvidenceTransitioner {
     var lines = [
       "\(completedRunCount) completed of \(runCount) Round 2 run(s) across \(distinctPersonaCount) persona(s)."
     ]
-    lines.append("\(experienceUseProofCount) run(s) completed the expected tournament experience trace before judging feasibility.")
+    lines.append(
+      "\(experienceUseProofCount) run(s) completed the expected tournament experience trace before judging feasibility."
+    )
     if averageScore > 0 {
       lines.append(
         "Average feasibility score \(format(averageScore))/5; readiness \(format(readinessScore))/100."
@@ -1135,7 +1150,8 @@ enum ProductTournamentRoundEvidenceTransitioner {
         display[normalized] = StringUtils.boundedText(trimmed, limit: 80)
       }
     }
-    return counts
+    return
+      counts
       .filter { $0.value >= minimumCount }
       .sorted {
         if $0.value == $1.value { return $0.key < $1.key }
@@ -1225,7 +1241,8 @@ enum ProductTournamentRoundEvidenceTransitioner {
     }) {
       return productImplementation
     }
-    throw ProductTournamentRoundEvidenceTransitionError.missingProductImplementationRound(tournament.id)
+    throw ProductTournamentRoundEvidenceTransitionError.missingProductImplementationRound(
+      tournament.id)
   }
 
   private static func priority(
@@ -1367,12 +1384,13 @@ extension CompassProject {
       }
       let config = try workspace.readProductTournamentConfig()
       let evidenceIndex = workspace.readProductTournamentEvidenceIndex()
-      guard let proposal = ProductTournamentRoundEvidenceTransitioner.bestProposal(
-        tournamentID: tournamentID,
-        roundID: roundID,
-        config: config,
-        evidenceIndex: evidenceIndex
-      )
+      guard
+        let proposal = ProductTournamentRoundEvidenceTransitioner.bestProposal(
+          tournamentID: tournamentID,
+          roundID: roundID,
+          config: config,
+          evidenceIndex: evidenceIndex
+        )
       else {
         throw ProductTournamentEngineError.missingActionableTransition("any")
       }

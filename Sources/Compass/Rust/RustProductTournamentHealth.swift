@@ -162,7 +162,9 @@ struct RustProductTournamentHealth: Codable, Equatable, Sendable {
       id: "engine-ping",
       label: "Engine ping",
       status: response.ok ? .healthy : .failed,
-      detail: response.ok ? "Ping responded for \(boundedPath(response.data?.repo ?? "."))" : response.errors.joined(separator: " "),
+      detail: response.ok
+        ? "Ping responded for \(boundedPath(response.data?.repo ?? "."))"
+        : response.errors.joined(separator: " "),
       nextAction: response.ok ? nil : "Build or reinstall compass-engine."
     )
   }
@@ -210,12 +212,15 @@ struct RustProductTournamentHealth: Codable, Equatable, Sendable {
       id: "cargo-graph",
       label: "Cargo graph",
       status: graph.members.isEmpty ? .warning : .healthy,
-      detail: graph.members.isEmpty ? "Cargo graph has no members." : "\(graph.members.count) Cargo member(s) cached.",
+      detail: graph.members.isEmpty
+        ? "Cargo graph has no members." : "\(graph.members.count) Cargo member(s) cached.",
       nextAction: graph.members.isEmpty ? "workspace_outline" : nil
     )
   }
 
-  private static func cargoDiagnosticsCheck(_ response: RustEngineResponse<CargoCheckData>?) -> Check {
+  private static func cargoDiagnosticsCheck(_ response: RustEngineResponse<CargoCheckData>?)
+    -> Check
+  {
     diagnosticCheck(
       id: "cargo-diagnostics",
       label: "Cargo diagnostics",
@@ -248,7 +253,8 @@ struct RustProductTournamentHealth: Codable, Equatable, Sendable {
       id: id,
       label: label,
       status: status,
-      detail: "Exit \(data.exitCode); \(data.summary.errors) error(s), \(data.summary.warnings) warning(s).",
+      detail:
+        "Exit \(data.exitCode); \(data.summary.errors) error(s), \(data.summary.warnings) warning(s).",
       nextAction: status == .healthy ? nil : action
     )
   }
@@ -283,7 +289,9 @@ struct RustProductTournamentHealth: Codable, Equatable, Sendable {
         id: "visual",
         label: "Visual verification",
         status: advertised ? .unknown : .warning,
-        detail: advertised ? "Visual verification is advertised but no recent result is cached." : "Visual verification is not advertised for this project.",
+        detail: advertised
+          ? "Visual verification is advertised but no recent result is cached."
+          : "Visual verification is not advertised for this project.",
         nextAction: advertised ? "visual_verify" : nil
       )
     }
@@ -291,7 +299,9 @@ struct RustProductTournamentHealth: Codable, Equatable, Sendable {
       id: "visual",
       label: "Visual verification",
       status: data.ok ? .healthy : .failed,
-      detail: data.ok ? "Latest visual verification passed." : response.repairHints.first?.message ?? "Latest visual verification failed.",
+      detail: data.ok
+        ? "Latest visual verification passed."
+        : response.repairHints.first?.message ?? "Latest visual verification failed.",
       nextAction: data.ok ? nil : response.repairHints.first?.suggestedCommand ?? "visual_verify"
     )
   }
@@ -316,7 +326,8 @@ struct RustProductTournamentHealth: Codable, Equatable, Sendable {
       label: "Product Tournament smoke",
       status: report.status == .passed ? .healthy : .failed,
       detail: "\(report.status.rawValue) report at \(reportPath).",
-      nextAction: report.status == .passed ? nil : "Open the smoke report and rerun product-tournament-smoke."
+      nextAction: report.status == .passed
+        ? nil : "Open the smoke report and rerun product-tournament-smoke."
     )
   }
 
@@ -385,7 +396,8 @@ struct RustProductTournamentHealthStore {
   }
 
   func save(_ health: RustProductTournamentHealth, workspace: CompassWorkspace) throws {
-    try FileManager.default.createDirectory(at: workspace.compassURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: workspace.compassURL, withIntermediateDirectories: true)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     encoder.dateEncodingStrategy = .iso8601

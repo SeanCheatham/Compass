@@ -60,7 +60,9 @@ struct DiscoverPromptContractTests {
     try #require(config.tournaments.count == 1)
     try #require(config.tournamentContenders.count == 2)
     try #require(
-      config.tournamentRounds.map(\.kind) == [.productPlans, .coreTechnology, .productImplementation])
+      config.tournamentRounds.map(\.kind) == [
+        .productPlans, .coreTechnology, .productImplementation,
+      ])
     try #require(config.tournamentRounds[0].requiresBuiltProduct == false)
     try #require(decoded.candidateTournamentExperiments[0].branchSlug == "incident-command-board")
     try #require(decoded.candidateTournamentExperiments[0].contenderID == "contender-command-board")
@@ -235,8 +237,7 @@ struct DiscoverPromptContractTests {
     output.stateEdits.tournamentExperiments = []
     output.stateEdits.scenarioCohorts = []
     for contenderIndex in output.stateEdits.tournamentContenders.indices
-    where output.stateEdits.tournamentContenders[contenderIndex].id == "contender-command-board"
-    {
+    where output.stateEdits.tournamentContenders[contenderIndex].id == "contender-command-board" {
       output.stateEdits.tournamentContenders[contenderIndex].experimentID = nil
     }
     for roundIndex in output.stateEdits.tournamentRounds.indices {
@@ -292,7 +293,8 @@ struct DiscoverPromptContractTests {
       scenario.task.contains("Draft a customer update from owner and decision context.")
     )
     try #require(scenario.task.contains("Compare it with Slack thread."))
-    try #require(scenario.successSignal == "Persona creates a clearer update than the Slack thread.")
+    try #require(
+      scenario.successSignal == "Persona creates a clearer update than the Slack thread.")
     try #require(scenario.targetCommitSha == nil)
     try #require(scenario.enabled)
 
@@ -556,7 +558,8 @@ private func discoverJSONWithCandidateContenderPlanReference(_ output: DiscoverP
   return String(decoding: invalidData, as: UTF8.self)
 }
 
-private func discoverJSONWithCandidatePrototypeName(_ output: DiscoverPromptOutput) throws -> String {
+private func discoverJSONWithCandidatePrototypeName(_ output: DiscoverPromptOutput) throws -> String
+{
   let data = Data(try encodeDiscoverJSON(output).utf8)
   var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
   var candidates = try #require(object["candidateTournamentExperiments"] as? [[String: Any]])

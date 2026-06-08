@@ -33,14 +33,16 @@ struct AgentWorkspaceOutlineTool: AgentTool {
         "properties": [
           "refresh": [
             "type": "boolean",
-            "description": "When true, refresh the cargo graph through compass-engine before reading it.",
+            "description":
+              "When true, refresh the cargo graph through compass-engine before reading it.",
           ]
         ],
       ])
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     let args: Arguments
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)

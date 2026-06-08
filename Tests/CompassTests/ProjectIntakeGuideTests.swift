@@ -12,10 +12,11 @@ struct ProjectIntakeGuideTests {
     try #require(guide.statusLabel == "No projects yet")
     try #require(guide.actionLabel == "Add Project")
     try #require(guide.systemImageName == "folder.badge.plus")
-    try #require(guide.steps.map(\.id) == [
-      "choose-git-folder", "capture-project-vision", "write-first-draft",
-      "let-compass-verify",
-    ])
+    try #require(
+      guide.steps.map(\.id) == [
+        "choose-git-folder", "capture-project-vision", "write-first-draft",
+        "let-compass-verify",
+      ])
     try #require(guide.steps[0].isPrimary)
     try #require(guide.steps[0].detail.contains("project folder"))
     try #require(guide.steps[0].detail.contains("repository root"))
@@ -28,9 +29,10 @@ struct ProjectIntakeGuideTests {
     try #require(guide.steps[2].title == "Seed the tournament")
     try #require(guide.steps[2].detail.contains("contender ideas"))
     try #require(guide.steps[2].detail.contains("validation questions"))
-    try #require(guide.signals.map(\.id) == [
-      "git", "verification", "project-vision", "plain-language-goal",
-    ])
+    try #require(
+      guide.signals.map(\.id) == [
+        "git", "verification", "project-vision", "plain-language-goal",
+      ])
     try #require(guide.signals.contains { $0.id == "project-vision" && $0.label == "Pain context" })
     try #require(
       guide.signals.contains {
@@ -86,7 +88,8 @@ struct ProjectIntakeGuideTests {
     let guide = ProjectIntakeGuide(projectCount: 0)
 
     try await withMockFoundationModels(
-      response: "Start by choosing a real Git folder; Compass will help turn rough goals into verified work."
+      response:
+        "Start by choosing a real Git folder; Compass will help turn rough goals into verified work."
     ) {
       let prompt = ProjectIntakeGuideNarrator.prompt(for: guide)
       #expect(prompt.contains("Status: No projects yet"))
@@ -99,7 +102,8 @@ struct ProjectIntakeGuideTests {
       #expect(narration.guideIdentifier == guide.narrationIdentifier)
       #expect(
         narration.text
-          == "Start by choosing a real Git folder; Compass will help turn rough goals into verified work.")
+          == "Start by choosing a real Git folder; Compass will help turn rough goals into verified work."
+      )
     }
   }
 

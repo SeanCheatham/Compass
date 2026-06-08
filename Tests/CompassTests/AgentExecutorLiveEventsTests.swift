@@ -37,13 +37,14 @@ struct AgentExecutorLiveEventsTests {
     )
 
     let events = recorder.events
-    try #require(events.map(\.text) == [
-      "bash · swift test --filter LiveFailureInsightTests",
-      "read_file · Sources/Compass/LiveFailureInsight.swift",
-      "grep · LiveFailureInsight in Sources/Compass",
-      "find_symbol · LiveFailureInsight (struct)",
-      "generate_image · art/factory.png",
-    ])
+    try #require(
+      events.map(\.text) == [
+        "bash · swift test --filter LiveFailureInsightTests",
+        "read_file · Sources/Compass/LiveFailureInsight.swift",
+        "grep · LiveFailureInsight in Sources/Compass",
+        "find_symbol · LiveFailureInsight (struct)",
+        "generate_image · art/factory.png",
+      ])
   }
 
   @Test func toolStartTitlesCoverFactoryServiceTools() throws {
@@ -74,12 +75,13 @@ struct AgentExecutorLiveEventsTests {
     )
 
     let events = recorder.events
-    try #require(events.map(\.text) == [
-      "delegate · inspect the recovery guide",
-      "host_xcode · test",
-      "install_toolchain · rust",
-      "plan_history · offset 2",
-    ])
+    try #require(
+      events.map(\.text) == [
+        "delegate · inspect the recovery guide",
+        "host_xcode · test",
+        "install_toolchain · rust",
+        "plan_history · offset 2",
+      ])
   }
 }
 

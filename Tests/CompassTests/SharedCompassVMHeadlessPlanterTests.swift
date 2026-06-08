@@ -533,7 +533,8 @@ final class SharedCompassVMHeadlessPlanterTests {
     }
     try #require(threwExpected, "plant should rethrow elevator failures")
 
-    let stagingDirectory = try #require(elevator.invokedScriptURLs.first?.deletingLastPathComponent())
+    let stagingDirectory = try #require(
+      elevator.invokedScriptURLs.first?.deletingLastPathComponent())
     try #require(
       !FileManager.default.fileExists(atPath: stagingDirectory.path),
       "plant leaked staging directory: \(stagingDirectory)"

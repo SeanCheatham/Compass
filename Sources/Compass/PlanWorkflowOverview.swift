@@ -64,7 +64,8 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
       systemImage = "checkmark.seal"
     } else if lowercased.contains("xcodebuild"), lowercased.contains(" build") {
       title = "Builds with Xcode"
-      detail = "Compass will ask Xcode to compile the selected scheme and fail if it does not build."
+      detail =
+        "Compass will ask Xcode to compile the selected scheme and fail if it does not build."
       systemImage = "hammer"
     } else if lowercased.contains("swift build") {
       title = "Builds the Swift package"
@@ -76,7 +77,8 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
       systemImage = "hammer"
     } else if lowercased.contains("cargo test") {
       title = "Runs Rust tests"
-      detail = lowercased.contains("--all-features")
+      detail =
+        lowercased.contains("--all-features")
         ? "Compass will run the Rust test suite with all feature flags enabled."
         : "Compass will run the Rust test suite."
       systemImage = "checkmark.seal"
@@ -95,7 +97,8 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
       let collectsCoverage = lowercased.contains("--cov") || lowercased.contains("coverage")
       title = collectsCoverage ? "Runs Python coverage" : "Runs Python tests"
       if lowercased.contains("pytest") {
-        detail = collectsCoverage
+        detail =
+          collectsCoverage
           ? "Compass will run pytest with Python coverage enabled."
           : "Compass will run the Python test suite with pytest."
       } else {
@@ -116,7 +119,8 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
     {
       let collectsCoverage = lowercased.contains("coverage")
       title = collectsCoverage ? "Runs JavaScript coverage" : "Runs JavaScript tests"
-      detail = collectsCoverage
+      detail =
+        collectsCoverage
         ? "Compass will run the project's JavaScript or TypeScript tests with coverage enabled."
         : "Compass will run the project's JavaScript or TypeScript test command."
       systemImage = "checkmark.seal"
@@ -229,7 +233,8 @@ struct PlanHandoffDigest: Equatable, Sendable {
     }
 
     let sections = Self.sections(in: plan)
-    outcome = Self.firstMeaningfulLine(in: sections[.outcome] ?? [])
+    outcome =
+      Self.firstMeaningfulLine(in: sections[.outcome] ?? [])
       ?? Self.fallbackOutcome(in: plan)
     whyItMatters = Self.firstMeaningfulLine(in: sections[.whyItMatters] ?? [])
     let cleanedAcceptanceChecks = (sections[.acceptanceChecks] ?? [])
@@ -268,14 +273,16 @@ struct PlanHandoffDigest: Equatable, Sendable {
     if outcome != nil, !acceptanceChecks.isEmpty {
       status = .ready
       title = "Executable handoff"
-      detail = acceptanceChecks.count == 1
+      detail =
+        acceptanceChecks.count == 1
         ? "Outcome and one acceptance check give Develop a clear finish line."
         : "Outcome and \(acceptanceChecks.count) acceptance checks give Develop a clear finish line."
       systemImage = "checklist.checked"
     } else {
       status = .needsDetail
       title = "Handoff needs detail"
-      detail = "Missing \(missing.requiredLabels.joined(separator: " and ")) before Develop has a clear finish line."
+      detail =
+        "Missing \(missing.requiredLabels.joined(separator: " and ")) before Develop has a clear finish line."
       systemImage = "list.bullet.clipboard"
     }
   }
@@ -472,7 +479,8 @@ struct PlanHandoffDigest: Equatable, Sendable {
   }
 
   private static func acceptanceQualityKey(_ line: String) -> String {
-    var key = line
+    var key =
+      line
       .lowercased()
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -573,8 +581,8 @@ struct PlanHandoffDigest: Equatable, Sendable {
   )
 }
 
-private extension Array where Element == PlanHandoffDigest.MissingPiece {
-  var requiredLabels: [String] {
+extension Array where Element == PlanHandoffDigest.MissingPiece {
+  fileprivate var requiredLabels: [String] {
     filter { $0.isRequired }.map(\.label)
   }
 }
@@ -604,7 +612,8 @@ struct PlanWorkflowOverview: Equatable {
       label: "Current",
       systemImage: "target",
       rawBody: state.immediate?.plan ?? "",
-      emptyMessage: "No immediate plan. The Product Tournament is ready for the next scoped implementation.",
+      emptyMessage:
+        "No immediate plan. The Product Tournament is ready for the next scoped implementation.",
       verifyCommand: state.immediate?.verify,
       verifyTimeoutLabel: state.immediate.map {
         PlanVerifyMetadata(timeoutMs: $0.verifyTimeoutMs).label
@@ -619,7 +628,8 @@ struct PlanWorkflowOverview: Equatable {
       label: "Candidates",
       systemImage: "point.3.connected.trianglepath.dotted",
       rawBody: state.candidatesMarkdown,
-      emptyMessage: "No candidate directions yet. Plan can originate the next useful slice from the repo, drafts, feedback, or focus.",
+      emptyMessage:
+        "No candidate directions yet. Plan can originate the next useful slice from the repo, drafts, feedback, or focus.",
       completedCount: completedCount,
       excerptLimit: excerptLimit
     )
@@ -629,7 +639,8 @@ struct PlanWorkflowOverview: Equatable {
       label: "Context",
       systemImage: "mountain.2.fill",
       rawBody: state.strategicContextMarkdown,
-      emptyMessage: "No strategic context yet. Add durable thesis, principles, constraints, risks, or non-goals when they become clear.",
+      emptyMessage:
+        "No strategic context yet. Add durable thesis, principles, constraints, risks, or non-goals when they become clear.",
       completedCount: completedCount,
       excerptLimit: excerptLimit
     )
@@ -870,7 +881,8 @@ struct PlanTournamentBrief: Equatable, Sendable {
         "No immediate implementation is selected. An available candidate starts with: \(candidate.title)"
       )
       primaryActionLabel = "Run Plan"
-    } else if let context = Self.firstMeaningfulLine(in: state.strategicContextMarkdown).nilIfEmpty {
+    } else if let context = Self.firstMeaningfulLine(in: state.strategicContextMarkdown).nilIfEmpty
+    {
       status = .planning
       title = "Ready To Turn Strategy Into Work"
       detail = Self.bounded(
@@ -1115,9 +1127,11 @@ enum PlanTournamentBriefNarrator {
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
     if #available(macOS 26.0, *) {
-      guard let generated = await FoundationModelsAvailability._streamText(
-        prompt: prompt(for: brief)
-      ) else {
+      guard
+        let generated = await FoundationModelsAvailability._streamText(
+          prompt: prompt(for: brief)
+        )
+      else {
         return nil
       }
       let text = sanitized(generated)

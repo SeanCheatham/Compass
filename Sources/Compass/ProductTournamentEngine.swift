@@ -103,11 +103,13 @@ struct ProductTournamentEngine {
     let config = try workspace.readProductTournamentConfig()
     let evidenceIndex = workspace.readProductTournamentEvidenceIndex()
     let readModel = ProductTournamentReadModel(config: config)
-    guard let round = selectedRound(
-      tournamentID: tournamentID,
-      roundID: roundID,
-      readModel: readModel
-    ) else {
+    guard
+      let round = selectedRound(
+        tournamentID: tournamentID,
+        roundID: roundID,
+        readModel: readModel
+      )
+    else {
       throw ProductTournamentEngineError.missingRound(roundID ?? "active")
     }
 
@@ -188,7 +190,8 @@ struct ProductTournamentEngine {
     if let roundID {
       return readModel.round(id: roundID)
     }
-    guard let tournament = tournamentID.flatMap(readModel.tournament) ?? readModel.activeTournament()
+    guard
+      let tournament = tournamentID.flatMap(readModel.tournament) ?? readModel.activeTournament()
     else { return nil }
     return readModel.activeRound(in: tournament)
   }

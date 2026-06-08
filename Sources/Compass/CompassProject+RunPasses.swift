@@ -858,7 +858,9 @@ extension CompassProject {
       productTournamentConfig: productTournamentConfig
     )
     guard experimentIDs.count == 1,
-      let experiment = productTournamentConfig.tournamentExperiments.first(where: { $0.id == experimentIDs[0] })
+      let experiment = productTournamentConfig.tournamentExperiments.first(where: {
+        $0.id == experimentIDs[0]
+      })
     else { return }
 
     sessions[sessionIndex].tournamentExperimentID = experiment.id
@@ -868,8 +870,10 @@ extension CompassProject {
       config: productTournamentConfig
     )
     sessions[sessionIndex].tournamentExperimentBranchName = experiment.branchName
-    sessions[sessionIndex].tournamentExperimentCommitSha = experiment.currentSha ?? experiment.baseSha
-    sessions[sessionIndex].tournamentExperimentBeforeSha = experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].tournamentExperimentCommitSha =
+      experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].tournamentExperimentBeforeSha =
+      experiment.currentSha ?? experiment.baseSha
     sessions[sessionIndex].tournamentDecision = experiment.decision
   }
 
@@ -880,10 +884,14 @@ extension CompassProject {
     sessionIndex: Int
   ) {
     guard sessions.indices.contains(sessionIndex), let latest = updates.last,
-      let experiment = nextConfig.tournamentExperiments.first(where: { $0.id == latest.experimentID })
+      let experiment = nextConfig.tournamentExperiments.first(where: {
+        $0.id == latest.experimentID
+      })
     else { return }
 
-    let previousExperiment = previousConfig.tournamentExperiments.first { $0.id == latest.experimentID }
+    let previousExperiment = previousConfig.tournamentExperiments.first {
+      $0.id == latest.experimentID
+    }
     sessions[sessionIndex].tournamentExperimentID = experiment.id
     sessions[sessionIndex].tournamentContenderPlanID = experiment.contenderPlanID
     sessions[sessionIndex].tournamentPainID = productTournamentPainID(
@@ -891,10 +899,12 @@ extension CompassProject {
       config: nextConfig
     )
     sessions[sessionIndex].tournamentExperimentBranchName = experiment.branchName
-    sessions[sessionIndex].tournamentExperimentCommitSha = experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].tournamentExperimentCommitSha =
+      experiment.currentSha ?? experiment.baseSha
     sessions[sessionIndex].tournamentExperimentBeforeSha =
       previousExperiment?.currentSha ?? previousExperiment?.baseSha
-    sessions[sessionIndex].tournamentExperimentAfterSha = experiment.currentSha ?? experiment.baseSha
+    sessions[sessionIndex].tournamentExperimentAfterSha =
+      experiment.currentSha ?? experiment.baseSha
     sessions[sessionIndex].tournamentEvidenceRunIDs = Array(
       Set(updates.flatMap(\.evidenceRunIDs))
     )

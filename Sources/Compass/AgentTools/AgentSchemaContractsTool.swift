@@ -36,7 +36,8 @@ struct AgentSchemaContractsTool: AgentTool {
     ])
   )
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     let args: Arguments
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
@@ -45,7 +46,8 @@ struct AgentSchemaContractsTool: AgentTool {
     }
     let workspace = RustCodemapEnricher.workspace(from: context)
     guard var contracts = SchemaContractsStore().load(from: workspace)?.contracts else {
-      return .failure("No schema contracts cache found. Refresh the codemap first.", kind: .fileNotFound)
+      return .failure(
+        "No schema contracts cache found. Refresh the codemap first.", kind: .fileNotFound)
     }
     if let schema = args.schema?.trimmingCharacters(in: .whitespacesAndNewlines), !schema.isEmpty {
       contracts = contracts.filter {
@@ -63,9 +65,10 @@ struct AgentSchemaContractsTool: AgentTool {
   }
 
   private static func format(_ contract: SchemaContract) -> String {
-    let target = contract.rustType.map { rustType in
-      "\(rustType) @ \(contract.rustFile ?? "?"):\(contract.line.map(String.init) ?? "?")"
-    } ?? "(no Rust type linked)"
+    let target =
+      contract.rustType.map { rustType in
+        "\(rustType) @ \(contract.rustFile ?? "?"):\(contract.line.map(String.init) ?? "?")"
+      } ?? "(no Rust type linked)"
     let fields = contract.fieldMapping
       .map { "\($0.schemaField)->\($0.rustField)" }
       .joined(separator: ", ")

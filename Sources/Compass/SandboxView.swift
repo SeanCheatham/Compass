@@ -37,7 +37,7 @@ struct SandboxView: View {
           readinessGuide: readinessGuide,
           narration: matchingNarration(for: readinessGuide)
         )
-          .frame(minWidth: 280, idealWidth: 320, maxWidth: 380)
+        .frame(minWidth: 280, idealWidth: 320, maxWidth: 380)
       }
     }
     .task(id: vmHost.readiness.headlessAutoStartToken) {
@@ -498,9 +498,11 @@ private struct SandboxReadySection: View {
       Label("Private workspace ready", systemImage: "checkmark.seal.fill")
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(Color.green)
-      Text("Develop work now runs away from your main checkout using Compass's saved workspace connection.")
-        .font(.callout)
-        .foregroundStyle(.secondary)
+      Text(
+        "Develop work now runs away from your main checkout using Compass's saved workspace connection."
+      )
+      .font(.callout)
+      .foregroundStyle(.secondary)
     }
     .padding(12)
     .background(Color.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
@@ -712,7 +714,8 @@ extension SharedCompassVMReadiness {
   var statusSummary: String {
     switch self {
     case .unavailable(let reason):
-      return "Unavailable. \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(reason, limit: 180))"
+      return
+        "Unavailable. \(PrivateWorkspaceCopy.userFacingInfrastructureDetail(reason, limit: 180))"
     case .notProvisioned:
       return "Not installed"
     case .downloadingIPSW(let fraction):

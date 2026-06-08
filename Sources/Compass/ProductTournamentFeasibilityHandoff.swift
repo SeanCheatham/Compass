@@ -59,9 +59,10 @@ struct ProductTournamentImplementationTrackBrief: Codable, Equatable, Sendable {
     } else {
       expectedEvidenceSignal = nil
     }
-    let killCriteria = killRange.map {
-      optionalCleaned(String(value[$0.upperBound...]), limit: 500)
-    } ?? nil
+    let killCriteria =
+      killRange.map {
+        optionalCleaned(String(value[$0.upperBound...]), limit: 500)
+      } ?? nil
     return ProductTournamentImplementationTrackBrief(
       scopeSummary: scopeSummary,
       expectedEvidenceSignal: expectedEvidenceSignal,
@@ -169,7 +170,9 @@ enum ProductTournamentFeasibilityAdvisor {
       guard
         let contender = config.tournamentContenders.first(where: { $0.id == contenderID }),
         contender.status == .narrowed || contender.status == .needsRevision,
-        let contenderPlan = config.contenderPlans.first(where: { $0.id == contender.contenderPlanID }),
+        let contenderPlan = config.contenderPlans.first(where: {
+          $0.id == contender.contenderPlanID
+        }),
         let experimentID = contender.experimentID,
         let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
       else { return nil }

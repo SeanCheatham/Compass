@@ -60,7 +60,6 @@ struct AgentCargoDiagnosticToolTests {
     #expect(result.content.contains("suggested: cargo init --lib"))
   }
 
-
   @Test func cargoTestFormatsFailures() async throws {
     let payload = CargoTestData(
       exitCode: 101,
@@ -75,7 +74,8 @@ struct AgentCargoDiagnosticToolTests {
         )
       ]
     )
-    let service = FakeRustDiagnosticsService(data: encodeEnvelope(command: "cargo-test", data: payload))
+    let service = FakeRustDiagnosticsService(
+      data: encodeEnvelope(command: "cargo-test", data: payload))
     let result = try await AgentCargoTestTool().invoke(
       arguments: Data(#"{"filter":"state","all_features":true}"#.utf8),
       context: AgentToolContext(

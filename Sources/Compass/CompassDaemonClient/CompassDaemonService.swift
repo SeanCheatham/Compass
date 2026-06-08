@@ -108,7 +108,8 @@ final class CompassDaemonService {
 
   static func defaultLogURL() -> URL {
     let home = FileManager.default.homeDirectoryForCurrentUser
-    return home
+    return
+      home
       .appending(path: "Library", directoryHint: .isDirectory)
       .appending(path: "Logs", directoryHint: .isDirectory)
       .appending(path: "Compass", directoryHint: .isDirectory)
@@ -117,7 +118,8 @@ final class CompassDaemonService {
 
   private static func applicationSupportDirectory() -> URL {
     let home = FileManager.default.homeDirectoryForCurrentUser
-    return home
+    return
+      home
       .appending(path: "Library", directoryHint: .isDirectory)
       .appending(path: "Application Support", directoryHint: .isDirectory)
       .appending(path: "Compass", directoryHint: .isDirectory)

@@ -268,14 +268,16 @@ enum FlexibleModelDecoder {
   }
 
   static func normalizedIdentifier(_ rawValue: String) -> String {
-    let camelSeparated = rawValue
+    let camelSeparated =
+      rawValue
       .trimmingCharacters(in: .whitespacesAndNewlines)
       .replacingOccurrences(
         of: #"([a-z0-9])([A-Z])"#,
         with: "$1_$2",
         options: .regularExpression
       )
-    return camelSeparated
+    return
+      camelSeparated
       .lowercased()
       .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "_", options: .regularExpression)
       .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
@@ -464,7 +466,8 @@ struct PlanNext: Codable, Equatable {
     self.verifyTimeoutMs = verifyTimeoutMs
     self.estimatedDifficulty = estimatedDifficulty
     self.requiresHostXcode = requiresHostXcode
-    self.selectedBecause = selectedBecause?.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.selectedBecause =
+      selectedBecause?.trimmingCharacters(in: .whitespacesAndNewlines)
       .nilIfEmpty
     self.source = source
     self.candidateID = candidateID?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
@@ -922,7 +925,8 @@ struct PlanStrategicContext: Codable, Equatable {
       sections.append(principles.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
     }
     if !constraints.isEmpty {
-      sections.append("Constraints:\n" + constraints.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
+      sections.append(
+        "Constraints:\n" + constraints.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
     }
     if !nonGoals.isEmpty {
       sections.append("Non-goals:\n" + nonGoals.prefix(4).map { "- \($0)" }.joined(separator: "\n"))
@@ -966,15 +970,16 @@ struct PlanQuestion: Codable, Equatable, Identifiable {
   var impact: String
 
   init(id: String, question: String, impact: String = "") {
-    self.id = id.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    self.id =
+      id.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
       ?? UUID().uuidString.lowercased()
     self.question = question.trimmingCharacters(in: .whitespacesAndNewlines)
     self.impact = impact.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }
 
-private extension String {
-  var nilIfEmpty: String? {
+extension String {
+  fileprivate var nilIfEmpty: String? {
     isEmpty ? nil : self
   }
 }
@@ -1238,8 +1243,10 @@ struct PlanRunResult: Codable, Equatable {
   enum CodingKeys: String, CodingKey {
     case state
     case planState
+    // swift-format-ignore: AlwaysUseLowerCamelCase
     case plan_state
     case planningState
+    // swift-format-ignore: AlwaysUseLowerCamelCase
     case planning_state
     case proposal
     case lessonEdits
@@ -1330,8 +1337,10 @@ struct ReflectSummary: Codable, Equatable {
   enum CodingKeys: String, CodingKey {
     case state
     case planState
+    // swift-format-ignore: AlwaysUseLowerCamelCase
     case plan_state
     case planningState
+    // swift-format-ignore: AlwaysUseLowerCamelCase
     case planning_state
     case proposal
     case summary
@@ -1377,11 +1386,12 @@ struct ReflectSummary: Codable, Equatable {
         preferredKey: .lessonEdits,
         aliases: [.lessonEditsSnake]
       ) ?? []
-    tournamentDecisionUpdates = try Self.decodeTournamentDecisionUpdates(
-      from: container,
-      preferredKey: .tournamentDecisionUpdates,
-      aliases: [.tournamentDecisionUpdatesSnake]
-    ) ?? []
+    tournamentDecisionUpdates =
+      try Self.decodeTournamentDecisionUpdates(
+        from: container,
+        preferredKey: .tournamentDecisionUpdates,
+        aliases: [.tournamentDecisionUpdatesSnake]
+      ) ?? []
   }
 
   func encode(to encoder: Encoder) throws {

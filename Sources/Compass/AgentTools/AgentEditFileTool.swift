@@ -460,7 +460,8 @@ struct AgentEditFileTool: AgentTool {
       "edits[\(editIndex)] line range \(startLine)-\(endLine) is out of range for \(relativePath) (file has \(lineCount) lines)"
     if lineCount > 0 {
       let preview = Self.nearbyLineHints(around: startLine, in: lines)
-      message += "\nReread the file — line numbers may have shifted:\n" + preview.joined(separator: "\n")
+      message +=
+        "\nReread the file — line numbers may have shifted:\n" + preview.joined(separator: "\n")
     } else {
       message += "; use write_file to create the file from scratch"
     }

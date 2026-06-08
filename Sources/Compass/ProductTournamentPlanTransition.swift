@@ -195,7 +195,8 @@ enum ProductTournamentPlanTransitioner {
       updateContender(proposal.contenderID, in: &next, timestamp: timestamp) { contender in
         contender.status = .narrowed
       }
-      activateProductTournamentContenderPlan(for: proposal.contenderID, in: &next, timestamp: timestamp)
+      activateProductTournamentContenderPlan(
+        for: proposal.contenderID, in: &next, timestamp: timestamp)
 
     case .revisePlan:
       destinationRoundID = nil

@@ -27,7 +27,7 @@ enum RustVerifyCommands {
   ]
 
   static let productTournamentSmokeCommands = [
-    cargo(productTournamentSmokeWithScreenshot),
+    cargo(productTournamentSmokeWithScreenshot)
   ]
 
   static let compassEngineSmokeCommands = [

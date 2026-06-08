@@ -75,7 +75,8 @@ struct ImportGraph: Sendable {
     for edge in edges {
       counts[edge.target, default: 0] += 1
     }
-    return nodes
+    return
+      nodes
       .filter { (counts[$0] ?? 0) > 0 }
       .sorted {
         let lhsCount = counts[$0] ?? 0

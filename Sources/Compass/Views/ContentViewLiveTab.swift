@@ -1104,9 +1104,9 @@ struct CopyLiveFailureButton: View {
   }
 }
 
-private extension View {
+extension View {
   @ViewBuilder
-  func applyLiveFeedFrame(layout: LiveTabLayout) -> some View {
+  fileprivate func applyLiveFeedFrame(layout: LiveTabLayout) -> some View {
     switch layout {
     case .standalone:
       frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1117,7 +1117,7 @@ private extension View {
   }
 
   @ViewBuilder
-  func applyLiveTabOuterFrame(layout: LiveTabLayout) -> some View {
+  fileprivate func applyLiveTabOuterFrame(layout: LiveTabLayout) -> some View {
     switch layout {
     case .standalone:
       frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

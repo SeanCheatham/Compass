@@ -284,7 +284,8 @@ struct CriticPromptTests {
     let approve = #"{"verdict":"approve","summary":"looks good","feedback":""}"#
     let reject = #"{"verdict":"request_changes","summary":"missing tests","feedback":"add one"}"#
     let approved = #"{"verdict":"approved","summary":"looks good","feedback":""}"#
-    let camelReject = #"{"verdict":"requestChanges","summary":"missing tests","feedback":"add one"}"#
+    let camelReject =
+      #"{"verdict":"requestChanges","summary":"missing tests","feedback":"add one"}"#
     let v1 = try JSONDecoder().decode(CriticVerdict.self, from: Data(approve.utf8))
     let v2 = try JSONDecoder().decode(CriticVerdict.self, from: Data(reject.utf8))
     let v3 = try JSONDecoder().decode(CriticVerdict.self, from: Data(approved.utf8))

@@ -277,7 +277,10 @@ enum SharedCompassVMGuestWorkspaceCatalog {
   ) -> URL {
     CompassWorkspace.repoLocalStorageRootURL(for: repoURL)
       .appending(path: experimentCatalogDirectory, directoryHint: .isDirectory)
-      .appending(path: "\(experimentCatalogComponent(experimentID))-\(experimentCatalogComponent(branchName)).json")
+      .appending(
+        path:
+          "\(experimentCatalogComponent(experimentID))-\(experimentCatalogComponent(branchName)).json"
+      )
   }
 
   // MARK: - Internals

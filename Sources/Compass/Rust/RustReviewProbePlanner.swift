@@ -36,7 +36,9 @@ enum RustReviewProbePlanner {
         ))
     }
 
-    if changedPaths.contains(where: isSchemaPath) || changedPaths.contains(where: isSchemaBackedRustPath) {
+    if changedPaths.contains(where: isSchemaPath)
+      || changedPaths.contains(where: isSchemaBackedRustPath)
+    {
       probes.append(
         RustReviewProbe(
           toolName: AgentSchemaContractsTool.toolName,
@@ -60,7 +62,8 @@ enum RustReviewProbePlanner {
         to: &probes
       )
       appendIfMissing(
-        RustReviewProbe(toolName: AgentClippyLintTool.toolName, reason: "Cargo feature wiring changed"),
+        RustReviewProbe(
+          toolName: AgentClippyLintTool.toolName, reason: "Cargo feature wiring changed"),
         to: &probes
       )
     }
@@ -86,10 +89,9 @@ enum RustReviewProbePlanner {
 
   static func formattedSection(for probes: [RustReviewProbe]) -> String {
     guard !probes.isEmpty else { return "" }
-    return (
-      ["Suggested Rust review probes:"]
-        + probes.prefix(8).map { "- \($0.toolName): \($0.reason)" }
-    ).joined(separator: "\n")
+    return
+      (["Suggested Rust review probes:"]
+      + probes.prefix(8).map { "- \($0.toolName): \($0.reason)" }).joined(separator: "\n")
   }
 
   static func changedPaths(fromGitDiff diff: String) -> [String] {
@@ -133,7 +135,8 @@ enum RustReviewProbePlanner {
   }
 
   private static func isSchemaBackedRustPath(_ path: String) -> Bool {
-    path.hasSuffix(".rs") && (path.contains("state") || path.contains("schema") || path.contains("model"))
+    path.hasSuffix(".rs")
+      && (path.contains("state") || path.contains("schema") || path.contains("model"))
   }
 
   private static func isScaffoldContractPath(_ path: String) -> Bool {
@@ -153,7 +156,8 @@ enum RustReviewProbePlanner {
       || combined.contains("overall line coverage")
   }
 
-  private static func appendIfMissing(_ probe: RustReviewProbe, to probes: inout [RustReviewProbe]) {
+  private static func appendIfMissing(_ probe: RustReviewProbe, to probes: inout [RustReviewProbe])
+  {
     guard !probes.contains(where: { $0.toolName == probe.toolName }) else { return }
     probes.append(probe)
   }

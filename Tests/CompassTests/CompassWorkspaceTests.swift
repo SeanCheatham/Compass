@@ -374,7 +374,8 @@ final class CompassWorkspaceTests {
     let workspace = CompassWorkspace(repoURL: repoURL)
     try createDirectory(workspace.compassURL)
 
-    let preservedState = makeState(completed: ["preserve"], candidates: "next", strategicContext: "later")
+    let preservedState = makeState(
+      completed: ["preserve"], candidates: "next", strategicContext: "later")
     try write(try CompassWorkspace.encodeState(preservedState), to: workspace.stateURL)
     try write("existing lessons\n", to: workspace.lessonsURL)
     try write("build", to: repoURL.appending(path: ".gitignore"))

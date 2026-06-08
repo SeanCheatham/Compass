@@ -15,11 +15,12 @@ struct GeneratedArtifactHygieneTests {
 
     let issues = GeneratedArtifactHygiene.issues(fromGitNameStatus: output)
 
-    try #require(issues.map(\.path) == [
-      "target/debug/app",
-      "FoundationProvider-1.o",
-      "__.SYMDEF SORTED",
-    ])
+    try #require(
+      issues.map(\.path) == [
+        "target/debug/app",
+        "FoundationProvider-1.o",
+        "__.SYMDEF SORTED",
+      ])
     try #require(issues[0].reason.contains("generated directory"))
     try #require(issues[1].reason.contains(".o"))
   }
@@ -35,7 +36,8 @@ struct GeneratedArtifactHygieneTests {
 
   @Test func formatsActionablePostCheckMessage() throws {
     let issues = [
-      GeneratedArtifactHygieneIssue(path: "target/debug/app", reason: "inside generated directory `target/`")
+      GeneratedArtifactHygieneIssue(
+        path: "target/debug/app", reason: "inside generated directory `target/`")
     ]
 
     let message = try #require(GeneratedArtifactHygiene.formattedIssue(from: issues))

@@ -41,7 +41,8 @@ enum ProductTournamentPlanningDigestFormatter {
       config: config,
       evidenceIndex: evidenceIndex
     )
-    lines += productImplementationEvidenceTransitionLines(config: config, evidenceIndex: evidenceIndex)
+    lines += productImplementationEvidenceTransitionLines(
+      config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationCycleAuditLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationWorktreePrepLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationPlanProofAuditLines(config: config)
@@ -873,7 +874,8 @@ enum ProductTournamentPlanningDigestFormatter {
     guard !audits.isEmpty else { return [] }
     return ["Recent tournament automation worktree preparation:"]
       + audits.map { audit in
-        let experimentIDs = audit.experimentIDs.isEmpty ? ["unknown-experiment"] : audit.experimentIDs
+        let experimentIDs =
+          audit.experimentIDs.isEmpty ? ["unknown-experiment"] : audit.experimentIDs
         let evidenceRunCount = experimentIDs.reduce(0) { count, experimentID in
           guard
             let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
@@ -1077,7 +1079,8 @@ enum ProductTournamentPlanningDigestFormatter {
     return lines
   }
 
-  private static func contenderPlanStatusRank(_ status: ProductTournamentContenderPlanStatus) -> Int {
+  private static func contenderPlanStatusRank(_ status: ProductTournamentContenderPlanStatus) -> Int
+  {
     switch status {
     case .promoted: return 0
     case .active: return 1
@@ -1087,7 +1090,8 @@ enum ProductTournamentPlanningDigestFormatter {
     }
   }
 
-  private static func experimentDecisionRank(_ decision: ProductTournamentExperimentDecision) -> Int {
+  private static func experimentDecisionRank(_ decision: ProductTournamentExperimentDecision) -> Int
+  {
     switch decision {
     case .promoted: return 0
     case .promote: return 0

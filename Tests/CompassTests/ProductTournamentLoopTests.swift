@@ -450,7 +450,9 @@ struct ProductTournamentLoopTests {
       endedAt: 710,
       executedStepIDs: [TournamentAutomationCycleFailureAdvisor.stepID(for: action)],
       experimentIDs: [experiment.id],
-      messages: ["persona-model target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+      messages: [
+        "persona-model target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."
+      ],
       maxSteps: 3,
       evidenceRunStepCount: 1,
       evidenceRunIDs: ["split-resolution-repeat"],
@@ -469,7 +471,9 @@ struct ProductTournamentLoopTests {
       endedAt: 730,
       executedStepIDs: [TournamentAutomationCycleFailureAdvisor.stepID(for: action)],
       experimentIDs: [experiment.id],
-      messages: ["persona-model target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+      messages: [
+        "persona-model target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."
+      ],
       maxSteps: 3,
       evidenceRunStepCount: 1,
       evidenceRunIDs: ["split-resolution-kill-repeat"],
@@ -782,8 +786,10 @@ struct ProductTournamentLoopTests {
     try #require(initialTarget.tournamentID == tournament.id)
     try #require(initialTarget.contenderID == contender.id)
     try #require(initialTarget.roundID == planRound.id)
-    try #require(initialTarget.tournamentPositionSummary?.contains("Product plans contender") == true)
-    try #require(initialTarget.tournamentPositionSummary?.contains("of 2 active contender(s)") == true)
+    try #require(
+      initialTarget.tournamentPositionSummary?.contains("Product plans contender") == true)
+    try #require(
+      initialTarget.tournamentPositionSummary?.contains("of 2 active contender(s)") == true)
     try #require(initialTarget.tournamentPositionSummary?.contains("1 rival product") == true)
     try #require(initialTarget.displaySubtitle.contains("contender \(contender.id)"))
     try #require(initialTarget.displayDetail.contains("Tournament position"))
@@ -1826,7 +1832,8 @@ struct ProductTournamentLoopTests {
     try #require(action.detail.contains("before lift/cut"))
     try #require(step.canExecute)
     try #require(step.action.title == "Resolve simulated-user rationale signal")
-    try #require(revisionBrief.title == "Revise product implementation for simulated-user rationale")
+    try #require(
+      revisionBrief.title == "Revise product implementation for simulated-user rationale")
     try #require(revisionBrief.targetPersonaID == buyer.id)
     try #require(revisionBrief.targetScenarioID == buyerScenario.id)
     try #require(revisionBrief.implementationChange.contains("proof artifact"))
@@ -1929,7 +1936,9 @@ struct ProductTournamentLoopTests {
         endedAt: 360,
         executedStepIDs: [step.id],
         experimentIDs: [experiment.id],
-        messages: ["simulated-user rationale target ran 1 scenario(s): 1 completed, 0 needing review."],
+        messages: [
+          "simulated-user rationale target ran 1 scenario(s): 1 completed, 0 needing review."
+        ],
         maxSteps: 3,
         evidenceRunStepCount: 1,
         evidenceRunIDs: ["rationale-buyer-rerun"],
@@ -2609,7 +2618,9 @@ struct ProductTournamentLoopTests {
         endedAt: 350,
         executedStepIDs: ["\(experiment.id):run_cohort:\(buyerCohortID)"],
         experimentIDs: [experiment.id],
-        messages: ["persona-model cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+        messages: [
+          "persona-model cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."
+        ],
         maxSteps: 3,
         evidenceRunStepCount: 1,
         evidenceRunIDs: ["broad-persona-model-pass"],
@@ -3313,7 +3324,9 @@ struct ProductTournamentLoopTests {
         endedAt: 130,
         executedStepIDs: [step.id],
         experimentIDs: [experiment.id],
-        messages: ["persona-model target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+        messages: [
+          "persona-model target ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."
+        ],
         maxSteps: 3,
         evidenceRunStepCount: 1,
         evidenceRunIDs: ["buyer-persona-model-stalled"],
@@ -4213,7 +4226,9 @@ struct ProductTournamentLoopTests {
         endedAt: 110,
         executedStepIDs: [broadStep.id],
         experimentIDs: [experiment.id],
-        messages: ["persona-model cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."],
+        messages: [
+          "persona-model cohort ran 1 scenario(s): 1 completed, 0 needing review, 0 skipped."
+        ],
         maxSteps: 3,
         evidenceRunStepCount: 1,
         evidenceRunIDs: ["operator-persona-model-pass"],
@@ -4536,8 +4551,7 @@ struct ProductTournamentLoopTests {
     var preparedState = config
     preparedState.tournamentExperiments[0].currentSha = "head-sha"
     for index in preparedState.scenarios.indices
-      where preparedState.scenarios[index].experimentID == experiment.id
-    {
+    where preparedState.scenarios[index].experimentID == experiment.id {
       preparedState.scenarios[index].targetCommitSha = "head-sha"
     }
     let preparedConfig = preparedState.recordingTournamentAutomationCycleAudit(prepareAudit)
@@ -6170,7 +6184,9 @@ private func activateRoundThreeProductImplementationTarget(
 
   config.tournamentRounds[coreRoundIndex].status = .completed
   config.tournamentRounds[productImplementationRoundIndex].status = .active
-  config.tournamentRounds[productImplementationRoundIndex].contenderIDs = [roundTwoTarget.contenderID]
+  config.tournamentRounds[productImplementationRoundIndex].contenderIDs = [
+    roundTwoTarget.contenderID
+  ]
   config.tournaments[tournamentIndex].currentRoundID =
     config.tournamentRounds[productImplementationRoundIndex].id
 
@@ -6408,7 +6424,8 @@ private func makeTournamentPromotionEvidenceIndex(
         experiment: experiment,
         config: config,
         personaID: buyerID,
-        mode: includePersonaModelEvidence && includePersonaModelUserBreadth ? .personaModel : .modelFree,
+        mode: includePersonaModelEvidence && includePersonaModelUserBreadth
+          ? .personaModel : .modelFree,
         endedAt: 200,
         verdict: .strongPull,
         scores: scores,

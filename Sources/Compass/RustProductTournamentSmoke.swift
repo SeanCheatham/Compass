@@ -31,7 +31,8 @@ struct RustProductTournamentSmokeOptions: Equatable {
     let projectURL =
       projectPath.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
       ?? FileManager.default.temporaryDirectory
-      .appending(path: "CompassRustProductTournamentSmoke-\(UUID().uuidString)", directoryHint: .isDirectory)
+      .appending(
+        path: "CompassRustProductTournamentSmoke-\(UUID().uuidString)", directoryHint: .isDirectory)
     let reportURL =
       reportPath.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
       ?? FileManager.default.temporaryDirectory
@@ -104,7 +105,8 @@ enum RustProductTournamentSmoke {
     Darwin.exit(exitCode)
   }
 
-  private static func run(options: RustProductTournamentSmokeOptions, model: AppModel) async throws {
+  private static func run(options: RustProductTournamentSmokeOptions, model: AppModel) async throws
+  {
     var reports: [RustProductTournamentSmokeCommandReport] = []
     var guestWorkspacePath: String?
     var sshDestination: String?
@@ -260,7 +262,9 @@ enum RustProductTournamentSmoke {
     )
   }
 
-  private static func validateEngineResponse(_ commandRun: RustProductTournamentSmokeCommandRun) throws {
+  private static func validateEngineResponse(_ commandRun: RustProductTournamentSmokeCommandRun)
+    throws
+  {
     let data = Data(commandRun.stdout.utf8)
     let object = try JSONSerialization.jsonObject(with: data)
     guard let root = object as? [String: Any] else {

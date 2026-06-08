@@ -108,10 +108,11 @@ final class SharedCompassVMGitExchangeTests {
     let hostHead = try await git(["-C", repo.path, "rev-parse", "HEAD"])
     try #require(hostHead.trimmed == guestHead.trimmed)
     let recentSubjects = try await git(["-C", repo.path, "log", "--format=%s", "-2"])
-    try #require(recentSubjects.split(separator: "\n").map(String.init) == [
-      "agent commit two",
-      "agent commit one",
-    ])
+    try #require(
+      recentSubjects.split(separator: "\n").map(String.init) == [
+        "agent commit two",
+        "agent commit one",
+      ])
   }
 
   @Test func exchangeRejectsDirectGuestPushToBranchHead() async throws {
@@ -256,8 +257,8 @@ final class SharedCompassVMGitExchangeTests {
   }
 }
 
-private extension String {
-  var trimmed: String {
+extension String {
+  fileprivate var trimmed: String {
     trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }

@@ -639,7 +639,8 @@ struct AgentExecutorTests {
     try #require(nudge.userMessage.contains("\"lessonEdits\": []"))
     try #require(
       nudge.userMessage.contains(
-        "all required planning keys: `immediate`, `candidates`, `strategicContext`, and `openQuestions`"))
+        "all required planning keys: `immediate`, `candidates`, `strategicContext`, and `openQuestions`"
+      ))
   }
 
   @Test func testInvalidSubmitResultDecodeNudgeUsesCriticRetryShape() throws {
@@ -775,7 +776,8 @@ struct AgentExecutorTests {
       )
     )
 
-    try #require(nudge.userMessage.contains("Replace the placeholder or failure-masking verify command"))
+    try #require(
+      nudge.userMessage.contains("Replace the placeholder or failure-masking verify command"))
     try #require(nudge.userMessage.contains("Rejected verify: `true`"))
     try #require(
       nudge.userMessage.contains(
@@ -900,7 +902,8 @@ struct AgentExecutorTests {
       let nudge = AgentExecutor.invalidToolArgumentsNudge(
         toolName: "edit_file",
         finishReason: reason,
-        argumentsPreview: "{\"path\":\"foo.swift\",\"edits\":[{\"startLine\":42,\"replacementLines\":[\"let x",
+        argumentsPreview:
+          "{\"path\":\"foo.swift\",\"edits\":[{\"startLine\":42,\"replacementLines\":[\"let x",
         maxCompletionTokens: 80_000
       )
       try #require(

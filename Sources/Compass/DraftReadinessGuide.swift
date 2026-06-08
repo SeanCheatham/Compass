@@ -576,10 +576,12 @@ struct DraftIntakeGuide: Equatable, Sendable {
     }
 
     fileprivate init(entries: [Entry], visibleEntryNumbers: Set<Int>) {
-      readyEntryNumbers = entries
+      readyEntryNumbers =
+        entries
         .filter(\.isReadyForPlan)
         .map(\.number)
-      waitingEntries = entries
+      waitingEntries =
+        entries
         .filter { !$0.isReadyForPlan }
         .map {
           WaitingEntry(
@@ -589,7 +591,8 @@ struct DraftIntakeGuide: Equatable, Sendable {
           )
         }
 
-      summary = Self.summary(readyCount: readyEntryNumbers.count, waitingCount: waitingEntries.count)
+      summary = Self.summary(
+        readyCount: readyEntryNumbers.count, waitingCount: waitingEntries.count)
       detail = StringUtils.boundedText(
         Self.detail(
           readyEntryNumbers: readyEntryNumbers,
@@ -611,11 +614,14 @@ struct DraftIntakeGuide: Equatable, Sendable {
       case (0, 0):
         return "No queued drafts."
       case (0, _):
-        return "\(countLabel(waitingCount, singular: "draft needs", plural: "drafts need")) detail before Plan."
+        return
+          "\(countLabel(waitingCount, singular: "draft needs", plural: "drafts need")) detail before Plan."
       case (_, 0):
-        return "\(countLabel(readyCount, singular: "draft is", plural: "drafts are")) ready for Plan."
+        return
+          "\(countLabel(readyCount, singular: "draft is", plural: "drafts are")) ready for Plan."
       default:
-        return "\(countLabel(readyCount, singular: "draft is", plural: "drafts are")) ready for Plan; \(countLabel(waitingCount, singular: "draft needs", plural: "drafts need")) detail."
+        return
+          "\(countLabel(readyCount, singular: "draft is", plural: "drafts are")) ready for Plan; \(countLabel(waitingCount, singular: "draft needs", plural: "drafts need")) detail."
       }
     }
 

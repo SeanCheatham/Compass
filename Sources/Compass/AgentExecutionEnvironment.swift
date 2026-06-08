@@ -176,9 +176,9 @@ struct AgentExecutionEnvironment: Equatable {
         "Using this Mac because \(AgentExecutionLaunchPlan.userFacingFallbackReason($0))"
       },
     ]
-      .compactMap { $0 }
-      .filter { !$0.isEmpty }
-      .joined(separator: " ")
+    .compactMap { $0 }
+    .filter { !$0.isEmpty }
+    .joined(separator: " ")
   }
 }
 

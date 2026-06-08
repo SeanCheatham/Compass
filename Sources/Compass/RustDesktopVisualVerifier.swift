@@ -131,8 +131,9 @@ extension CompassProject {
         log("Rust desktop visual verification failed (exit \(result.exitCode)).", level: .error)
         return [issue]
       }
-      guard RustDesktopVisualVerification.screenshotData(from: combinedOutput) != nil
-        || RustDesktopVisualVerification.engineScreenshotPath(from: combinedOutput) != nil
+      guard
+        RustDesktopVisualVerification.screenshotData(from: combinedOutput) != nil
+          || RustDesktopVisualVerification.engineScreenshotPath(from: combinedOutput) != nil
       else {
         log("Rust desktop visual verification did not emit a screenshot artifact.", level: .error)
         return [

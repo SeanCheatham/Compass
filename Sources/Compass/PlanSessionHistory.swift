@@ -29,7 +29,8 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
       note = artifact.note.map { Self.bounded($0, limit: 140) }
 
       let kindTitle = Self.kindTitle(kind)
-      label = Self.bounded("\(kindTitle) - \(Self.byteCountLabel(byteCount))", limit: Self.labelLimit)
+      label = Self.bounded(
+        "\(kindTitle) - \(Self.byteCountLabel(byteCount))", limit: Self.labelLimit)
       detail = Self.bounded(
         [note, path.isEmpty ? nil : "Saved at \(path)."]
           .compactMap { $0 }
@@ -241,7 +242,8 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         pieces.append("Fallback active")
       }
       if omittedSupportTokenCount > 0 {
-        pieces.append("\(omittedSupportTokenCount) detail\(omittedSupportTokenCount == 1 ? "" : "s") hidden")
+        pieces.append(
+          "\(omittedSupportTokenCount) detail\(omittedSupportTokenCount == 1 ? "" : "s") hidden")
       }
       return boundedText(pieces.joined(separator: " · "), limit: badgeTextLimit)
     }

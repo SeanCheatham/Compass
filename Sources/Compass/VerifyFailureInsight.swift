@@ -49,7 +49,8 @@ struct VerifyFailureInsight: Equatable {
       retryDetail = "Retry once the command can start in the selected execution environment."
     case .timeout:
       inspectTitle = "Inspect the timeout"
-      inspectDetail = "Compass found that verification timed out or stopped making progress: \(detail)"
+      inspectDetail =
+        "Compass found that verification timed out or stopped making progress: \(detail)"
       repairTitle = "Unblock the hanging check"
       repairDetail =
         "Have Develop reduce the slow path, remove the wait, or split the verify command into a smaller check."

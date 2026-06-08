@@ -84,7 +84,8 @@ struct ProjectLessonsGuide: Equatable, Sendable {
     if lessons.isEmpty {
       status = .empty
       title = "Lessons empty"
-      detail = "Captured lessons will help future runs avoid repeated mistakes and preserve good decisions."
+      detail =
+        "Captured lessons will help future runs avoid repeated mistakes and preserve good decisions."
       nextAction = NextAction(
         title: "Capture a first lesson",
         detail: "Add what changed, the proof behind it, and how Compass should reuse it later.",
@@ -334,7 +335,8 @@ struct ProjectLessonsClipboardPayload: Equatable, Sendable {
       sections.append("")
       sections.append("Signal map:")
       for cue in guide.cues {
-        sections.append("- [\(cue.isSatisfied ? "present" : "missing")] \(cue.title): \(cue.detail)")
+        sections.append(
+          "- [\(cue.isSatisfied ? "present" : "missing")] \(cue.title): \(cue.detail)")
       }
     }
 

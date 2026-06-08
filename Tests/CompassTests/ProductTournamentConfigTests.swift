@@ -176,7 +176,9 @@ struct ProductTournamentConfigTests {
       .recordingTournamentAutomationCycleAudit(third, limit: 2)
 
     try #require(
-      next.tournamentAutomationCycleAudits.map(\.id) == ["tournament-cycle-second", "tournament-cycle-third"])
+      next.tournamentAutomationCycleAudits.map(\.id) == [
+        "tournament-cycle-second", "tournament-cycle-third",
+      ])
   }
 
   @Test func seedDefaultsCreateProductTournamentContendersRoundsAndCohorts() throws {
@@ -201,7 +203,8 @@ struct ProductTournamentConfigTests {
     try #require(config.scenarioCohorts.count == 2)
     try #require(Set(config.userSegments.map(\.id)).count == config.userSegments.count)
     try #require(Set(config.contenderPlans.map(\.id)).count == config.contenderPlans.count)
-    try #require(Set(config.tournamentExperiments.map(\.id)).count == config.tournamentExperiments.count)
+    try #require(
+      Set(config.tournamentExperiments.map(\.id)).count == config.tournamentExperiments.count)
     try #require(
       Set(config.tournamentContenders.map(\.id)).count == config.tournamentContenders.count)
     try #require(Set(config.tournamentRounds.map(\.id)).count == config.tournamentRounds.count)
@@ -216,7 +219,9 @@ struct ProductTournamentConfigTests {
     try #require(tournament.roundIDs == config.tournamentRounds.map(\.id))
     try #require(tournament.currentRoundID == config.tournamentRounds[0].id)
     try #require(
-      config.tournamentRounds.map(\.kind) == [.productPlans, .coreTechnology, .productImplementation])
+      config.tournamentRounds.map(\.kind) == [
+        .productPlans, .coreTechnology, .productImplementation,
+      ])
     try #require(config.tournamentRounds[0].requiresBuiltProduct == false)
     try #require(config.tournamentRounds[1].requiresBuiltProduct)
     try #require(config.tournamentRounds[2].evaluationFocus.contains("Continued-use pull"))
@@ -310,9 +315,10 @@ struct ProductTournamentConfigTests {
   @Test func seededProductTournamentCurrentlyHasDuplicateStatusSources() throws {
     let config = seededProductTournamentConfig()
     let tournament = try #require(config.tournaments.first)
-    let roundStatuses = Dictionary(uniqueKeysWithValues: config.tournamentRounds.map {
-      ($0.kind, $0.status)
-    })
+    let roundStatuses = Dictionary(
+      uniqueKeysWithValues: config.tournamentRounds.map {
+        ($0.kind, $0.status)
+      })
 
     try #require(config.painHypotheses.map(\.status) == [.active])
     try #require(Set(config.contenderPlans.map(\.status)) == [.active, .candidate])
@@ -375,7 +381,8 @@ struct ProductTournamentConfigTests {
     try #require(project.productTournamentConfig.rawPain.contains("Support teams"))
     try #require(project.productTournamentConfig.contenderPlans.count == 2)
     try #require(project.productTournamentConfig.tournaments.count == 1)
-    try #require(project.productTournamentConfig.tournamentRounds.map(\.kind).contains(.productPlans))
+    try #require(
+      project.productTournamentConfig.tournamentRounds.map(\.kind).contains(.productPlans))
   }
 
   @Test func projectSavesAndReloadsProductTournamentConfig() async throws {

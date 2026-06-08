@@ -2008,7 +2008,8 @@ enum TournamentAutomationRevisionBriefAdvisor {
       action.kind == .refineContender
     else { return nil }
     if action.title == "Retarget stalled proof group",
-      let stalledGroup = TournamentAutomationCycleLearningAdvisor
+      let stalledGroup =
+        TournamentAutomationCycleLearningAdvisor
         .stalledActedPressureGroupAudit(
           for: action,
           experiment: experiment,
@@ -2026,7 +2027,8 @@ enum TournamentAutomationRevisionBriefAdvisor {
       )
     }
     if action.title == "Retarget repeated proof group",
-      let repeatedGroup = TournamentAutomationCycleLearningAdvisor
+      let repeatedGroup =
+        TournamentAutomationCycleLearningAdvisor
         .repeatedActedPressureGroupAudit(
           for: action,
           experiment: experiment,
@@ -2126,7 +2128,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
         "Address \(gaps) in the core technology proof before adding Round 3 product implementation fidelity.",
       scenarioChange:
         target.scenarioChange
-          ?? "Retarget scoped Round 2 scenarios so simulated users must exercise the revised core technology and compare it against the current workaround.",
+        ?? "Retarget scoped Round 2 scenarios so simulated users must exercise the revised core technology and compare it against the current workaround.",
       proofPlan: proposal.nextValidationTarget,
       targetPersonaID: target.personaID,
       targetPersonaName: target.personaName,
@@ -2170,7 +2172,7 @@ enum TournamentAutomationRevisionBriefAdvisor {
         "Revise the low-medium fidelity product implementation against \(gaps) before selecting a tournament winner.",
       scenarioChange:
         target.scenarioChange
-          ?? "Retarget scoped Round 3 scenarios so simulated users must exercise the revised product implementation, compare against the current alternative, and make an explicit willingness-to-pay or sponsorship judgment.",
+        ?? "Retarget scoped Round 3 scenarios so simulated users must exercise the revised product implementation, compare against the current alternative, and make an explicit willingness-to-pay or sponsorship judgment.",
       proofPlan: proposal.nextValidationTarget,
       targetPersonaID: target.personaID,
       targetPersonaName: target.personaName,
@@ -2925,7 +2927,8 @@ enum TournamentAutomationProofTargetAdvisor {
       )
     else { return nil }
 
-    let roundContenderIDs = round.contenderIDs.isEmpty
+    let roundContenderIDs =
+      round.contenderIDs.isEmpty
       ? tournament.contenderIDs
       : round.contenderIDs
     let contendersByID = Dictionary(
@@ -2938,7 +2941,8 @@ enum TournamentAutomationProofTargetAdvisor {
       ? activeRoundContenders
       : roundContenders
     guard !positionedContenders.isEmpty,
-      let position = positionedContenders
+      let position =
+        positionedContenders
         .sorted(by: tournamentPositionSort)
         .firstIndex(where: { $0.id == contender.id })
     else { return nil }
@@ -2947,7 +2951,8 @@ enum TournamentAutomationProofTargetAdvisor {
     let rivalCount = max(0, count - 1)
     let activeText = activeRoundContenders.isEmpty ? "round" : "active"
     let rivalText = rivalCount == 1 ? "1 rival product" : "\(rivalCount) rival products"
-    return "\(round.kind.title) contender \(position + 1) of \(count) \(activeText) contender(s); compare against \(rivalText)"
+    return
+      "\(round.kind.title) contender \(position + 1) of \(count) \(activeText) contender(s); compare against \(rivalText)"
   }
 
   private static func tournamentContender(
@@ -3461,7 +3466,8 @@ struct TournamentAutomationCyclePlan: Equatable, Sendable {
       refreshesQueueAfterStateChange
       ? " Queue refreshes after state-changing steps."
       : ""
-    return "\(executableSteps.count) executable tournament automation step(s)\(cappedText).\(refreshText)"
+    return
+      "\(executableSteps.count) executable tournament automation step(s)\(cappedText).\(refreshText)"
   }
 
   var queueSummary: String {
@@ -4252,8 +4258,9 @@ enum TournamentAutomationCycleLearningAdvisor {
     audit: TournamentAutomationCycleAudit,
     outcome: TournamentAutomationActedPressureGroupOutcome
   )? {
-    guard isProofRunAction(action)
-      || (allowRetargetAction && isStalledActedPressureGroupRetargetAction(action))
+    guard
+      isProofRunAction(action)
+        || (allowRetargetAction && isStalledActedPressureGroupRetargetAction(action))
     else { return nil }
     return config.tournamentAutomationCycleAudits
       .sorted { lhs, rhs in
@@ -4297,8 +4304,9 @@ enum TournamentAutomationCycleLearningAdvisor {
     audit: TournamentAutomationCycleAudit,
     outcome: TournamentAutomationActedPressureGroupOutcome
   )? {
-    guard isProofRunAction(action)
-      || (allowRetargetAction && isRepeatedActedPressureGroupRetargetAction(action))
+    guard
+      isProofRunAction(action)
+        || (allowRetargetAction && isRepeatedActedPressureGroupRetargetAction(action))
     else { return nil }
     let matches =
       config.tournamentAutomationCycleAudits
@@ -4307,10 +4315,11 @@ enum TournamentAutomationCycleLearningAdvisor {
         return lhs.endedAt > rhs.endedAt
       }
       .prefix(8)
-      .compactMap { audit -> (
-        audit: TournamentAutomationCycleAudit,
-        outcome: TournamentAutomationActedPressureGroupOutcome
-      )? in
+      .compactMap {
+        audit -> (
+          audit: TournamentAutomationCycleAudit,
+          outcome: TournamentAutomationActedPressureGroupOutcome
+        )? in
         guard audit.stopReason != .executionFailed,
           audit.experimentIDs.contains(experiment.id),
           audit.completedEvidenceRunCount > 0 || audit.evidenceRunStepCount > 0,
@@ -5058,8 +5067,7 @@ enum TournamentAutomationPlanner {
       $0.isActionable
         && contender($0.contenderID, matches: experiment, in: config)
         && !isRedundantRoundTwoRevision($0, for: experiment, in: config)
-    })
-    {
+    }) {
       return transitionStep(
         experiment: experiment,
         title: "Apply Round 2 transition",
@@ -5081,8 +5089,7 @@ enum TournamentAutomationPlanner {
       $0.isActionable
         && contender($0.contenderID, matches: experiment, in: config)
         && !isRoundThreeImplementationRevision($0, for: experiment, in: config)
-    })
-    {
+    }) {
       return transitionStep(
         experiment: experiment,
         title: "Apply Round 3 transition",
@@ -5410,7 +5417,8 @@ enum TournamentAutomationPlanner {
     }
     if step.canExecute,
       !isActedProofGroupRevisionValidationAction(step.action),
-      let stalledActedGroup = TournamentAutomationCycleLearningAdvisor
+      let stalledActedGroup =
+        TournamentAutomationCycleLearningAdvisor
         .stalledActedPressureGroupAudit(
           for: step.action,
           experiment: experiment,
@@ -5426,7 +5434,8 @@ enum TournamentAutomationPlanner {
     }
     if step.canExecute,
       !isActedProofGroupRevisionValidationAction(step.action),
-      let repeatedActedGroup = TournamentAutomationCycleLearningAdvisor
+      let repeatedActedGroup =
+        TournamentAutomationCycleLearningAdvisor
         .repeatedActedPressureGroupAudit(
           for: step.action,
           experiment: experiment,
@@ -6088,7 +6097,9 @@ enum ProductTournamentNextActionAdvisor {
         evidenceIndex: evidenceIndex
       )
     }
-    if readiness.personaModelDistinctPersonaCount < 2 && shouldRunPersonaModelRejectionCheck(readiness) {
+    if readiness.personaModelDistinctPersonaCount < 2
+      && shouldRunPersonaModelRejectionCheck(readiness)
+    {
       return applyingRecentCycleGuards(
         to: personaModelBreadthAction(
           experiment: experiment,
@@ -6622,7 +6633,7 @@ enum ProductTournamentNextActionAdvisor {
     experiment: ProductTournamentExperiment,
     config: ProductTournamentConfig
   ) -> ProductTournamentNextAction? {
-    guard (action.kind == .runCohort || action.kind == .rerunCohort),
+    guard action.kind == .runCohort || action.kind == .rerunCohort,
       let cohortID = action.cohortID,
       let cohort = config.scenarioCohorts.first(where: {
         $0.id == cohortID && $0.experimentID == experiment.id
@@ -6645,22 +6656,24 @@ enum ProductTournamentNextActionAdvisor {
     let isRoundThreeImplementationRevisionValidation =
       action.title == "Validate Round 3 implementation revision"
       || action.title == "Complete Round 3 implementation validation"
-    let isRoundThreeProductImplementationProof = action.title.hasPrefix("Run Round 3")
+    let isRoundThreeProductImplementationProof =
+      action.title.hasPrefix("Run Round 3")
       || action.title == "Broaden Round 3 persona proof"
-    guard isCandidateTrack || isRoundTwoProofGapValidation
-      || isRoundThreeImplementationRevisionValidation || isRoundThreeProductImplementationProof
+    guard
+      isCandidateTrack || isRoundTwoProofGapValidation
+        || isRoundThreeImplementationRevisionValidation || isRoundThreeProductImplementationProof
     else { return nil }
 
     let scenarioText =
       isRoundTwoProofGapValidation
       ? "Round 2 revision validation scenario needs"
       : isRoundThreeImplementationRevisionValidation
-      ? "Round 3 implementation revision validation scenario needs"
-      : isRoundThreeProductImplementationProof
-      ? "Round 3 product implementation proof scenario needs"
-      : readiness.missingTargetCommitCount == 1
-      ? "1 candidate starter scenario needs"
-      : "\(readiness.missingTargetCommitCount) candidate starter scenarios need"
+        ? "Round 3 implementation revision validation scenario needs"
+        : isRoundThreeProductImplementationProof
+          ? "Round 3 product implementation proof scenario needs"
+          : readiness.missingTargetCommitCount == 1
+            ? "1 candidate starter scenario needs"
+            : "\(readiness.missingTargetCommitCount) candidate starter scenarios need"
     return ProductTournamentNextAction(
       experimentID: experiment.id,
       kind: .prepareWorktree,
@@ -7080,7 +7093,8 @@ enum ProductTournamentNextActionAdvisor {
     ) {
       return validationAction
     }
-    if let stalledActedGroup = TournamentAutomationCycleLearningAdvisor
+    if let stalledActedGroup =
+      TournamentAutomationCycleLearningAdvisor
       .stalledActedPressureGroupAudit(
         for: action,
         experiment: experiment,
@@ -7100,7 +7114,8 @@ enum ProductTournamentNextActionAdvisor {
         evidenceIndex: evidenceIndex
       ) ?? retargetAction
     }
-    if let repeatedActedGroup = TournamentAutomationCycleLearningAdvisor
+    if let repeatedActedGroup =
+      TournamentAutomationCycleLearningAdvisor
       .repeatedActedPressureGroupAudit(
         for: action,
         experiment: experiment,
@@ -7141,7 +7156,8 @@ enum ProductTournamentNextActionAdvisor {
         config: config,
         evidenceIndex: evidenceIndex
       )
-      if let stalledActedGroup = TournamentAutomationCycleLearningAdvisor
+      if let stalledActedGroup =
+        TournamentAutomationCycleLearningAdvisor
         .stalledActedPressureGroupAudit(
           for: failureGuardedRetarget,
           experiment: experiment,
@@ -7161,7 +7177,8 @@ enum ProductTournamentNextActionAdvisor {
           evidenceIndex: evidenceIndex
         ) ?? actedRetargetAction
       }
-      if let repeatedActedGroup = TournamentAutomationCycleLearningAdvisor
+      if let repeatedActedGroup =
+        TournamentAutomationCycleLearningAdvisor
         .repeatedActedPressureGroupAudit(
           for: failureGuardedRetarget,
           experiment: experiment,
@@ -7414,11 +7431,13 @@ enum ProductTournamentNextActionAdvisor {
       })
     else { return nil }
 
-    let latestAudit = ProductTournamentRoundTwoProofGapValidationAdvisor
+    let latestAudit =
+      ProductTournamentRoundTwoProofGapValidationAdvisor
       .latestAppliedProofGapRevisionAudit(for: experiment.id, config: config)
-    let audit = config.tournamentAutomationCycleAudits.first {
-      $0.id == result.revisionAuditID
-    } ?? latestAudit
+    let audit =
+      config.tournamentAutomationCycleAudits.first {
+        $0.id == result.revisionAuditID
+      } ?? latestAudit
     guard
       let audit,
       let target = revisionValidationTarget(
@@ -7563,11 +7582,13 @@ enum ProductTournamentNextActionAdvisor {
       })
     else { return nil }
 
-    let latestAudit = ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
+    let latestAudit =
+      ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
       .latestAppliedImplementationRevisionAudit(for: experiment.id, config: config)
-    let audit = config.tournamentAutomationCycleAudits.first {
-      $0.id == result.revisionAuditID
-    } ?? latestAudit
+    let audit =
+      config.tournamentAutomationCycleAudits.first {
+        $0.id == result.revisionAuditID
+      } ?? latestAudit
     guard
       let audit,
       let target = revisionValidationTarget(
@@ -7642,7 +7663,8 @@ enum ProductTournamentNextActionAdvisor {
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> PersonaModelTarget? {
     guard
-      let validationScenarioIDs = ProductTournamentRoundTwoProofGapValidationAdvisor
+      let validationScenarioIDs =
+        ProductTournamentRoundTwoProofGapValidationAdvisor
         .validationScenarioIDs(
           after: audit,
           experimentID: experiment.id,
@@ -7655,7 +7677,8 @@ enum ProductTournamentNextActionAdvisor {
           && $0.roundID == result.roundID
           && $0.contenderID == result.contenderID
       }
-    let validationSummaries = ProductTournamentRoundTwoProofGapValidationAdvisor
+    let validationSummaries =
+      ProductTournamentRoundTwoProofGapValidationAdvisor
       .validationSummaries(
         in: scopedSummaries,
         after: audit,
@@ -7705,7 +7728,8 @@ enum ProductTournamentNextActionAdvisor {
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> PersonaModelTarget? {
     guard
-      let validationScenarioIDs = ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
+      let validationScenarioIDs =
+        ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
         .validationScenarioIDs(
           after: audit,
           experimentID: experiment.id,
@@ -7718,7 +7742,8 @@ enum ProductTournamentNextActionAdvisor {
           && $0.roundID == result.roundID
           && $0.contenderID == result.contenderID
       }
-    let validationSummaries = ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
+    let validationSummaries =
+      ProductTournamentRoundThreeImplementationRevisionValidationAdvisor
       .validationSummaries(
         in: scopedSummaries,
         after: audit,
@@ -7923,7 +7948,8 @@ enum ProductTournamentNextActionAdvisor {
           cohort: selectedCohort
         ),
         title: "Retarget persona-model proof debt",
-        proofNeed: "\(readiness.proofDebt.personaModelSimulatedUserDeficit) persona-model simulated user(s)"
+        proofNeed:
+          "\(readiness.proofDebt.personaModelSimulatedUserDeficit) persona-model simulated user(s)"
       )
     }
     if readiness.proofDebt.personaModelCurrentAlternativeDeficit > 0 {
@@ -8003,7 +8029,8 @@ enum ProductTournamentNextActionAdvisor {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> ProductTournamentNextAction {
-    guard action.kind == .prepareWorktree || action.kind == .runCohort || action.kind == .rerunCohort,
+    guard
+      action.kind == .prepareWorktree || action.kind == .runCohort || action.kind == .rerunCohort,
       let audit = TournamentAutomationCycleFailureAdvisor.blockingAudit(
         forStepID: TournamentAutomationCycleFailureAdvisor.stepID(for: action),
         experiment: experiment,
