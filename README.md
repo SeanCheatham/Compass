@@ -20,6 +20,8 @@ logic is moving into Rust crates under `crates/`, with `compassd` exposing
 schema-versioned NDJSON IPC over a local Unix socket. See
 [`docs/architecture.md`](docs/architecture.md) and
 [`docs/compassd-protocol.md`](docs/compassd-protocol.md) for the current split.
+Rust-core rollout checks are listed in
+[`docs/cutover-rollout.md`](docs/cutover-rollout.md).
 
 ## Generated Projects Are Rust
 

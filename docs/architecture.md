@@ -35,3 +35,6 @@ Current migration flags:
 
 The Linux guest spike is documented in
 [`docs/linux-guest-spike.md`](linux-guest-spike.md).
+
+Cutover verification and rollback are tracked in
+[`docs/cutover-rollout.md`](cutover-rollout.md).
