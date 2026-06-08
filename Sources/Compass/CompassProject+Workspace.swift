@@ -150,6 +150,13 @@ extension CompassProject {
     return try workspace.readDistributionPressureRecord(id: id)
   }
 
+  func readLifecycleRunRecord(id: String) throws -> LifecycleRunRecord {
+    guard let workspace else {
+      throw AppModelError.noRepositorySelected
+    }
+    return try workspace.readLifecycleRunRecord(id: id)
+  }
+
   func initializeIfNeeded(_ workspace: CompassWorkspace) async throws {
     guard !FileManager.default.fileExists(atPath: workspace.compassURL.path) else { return }
     try workspace.initialize()

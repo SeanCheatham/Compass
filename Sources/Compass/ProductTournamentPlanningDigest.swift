@@ -23,6 +23,7 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += marketLines(config: config)
     lines += marketPressureLines(evidenceIndex: evidenceIndex)
     lines += distributionLines(config: config, evidenceIndex: evidenceIndex)
+    lines += lifecycleLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentLines(config: config, evidenceIndex: evidenceIndex)
     lines += roundTwoImplementationTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += feasibilityHandoffLines(config: config, evidenceIndex: evidenceIndex)
@@ -68,11 +69,11 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += rationaleSignalLines(config: config, evidenceIndex: evidenceIndex)
     lines += targetedProofOutcomeLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
+    lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += TournamentAutomationProofTargetScoreboard.contextLines(
       config: config,
       evidenceIndex: evidenceIndex
     )
-    lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += laneStateLines(config: config, evidenceIndex: evidenceIndex)
     lines += judgingBarrierLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioScheduleLines(config: config, evidenceIndex: evidenceIndex)
@@ -315,6 +316,39 @@ enum ProductTournamentPlanningDigestFormatter {
     let latestRows = evidenceIndex.distributionPressureSummaries.prefix(5).map(\.digestLine)
     if !latestRows.isEmpty {
       lines.append("- Latest distribution pressure: \(bounded(latestRows.joined(separator: "; "), 760)).")
+    }
+    return lines
+  }
+
+  private static func lifecycleLines(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [String] {
+    guard !config.syntheticCohorts.isEmpty || !evidenceIndex.lifecycleRunSummaries.isEmpty else {
+      return []
+    }
+    var lines = ["Lifecycle retention evidence:"]
+    if evidenceIndex.lifecycleRunSummaries.isEmpty {
+      lines.append(
+        "- \(config.syntheticCohorts.count) synthetic lifecycle cohort(s), \(config.lifecycleScenarios.count) lifecycle scenario(s) drafted; no lifecycle runs yet."
+      )
+      return lines
+    }
+    let debts = evidenceIndex.aggregate.lifecycleProofDebtByContender.prefix(5).map { debt in
+      "contender \(debt.contenderID): activation \(debt.activationCount), retained \(debt.retainedCount), churned \(debt.churnedCount), renewal \(debt.renewalProofCount), lifecycle_debt \(debt.summary), next \(bounded(debt.nextMove, 140))"
+    }
+    if !debts.isEmpty {
+      lines.append("- Retention proof: \(bounded(debts.joined(separator: "; "), 760)).")
+    }
+    let latestRows = evidenceIndex.lifecycleRunSummaries.prefix(5).map(\.digestLine)
+    if !latestRows.isEmpty {
+      lines.append("- Latest lifecycle runs: \(bounded(latestRows.joined(separator: "; "), 760)).")
+    }
+    if !evidenceIndex.aggregate.lifecycleObjections.isEmpty {
+      let objections = evidenceIndex.aggregate.lifecycleObjections.prefix(4)
+        .map { "\($0.objection) (\($0.count)x)" }
+        .joined(separator: "; ")
+      lines.append("- Repeated lifecycle objections: \(bounded(objections, 360)).")
     }
     return lines
   }
@@ -767,6 +801,22 @@ enum ProductTournamentPlanningDigestFormatter {
       if let nextActionTitle = target.nextActionTitle {
         metadata.append("next \(bounded(nextActionTitle, 100))")
       }
+      if let targetScenarioID = target.targetScenarioID {
+        metadata.append("target_scenario \(targetScenarioID)")
+      }
+      if let targetPersonaID = target.targetPersonaID {
+        metadata.append("target_persona \(targetPersonaID)")
+      }
+      if let targetPersonaName = target.targetPersonaName {
+        metadata.append("target_name \(bounded(targetPersonaName, 80))")
+      }
+      if let targetDecision = target.targetDecision {
+        metadata.append("target_decision \(targetDecision.rawValue)")
+        metadata.append("decision target \(targetDecision.rawValue)")
+      }
+      if let requiredMode = target.requiredSimulationMode {
+        metadata.append("required_mode \(requiredMode.rawValue)")
+      }
       if let tournamentPositionSummary = target.tournamentPositionSummary {
         metadata.append("position \(bounded(tournamentPositionSummary, 160))")
       }
@@ -781,21 +831,6 @@ enum ProductTournamentPlanningDigestFormatter {
       }
       if let cohortID = target.cohortID {
         metadata.append("cohort \(cohortID)")
-      }
-      if let targetScenarioID = target.targetScenarioID {
-        metadata.append("target_scenario \(targetScenarioID)")
-      }
-      if let targetPersonaID = target.targetPersonaID {
-        metadata.append("target_persona \(targetPersonaID)")
-      }
-      if let targetPersonaName = target.targetPersonaName {
-        metadata.append("target_name \(bounded(targetPersonaName, 80))")
-      }
-      if let targetDecision = target.targetDecision {
-        metadata.append("target_decision \(targetDecision.rawValue)")
-      }
-      if let requiredMode = target.requiredSimulationMode {
-        metadata.append("required_mode \(requiredMode.rawValue)")
       }
       lines.append("- \(target.experimentID): \(metadata.joined(separator: "; ")).")
     }

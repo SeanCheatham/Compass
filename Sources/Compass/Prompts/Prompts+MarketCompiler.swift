@@ -397,5 +397,46 @@ enum ProductMarketReferenceValidator {
         )
       }
     }
+    let lifecycleScenarioIDs = Set(config.lifecycleScenarios.map(\.id))
+    let lifecycleScenariosByCohortID = Dictionary(grouping: config.lifecycleScenarios) {
+      $0.cohortID
+    }
+    for cohort in config.syntheticCohorts {
+      guard let market = marketsByID[cohort.marketID] else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Synthetic cohort \(cohort.id) references missing market \(cohort.marketID)."
+        )
+      }
+      guard contenderIDs.isEmpty || contenderIDs.contains(cohort.contenderID) else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Synthetic cohort \(cohort.id) references missing contender \(cohort.contenderID)."
+        )
+      }
+      guard let timeline = market.adoptionTimelines.first(where: {
+        $0.id == cohort.adoptionTimelineID
+      }) else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Synthetic cohort \(cohort.id) references missing adoption timeline \(cohort.adoptionTimelineID)."
+        )
+      }
+      let actorIDs = Set(market.actors.map(\.id))
+      for actorID in cohort.actorIDs where !actorIDs.contains(actorID) {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Synthetic cohort \(cohort.id) references missing actor \(actorID)."
+        )
+      }
+      let stageIDs = Set(timeline.stages.map(\.id))
+      for scenarioID in cohort.lifecycleScenarioIDs where !lifecycleScenarioIDs.contains(scenarioID) {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Synthetic cohort \(cohort.id) references missing lifecycle scenario \(scenarioID)."
+        )
+      }
+      for scenario in lifecycleScenariosByCohortID[cohort.id] ?? []
+      where !stageIDs.contains(scenario.stageID) {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Lifecycle scenario \(scenario.id) references missing adoption stage \(scenario.stageID)."
+        )
+      }
+    }
   }
 }

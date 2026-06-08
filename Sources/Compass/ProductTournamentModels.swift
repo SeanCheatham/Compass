@@ -1,7 +1,7 @@
 import Foundation
 
 struct ProductTournamentConfig: Codable, Equatable, Sendable {
-  static let supportedSchemaVersion = 7
+  static let supportedSchemaVersion = 8
 
   var schemaVersion: Int
   var rawPain: String
@@ -16,6 +16,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
   var tournamentContenders: [ProductTournamentContender]
   var tournamentRounds: [ProductTournamentRound]
   var distributionExperiments: [DistributionExperiment]
+  var syntheticCohorts: [SyntheticCohort]
+  var lifecycleScenarios: [LifecycleScenario]
   var scenarios: [ProductScenario]
   var scenarioCohorts: [ProductScenarioCohort]
   var decisions: [ProductTournamentDecision]
@@ -34,6 +36,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     tournamentContenders: [],
     tournamentRounds: [],
     distributionExperiments: [],
+    syntheticCohorts: [],
+    lifecycleScenarios: [],
     scenarios: [],
     scenarioCohorts: [],
     decisions: [],
@@ -54,6 +58,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     case tournamentContenders
     case tournamentRounds
     case distributionExperiments
+    case syntheticCohorts
+    case lifecycleScenarios
     case scenarios
     case scenarioCohorts
     case decisions
@@ -74,6 +80,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     tournamentContenders: [ProductTournamentContender] = [],
     tournamentRounds: [ProductTournamentRound] = [],
     distributionExperiments: [DistributionExperiment] = [],
+    syntheticCohorts: [SyntheticCohort] = [],
+    lifecycleScenarios: [LifecycleScenario] = [],
     scenarios: [ProductScenario] = [],
     scenarioCohorts: [ProductScenarioCohort] = [],
     decisions: [ProductTournamentDecision] = [],
@@ -92,6 +100,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     self.tournamentContenders = tournamentContenders
     self.tournamentRounds = tournamentRounds
     self.distributionExperiments = distributionExperiments
+    self.syntheticCohorts = syntheticCohorts
+    self.lifecycleScenarios = lifecycleScenarios
     self.scenarios = scenarios
     self.scenarioCohorts = scenarioCohorts
     self.decisions = decisions
@@ -143,6 +153,14 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         [DistributionExperiment].self,
         forKey: .distributionExperiments
       ) ?? [],
+      syntheticCohorts: try container.decodeIfPresent(
+        [SyntheticCohort].self,
+        forKey: .syntheticCohorts
+      ) ?? [],
+      lifecycleScenarios: try container.decodeIfPresent(
+        [LifecycleScenario].self,
+        forKey: .lifecycleScenarios
+      ) ?? [],
       scenarios: try container.decodeIfPresent([ProductScenario].self, forKey: .scenarios) ?? [],
       scenarioCohorts: try container.decodeIfPresent(
         [ProductScenarioCohort].self, forKey: .scenarioCohorts) ?? [],
@@ -168,6 +186,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       && tournamentContenders.isEmpty
       && tournamentRounds.isEmpty
       && distributionExperiments.isEmpty
+      && syntheticCohorts.isEmpty
+      && lifecycleScenarios.isEmpty
       && scenarios.isEmpty
       && scenarioCohorts.isEmpty
       && decisions.isEmpty
@@ -234,6 +254,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let proofExperimentID = "\(slug)-proof-implementation"
     let workflowDistributionID = "\(slug)-workflow-founder-led-distribution"
     let proofDistributionID = "\(slug)-proof-founder-led-distribution"
+    let workflowLifecycleCohortID = "\(slug)-workflow-lifecycle-cohort"
+    let proofLifecycleCohortID = "\(slug)-proof-lifecycle-cohort"
     let workflowOperatorScenarioID = "\(workflowExperimentID)-operator-starter-scenario"
     let workflowBuyerScenarioID = "\(workflowExperimentID)-buyer-starter-scenario"
     let proofOperatorScenarioID = "\(proofExperimentID)-operator-starter-scenario"
@@ -447,6 +469,65 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       ),
     ]
 
+    let adoptionStages = [
+      AdoptionStage(
+        id: "\(adoptionTimelineID)-first-encounter",
+        dayOffset: 0,
+        trigger: "Actor sees a pitch or pilot prompt.",
+        userQuestion: "Does this describe my painful workflow better than generic tooling?",
+        passSignal: "The actor recognizes a specific urgent job.",
+        failSignal: "The pitch sounds like a generic productivity app."
+      ),
+      AdoptionStage(
+        id: "\(adoptionTimelineID)-activation",
+        dayOffset: 1,
+        trigger: "Operator tries the smallest workflow proof.",
+        userQuestion: "Can I get a useful result faster than the current workaround?",
+        passSignal: "One real workflow moment is completed with clearer next action.",
+        failSignal: "The operator returns to the manual workaround."
+      ),
+      AdoptionStage(
+        id: "\(adoptionTimelineID)-first-real-workflow",
+        dayOffset: 3,
+        trigger: "Operator uses the product on a real workflow moment.",
+        userQuestion: "Does it beat the current alternative when the work is real?",
+        passSignal: "The product wins against the manual workflow in context.",
+        failSignal: "The current alternative remains easier or more trusted."
+      ),
+      AdoptionStage(
+        id: "\(adoptionTimelineID)-second-use",
+        dayOffset: 7,
+        trigger: "The same workflow pain recurs.",
+        userQuestion: "Do I come back because the job repeats?",
+        passSignal: "The product is reused without prompting.",
+        failSignal: "Initial novelty fades and the current alternative wins."
+      ),
+      AdoptionStage(
+        id: "\(adoptionTimelineID)-team-spread",
+        dayOffset: 14,
+        trigger: "The operator shares the result with a teammate or sponsor.",
+        userQuestion: "Does the value spread beyond one isolated user?",
+        passSignal: "Another actor can understand or reuse the product output.",
+        failSignal: "The product remains a private one-off helper."
+      ),
+      AdoptionStage(
+        id: "\(adoptionTimelineID)-budget",
+        dayOffset: 21,
+        trigger: "Sponsor decides whether a pilot deserves budget.",
+        userQuestion: "Can I justify payment or sponsorship?",
+        passSignal: "Buyer can tie proof to time, risk, or rework savings.",
+        failSignal: "No budget owner or ROI logic appears."
+      ),
+      AdoptionStage(
+        id: "\(adoptionTimelineID)-renewal-or-churn",
+        dayOffset: 45,
+        trigger: "The buyer reviews whether the product remains necessary.",
+        userQuestion: "Would we renew, expand, or churn after repeat use?",
+        passSignal: "The product remains necessary enough to renew or expand.",
+        failSignal: "The team churns because the job did not recur or the alternative won."
+      ),
+    ]
+
     let market = ProductMarket(
       id: marketID,
       painID: painID,
@@ -557,40 +638,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
           id: adoptionTimelineID,
           marketID: marketID,
           name: "\(title) adoption timeline",
-          stages: [
-            AdoptionStage(
-              id: "\(adoptionTimelineID)-first-encounter",
-              dayOffset: 0,
-              trigger: "Actor sees a pitch or pilot prompt.",
-              userQuestion: "Does this describe my painful workflow better than generic tooling?",
-              passSignal: "The actor recognizes a specific urgent job.",
-              failSignal: "The pitch sounds like a generic productivity app."
-            ),
-            AdoptionStage(
-              id: "\(adoptionTimelineID)-activation",
-              dayOffset: 1,
-              trigger: "Operator tries the smallest workflow proof.",
-              userQuestion: "Can I get a useful result faster than the current workaround?",
-              passSignal: "One real workflow moment is completed with clearer next action.",
-              failSignal: "The operator returns to the manual workaround."
-            ),
-            AdoptionStage(
-              id: "\(adoptionTimelineID)-second-use",
-              dayOffset: 7,
-              trigger: "The same workflow pain recurs.",
-              userQuestion: "Do I come back because the job repeats?",
-              passSignal: "The product is reused without prompting.",
-              failSignal: "Initial novelty fades and the current alternative wins."
-            ),
-            AdoptionStage(
-              id: "\(adoptionTimelineID)-budget",
-              dayOffset: 21,
-              trigger: "Sponsor decides whether a pilot deserves budget.",
-              userQuestion: "Can I justify payment or sponsorship?",
-              passSignal: "Buyer can tie proof to time, risk, or rework savings.",
-              failSignal: "No budget owner or ROI logic appears."
-            ),
-          ]
+          stages: adoptionStages
         )
       ],
       marketProofDebt: MarketProofDebt(
@@ -848,6 +896,68 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         createdAt: timestamp
       ),
     ]
+    func seededLifecycleScenarios(
+      cohortID: String,
+      contender: ProductTournamentContender
+    ) -> [LifecycleScenario] {
+      adoptionStages.map { stage in
+        let stageText = "\(stage.id) \(stage.trigger) \(stage.userQuestion)".lowercased()
+        let currentAlternative =
+          stageText.contains("second") || stageText.contains("renew")
+          ? " Compare against Manual workflow plus shared document and decide whether the market comes back."
+          : ""
+        let buyerMoment =
+          stageText.contains("budget") || stageText.contains("renew")
+          ? " Target buyer actor \(buyerActorID) and require payment, renewal, or churn rationale."
+          : ""
+        return LifecycleScenario(
+          id:
+            "lifecycle-\(stage.dayOffset)-\(contender.id)-\(ProductTournamentModelText.slug(stage.trigger, fallback: stage.id))",
+          cohortID: cohortID,
+          stageID: stage.id,
+          title: "\(contender.title) lifecycle: \(stage.trigger)",
+          dayOffset: stage.dayOffset,
+          trigger: stage.trigger,
+          task:
+            "\(stage.userQuestion) Test \(contender.valueProposition).\(currentAlternative)\(buyerMoment)",
+          passSignal: stage.passSignal,
+          failSignal: stage.failSignal
+        )
+      }
+    }
+    let workflowLifecycleScenarios = seededLifecycleScenarios(
+      cohortID: workflowLifecycleCohortID,
+      contender: contenders[0]
+    )
+    let proofLifecycleScenarios = seededLifecycleScenarios(
+      cohortID: proofLifecycleCohortID,
+      contender: contenders[1]
+    )
+    let lifecycleScenarios = workflowLifecycleScenarios + proofLifecycleScenarios
+    let syntheticCohorts = [
+      SyntheticCohort(
+        id: workflowLifecycleCohortID,
+        marketID: marketID,
+        contenderID: workflowContenderID,
+        name: "\(title) workflow retention cohort",
+        actorIDs: [operatorActorID, buyerActorID],
+        adoptionTimelineID: adoptionTimelineID,
+        sizeLabel: "Synthetic operator plus buyer retention path",
+        lifecycleScenarioIDs: workflowLifecycleScenarios.map(\.id),
+        status: .draft
+      ),
+      SyntheticCohort(
+        id: proofLifecycleCohortID,
+        marketID: marketID,
+        contenderID: proofContenderID,
+        name: "\(title) proof retention cohort",
+        actorIDs: [operatorActorID, buyerActorID],
+        adoptionTimelineID: adoptionTimelineID,
+        sizeLabel: "Synthetic operator plus buyer retention path",
+        lifecycleScenarioIDs: proofLifecycleScenarios.map(\.id),
+        status: .draft
+      ),
+    ]
     let cohortIDs = cohorts.map(\.id)
     let rounds = [
       ProductTournamentRound(
@@ -950,6 +1060,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       tournamentContenders: contenders,
       tournamentRounds: rounds,
       distributionExperiments: distributionExperiments,
+      syntheticCohorts: syntheticCohorts,
+      lifecycleScenarios: lifecycleScenarios,
       scenarios: scenarios,
       scenarioCohorts: cohorts,
       decisions: []

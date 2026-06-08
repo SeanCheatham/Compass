@@ -303,6 +303,10 @@ struct CompassWorkspace {
     try productTournamentEvidenceStore.readDistributionPressureRecord(id: id)
   }
 
+  func readLifecycleRunRecord(id: String) throws -> LifecycleRunRecord {
+    try productTournamentEvidenceStore.readLifecycleRunRecord(id: id)
+  }
+
   @discardableResult
   func writeProductTournamentEvidenceRecord(
     _ record: ProductTournamentEvidenceRecord,
@@ -348,6 +352,17 @@ struct CompassWorkspace {
     summaryMarkdown: String? = nil
   ) throws -> DistributionPressureRecord {
     try productTournamentEvidenceStore.writeDistributionPressureRecord(
+      record,
+      summaryMarkdown: summaryMarkdown
+    )
+  }
+
+  @discardableResult
+  func writeLifecycleRunRecord(
+    _ record: LifecycleRunRecord,
+    summaryMarkdown: String? = nil
+  ) throws -> LifecycleRunRecord {
+    try productTournamentEvidenceStore.writeLifecycleRunRecord(
       record,
       summaryMarkdown: summaryMarkdown
     )

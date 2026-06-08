@@ -22,7 +22,7 @@ struct ProductMarketModelTests {
   @Test func strictDecodeRejectsUnsupportedMarketFreeKeys() throws {
     let payload = """
       {
-        "schemaVersion": 7,
+        "schemaVersion": 8,
         "rawPain": "Pain",
         "painHypotheses": [],
         "userSegments": [],

@@ -435,6 +435,47 @@ struct DiscoverPromptOutput: Codable, Equatable {
         )
       }
     }
+    let lifecycleScenarioIDs = Set(config.lifecycleScenarios.map(\.id))
+    let lifecycleScenariosByCohortID = Dictionary(grouping: config.lifecycleScenarios) {
+      $0.cohortID
+    }
+    for cohort in config.syntheticCohorts {
+      guard let market = marketsByID[cohort.marketID] else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Synthetic cohort \(cohort.id) references missing market \(cohort.marketID)."
+        )
+      }
+      guard contenderIDs.contains(cohort.contenderID) else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Synthetic cohort \(cohort.id) references missing contender \(cohort.contenderID)."
+        )
+      }
+      guard let timeline = market.adoptionTimelines.first(where: {
+        $0.id == cohort.adoptionTimelineID
+      }) else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Synthetic cohort \(cohort.id) references missing adoption timeline \(cohort.adoptionTimelineID)."
+        )
+      }
+      let actorIDs = Set(market.actors.map(\.id))
+      for actorID in cohort.actorIDs where !actorIDs.contains(actorID) {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Synthetic cohort \(cohort.id) references missing actor \(actorID)."
+        )
+      }
+      let stageIDs = Set(timeline.stages.map(\.id))
+      for scenarioID in cohort.lifecycleScenarioIDs where !lifecycleScenarioIDs.contains(scenarioID) {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Synthetic cohort \(cohort.id) references missing lifecycle scenario \(scenarioID)."
+        )
+      }
+      for scenario in lifecycleScenariosByCohortID[cohort.id] ?? []
+      where !stageIDs.contains(scenario.stageID) {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Lifecycle scenario \(scenario.id) references missing adoption stage \(scenario.stageID)."
+        )
+      }
+    }
 
     if candidateTournamentExperiments.isEmpty && !openQuestions.isEmpty {
       throw DiscoverPromptValidationError.openQuestionsUsedInsteadOfActionableNextSteps(
@@ -756,6 +797,8 @@ struct DiscoveryStateEdits: Codable, Equatable {
   var tournamentContenders: [ProductTournamentContender]
   var tournamentRounds: [ProductTournamentRound]
   var distributionExperiments: [DistributionExperiment]
+  var syntheticCohorts: [SyntheticCohort]
+  var lifecycleScenarios: [LifecycleScenario]
   var scenarioCohorts: [ProductScenarioCohort]
   var decisions: [ProductTournamentDecision]
 
@@ -772,6 +815,8 @@ struct DiscoveryStateEdits: Codable, Equatable {
     case tournamentContenders
     case tournamentRounds
     case distributionExperiments
+    case syntheticCohorts
+    case lifecycleScenarios
     case scenarioCohorts
     case decisions
   }
@@ -789,6 +834,8 @@ struct DiscoveryStateEdits: Codable, Equatable {
     tournamentContenders: [ProductTournamentContender] = [],
     tournamentRounds: [ProductTournamentRound] = [],
     distributionExperiments: [DistributionExperiment] = [],
+    syntheticCohorts: [SyntheticCohort] = [],
+    lifecycleScenarios: [LifecycleScenario] = [],
     scenarioCohorts: [ProductScenarioCohort] = [],
     decisions: [ProductTournamentDecision] = []
   ) {
@@ -804,6 +851,8 @@ struct DiscoveryStateEdits: Codable, Equatable {
     self.tournamentContenders = tournamentContenders
     self.tournamentRounds = tournamentRounds
     self.distributionExperiments = distributionExperiments
+    self.syntheticCohorts = syntheticCohorts
+    self.lifecycleScenarios = lifecycleScenarios
     self.scenarioCohorts = scenarioCohorts
     self.decisions = decisions
   }
@@ -848,6 +897,14 @@ struct DiscoveryStateEdits: Codable, Equatable {
         [DistributionExperiment].self,
         forKey: .distributionExperiments
       ) ?? [],
+      syntheticCohorts: try container.decodeIfPresent(
+        [SyntheticCohort].self,
+        forKey: .syntheticCohorts
+      ) ?? [],
+      lifecycleScenarios: try container.decodeIfPresent(
+        [LifecycleScenario].self,
+        forKey: .lifecycleScenarios
+      ) ?? [],
       scenarioCohorts: try container.decodeIfPresent(
         [ProductScenarioCohort].self, forKey: .scenarioCohorts) ?? [],
       decisions: try container.decodeIfPresent(
@@ -873,6 +930,8 @@ struct DiscoveryStateEdits: Codable, Equatable {
     upsert(&next.tournamentContenders, edits: tournamentContenders, id: \.id)
     upsert(&next.tournamentRounds, edits: tournamentRounds, id: \.id)
     upsert(&next.distributionExperiments, edits: distributionExperiments, id: \.id)
+    upsert(&next.syntheticCohorts, edits: syntheticCohorts, id: \.id)
+    upsert(&next.lifecycleScenarios, edits: lifecycleScenarios, id: \.id)
     upsert(&next.scenarioCohorts, edits: scenarioCohorts, id: \.id)
     upsert(&next.decisions, edits: decisions, id: \.id)
     return next

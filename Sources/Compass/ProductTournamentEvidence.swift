@@ -2430,6 +2430,7 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
   var planEvaluationSummaries: [ProductTournamentPlanEvaluationSummary]
   var marketPressureSummaries: [MarketPressureEvaluationSummary]
   var distributionPressureSummaries: [DistributionPressureSummary]
+  var lifecycleRunSummaries: [LifecycleRunSummary]
   var aggregate: ProductTournamentEvidenceAggregateSummary
   var malformedRecordCount: Int
 
@@ -2440,6 +2441,7 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     planEvaluationSummaries: [ProductTournamentPlanEvaluationSummary] = [],
     marketPressureSummaries: [MarketPressureEvaluationSummary] = [],
     distributionPressureSummaries: [DistributionPressureSummary] = [],
+    lifecycleRunSummaries: [LifecycleRunSummary] = [],
     aggregate: ProductTournamentEvidenceAggregateSummary = .empty,
     malformedRecordCount: Int = 0
   ) {
@@ -2461,6 +2463,10 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
       if lhs.createdAt == rhs.createdAt { return lhs.pressureID < rhs.pressureID }
       return lhs.createdAt > rhs.createdAt
     }
+    self.lifecycleRunSummaries = lifecycleRunSummaries.sorted { lhs, rhs in
+      if lhs.createdAt == rhs.createdAt { return lhs.runID < rhs.runID }
+      return lhs.createdAt > rhs.createdAt
+    }
     self.aggregate = aggregate
     self.malformedRecordCount = malformedRecordCount
   }
@@ -2472,6 +2478,7 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     case planEvaluationSummaries
     case marketPressureSummaries
     case distributionPressureSummaries
+    case lifecycleRunSummaries
     case aggregate
     case malformedRecordCount
   }
@@ -2498,6 +2505,10 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
         [DistributionPressureSummary].self,
         forKey: .distributionPressureSummaries
       ) ?? [],
+      lifecycleRunSummaries: try container.decodeIfPresent(
+        [LifecycleRunSummary].self,
+        forKey: .lifecycleRunSummaries
+      ) ?? [],
       aggregate: try container.decodeIfPresent(
         ProductTournamentEvidenceAggregateSummary.self,
         forKey: .aggregate
@@ -2514,6 +2525,7 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     planEvaluationRecords: [ProductTournamentPlanEvaluationRecord] = [],
     marketPressureRecords: [MarketPressureEvaluationRecord] = [],
     distributionPressureRecords: [DistributionPressureRecord] = [],
+    lifecycleRunRecords: [LifecycleRunRecord] = [],
     malformedRecordCount: Int = 0,
     now: Date = Date()
   ) -> ProductTournamentEvidenceIndex {
@@ -2521,17 +2533,20 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     let planEvaluationSummaries = planEvaluationRecords.map(\.summaryRecord)
     let marketPressureSummaries = marketPressureRecords.map(\.summaryRecord)
     let distributionPressureSummaries = distributionPressureRecords.map(\.summaryRecord)
+    let lifecycleRunSummaries = lifecycleRunRecords.map(\.summaryRecord)
     return ProductTournamentEvidenceIndex(
       updatedAt: now.timeIntervalSince1970,
       summaries: summaries,
       planEvaluationSummaries: planEvaluationSummaries,
       marketPressureSummaries: marketPressureSummaries,
       distributionPressureSummaries: distributionPressureSummaries,
+      lifecycleRunSummaries: lifecycleRunSummaries,
       aggregate: ProductTournamentEvidenceAggregateSummary(
         summaries: summaries,
         planEvaluationSummaries: planEvaluationSummaries,
         marketPressureSummaries: marketPressureSummaries,
-        distributionPressureSummaries: distributionPressureSummaries
+        distributionPressureSummaries: distributionPressureSummaries,
+        lifecycleRunSummaries: lifecycleRunSummaries
       ),
       malformedRecordCount: malformedRecordCount
     )
@@ -2600,6 +2615,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     latestDistributionPressureByContender: [:],
     distributionChannelProofByContender: [],
     distributionPressureObjections: [],
+    latestLifecycleRunByContender: [:],
+    lifecycleProofDebtByContender: [],
+    lifecycleObjections: [],
     repeatedObjections: [],
     lowScoreClusters: [],
     missingCapabilityFrequency: [],
@@ -2619,6 +2637,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
   var latestDistributionPressureByContender: [String: String]
   var distributionChannelProofByContender: [DistributionChannelProof]
   var distributionPressureObjections: [ProductTournamentEvidenceRepeatedObjection]
+  var latestLifecycleRunByContender: [String: String]
+  var lifecycleProofDebtByContender: [LifecycleProofDebt]
+  var lifecycleObjections: [ProductTournamentEvidenceRepeatedObjection]
   var repeatedObjections: [ProductTournamentEvidenceRepeatedObjection]
   var lowScoreClusters: [ProductTournamentEvidenceScoreCluster]
   var missingCapabilityFrequency: [ProductTournamentEvidenceMissingCapabilityCount]
@@ -2639,6 +2660,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     case latestDistributionPressureByContender
     case distributionChannelProofByContender
     case distributionPressureObjections
+    case latestLifecycleRunByContender
+    case lifecycleProofDebtByContender
+    case lifecycleObjections
     case repeatedObjections
     case lowScoreClusters
     case missingCapabilityFrequency
@@ -2660,6 +2684,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     latestDistributionPressureByContender: [String: String] = [:],
     distributionChannelProofByContender: [DistributionChannelProof] = [],
     distributionPressureObjections: [ProductTournamentEvidenceRepeatedObjection] = [],
+    latestLifecycleRunByContender: [String: String] = [:],
+    lifecycleProofDebtByContender: [LifecycleProofDebt] = [],
+    lifecycleObjections: [ProductTournamentEvidenceRepeatedObjection] = [],
     repeatedObjections: [ProductTournamentEvidenceRepeatedObjection],
     lowScoreClusters: [ProductTournamentEvidenceScoreCluster],
     missingCapabilityFrequency: [ProductTournamentEvidenceMissingCapabilityCount],
@@ -2679,6 +2706,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     self.latestDistributionPressureByContender = latestDistributionPressureByContender
     self.distributionChannelProofByContender = distributionChannelProofByContender
     self.distributionPressureObjections = distributionPressureObjections
+    self.latestLifecycleRunByContender = latestLifecycleRunByContender
+    self.lifecycleProofDebtByContender = lifecycleProofDebtByContender
+    self.lifecycleObjections = lifecycleObjections
     self.repeatedObjections = repeatedObjections
     self.lowScoreClusters = lowScoreClusters
     self.missingCapabilityFrequency = missingCapabilityFrequency
@@ -2732,6 +2762,18 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
         [ProductTournamentEvidenceRepeatedObjection].self,
         forKey: .distributionPressureObjections
       ) ?? [],
+      latestLifecycleRunByContender: try container.decodeIfPresent(
+        [String: String].self,
+        forKey: .latestLifecycleRunByContender
+      ) ?? [:],
+      lifecycleProofDebtByContender: try container.decodeIfPresent(
+        [LifecycleProofDebt].self,
+        forKey: .lifecycleProofDebtByContender
+      ) ?? [],
+      lifecycleObjections: try container.decodeIfPresent(
+        [ProductTournamentEvidenceRepeatedObjection].self,
+        forKey: .lifecycleObjections
+      ) ?? [],
       repeatedObjections: try container.decodeIfPresent(
         [ProductTournamentEvidenceRepeatedObjection].self,
         forKey: .repeatedObjections
@@ -2771,7 +2813,8 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     summaries: [ProductTournamentEvidenceSummary],
     planEvaluationSummaries: [ProductTournamentPlanEvaluationSummary] = [],
     marketPressureSummaries: [MarketPressureEvaluationSummary] = [],
-    distributionPressureSummaries: [DistributionPressureSummary] = []
+    distributionPressureSummaries: [DistributionPressureSummary] = [],
+    lifecycleRunSummaries: [LifecycleRunSummary] = []
   ) {
     var latest: [String: ProductTournamentEvidenceSummary] = [:]
     for summary in summaries {
@@ -2865,10 +2908,30 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
       return lhs.bestScore > rhs.bestScore
     }
 
+    var latestLifecycleRun: [String: LifecycleRunSummary] = [:]
+    for summary in lifecycleRunSummaries {
+      if let current = latestLifecycleRun[summary.contenderID] {
+        if summary.createdAt > current.createdAt
+          || (summary.createdAt == current.createdAt && summary.runID < current.runID)
+        {
+          latestLifecycleRun[summary.contenderID] = summary
+        }
+      } else {
+        latestLifecycleRun[summary.contenderID] = summary
+      }
+    }
+    latestLifecycleRunByContender = latestLifecycleRun.mapValues(\.runID)
+    lifecycleProofDebtByContender = Dictionary(grouping: lifecycleRunSummaries, by: \.contenderID)
+      .map { contenderID, summaries in
+        LifecycleProofDebt(contenderID: contenderID, summaries: summaries)
+      }
+      .sorted { lhs, rhs in lhs.contenderID < rhs.contenderID }
+
     let objectionCounts = Dictionary(
       grouping: (summaries.flatMap(\.objections) + planEvaluationSummaries.flatMap(\.objections)
         + marketPressureSummaries.map(\.strongestObjection)
-        + distributionPressureSummaries.map(\.strongestObjection))
+        + distributionPressureSummaries.map(\.strongestObjection)
+        + lifecycleRunSummaries.map(\.strongestObjection))
         .map(\.normalizedProductTournamentEvidenceText),
       by: { $0 }
     ).mapValues(\.count)
@@ -2902,6 +2965,20 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     ).mapValues(\.count)
     distributionPressureObjections =
       distributionObjectionCounts
+      .filter { !$0.key.isEmpty }
+      .map { ProductTournamentEvidenceRepeatedObjection(objection: $0.key, count: $0.value) }
+      .sorted { lhs, rhs in
+        if lhs.count == rhs.count { return lhs.objection < rhs.objection }
+        return lhs.count > rhs.count
+      }
+
+    let lifecycleObjectionCounts = Dictionary(
+      grouping: lifecycleRunSummaries.map(\.strongestObjection)
+        .map(\.normalizedProductTournamentEvidenceText),
+      by: { $0 }
+    ).mapValues(\.count)
+    lifecycleObjections =
+      lifecycleObjectionCounts
       .filter { !$0.key.isEmpty }
       .map { ProductTournamentEvidenceRepeatedObjection(objection: $0.key, count: $0.value) }
       .sorted { lhs, rhs in
@@ -3200,6 +3277,9 @@ struct ProductTournamentEvidenceStore {
   var distributionPressureURL: URL {
     productTournamentURL.appending(path: "distribution-pressure", directoryHint: .isDirectory)
   }
+  var lifecycleRunsURL: URL {
+    productTournamentURL.appending(path: "lifecycle-runs", directoryHint: .isDirectory)
+  }
   var indexURL: URL { productTournamentURL.appending(path: "evidence-index.json") }
 
   func readIndex() throws -> ProductTournamentEvidenceIndex {
@@ -3229,6 +3309,11 @@ struct ProductTournamentEvidenceStore {
   func readDistributionPressureRecord(id: String) throws -> DistributionPressureRecord {
     let data = try Data(contentsOf: distributionPressureRecordURL(id: id))
     return try JSONDecoder().decode(DistributionPressureRecord.self, from: data)
+  }
+
+  func readLifecycleRunRecord(id: String) throws -> LifecycleRunRecord {
+    let data = try Data(contentsOf: lifecycleRunRecordURL(id: id))
+    return try JSONDecoder().decode(LifecycleRunRecord.self, from: data)
   }
 
   @discardableResult
@@ -3366,6 +3451,33 @@ struct ProductTournamentEvidenceStore {
   }
 
   @discardableResult
+  func writeLifecycleRunRecord(
+    _ record: LifecycleRunRecord,
+    summaryMarkdown: String? = nil,
+    now: Date = Date()
+  ) throws -> LifecycleRunRecord {
+    let safeID = Self.safeRunID(record.id)
+    let runURL = lifecycleRunsURL.appending(path: safeID, directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: runURL, withIntermediateDirectories: true)
+
+    let data = try Self.encoder().encode(record)
+    try data.write(to: lifecycleRunRecordURL(id: record.id), options: .atomic)
+    let summary = summaryMarkdown ?? ProductTournamentEvidenceMarkdownExporter.markdown(
+      lifecycleRun: record
+    )
+    if !summary.isEmpty {
+      _ = try writeArtifact(
+        runURL: runURL,
+        relativePath: "product-tournament/lifecycle-runs/\(safeID)/summary.md",
+        fileName: "summary.md",
+        contents: summary
+      )
+    }
+    _ = try rebuildIndex(now: now)
+    return record
+  }
+
+  @discardableResult
   func rebuildIndex(now: Date = Date()) throws -> ProductTournamentEvidenceIndex {
     try FileManager.default.createDirectory(at: runsURL, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(
@@ -3380,6 +3492,10 @@ struct ProductTournamentEvidenceStore {
       at: distributionPressureURL,
       withIntermediateDirectories: true
     )
+    try FileManager.default.createDirectory(
+      at: lifecycleRunsURL,
+      withIntermediateDirectories: true
+    )
     let urls = try FileManager.default.contentsOfDirectory(
       at: runsURL,
       includingPropertiesForKeys: nil
@@ -3388,6 +3504,7 @@ struct ProductTournamentEvidenceStore {
     var planEvaluations: [ProductTournamentPlanEvaluationRecord] = []
     var marketPressures: [MarketPressureEvaluationRecord] = []
     var distributionPressures: [DistributionPressureRecord] = []
+    var lifecycleRuns: [LifecycleRunRecord] = []
     var malformed = 0
     for url in urls {
       var isDirectory: ObjCBool = false
@@ -3461,11 +3578,31 @@ struct ProductTournamentEvidenceStore {
         malformed += 1
       }
     }
+    let lifecycleRunURLs = try FileManager.default.contentsOfDirectory(
+      at: lifecycleRunsURL,
+      includingPropertiesForKeys: nil
+    )
+    for url in lifecycleRunURLs {
+      var isDirectory: ObjCBool = false
+      guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+        isDirectory.boolValue
+      else { continue }
+      do {
+        lifecycleRuns.append(
+          try JSONDecoder().decode(
+            LifecycleRunRecord.self,
+            from: Data(contentsOf: url.appending(path: "record.json"))
+          ))
+      } catch {
+        malformed += 1
+      }
+    }
     let index = ProductTournamentEvidenceIndex.build(
       records: records,
       planEvaluationRecords: planEvaluations,
       marketPressureRecords: marketPressures,
       distributionPressureRecords: distributionPressures,
+      lifecycleRunRecords: lifecycleRuns,
       malformedRecordCount: malformed,
       now: now
     )
@@ -3496,6 +3633,12 @@ struct ProductTournamentEvidenceStore {
 
   func distributionPressureRecordURL(id: String) -> URL {
     distributionPressureURL
+      .appending(path: Self.safeRunID(id), directoryHint: .isDirectory)
+      .appending(path: "record.json")
+  }
+
+  func lifecycleRunRecordURL(id: String) -> URL {
+    lifecycleRunsURL
       .appending(path: Self.safeRunID(id), directoryHint: .isDirectory)
       .appending(path: "record.json")
   }
@@ -3654,6 +3797,28 @@ enum ProductTournamentEvidenceMarkdownExporter {
     if !record.rewriteRecommendations.isEmpty {
       lines += ["", "## Rewrite Recommendations", ""]
       lines += record.rewriteRecommendations.map { "- \($0)" }
+    }
+    return lines.joined(separator: "\n")
+  }
+
+  static func markdown(lifecycleRun record: LifecycleRunRecord) -> String {
+    var lines = [
+      "# Lifecycle Run \(record.id)",
+      "",
+      "- Cohort: \(record.cohortID)",
+      "- Scenario: \(record.scenarioID)",
+      "- Market: \(record.marketID)",
+      "- Contender: \(record.contenderID)",
+      "- Actor: \(record.actorID)",
+      "- Stage: \(record.stageID)",
+      "- Outcome: \(record.outcome.rawValue)",
+      "- Scores: activation \(record.scores.activation), repeated use \(record.scores.repeatedUse), habit \(record.scores.habitFit), collaboration \(record.scores.collaborationPull), payment \(record.scores.paymentReadiness), renewal \(record.scores.renewalReadiness), churn risk \(record.scores.churnRisk)",
+      record.retainedReason.map { "- Retained: \($0)" },
+      record.churnReason.map { "- Churn: \($0)" },
+    ].compactMap { $0 }
+    if !record.objections.isEmpty {
+      lines += ["", "## Objections", ""]
+      lines += record.objections.map { "- \($0)" }
     }
     return lines.joined(separator: "\n")
   }

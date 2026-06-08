@@ -85,7 +85,7 @@ struct ProductTournamentConfigTests {
     let workspace = CompassWorkspace(repoURL: root)
     let payload = """
       {
-        "schemaVersion": 7,
+        "schemaVersion": 8,
         "rawPain": "Pain",
         "painHypotheses": [],
         "userSegments": [],
@@ -189,7 +189,7 @@ struct ProductTournamentConfigTests {
       now: Date(timeIntervalSince1970: 1_700_000_000)
     )
 
-    try #require(config.schemaVersion == 7)
+    try #require(config.schemaVersion == 8)
     try #require(config.rawPain.contains("Finance operators"))
     try #require(config.painHypotheses.count == 1)
     try #require(config.userSegments.count == 2)
@@ -202,6 +202,8 @@ struct ProductTournamentConfigTests {
     try #require(config.tournamentContenders.count == 2)
     try #require(config.tournamentRounds.count == 4)
     try #require(config.distributionExperiments.count == 2)
+    try #require(config.syntheticCohorts.count == 2)
+    try #require(config.lifecycleScenarios.count >= 14)
     try #require(config.scenarios.count == 4)
     try #require(config.scenarioCohorts.count == 2)
     try #require(Set(config.userSegments.map(\.id)).count == config.userSegments.count)
@@ -214,6 +216,9 @@ struct ProductTournamentConfigTests {
     try #require(Set(config.tournamentRounds.map(\.id)).count == config.tournamentRounds.count)
     try #require(
       Set(config.distributionExperiments.map(\.id)).count == config.distributionExperiments.count)
+    try #require(Set(config.syntheticCohorts.map(\.id)).count == config.syntheticCohorts.count)
+    try #require(
+      Set(config.lifecycleScenarios.map(\.id)).count == config.lifecycleScenarios.count)
     try #require(Set(config.scenarios.map(\.id)).count == config.scenarios.count)
     try #require(config.painHypotheses[0].status == .active)
     try #require(config.contenderPlans.contains { $0.status == .active })

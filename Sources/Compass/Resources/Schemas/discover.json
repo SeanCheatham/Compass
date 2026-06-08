@@ -57,6 +57,8 @@
         "tournamentContenders",
         "tournamentRounds",
         "distributionExperiments",
+        "syntheticCohorts",
+        "lifecycleScenarios",
         "scenarioCohorts",
         "decisions"
       ],
@@ -121,6 +123,16 @@
           "type": "array",
           "maxItems": 12,
           "items": { "$ref": "#/$defs/distributionExperiment" }
+        },
+        "syntheticCohorts": {
+          "type": "array",
+          "maxItems": 12,
+          "items": { "$ref": "#/$defs/syntheticCohort" }
+        },
+        "lifecycleScenarios": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/lifecycleScenario" }
         },
         "scenarioCohorts": {
           "type": "array",
@@ -598,6 +610,65 @@
         },
         "createdAt": { "type": "number" },
         "updatedAt": { "type": "number" }
+      }
+    },
+    "syntheticCohort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "marketID",
+        "contenderID",
+        "name",
+        "actorIDs",
+        "adoptionTimelineID",
+        "sizeLabel",
+        "lifecycleScenarioIDs",
+        "status"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "marketID": { "type": "string" },
+        "contenderID": { "type": "string" },
+        "name": { "type": "string" },
+        "actorIDs": { "type": "array", "maxItems": 12, "items": { "type": "string" } },
+        "adoptionTimelineID": { "type": "string" },
+        "sizeLabel": { "type": "string" },
+        "lifecycleScenarioIDs": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "type": "string" }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "running", "completed", "needs_revision", "failed"]
+        }
+      }
+    },
+    "lifecycleScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "cohortID",
+        "stageID",
+        "title",
+        "dayOffset",
+        "trigger",
+        "task",
+        "passSignal",
+        "failSignal"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "cohortID": { "type": "string" },
+        "stageID": { "type": "string" },
+        "title": { "type": "string" },
+        "dayOffset": { "type": "integer" },
+        "trigger": { "type": "string" },
+        "task": { "type": "string" },
+        "passSignal": { "type": "string" },
+        "failSignal": { "type": "string" }
       }
     },
     "contenderPlan": {
