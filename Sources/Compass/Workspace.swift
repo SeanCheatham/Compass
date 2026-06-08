@@ -295,6 +295,10 @@ struct CompassWorkspace {
     try productTournamentEvidenceStore.readPlanEvaluationRecord(id: id)
   }
 
+  func readMarketPressureRecord(id: String) throws -> MarketPressureEvaluationRecord {
+    try productTournamentEvidenceStore.readMarketPressureRecord(id: id)
+  }
+
   @discardableResult
   func writeProductTournamentEvidenceRecord(
     _ record: ProductTournamentEvidenceRecord,
@@ -318,6 +322,17 @@ struct CompassWorkspace {
     summaryMarkdown: String? = nil
   ) throws -> ProductTournamentPlanEvaluationRecord {
     try productTournamentEvidenceStore.writePlanEvaluationRecord(
+      record,
+      summaryMarkdown: summaryMarkdown
+    )
+  }
+
+  @discardableResult
+  func writeMarketPressureRecord(
+    _ record: MarketPressureEvaluationRecord,
+    summaryMarkdown: String? = nil
+  ) throws -> MarketPressureEvaluationRecord {
+    try productTournamentEvidenceStore.writeMarketPressureRecord(
       record,
       summaryMarkdown: summaryMarkdown
     )

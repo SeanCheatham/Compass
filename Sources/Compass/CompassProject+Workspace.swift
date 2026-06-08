@@ -136,6 +136,13 @@ extension CompassProject {
     return try workspace.readProductTournamentPlanEvaluationRecord(id: id)
   }
 
+  func readMarketPressureRecord(id: String) throws -> MarketPressureEvaluationRecord {
+    guard let workspace else {
+      throw AppModelError.noRepositorySelected
+    }
+    return try workspace.readMarketPressureRecord(id: id)
+  }
+
   func initializeIfNeeded(_ workspace: CompassWorkspace) async throws {
     guard !FileManager.default.fileExists(atPath: workspace.compassURL.path) else { return }
     try workspace.initialize()

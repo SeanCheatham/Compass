@@ -91,6 +91,8 @@ struct ProductTournamentScenarioRunOutcome {
         return "Model-free scenario run completed."
       case .personaModel:
         return "Persona-model scenario run completed."
+      case .marketPressure:
+        return "Market-pressure evaluation completed."
       }
     case .appContractMissing:
       return "Generated app contract is missing for this experiment."
@@ -137,6 +139,8 @@ struct ProductTournamentScenarioCohortRunOutcome {
       label = "Model-free"
     case .personaModel:
       label = "Persona-model"
+    case .marketPressure:
+      label = "Market-pressure"
     }
     return
       "\(label) cohort ran \(outcomes.count) scenario(s): \(completedRunCount) completed, \(failedRunCount) needing review, \(skippedScenarioIDs.count) skipped."

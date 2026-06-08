@@ -21,6 +21,7 @@ enum ProductTournamentPlanningDigestFormatter {
 
     lines += painLines(config: config, maxPainHypotheses: maxPainHypotheses)
     lines += marketLines(config: config)
+    lines += marketPressureLines(evidenceIndex: evidenceIndex)
     lines += tournamentLines(config: config, evidenceIndex: evidenceIndex)
     lines += roundTwoImplementationTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += feasibilityHandoffLines(config: config, evidenceIndex: evidenceIndex)
@@ -244,6 +245,27 @@ enum ProductTournamentPlanningDigestFormatter {
     }
     if config.markets.count > 3 {
       lines.append("- \(config.markets.count - 3) more market(s) omitted.")
+    }
+    return lines
+  }
+
+  private static func marketPressureLines(
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [String] {
+    let rows = evidenceIndex.marketPressureSummaries
+    guard !rows.isEmpty else { return [] }
+    var lines = ["Market pressure evidence:"]
+    for row in rows.prefix(5) {
+      let objection = row.strongestObjection.isEmpty ? "no objection" : row.strongestObjection
+      lines.append(
+        "- \(row.pressureKind.rawValue) contender \(row.contenderID) [verdict \(row.verdict.rawValue), debt \(row.proofDebtDelta.summary)]: \(bounded(objection, 180))."
+      )
+    }
+    if !evidenceIndex.aggregate.marketPressureObjections.isEmpty {
+      let objections = evidenceIndex.aggregate.marketPressureObjections.prefix(4)
+        .map { "\($0.objection) (\($0.count)x)" }
+        .joined(separator: "; ")
+      lines.append("- Repeated market objections: \(bounded(objections, 360)).")
     }
     return lines
   }

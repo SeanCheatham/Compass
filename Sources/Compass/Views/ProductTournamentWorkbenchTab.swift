@@ -4230,6 +4230,9 @@ struct ProductTournamentWorkbenchTab: View {
             scenarioID: targetScenarioID,
             targetDecision: step.action.targetDecision
           )
+        case .marketPressure:
+          scenarioRunMessage = "Market-pressure evaluations run from market pressure court evidence."
+          return nil
         }
         if let scenarioOutcome {
           selectedRunID = scenarioOutcome.record.id
@@ -4256,6 +4259,9 @@ struct ProductTournamentWorkbenchTab: View {
           cohortID: cohortID,
           targetDecision: step.action.targetDecision
         )
+      case .marketPressure:
+        scenarioRunMessage = "Market-pressure evaluations run from market pressure court evidence."
+        return nil
       }
       if let outcome {
         if let latestRecordID = outcome.latestRecordID {
@@ -4338,6 +4344,9 @@ struct ProductTournamentWorkbenchTab: View {
         scenarioID: targetScenarioID,
         targetDecision: targetDecision
       )
+    case .marketPressure:
+      scenarioRunMessage = "Market-pressure evaluations run from market pressure court evidence."
+      return
     }
     if let outcome {
       scenarioRunMessage = "\(outcome.userMessage) Run \(outcome.record.id)."
@@ -4382,6 +4391,9 @@ struct ProductTournamentWorkbenchTab: View {
         cohortID: targetCohortID,
         targetDecision: targetDecision
       )
+    case .marketPressure:
+      scenarioRunMessage = "Market-pressure evaluations run from market pressure court evidence."
+      return
     }
     if let outcome {
       scenarioRunMessage = outcome.userMessage
@@ -4422,6 +4434,9 @@ struct ProductTournamentWorkbenchTab: View {
         roundID: round.id,
         contenderID: contenderID
       )
+    case .marketPressure:
+      planEvaluationMessage = "Market-pressure evaluations run from market pressure court evidence."
+      return
     }
     if let outcome {
       planEvaluationMessage = outcome.userMessage

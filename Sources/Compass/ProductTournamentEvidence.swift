@@ -3,11 +3,13 @@ import Foundation
 enum ProductTournamentSimulationMode: String, Codable, CaseIterable, Equatable, Sendable {
   case modelFree = "model_free"
   case personaModel = "persona_model"
+  case marketPressure = "market_pressure"
 
   var tournamentAutomationLabel: String {
     switch self {
     case .modelFree: return "Model-free"
     case .personaModel: return "Persona-model"
+    case .marketPressure: return "Market-pressure"
     }
   }
 }
@@ -2426,6 +2428,7 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
   var updatedAt: Double
   var summaries: [ProductTournamentEvidenceSummary]
   var planEvaluationSummaries: [ProductTournamentPlanEvaluationSummary]
+  var marketPressureSummaries: [MarketPressureEvaluationSummary]
   var aggregate: ProductTournamentEvidenceAggregateSummary
   var malformedRecordCount: Int
 
@@ -2434,6 +2437,7 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     updatedAt: Double = 0,
     summaries: [ProductTournamentEvidenceSummary] = [],
     planEvaluationSummaries: [ProductTournamentPlanEvaluationSummary] = [],
+    marketPressureSummaries: [MarketPressureEvaluationSummary] = [],
     aggregate: ProductTournamentEvidenceAggregateSummary = .empty,
     malformedRecordCount: Int = 0
   ) {
@@ -2447,6 +2451,10 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
       if lhs.endedAt == rhs.endedAt { return lhs.evaluationID < rhs.evaluationID }
       return lhs.endedAt > rhs.endedAt
     }
+    self.marketPressureSummaries = marketPressureSummaries.sorted { lhs, rhs in
+      if lhs.createdAt == rhs.createdAt { return lhs.evaluationID < rhs.evaluationID }
+      return lhs.createdAt > rhs.createdAt
+    }
     self.aggregate = aggregate
     self.malformedRecordCount = malformedRecordCount
   }
@@ -2456,6 +2464,7 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     case updatedAt
     case summaries
     case planEvaluationSummaries
+    case marketPressureSummaries
     case aggregate
     case malformedRecordCount
   }
@@ -2474,6 +2483,10 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
         [ProductTournamentPlanEvaluationSummary].self,
         forKey: .planEvaluationSummaries
       ) ?? [],
+      marketPressureSummaries: try container.decodeIfPresent(
+        [MarketPressureEvaluationSummary].self,
+        forKey: .marketPressureSummaries
+      ) ?? [],
       aggregate: try container.decodeIfPresent(
         ProductTournamentEvidenceAggregateSummary.self,
         forKey: .aggregate
@@ -2488,18 +2501,22 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
   static func build(
     records: [ProductTournamentEvidenceRecord],
     planEvaluationRecords: [ProductTournamentPlanEvaluationRecord] = [],
+    marketPressureRecords: [MarketPressureEvaluationRecord] = [],
     malformedRecordCount: Int = 0,
     now: Date = Date()
   ) -> ProductTournamentEvidenceIndex {
     let summaries = records.map(\.summaryRecord)
     let planEvaluationSummaries = planEvaluationRecords.map(\.summaryRecord)
+    let marketPressureSummaries = marketPressureRecords.map(\.summaryRecord)
     return ProductTournamentEvidenceIndex(
       updatedAt: now.timeIntervalSince1970,
       summaries: summaries,
       planEvaluationSummaries: planEvaluationSummaries,
+      marketPressureSummaries: marketPressureSummaries,
       aggregate: ProductTournamentEvidenceAggregateSummary(
         summaries: summaries,
-        planEvaluationSummaries: planEvaluationSummaries
+        planEvaluationSummaries: planEvaluationSummaries,
+        marketPressureSummaries: marketPressureSummaries
       ),
       malformedRecordCount: malformedRecordCount
     )
@@ -2562,6 +2579,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     tournamentReadinessByExperiment: [],
     latestPlanEvaluationByContender: [:],
     planReadinessByContender: [],
+    latestMarketPressureByContender: [:],
+    marketPressureByContender: [:],
+    marketPressureObjections: [],
     repeatedObjections: [],
     lowScoreClusters: [],
     missingCapabilityFrequency: [],
@@ -2575,6 +2595,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
   var tournamentReadinessByExperiment: [ProductTournamentReadiness]
   var latestPlanEvaluationByContender: [String: String]
   var planReadinessByContender: [ProductTournamentPlanReadiness]
+  var latestMarketPressureByContender: [String: String]
+  var marketPressureByContender: [String: [MarketPressureEvaluationSummary]]
+  var marketPressureObjections: [ProductTournamentEvidenceRepeatedObjection]
   var repeatedObjections: [ProductTournamentEvidenceRepeatedObjection]
   var lowScoreClusters: [ProductTournamentEvidenceScoreCluster]
   var missingCapabilityFrequency: [ProductTournamentEvidenceMissingCapabilityCount]
@@ -2589,6 +2612,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     case tournamentReadinessByExperiment
     case latestPlanEvaluationByContender
     case planReadinessByContender
+    case latestMarketPressureByContender
+    case marketPressureByContender
+    case marketPressureObjections
     case repeatedObjections
     case lowScoreClusters
     case missingCapabilityFrequency
@@ -2604,6 +2630,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     tournamentReadinessByExperiment: [ProductTournamentReadiness] = [],
     latestPlanEvaluationByContender: [String: String] = [:],
     planReadinessByContender: [ProductTournamentPlanReadiness] = [],
+    latestMarketPressureByContender: [String: String] = [:],
+    marketPressureByContender: [String: [MarketPressureEvaluationSummary]] = [:],
+    marketPressureObjections: [ProductTournamentEvidenceRepeatedObjection] = [],
     repeatedObjections: [ProductTournamentEvidenceRepeatedObjection],
     lowScoreClusters: [ProductTournamentEvidenceScoreCluster],
     missingCapabilityFrequency: [ProductTournamentEvidenceMissingCapabilityCount],
@@ -2617,6 +2646,9 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     self.tournamentReadinessByExperiment = tournamentReadinessByExperiment
     self.latestPlanEvaluationByContender = latestPlanEvaluationByContender
     self.planReadinessByContender = planReadinessByContender
+    self.latestMarketPressureByContender = latestMarketPressureByContender
+    self.marketPressureByContender = marketPressureByContender
+    self.marketPressureObjections = marketPressureObjections
     self.repeatedObjections = repeatedObjections
     self.lowScoreClusters = lowScoreClusters
     self.missingCapabilityFrequency = missingCapabilityFrequency
@@ -2645,6 +2677,18 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
       planReadinessByContender: try container.decodeIfPresent(
         [ProductTournamentPlanReadiness].self,
         forKey: .planReadinessByContender
+      ) ?? [],
+      latestMarketPressureByContender: try container.decodeIfPresent(
+        [String: String].self,
+        forKey: .latestMarketPressureByContender
+      ) ?? [:],
+      marketPressureByContender: try container.decodeIfPresent(
+        [String: [MarketPressureEvaluationSummary]].self,
+        forKey: .marketPressureByContender
+      ) ?? [:],
+      marketPressureObjections: try container.decodeIfPresent(
+        [ProductTournamentEvidenceRepeatedObjection].self,
+        forKey: .marketPressureObjections
       ) ?? [],
       repeatedObjections: try container.decodeIfPresent(
         [ProductTournamentEvidenceRepeatedObjection].self,
@@ -2683,7 +2727,8 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
 
   init(
     summaries: [ProductTournamentEvidenceSummary],
-    planEvaluationSummaries: [ProductTournamentPlanEvaluationSummary] = []
+    planEvaluationSummaries: [ProductTournamentPlanEvaluationSummary] = [],
+    marketPressureSummaries: [MarketPressureEvaluationSummary] = []
   ) {
     var latest: [String: ProductTournamentEvidenceSummary] = [:]
     for summary in summaries {
@@ -2729,14 +2774,51 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
         return lhs.readinessScore > rhs.readinessScore
       }
 
+    var latestMarketPressure: [String: MarketPressureEvaluationSummary] = [:]
+    for summary in marketPressureSummaries {
+      if let current = latestMarketPressure[summary.contenderID] {
+        if summary.createdAt > current.createdAt
+          || (summary.createdAt == current.createdAt
+            && summary.evaluationID < current.evaluationID)
+        {
+          latestMarketPressure[summary.contenderID] = summary
+        }
+      } else {
+        latestMarketPressure[summary.contenderID] = summary
+      }
+    }
+    latestMarketPressureByContender = latestMarketPressure.mapValues(\.evaluationID)
+    marketPressureByContender = Dictionary(grouping: marketPressureSummaries, by: \.contenderID)
+      .mapValues {
+        $0.sorted { lhs, rhs in
+          if lhs.createdAt == rhs.createdAt { return lhs.evaluationID < rhs.evaluationID }
+          return lhs.createdAt > rhs.createdAt
+        }
+      }
+
     let objectionCounts = Dictionary(
-      grouping: (summaries.flatMap(\.objections) + planEvaluationSummaries.flatMap(\.objections))
+      grouping: (summaries.flatMap(\.objections) + planEvaluationSummaries.flatMap(\.objections)
+        + marketPressureSummaries.map(\.strongestObjection))
         .map(\.normalizedProductTournamentEvidenceText),
       by: { $0 }
     ).mapValues(\.count)
     repeatedObjections =
       objectionCounts
       .filter { !$0.key.isEmpty && $0.value > 1 }
+      .map { ProductTournamentEvidenceRepeatedObjection(objection: $0.key, count: $0.value) }
+      .sorted { lhs, rhs in
+        if lhs.count == rhs.count { return lhs.objection < rhs.objection }
+        return lhs.count > rhs.count
+      }
+
+    let pressureObjectionCounts = Dictionary(
+      grouping: marketPressureSummaries.map(\.strongestObjection)
+        .map(\.normalizedProductTournamentEvidenceText),
+      by: { $0 }
+    ).mapValues(\.count)
+    marketPressureObjections =
+      pressureObjectionCounts
+      .filter { !$0.key.isEmpty }
       .map { ProductTournamentEvidenceRepeatedObjection(objection: $0.key, count: $0.value) }
       .sorted { lhs, rhs in
         if lhs.count == rhs.count { return lhs.objection < rhs.objection }
@@ -3028,6 +3110,9 @@ struct ProductTournamentEvidenceStore {
   var planEvaluationsURL: URL {
     productTournamentURL.appending(path: "plan-evaluations", directoryHint: .isDirectory)
   }
+  var marketPressureURL: URL {
+    productTournamentURL.appending(path: "market-pressure", directoryHint: .isDirectory)
+  }
   var indexURL: URL { productTournamentURL.appending(path: "evidence-index.json") }
 
   func readIndex() throws -> ProductTournamentEvidenceIndex {
@@ -3047,6 +3132,11 @@ struct ProductTournamentEvidenceStore {
   func readPlanEvaluationRecord(id: String) throws -> ProductTournamentPlanEvaluationRecord {
     let data = try Data(contentsOf: planEvaluationRecordURL(id: id))
     return try JSONDecoder().decode(ProductTournamentPlanEvaluationRecord.self, from: data)
+  }
+
+  func readMarketPressureRecord(id: String) throws -> MarketPressureEvaluationRecord {
+    let data = try Data(contentsOf: marketPressureRecordURL(id: id))
+    return try JSONDecoder().decode(MarketPressureEvaluationRecord.self, from: data)
   }
 
   @discardableResult
@@ -3133,10 +3223,38 @@ struct ProductTournamentEvidenceStore {
   }
 
   @discardableResult
+  func writeMarketPressureRecord(
+    _ record: MarketPressureEvaluationRecord,
+    summaryMarkdown: String? = nil,
+    now: Date = Date()
+  ) throws -> MarketPressureEvaluationRecord {
+    let safeID = Self.safeRunID(record.id)
+    let pressureURL = marketPressureURL.appending(path: safeID, directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: pressureURL, withIntermediateDirectories: true)
+
+    let data = try Self.encoder().encode(record)
+    try data.write(to: marketPressureRecordURL(id: record.id), options: .atomic)
+    if let summaryMarkdown, !summaryMarkdown.isEmpty {
+      _ = try writeArtifact(
+        runURL: pressureURL,
+        relativePath: "product-tournament/market-pressure/\(safeID)/summary.md",
+        fileName: "summary.md",
+        contents: summaryMarkdown
+      )
+    }
+    _ = try rebuildIndex(now: now)
+    return record
+  }
+
+  @discardableResult
   func rebuildIndex(now: Date = Date()) throws -> ProductTournamentEvidenceIndex {
     try FileManager.default.createDirectory(at: runsURL, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(
       at: planEvaluationsURL,
+      withIntermediateDirectories: true
+    )
+    try FileManager.default.createDirectory(
+      at: marketPressureURL,
       withIntermediateDirectories: true
     )
     let urls = try FileManager.default.contentsOfDirectory(
@@ -3145,6 +3263,7 @@ struct ProductTournamentEvidenceStore {
     )
     var records: [ProductTournamentEvidenceRecord] = []
     var planEvaluations: [ProductTournamentPlanEvaluationRecord] = []
+    var marketPressures: [MarketPressureEvaluationRecord] = []
     var malformed = 0
     for url in urls {
       var isDirectory: ObjCBool = false
@@ -3180,9 +3299,29 @@ struct ProductTournamentEvidenceStore {
         malformed += 1
       }
     }
+    let marketPressureURLs = try FileManager.default.contentsOfDirectory(
+      at: marketPressureURL,
+      includingPropertiesForKeys: nil
+    )
+    for url in marketPressureURLs {
+      var isDirectory: ObjCBool = false
+      guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+        isDirectory.boolValue
+      else { continue }
+      do {
+        marketPressures.append(
+          try JSONDecoder().decode(
+            MarketPressureEvaluationRecord.self,
+            from: Data(contentsOf: url.appending(path: "record.json"))
+          ))
+      } catch {
+        malformed += 1
+      }
+    }
     let index = ProductTournamentEvidenceIndex.build(
       records: records,
       planEvaluationRecords: planEvaluations,
+      marketPressureRecords: marketPressures,
       malformedRecordCount: malformed,
       now: now
     )
@@ -3201,6 +3340,12 @@ struct ProductTournamentEvidenceStore {
 
   func planEvaluationRecordURL(id: String) -> URL {
     planEvaluationsURL
+      .appending(path: Self.safeRunID(id), directoryHint: .isDirectory)
+      .appending(path: "record.json")
+  }
+
+  func marketPressureRecordURL(id: String) -> URL {
+    marketPressureURL
       .appending(path: Self.safeRunID(id), directoryHint: .isDirectory)
       .appending(path: "record.json")
   }

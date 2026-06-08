@@ -785,6 +785,21 @@ struct ProductTournamentSimulationRunner {
         }
 
         switch request.mode {
+        case .marketPressure:
+          return makeResult(
+            request: request,
+            status: .personaCallFailed,
+            actions: actions,
+            transcript: transcript,
+            traceJSON: traceJSON,
+            traceHash: nil,
+            trace: trace,
+            failure: ProductTournamentRunFailure(
+              status: .personaCallFailed,
+              message:
+                "Market-pressure mode records buying committee and market objection evidence; it does not run scenario traces."
+            )
+          )
         case .modelFree:
           guard request.fixtureActions.indices.contains(turnIndex) else {
             return await deterministicResult(
