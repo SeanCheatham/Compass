@@ -64,10 +64,17 @@ impl DaemonResponse {
 }
 
 pub fn supported_methods() -> Vec<String> {
-    ["ping", "shutdown", "get_capabilities"]
-        .into_iter()
-        .map(str::to_owned)
-        .collect()
+    [
+        "ping",
+        "shutdown",
+        "get_capabilities",
+        "tournament_load",
+        "tournament_validate",
+        "tournament_read_model",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
 }
 
 pub fn capabilities(
@@ -83,6 +90,7 @@ pub fn capabilities(
             "daemon.lifecycle".to_owned(),
             "daemon.ndjson".to_owned(),
             "schemas.compassd.v1".to_owned(),
+            "tournament.read_only".to_owned(),
         ],
     }
 }

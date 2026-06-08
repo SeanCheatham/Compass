@@ -46,6 +46,59 @@ struct CompassDaemonCapabilities: Decodable, Equatable {
 
 struct CompassDaemonEmptyResult: Decodable, Equatable {}
 
+struct CompassDaemonTournamentValidation: Decodable, Equatable {
+  var ok: Bool
+  var statePath: String
+  var errors: [String]
+}
+
+struct CompassDaemonTournamentReadModel: Decodable, Equatable {
+  var schemaVersion: Int
+  var painTitle: String?
+  var activeRoundID: String?
+  var activeRoundTitle: String?
+  var outcomeWinnerContenderID: String?
+  var segmentCount: Int
+  var alternativeCount: Int
+  var contenderCount: Int
+  var roundCount: Int
+  var decisionCount: Int
+  var contenders: [CompassDaemonTournamentContenderSummary]
+  var rounds: [CompassDaemonTournamentRoundSummary]
+  var validationErrors: [String]
+
+  enum CodingKeys: String, CodingKey {
+    case schemaVersion
+    case painTitle
+    case activeRoundID = "activeRoundId"
+    case activeRoundTitle
+    case outcomeWinnerContenderID = "outcomeWinnerContenderId"
+    case segmentCount
+    case alternativeCount
+    case contenderCount
+    case roundCount
+    case decisionCount
+    case contenders
+    case rounds
+    case validationErrors
+  }
+}
+
+struct CompassDaemonTournamentContenderSummary: Decodable, Equatable {
+  var id: String
+  var title: String
+  var lifecycle: String
+}
+
+struct CompassDaemonTournamentRoundSummary: Decodable, Equatable {
+  var id: String
+  var ordinal: Int
+  var kind: String
+  var title: String
+  var lifecycle: String
+  var contenderCount: Int
+}
+
 struct CompassDaemonDiagnostics: Equatable {
   var isEnabled: Bool
   var binaryURL: URL?

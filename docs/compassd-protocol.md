@@ -34,6 +34,9 @@ Long-running event streaming is reserved in `schemas/compassd/v1/events.json`.
 | `ping` | Health check; returns daemon/core versions and schema version. |
 | `get_capabilities` | Lists supported methods and coarse feature capabilities. |
 | `shutdown` | Requests graceful daemon shutdown. |
+| `tournament_load` | Loads `.compass/tournament/state.json`, returning empty V2 state when absent. |
+| `tournament_validate` | Validates the loaded tournament state and returns parity errors. |
+| `tournament_read_model` | Returns a stable read-only tournament summary for Swift shadow mode. |
 
 The socket should be created with mode `0600`. Swift owns launch and shutdown;
 Rust owns request decoding, method dispatch, and structured daemon logging.

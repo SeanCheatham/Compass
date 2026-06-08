@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 pub struct CompassWorkspacePaths {
     pub repo_root: PathBuf,
     pub compass_dir: PathBuf,
+    pub tournament_dir: PathBuf,
     pub product_tournament_dir: PathBuf,
     pub runtime_settings: PathBuf,
 }
@@ -13,6 +14,7 @@ impl CompassWorkspacePaths {
         let repo_root = repo_root.as_ref().to_path_buf();
         let compass_dir = repo_root.join(".compass");
         Self {
+            tournament_dir: compass_dir.join("tournament"),
             product_tournament_dir: compass_dir.join("product-tournament"),
             runtime_settings: compass_dir.join("runtime-settings.json"),
             compass_dir,

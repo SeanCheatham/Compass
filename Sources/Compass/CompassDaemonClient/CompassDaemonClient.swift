@@ -51,6 +51,26 @@ final class CompassDaemonClient {
       as CompassDaemonEmptyResult
   }
 
+  func tournamentStateJSON(repoURL: URL) async throws -> Data {
+    try await sendRaw(method: "tournament_load", params: ["repo_path": repoURL.path])
+  }
+
+  func tournamentValidation(repoURL: URL) async throws -> CompassDaemonTournamentValidation {
+    try await send(
+      method: "tournament_validate",
+      params: ["repo_path": repoURL.path],
+      resultType: CompassDaemonTournamentValidation.self
+    )
+  }
+
+  func tournamentReadModel(repoURL: URL) async throws -> CompassDaemonTournamentReadModel {
+    try await send(
+      method: "tournament_read_model",
+      params: ["repo_path": repoURL.path],
+      resultType: CompassDaemonTournamentReadModel.self
+    )
+  }
+
   func send<Result: Decodable>(
     method: String,
     params: [String: String] = [:],
@@ -77,6 +97,22 @@ final class CompassDaemonClient {
       throw CompassDaemonClientError.emptyResponse
     }
     return result
+  }
+
+  private func sendRaw(method: String, params: [String: String] = [:]) async throws -> Data {
+    let request = CompassDaemonRequest(id: UUID().uuidString, method: method, params: params)
+    var data = try encoder.encode(request)
+    data.append(0x0A)
+    let socketPath = socketURL.path
+    return try await withCheckedThrowingContinuation { continuation in
+      DispatchQueue.global(qos: .userInitiated).async {
+        do {
+          continuation.resume(returning: try Self.roundTrip(socketPath: socketPath, data: data))
+        } catch {
+          continuation.resume(throwing: error)
+        }
+      }
+    }
   }
 
   private static func roundTrip(socketPath: String, data: Data) throws -> Data {

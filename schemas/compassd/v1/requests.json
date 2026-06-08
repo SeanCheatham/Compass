@@ -15,7 +15,14 @@
     },
     "method": {
       "type": "string",
-      "enum": ["ping", "shutdown", "get_capabilities"]
+      "enum": [
+        "ping",
+        "shutdown",
+        "get_capabilities",
+        "tournament_load",
+        "tournament_validate",
+        "tournament_read_model"
+      ]
     },
     "params": {
       "type": "object"

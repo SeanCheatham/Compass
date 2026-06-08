@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Context, Result};
 use compass_core::protocol::daemon::{capabilities, DaemonRequest, DaemonResponse};
 use compass_core::protocol::SCHEMA_VERSION;
+use compass_core::tournament::read_model::ProductTournamentReadModelSummary;
+use compass_core::tournament::store::TournamentWorkspaceStore;
 use compass_core::COMPASS_CORE_VERSION;
 use std::env;
 use std::fs::{self, OpenOptions};
@@ -144,10 +146,36 @@ fn handle_request(request: DaemonRequest, shutdown: &AtomicBool) -> DaemonRespon
             shutdown.store(true, Ordering::SeqCst);
             DaemonResponse::empty_ok(request.id)
         }
+        "tournament_load" => with_tournament_store(request, |store| store.read_state()),
+        "tournament_validate" => with_tournament_store(request, |store| store.validate()),
+        "tournament_read_model" => with_tournament_store(request, |store| {
+            let state = store.read_state()?;
+            Ok(ProductTournamentReadModelSummary::from_state(&state))
+        }),
         _ => DaemonResponse::error(
             request.id,
             vec![format!("unknown method {}", request.method)],
         ),
+    }
+}
+
+fn with_tournament_store<T: serde::Serialize>(
+    request: DaemonRequest,
+    handler: impl FnOnce(TournamentWorkspaceStore) -> Result<T>,
+) -> DaemonResponse {
+    let id = request.id;
+    let repo_path = request
+        .params
+        .get("repo_path")
+        .or_else(|| request.params.get("repoPath"))
+        .and_then(|value| value.as_str())
+        .map(str::to_owned);
+    let Some(repo_path) = repo_path else {
+        return DaemonResponse::error(id, vec!["missing repo_path".to_owned()]);
+    };
+    match handler(TournamentWorkspaceStore::new(repo_path)) {
+        Ok(result) => DaemonResponse::ok(id, result),
+        Err(error) => DaemonResponse::error(id, vec![format!("{error:#}")]),
     }
 }
 

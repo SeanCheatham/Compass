@@ -40,6 +40,16 @@ fn ping_round_trip_and_shutdown() {
             .iter()
             .any(|value| value == "ping"));
 
+        let tournament = send_with_params(
+            &socket,
+            "tournament-1",
+            "tournament_read_model",
+            serde_json::json!({ "repo_path": root.to_string_lossy() }),
+        );
+        assert_eq!(tournament["ok"], true);
+        assert_eq!(tournament["result"]["schemaVersion"], 1);
+        assert_eq!(tournament["result"]["contenderCount"], 0);
+
         let shutdown = send(&socket, "shutdown-1", "shutdown");
         assert_eq!(shutdown["ok"], true);
     })();
@@ -51,12 +61,16 @@ fn ping_round_trip_and_shutdown() {
 }
 
 fn send(socket: &std::path::Path, id: &str, method: &str) -> Value {
+    send_with_params(socket, id, method, serde_json::json!({}))
+}
+
+fn send_with_params(socket: &std::path::Path, id: &str, method: &str, params: Value) -> Value {
     let mut stream = UnixStream::connect(socket).unwrap();
     let request = serde_json::json!({
         "schema_version": 1,
         "id": id,
         "method": method,
-        "params": {}
+        "params": params
     });
     writeln!(stream, "{request}").unwrap();
     let mut reader = BufReader::new(stream);
