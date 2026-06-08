@@ -48,6 +48,7 @@ struct ActivityTab: View {
       .frame(maxWidth: 1060, alignment: .leading)
       .padding(.bottom, 8)
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onChange(of: showAllSessionHistory) { _, showAll in
       guard showAll else { return }
       Task {

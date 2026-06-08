@@ -1069,6 +1069,7 @@ struct WorkspaceContent: View {
         ProductTournamentWorkbenchTab(project: project)
       }
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
