@@ -2431,6 +2431,7 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
   var marketPressureSummaries: [MarketPressureEvaluationSummary]
   var distributionPressureSummaries: [DistributionPressureSummary]
   var lifecycleRunSummaries: [LifecycleRunSummary]
+  var marketBacktestRuns: [MarketBacktestRun]
   var aggregate: ProductTournamentEvidenceAggregateSummary
   var malformedRecordCount: Int
 
@@ -2442,6 +2443,7 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     marketPressureSummaries: [MarketPressureEvaluationSummary] = [],
     distributionPressureSummaries: [DistributionPressureSummary] = [],
     lifecycleRunSummaries: [LifecycleRunSummary] = [],
+    marketBacktestRuns: [MarketBacktestRun] = [],
     aggregate: ProductTournamentEvidenceAggregateSummary = .empty,
     malformedRecordCount: Int = 0
   ) {
@@ -2467,6 +2469,10 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
       if lhs.createdAt == rhs.createdAt { return lhs.runID < rhs.runID }
       return lhs.createdAt > rhs.createdAt
     }
+    self.marketBacktestRuns = marketBacktestRuns.sorted { lhs, rhs in
+      if lhs.createdAt == rhs.createdAt { return lhs.id < rhs.id }
+      return lhs.createdAt > rhs.createdAt
+    }
     self.aggregate = aggregate
     self.malformedRecordCount = malformedRecordCount
   }
@@ -2479,6 +2485,7 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     case marketPressureSummaries
     case distributionPressureSummaries
     case lifecycleRunSummaries
+    case marketBacktestRuns
     case aggregate
     case malformedRecordCount
   }
@@ -2509,6 +2516,10 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
         [LifecycleRunSummary].self,
         forKey: .lifecycleRunSummaries
       ) ?? [],
+      marketBacktestRuns: try container.decodeIfPresent(
+        [MarketBacktestRun].self,
+        forKey: .marketBacktestRuns
+      ) ?? [],
       aggregate: try container.decodeIfPresent(
         ProductTournamentEvidenceAggregateSummary.self,
         forKey: .aggregate
@@ -2526,6 +2537,7 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
     marketPressureRecords: [MarketPressureEvaluationRecord] = [],
     distributionPressureRecords: [DistributionPressureRecord] = [],
     lifecycleRunRecords: [LifecycleRunRecord] = [],
+    marketBacktestRuns: [MarketBacktestRun] = [],
     malformedRecordCount: Int = 0,
     now: Date = Date()
   ) -> ProductTournamentEvidenceIndex {
@@ -2541,12 +2553,14 @@ struct ProductTournamentEvidenceIndex: Codable, Equatable, Sendable {
       marketPressureSummaries: marketPressureSummaries,
       distributionPressureSummaries: distributionPressureSummaries,
       lifecycleRunSummaries: lifecycleRunSummaries,
+      marketBacktestRuns: marketBacktestRuns,
       aggregate: ProductTournamentEvidenceAggregateSummary(
         summaries: summaries,
         planEvaluationSummaries: planEvaluationSummaries,
         marketPressureSummaries: marketPressureSummaries,
         distributionPressureSummaries: distributionPressureSummaries,
-        lifecycleRunSummaries: lifecycleRunSummaries
+        lifecycleRunSummaries: lifecycleRunSummaries,
+        marketBacktestRuns: marketBacktestRuns
       ),
       malformedRecordCount: malformedRecordCount
     )
@@ -2618,6 +2632,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     latestLifecycleRunByContender: [:],
     lifecycleProofDebtByContender: [],
     lifecycleObjections: [],
+    marketCalibration: .empty,
     repeatedObjections: [],
     lowScoreClusters: [],
     missingCapabilityFrequency: [],
@@ -2640,6 +2655,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
   var latestLifecycleRunByContender: [String: String]
   var lifecycleProofDebtByContender: [LifecycleProofDebt]
   var lifecycleObjections: [ProductTournamentEvidenceRepeatedObjection]
+  var marketCalibration: MarketCalibrationAggregate
   var repeatedObjections: [ProductTournamentEvidenceRepeatedObjection]
   var lowScoreClusters: [ProductTournamentEvidenceScoreCluster]
   var missingCapabilityFrequency: [ProductTournamentEvidenceMissingCapabilityCount]
@@ -2663,6 +2679,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     case latestLifecycleRunByContender
     case lifecycleProofDebtByContender
     case lifecycleObjections
+    case marketCalibration
     case repeatedObjections
     case lowScoreClusters
     case missingCapabilityFrequency
@@ -2687,6 +2704,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     latestLifecycleRunByContender: [String: String] = [:],
     lifecycleProofDebtByContender: [LifecycleProofDebt] = [],
     lifecycleObjections: [ProductTournamentEvidenceRepeatedObjection] = [],
+    marketCalibration: MarketCalibrationAggregate = .empty,
     repeatedObjections: [ProductTournamentEvidenceRepeatedObjection],
     lowScoreClusters: [ProductTournamentEvidenceScoreCluster],
     missingCapabilityFrequency: [ProductTournamentEvidenceMissingCapabilityCount],
@@ -2709,6 +2727,7 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     self.latestLifecycleRunByContender = latestLifecycleRunByContender
     self.lifecycleProofDebtByContender = lifecycleProofDebtByContender
     self.lifecycleObjections = lifecycleObjections
+    self.marketCalibration = marketCalibration
     self.repeatedObjections = repeatedObjections
     self.lowScoreClusters = lowScoreClusters
     self.missingCapabilityFrequency = missingCapabilityFrequency
@@ -2774,6 +2793,10 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
         [ProductTournamentEvidenceRepeatedObjection].self,
         forKey: .lifecycleObjections
       ) ?? [],
+      marketCalibration: try container.decodeIfPresent(
+        MarketCalibrationAggregate.self,
+        forKey: .marketCalibration
+      ) ?? .empty,
       repeatedObjections: try container.decodeIfPresent(
         [ProductTournamentEvidenceRepeatedObjection].self,
         forKey: .repeatedObjections
@@ -2814,7 +2837,8 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
     planEvaluationSummaries: [ProductTournamentPlanEvaluationSummary] = [],
     marketPressureSummaries: [MarketPressureEvaluationSummary] = [],
     distributionPressureSummaries: [DistributionPressureSummary] = [],
-    lifecycleRunSummaries: [LifecycleRunSummary] = []
+    lifecycleRunSummaries: [LifecycleRunSummary] = [],
+    marketBacktestRuns: [MarketBacktestRun] = []
   ) {
     var latest: [String: ProductTournamentEvidenceSummary] = [:]
     for summary in summaries {
@@ -2985,6 +3009,8 @@ struct ProductTournamentEvidenceAggregateSummary: Codable, Equatable, Sendable {
         if lhs.count == rhs.count { return lhs.objection < rhs.objection }
         return lhs.count > rhs.count
       }
+
+    marketCalibration = MarketCalibrationAggregate(runs: marketBacktestRuns)
 
     let missingCounts = Dictionary(
       grouping: (summaries.flatMap(\.missingCapabilities)

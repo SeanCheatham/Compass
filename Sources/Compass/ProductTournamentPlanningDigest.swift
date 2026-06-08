@@ -22,6 +22,7 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += painLines(config: config, maxPainHypotheses: maxPainHypotheses)
     lines += marketLines(config: config)
     lines += marketPressureLines(evidenceIndex: evidenceIndex)
+    lines += marketCalibrationLines(evidenceIndex: evidenceIndex)
     lines += distributionLines(config: config, evidenceIndex: evidenceIndex)
     lines += lifecycleLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentLines(config: config, evidenceIndex: evidenceIndex)
@@ -316,6 +317,33 @@ enum ProductTournamentPlanningDigestFormatter {
     let latestRows = evidenceIndex.distributionPressureSummaries.prefix(5).map(\.digestLine)
     if !latestRows.isEmpty {
       lines.append("- Latest distribution pressure: \(bounded(latestRows.joined(separator: "; "), 760)).")
+    }
+    return lines
+  }
+
+  private static func marketCalibrationLines(
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [String] {
+    let calibration = evidenceIndex.aggregate.marketCalibration
+    guard calibration.runCount > 0 else { return [] }
+    var parts = [
+      "accuracy \(calibration.correctCount)/\(calibration.runCount) (\(calibration.accuracyPercent)%)",
+      "overconfidence \(calibration.overconfidenceCount)/\(calibration.runCount) (\(calibration.overconfidenceRatePercent)%)",
+    ]
+    if let missed = calibration.mostCommonMissedMarketForce {
+      parts.append("common_missed_force \(bounded(missed, 100))")
+    }
+    if let signal = calibration.bestPredictiveSignal {
+      parts.append("best_signal \(bounded(signal, 100))")
+    }
+    var lines = ["Synthetic market calibration:"]
+    lines.append("- Backtests: \(parts.joined(separator: "; ")).")
+    let latestRuns = evidenceIndex.marketBacktestRuns.prefix(3).map(\.digestLine)
+    if !latestRuns.isEmpty {
+      lines.append("- Latest backtests: \(bounded(latestRuns.joined(separator: "; "), 700)).")
+    }
+    if let warning = calibration.warning {
+      lines.append("- Warning: \(bounded(warning, 240))")
     }
     return lines
   }
