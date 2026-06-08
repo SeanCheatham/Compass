@@ -32,6 +32,7 @@ final class AppModel: ObservableObject {
   @Published var modelOverride = ""
   @Published private(set) var agentSettings: AgentRuntimeSettings
   @Published private(set) var daemonDiagnostics: CompassDaemonDiagnostics
+  @Published private(set) var runtimeFeatureFlags: CompassRuntimeFeatureFlags
   private let agentSettingsStore: AgentSettingsStore
   private let daemonService: CompassDaemonService
   @Published var errorMessage: String?
@@ -50,6 +51,7 @@ final class AppModel: ObservableObject {
     self.daemonService = daemonService
     self.agentSettings = agentSettingsStore.load()
     self.daemonDiagnostics = daemonService.diagnostics
+    self.runtimeFeatureFlags = CompassRuntimeFeatureFlags()
   }
 
   // MARK: - Agent settings setters
@@ -148,6 +150,7 @@ final class AppModel: ObservableObject {
   func bootstrap() async {
     await daemonService.startIfEnabled()
     daemonDiagnostics = daemonService.diagnostics
+    runtimeFeatureFlags = CompassRuntimeFeatureFlags()
 
     projects = KnownProjectStore.load().map(CompassProject.init(record:))
     selectedProjectID = projects.sorted { $0.lastOpenedAt > $1.lastOpenedAt }.first?.id

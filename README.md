@@ -12,6 +12,15 @@ projects can run side by side from one desktop workspace.
 Compass requires macOS 26 or newer on Apple Silicon. Its private workspace
 is built directly on Apple's `Virtualization.framework`.
 
+## Architecture Direction
+
+Compass is moving to a hybrid architecture. The app remains a lightweight
+Swift/macOS shell for UI, Keychain, Foundation Models, and VM lifecycle. Product
+logic is moving into Rust crates under `crates/`, with `compassd` exposing
+schema-versioned NDJSON IPC over a local Unix socket. See
+[`docs/architecture.md`](docs/architecture.md) and
+[`docs/compassd-protocol.md`](docs/compassd-protocol.md) for the current split.
+
 ## Generated Projects Are Rust
 
 Compass itself remains a native Swift/macOS app. The Rust pivot applies to

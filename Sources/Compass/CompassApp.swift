@@ -216,6 +216,14 @@ struct CompassApp: App {
             forType: .string
           )
         }
+
+        Button("Copy Rust Migration Flags") {
+          NSPasteboard.general.clearContents()
+          NSPasteboard.general.setString(
+            model.runtimeFeatureFlags.copyText,
+            forType: .string
+          )
+        }
       }
     }
 

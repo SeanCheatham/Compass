@@ -11,7 +11,7 @@ final class CompassDaemonService {
     logURL: URL = CompassDaemonService.defaultLogURL()
   ) {
     diagnostics = CompassDaemonDiagnostics(
-      isEnabled: Self.isEnabledByEnvironment,
+      isEnabled: CompassRuntimeFeatureFlags().rustDaemonEnabled,
       binaryURL: nil,
       socketURL: socketURL,
       logURL: logURL,
@@ -99,10 +99,6 @@ final class CompassDaemonService {
       return url
     }
     throw CompassDaemonClientError.connectFailed("Could not locate compassd binary")
-  }
-
-  private static var isEnabledByEnvironment: Bool {
-    ProcessInfo.processInfo.environment["COMPASS_RUST_DAEMON_DISABLED"] != "1"
   }
 
   static func defaultSocketURL() -> URL {
