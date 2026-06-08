@@ -47,7 +47,7 @@ struct ProductTournamentMonitorWallTests {
     try #require(tile.scenarioID == scenario.id)
     try #require(tile.imageURL?.standardizedFileURL.path == screenshotURL.standardizedFileURL.path)
     try #require(tile.isScreenshotBacked)
-    try #require(tile.roundLabel == "Round 1: Plan proof")
+    try #require(tile.roundLabel == "Round 0: Market")
     try #require(tile.commitLabel == "abc123de")
     try #require(wall.screenshotCount == 1)
   }

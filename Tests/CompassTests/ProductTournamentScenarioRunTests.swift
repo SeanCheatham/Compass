@@ -439,9 +439,9 @@ struct ProductTournamentScenarioRunTests {
     try #require(summary.tournamentID == scope.tournamentID)
     try #require(summary.roundID == scope.roundID)
     try #require(summary.contenderID == scope.contenderID)
+    let scopedRound = try #require(config.tournamentRounds.first { $0.id == scope.roundID })
     try #require(
-      index.evidenceSummaries(for: config.tournaments[0], round: config.tournamentRounds[1]).count
-        == 1)
+      index.evidenceSummaries(for: config.tournaments[0], round: scopedRound).count == 1)
     try #require(markdown.contains("- Tournament: \(scope.tournamentID)"))
     try #require(markdown.contains("- Tournament Round: \(scope.roundID)"))
     try #require(markdown.contains("- Contender: \(scope.contenderID)"))

@@ -11,14 +11,15 @@ struct ProductTournamentArchitectureTests {
     try #require(state.pain?.rawPain.contains("weekly reporting") == true)
     try #require(state.contenders.count == 2)
     try #require(
-      state.rounds.map(\.kind) == [.productPlans, .coreTechnology, .productImplementation])
+      state.rounds.map(\.kind)
+        == [.marketCompilation, .productPlans, .coreTechnology, .productImplementation])
     try #require(state.rounds.first?.lifecycle == .active)
     try #require(state.activeRoundID == state.rounds.first?.id)
     try #require(state.contenders.allSatisfy { $0.implementationTrack != nil })
   }
 
   @Test func simplifiedStateAppliesRoundOneAdvanceWithoutOldArrays() throws {
-    let state = ProductTournamentStateV2(converting: seededConfig())
+    let state = ProductTournamentStateV2(converting: roundOneActiveConfig())
     let contenderID = try #require(state.contenders.first?.id)
 
     let advanced = try state.applyingRoundOneTransition(
@@ -139,6 +140,19 @@ struct ProductTournamentArchitectureTests {
     try #require(!digest.localizedCaseInsensitiveContains("open question"))
     try #require(!digest.localizedCaseInsensitiveContains("draft queue"))
   }
+}
+
+private func roundOneActiveConfig() -> ProductTournamentConfig {
+  var config = seededConfig()
+  guard
+    let tournamentIndex = config.tournaments.indices.first,
+    let marketRoundIndex = config.tournamentRounds.firstIndex(where: { $0.kind == .marketCompilation }),
+    let planRoundIndex = config.tournamentRounds.firstIndex(where: { $0.kind == .productPlans })
+  else { return config }
+  config.tournaments[tournamentIndex].currentRoundID = config.tournamentRounds[planRoundIndex].id
+  config.tournamentRounds[marketRoundIndex].status = .completed
+  config.tournamentRounds[planRoundIndex].status = .active
+  return config
 }
 
 private func seededConfig() -> ProductTournamentConfig {
