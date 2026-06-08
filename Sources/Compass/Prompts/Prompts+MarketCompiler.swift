@@ -18,6 +18,7 @@ extension Prompts {
       - Separate operator, economic buyer, manager sponsor, gatekeeper, and incumbent defender.
       - Make the current alternative persuasive, including at least one non-software alternative.
       - Name at least one plausible distribution path and why it might be unreachable.
+      - Emit distributionExperimentEdits when a contender has a plausible channel artifact to test.
       - Mark every claim as synthetic unless it came from user-provided text.
       - Prefer needs_reframe or blocked_by_insufficient_pain over invented confidence.
       - Contender seeds must reference market actors, likely buyer, channel, and incumbent when known.
@@ -97,6 +98,7 @@ struct MarketCompilerOutput: Codable, Equatable {
   var summary: String
   var status: MarketCompilationStatus
   var marketEdits: [ProductMarket]
+  var distributionExperimentEdits: [DistributionExperiment]
   var contenderSeeds: [MarketContenderSeed]
   var openMarketQuestions: [String]
   var fragileAssumptions: [MarketAssumption]
@@ -105,6 +107,7 @@ struct MarketCompilerOutput: Codable, Equatable {
     summary: String,
     status: MarketCompilationStatus,
     marketEdits: [ProductMarket],
+    distributionExperimentEdits: [DistributionExperiment] = [],
     contenderSeeds: [MarketContenderSeed] = [],
     openMarketQuestions: [String] = [],
     fragileAssumptions: [MarketAssumption] = []
@@ -112,6 +115,7 @@ struct MarketCompilerOutput: Codable, Equatable {
     self.summary = StringUtils.boundedText(summary, limit: 1_200)
     self.status = status
     self.marketEdits = marketEdits
+    self.distributionExperimentEdits = distributionExperimentEdits
     self.contenderSeeds = contenderSeeds
     self.openMarketQuestions = ProductTournamentModelText.cleanedList(
       openMarketQuestions,
@@ -124,6 +128,7 @@ struct MarketCompilerOutput: Codable, Equatable {
     try validate(applyingTo: config)
     var next = config
     upsert(&next.markets, edits: marketEdits, id: \.id)
+    upsert(&next.distributionExperiments, edits: distributionExperimentEdits, id: \.id)
     return next
   }
 
@@ -143,6 +148,7 @@ struct MarketCompilerOutput: Codable, Equatable {
   {
     var next = config
     upsert(&next.markets, edits: marketEdits, id: \.id)
+    upsert(&next.distributionExperiments, edits: distributionExperimentEdits, id: \.id)
     return next
   }
 
@@ -287,6 +293,8 @@ enum ProductMarketReferenceValidator {
     let painIDs = Set(config.painHypotheses.map(\.id))
     let segmentIDs = Set(config.userSegments.map(\.id))
     let alternativeIDs = Set(config.alternatives.map(\.id))
+    let contenderIDs = Set(config.tournamentContenders.map(\.id))
+    let marketsByID = Dictionary(uniqueKeysWithValues: config.markets.map { ($0.id, $0) })
     for market in config.markets {
       if !painIDs.isEmpty && !painIDs.contains(market.painID) {
         throw DiscoverPromptValidationError.invalidJSON(
@@ -362,6 +370,30 @@ enum ProductMarketReferenceValidator {
       for force in market.marketForces where force.marketID != market.id {
         throw DiscoverPromptValidationError.invalidJSON(
           "Market force \(force.id) references market \(force.marketID), expected \(market.id)."
+        )
+      }
+    }
+    for experiment in config.distributionExperiments {
+      guard let market = marketsByID[experiment.marketID] else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Distribution experiment \(experiment.id) references missing market \(experiment.marketID)."
+        )
+      }
+      guard contenderIDs.isEmpty || contenderIDs.contains(experiment.contenderID) else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Distribution experiment \(experiment.id) references missing contender \(experiment.contenderID)."
+        )
+      }
+      guard market.channels.contains(where: { $0.id == experiment.channelID }) else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Distribution experiment \(experiment.id) references missing channel \(experiment.channelID)."
+        )
+      }
+      if let targetActorID = experiment.targetActorID,
+        !market.actors.contains(where: { $0.id == targetActorID })
+      {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Distribution experiment \(experiment.id) references missing target actor \(targetActorID)."
         )
       }
     }

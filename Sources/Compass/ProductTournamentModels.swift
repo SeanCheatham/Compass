@@ -1,7 +1,7 @@
 import Foundation
 
 struct ProductTournamentConfig: Codable, Equatable, Sendable {
-  static let supportedSchemaVersion = 6
+  static let supportedSchemaVersion = 7
 
   var schemaVersion: Int
   var rawPain: String
@@ -15,6 +15,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
   var tournaments: [ProductTournament]
   var tournamentContenders: [ProductTournamentContender]
   var tournamentRounds: [ProductTournamentRound]
+  var distributionExperiments: [DistributionExperiment]
   var scenarios: [ProductScenario]
   var scenarioCohorts: [ProductScenarioCohort]
   var decisions: [ProductTournamentDecision]
@@ -32,6 +33,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     tournaments: [],
     tournamentContenders: [],
     tournamentRounds: [],
+    distributionExperiments: [],
     scenarios: [],
     scenarioCohorts: [],
     decisions: [],
@@ -51,6 +53,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     case tournaments
     case tournamentContenders
     case tournamentRounds
+    case distributionExperiments
     case scenarios
     case scenarioCohorts
     case decisions
@@ -70,6 +73,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     tournaments: [ProductTournament] = [],
     tournamentContenders: [ProductTournamentContender] = [],
     tournamentRounds: [ProductTournamentRound] = [],
+    distributionExperiments: [DistributionExperiment] = [],
     scenarios: [ProductScenario] = [],
     scenarioCohorts: [ProductScenarioCohort] = [],
     decisions: [ProductTournamentDecision] = [],
@@ -87,6 +91,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     self.tournaments = tournaments
     self.tournamentContenders = tournamentContenders
     self.tournamentRounds = tournamentRounds
+    self.distributionExperiments = distributionExperiments
     self.scenarios = scenarios
     self.scenarioCohorts = scenarioCohorts
     self.decisions = decisions
@@ -134,6 +139,10 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
         [ProductTournamentRound].self,
         forKey: .tournamentRounds
       ) ?? [],
+      distributionExperiments: try container.decodeIfPresent(
+        [DistributionExperiment].self,
+        forKey: .distributionExperiments
+      ) ?? [],
       scenarios: try container.decodeIfPresent([ProductScenario].self, forKey: .scenarios) ?? [],
       scenarioCohorts: try container.decodeIfPresent(
         [ProductScenarioCohort].self, forKey: .scenarioCohorts) ?? [],
@@ -158,6 +167,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       && tournaments.isEmpty
       && tournamentContenders.isEmpty
       && tournamentRounds.isEmpty
+      && distributionExperiments.isEmpty
       && scenarios.isEmpty
       && scenarioCohorts.isEmpty
       && decisions.isEmpty
@@ -222,6 +232,8 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     let productImplementationRoundID = "\(slug)-round-3-product-implementation"
     let workflowExperimentID = "\(slug)-workflow-implementation"
     let proofExperimentID = "\(slug)-proof-implementation"
+    let workflowDistributionID = "\(slug)-workflow-founder-led-distribution"
+    let proofDistributionID = "\(slug)-proof-founder-led-distribution"
     let workflowOperatorScenarioID = "\(workflowExperimentID)-operator-starter-scenario"
     let workflowBuyerScenarioID = "\(workflowExperimentID)-buyer-starter-scenario"
     let proofOperatorScenarioID = "\(proofExperimentID)-operator-starter-scenario"
@@ -790,6 +802,52 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
     ]
 
     let contenderIDs = contenders.map(\.id)
+    let distributionExperiments = [
+      DistributionExperiment(
+        id: workflowDistributionID,
+        marketID: marketID,
+        contenderID: workflowContenderID,
+        channelID: channelID,
+        title: "\(title) workflow founder-led sales proof",
+        artifactKind: .salesScript,
+        artifactText:
+          """
+          Open with the recurring workflow failure: \(painText)
+          Ask the hands-on operator where the manual workflow plus shared document still creates rework.
+          Pitch \(title) workflow product as a narrow proof: the user gets a clearer next action without adopting a broad product surface.
+          Close with a pilot question: would a 15 minute workflow review prove whether this beats the current workaround?
+          """,
+        targetActorID: operatorActorID,
+        successThreshold:
+          "The operator recognizes the painful workflow and agrees to inspect the workflow proof.",
+        killCriteria:
+          "The operator treats the pain as too rare, too generic, or already solved by the current workaround.",
+        status: .draft,
+        createdAt: timestamp
+      ),
+      DistributionExperiment(
+        id: proofDistributionID,
+        marketID: marketID,
+        contenderID: proofContenderID,
+        channelID: channelID,
+        title: "\(title) proof founder-led sales proof",
+        artifactKind: .salesScript,
+        artifactText:
+          """
+          Open with the buyer cost: the team keeps relying on subjective enthusiasm instead of reusable product evidence.
+          Ask the budget owner what proof would justify continuing, pivoting, killing, or promoting a contender.
+          Pitch \(title) proof product as a narrow evidence assistant that captures alternatives, assumptions, and a decision trail.
+          Close with a pilot question: if the proof shows repeatable decision clarity, should this receive more product investment?
+          """,
+        targetActorID: buyerActorID,
+        successThreshold:
+          "The buyer can name a decision moment where reusable evidence would change the next investment decision.",
+        killCriteria:
+          "The buyer cannot tie evidence clarity to budget, urgency, or reduced risk.",
+        status: .draft,
+        createdAt: timestamp
+      ),
+    ]
     let cohortIDs = cohorts.map(\.id)
     let rounds = [
       ProductTournamentRound(
@@ -891,6 +949,7 @@ struct ProductTournamentConfig: Codable, Equatable, Sendable {
       tournaments: [tournament],
       tournamentContenders: contenders,
       tournamentRounds: rounds,
+      distributionExperiments: distributionExperiments,
       scenarios: scenarios,
       scenarioCohorts: cohorts,
       decisions: []

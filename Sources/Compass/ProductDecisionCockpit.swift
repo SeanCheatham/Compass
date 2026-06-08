@@ -181,6 +181,7 @@ struct ContenderLane: Equatable, Sendable, Identifiable {
   var promise: String
   var targetSegmentNames: [String]
   var currentAlternative: String
+  var distribution: DistributionChannelSummary
   var tournamentPosition: String
   var status: ContenderLaneStatus
   var activeRoundState: RoundStateSummary
@@ -188,6 +189,14 @@ struct ContenderLane: Equatable, Sendable, Identifiable {
   var proofDebt: ProofDebtSummary
   var evidenceSignals: [EvidenceSignal]
   var auditReferences: [AuditReference]
+}
+
+struct DistributionChannelSummary: Equatable, Sendable {
+  var bestChannel: String
+  var weakestChannel: String
+  var latestVerdict: String
+  var nextChannelProof: String
+  var proofDebtSummary: String
 }
 
 enum ContenderLaneStatus: String, Equatable, Sendable {
@@ -486,6 +495,11 @@ private enum ProductDecisionCockpitBuilder {
         plan: plan,
         readModel: readModel
       ),
+      distribution: distributionSummary(
+        for: contender,
+        config: readModel.config,
+        evidenceIndex: evidenceIndex
+      ),
       tournamentPosition: tournamentPosition(
         contender: contender,
         tournament: tournament,
@@ -514,6 +528,58 @@ private enum ProductDecisionCockpitBuilder {
         proofDebt: proofDebt
       ),
       auditReferences: auditReferences
+    )
+  }
+
+  static func distributionSummary(
+    for contender: ProductTournamentContender,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> DistributionChannelSummary {
+    let experiments = config.distributionExperiments.filter { $0.contenderID == contender.id }
+    let channelNames = Dictionary(
+      uniqueKeysWithValues: config.markets.flatMap(\.channels).map {
+        ($0.id, "\($0.kind.rawValue): \($0.audience)")
+      }
+    )
+    let proof = evidenceIndex.aggregate.distributionChannelProofByContender.first {
+      $0.contenderID == contender.id
+    }
+    let failed = evidenceIndex.distributionPressureSummaries
+      .filter {
+        $0.contenderID == contender.id
+          && ($0.verdict == .wrongChannel || $0.verdict == .tooExpensive
+            || $0.verdict == .ignored)
+      }
+      .sorted { lhs, rhs in
+        if lhs.scores.average == rhs.scores.average { return lhs.createdAt > rhs.createdAt }
+        return lhs.scores.average < rhs.scores.average
+      }
+      .first
+    let draftedChannel =
+      experiments.first.flatMap { channelNames[$0.channelID] }
+      ?? experiments.first?.channelID
+      ?? "No distribution experiment"
+    let bestChannel =
+      (proof?.bestChannelID).flatMap { channelNames[$0] }
+      ?? proof?.bestChannelID
+      ?? draftedChannel
+    let weakestChannel =
+      (failed?.channelID).flatMap { channelNames[$0] }
+      ?? failed?.channelID
+      ?? "No failed channel proof"
+    let latestVerdict = proof?.latestVerdict?.rawValue ?? "No channel pressure"
+    let nextProof =
+      proof?.nextMove
+      ?? (experiments.isEmpty
+        ? "Create a distribution experiment before selecting a winner."
+        : "Run distribution pressure for the drafted channel artifact.")
+    return DistributionChannelSummary(
+      bestChannel: bounded(bestChannel, limit: 140),
+      weakestChannel: bounded(weakestChannel, limit: 140),
+      latestVerdict: latestVerdict,
+      nextChannelProof: bounded(nextProof, limit: 180),
+      proofDebtSummary: proof?.proofDebt.summary ?? "attention 2, channel 2, buyer_reach 2, message 2"
     )
   }
 

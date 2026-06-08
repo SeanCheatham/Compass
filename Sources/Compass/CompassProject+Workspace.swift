@@ -143,6 +143,13 @@ extension CompassProject {
     return try workspace.readMarketPressureRecord(id: id)
   }
 
+  func readDistributionPressureRecord(id: String) throws -> DistributionPressureRecord {
+    guard let workspace else {
+      throw AppModelError.noRepositorySelected
+    }
+    return try workspace.readDistributionPressureRecord(id: id)
+  }
+
   func initializeIfNeeded(_ workspace: CompassWorkspace) async throws {
     guard !FileManager.default.fileExists(atPath: workspace.compassURL.path) else { return }
     try workspace.initialize()

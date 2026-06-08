@@ -378,6 +378,8 @@ struct MarketProofDebt: Codable, Equatable, Sendable {
   var channelFitDeficit: Int
   var retentionDeficit: Int
   var committeeDeficit: Int
+  var buyerReachabilityDeficit: Int
+  var messageClarityDeficit: Int
 
   static let clear = MarketProofDebt()
   static let unknown = MarketProofDebt(
@@ -388,8 +390,23 @@ struct MarketProofDebt: Codable, Equatable, Sendable {
     incumbentDefeatDeficit: 2,
     channelFitDeficit: 2,
     retentionDeficit: 2,
-    committeeDeficit: 2
+    committeeDeficit: 2,
+    buyerReachabilityDeficit: 2,
+    messageClarityDeficit: 2
   )
+
+  enum CodingKeys: String, CodingKey {
+    case attentionDeficit
+    case urgencyDeficit
+    case buyerClarityDeficit
+    case budgetFitDeficit
+    case incumbentDefeatDeficit
+    case channelFitDeficit
+    case retentionDeficit
+    case committeeDeficit
+    case buyerReachabilityDeficit
+    case messageClarityDeficit
+  }
 
   init(
     attentionDeficit: Int = 0,
@@ -399,7 +416,9 @@ struct MarketProofDebt: Codable, Equatable, Sendable {
     incumbentDefeatDeficit: Int = 0,
     channelFitDeficit: Int = 0,
     retentionDeficit: Int = 0,
-    committeeDeficit: Int = 0
+    committeeDeficit: Int = 0,
+    buyerReachabilityDeficit: Int = 0,
+    messageClarityDeficit: Int = 0
   ) {
     self.attentionDeficit = max(0, attentionDeficit)
     self.urgencyDeficit = max(0, urgencyDeficit)
@@ -409,11 +428,48 @@ struct MarketProofDebt: Codable, Equatable, Sendable {
     self.channelFitDeficit = max(0, channelFitDeficit)
     self.retentionDeficit = max(0, retentionDeficit)
     self.committeeDeficit = max(0, committeeDeficit)
+    self.buyerReachabilityDeficit = max(0, buyerReachabilityDeficit)
+    self.messageClarityDeficit = max(0, messageClarityDeficit)
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      attentionDeficit: try container.decodeIfPresent(
+        Int.self,
+        forKey: .attentionDeficit
+      ) ?? 0,
+      urgencyDeficit: try container.decodeIfPresent(Int.self, forKey: .urgencyDeficit) ?? 0,
+      buyerClarityDeficit: try container.decodeIfPresent(
+        Int.self,
+        forKey: .buyerClarityDeficit
+      ) ?? 0,
+      budgetFitDeficit: try container.decodeIfPresent(Int.self, forKey: .budgetFitDeficit) ?? 0,
+      incumbentDefeatDeficit: try container.decodeIfPresent(
+        Int.self,
+        forKey: .incumbentDefeatDeficit
+      ) ?? 0,
+      channelFitDeficit: try container.decodeIfPresent(
+        Int.self,
+        forKey: .channelFitDeficit
+      ) ?? 0,
+      retentionDeficit: try container.decodeIfPresent(Int.self, forKey: .retentionDeficit) ?? 0,
+      committeeDeficit: try container.decodeIfPresent(Int.self, forKey: .committeeDeficit) ?? 0,
+      buyerReachabilityDeficit: try container.decodeIfPresent(
+        Int.self,
+        forKey: .buyerReachabilityDeficit
+      ) ?? 0,
+      messageClarityDeficit: try container.decodeIfPresent(
+        Int.self,
+        forKey: .messageClarityDeficit
+      ) ?? 0
+    )
   }
 
   var total: Int {
     attentionDeficit + urgencyDeficit + buyerClarityDeficit + budgetFitDeficit
       + incumbentDefeatDeficit + channelFitDeficit + retentionDeficit + committeeDeficit
+      + buyerReachabilityDeficit + messageClarityDeficit
   }
 
   var summary: String {
@@ -426,6 +482,8 @@ struct MarketProofDebt: Codable, Equatable, Sendable {
       ("channel", channelFitDeficit),
       ("retention", retentionDeficit),
       ("committee", committeeDeficit),
+      ("buyer_reach", buyerReachabilityDeficit),
+      ("message", messageClarityDeficit),
     ]
     .filter { $0.1 > 0 }
     .map { "\($0.0) \($0.1)" }

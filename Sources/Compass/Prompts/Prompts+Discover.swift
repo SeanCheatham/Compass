@@ -350,6 +350,7 @@ struct DiscoverPromptOutput: Codable, Equatable {
     let roundIDs = Set(config.tournamentRounds.map(\.id))
     let experimentIDs = Set(config.tournamentExperiments.map(\.id))
     let scenarioCohortIDs = Set(config.scenarioCohorts.map(\.id))
+    let marketsByID = Dictionary(uniqueKeysWithValues: config.markets.map { ($0.id, $0) })
     for tournament in config.tournaments {
       guard painIDs.contains(tournament.painID) else {
         throw DiscoverPromptValidationError.tournamentReferencesMissingPain(
@@ -407,6 +408,30 @@ struct DiscoverPromptOutput: Codable, Equatable {
         throw DiscoverPromptValidationError.roundReferencesMissingCohort(
           roundID: round.id,
           cohortID: cohortID
+        )
+      }
+    }
+    for experiment in config.distributionExperiments {
+      guard let market = marketsByID[experiment.marketID] else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Distribution experiment \(experiment.id) references missing market \(experiment.marketID)."
+        )
+      }
+      guard contenderIDs.contains(experiment.contenderID) else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Distribution experiment \(experiment.id) references missing contender \(experiment.contenderID)."
+        )
+      }
+      guard market.channels.contains(where: { $0.id == experiment.channelID }) else {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Distribution experiment \(experiment.id) references missing channel \(experiment.channelID)."
+        )
+      }
+      if let targetActorID = experiment.targetActorID,
+        !market.actors.contains(where: { $0.id == targetActorID })
+      {
+        throw DiscoverPromptValidationError.invalidJSON(
+          "Distribution experiment \(experiment.id) references missing target actor \(targetActorID)."
         )
       }
     }
@@ -730,6 +755,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
   var tournaments: [ProductTournament]
   var tournamentContenders: [ProductTournamentContender]
   var tournamentRounds: [ProductTournamentRound]
+  var distributionExperiments: [DistributionExperiment]
   var scenarioCohorts: [ProductScenarioCohort]
   var decisions: [ProductTournamentDecision]
 
@@ -745,6 +771,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     case tournaments
     case tournamentContenders
     case tournamentRounds
+    case distributionExperiments
     case scenarioCohorts
     case decisions
   }
@@ -761,6 +788,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     tournaments: [ProductTournament] = [],
     tournamentContenders: [ProductTournamentContender] = [],
     tournamentRounds: [ProductTournamentRound] = [],
+    distributionExperiments: [DistributionExperiment] = [],
     scenarioCohorts: [ProductScenarioCohort] = [],
     decisions: [ProductTournamentDecision] = []
   ) {
@@ -775,6 +803,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     self.tournaments = tournaments
     self.tournamentContenders = tournamentContenders
     self.tournamentRounds = tournamentRounds
+    self.distributionExperiments = distributionExperiments
     self.scenarioCohorts = scenarioCohorts
     self.decisions = decisions
   }
@@ -815,6 +844,10 @@ struct DiscoveryStateEdits: Codable, Equatable {
         [ProductTournamentRound].self,
         forKey: .tournamentRounds
       ) ?? [],
+      distributionExperiments: try container.decodeIfPresent(
+        [DistributionExperiment].self,
+        forKey: .distributionExperiments
+      ) ?? [],
       scenarioCohorts: try container.decodeIfPresent(
         [ProductScenarioCohort].self, forKey: .scenarioCohorts) ?? [],
       decisions: try container.decodeIfPresent(
@@ -839,6 +872,7 @@ struct DiscoveryStateEdits: Codable, Equatable {
     upsert(&next.tournaments, edits: tournaments, id: \.id)
     upsert(&next.tournamentContenders, edits: tournamentContenders, id: \.id)
     upsert(&next.tournamentRounds, edits: tournamentRounds, id: \.id)
+    upsert(&next.distributionExperiments, edits: distributionExperiments, id: \.id)
     upsert(&next.scenarioCohorts, edits: scenarioCohorts, id: \.id)
     upsert(&next.decisions, edits: decisions, id: \.id)
     return next

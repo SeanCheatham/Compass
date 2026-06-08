@@ -22,6 +22,7 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += painLines(config: config, maxPainHypotheses: maxPainHypotheses)
     lines += marketLines(config: config)
     lines += marketPressureLines(evidenceIndex: evidenceIndex)
+    lines += distributionLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentLines(config: config, evidenceIndex: evidenceIndex)
     lines += roundTwoImplementationTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += feasibilityHandoffLines(config: config, evidenceIndex: evidenceIndex)
@@ -266,6 +267,54 @@ enum ProductTournamentPlanningDigestFormatter {
         .map { "\($0.objection) (\($0.count)x)" }
         .joined(separator: "; ")
       lines.append("- Repeated market objections: \(bounded(objections, 360)).")
+    }
+    return lines
+  }
+
+  private static func distributionLines(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [String] {
+    guard !config.distributionExperiments.isEmpty
+      || !evidenceIndex.distributionPressureSummaries.isEmpty
+    else { return [] }
+    var lines = ["Distribution tournament:"]
+    if evidenceIndex.distributionPressureSummaries.isEmpty {
+      lines.append(
+        "- \(config.distributionExperiments.count) distribution experiment(s) drafted; no channel pressure yet."
+      )
+      return lines
+    }
+    let experiments = config.distributionExperiments.prefix(6).map { experiment in
+      let latest = evidenceIndex.distributionPressureSummaries.first {
+        $0.experimentID == experiment.id
+      }
+      let verdict = latest.map { "latest \($0.verdict.rawValue)" } ?? "no channel pressure"
+      return
+        "\(experiment.id) contender \(experiment.contenderID), channel \(experiment.channelID), artifact \(experiment.artifactKind.rawValue), status \(experiment.status.rawValue), \(verdict); threshold \(bounded(experiment.successThreshold, 100))"
+    }
+    if !experiments.isEmpty {
+      lines.append("- Experiments: \(bounded(experiments.joined(separator: "; "), 620)).")
+    }
+    let proofs = evidenceIndex.aggregate.distributionChannelProofByContender.prefix(5).map {
+      proof in
+      let bestChannel = proof.bestChannelID ?? "no channel"
+      let latest = proof.latestVerdict?.rawValue ?? "no verdict"
+      return
+        "contender \(proof.contenderID): best \(bestChannel) score \(proof.bestScore)/5, latest \(latest), failed_channels \(proof.failedChannelCount), channel_debt \(proof.proofDebt.summary), next \(bounded(proof.nextMove, 120))"
+    }
+    if !proofs.isEmpty {
+      lines.append("- Channel proof: \(bounded(proofs.joined(separator: "; "), 760)).")
+    }
+    if !evidenceIndex.aggregate.distributionPressureObjections.isEmpty {
+      let objections = evidenceIndex.aggregate.distributionPressureObjections.prefix(4)
+        .map { "\($0.objection) (\($0.count)x)" }
+        .joined(separator: "; ")
+      lines.append("- Repeated distribution objections: \(bounded(objections, 360)).")
+    }
+    let latestRows = evidenceIndex.distributionPressureSummaries.prefix(5).map(\.digestLine)
+    if !latestRows.isEmpty {
+      lines.append("- Latest distribution pressure: \(bounded(latestRows.joined(separator: "; "), 760)).")
     }
     return lines
   }

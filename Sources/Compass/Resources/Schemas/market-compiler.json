@@ -5,6 +5,7 @@
     "summary",
     "status",
     "marketEdits",
+    "distributionExperimentEdits",
     "contenderSeeds",
     "openMarketQuestions",
     "fragileAssumptions"
@@ -22,6 +23,11 @@
       "type": "array",
       "maxItems": 4,
       "items": { "$ref": "#/$defs/productMarket" }
+    },
+    "distributionExperimentEdits": {
+      "type": "array",
+      "maxItems": 12,
+      "items": { "$ref": "#/$defs/distributionExperiment" }
     },
     "contenderSeeds": {
       "type": "array",
@@ -319,7 +325,9 @@
         "incumbentDefeatDeficit",
         "channelFitDeficit",
         "retentionDeficit",
-        "committeeDeficit"
+        "committeeDeficit",
+        "buyerReachabilityDeficit",
+        "messageClarityDeficit"
       ],
       "properties": {
         "attentionDeficit": { "type": "integer", "minimum": 0 },
@@ -329,7 +337,60 @@
         "incumbentDefeatDeficit": { "type": "integer", "minimum": 0 },
         "channelFitDeficit": { "type": "integer", "minimum": 0 },
         "retentionDeficit": { "type": "integer", "minimum": 0 },
-        "committeeDeficit": { "type": "integer", "minimum": 0 }
+        "committeeDeficit": { "type": "integer", "minimum": 0 },
+        "buyerReachabilityDeficit": { "type": "integer", "minimum": 0 },
+        "messageClarityDeficit": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "distributionExperiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "marketID",
+        "contenderID",
+        "channelID",
+        "title",
+        "artifactKind",
+        "artifactText",
+        "targetActorID",
+        "successThreshold",
+        "killCriteria",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "marketID": { "type": "string" },
+        "contenderID": { "type": "string" },
+        "channelID": { "type": "string" },
+        "title": { "type": "string" },
+        "artifactKind": {
+          "type": "string",
+          "enum": [
+            "cold_email",
+            "landing_page",
+            "seo_page",
+            "marketplace_listing",
+            "community_post",
+            "sales_script",
+            "open_source_readme",
+            "integration_pitch",
+            "template_lead_magnet",
+            "paid_ad"
+          ]
+        },
+        "artifactText": { "type": "string", "maxLength": 4000 },
+        "targetActorID": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "successThreshold": { "type": "string" },
+        "killCriteria": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "simulated", "passed", "narrowed", "failed"]
+        },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
       }
     },
     "marketContenderSeed": {

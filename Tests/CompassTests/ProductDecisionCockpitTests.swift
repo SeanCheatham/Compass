@@ -41,6 +41,8 @@ struct ProductDecisionCockpitTests {
     try #require(firstLane.title == nextMove.targetContender)
     try #require(firstLane.proofDebt.readinessState == "Plan proof missing")
     try #require(firstLane.proofDebt.nextProofTarget == "operator and economic-buyer plan evaluations")
+    try #require(firstLane.distribution.bestChannel.contains("founder_led_sales"))
+    try #require(firstLane.distribution.nextChannelProof.contains("Run distribution pressure"))
     try #require(firstLane.evidenceSignals.map(\.dimension) == EvidenceDimension.defaultOrder)
     try #require(cockpit.evidenceMatrix.dimensions == EvidenceDimension.defaultOrder)
     try #require(cockpit.evidenceMatrix.rows.count == 2)
@@ -234,7 +236,7 @@ struct ProductDecisionCockpitTests {
     let audit = cockpit.auditReferences.map(\.value).joined(separator: "\n")
     let rawValues = [
       config.tournaments[0].id,
-      config.tournamentRounds[0].id,
+      config.tournamentRounds[1].id,
       config.tournamentContenders[0].id,
       config.tournamentExperiments[0].id,
       config.tournamentExperiments[0].branchName,
@@ -257,20 +259,25 @@ struct ProductDecisionCockpitTests {
 }
 
 private func seededConfig() -> ProductTournamentConfig {
-  ProductTournamentConfig.seedDefaults(
+  var config = ProductTournamentConfig.seedDefaults(
     projectTitle: "LedgerLift",
     rawPain: "Finance operators lose weekly reporting context between Slack and spreadsheets.",
     now: Date(timeIntervalSince1970: 10)
   )
+  config.tournaments[0].currentRoundID = config.tournamentRounds[1].id
+  config.tournamentRounds[0].status = .completed
+  config.tournamentRounds[1].status = .active
+  return config
 }
 
 private func roundTwoLockedConfig() -> ProductTournamentConfig {
   var config = seededConfig()
-  let roundTwoID = config.tournamentRounds[1].id
+  let roundTwoID = config.tournamentRounds[2].id
   config.tournaments[0].currentRoundID = roundTwoID
   config.tournamentRounds[0].status = .completed
-  config.tournamentRounds[1].status = .active
-  config.tournamentRounds[2].status = .planned
+  config.tournamentRounds[1].status = .completed
+  config.tournamentRounds[2].status = .active
+  config.tournamentRounds[3].status = .planned
   config.tournamentContenders[0].status = .narrowed
   config.tournamentContenders[1].status = .competing
   return config
@@ -278,11 +285,12 @@ private func roundTwoLockedConfig() -> ProductTournamentConfig {
 
 private func roundThreeWinnerConfig() -> ProductTournamentConfig {
   var config = seededConfig()
-  let roundThreeID = config.tournamentRounds[2].id
+  let roundThreeID = config.tournamentRounds[3].id
   config.tournaments[0].currentRoundID = roundThreeID
   config.tournamentRounds[0].status = .completed
   config.tournamentRounds[1].status = .completed
-  config.tournamentRounds[2].status = .active
+  config.tournamentRounds[2].status = .completed
+  config.tournamentRounds[3].status = .active
   config.tournamentContenders[0].status = .winner
   config.tournamentContenders[1].status = .eliminated
   config.tournamentExperiments[0].decision = .promote
