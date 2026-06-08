@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compass.local/schemas/agent-rpc/v1/wire.json",
+  "title": "Compass AgentRPC v1 wire compatibility marker",
+  "description": "The detailed Swift AgentRPC variants are mirrored in Rust during the guest-agent phase. This file pins the schema-version directory and compatibility policy for the existing one-request/one-response JSON vsock protocol.",
+  "type": "object",
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    }
+  }
+}

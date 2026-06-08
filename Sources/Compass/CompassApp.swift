@@ -29,6 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // shutdown overlay in front of the user.
     let host = SharedCompassVM.shared
     guard host.virtualMachine != nil else {
+      Task { @MainActor in
+        await CompassDaemonService.shared.shutdown()
+      }
       return .terminateNow
     }
     // Flip the shutdown flag *synchronously* before yielding to the
@@ -37,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     host.beginShutdown()
     Task { @MainActor in
       await Self.stopSharedVMWithBudget(host: host)
+      await CompassDaemonService.shared.shutdown()
       NSApp.reply(toApplicationShouldTerminate: true)
     }
     return .terminateLater
@@ -203,6 +207,14 @@ struct CompassApp: App {
         } else {
           Button("Copy Runtime Diagnostics") {}
             .disabled(true)
+        }
+
+        Button("Copy compassd Diagnostics") {
+          NSPasteboard.general.clearContents()
+          NSPasteboard.general.setString(
+            model.daemonDiagnostics.copyText,
+            forType: .string
+          )
         }
       }
     }

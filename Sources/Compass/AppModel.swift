@@ -31,7 +31,9 @@ final class AppModel: ObservableObject {
   @Published var workspaceSelection: WorkspaceSelection = .sandbox
   @Published var modelOverride = ""
   @Published private(set) var agentSettings: AgentRuntimeSettings
+  @Published private(set) var daemonDiagnostics: CompassDaemonDiagnostics
   private let agentSettingsStore: AgentSettingsStore
+  private let daemonService: CompassDaemonService
   @Published var errorMessage: String?
 
   /// Process-wide shared VM host. Bound to the singleton in
@@ -40,9 +42,14 @@ final class AppModel: ObservableObject {
   /// own `ObservableObject` surface — there is no per-AppModel mirror.
   let sharedVMHost: SharedCompassVM = SharedCompassVM.shared
 
-  init(agentSettingsStore: AgentSettingsStore = AgentSettingsStore()) {
+  init(
+    agentSettingsStore: AgentSettingsStore = AgentSettingsStore(),
+    daemonService: CompassDaemonService = .shared
+  ) {
     self.agentSettingsStore = agentSettingsStore
+    self.daemonService = daemonService
     self.agentSettings = agentSettingsStore.load()
+    self.daemonDiagnostics = daemonService.diagnostics
   }
 
   // MARK: - Agent settings setters
@@ -139,6 +146,9 @@ final class AppModel: ObservableObject {
   }
 
   func bootstrap() async {
+    await daemonService.startIfEnabled()
+    daemonDiagnostics = daemonService.diagnostics
+
     projects = KnownProjectStore.load().map(CompassProject.init(record:))
     selectedProjectID = projects.sorted { $0.lastOpenedAt > $1.lastOpenedAt }.first?.id
     if let id = selectedProjectID {

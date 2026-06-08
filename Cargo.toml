@@ -1,3 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["crates/compass-engine"]
+members = [
+  "crates/compass-core",
+  "crates/compass-engine",
+  "crates/compassd",
+]

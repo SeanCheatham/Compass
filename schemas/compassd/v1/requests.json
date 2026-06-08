@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compass.local/schemas/compassd/v1/requests.json",
+  "title": "Compass daemon request envelope",
+  "type": "object",
+  "required": ["schema_version", "id", "method", "params"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "method": {
+      "type": "string",
+      "enum": ["ping", "shutdown", "get_capabilities"]
+    },
+    "params": {
+      "type": "object"
+    }
+  }
+}

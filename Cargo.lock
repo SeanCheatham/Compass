@@ -167,6 +167,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 
 [[package]]
+name = "compass-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "compass-engine"
 version = "0.1.0"
 dependencies = [
@@ -180,6 +189,15 @@ dependencies = [
  "serde_json",
  "tempfile",
  "walkdir",
+]
+
+[[package]]
+name = "compassd"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "compass-core",
+ "serde_json",
 ]
 
 [[package]]

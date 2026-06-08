@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compass.local/schemas/compassd/v1/events.json",
+  "title": "Compass daemon event envelope",
+  "type": "object",
+  "required": ["schema_version", "type", "run_id", "event"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "type": {
+      "const": "event"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "event": {
+      "type": "object",
+      "required": ["level", "text", "kind", "status"],
+      "properties": {
+        "level": {
+          "enum": ["debug", "info", "warning", "error"]
+        },
+        "text": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "metadata": true
+      }
+    }
+  }
+}
