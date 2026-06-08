@@ -26,6 +26,10 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += distributionLines(config: config, evidenceIndex: evidenceIndex)
     lines += lifecycleLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentLines(config: config, evidenceIndex: evidenceIndex)
+    lines += TournamentPlanProofDeltaOverview.contextLines(
+      config: config,
+      evidenceIndex: evidenceIndex
+    )
     lines += roundTwoImplementationTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += feasibilityHandoffLines(config: config, evidenceIndex: evidenceIndex)
     lines += ProductTournamentRoundTwoProofOverview.contextLines(
@@ -51,10 +55,6 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += tournamentAutomationCycleAuditLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationWorktreePrepLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationPlanProofAuditLines(config: config)
-    lines += TournamentPlanProofDeltaOverview.contextLines(
-      config: config,
-      evidenceIndex: evidenceIndex
-    )
     lines += nextActionLines(config: config, evidenceIndex: evidenceIndex)
     lines += contenderPlanLines(config: config, maxContenderPlans: maxContenderPlans)
     lines += experimentLines(config: config, maxExperiments: maxExperiments)
@@ -80,7 +80,7 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += portfolioScheduleLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationLines(config: config, evidenceIndex: evidenceIndex)
 
-    return boundedLines(lines, maxLines: 80, maxCharacters: 12_000)
+    return boundedLines(lines, maxLines: 96, maxCharacters: 16_000)
   }
 
   private static func painLines(

@@ -705,6 +705,9 @@ struct ProductTournamentWorkbenchTab: View {
               selectedContenderID: selectedCockpitContenderID,
               onSelectContender: selectCockpitContender
             )
+            if let marketCockpit = productDecisionCockpit.marketCockpit {
+              MarketDecisionPanel(cockpit: marketCockpit)
+            }
             ProductNextMovePanel(
               nextMove: productDecisionCockpit.nextMove,
               latestMovement: productDecisionCockpit.latestMovement,
@@ -4703,6 +4706,118 @@ struct ProductTournamentWorkbenchTab: View {
 
   private func short(_ sha: String) -> String {
     String(sha.prefix(12))
+  }
+}
+
+private struct MarketDecisionPanel: View {
+  var cockpit: MarketDecisionCockpit
+
+  var body: some View {
+    WorkbenchSection("Market Pressure", systemImage: "person.3.sequence") {
+      if let move = cockpit.nextMarketMove {
+        WorkbenchStatusFact(
+          label: "Next",
+          value: move.reason,
+          statusText: move.actionTitle,
+          statusSystemImage: "arrow.forward.circle"
+        )
+        if let blockedReason = move.blockedReason {
+          WorkbenchFact(label: "Blocked", value: blockedReason)
+        }
+      } else {
+        WorkbenchEmptyLine("No market move queued.")
+      }
+
+      if let market = cockpit.activeMarket {
+        WorkbenchFact(label: "Market", value: "\(market.category): \(market.summary)")
+      } else {
+        WorkbenchFact(label: "Market", value: "No synthetic market compiled.")
+      }
+
+      HStack(alignment: .top, spacing: 10) {
+        WorkbenchMetric(
+          label: "Debt",
+          value: "\(cockpit.proofDebt.blockingCount)",
+          systemImage: "exclamationmark.triangle"
+        )
+        WorkbenchMetric(
+          label: "Actors",
+          value: "\(cockpit.actors.count)",
+          systemImage: "person.3"
+        )
+        WorkbenchMetric(
+          label: "Pressure",
+          value: "\(cockpit.pressureRows.count)",
+          systemImage: "gavel"
+        )
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 8)], spacing: 8) {
+        ForEach(cockpit.proofDebt.cells) { cell in
+          WorkbenchStatusFact(
+            label: cell.label,
+            value: cell.latestMovement.map { "Latest \($0)" } ?? "Debt \(cell.value)",
+            statusText: cell.status.label,
+            statusSystemImage: icon(for: cell.status)
+          )
+        }
+      }
+
+      if !cockpit.actors.isEmpty {
+        Divider()
+        ForEach(cockpit.actors.prefix(6)) { actor in
+          WorkbenchStatusFact(
+            label: actor.role,
+            value: "\(actor.name): \(actor.job)",
+            statusText: actor.pressureStatus,
+            statusSystemImage: "person.crop.circle"
+          )
+        }
+      }
+
+      if !cockpit.pressureRows.isEmpty {
+        Divider()
+        ForEach(cockpit.pressureRows.prefix(4)) { row in
+          WorkbenchStatusFact(
+            label: row.kind.rawValue,
+            value: row.strongestObjection.isEmpty ? row.nextAction : row.strongestObjection,
+            statusText: row.verdict,
+            statusSystemImage: "gavel"
+          )
+        }
+      }
+
+      if !cockpit.distributionRows.isEmpty || !cockpit.lifecycleRows.isEmpty {
+        Divider()
+        ForEach(cockpit.distributionRows.prefix(3)) { row in
+          WorkbenchFact(
+            label: "Channel",
+            value: "\(row.channelName); \(row.verdict); next \(row.nextAction)"
+          )
+        }
+        ForEach(cockpit.lifecycleRows.prefix(4)) { row in
+          WorkbenchFact(
+            label: "Lifecycle",
+            value: "\(row.title); \(row.status.rawValue); next \(row.nextAction)"
+          )
+        }
+      }
+    }
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel(
+      cockpit.nextMarketMove.map { "Market pressure, next move \($0.actionTitle)" }
+        ?? "Market pressure"
+    )
+  }
+
+  private func icon(for status: MarketProofDebtStatus) -> String {
+    switch status {
+    case .clear: return "checkmark.circle"
+    case .moved: return "arrow.down.circle"
+    case .missing: return "exclamationmark.circle"
+    case .worsened: return "arrow.up.circle"
+    case .blocked: return "xmark.octagon"
+    }
   }
 }
 

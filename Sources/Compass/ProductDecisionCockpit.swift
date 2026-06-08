@@ -4,6 +4,7 @@ struct ProductDecisionCockpit: Equatable, Sendable {
   var isEmpty: Bool
   var activePain: PainSummary?
   var activeMarket: MarketSummary?
+  var marketCockpit: MarketDecisionCockpit?
   var activeTournament: TournamentSummary?
   var activeRound: RoundSummary?
   var contenders: [ContenderLane]
@@ -31,6 +32,10 @@ struct ProductDecisionCockpit: Equatable, Sendable {
         activeMarket: ProductDecisionCockpitBuilder.marketSummary(
           for: config.markets.first,
           config: config
+        ),
+        marketCockpit: MarketDecisionCockpit.build(
+          config: config,
+          evidenceIndex: evidenceIndex
         ),
         activeTournament: nil,
         activeRound: nil,
@@ -109,6 +114,7 @@ struct ProductDecisionCockpit: Equatable, Sendable {
         for: pain.flatMap { matchingMarket(for: $0, in: config) } ?? config.markets.first,
         config: config
       ),
+      marketCockpit: MarketDecisionCockpit.build(config: config, evidenceIndex: evidenceIndex),
       activeTournament: TournamentSummary(
         id: tournament.id,
         title: bounded(tournament.title, limit: 120),
@@ -143,6 +149,708 @@ struct MarketSummary: Equatable, Sendable {
   var bestChannel: String
   var proofDebtSummary: String
   var proofDebtTotal: Int
+}
+
+struct MarketDecisionCockpit: Equatable, Sendable {
+  var activeMarket: ProductMarket?
+  var actors: [MarketActorLane]
+  var proofDebt: MarketProofDebtSummary
+  var pressureRows: [MarketPressureRow]
+  var distributionRows: [DistributionChannelRow]
+  var lifecycleRows: [LifecycleStageRow]
+  var nextMarketMove: NextMarketMove?
+
+  static func build(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> MarketDecisionCockpit {
+    let readModel = ProductTournamentReadModel(config: config)
+    let tournament = readModel.activeTournament()
+    let market =
+      tournament
+      .flatMap { readModel.pain(for: $0) }
+      .flatMap { matchingMarket(for: $0, in: config) } ?? config.markets.first
+    let pressureRows = Self.pressureRows(market: market, evidenceIndex: evidenceIndex)
+    let distributionRows = Self.distributionRows(market: market, config: config, evidenceIndex: evidenceIndex)
+    let lifecycleRows = Self.lifecycleRows(market: market, config: config, evidenceIndex: evidenceIndex)
+    let proofDebt = MarketProofDebtGrid.build(
+      market: market,
+      pressureRows: pressureRows,
+      distributionRows: distributionRows,
+      lifecycleRows: lifecycleRows
+    )
+    return MarketDecisionCockpit(
+      activeMarket: market,
+      actors: Self.actorLanes(market: market, pressureRows: pressureRows),
+      proofDebt: proofDebt,
+      pressureRows: pressureRows,
+      distributionRows: distributionRows,
+      lifecycleRows: lifecycleRows,
+      nextMarketMove: Self.nextMarketMove(
+        config: config,
+        market: market,
+        tournament: tournament,
+        evidenceIndex: evidenceIndex,
+        proofDebt: proofDebt,
+        pressureRows: pressureRows,
+        distributionRows: distributionRows,
+        lifecycleRows: lifecycleRows
+      )
+    )
+  }
+
+  private static func actorLanes(
+    market: ProductMarket?,
+    pressureRows: [MarketPressureRow]
+  ) -> [MarketActorLane] {
+    guard let market else { return [] }
+    return market.actors.map { actor in
+      let actorPressure = pressureRows.filter { $0.actorIDs.contains(actor.id) }
+      let status =
+        actorPressure.contains { $0.status == .blocked || $0.status == .rejected }
+        ? "blocked"
+        : actorPressure.isEmpty ? "not tested" : "tested"
+      return MarketActorLane(
+        id: actor.id,
+        role: actor.role.rawValue,
+        name: actor.name,
+        job: bounded(actor.jobToBeDone, limit: 180),
+        successCriteria: bounded(actor.successCriteria.joined(separator: "; "), limit: 220),
+        objections: actor.objections.map { bounded($0, limit: 120) },
+        pressureStatus: status
+      )
+    }
+    .sorted { lhs, rhs in
+      let lhsRank = Self.actorRank(lhs.role)
+      let rhsRank = Self.actorRank(rhs.role)
+      if lhsRank == rhsRank { return lhs.name < rhs.name }
+      return lhsRank < rhsRank
+    }
+  }
+
+  private static func pressureRows(
+    market: ProductMarket?,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [MarketPressureRow] {
+    let marketID = market?.id
+    return evidenceIndex.marketPressureSummaries
+      .filter { marketID == nil || $0.marketID == marketID }
+      .map { summary in
+        let status = MarketPressureStatus(verdict: summary.verdict)
+        return MarketPressureRow(
+          id: summary.evaluationID,
+          kind: summary.pressureKind,
+          contenderID: summary.contenderID,
+          actorIDs: [],
+          verdict: summary.verdict.rawValue,
+          status: status,
+          strongestObjection: bounded(summary.strongestObjection, limit: 180),
+          debtMovement: summary.proofDebtDelta.summary,
+          nextAction: Self.nextAction(for: summary)
+        )
+      }
+      .sorted { lhs, rhs in lhs.id < rhs.id }
+  }
+
+  private static func distributionRows(
+    market: ProductMarket?,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [DistributionChannelRow] {
+    let channelNames = Dictionary(
+      uniqueKeysWithValues: config.markets.flatMap(\.channels).map {
+        ($0.id, "\($0.kind.rawValue): \($0.audience)")
+      }
+    )
+    let latestByExperiment = Dictionary(
+      grouping: evidenceIndex.distributionPressureSummaries,
+      by: \.experimentID
+    )
+    .mapValues {
+      $0.sorted { lhs, rhs in
+        if lhs.createdAt == rhs.createdAt { return lhs.pressureID < rhs.pressureID }
+        return lhs.createdAt > rhs.createdAt
+      }.first
+    }
+    return config.distributionExperiments
+      .filter { market == nil || $0.marketID == market?.id }
+      .map { experiment in
+        let latest = latestByExperiment[experiment.id] ?? nil
+        return DistributionChannelRow(
+          id: experiment.id,
+          contenderID: experiment.contenderID,
+          channelID: experiment.channelID,
+          channelName: bounded(channelNames[experiment.channelID] ?? experiment.channelID, limit: 140),
+          artifact: experiment.artifactKind.rawValue,
+          simulatedAudience: latest?.simulatedAudience ?? experiment.targetActorID ?? "draft audience",
+          attentionScore: latest?.scores.attention,
+          credibilityScore: latest?.scores.credibility,
+          verdict: latest?.verdict.rawValue ?? experiment.status.rawValue,
+          nextAction: bounded(
+            latest?.topRewriteRecommendation
+              ?? "Pressure test \(experiment.artifactKind.rawValue) for this channel.",
+            limit: 180
+          )
+        )
+      }
+      .sorted { lhs, rhs in lhs.id < rhs.id }
+  }
+
+  private static func lifecycleRows(
+    market: ProductMarket?,
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [LifecycleStageRow] {
+    let latestByScenario = Dictionary(
+      grouping: evidenceIndex.lifecycleRunSummaries,
+      by: \.scenarioID
+    )
+    .mapValues {
+      $0.sorted { lhs, rhs in
+        if lhs.createdAt == rhs.createdAt { return lhs.runID < rhs.runID }
+        return lhs.createdAt > rhs.createdAt
+      }.first
+    }
+    return config.lifecycleScenarios
+      .filter { scenario in
+        guard let market else { return true }
+        return config.syntheticCohorts.first { $0.id == scenario.cohortID }?.marketID == market.id
+      }
+      .map { scenario in
+        let latest = latestByScenario[scenario.id] ?? nil
+        return LifecycleStageRow(
+          id: scenario.id,
+          cohortID: scenario.cohortID,
+          contenderID: config.syntheticCohorts.first { $0.id == scenario.cohortID }?.contenderID
+            ?? latest?.contenderID ?? "",
+          stageID: scenario.stageID,
+          title: scenario.title,
+          dayOffset: scenario.dayOffset,
+          status: LifecycleStageStatus(outcome: latest?.outcome),
+          latestOutcome: latest?.outcome.rawValue ?? "not_run",
+          nextAction: Self.lifecycleNextAction(scenario: scenario, latest: latest)
+        )
+      }
+      .sorted { lhs, rhs in
+        if lhs.dayOffset == rhs.dayOffset { return lhs.id < rhs.id }
+        return lhs.dayOffset < rhs.dayOffset
+      }
+  }
+
+  private static func nextMarketMove(
+    config: ProductTournamentConfig,
+    market: ProductMarket?,
+    tournament: ProductTournament?,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    proofDebt: MarketProofDebtSummary,
+    pressureRows: [MarketPressureRow],
+    distributionRows: [DistributionChannelRow],
+    lifecycleRows: [LifecycleStageRow]
+  ) -> NextMarketMove? {
+    guard let market else {
+      return NextMarketMove(
+        actionTitle: "Compile synthetic market",
+        reason: "No market exists yet; buying, incumbent, channel, and retention pressure cannot be judged.",
+        priority: 1,
+        kind: .compileMarket
+      )
+    }
+    if !market.actors.contains(where: { $0.role == .economicBuyer || $0.role == .managerSponsor }) {
+      return NextMarketMove(
+        actionTitle: "Resolve missing buyer actor",
+        reason: "Market proof cannot advance without an economic buyer or sponsor.",
+        priority: 2,
+        kind: .resolveBuyer
+      )
+    }
+    if market.incumbents.isEmpty {
+      return NextMarketMove(
+        actionTitle: "Resolve missing incumbent",
+        reason: "The contender needs a current alternative to beat.",
+        priority: 3,
+        kind: .resolveIncumbent
+      )
+    }
+    if pressureRows.contains(where: {
+      $0.kind == .incumbentDefense && ($0.status == .blocked || $0.status == .rejected)
+    }) {
+      return NextMarketMove(
+        actionTitle: "Defend incumbent",
+        reason: "Incumbent defense blocked the contender; revise or kill before product work.",
+        priority: 5,
+        kind: .runIncumbentDefense
+      )
+    }
+    if let failedChannel = distributionRows.first(where: {
+      ["ignored", "wrong_channel", "too_expensive"].contains($0.verdict)
+    }) {
+      return NextMarketMove(
+        actionTitle: "Try a different channel",
+        reason: "\(failedChannel.channelName) failed distribution pressure.",
+        priority: 6,
+        kind: .runDistribution
+      )
+    }
+    if let winner = config.tournamentContenders.first(where: { $0.status == .winner }) {
+      if let churn = lifecycleRows.first(where: {
+        $0.contenderID == winner.id && $0.status == .churned
+      }) {
+        return NextMarketMove(
+          actionTitle: "Resolve churn reason",
+          reason: "\(churn.title) churned after initial use; winner selection is blocked.",
+          priority: 11,
+          kind: .resolveChurn,
+          targetContenderID: winner.id
+        )
+      }
+      if lifecycleRows.contains(where: {
+        $0.contenderID == winner.id && $0.stageID.contains("second-use") && $0.status == .notRun
+      }) {
+        return NextMarketMove(
+          actionTitle: "Simulate second use",
+          reason: "Winner selection needs proof that the market comes back.",
+          priority: 10,
+          kind: .runLifecycle,
+          targetContenderID: winner.id
+        )
+      }
+    }
+    if !pressureRows.contains(where: { $0.kind == .buyingCommittee }) {
+      return NextMarketMove(
+        actionTitle: "Run buying committee",
+        reason: "Buyer, sponsor, gatekeeper, and incumbent-defender pressure has not been heard.",
+        priority: 4,
+        kind: .runBuyingCommittee
+      )
+    }
+    if !pressureRows.contains(where: { $0.kind == .incumbentDefense }) {
+      return NextMarketMove(
+        actionTitle: "Run incumbent defense",
+        reason: "The current alternative has not been forced to defend its advantage.",
+        priority: 5,
+        kind: .runIncumbentDefense
+      )
+    }
+    if let drafted = distributionRows.first(where: { $0.attentionScore == nil }) {
+      return NextMarketMove(
+        actionTitle: "Pressure test \(drafted.artifact)",
+        reason: "A distribution artifact exists but has not faced simulated audience pressure.",
+        priority: 6,
+        kind: .runDistribution
+      )
+    }
+    if let tournament,
+      let planTarget = evidenceIndex.aggregate.planReadinessByContender.first(where: {
+        !$0.planProofDebt.isClear
+          && tournament.contenderIDs.contains($0.contenderID)
+      })
+    {
+      return NextMarketMove(
+        actionTitle: "Run product plan proof",
+        reason: planTarget.planProofDebt.summary,
+        priority: 7,
+        kind: .runPlanProof,
+        targetContenderID: planTarget.contenderID
+      )
+    }
+    if proofDebt.blockingCount > 0 {
+      return NextMarketMove(
+        actionTitle: "Run next market confrontation",
+        reason: proofDebt.cells.first { $0.status != .clear }?.label ?? proofDebt.summary,
+        priority: 12,
+        kind: .selectWinner,
+        blockedReason: "Market proof debt is not clear."
+      )
+    }
+    return NextMarketMove(
+      actionTitle: "Select winner",
+      reason: "Market, distribution, and retention proof are ready for a decision review.",
+      priority: 12,
+      kind: .selectWinner
+    )
+  }
+
+  private static func nextAction(for summary: MarketPressureEvaluationSummary) -> String {
+    switch summary.verdict {
+    case .survives:
+      return "Advance to the next pressure court."
+    case .narrowed:
+      return "Narrow the contender around the surviving market edge."
+    case .needsReframe:
+      return "Revise the market claim and rerun this hearing."
+    case .blocked:
+      return "Resolve the blocking objection before product work."
+    case .rejected:
+      return "Kill or radically reframe this market path."
+    }
+  }
+
+  private static func lifecycleNextAction(
+    scenario: LifecycleScenario,
+    latest: LifecycleRunSummary?
+  ) -> String {
+    guard let latest else { return "Run \(scenario.title)." }
+    switch latest.outcome {
+    case .churned:
+      return "Resolve churn reason before winner selection."
+    case .stalled:
+      return "Revise the lifecycle stage and rerun."
+    case .activated, .retained, .shared, .expanded, .paid, .renewed:
+      return "Advance to the next lifecycle stage."
+    }
+  }
+
+  private static func actorRank(_ role: String) -> Int {
+    switch role {
+    case MarketActorRole.operator.rawValue: return 0
+    case MarketActorRole.economicBuyer.rawValue: return 1
+    case MarketActorRole.managerSponsor.rawValue: return 2
+    case MarketActorRole.technicalGatekeeper.rawValue: return 3
+    case MarketActorRole.securityReviewer.rawValue: return 4
+    case MarketActorRole.incumbentDefender.rawValue: return 5
+    case MarketActorRole.churnedUser.rawValue: return 6
+    default: return 7
+    }
+  }
+}
+
+struct MarketActorLane: Equatable, Sendable, Identifiable {
+  var id: String
+  var role: String
+  var name: String
+  var job: String
+  var successCriteria: String
+  var objections: [String]
+  var pressureStatus: String
+}
+
+struct MarketProofDebtSummary: Equatable, Sendable {
+  var cells: [MarketProofDebtCell]
+  var summary: String
+  var blockingCount: Int
+  var dominantStatus: MarketProofDebtStatus
+}
+
+struct MarketProofDebtCell: Equatable, Sendable, Identifiable {
+  var id: String { dimension.rawValue }
+  var dimension: MarketProofDebtDimension
+  var label: String
+  var status: MarketProofDebtStatus
+  var value: Int
+  var latestMovement: String?
+}
+
+enum MarketProofDebtDimension: String, CaseIterable, Equatable, Sendable {
+  case attention
+  case urgency
+  case buyer
+  case budget
+  case incumbent
+  case channel
+  case retention
+  case committee
+
+  var label: String {
+    switch self {
+    case .attention: return "Attention"
+    case .urgency: return "Urgency"
+    case .buyer: return "Buyer"
+    case .budget: return "Budget"
+    case .incumbent: return "Incumbent"
+    case .channel: return "Channel"
+    case .retention: return "Retention"
+    case .committee: return "Committee"
+    }
+  }
+}
+
+enum MarketProofDebtStatus: String, Equatable, Sendable {
+  case clear
+  case moved
+  case missing
+  case worsened
+  case blocked
+
+  var label: String {
+    switch self {
+    case .clear: return "clear"
+    case .moved: return "moved"
+    case .missing: return "missing"
+    case .worsened: return "worsened"
+    case .blocked: return "blocked"
+    }
+  }
+
+  var rank: Int {
+    switch self {
+    case .blocked: return 4
+    case .worsened: return 3
+    case .missing: return 2
+    case .moved: return 1
+    case .clear: return 0
+    }
+  }
+}
+
+struct MarketPressureRow: Equatable, Sendable, Identifiable {
+  var id: String
+  var kind: MarketPressureKind
+  var contenderID: String
+  var actorIDs: [String]
+  var verdict: String
+  var status: MarketPressureStatus
+  var strongestObjection: String
+  var debtMovement: String
+  var nextAction: String
+}
+
+enum MarketPressureStatus: String, Equatable, Sendable {
+  case survived
+  case narrowed
+  case needsReframe
+  case blocked
+  case rejected
+
+  init(verdict: MarketPressureVerdict) {
+    switch verdict {
+    case .survives: self = .survived
+    case .narrowed: self = .narrowed
+    case .needsReframe: self = .needsReframe
+    case .blocked: self = .blocked
+    case .rejected: self = .rejected
+    }
+  }
+}
+
+struct DistributionChannelRow: Equatable, Sendable, Identifiable {
+  var id: String
+  var contenderID: String
+  var channelID: String
+  var channelName: String
+  var artifact: String
+  var simulatedAudience: String
+  var attentionScore: Int?
+  var credibilityScore: Int?
+  var verdict: String
+  var nextAction: String
+}
+
+struct LifecycleStageRow: Equatable, Sendable, Identifiable {
+  var id: String
+  var cohortID: String
+  var contenderID: String
+  var stageID: String
+  var title: String
+  var dayOffset: Int
+  var status: LifecycleStageStatus
+  var latestOutcome: String
+  var nextAction: String
+}
+
+enum LifecycleStageStatus: String, Equatable, Sendable {
+  case passed
+  case stalled
+  case churned
+  case notRun
+
+  init(outcome: LifecycleOutcome?) {
+    guard let outcome else {
+      self = .notRun
+      return
+    }
+    switch outcome {
+    case .stalled:
+      self = .stalled
+    case .churned:
+      self = .churned
+    case .activated, .retained, .shared, .expanded, .paid, .renewed:
+      self = .passed
+    }
+  }
+}
+
+struct NextMarketMove: Equatable, Sendable {
+  var actionTitle: String
+  var reason: String
+  var priority: Int
+  var kind: NextMarketMoveKind
+  var targetContenderID: String?
+  var blockedReason: String?
+
+  init(
+    actionTitle: String,
+    reason: String,
+    priority: Int,
+    kind: NextMarketMoveKind,
+    targetContenderID: String? = nil,
+    blockedReason: String? = nil
+  ) {
+    self.actionTitle = bounded(actionTitle, limit: 120)
+    self.reason = bounded(reason, limit: 260)
+    self.priority = priority
+    self.kind = kind
+    self.targetContenderID = targetContenderID
+    self.blockedReason = blockedReason.map { bounded($0, limit: 180) }
+  }
+}
+
+enum NextMarketMoveKind: String, Equatable, Sendable {
+  case compileMarket
+  case resolveBuyer
+  case resolveIncumbent
+  case runBuyingCommittee
+  case runIncumbentDefense
+  case runDistribution
+  case runPlanProof
+  case buildCoreTechnology
+  case runImplementationProof
+  case runLifecycle
+  case resolveChurn
+  case selectWinner
+}
+
+enum MarketProofDebtGrid {
+  static func build(
+    market: ProductMarket?,
+    pressureRows: [MarketPressureRow] = [],
+    distributionRows: [DistributionChannelRow] = [],
+    lifecycleRows: [LifecycleStageRow] = []
+  ) -> MarketProofDebtSummary {
+    guard let market else {
+      let cells = MarketProofDebtDimension.allCases.map {
+        MarketProofDebtCell(
+          dimension: $0,
+          label: $0.label,
+          status: .missing,
+          value: 1,
+          latestMovement: nil
+        )
+      }
+      return MarketProofDebtSummary(
+        cells: cells,
+        summary: "market missing",
+        blockingCount: cells.count,
+        dominantStatus: .missing
+      )
+    }
+    let cells = MarketProofDebtDimension.allCases.map { dimension in
+      let value = deficit(for: dimension, debt: market.marketProofDebt)
+      let movement = latestMovement(for: dimension, rows: pressureRows)
+      let blocked = isBlocked(
+        dimension: dimension,
+        pressureRows: pressureRows,
+        distributionRows: distributionRows,
+        lifecycleRows: lifecycleRows
+      )
+      let status: MarketProofDebtStatus
+      if blocked {
+        status = .blocked
+      } else if movement > 0 {
+        status = .worsened
+      } else if value > 0 {
+        status = .missing
+      } else if movement < 0 {
+        status = .moved
+      } else {
+        status = .clear
+      }
+      return MarketProofDebtCell(
+        dimension: dimension,
+        label: dimension.label,
+        status: status,
+        value: value,
+        latestMovement: movement == 0 ? nil : "\(movement > 0 ? "+" : "")\(movement)"
+      )
+    }
+    let dominant = cells.map(\.status).max { $0.rank < $1.rank } ?? .clear
+    return MarketProofDebtSummary(
+      cells: cells,
+      summary: cells.map { "\($0.label): \($0.status.label)" }.joined(separator: ", "),
+      blockingCount: cells.filter { $0.status == .blocked || $0.status == .missing || $0.status == .worsened }.count,
+      dominantStatus: dominant
+    )
+  }
+
+  private static func deficit(
+    for dimension: MarketProofDebtDimension,
+    debt: MarketProofDebt
+  ) -> Int {
+    switch dimension {
+    case .attention: return debt.attentionDeficit
+    case .urgency: return debt.urgencyDeficit
+    case .buyer: return debt.buyerClarityDeficit
+    case .budget: return debt.budgetFitDeficit
+    case .incumbent: return debt.incumbentDefeatDeficit
+    case .channel: return debt.channelFitDeficit
+    case .retention: return debt.retentionDeficit
+    case .committee: return debt.committeeDeficit
+    }
+  }
+
+  private static func latestMovement(
+    for dimension: MarketProofDebtDimension,
+    rows: [MarketPressureRow]
+  ) -> Int {
+    rows.compactMap { row -> Int? in
+      guard let delta = movementValue(for: dimension, movement: row.debtMovement) else {
+        return nil
+      }
+      return delta
+    }.first ?? 0
+  }
+
+  private static func movementValue(
+    for dimension: MarketProofDebtDimension,
+    movement: String
+  ) -> Int? {
+    let key: String
+    switch dimension {
+    case .attention: key = "attention"
+    case .urgency: key = "urgency"
+    case .buyer: key = "buyer"
+    case .budget: key = "budget"
+    case .incumbent: key = "incumbent"
+    case .channel: key = "channel"
+    case .retention: key = "retention"
+    case .committee: key = "committee"
+    }
+    return movement
+      .split(separator: ",")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .first { $0.hasPrefix(key) }?
+      .split(separator: " ")
+      .last
+      .flatMap { Int($0) }
+  }
+
+  private static func isBlocked(
+    dimension: MarketProofDebtDimension,
+    pressureRows: [MarketPressureRow],
+    distributionRows: [DistributionChannelRow],
+    lifecycleRows: [LifecycleStageRow]
+  ) -> Bool {
+    switch dimension {
+    case .buyer, .budget, .committee:
+      return pressureRows.contains {
+        ($0.kind == .buyingCommittee || $0.kind == .budgetChallenge || $0.kind == .procurementReview)
+          && ($0.status == .blocked || $0.status == .rejected)
+      }
+    case .incumbent:
+      return pressureRows.contains {
+        $0.kind == .incumbentDefense && ($0.status == .blocked || $0.status == .rejected)
+      }
+    case .channel, .attention:
+      return distributionRows.contains {
+        ["ignored", "wrong_channel", "too_expensive"].contains($0.verdict)
+      }
+    case .retention:
+      return lifecycleRows.contains { $0.status == .churned || $0.status == .stalled }
+    case .urgency:
+      return pressureRows.contains {
+        $0.kind == .urgencyChallenge && ($0.status == .blocked || $0.status == .rejected)
+      }
+    }
+  }
 }
 
 struct PainSummary: Equatable, Sendable {

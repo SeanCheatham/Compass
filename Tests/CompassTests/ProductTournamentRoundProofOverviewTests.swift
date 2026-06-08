@@ -789,6 +789,10 @@ private struct ProofOverviewCase {
 }
 
 private func roundOneConfig() throws -> ProductTournamentConfig {
+  try configWithActiveRound(.productPlans)
+}
+
+private func seededRoundProofConfig() -> ProductTournamentConfig {
   ProductTournamentConfig.seedDefaults(
     projectTitle: "Reporting Helper",
     rawPain: "Weekly reporting takes too long.",
@@ -807,7 +811,7 @@ private func roundThreeConfig() throws -> ProductTournamentConfig {
 private func configWithActiveRound(
   _ activeKind: ProductTournamentRoundKind
 ) throws -> ProductTournamentConfig {
-  var config = try roundOneConfig()
+  var config = seededRoundProofConfig()
   let tournament = try #require(config.tournaments.first)
   let contender = try #require(config.tournamentContenders.first)
   let planRound = try #require(config.tournamentRounds.first { $0.kind == .productPlans })
