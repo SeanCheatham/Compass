@@ -71,6 +71,7 @@ enum ProductTournamentPlanningDigestFormatter {
     )
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += laneStateLines(config: config, evidenceIndex: evidenceIndex)
+    lines += judgingBarrierLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioScheduleLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationLines(config: config, evidenceIndex: evidenceIndex)
 
@@ -815,6 +816,27 @@ enum ProductTournamentPlanningDigestFormatter {
       .joined(separator: ", ")
     if !resources.isEmpty {
       lines.append("- active_resources \(resources).")
+    }
+    return lines
+  }
+
+  private static func judgingBarrierLines(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [String] {
+    let lanes = ProductTournamentLaneStateBuilder.lanes(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+    )
+    let barriers = ProductTournamentJudgingBarrierBuilder.barriers(
+      lanes: lanes,
+      evidenceIndex: evidenceIndex
+    )
+    guard !barriers.isEmpty else { return [] }
+    var lines = ["Tournament judging barriers:"]
+    for barrier in barriers.prefix(2) {
+      lines.append("- \(bounded(barrier.summary, 320))")
     }
     return lines
   }

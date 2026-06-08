@@ -9,6 +9,7 @@ enum ProductTournamentLaneStatus: String, Codable, CaseIterable, Equatable, Send
   case runningEvidence
   case verifying
   case readyForDecision
+  case awaitingPeers
   case blocked
   case finished
 
@@ -22,6 +23,7 @@ enum ProductTournamentLaneStatus: String, Codable, CaseIterable, Equatable, Send
     case .runningEvidence: return "Running evidence"
     case .verifying: return "Verifying"
     case .readyForDecision: return "Ready for decision"
+    case .awaitingPeers: return "Awaiting peers"
     case .blocked: return "Blocked"
     case .finished: return "Finished"
     }
