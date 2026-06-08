@@ -28,7 +28,7 @@ The blessed generated-project shape is a Cargo workspace:
   provides structured Cargo diagnostics, workspace outlines, Rust indexes,
   schema contracts, coverage gaps, and visual verification results.
 
-Generated apps should also be friendly to deterministic simulation testing:
+Generated apps should also be friendly to testing:
 load-bearing behavior belongs in pure `app-core` transitions with explicit
 serializable inputs and stable snapshot/event-log outputs exposed through
 `app-cli`. That gives agents a safe, sandboxed, replayable way to "use" the app
