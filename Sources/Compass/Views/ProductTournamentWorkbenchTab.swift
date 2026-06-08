@@ -489,6 +489,14 @@ struct ProductTournamentWorkbenchTab: View {
     return roundTwoLaunchBlockedMessage(experimentID: step.experimentID)
   }
 
+  private var nextMovePanelDisabledReason: String? {
+    if let tournamentAutomationRoundTwoBlockedMessage {
+      return ProductPresentationLanguage.disabledReasonLabel(tournamentAutomationRoundTwoBlockedMessage)
+        ?? tournamentAutomationRoundTwoBlockedMessage
+    }
+    return productDecisionCockpit.nextMove?.disabledReason
+  }
+
   private var latestTournamentAutomationCycleFacts: TournamentAutomationCycleWorkbenchFacts? {
     workbenchState.latestCycleFacts
   }
@@ -675,6 +683,17 @@ struct ProductTournamentWorkbenchTab: View {
               cockpit: productDecisionCockpit,
               selectedContenderID: selectedCockpitContenderID,
               onSelectContender: selectCockpitContender
+            )
+            ProductNextMovePanel(
+              nextMove: productDecisionCockpit.nextMove,
+              latestMovement: productDecisionCockpit.latestMovement,
+              canRunPrimaryAction: tournamentAutomationCanRun,
+              isRunningPrimaryAction: isRunningTournamentStep,
+              primaryDisabledReason: nextMovePanelDisabledReason,
+              onRunPrimaryAction: {
+                Task { await runTournamentAutomationStep() }
+              },
+              onViewAudit: selectNextMoveAudit
             )
             ProductEvidenceMatrixView(
               cockpit: productDecisionCockpit,
@@ -4349,6 +4368,19 @@ struct ProductTournamentWorkbenchTab: View {
       }
       loadSelectedRecord()
     }
+  }
+
+  private func selectNextMoveAudit() {
+    guard let step = tournamentAutomationStep else { return }
+    if let row =
+      tournamentAutomationProofTargetScoreboard
+      .flatMap(\.rows)
+      .first(where: { $0.experimentID == step.experimentID })
+    {
+      selectProofScoreboardRow(row)
+      return
+    }
+    selectedExperimentID = step.experimentID
   }
 
   private func selectProofScoreboardRow(

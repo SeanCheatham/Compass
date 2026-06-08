@@ -49,6 +49,34 @@ struct ProductDecisionCockpitTests {
     try #require(nextMove.why.contains(firstLane.title))
   }
 
+  @Test func nextMoveSummaryUsesProductCopyWithoutRawIdentifiers() throws {
+    let config = seededConfig()
+    let cockpit = ProductDecisionCockpit.build(
+      config: config,
+      evidenceIndex: .empty,
+      isPersonaModelAvailable: false
+    )
+    let nextMove = try #require(cockpit.nextMove)
+    let primary = [
+      nextMove.actionTitle,
+      nextMove.why,
+      nextMove.expectedDecision,
+      nextMove.targetContender ?? "",
+      nextMove.targetPersona ?? "",
+      nextMove.disabledReason ?? "",
+    ].joined(separator: "\n")
+
+    try #require(nextMove.actionTitle == "Run plan proof")
+    try #require(nextMove.expectedDecision == "Advance to feasibility, revise the plan, or eliminate")
+    try #require(
+      !ProductPresentationLanguage.primaryTextContainsAuditReference(
+        primary,
+        auditReferences: nextMove.auditReferences
+      )
+    )
+    try #require(nextMove.auditReferences.contains { $0.kind == .experiment })
+  }
+
   @Test func roundTwoLockedImplementationTargetBlocksSiblingInProductTerms() throws {
     let config = roundTwoLockedConfig()
     let cockpit = ProductDecisionCockpit.build(
