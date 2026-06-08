@@ -329,6 +329,56 @@ struct ProductTournamentConfigTests {
     try #require(roundStatuses[.productPlans] == .active)
     try #require(roundStatuses[.coreTechnology] == .planned)
     try #require(roundStatuses[.productImplementation] == .planned)
+    try #require(ProductTournamentConfigStatusConsistency.issues(in: config).isEmpty)
+  }
+
+  @Test func statusConsistencyFlagsCurrentRoundPointerDrift() throws {
+    var config = seededProductTournamentConfig()
+    let tournament = try #require(config.tournaments.first)
+    let planRoundID = try #require(tournament.currentRoundID)
+    let planRoundIndex = try #require(
+      config.tournamentRounds.firstIndex { $0.id == planRoundID }
+    )
+    config.tournamentRounds[planRoundIndex].status = .completed
+
+    let issues = ProductTournamentConfigStatusConsistency.issues(in: config)
+    try #require(
+      issues.contains(
+        .currentRoundNotActive(
+          tournamentID: tournament.id,
+          roundID: planRoundID,
+          status: .completed
+        )
+      )
+    )
+
+    let readModel = ProductTournamentReadModel(config: config)
+    try #require(readModel.activeRound(in: tournament) == nil)
+  }
+
+  @Test func statusConsistencyFlagsMultipleActiveRounds() throws {
+    var config = seededProductTournamentConfig()
+    let tournament = try #require(config.tournaments.first)
+    let coreRoundIndex = try #require(
+      config.tournamentRounds.firstIndex {
+        $0.tournamentID == tournament.id && $0.kind == .coreTechnology
+      }
+    )
+    config.tournamentRounds[coreRoundIndex].status = .active
+
+    let issues = ProductTournamentConfigStatusConsistency.issues(in: config)
+    let activeRoundIDs = config.tournamentRounds
+      .filter { $0.tournamentID == tournament.id && $0.status == .active }
+      .map(\.id)
+      .sorted()
+    try #require(
+      issues.contains(
+        .multipleActiveRounds(
+          tournamentID: tournament.id,
+          roundIDs: activeRoundIDs
+        )
+      )
+    )
   }
 
   @Test func productTournamentReadModelCentralizesSeededLookups() throws {

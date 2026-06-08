@@ -111,7 +111,8 @@ struct ProductTournamentReadModel: Sendable {
   func activeRound(in tournament: ProductTournament) -> ProductTournamentRound? {
     if let currentRoundID = tournament.currentRoundID,
       let round = round(id: currentRoundID),
-      round.tournamentID == tournament.id
+      round.tournamentID == tournament.id,
+      round.status == .active
     {
       return round
     }
