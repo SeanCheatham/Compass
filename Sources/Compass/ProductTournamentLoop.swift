@@ -2839,6 +2839,7 @@ enum TournamentAutomationProofTargetAdvisor {
     evidenceIndex: ProductTournamentEvidenceIndex,
     isPersonaModelAvailable: Bool
   ) -> TournamentAutomationProofTarget? {
+    guard config.marketCompilationStatus == .compiled else { return nil }
     guard
       let contender = config.tournamentContenders.first(where: { $0.experimentID == experiment.id }
       ),

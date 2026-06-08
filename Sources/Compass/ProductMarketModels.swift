@@ -350,6 +350,25 @@ enum MarketForceKind: String, Codable, CaseIterable, Equatable, Sendable {
   case competitiveMoat = "competitive_moat"
 }
 
+enum MarketCompilationStatus: String, Codable, CaseIterable, Equatable, Sendable {
+  case missing
+  case compiled
+  case needsReframe = "needs_reframe"
+  case blockedByInsufficientPain = "blocked_by_insufficient_pain"
+}
+
+extension ProductTournamentConfig {
+  var marketCompilationStatus: MarketCompilationStatus {
+    if markets.contains(where: { !$0.actors.isEmpty && !$0.incumbents.isEmpty && !$0.channels.isEmpty }) {
+      return .compiled
+    }
+    let hasPain =
+      !rawPain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || painHypotheses.contains { $0.status == .active || $0.status == .draft }
+    return hasPain ? .missing : .blockedByInsufficientPain
+  }
+}
+
 struct MarketProofDebt: Codable, Equatable, Sendable {
   var attentionDeficit: Int
   var urgencyDeficit: Int

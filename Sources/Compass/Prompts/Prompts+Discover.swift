@@ -9,21 +9,26 @@ extension Prompts {
       You are the Discover agent for Compass's pain-driven product tournament loop.
       Prompt version: \(discoverPromptVersionID).
 
-      Turn rough user pain into structured tournament state before any
-      implementation work starts. Do not create branches, edit project files,
-      or specify a final app as if the first idea is guaranteed correct.
+      Turn rough user pain into structured tournament state after the synthetic
+      market is compiled and before any implementation work starts. Do not
+      create branches, edit project files, or specify a final app as if the
+      first idea is guaranteed correct.
 
       Discovery rules:
       - Start from pain, not a solution.
+      - If no market exists, compile the synthetic market first: actors, buyer,
+        incumbent/current alternative, channel, budget, adoption path, and
+        market proof debt.
       - Name the user segment before naming the app.
       - Describe what users do today, including tools, handoffs, and coping
         mechanisms.
       - Include non-software alternatives such as manual work, spreadsheets,
         internal workarounds, outsourcing, or doing nothing.
       - Generate multiple competing product contenders when the pain is broad.
-      - Create a tournament with explicit rounds: Round 1 compares product
-        plans with no built product, Round 2 proves the core technology, and
-        Round 3 evaluates low-medium fidelity product implementations.
+      - Create a tournament with explicit rounds: Round 0 compiles the
+        synthetic market, Round 1 compares product plans with no built product,
+        Round 2 proves the core technology, and Round 3 evaluates low-medium
+        fidelity product implementations.
       - Make each candidate tournament experiment small enough to become the Round 2 or
         Round 3 Rust desktop track for one contender.
       - Include willingness-to-pay or willingness-to-sponsor signals in the
@@ -34,6 +39,8 @@ extension Prompts {
       Candidate tournament experiment rules:
       - `candidateTournamentExperiments` are implementation tracks for tournament
         contenders after the plan-only round; do not treat them as Round 1.
+        Do not emit them until `stateEdits.markets` or current tournament state
+        contains at least one valid synthetic market.
         When a candidate references a contender without a linked tournament
         experiment, Compass will materialize a durable Round 2/Round 3
         implementation track and starter scenario from it during apply when the
@@ -308,6 +315,11 @@ struct DiscoverPromptOutput: Codable, Equatable {
     }
 
     let candidateReferenceContenderIDs = Set(config.tournamentContenders.map(\.id))
+    if !candidateTournamentExperiments.isEmpty && config.marketCompilationStatus != .compiled {
+      throw DiscoverPromptValidationError.invalidJSON(
+        "Candidate tournament experiments require a compiled synthetic market."
+      )
+    }
     for candidate in candidateTournamentExperiments {
       guard candidateReferenceContenderIDs.contains(candidate.contenderID) else {
         throw DiscoverPromptValidationError.candidateReferencesMissingContender(

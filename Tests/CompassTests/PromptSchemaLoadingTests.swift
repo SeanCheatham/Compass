@@ -15,6 +15,7 @@ struct PromptSchemaLoadingTests {
       ("plan", Prompts.planSchema),
       ("planHostXcode", Prompts.planHostXcodeSchema),
       ("discover", Prompts.discoverSchema),
+      ("market-compiler", Prompts.marketCompilerSchema),
       ("develop", Prompts.developSchema),
       ("reflect", Prompts.reflectSchema),
       ("reflectHostXcode", Prompts.reflectHostXcodeSchema),

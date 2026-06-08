@@ -1,0 +1,375 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "status",
+    "marketEdits",
+    "contenderSeeds",
+    "openMarketQuestions",
+    "fragileAssumptions"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Concise explanation of the compiled synthetic market hypothesis."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["missing", "compiled", "needs_reframe", "blocked_by_insufficient_pain"]
+    },
+    "marketEdits": {
+      "type": "array",
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/productMarket" }
+    },
+    "contenderSeeds": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "$ref": "#/$defs/marketContenderSeed" }
+    },
+    "openMarketQuestions": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "type": "string", "maxLength": 240 }
+    },
+    "fragileAssumptions": {
+      "type": "array",
+      "maxItems": 12,
+      "items": { "$ref": "#/$defs/marketAssumption" }
+    }
+  },
+  "$defs": {
+    "productMarket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "painID",
+        "category",
+        "summary",
+        "marketForces",
+        "actors",
+        "buyingCommittees",
+        "incumbents",
+        "channels",
+        "budgetModels",
+        "adoptionTimelines",
+        "marketProofDebt"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "painID": { "type": "string" },
+        "category": { "type": "string" },
+        "summary": { "type": "string" },
+        "marketForces": {
+          "type": "array",
+          "maxItems": 12,
+          "items": { "$ref": "#/$defs/marketForce" }
+        },
+        "actors": {
+          "type": "array",
+          "maxItems": 12,
+          "items": { "$ref": "#/$defs/marketActor" }
+        },
+        "buyingCommittees": {
+          "type": "array",
+          "maxItems": 6,
+          "items": { "$ref": "#/$defs/buyingCommittee" }
+        },
+        "incumbents": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/incumbentPressure" }
+        },
+        "channels": {
+          "type": "array",
+          "maxItems": 10,
+          "items": { "$ref": "#/$defs/acquisitionChannel" }
+        },
+        "budgetModels": {
+          "type": "array",
+          "maxItems": 6,
+          "items": { "$ref": "#/$defs/budgetModel" }
+        },
+        "adoptionTimelines": {
+          "type": "array",
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/adoptionTimeline" }
+        },
+        "marketProofDebt": { "$ref": "#/$defs/marketProofDebt" }
+      }
+    },
+    "marketActor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "marketID",
+        "segmentID",
+        "role",
+        "name",
+        "jobToBeDone",
+        "successCriteria",
+        "objections",
+        "informationSources",
+        "trustThreshold"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "marketID": { "type": "string" },
+        "segmentID": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "role": {
+          "type": "string",
+          "enum": [
+            "operator",
+            "economic_buyer",
+            "manager_sponsor",
+            "technical_gatekeeper",
+            "procurement_gatekeeper",
+            "security_reviewer",
+            "incumbent_defender",
+            "channel_visitor",
+            "churned_user"
+          ]
+        },
+        "name": { "type": "string" },
+        "jobToBeDone": { "type": "string" },
+        "successCriteria": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "objections": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "informationSources": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "trustThreshold": { "type": "string" }
+      }
+    },
+    "buyingCommittee": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "marketID",
+        "name",
+        "actorIDs",
+        "decisionProcess",
+        "approvalThreshold",
+        "vetoRisks"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "marketID": { "type": "string" },
+        "name": { "type": "string" },
+        "actorIDs": { "type": "array", "maxItems": 12, "items": { "type": "string" } },
+        "decisionProcess": { "type": "string" },
+        "approvalThreshold": { "type": "string" },
+        "vetoRisks": { "type": "array", "maxItems": 8, "items": { "type": "string" } }
+      }
+    },
+    "incumbentPressure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "marketID",
+        "alternativeID",
+        "name",
+        "category",
+        "whyItWinsToday",
+        "switchingMoat",
+        "copyRisk",
+        "failureOpening"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "marketID": { "type": "string" },
+        "alternativeID": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "whyItWinsToday": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "switchingMoat": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "copyRisk": { "type": "string" },
+        "failureOpening": { "type": "string" }
+      }
+    },
+    "acquisitionChannel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "marketID",
+        "kind",
+        "audience",
+        "userIntent",
+        "messageFit",
+        "reachability",
+        "costRisk",
+        "proofRequired"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "marketID": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "founder_led_sales",
+            "cold_outbound",
+            "seo",
+            "marketplace",
+            "community",
+            "open_source",
+            "integration_partner",
+            "paid_ads",
+            "templates",
+            "content",
+            "existing_audience"
+          ]
+        },
+        "audience": { "type": "string" },
+        "userIntent": { "type": "string" },
+        "messageFit": { "type": "string" },
+        "reachability": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "costRisk": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "proofRequired": { "type": "array", "maxItems": 8, "items": { "type": "string" } }
+      }
+    },
+    "budgetModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "marketID",
+        "buyerActorID",
+        "budgetSource",
+        "priceToleranceCentsMonthly",
+        "procurementThresholdCentsAnnual",
+        "roiLogic",
+        "objectionTriggers"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "marketID": { "type": "string" },
+        "buyerActorID": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "budgetSource": { "type": "string" },
+        "priceToleranceCentsMonthly": { "anyOf": [{ "type": "integer" }, { "type": "null" }] },
+        "procurementThresholdCentsAnnual": { "anyOf": [{ "type": "integer" }, { "type": "null" }] },
+        "roiLogic": { "type": "string" },
+        "objectionTriggers": { "type": "array", "maxItems": 8, "items": { "type": "string" } }
+      }
+    },
+    "adoptionTimeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "marketID", "name", "stages"],
+      "properties": {
+        "id": { "type": "string" },
+        "marketID": { "type": "string" },
+        "name": { "type": "string" },
+        "stages": {
+          "type": "array",
+          "maxItems": 12,
+          "items": { "$ref": "#/$defs/adoptionStage" }
+        }
+      }
+    },
+    "adoptionStage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "dayOffset", "trigger", "userQuestion", "passSignal", "failSignal"],
+      "properties": {
+        "id": { "type": "string" },
+        "dayOffset": { "type": "integer" },
+        "trigger": { "type": "string" },
+        "userQuestion": { "type": "string" },
+        "passSignal": { "type": "string" },
+        "failSignal": { "type": "string" }
+      }
+    },
+    "marketForce": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "marketID", "kind", "summary", "strength", "evidenceBasis"],
+      "properties": {
+        "id": { "type": "string" },
+        "marketID": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "urgency",
+            "frequency",
+            "pain_cost",
+            "alternative_gravity",
+            "budget_clarity",
+            "channel_reachability",
+            "trust_risk",
+            "switching_cost",
+            "competitive_moat"
+          ]
+        },
+        "summary": { "type": "string" },
+        "strength": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "evidenceBasis": { "type": "string" }
+      }
+    },
+    "marketProofDebt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attentionDeficit",
+        "urgencyDeficit",
+        "buyerClarityDeficit",
+        "budgetFitDeficit",
+        "incumbentDefeatDeficit",
+        "channelFitDeficit",
+        "retentionDeficit",
+        "committeeDeficit"
+      ],
+      "properties": {
+        "attentionDeficit": { "type": "integer", "minimum": 0 },
+        "urgencyDeficit": { "type": "integer", "minimum": 0 },
+        "buyerClarityDeficit": { "type": "integer", "minimum": 0 },
+        "budgetFitDeficit": { "type": "integer", "minimum": 0 },
+        "incumbentDefeatDeficit": { "type": "integer", "minimum": 0 },
+        "channelFitDeficit": { "type": "integer", "minimum": 0 },
+        "retentionDeficit": { "type": "integer", "minimum": 0 },
+        "committeeDeficit": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "marketContenderSeed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "marketID",
+        "targetActorIDs",
+        "promise",
+        "wedge",
+        "likelyBuyerActorID",
+        "likelyChannelID",
+        "incumbentToBeatID",
+        "requiredMarketProof"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "marketID": { "type": "string" },
+        "targetActorIDs": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "promise": { "type": "string" },
+        "wedge": { "type": "string" },
+        "likelyBuyerActorID": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "likelyChannelID": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "incumbentToBeatID": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "requiredMarketProof": { "type": "array", "maxItems": 8, "items": { "type": "string" } }
+      }
+    },
+    "marketAssumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "marketID", "text", "fragility", "invalidationSignal", "evidenceBasis"],
+      "properties": {
+        "id": { "type": "string" },
+        "marketID": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "text": { "type": "string" },
+        "fragility": { "type": "string" },
+        "invalidationSignal": { "type": "string" },
+        "evidenceBasis": { "type": "string" }
+      }
+    }
+  }
+}

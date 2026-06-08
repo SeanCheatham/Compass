@@ -451,6 +451,116 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
     createdAt: timestamp,
     updatedAt: timestamp
   )
+  let operatorActor = MarketActor(
+    id: "actor-incident-lead",
+    marketID: "market-incident-response",
+    segmentID: segment.id,
+    role: .operator,
+    name: "Incident lead",
+    jobToBeDone: "Send an accurate customer update during incident pressure.",
+    successCriteria: ["Find owner and decision context quickly"],
+    objections: ["Slack may remain faster in the live moment"],
+    informationSources: ["Incident channel", "Ticket updates"],
+    trustThreshold: "Must be faster and clearer than Slack plus checklist."
+  )
+  let buyerActor = MarketActor(
+    id: "actor-support-director",
+    marketID: "market-incident-response",
+    segmentID: segment.id,
+    role: .economicBuyer,
+    name: "Support director",
+    jobToBeDone: "Reduce customer-facing incident communication risk.",
+    successCriteria: ["Fewer repeated decisions", "Clearer customer updates"],
+    objections: ["The pain may not justify a standalone budget"],
+    informationSources: ["Incident reviews", "Customer escalations"],
+    trustThreshold: "Needs proof that update quality improves in recurring incidents."
+  )
+  let market = ProductMarket(
+    id: "market-incident-response",
+    painID: pain.id,
+    category: "Incident response communication",
+    summary: "Synthetic market for teams that lose owner and decision context during incidents.",
+    marketForces: [
+      MarketForce(
+        id: "force-incident-urgency",
+        marketID: "market-incident-response",
+        kind: .urgency,
+        summary: "Incident updates become urgent when customers are waiting.",
+        strength: 4,
+        evidenceBasis: "User-provided incident pain."
+      )
+    ],
+    actors: [operatorActor, buyerActor],
+    buyingCommittees: [
+      BuyingCommittee(
+        id: "committee-incident-pilot",
+        marketID: "market-incident-response",
+        name: "Incident pilot committee",
+        actorIDs: [operatorActor.id, buyerActor.id],
+        decisionProcess: "Operator proves update workflow; buyer checks risk reduction.",
+        approvalThreshold: "Approve if the workflow beats Slack during a recurring incident.",
+        vetoRisks: ["No budget owner", "Slack remains good enough"]
+      )
+    ],
+    incumbents: [
+      IncumbentPressure(
+        id: "incumbent-slack-checklist",
+        marketID: "market-incident-response",
+        alternativeID: alternative.id,
+        name: "Slack plus checklist",
+        category: "Manual workaround",
+        whyItWinsToday: ["Already used during incidents"],
+        switchingMoat: ["Live incident habits"],
+        copyRisk: "Existing incident tools could add update templates.",
+        failureOpening: "Fails when decision context is repeatedly lost."
+      )
+    ],
+    channels: [
+      AcquisitionChannel(
+        id: "channel-founder-led-incident",
+        marketID: "market-incident-response",
+        kind: .founderLedSales,
+        audience: "Support and incident leaders",
+        userIntent: "Find a safer way to communicate incident decisions.",
+        messageFit: "Lead with customer-update risk and Slack comparison.",
+        reachability: 3,
+        costRisk: 2,
+        proofRequired: ["Buyer names recurring incident cost"]
+      )
+    ],
+    budgetModels: [
+      BudgetModel(
+        id: "budget-support-risk",
+        marketID: "market-incident-response",
+        buyerActorID: buyerActor.id,
+        budgetSource: "Support operations budget",
+        roiLogic: "Reduce escalation risk and repeated incident coordination.",
+        objectionTriggers: ["Incident frequency is too low"]
+      )
+    ],
+    adoptionTimelines: [
+      AdoptionTimeline(
+        id: "timeline-incident-adoption",
+        marketID: "market-incident-response",
+        name: "Incident adoption",
+        stages: [
+          AdoptionStage(
+            id: "stage-first-incident",
+            dayOffset: 0,
+            trigger: "A live incident needs a customer update.",
+            userQuestion: "Is this clearer than Slack?",
+            passSignal: "The update is drafted with less owner chasing.",
+            failSignal: "The lead returns to Slack."
+          )
+        ]
+      )
+    ],
+    marketProofDebt: MarketProofDebt(
+      attentionDeficit: 1,
+      budgetFitDeficit: 1,
+      retentionDeficit: 2
+    )
+  )
   let rounds = [
     ProductTournamentRound(
       id: "round-incident-plans",
@@ -503,6 +613,7 @@ private func makeDiscoverOutput() -> DiscoverPromptOutput {
       userSegments: [segment],
       currentWorkflows: [workflow],
       alternatives: [alternative],
+      markets: [market],
       contenderPlans: [commandBoard, timeline],
       tournamentExperiments: [experiment],
       tournaments: [tournament],
