@@ -50,6 +50,40 @@ fn ping_round_trip_and_shutdown() {
         assert_eq!(tournament["result"]["schemaVersion"], 1);
         assert_eq!(tournament["result"]["contenderCount"], 0);
 
+        let tools = send(&socket, "tools-1", "agent_tool_list");
+        assert_eq!(tools["ok"], true);
+        assert!(tools["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["name"] == "read_file"));
+
+        let run = send_with_params(
+            &socket,
+            "agent-start-1",
+            "agent_run_start",
+            serde_json::json!({
+                "repoPath": root.to_string_lossy(),
+                "phase": "develop",
+                "systemPrompt": "system",
+                "userPrompt": "user",
+                "settings": {},
+                "tools": ["read_file"],
+                "maxIterations": 1,
+                "wallClockTimeoutSecs": 60
+            }),
+        );
+        assert_eq!(run["ok"], true);
+        let run_id = run["result"]["runId"].as_str().unwrap();
+        let status = send_with_params(
+            &socket,
+            "agent-status-1",
+            "agent_run_status",
+            serde_json::json!({ "run_id": run_id }),
+        );
+        assert_eq!(status["ok"], true);
+        assert_eq!(status["result"]["status"], "completed");
+
         let shutdown = send(&socket, "shutdown-1", "shutdown");
         assert_eq!(shutdown["ok"], true);
     })();

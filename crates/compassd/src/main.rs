@@ -1,9 +1,13 @@
 use anyhow::{anyhow, Context, Result};
+use compass_core::agent::executor::{start_mock_run, AgentRunLifecycle, AgentRunStatus};
+use compass_core::agent::run::AgentRunConfig;
+use compass_core::agent::tools;
 use compass_core::protocol::daemon::{capabilities, DaemonRequest, DaemonResponse};
 use compass_core::protocol::SCHEMA_VERSION;
 use compass_core::tournament::read_model::ProductTournamentReadModelSummary;
 use compass_core::tournament::store::TournamentWorkspaceStore;
 use compass_core::COMPASS_CORE_VERSION;
+use std::collections::HashMap;
 use std::env;
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
@@ -54,6 +58,7 @@ fn run() -> Result<()> {
     listener.set_nonblocking(true)?;
 
     let shutdown = Arc::new(AtomicBool::new(false));
+    let state = Arc::new(DaemonState::default());
     let logger = Arc::new(logger);
     logger.log(format!("listening socket={}", args.socket.display()))?;
 
@@ -61,9 +66,10 @@ fn run() -> Result<()> {
         match listener.accept() {
             Ok((stream, _addr)) => {
                 let shutdown = Arc::clone(&shutdown);
+                let state = Arc::clone(&state);
                 let logger = Arc::clone(&logger);
                 thread::spawn(move || {
-                    if let Err(error) = handle_client(stream, shutdown, logger.clone()) {
+                    if let Err(error) = handle_client(stream, shutdown, state, logger.clone()) {
                         let _ = logger.log(format!("client error: {error:#}"));
                     }
                 });
@@ -80,7 +86,12 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn handle_client(stream: UnixStream, shutdown: Arc<AtomicBool>, logger: Arc<Logger>) -> Result<()> {
+fn handle_client(
+    stream: UnixStream,
+    shutdown: Arc<AtomicBool>,
+    state: Arc<DaemonState>,
+    logger: Arc<Logger>,
+) -> Result<()> {
     let peer = stream.try_clone()?;
     let mut reader = BufReader::new(stream);
     let mut writer = peer;
@@ -93,7 +104,7 @@ fn handle_client(stream: UnixStream, shutdown: Arc<AtomicBool>, logger: Arc<Logg
         }
         let started = Instant::now();
         let response = match serde_json::from_str::<DaemonRequest>(&line) {
-            Ok(request) => handle_request(request, &shutdown),
+            Ok(request) => handle_request(request, &shutdown, &state),
             Err(error) => DaemonResponse::error("", vec![format!("invalid request JSON: {error}")]),
         };
         let method = if response.id.is_empty() {
@@ -118,7 +129,11 @@ fn handle_client(stream: UnixStream, shutdown: Arc<AtomicBool>, logger: Arc<Logg
     Ok(())
 }
 
-fn handle_request(request: DaemonRequest, shutdown: &AtomicBool) -> DaemonResponse {
+fn handle_request(
+    request: DaemonRequest,
+    shutdown: &AtomicBool,
+    state: &DaemonState,
+) -> DaemonResponse {
     if request.schema_version != SCHEMA_VERSION {
         return DaemonResponse::error(
             request.id,
@@ -152,11 +167,84 @@ fn handle_request(request: DaemonRequest, shutdown: &AtomicBool) -> DaemonRespon
             let state = store.read_state()?;
             Ok(ProductTournamentReadModelSummary::from_state(&state))
         }),
+        "agent_tool_list" => DaemonResponse::ok(request.id, tools::registry()),
+        "agent_run_start" => start_agent_run(request, state),
+        "agent_run_status" => agent_run_status(request, state),
+        "agent_run_cancel" => agent_run_cancel(request, state),
         _ => DaemonResponse::error(
             request.id,
             vec![format!("unknown method {}", request.method)],
         ),
     }
+}
+
+#[derive(Default)]
+struct DaemonState {
+    agent_runs: Mutex<HashMap<String, AgentRunStatus>>,
+}
+
+fn start_agent_run(request: DaemonRequest, state: &DaemonState) -> DaemonResponse {
+    let id = request.id;
+    let config = match serde_json::from_value::<AgentRunConfig>(request.params) {
+        Ok(config) => config,
+        Err(error) => {
+            return DaemonResponse::error(id, vec![format!("invalid AgentRunConfig: {error}")])
+        }
+    };
+    let (result, status) = start_mock_run(config);
+    state
+        .agent_runs
+        .lock()
+        .expect("agent run lock poisoned")
+        .insert(result.run_id.clone(), status);
+    DaemonResponse::ok(id, result)
+}
+
+fn agent_run_status(request: DaemonRequest, state: &DaemonState) -> DaemonResponse {
+    let id = request.id;
+    let Some(run_id) =
+        string_param(&request.params, "run_id").or_else(|| string_param(&request.params, "runId"))
+    else {
+        return DaemonResponse::error(id, vec!["missing run_id".to_owned()]);
+    };
+    match state
+        .agent_runs
+        .lock()
+        .expect("agent run lock poisoned")
+        .get(&run_id)
+        .cloned()
+    {
+        Some(status) => DaemonResponse::ok(id, status),
+        None => DaemonResponse::error(id, vec![format!("unknown agent run {run_id}")]),
+    }
+}
+
+fn agent_run_cancel(request: DaemonRequest, state: &DaemonState) -> DaemonResponse {
+    let id = request.id;
+    let Some(run_id) =
+        string_param(&request.params, "run_id").or_else(|| string_param(&request.params, "runId"))
+    else {
+        return DaemonResponse::error(id, vec!["missing run_id".to_owned()]);
+    };
+    let mut runs = state.agent_runs.lock().expect("agent run lock poisoned");
+    let Some(status) = runs.get_mut(&run_id) else {
+        return DaemonResponse::error(id, vec![format!("unknown agent run {run_id}")]);
+    };
+    status.status = AgentRunLifecycle::Cancelled;
+    DaemonResponse::ok(
+        id,
+        serde_json::json!({
+            "runId": run_id,
+            "cancelled": true
+        }),
+    )
+}
+
+fn string_param(params: &serde_json::Value, key: &str) -> Option<String> {
+    params
+        .get(key)
+        .and_then(|value| value.as_str())
+        .map(str::to_owned)
 }
 
 fn with_tournament_store<T: serde::Serialize>(

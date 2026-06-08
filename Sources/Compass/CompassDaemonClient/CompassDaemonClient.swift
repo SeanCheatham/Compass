@@ -71,6 +71,32 @@ final class CompassDaemonClient {
     )
   }
 
+  func agentRunStart(config: CompassDaemonAgentRunConfig) async throws
+    -> CompassDaemonAgentRunStart
+  {
+    try await sendJSON(
+      method: "agent_run_start",
+      params: config,
+      resultType: CompassDaemonAgentRunStart.self
+    )
+  }
+
+  func agentRunStatus(runID: String) async throws -> CompassDaemonAgentRunStatus {
+    try await send(
+      method: "agent_run_status",
+      params: ["run_id": runID],
+      resultType: CompassDaemonAgentRunStatus.self
+    )
+  }
+
+  func agentRunCancel(runID: String) async throws -> CompassDaemonAgentRunCancel {
+    try await send(
+      method: "agent_run_cancel",
+      params: ["run_id": runID],
+      resultType: CompassDaemonAgentRunCancel.self
+    )
+  }
+
   func send<Result: Decodable>(
     method: String,
     params: [String: String] = [:],
@@ -101,6 +127,38 @@ final class CompassDaemonClient {
 
   private func sendRaw(method: String, params: [String: String] = [:]) async throws -> Data {
     let request = CompassDaemonRequest(id: UUID().uuidString, method: method, params: params)
+    var data = try encoder.encode(request)
+    data.append(0x0A)
+    let socketPath = socketURL.path
+    return try await withCheckedThrowingContinuation { continuation in
+      DispatchQueue.global(qos: .userInitiated).async {
+        do {
+          continuation.resume(returning: try Self.roundTrip(socketPath: socketPath, data: data))
+        } catch {
+          continuation.resume(throwing: error)
+        }
+      }
+    }
+  }
+
+  private func sendJSON<Params: Encodable, Result: Decodable>(
+    method: String,
+    params: Params,
+    resultType: Result.Type
+  ) async throws -> Result {
+    let responseData = try await sendRawJSON(method: method, params: params)
+    let response = try decoder.decode(CompassDaemonResponse<Result>.self, from: responseData)
+    guard response.ok else {
+      throw CompassDaemonClientError.daemonRejected(response.errors)
+    }
+    guard let result = response.result else {
+      throw CompassDaemonClientError.emptyResponse
+    }
+    return result
+  }
+
+  private func sendRawJSON<Params: Encodable>(method: String, params: Params) async throws -> Data {
+    let request = CompassDaemonJSONRequest(id: UUID().uuidString, method: method, params: params)
     var data = try encoder.encode(request)
     data.append(0x0A)
     let socketPath = socketURL.path

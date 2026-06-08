@@ -71,6 +71,10 @@ pub fn supported_methods() -> Vec<String> {
         "tournament_load",
         "tournament_validate",
         "tournament_read_model",
+        "agent_tool_list",
+        "agent_run_start",
+        "agent_run_status",
+        "agent_run_cancel",
     ]
     .into_iter()
     .map(str::to_owned)
@@ -91,6 +95,8 @@ pub fn capabilities(
             "daemon.ndjson".to_owned(),
             "schemas.compassd.v1".to_owned(),
             "tournament.read_only".to_owned(),
+            "agent.mock_executor".to_owned(),
+            "agent.host_tools".to_owned(),
         ],
     }
 }

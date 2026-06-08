@@ -14,6 +14,20 @@ struct CompassDaemonRequest: Encodable {
   }
 }
 
+struct CompassDaemonJSONRequest<Params: Encodable>: Encodable {
+  var schemaVersion = 1
+  var id: String
+  var method: String
+  var params: Params
+
+  enum CodingKeys: String, CodingKey {
+    case schemaVersion = "schema_version"
+    case id
+    case method
+    case params
+  }
+}
+
 struct CompassDaemonResponse<Result: Decodable>: Decodable {
   var schemaVersion: Int
   var id: String
@@ -97,6 +111,53 @@ struct CompassDaemonTournamentRoundSummary: Decodable, Equatable {
   var title: String
   var lifecycle: String
   var contenderCount: Int
+}
+
+struct CompassDaemonAgentRunConfig: Encodable, Equatable {
+  var repoPath: String
+  var phase: String
+  var systemPrompt: String
+  var userPrompt: String
+  var settings: [String: String] = [:]
+  var tools: [String] = []
+  var maxIterations: Int = 40
+  var wallClockTimeoutSecs: Int = 3_600
+}
+
+struct CompassDaemonAgentRunStart: Decodable, Equatable {
+  var runID: String
+
+  enum CodingKeys: String, CodingKey {
+    case runID = "runId"
+  }
+}
+
+struct CompassDaemonAgentRunStatus: Decodable, Equatable {
+  var runID: String
+  var phase: String
+  var status: String
+  var iteration: Int
+  var elapsedMs: Int
+  var resultJson: String?
+
+  enum CodingKeys: String, CodingKey {
+    case runID = "runId"
+    case phase
+    case status
+    case iteration
+    case elapsedMs
+    case resultJson
+  }
+}
+
+struct CompassDaemonAgentRunCancel: Decodable, Equatable {
+  var runID: String
+  var cancelled: Bool
+
+  enum CodingKeys: String, CodingKey {
+    case runID = "runId"
+    case cancelled
+  }
 }
 
 struct CompassDaemonDiagnostics: Equatable {

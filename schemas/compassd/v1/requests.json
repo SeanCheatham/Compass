@@ -21,7 +21,11 @@
         "get_capabilities",
         "tournament_load",
         "tournament_validate",
-        "tournament_read_model"
+        "tournament_read_model",
+        "agent_tool_list",
+        "agent_run_start",
+        "agent_run_status",
+        "agent_run_cancel"
       ]
     },
     "params": {
