@@ -2395,8 +2395,10 @@ struct ProductTournamentWorkbenchTab: View {
   @ViewBuilder
   private var scenarioAuthoring: some View {
     if let experiment = selectedExperiment {
-      WorkbenchSection("Scenario Authoring", systemImage: "target") {
-        VStack(alignment: .leading, spacing: 9) {
+      WorkbenchSection("Product Test Builder", systemImage: "target") {
+        ProductTestBuilderView(
+          draft: productTestDraft(for: experiment)
+        ) {
           if !scenariosForSelectedExperiment.isEmpty {
             Picker("Scenario", selection: scenarioSelectionBinding) {
               ForEach(scenariosForSelectedExperiment) { scenario in
@@ -2406,16 +2408,10 @@ struct ProductTournamentWorkbenchTab: View {
             .pickerStyle(.menu)
           }
 
-          TextField("Scenario title", text: $scenarioTitle)
+          TextField("Product question", text: $scenarioTitle)
             .textFieldStyle(.roundedBorder)
           HStack(spacing: 8) {
-            TextField("Cohort title", text: $scenarioCohortTitle)
-              .textFieldStyle(.roundedBorder)
-            Toggle("Cohort enabled", isOn: $scenarioCohortEnabled)
-              .toggleStyle(.checkbox)
-          }
-          HStack(spacing: 8) {
-            Picker("Segment", selection: $scenarioSegmentID) {
+            Picker("Target user", selection: $scenarioSegmentID) {
               ForEach(config.userSegments) { segment in
                 Text(segment.name).tag(segment.id)
               }
@@ -2439,36 +2435,7 @@ struct ProductTournamentWorkbenchTab: View {
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.18)))
           TextField("Success signal", text: $scenarioSuccessSignal)
             .textFieldStyle(.roundedBorder)
-          HStack(spacing: 10) {
-            Stepper("Turns \(scenarioMaxTurns)", value: $scenarioMaxTurns, in: 1...20)
-              .frame(width: 130, alignment: .leading)
-            Stepper(
-              "Timeout \(Int(scenarioTimeoutSeconds))s", value: $scenarioTimeoutSeconds,
-              in: 5...1200, step: 5
-            )
-            .frame(width: 170, alignment: .leading)
-            Toggle("Enabled", isOn: $scenarioEnabled)
-              .toggleStyle(.checkbox)
-          }
-          WorkbenchFact(
-            label: "Target",
-            value: scenarioTargetCommit.isEmpty
-              ? (experiment.currentSha ?? experiment.baseSha ?? "no commit")
-              : scenarioTargetCommit
-          )
-          roundTwoImplementationTargetNotice
-          if let contractAvailable {
-            Label(
-              contractAvailable
-                ? "Tournament experience contract available"
-                : "Tournament experience contract missing",
-              systemImage: contractAvailable ? "checkmark.circle" : "exclamationmark.triangle"
-            )
-            .font(.caption)
-            .foregroundStyle(contractAvailable ? Color.secondary : Color.orange)
-          } else {
-            WorkbenchEmptyLine("Checking tournament experience contract...")
-          }
+        } runControls: {
           if let scenarioRunMessage {
             Text(scenarioRunMessage)
               .font(.caption)
@@ -2480,7 +2447,7 @@ struct ProductTournamentWorkbenchTab: View {
               Task { await saveScenarioDraft() }
             } label: {
               Label(
-                isSavingScenario ? "Saving" : "Save Scenario", systemImage: "square.and.arrow.down")
+                isSavingScenario ? "Saving" : "Save Test", systemImage: "square.and.arrow.down")
             }
             .buttonStyle(.bordered)
             .disabled(isSavingScenario || !scenarioDraftCanSave)
@@ -2488,20 +2455,20 @@ struct ProductTournamentWorkbenchTab: View {
             Button {
               Task { await runScenarioModelFree() }
             } label: {
-              Label(isRunningScenario ? "Running" : "Run Model-Free", systemImage: "play.circle")
+              Label(isRunningScenario ? "Running" : "Run Test", systemImage: "play.circle")
             }
             .buttonStyle(.borderedProminent)
             .disabled(isRunningScenario || !scenarioCanRun)
             .help(
               selectedRoundTwoBlockedMessage
-                ?? "Run this scenario with a model-free simulated user."
+                ?? "Run this product test with a model-free simulated user."
             )
 
             Button {
               Task { await runScenarioPersonaModel() }
             } label: {
               Label(
-                isRunningScenario ? "Running" : "Run Persona-Model",
+                isRunningScenario ? "Running" : "Persona Test",
                 systemImage: "brain.head.profile"
               )
             }
@@ -2534,7 +2501,7 @@ struct ProductTournamentWorkbenchTab: View {
               Task { await runScenarioCohortPersonaModel() }
             } label: {
               Label(
-                isRunningScenario ? "Running" : "Persona-Model Cohort",
+                isRunningScenario ? "Running" : "Persona Cohort",
                 systemImage: "person.2.wave.2"
               )
             }
@@ -2546,6 +2513,43 @@ struct ProductTournamentWorkbenchTab: View {
                   ? "Run the cohort with persona-model simulated users"
                   : ProductTournamentPersonaActionModelError.unavailable.localizedDescription)
             )
+          }
+        } auditContent: {
+          HStack(spacing: 8) {
+            TextField("Cohort title", text: $scenarioCohortTitle)
+              .textFieldStyle(.roundedBorder)
+            Toggle("Cohort enabled", isOn: $scenarioCohortEnabled)
+              .toggleStyle(.checkbox)
+          }
+          HStack(spacing: 10) {
+            Stepper("Turns \(scenarioMaxTurns)", value: $scenarioMaxTurns, in: 1...20)
+              .frame(width: 130, alignment: .leading)
+            Stepper(
+              "Timeout \(Int(scenarioTimeoutSeconds))s", value: $scenarioTimeoutSeconds,
+              in: 5...1200, step: 5
+            )
+            .frame(width: 170, alignment: .leading)
+            Toggle("Enabled", isOn: $scenarioEnabled)
+              .toggleStyle(.checkbox)
+          }
+          WorkbenchFact(
+            label: "Target",
+            value: scenarioTargetCommit.isEmpty
+              ? (experiment.currentSha ?? experiment.baseSha ?? "no commit")
+              : scenarioTargetCommit
+          )
+          roundTwoImplementationTargetNotice
+          if let contractAvailable {
+            Label(
+              contractAvailable
+                ? "Tournament experience contract available"
+                : "Tournament experience contract missing",
+              systemImage: contractAvailable ? "checkmark.circle" : "exclamationmark.triangle"
+            )
+            .font(.caption)
+            .foregroundStyle(contractAvailable ? Color.secondary : Color.orange)
+          } else {
+            WorkbenchEmptyLine("Checking tournament experience contract...")
           }
         }
       }
@@ -2634,6 +2638,34 @@ struct ProductTournamentWorkbenchTab: View {
     Binding(
       get: { selectedScenarioID ?? scenariosForSelectedExperiment.first?.id ?? "" },
       set: { selectedScenarioID = $0.isEmpty ? nil : $0 }
+    )
+  }
+
+  private func productTestDraft(for experiment: ProductTournamentExperiment) -> ProductTestDraft {
+    ProductTestDraft.build(
+      input: ProductTestDraftInput(
+        id: selectedScenarioID,
+        experimentID: experiment.id,
+        cohortID: scenarioCohortID.isEmpty ? nil : scenarioCohortID,
+        cohortTitle: scenarioCohortTitle,
+        cohortEnabled: scenarioCohortEnabled,
+        segmentID: scenarioSegmentID,
+        currentWorkflowID: scenarioWorkflowID,
+        alternativeID: scenarioAlternativeID.isEmpty ? nil : scenarioAlternativeID,
+        title: scenarioTitle,
+        task: scenarioTask,
+        successSignal: scenarioSuccessSignal,
+        targetCommitSha: scenarioTargetCommit.isEmpty
+          ? (experiment.currentSha ?? experiment.baseSha)
+          : scenarioTargetCommit,
+        maxTurns: scenarioMaxTurns,
+        appCommandTimeoutSeconds: scenarioTimeoutSeconds,
+        enabled: scenarioEnabled
+      ),
+      config: config,
+      nextMove: productDecisionCockpit.nextMove,
+      contractAvailable: contractAvailable,
+      blockedReason: selectedRoundTwoBlockedMessage
     )
   }
 
