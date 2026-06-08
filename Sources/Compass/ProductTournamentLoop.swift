@@ -5294,13 +5294,19 @@ enum TournamentAutomationPlanner {
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> TournamentAutomationCyclePlan {
     let limit = max(1, maxSteps)
+    let schedule = portfolioSchedule(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      maxSteps: limit,
+      isPersonaModelAvailable: isPersonaModelAvailable
+    )
     let allSteps = steps(
       config: config,
       evidenceIndex: evidenceIndex,
       isPersonaModelAvailable: isPersonaModelAvailable
     )
     let executableSteps = allSteps.filter(\.canExecute)
-    let selectedExecutableSteps = Array(executableSteps.prefix(limit))
+    let selectedExecutableSteps = schedule.selectedWork.map(\.step)
     return TournamentAutomationCyclePlan(
       executableSteps: selectedExecutableSteps,
       blockedSteps: allSteps.filter { !$0.canExecute },
@@ -5309,6 +5315,20 @@ enum TournamentAutomationPlanner {
       refreshesQueueAfterStateChange: selectedExecutableSteps.contains {
         $0.kind == .prepareWorktree
       }
+    )
+  }
+
+  static func portfolioSchedule(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex,
+    maxSteps: Int = 3,
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
+  ) -> TournamentPortfolioSchedule {
+    TournamentPortfolioScheduler.schedule(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      maxSteps: maxSteps,
+      isPersonaModelAvailable: isPersonaModelAvailable
     )
   }
 

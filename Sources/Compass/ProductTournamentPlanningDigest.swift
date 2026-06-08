@@ -71,6 +71,7 @@ enum ProductTournamentPlanningDigestFormatter {
     )
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
     lines += laneStateLines(config: config, evidenceIndex: evidenceIndex)
+    lines += portfolioScheduleLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationLines(config: config, evidenceIndex: evidenceIndex)
 
     return boundedLines(lines, maxLines: 80, maxCharacters: 12_000)
@@ -784,6 +785,36 @@ enum ProductTournamentPlanningDigestFormatter {
     }
     if lanes.count > 3 {
       lines.append("- \(lanes.count - 3) more lane(s) omitted.")
+    }
+    return lines
+  }
+
+  private static func portfolioScheduleLines(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [String] {
+    let schedule = TournamentAutomationPlanner.portfolioSchedule(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+    )
+    guard !schedule.selectedWork.isEmpty || !schedule.deferredWork.isEmpty else { return [] }
+    var lines = [
+      "Tournament portfolio schedule:",
+      "- \(bounded(schedule.summary, 220))",
+    ]
+    if !schedule.selectedWork.isEmpty {
+      lines.append("- selected \(bounded(schedule.selectedSummary, 280)).")
+    }
+    if !schedule.deferredWork.isEmpty {
+      lines.append("- deferred \(bounded(schedule.deferredSummary, 280)).")
+    }
+    let resources = schedule.selectedWork
+      .map(\.resourceSummary)
+      .productTournamentUniquedPreservingOrder()
+      .joined(separator: ", ")
+    if !resources.isEmpty {
+      lines.append("- active_resources \(resources).")
     }
     return lines
   }
