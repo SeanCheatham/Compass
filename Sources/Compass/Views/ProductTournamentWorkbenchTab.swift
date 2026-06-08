@@ -57,6 +57,14 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
+  private var productDecisionCockpit: ProductDecisionCockpit {
+    ProductDecisionCockpit.build(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+    )
+  }
+
   private var tournamentsForBoard: [ProductTournament] {
     workbenchState.tournamentsForBoard
   }
@@ -308,6 +316,14 @@ struct ProductTournamentWorkbenchTab: View {
     guard let selectedExperimentID else { return config.tournamentExperiments.first }
     return config.tournamentExperiments.first { $0.id == selectedExperimentID }
       ?? config.tournamentExperiments.first
+  }
+
+  private var selectedCockpitContenderID: String? {
+    if let contenderID = selectedProofScoreboardRow?.contenderID {
+      return contenderID
+    }
+    guard let selectedExperimentID else { return nil }
+    return config.tournamentContenders.first { $0.experimentID == selectedExperimentID }?.id
   }
 
   private var runsForSelectedExperiment: [ProductTournamentEvidenceSummary] {
@@ -654,9 +670,17 @@ struct ProductTournamentWorkbenchTab: View {
     } else {
       VStack(alignment: .leading, spacing: 12) {
         ScrollView {
-          PlanRunContextSection(project: project)
+          VStack(alignment: .leading, spacing: 12) {
+            ProductTournamentMapView(
+              cockpit: productDecisionCockpit,
+              selectedContenderID: selectedCockpitContenderID,
+              onSelectContender: selectCockpitContender
+            )
+            PlanRunContextSection(project: project)
+          }
+          .padding(.trailing, 4)
         }
-        .frame(minHeight: 280, idealHeight: 320, maxHeight: 460)
+        .frame(minHeight: 360, idealHeight: 440, maxHeight: 620)
 
         workbenchColumns
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -4276,6 +4300,31 @@ struct ProductTournamentWorkbenchTab: View {
     _ target: ProductTournamentRoundImplementationTarget
   ) -> String {
     config.tournamentContenders.first { $0.id == target.contenderID }?.title ?? target.contenderID
+  }
+
+  private func selectCockpitContender(_ lane: ContenderLane) {
+    if let row =
+      tournamentAutomationProofTargetScoreboard
+      .flatMap(\.rows)
+      .first(where: { $0.contenderID == lane.id })
+    {
+      selectProofScoreboardRow(row)
+      return
+    }
+
+    if let experimentID = lane.auditReferences.first(where: { $0.kind == .experiment })?.value {
+      selectedExperimentID = experimentID
+    }
+    if let planEvaluationID = lane.proofDebt.auditReferences.first(where: {
+      $0.kind == .planEvaluation
+    })?.value {
+      selectedPlanEvaluationID = planEvaluationID
+      loadSelectedPlanEvaluationRecord()
+    }
+    if let scenarioID = lane.auditReferences.first(where: { $0.kind == .scenario })?.value {
+      selectedScenarioID = scenarioID
+    }
+    loadScenarioDraft()
   }
 
   private func selectProofScoreboardRow(
