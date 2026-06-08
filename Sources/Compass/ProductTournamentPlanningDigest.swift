@@ -70,6 +70,7 @@ enum ProductTournamentPlanningDigestFormatter {
       evidenceIndex: evidenceIndex
     )
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
+    lines += laneStateLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationLines(config: config, evidenceIndex: evidenceIndex)
 
     return boundedLines(lines, maxLines: 80, maxCharacters: 12_000)
@@ -742,6 +743,49 @@ enum ProductTournamentPlanningDigestFormatter {
       "- cycle executable \(cyclePlan.executableSteps.count); max \(cyclePlan.maxSteps); capped \(cyclePlan.capped); \(bounded(cyclePlan.summary, 180)).",
       "- cycle queue \(bounded(cyclePlan.queueSummary, 240)).",
     ]
+  }
+
+  private static func laneStateLines(
+    config: ProductTournamentConfig,
+    evidenceIndex: ProductTournamentEvidenceIndex
+  ) -> [String] {
+    let lanes = ProductTournamentLaneStateBuilder.lanes(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+    )
+    guard !lanes.isEmpty else { return [] }
+    var lines = ["Tournament lanes:"]
+    for lane in lanes.prefix(3) {
+      var metadata = [
+        "experiment \(lane.experimentID)",
+        "status \(lane.status.rawValue)",
+        "branch \(lane.branchName)",
+        "worktree \(lane.worktreeID)",
+      ]
+      if let contenderID = lane.contenderID {
+        metadata.append("contender \(contenderID)")
+      }
+      if let currentCommit = lane.currentCommit {
+        metadata.append("commit \(currentCommit)")
+      }
+      if let activeStepID = lane.activeStepID {
+        metadata.append("active_step \(activeStepID)")
+      }
+      if let blockedReason = lane.blockedReason {
+        metadata.append("blocked \(bounded(blockedReason, 140))")
+      }
+      if !lane.latestEvidenceIDs.isEmpty {
+        metadata.append("latest_evidence \(lane.latestEvidenceIDs.joined(separator: ","))")
+      }
+      lines.append(
+        "- \(bounded(lane.experimentTitle, 120)): \(metadata.joined(separator: "; ")); proof_debt \(bounded(lane.proofDebtSummary, 180))."
+      )
+    }
+    if lanes.count > 3 {
+      lines.append("- \(lanes.count - 3) more lane(s) omitted.")
+    }
+    return lines
   }
 
   private static func nextActionLines(
