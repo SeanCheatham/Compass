@@ -1081,7 +1081,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
 
   var title: String {
     switch self {
-    case .vision: return "Vision"
+    case .vision: return "Brief"
     case .activity: return "Activity"
     case .productTournament: return "Tournament"
     }

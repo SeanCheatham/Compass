@@ -29,6 +29,9 @@ struct CompassWorkspace {
   var productTournamentEvidenceStore: ProductTournamentEvidenceStore {
     ProductTournamentEvidenceStore(workspace: self)
   }
+  var tournamentStore: TournamentWorkspaceStore {
+    TournamentWorkspaceStore(workspace: self)
+  }
   var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
   var sessionsRecordURL: URL { sessionRecordStore.activeRecordURL }
   var sessionRecordStore: SessionRecordStore {

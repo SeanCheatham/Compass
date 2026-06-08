@@ -111,12 +111,8 @@ enum ProductTournamentPlanningDigestFormatter {
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
   ) -> [String] {
-    let tournaments = config.tournaments
-      .filter { $0.status == .active || $0.status == .drafting }
-      .sorted { lhs, rhs in
-        if lhs.status == rhs.status { return lhs.updatedAt > rhs.updatedAt }
-        return lhs.status == .active
-      }
+    let readModel = ProductTournamentReadModel(config: config)
+    let tournaments = readModel.activeOrDraftingTournaments()
 
     guard !tournaments.isEmpty else {
       return [
@@ -127,10 +123,7 @@ enum ProductTournamentPlanningDigestFormatter {
 
     var lines = ["Product tournaments:"]
     for tournament in tournaments.prefix(3) {
-      let currentRound =
-        tournament.currentRoundID.flatMap { roundID in
-          config.tournamentRounds.first { $0.id == roundID }
-        }
+      let currentRound = readModel.activeRound(in: tournament)
       let currentRoundLabel =
         currentRound.map {
           "round \($0.ordinal) \($0.kind.rawValue)"
@@ -139,11 +132,9 @@ enum ProductTournamentPlanningDigestFormatter {
         "- \(bounded(tournament.title, 120)) [\(tournament.status.rawValue), pain \(tournament.painID), \(currentRoundLabel)]: \(bounded(tournament.premise, 160))."
       )
 
-      let contenders = tournament.contenderIDs.compactMap { contenderID in
-        config.tournamentContenders.first { $0.id == contenderID }
-      }
-      for contender in contenders.prefix(4) {
-        let experiment = contender.experimentID ?? "no implementation track"
+      for node in readModel.contenderNodes(in: tournament).prefix(4) {
+        let contender = node.contender
+        let experiment = node.experiment?.id ?? "no implementation track"
         let segments =
           contender.targetSegmentIDs.isEmpty
           ? "no target segment"
@@ -169,13 +160,7 @@ enum ProductTournamentPlanningDigestFormatter {
         )
       }
 
-      let rounds = tournament.roundIDs.compactMap { roundID in
-        config.tournamentRounds.first { $0.id == roundID }
-      }
-      .sorted { lhs, rhs in
-        if lhs.ordinal == rhs.ordinal { return lhs.id < rhs.id }
-        return lhs.ordinal < rhs.ordinal
-      }
+      let rounds = readModel.rounds(in: tournament)
       if !rounds.isEmpty {
         let roundSummary = rounds.prefix(4)
           .map { round in

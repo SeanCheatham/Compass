@@ -239,6 +239,127 @@ struct ProductTournamentConfigTests {
     try #require(config.tournamentExperiments[0].createdAt == 1_700_000_000)
   }
 
+  @Test func seededProductTournamentReferencesExistingEntities() throws {
+    let config = seededProductTournamentConfig()
+    let tournamentIDs = Set(config.tournaments.map(\.id))
+    let painIDs = Set(config.painHypotheses.map(\.id))
+    let contenderIDs = Set(config.tournamentContenders.map(\.id))
+    let planIDs = Set(config.contenderPlans.map(\.id))
+    let experimentIDs = Set(config.tournamentExperiments.map(\.id))
+    let roundIDs = Set(config.tournamentRounds.map(\.id))
+    let scenarioIDs = Set(config.scenarios.map(\.id))
+    let segmentIDs = Set(config.userSegments.map(\.id))
+    let workflowIDs = Set(config.currentWorkflows.map(\.id))
+    let alternativeIDs = Set(config.alternatives.map(\.id))
+    let cohortsByID = Dictionary(uniqueKeysWithValues: config.scenarioCohorts.map { ($0.id, $0) })
+    let scenariosByID = Dictionary(uniqueKeysWithValues: config.scenarios.map { ($0.id, $0) })
+
+    try #require(config.tournaments.allSatisfy { painIDs.contains($0.painID) })
+    try #require(config.tournamentContenders.allSatisfy { tournamentIDs.contains($0.tournamentID) })
+    try #require(config.tournamentContenders.allSatisfy { planIDs.contains($0.contenderPlanID) })
+    try #require(
+      config.tournamentContenders.allSatisfy {
+        $0.experimentID.map { experimentIDs.contains($0) } ?? true
+      })
+    try #require(config.tournamentRounds.allSatisfy { tournamentIDs.contains($0.tournamentID) })
+    for round in config.tournamentRounds {
+      for contenderID in round.contenderIDs {
+        let contender = try #require(config.tournamentContenders.first { $0.id == contenderID })
+        try #require(contenderIDs.contains(contenderID))
+        try #require(contender.tournamentID == round.tournamentID)
+      }
+      try #require(round.scenarioCohortIDs.allSatisfy { cohortsByID[$0] != nil })
+    }
+    for cohort in config.scenarioCohorts {
+      try #require(experimentIDs.contains(cohort.experimentID))
+      for scenarioID in cohort.scenarioIDs {
+        let scenario = try #require(scenariosByID[scenarioID])
+        try #require(scenarioIDs.contains(scenarioID))
+        try #require(scenario.experimentID == cohort.experimentID)
+      }
+    }
+    for scenario in config.scenarios {
+      try #require(experimentIDs.contains(scenario.experimentID))
+      try #require(segmentIDs.contains(scenario.segmentID))
+      try #require(workflowIDs.contains(scenario.currentWorkflowID))
+      try #require(scenario.alternativeID.map { alternativeIDs.contains($0) } ?? true)
+    }
+    for tournament in config.tournaments {
+      try #require(tournament.roundIDs.allSatisfy { roundIDs.contains($0) })
+      try #require(tournament.contenderIDs.allSatisfy { contenderIDs.contains($0) })
+      try #require(tournament.currentRoundID.map { roundIDs.contains($0) } ?? true)
+    }
+  }
+
+  @Test func seededProductTournamentActiveStateAssumptionsAreExplicit() throws {
+    let config = seededProductTournamentConfig()
+    let readModel = ProductTournamentReadModel(config: config)
+    let activeTournaments = readModel.activeOrDraftingTournaments()
+    let tournament = try #require(activeTournaments.first)
+    let rounds = readModel.rounds(in: tournament)
+
+    try #require(activeTournaments.count == 1)
+    try #require(rounds.map(\.kind) == [.productPlans, .coreTechnology, .productImplementation])
+    try #require(tournament.currentRoundID == rounds[0].id)
+    try #require(readModel.activeRound(in: tournament)?.id == rounds[0].id)
+    try #require(rounds[0].status == .active)
+    try #require(rounds[1].status != .active)
+    try #require(rounds[2].status != .active)
+  }
+
+  @Test func seededProductTournamentCurrentlyHasDuplicateStatusSources() throws {
+    let config = seededProductTournamentConfig()
+    let tournament = try #require(config.tournaments.first)
+    let roundStatuses = Dictionary(uniqueKeysWithValues: config.tournamentRounds.map {
+      ($0.kind, $0.status)
+    })
+
+    try #require(config.painHypotheses.map(\.status) == [.active])
+    try #require(Set(config.contenderPlans.map(\.status)) == [.active, .candidate])
+    try #require(Set(config.tournamentContenders.map(\.status)) == [.competing])
+    try #require(Set(config.tournamentExperiments.map(\.decision)) == [.notRun])
+    try #require(tournament.status == .active)
+    try #require(tournament.currentRoundID != nil)
+    try #require(roundStatuses[.productPlans] == .active)
+    try #require(roundStatuses[.coreTechnology] == .planned)
+    try #require(roundStatuses[.productImplementation] == .planned)
+  }
+
+  @Test func productTournamentReadModelCentralizesSeededLookups() throws {
+    let config = seededProductTournamentConfig()
+    let readModel = ProductTournamentReadModel(config: config)
+    let tournament = try #require(readModel.activeTournament())
+    let round = try #require(readModel.activeRound(in: tournament))
+    let node = try #require(readModel.contenderNodes(in: tournament).first)
+    let experiment = try #require(node.experiment)
+
+    try #require(round.kind == .productPlans)
+    try #require(readModel.pain(for: tournament)?.id == tournament.painID)
+    try #require(readModel.contenders(in: tournament).map(\.id) == tournament.contenderIDs)
+    try #require(readModel.plan(for: node.contender)?.id == node.plan.id)
+    try #require(readModel.experiment(for: node.contender)?.id == experiment.id)
+    try #require(readModel.scenarios(for: experiment).count == 2)
+    try #require(readModel.cohorts(for: experiment).count == 1)
+  }
+
+  @Test func productTournamentReadModelReturnsNilOrEmptyForMissingReferences() throws {
+    var config = seededProductTournamentConfig()
+    config.tournamentContenders[0].contenderPlanID = "missing-plan"
+    config.tournamentContenders[0].experimentID = "missing-experiment"
+    config.tournamentExperiments[0].scenarioCohortIDs = ["missing-cohort"]
+    let readModel = ProductTournamentReadModel(config: config)
+    let tournament = try #require(readModel.activeTournament())
+    let contender = try #require(readModel.contenders(in: tournament).first)
+    let experiment = config.tournamentExperiments[0]
+
+    try #require(readModel.plan(for: contender) == nil)
+    try #require(readModel.experiment(for: contender) == nil)
+    try #require(readModel.contenderNodes(in: tournament).count == 1)
+    try #require(readModel.cohorts(for: experiment).isEmpty)
+    try #require(readModel.tournament(id: "missing") == nil)
+    try #require(readModel.round(id: "missing") == nil)
+  }
+
   @Test func projectRefreshLoadsSeededProductTournamentConfigWhenMissing() async throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }
@@ -412,5 +533,13 @@ private func makeProductTournamentConfig() -> ProductTournamentConfig {
     scenarioCohorts: [cohort],
     decisions: [decision],
     tournamentAutomationCycleAudits: [audit]
+  )
+}
+
+private func seededProductTournamentConfig() -> ProductTournamentConfig {
+  ProductTournamentConfig.seedDefaults(
+    projectTitle: "LedgerLift",
+    rawPain: "Finance operators lose weekly reporting context between Slack and spreadsheets.",
+    now: Date(timeIntervalSince1970: 1_700_000_000)
   )
 }

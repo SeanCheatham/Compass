@@ -49,94 +49,44 @@ struct ProductTournamentWorkbenchTab: View {
   private var evidenceIndex: ProductTournamentEvidenceIndex {
     project.productTournamentEvidenceIndex
   }
+  private var workbenchState: ProductTournamentWorkbenchState {
+    ProductTournamentWorkbenchState.build(
+      config: config,
+      evidenceIndex: evidenceIndex,
+      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
+    )
+  }
 
   private var tournamentsForBoard: [ProductTournament] {
-    config.tournaments.sorted { lhs, rhs in
-      if lhs.status == rhs.status { return lhs.updatedAt > rhs.updatedAt }
-      return tournamentStatusRank(lhs.status) < tournamentStatusRank(rhs.status)
-    }
+    workbenchState.tournamentsForBoard
   }
 
   private var contendersForBoard: [ProductTournamentContender] {
-    config.tournamentContenders.sorted { lhs, rhs in
-      if lhs.status == rhs.status { return lhs.updatedAt > rhs.updatedAt }
-      return contenderStatusRank(lhs.status) < contenderStatusRank(rhs.status)
-    }
+    workbenchState.contendersForBoard
   }
 
   private var tournamentRoundsForBoard: [ProductTournamentRound] {
-    config.tournamentRounds.sorted { lhs, rhs in
-      if lhs.ordinal == rhs.ordinal { return lhs.title < rhs.title }
-      return lhs.ordinal < rhs.ordinal
-    }
+    workbenchState.tournamentRoundsForBoard
   }
 
   private var activeTournamentForPlanEvaluation: ProductTournament? {
-    tournamentsForBoard.first { $0.status == .active || $0.status == .drafting }
+    workbenchState.activeTournament
   }
 
   private var activePlanRoundForEvaluation: ProductTournamentRound? {
-    guard let tournament = activeTournamentForPlanEvaluation else { return nil }
-    if let currentRoundID = tournament.currentRoundID,
-      let current = config.tournamentRounds.first(where: { $0.id == currentRoundID }),
-      current.kind == .productPlans,
-      current.status != .completed
-    {
-      return current
-    }
-    return config.tournamentRounds
-      .filter {
-        $0.tournamentID == tournament.id && $0.kind == .productPlans && $0.status != .completed
-      }
-      .sorted { lhs, rhs in
-        if lhs.ordinal == rhs.ordinal { return lhs.title < rhs.title }
-        return lhs.ordinal < rhs.ordinal
-      }
-      .first
+    workbenchState.activePlanRound
   }
 
   private var activeTournamentForRoundEvidence: ProductTournament? {
-    tournamentsForBoard.first { $0.status == .active || $0.status == .drafting }
+    workbenchState.activeTournament
   }
 
   private var activeCoreTechnologyRoundForEvidence: ProductTournamentRound? {
-    guard let tournament = activeTournamentForRoundEvidence else { return nil }
-    if let currentRoundID = tournament.currentRoundID,
-      let current = config.tournamentRounds.first(where: { $0.id == currentRoundID }),
-      current.kind == .coreTechnology,
-      current.status == .active
-    {
-      return current
-    }
-    return config.tournamentRounds
-      .filter {
-        $0.tournamentID == tournament.id && $0.kind == .coreTechnology && $0.status == .active
-      }
-      .sorted { lhs, rhs in
-        if lhs.ordinal == rhs.ordinal { return lhs.title < rhs.title }
-        return lhs.ordinal < rhs.ordinal
-      }
-      .first
+    workbenchState.activeCoreTechnologyRound
   }
 
   private var activeProductImplementationRoundForEvidence: ProductTournamentRound? {
-    guard let tournament = activeTournamentForRoundEvidence else { return nil }
-    if let currentRoundID = tournament.currentRoundID,
-      let current = config.tournamentRounds.first(where: { $0.id == currentRoundID }),
-      current.kind == .productImplementation,
-      current.status == .active
-    {
-      return current
-    }
-    return config.tournamentRounds
-      .filter {
-        $0.tournamentID == tournament.id && $0.kind == .productImplementation && $0.status == .active
-      }
-      .sorted { lhs, rhs in
-        if lhs.ordinal == rhs.ordinal { return lhs.title < rhs.title }
-        return lhs.ordinal < rhs.ordinal
-      }
-      .first
+    workbenchState.activeProductImplementationRound
   }
 
   private var planEvaluationCanRun: Bool {
@@ -437,28 +387,17 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private var experimentsForBoard: [ProductTournamentExperiment] {
-    TournamentAutomationExperimentRanker.rankedExperiments(
-      config: config,
-      evidenceIndex: evidenceIndex
-    )
+    workbenchState.experimentsForBoard
   }
 
   private var tournamentAutomationProofTargets: [TournamentAutomationProofTarget] {
-    TournamentAutomationProofTargetAdvisor.targets(
-      config: config,
-      evidenceIndex: evidenceIndex,
-      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
-    )
+    workbenchState.automationProofTargets
   }
 
   private var tournamentAutomationProofTargetScoreboard:
     [TournamentAutomationProofTargetScoreboardItem]
   {
-    TournamentAutomationProofTargetScoreboard.items(
-      config: config,
-      evidenceIndex: evidenceIndex,
-      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
-    )
+    workbenchState.proofScoreboard
   }
 
   private var tournamentAutomationRationaleSignals: [TournamentAutomationRationaleSignal] {
@@ -499,20 +438,11 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private var tournamentAutomationStep: TournamentAutomationStep? {
-    TournamentAutomationPlanner.nextStep(
-      config: config,
-      evidenceIndex: evidenceIndex,
-      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
-    )
+    workbenchState.automationStep
   }
 
   private var tournamentAutomationCyclePlan: TournamentAutomationCyclePlan {
-    TournamentAutomationPlanner.cyclePlan(
-      config: config,
-      evidenceIndex: evidenceIndex,
-      maxSteps: 3,
-      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
-    )
+    workbenchState.automationCyclePlan
   }
 
   private var tournamentAutomationCanRun: Bool {
@@ -542,11 +472,7 @@ struct ProductTournamentWorkbenchTab: View {
   }
 
   private var latestTournamentAutomationCycleFacts: TournamentAutomationCycleWorkbenchFacts? {
-    TournamentAutomationCycleWorkbenchFacts.latest(
-      config: config,
-      evidenceIndex: evidenceIndex,
-      currentStep: tournamentAutomationStep
-    )
+    workbenchState.latestCycleFacts
   }
 
   private var selectedProofScoreboardRow: TournamentAutomationProofTargetScoreboardRow? {
@@ -605,27 +531,9 @@ struct ProductTournamentWorkbenchTab: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       header
-      PlanRunContextSection(project: project)
-      if config.isEmpty {
-        ContentUnavailableView(
-          "No Product Tournament State",
-          systemImage: "trophy",
-          description: Text("Enter a user pain or run Discover to seed product tournament state.")
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else {
-        HStack(alignment: .top, spacing: 12) {
-          painMap
-            .frame(width: 300)
-          Divider()
-          contenderAndExperimentBoard
-            .frame(minWidth: 360, idealWidth: 460, maxWidth: 560)
-          Divider()
-          evidenceAndDecisionPane
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-      }
+      tournamentBody
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .task(id: experimentSelectionTaskID) {
       let preferredExperimentID =
         defaultRoundTwoImplementationTarget?.experimentID ?? config.tournamentExperiments.first?.id
@@ -723,6 +631,48 @@ struct ProductTournamentWorkbenchTab: View {
 
   private var planEvaluationSelectionTaskID: String {
     planEvaluationsForBoard.map(\.evaluationID).joined(separator: "|")
+  }
+
+  @ViewBuilder
+  private var tournamentBody: some View {
+    if config.isEmpty {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 12) {
+          PlanRunContextSection(project: project)
+          ContentUnavailableView(
+            "No Product Tournament State",
+            systemImage: "trophy",
+            description: Text("Enter a user pain or run Discover to seed product tournament state.")
+          )
+          .frame(maxWidth: .infinity, minHeight: 240)
+        }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    } else {
+      VStack(alignment: .leading, spacing: 12) {
+        ScrollView {
+          PlanRunContextSection(project: project)
+        }
+        .frame(minHeight: 280, idealHeight: 320, maxHeight: 460)
+
+        workbenchColumns
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+
+  private var workbenchColumns: some View {
+    HStack(alignment: .top, spacing: 12) {
+      painMap
+        .frame(width: 300)
+      Divider()
+      contenderAndExperimentBoard
+        .frame(minWidth: 360, idealWidth: 460, maxWidth: 560)
+      Divider()
+      evidenceAndDecisionPane
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
   }
 
   private var header: some View {
@@ -3936,14 +3886,18 @@ struct ProductTournamentWorkbenchTab: View {
           project.fail(AppModelError.noRepositorySelected)
           return nil
         }
-        let outcome = try TournamentAutomationRoundTransitionStepExecutor.run(
-          step,
-          in: workspace
+        let result = try await ProductTournamentEngine(workspace: workspace).apply(
+          .applyRoundTransition(
+            tournamentID: step.tournamentID,
+            roundID: step.roundID,
+            contenderID: step.contenderID
+          )
         )
-        project.productTournamentConfig = outcome.config
-        project.productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
-        project.log(outcome.userMessage, level: .success)
-        return TournamentAutomationStepResult(message: outcome.userMessage)
+        project.productTournamentConfig = result.config
+        project.productTournamentEvidenceIndex =
+          result.evidenceIndex ?? workspace.readProductTournamentEvidenceIndex()
+        project.log(result.message, level: .success)
+        return TournamentAutomationStepResult(message: result.message)
       } catch {
         project.fail(error)
         return nil

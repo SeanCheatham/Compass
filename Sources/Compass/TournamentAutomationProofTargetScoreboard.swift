@@ -851,6 +851,7 @@ enum TournamentAutomationProofTargetScoreboard {
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> [TournamentAutomationProofTargetScoreboardItem] {
     guard limit > 0 else { return [] }
+    let readModel = ProductTournamentReadModel(config: config)
     let targets = TournamentAutomationProofTargetAdvisor.targets(
       config: config,
       evidenceIndex: evidenceIndex,
@@ -885,6 +886,7 @@ enum TournamentAutomationProofTargetScoreboard {
         for: key,
         targets: targets,
         config: config,
+        readModel: readModel,
         nextStepsByExperimentID: nextStepsByExperimentID,
         latestDebtMovementByExperimentID: latestDebtMovementByExperimentID
       )
@@ -1104,15 +1106,12 @@ enum TournamentAutomationProofTargetScoreboard {
     for key: ScopeKey,
     targets: [TournamentAutomationProofTarget],
     config: ProductTournamentConfig,
+    readModel: ProductTournamentReadModel,
     nextStepsByExperimentID: [String: TournamentAutomationStep],
     latestDebtMovementByExperimentID: [String: TournamentAutomationProofTargetDebtMovement]
   ) -> TournamentAutomationProofTargetScoreboardItem {
-    let tournament = key.tournamentID.flatMap { tournamentID in
-      config.tournaments.first { $0.id == tournamentID }
-    }
-    let round = key.roundID.flatMap { roundID in
-      config.tournamentRounds.first { $0.id == roundID }
-    }
+    let tournament = key.tournamentID.flatMap(readModel.tournament)
+    let round = key.roundID.flatMap(readModel.round)
     let contenderCount = max(
       1,
       activeContenderCount(round: round, tournament: tournament, config: config)
@@ -1121,7 +1120,7 @@ enum TournamentAutomationProofTargetScoreboard {
       .map { target in
         row(
           for: target,
-          config: config,
+          readModel: readModel,
           nextStep: nextStepsByExperimentID[target.experimentID],
           latestDebtMovement: latestDebtMovementByExperimentID[target.experimentID]
         )
@@ -1138,13 +1137,11 @@ enum TournamentAutomationProofTargetScoreboard {
 
   private static func row(
     for target: TournamentAutomationProofTarget,
-    config: ProductTournamentConfig,
+    readModel: ProductTournamentReadModel,
     nextStep: TournamentAutomationStep?,
     latestDebtMovement: TournamentAutomationProofTargetDebtMovement?
   ) -> TournamentAutomationProofTargetScoreboardRow {
-    let contender = target.contenderID.flatMap { contenderID in
-      config.tournamentContenders.first { $0.id == contenderID }
-    }
+    let contender = target.contenderID.flatMap(readModel.contender)
     return TournamentAutomationProofTargetScoreboardRow(
       experimentID: target.experimentID,
       tournamentID: target.tournamentID,

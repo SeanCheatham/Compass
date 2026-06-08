@@ -1472,16 +1472,32 @@ extension CompassProject {
       }
       let config = try workspace.readProductTournamentConfig()
       let evidenceIndex = workspace.readProductTournamentEvidenceIndex()
-      let outcome = try ProductTournamentProductImplementationEvidenceTransitioner.applyBestProposal(
+      guard let proposal = ProductTournamentProductImplementationEvidenceTransitioner.bestProposal(
         tournamentID: tournamentID,
         roundID: roundID,
-        to: config,
+        config: config,
         evidenceIndex: evidenceIndex
       )
-      try workspace.writeProductTournamentConfig(outcome.config)
-      productTournamentConfig = outcome.config
-      productTournamentEvidenceIndex = evidenceIndex
-      log(outcome.userMessage, level: .success)
+      else {
+        throw ProductTournamentEngineError.missingActionableTransition("any")
+      }
+      let now = Date()
+      let outcome = try ProductTournamentProductImplementationEvidenceTransitioner.apply(
+        proposal: proposal,
+        to: config,
+        now: now
+      )
+      let result = try await ProductTournamentEngine(workspace: workspace).apply(
+        .applyRoundTransition(
+          tournamentID: tournamentID,
+          roundID: roundID,
+          contenderID: proposal.contenderID
+        ),
+        now: now
+      )
+      productTournamentConfig = result.config
+      productTournamentEvidenceIndex = result.evidenceIndex ?? evidenceIndex
+      log(result.message, level: .success)
       return outcome
     } catch {
       fail(error)

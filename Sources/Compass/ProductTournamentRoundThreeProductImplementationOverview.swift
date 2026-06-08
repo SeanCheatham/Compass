@@ -128,6 +128,7 @@ enum ProductTournamentRoundThreeProductImplementationOverview {
     limit: Int = 4
   ) -> [ProductTournamentRoundThreeProductImplementationOverviewItem] {
     guard limit > 0 else { return [] }
+    let readModel = ProductTournamentReadModel(config: config)
     var validationResultsByRoundAndContender:
       [String: ProductTournamentRoundThreeImplementationRevisionValidationResult] = [:]
     for result in ProductTournamentRoundThreeImplementationRevisionValidationAdvisor.results(
@@ -147,11 +148,9 @@ enum ProductTournamentRoundThreeProductImplementationOverview {
     )
     .compactMap { proposal in
       guard
-        let contender = config.tournamentContenders.first(where: {
-          $0.id == proposal.contenderID && $0.tournamentID == proposal.tournamentID
-        }),
-        let experimentID = contender.experimentID,
-        let experiment = config.tournamentExperiments.first(where: { $0.id == experimentID })
+        let contender = readModel.contender(id: proposal.contenderID),
+        contender.tournamentID == proposal.tournamentID,
+        let experiment = readModel.experiment(for: contender)
       else { return nil }
       return ProductTournamentRoundThreeProductImplementationOverviewItem(
         tournamentID: proposal.tournamentID,
