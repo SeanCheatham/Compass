@@ -8,7 +8,6 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var selectedRecord: ProductTournamentEvidenceRecord?
   @State private var recordError: String?
   @State private var selectedProofScoreboardRowID: String?
-  @State private var selectedProofScoreboardGroupAnchorRowID: String?
   @State private var selectedPlanEvaluationID: String?
   @State private var selectedPlanEvaluationRecord: ProductTournamentPlanEvaluationRecord?
   @State private var planEvaluationRecordError: String?
@@ -38,11 +37,6 @@ struct ProductTournamentWorkbenchTab: View {
   @State private var isApplyingProductImplementationEvidenceTransition = false
   @State private var isRunningTournamentStep = false
   @State private var isRunningTournamentAutomationCycle = false
-  @State private var pausePortfolioAfterCurrentBatch = false
-  @State private var cancelledPortfolioLaneID: String?
-  @State private var evidenceConcurrencyLimit = 2
-  @State private var personaLLMConcurrencyLimit = 1
-  @State private var simulationConcurrencyLimit = 2
   @State private var scenarioRunMessage: String?
   @State private var planEvaluationMessage: String?
   @State private var planTransitionMessage: String?
@@ -468,22 +462,6 @@ struct ProductTournamentWorkbenchTab: View {
     workbenchState.automationCyclePlan
   }
 
-  private var tournamentLaneStates: [ProductTournamentLaneState] {
-    workbenchState.laneStates
-  }
-
-  private var tournamentPortfolioSchedule: TournamentPortfolioSchedule {
-    workbenchState.portfolioSchedule
-  }
-
-  private var tournamentJudgingBarriers: [ProductTournamentJudgingBarrier] {
-    workbenchState.judgingBarriers
-  }
-
-  private var tournamentRolloutFlags: CompassRuntimeFeatureFlags {
-    workbenchState.rolloutFlags
-  }
-
   private var tournamentAutomationCanRun: Bool {
     tournamentAutomationStep?.canExecute == true
       && !isRunningTournamentStep
@@ -563,12 +541,6 @@ struct ProductTournamentWorkbenchTab: View {
     return context
   }
 
-  private func isSelectedProofScoreboardGroup(
-    _ group: TournamentAutomationProofTargetScoreboardReadinessGroup
-  ) -> Bool {
-    group.containsRow(selectionID: selectedProofScoreboardGroupAnchorRowID)
-  }
-
   private var tournamentAutomationCohortMode: ProductTournamentSimulationMode {
     tournamentAutomationStep?.action.requiredSimulationMode
       ?? TournamentAutomationPlanner.cohortSimulationMode(
@@ -617,7 +589,6 @@ struct ProductTournamentWorkbenchTab: View {
     .onChange(of: selectedExperimentID) { _, _ in
       if selectedProofScoreboardRow?.experimentID != selectedExperimentID {
         selectedProofScoreboardRowID = nil
-        selectedProofScoreboardGroupAnchorRowID = nil
       }
       if selectedRunID == nil
         || !runsForSelectedExperiment.contains(where: { $0.runID == selectedRunID })
@@ -686,7 +657,6 @@ struct ProductTournamentWorkbenchTab: View {
     if config.isEmpty {
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
-          PlanRunContextSection(project: project)
           ContentUnavailableView(
             "No Product Tournament State",
             systemImage: "trophy",
@@ -705,9 +675,6 @@ struct ProductTournamentWorkbenchTab: View {
               selectedContenderID: selectedCockpitContenderID,
               onSelectContender: selectCockpitContender
             )
-            if let marketCockpit = productDecisionCockpit.marketCockpit {
-              MarketDecisionPanel(cockpit: marketCockpit)
-            }
             ProductNextMovePanel(
               nextMove: productDecisionCockpit.nextMove,
               latestMovement: productDecisionCockpit.latestMovement,
@@ -728,7 +695,6 @@ struct ProductTournamentWorkbenchTab: View {
               title: "Cockpit Audit",
               references: productDecisionCockpit.auditReferences
             )
-            PlanRunContextSection(project: project)
           }
           .padding(.trailing, 4)
         }
@@ -1129,18 +1095,6 @@ struct ProductTournamentWorkbenchTab: View {
             } else {
               ForEach(experimentsForBoard) { experiment in
                 experimentRow(experiment)
-              }
-            }
-          }
-        }
-
-        WorkbenchSection("Proof Scoreboard", systemImage: "chart.bar.doc.horizontal") {
-          VStack(alignment: .leading, spacing: 8) {
-            if tournamentAutomationProofTargetScoreboard.isEmpty {
-              WorkbenchEmptyLine("No round-level proof target pressure queued.")
-            } else {
-              ForEach(tournamentAutomationProofTargetScoreboard.prefix(3)) { item in
-                proofTargetScoreboardRow(item)
               }
             }
           }
@@ -1717,44 +1671,34 @@ struct ProductTournamentWorkbenchTab: View {
       )
       .help(item.topActionDetail)
       WorkbenchFact(label: "Targets", value: item.displayDetail)
-      ForEach(item.displayReadinessGroups()) { group in
-        VStack(alignment: .leading, spacing: 5) {
-          proofTargetScoreboardGroupHeader(item: item, group: group)
-          proofTargetScoreboardGroupResult(item: item, group: group)
-          ForEach(group.rows) { row in
-            Button {
-              selectProofScoreboardRow(row)
-            } label: {
-              VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                  WorkbenchFact(label: row.contenderTitle, value: row.displaySummary)
-                  if selectedProofScoreboardRowID == row.selectionID {
-                    WorkbenchStatusPill(text: "selected")
-                  }
-                }
-                WorkbenchFact(label: "Latest delta", value: row.latestDebtMovementSummary)
-                  .help(row.helpSummary)
-                WorkbenchStatusFact(
-                  label: "Last / Next",
-                  value: row.runPairSummary,
-                  statusText: row.nextStatusLabel,
-                  statusSystemImage: row.nextStatusSystemImage,
-                  statusAccessibilityID: row.nextStatusAccessibilityID
-                )
-                .help(row.helpSummary)
+      ForEach(item.rows.prefix(4)) { row in
+        Button {
+          selectProofScoreboardRow(row)
+        } label: {
+          VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              WorkbenchFact(label: row.contenderTitle, value: row.displaySummary)
+              if selectedProofScoreboardRowID == row.selectionID {
+                WorkbenchStatusPill(text: "selected")
               }
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(row.workbenchAccessibilityID)
+            WorkbenchFact(label: "Latest delta", value: row.latestDebtMovementSummary)
+              .help(row.helpSummary)
+            WorkbenchStatusFact(
+              label: "Last / Next",
+              value: row.runPairSummary,
+              statusText: row.nextStatusLabel,
+              statusSystemImage: row.nextStatusSystemImage,
+              statusAccessibilityID: row.nextStatusAccessibilityID
+            )
             .help(row.helpSummary)
           }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(Rectangle())
         }
-        .padding(.vertical, 2)
-        .accessibilityIdentifier(
-          "\(item.workbenchAccessibilityID)-group-\(group.accessibilitySuffix)"
-        )
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(row.workbenchAccessibilityID)
+        .help(row.helpSummary)
       }
       if let topActionRow = item.topActionRow, let topStep = topActionRow.nextStep {
         let roundTwoBlockedMessage =
@@ -1786,81 +1730,6 @@ struct ProductTournamentWorkbenchTab: View {
     .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     .accessibilityIdentifier(item.workbenchAccessibilityID)
     .help(item.contextLine)
-  }
-
-  @ViewBuilder
-  private func proofTargetScoreboardGroupHeader(
-    item: TournamentAutomationProofTargetScoreboardItem,
-    group: TournamentAutomationProofTargetScoreboardReadinessGroup
-  ) -> some View {
-    HStack(alignment: .firstTextBaseline, spacing: 8) {
-      Text(group.bucket)
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(.secondary)
-      Spacer()
-      WorkbenchStatusPill(text: "\(group.count)")
-      if isSelectedProofScoreboardGroup(group) {
-        WorkbenchStatusPill(text: "selected group")
-          .accessibilityIdentifier(item.readinessGroupSelectionAccessibilityID(group))
-      }
-      if let actionRow = group.primaryActionRow, let actionStep = group.primaryActionStep {
-        let roundTwoBlockedMessage =
-          roundTwoLaunchBlockedMessage(experimentID: actionStep.experimentID)
-        let helpText =
-          roundTwoBlockedMessage
-          ?? (actionStep.canExecute
-            ? group.actionHelpSummary
-            : actionStep.blockedReason ?? group.actionHelpSummary)
-        let isDisabled =
-          isRunningTournamentStep || isRunningTournamentAutomationCycle || isRunningScenario
-          || !actionStep.canExecute || roundTwoBlockedMessage != nil
-        Button {
-          selectProofScoreboardGroup(group, preferredRow: actionRow)
-          Task {
-            await runTournamentAutomationStep(
-              actionStep,
-              groupAnchorRowID: actionRow.selectionID,
-              actedPressureGroupSummary: group.actionAuditSummary(anchorRow: actionRow)
-            )
-          }
-        } label: {
-          Label(
-            isRunningTournamentStep ? "Running" : group.actionButtonTitle,
-            systemImage: group.actionSystemImage
-          )
-        }
-        .buttonStyle(.bordered)
-        .disabled(isDisabled)
-        .accessibilityIdentifier(item.readinessGroupActionAccessibilityID(group))
-        .help(helpText)
-      } else if group.primaryRow != nil {
-        Button {
-          selectProofScoreboardGroup(group)
-        } label: {
-          Label(group.actionButtonTitle, systemImage: group.actionSystemImage)
-        }
-        .buttonStyle(.bordered)
-        .accessibilityIdentifier(item.readinessGroupActionAccessibilityID(group))
-        .help(group.actionHelpSummary)
-      }
-    }
-  }
-
-  @ViewBuilder
-  private func proofTargetScoreboardGroupResult(
-    item: TournamentAutomationProofTargetScoreboardItem,
-    group: TournamentAutomationProofTargetScoreboardReadinessGroup
-  ) -> some View {
-    if group.latestMovement != nil {
-      WorkbenchStatusFact(
-        label: "Group result",
-        value: group.latestMovementSummary,
-        statusText: group.latestMovementStatusLabel,
-        statusSystemImage: group.latestMovementSystemImage,
-        statusAccessibilityID: item.readinessGroupResultAccessibilityID(group)
-      )
-      .help(group.latestMovementHelpSummary)
-    }
   }
 
   private func proofTargetRow(_ target: TournamentAutomationProofTarget) -> some View {
@@ -2130,7 +1999,6 @@ struct ProductTournamentWorkbenchTab: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
         tournamentAutomation
-        tournamentPortfolioPreview
         selectedProofScoreboardDetail
         aggregateEvidence
         planEvaluationEvidence
@@ -2312,100 +2180,6 @@ struct ProductTournamentWorkbenchTab: View {
         } else {
           WorkbenchEmptyLine("No tournament automation action queued.")
         }
-      }
-    }
-  }
-
-  private var tournamentPortfolioPreview: some View {
-    WorkbenchSection("Portfolio Lanes", systemImage: "rectangle.3.group.bubble.left") {
-      VStack(alignment: .leading, spacing: 10) {
-        HStack(spacing: 6) {
-          WorkbenchStatusPill(
-            text: tournamentRolloutFlags.tournamentSchedulerPreview ? "Preview on" : "Sequential"
-          )
-          WorkbenchStatusPill(
-            text: tournamentRolloutFlags.tournamentParallelEvidence ? "Evidence parallel" : "Evidence serial"
-          )
-          WorkbenchStatusPill(
-            text: tournamentRolloutFlags.tournamentParallelDevelop ? "Develop parallel" : "Develop serial"
-          )
-        }
-
-        if tournamentLaneStates.isEmpty {
-          WorkbenchEmptyLine("No active product lanes.")
-        } else {
-          VStack(alignment: .leading, spacing: 8) {
-            ForEach(tournamentLaneStates.prefix(4)) { lane in
-              laneBoardRow(lane)
-            }
-          }
-        }
-
-        Divider()
-
-        WorkbenchFact(label: "Selected", value: tournamentPortfolioSchedule.selectedSummary)
-        WorkbenchFact(label: "Deferred", value: tournamentPortfolioSchedule.deferredSummary)
-        if let barrier = tournamentJudgingBarriers.first {
-          WorkbenchFact(label: "Barrier", value: barrier.summary)
-        } else {
-          WorkbenchFact(label: "Barrier", value: "No judging barrier active.")
-        }
-        WorkbenchFact(
-          label: "In Flight",
-          value:
-            tournamentRolloutFlags.tournamentParallelEvidence
-            ? "\(tournamentPortfolioSchedule.parallelizableEvidenceWork.count) evidence-ready task(s)"
-            : "Parallel evidence disabled"
-        )
-
-        VStack(alignment: .leading, spacing: 8) {
-          HStack(spacing: 8) {
-            Button {
-              Task { await runTournamentAutomationStep() }
-            } label: {
-              Label("Run Lane", systemImage: "play.fill")
-            }
-            .buttonStyle(.bordered)
-            .disabled(!tournamentAutomationCanRun)
-
-            Button {
-              Task { await runTournamentAutomationCycle() }
-            } label: {
-              Label("Run Portfolio", systemImage: "forward.frame.fill")
-            }
-            .buttonStyle(.bordered)
-            .disabled(!tournamentAutomationCycleCanRun || pausePortfolioAfterCurrentBatch)
-
-            Toggle("Pause after batch", isOn: $pausePortfolioAfterCurrentBatch)
-              .toggleStyle(.checkbox)
-          }
-          HStack(spacing: 8) {
-            Button {
-              cancelledPortfolioLaneID = tournamentLaneStates.first?.id
-            } label: {
-              Label("Cancel Lane", systemImage: "xmark.circle")
-            }
-            .buttonStyle(.bordered)
-            .disabled(tournamentLaneStates.isEmpty)
-
-            Button {
-              cancelledPortfolioLaneID = "all"
-              pausePortfolioAfterCurrentBatch = true
-            } label: {
-              Label("Cancel All", systemImage: "stop.circle")
-            }
-            .buttonStyle(.bordered)
-
-            if let cancelledPortfolioLaneID {
-              WorkbenchStatusPill(text: "cancel \(cancelledPortfolioLaneID)")
-            }
-          }
-
-          Stepper("Evidence \(evidenceConcurrencyLimit)", value: $evidenceConcurrencyLimit, in: 1...8)
-          Stepper("LLM \(personaLLMConcurrencyLimit)", value: $personaLLMConcurrencyLimit, in: 1...4)
-          Stepper("Simulation \(simulationConcurrencyLimit)", value: $simulationConcurrencyLimit, in: 1...8)
-        }
-        .font(.caption)
       }
     }
   }
@@ -3728,11 +3502,9 @@ struct ProductTournamentWorkbenchTab: View {
 
   private func runTournamentAutomationStep(
     _ explicitStep: TournamentAutomationStep? = nil,
-    groupAnchorRowID: String? = nil,
     actedPressureGroupSummary: String? = nil
   ) async {
     guard let step = explicitStep ?? tournamentAutomationStep, step.canExecute else { return }
-    selectedProofScoreboardGroupAnchorRowID = groupAnchorRowID
     if let blockedMessage = roundTwoLaunchBlockedMessage(experimentID: step.experimentID) {
       selectedExperimentID = step.experimentID
       scenarioRunMessage = blockedMessage
@@ -4601,9 +4373,6 @@ struct ProductTournamentWorkbenchTab: View {
     preserveGroupSelection: Bool = false
   ) {
     let experimentChanged = selectedExperimentID != row.experimentID
-    if !preserveGroupSelection {
-      selectedProofScoreboardGroupAnchorRowID = nil
-    }
     selectedProofScoreboardRowID = row.selectionID
     selectedExperimentID = row.experimentID
 
@@ -4639,15 +4408,6 @@ struct ProductTournamentWorkbenchTab: View {
     if !experimentChanged {
       loadScenarioDraft()
     }
-  }
-
-  private func selectProofScoreboardGroup(
-    _ group: TournamentAutomationProofTargetScoreboardReadinessGroup,
-    preferredRow: TournamentAutomationProofTargetScoreboardRow? = nil
-  ) {
-    guard let row = preferredRow ?? group.primaryActionRow ?? group.primaryRow else { return }
-    selectedProofScoreboardGroupAnchorRowID = row.selectionID
-    selectProofScoreboardRow(row, preserveGroupSelection: true)
   }
 
   private func focusProofTarget(
@@ -4706,118 +4466,6 @@ struct ProductTournamentWorkbenchTab: View {
 
   private func short(_ sha: String) -> String {
     String(sha.prefix(12))
-  }
-}
-
-private struct MarketDecisionPanel: View {
-  var cockpit: MarketDecisionCockpit
-
-  var body: some View {
-    WorkbenchSection("Market Pressure", systemImage: "person.3.sequence") {
-      if let move = cockpit.nextMarketMove {
-        WorkbenchStatusFact(
-          label: "Next",
-          value: move.reason,
-          statusText: move.actionTitle,
-          statusSystemImage: "arrow.forward.circle"
-        )
-        if let blockedReason = move.blockedReason {
-          WorkbenchFact(label: "Blocked", value: blockedReason)
-        }
-      } else {
-        WorkbenchEmptyLine("No market move queued.")
-      }
-
-      if let market = cockpit.activeMarket {
-        WorkbenchFact(label: "Market", value: "\(market.category): \(market.summary)")
-      } else {
-        WorkbenchFact(label: "Market", value: "No synthetic market compiled.")
-      }
-
-      HStack(alignment: .top, spacing: 10) {
-        WorkbenchMetric(
-          label: "Debt",
-          value: "\(cockpit.proofDebt.blockingCount)",
-          systemImage: "exclamationmark.triangle"
-        )
-        WorkbenchMetric(
-          label: "Actors",
-          value: "\(cockpit.actors.count)",
-          systemImage: "person.3"
-        )
-        WorkbenchMetric(
-          label: "Pressure",
-          value: "\(cockpit.pressureRows.count)",
-          systemImage: "gavel"
-        )
-      }
-
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 8)], spacing: 8) {
-        ForEach(cockpit.proofDebt.cells) { cell in
-          WorkbenchStatusFact(
-            label: cell.label,
-            value: cell.latestMovement.map { "Latest \($0)" } ?? "Debt \(cell.value)",
-            statusText: cell.status.label,
-            statusSystemImage: icon(for: cell.status)
-          )
-        }
-      }
-
-      if !cockpit.actors.isEmpty {
-        Divider()
-        ForEach(cockpit.actors.prefix(6)) { actor in
-          WorkbenchStatusFact(
-            label: actor.role,
-            value: "\(actor.name): \(actor.job)",
-            statusText: actor.pressureStatus,
-            statusSystemImage: "person.crop.circle"
-          )
-        }
-      }
-
-      if !cockpit.pressureRows.isEmpty {
-        Divider()
-        ForEach(cockpit.pressureRows.prefix(4)) { row in
-          WorkbenchStatusFact(
-            label: row.kind.rawValue,
-            value: row.strongestObjection.isEmpty ? row.nextAction : row.strongestObjection,
-            statusText: row.verdict,
-            statusSystemImage: "gavel"
-          )
-        }
-      }
-
-      if !cockpit.distributionRows.isEmpty || !cockpit.lifecycleRows.isEmpty {
-        Divider()
-        ForEach(cockpit.distributionRows.prefix(3)) { row in
-          WorkbenchFact(
-            label: "Channel",
-            value: "\(row.channelName); \(row.verdict); next \(row.nextAction)"
-          )
-        }
-        ForEach(cockpit.lifecycleRows.prefix(4)) { row in
-          WorkbenchFact(
-            label: "Lifecycle",
-            value: "\(row.title); \(row.status.rawValue); next \(row.nextAction)"
-          )
-        }
-      }
-    }
-    .accessibilityElement(children: .contain)
-    .accessibilityLabel(
-      cockpit.nextMarketMove.map { "Market pressure, next move \($0.actionTitle)" }
-        ?? "Market pressure"
-    )
-  }
-
-  private func icon(for status: MarketProofDebtStatus) -> String {
-    switch status {
-    case .clear: return "checkmark.circle"
-    case .moved: return "arrow.down.circle"
-    case .missing: return "exclamationmark.circle"
-    case .worsened: return "arrow.up.circle"
-    case .blocked: return "xmark.octagon"
-    }
   }
 }
 

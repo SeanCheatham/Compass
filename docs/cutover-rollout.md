@@ -15,7 +15,6 @@ swift test --filter CompassDaemonClientTests --filter CompassRuntimeFeatureFlags
 3. `COMPASS_RUST_TOURNAMENT_DRIVER=1` after replay fixtures agree.
 4. `COMPASS_RUST_AGENT_EXECUTOR=1` after agent fixtures cover HTTP-provider runs.
 5. `COMPASS_RUST_GUEST_AGENT=1` after signed VM smoke validates install.
-6. `COMPASS_LINUX_GUEST=1` only for the Linux guest experiment.
 
 ## Rollback
 

@@ -10,11 +10,7 @@ enum ProjectSnapshotBuilder {
   ) -> ProjectSnapshotClipboardPayload {
     let runGuide = providedRunGuide ?? self.runGuide(for: project)
     let draftGuide = DraftIntakeGuide(drafts: project.drafts)
-    let assumptionGuide = AssumptionReviewGuide(
-      ledger: AssumptionLedger(assumptions: project.assumptions)
-    )
     let visionGuide = ProjectVisionGuide(vision: project.vision)
-    let lessonsGuide = ProjectLessonsGuide(lessons: project.lessons)
     let settingsGuide = AgentSettingsGuide(
       settings: agentSettings,
       foundationModelsAvailable: foundationModelsAvailable
@@ -25,11 +21,9 @@ enum ProjectSnapshotBuilder {
       projectName: project.displayName,
       runGuide: runGuide,
       draftGuide: draftGuide,
-      assumptionGuide: assumptionGuide,
       settingsGuide: settingsGuide,
       visionGuide: visionGuide,
       recoveryGuide: recoveryGuide,
-      lessonsGuide: lessonsGuide,
       historyGuide: historyGuide(for: project)
     )
   }

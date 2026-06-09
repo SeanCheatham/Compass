@@ -63,7 +63,7 @@ struct ProductTournamentCompassGuideTests {
       guide.previewSteps[0].detail == "Make the run controls explain the next tournament action.")
     try #require(
       guide.previewSteps[1].detail
-        == "Host Xcode runs: swift test --filter ProductTournamentCompassGuideTests"
+        == "Compass runs: swift test --filter ProductTournamentCompassGuideTests"
     )
     try #require(guide.handoffText.contains("Run signal: Ready -"))
     try #require(guide.handoffText.count <= ProductTournamentCompassGuide.handoffLimit)

@@ -71,13 +71,8 @@ enum ProductTournamentPlanningDigestFormatter {
     lines += targetedProofOutcomeLines(config: config, evidenceIndex: evidenceIndex)
     lines += portfolioPressureLines(config: config, evidenceIndex: evidenceIndex)
     lines += proofTargetLines(config: config, evidenceIndex: evidenceIndex)
-    lines += TournamentAutomationProofTargetScoreboard.contextLines(
-      config: config,
-      evidenceIndex: evidenceIndex
-    )
     lines += laneStateLines(config: config, evidenceIndex: evidenceIndex)
     lines += judgingBarrierLines(config: config, evidenceIndex: evidenceIndex)
-    lines += portfolioScheduleLines(config: config, evidenceIndex: evidenceIndex)
     lines += tournamentAutomationLines(config: config, evidenceIndex: evidenceIndex)
 
     return boundedLines(lines, maxLines: 96, maxCharacters: 16_000)
@@ -981,36 +976,6 @@ enum ProductTournamentPlanningDigestFormatter {
     return lines
   }
 
-  private static func portfolioScheduleLines(
-    config: ProductTournamentConfig,
-    evidenceIndex: ProductTournamentEvidenceIndex
-  ) -> [String] {
-    let schedule = TournamentAutomationPlanner.portfolioSchedule(
-      config: config,
-      evidenceIndex: evidenceIndex,
-      isPersonaModelAvailable: FoundationModelsAvailability.isAvailable
-    )
-    guard !schedule.selectedWork.isEmpty || !schedule.deferredWork.isEmpty else { return [] }
-    var lines = [
-      "Tournament portfolio schedule:",
-      "- \(bounded(schedule.summary, 220))",
-    ]
-    if !schedule.selectedWork.isEmpty {
-      lines.append("- selected \(bounded(schedule.selectedSummary, 280)).")
-    }
-    if !schedule.deferredWork.isEmpty {
-      lines.append("- deferred \(bounded(schedule.deferredSummary, 280)).")
-    }
-    let resources = schedule.selectedWork
-      .map(\.resourceSummary)
-      .productTournamentUniquedPreservingOrder()
-      .joined(separator: ", ")
-    if !resources.isEmpty {
-      lines.append("- active_resources \(resources).")
-    }
-    return lines
-  }
-
   private static func judgingBarrierLines(
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex
@@ -1103,26 +1068,6 @@ enum ProductTournamentPlanningDigestFormatter {
           audit.proofTargetSummaries.isEmpty
           ? ""
           : "; proof targets \(bounded(proofTargetList, 260))"
-        let actedPressureGroupList = audit.actedProofPressureGroupSummaries.prefix(3)
-          .joined(separator: " | ")
-        let actedPressureGroups =
-          audit.actedProofPressureGroupSummaries.isEmpty
-          ? ""
-          : "; acted pressure groups \(bounded(actedPressureGroupList, 260))"
-        let actedPressureGroupOutcomes =
-          TournamentAutomationCycleWorkbenchFacts.actedPressureGroupOutcomeSummary(
-            for: audit,
-            config: config,
-            evidenceIndex: evidenceIndex
-          )
-          .map { "; acted group outcomes \(bounded($0, 260))" } ?? ""
-        let actedPressureGroupLearning =
-          TournamentAutomationCycleWorkbenchFacts.actedPressureGroupLearningSummary(
-            for: audit,
-            config: config,
-            evidenceIndex: evidenceIndex
-          )
-          .map { "; acted group learning \(bounded($0, 260))" } ?? ""
         let targetedProofOutcomeList = audit.targetedProofOutcomeSummaries.prefix(3)
           .joined(separator: " | ")
         let targetedProofOutcomes =
@@ -1144,7 +1089,7 @@ enum ProductTournamentPlanningDigestFormatter {
         let planModes = audit.planEvaluationModeContext.map { "; \($0)" } ?? ""
         return
           "- \(bounded(audit.id, 100)): \(bounded(audit.summary, 220)); \(experiments)\(planModes)\(decisionCandidates)\(evidenceTensions)\(proofTargets)\(targetedProofOutcomes)\(rationaleSignals)\(revisionBriefs)"
-          + "\(actedPressureGroups)\(actedPressureGroupOutcomes)\(actedPressureGroupLearning); stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
+          + "; stop \(audit.stopReason.rawValue); \(bounded(audit.userMessage, 260))."
       }
   }
 

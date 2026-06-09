@@ -93,10 +93,7 @@ extension Prompts {
       "delegate (spawn a focused sub-agent for a self-contained sub-task; it returns a findings string)"
     let assumptionTools =
       "record_assumption (capture consequential assumptions for user review), remove_assumption (remove stale assumptions from active guidance)"
-    let hostXcodeTool =
-      hostXcodeBuildTestEnabled
-      ? "\n        - Host Xcode: host_xcode (legacy imported Swift/Apple repo build/test only against a mirror; use instead of bash for SwiftPM, xcodebuild, and Apple-platform probes in the Shared VM; not for generated Rust output)."
-      : ""
+    let hostXcodeTool = ""
     let externalTools = externalToolList(names: externalToolNames)
     let toolList: String
     switch phase {
@@ -409,9 +406,9 @@ extension Prompts {
       }
       return """
         Execution environment: Compass Shared VM guest. Today's provisioner uses
-        a macOS guest with an auto-logged-in `compass` desktop session, but
-        generated Rust projects must treat the guest contract as OS-neutral so a
-        smaller Linux guest can replace it later.
+        a macOS guest with an auto-logged-in `compass` desktop session.
+        Generated Rust projects should treat the guest contract as tool- and
+        workspace-oriented rather than depending on macOS-specific paths.
         Current guest pre-installs: Xcode Command Line Tools (`swift`, `clang`,
         `git`, `make`, `llvm`, macOS SDK), Homebrew, ripgrep (`rg`), and Rust
         generated-project tooling (`rustc`, `cargo`, `rustfmt`, `clippy`,
@@ -429,25 +426,12 @@ extension Prompts {
   }
 
   private static func sharedVMApplePlatformGuidance(hostXcodeBuildTestEnabled: Bool) -> String {
-    if hostXcodeBuildTestEnabled {
-      return """
-        Apple platform legacy bridge:
-        Full Xcode is not in the guest. Run Swift, SwiftPM, `xcodebuild`, macOS/iOS
-        SDK work, and Apple Intelligence / `FoundationModels` checks for imported
-        legacy Apple repositories on the host
-        via `host_xcode` and plan verify with `requiresHostXcode: true` plus
-        `xcodebuild ... build|test` (not guest `swift test`). Do not use `bash`
-        for Apple-platform build/test probes in the guest. Do not create new
-        generated output that depends on Host Xcode.
-        """
-    }
     return """
       Apple platform legacy limitation:
       Full Xcode is not in the current guest (`xcodebuild`, Simulator,
       `.xcodeproj` builds, and complete SwiftPM test linking are unavailable).
       Generated Compass output is Rust/Cargo only. Swift/Xcode work is legacy
-      imported-repo inspection unless a host build/test bridge is explicitly
-      enabled for this project; avoid guest `swift test` / `xcodebuild` and
+      imported-repo inspection; avoid guest `swift test` / `xcodebuild` and
       prefer guest-safe `swift build` or read-only inspection for those repos.
       """
   }

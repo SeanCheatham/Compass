@@ -97,7 +97,7 @@ struct SidebarView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
           }
-          Text("Settings: Agent… (⌘,) → Agent. Host Xcode: Settings → Tournament.")
+          Text("Settings: Agent… (⌘,) → Agent.")
             .font(.caption2)
             .foregroundStyle(.tertiary)
           if let diagnosticsAction = model.selectedProject?.runtimeDiagnosticsMenu

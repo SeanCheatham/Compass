@@ -12,20 +12,15 @@ struct ProductTournamentWorkbenchState {
   var activeProductImplementationRound: ProductTournamentRound?
   var automationProofTargets: [TournamentAutomationProofTarget]
   var proofScoreboard: [TournamentAutomationProofTargetScoreboardItem]
-  var laneStates: [ProductTournamentLaneState]
-  var portfolioSchedule: TournamentPortfolioSchedule
-  var judgingBarriers: [ProductTournamentJudgingBarrier]
   var automationStep: TournamentAutomationStep?
   var automationCyclePlan: TournamentAutomationCyclePlan
   var latestCycleFacts: TournamentAutomationCycleWorkbenchFacts?
-  var rolloutFlags: CompassRuntimeFeatureFlags
 
   static func build(
     config: ProductTournamentConfig,
     evidenceIndex: ProductTournamentEvidenceIndex,
     maxAutomationSteps: Int = 3,
-    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable,
-    rolloutFlags: CompassRuntimeFeatureFlags = CompassRuntimeFeatureFlags()
+    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> ProductTournamentWorkbenchState {
     let readModel = ProductTournamentReadModel(config: config)
     let activeTournament = readModel.activeTournament()
@@ -40,21 +35,6 @@ struct ProductTournamentWorkbenchState {
       evidenceIndex: evidenceIndex,
       isPersonaModelAvailable: isPersonaModelAvailable
     )
-    let portfolioSchedule = TournamentAutomationPlanner.portfolioSchedule(
-      config: config,
-      evidenceIndex: evidenceIndex,
-      maxSteps: maxAutomationSteps,
-      isPersonaModelAvailable: isPersonaModelAvailable
-    )
-    let barriers = ProductTournamentJudgingBarrierBuilder.barriers(
-      lanes: portfolioSchedule.lanes,
-      evidenceIndex: evidenceIndex
-    )
-    let laneStates = ProductTournamentLaneBarrierAnnotator.lanes(
-      portfolioSchedule.lanes,
-      barriers: barriers
-    )
-
     return ProductTournamentWorkbenchState(
       tournamentsForBoard: config.tournaments.sorted { lhs, rhs in
         if lhs.status == rhs.status { return lhs.updatedAt > rhs.updatedAt }
@@ -100,9 +80,6 @@ struct ProductTournamentWorkbenchState {
         isPersonaModelAvailable: isPersonaModelAvailable
       ),
       proofScoreboard: proofScoreboard,
-      laneStates: laneStates,
-      portfolioSchedule: portfolioSchedule,
-      judgingBarriers: barriers,
       automationStep: automationStep,
       automationCyclePlan: TournamentAutomationPlanner.cyclePlan(
         config: config,
@@ -114,8 +91,7 @@ struct ProductTournamentWorkbenchState {
         config: config,
         evidenceIndex: evidenceIndex,
         currentStep: automationStep
-      ),
-      rolloutFlags: rolloutFlags
+      )
     )
   }
 

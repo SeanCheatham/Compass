@@ -37,7 +37,6 @@ extension AgentExecutor {
       phase: configuration.phase,
       sessionNumber: configuration.sessionNumber,
       toolchainService: configuration.toolchainService,
-      hostXcodeService: configuration.hostXcodeService,
       rustCargoService: configuration.rustCargoService
     )
     let model = configuration.settings.model(
@@ -340,7 +339,6 @@ extension AgentExecutor {
       parentMaxIterations: configuration.maxIterations,
       parentWallClockTimeout: configuration.wallClockTimeout,
       toolchainService: configuration.toolchainService,
-      hostXcodeService: configuration.hostXcodeService,
       rustCargoService: configuration.rustCargoService,
       onEvent: onEvent
     )

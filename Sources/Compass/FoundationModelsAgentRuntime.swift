@@ -56,7 +56,6 @@ enum FoundationModelsAgentRuntime {
       phase: configuration.phase,
       sessionNumber: configuration.sessionNumber,
       toolchainService: configuration.toolchainService,
-      hostXcodeService: configuration.hostXcodeService,
       rustCargoService: configuration.rustCargoService
     )
 

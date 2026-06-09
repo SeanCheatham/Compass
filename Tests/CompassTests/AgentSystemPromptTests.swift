@@ -295,22 +295,20 @@ struct AgentSystemPromptTests {
     #expect(!prompt.contains("Host Xcode"))
   }
 
-  @Test func testHostXcodeToolIsAdvertisedOnlyAsBuildTestWhenEnabled() throws {
+  @Test func testHostXcodeToolStaysAbsentWhenFlagIsPassed() throws {
     let prompt = Prompts.agentSystemPrompt(
       phase: .develop,
       workingDirectoryPath: "/x",
       executionEnvironment: .sharedVM,
       hostXcodeBuildTestEnabled: true
     )
-    #expect(prompt.contains("host_xcode"))
-    #expect(prompt.contains("build/test only"))
-    #expect(prompt.contains("FoundationModels"))
-    #expect(prompt.contains("instead of bash"))
+    #expect(!prompt.contains("host_xcode"))
+    #expect(!prompt.contains("build/test only"))
     #expect(!prompt.contains("simctl"))
     #expect(!prompt.contains("`open`"))
   }
 
-  @Test func testDevelopPromptExplainsHowToCallHostXcodeToolForVerify() throws {
+  @Test func testDevelopPromptDoesNotExplainHostXcodeForVerify() throws {
     let prompt = Prompts.developPrompt(
       next: PlanNext(
         plan: "Run host-only FoundationModels tests.",
@@ -325,13 +323,13 @@ struct AgentSystemPromptTests {
       hostXcodeBuildTestEnabled: true
     )
 
-    try #require(prompt.contains("Host Apple platform workflow"))
-    try #require(prompt.contains("do not use `bash` for Xcode-only commands"))
-    try #require(prompt.contains("call `host_xcode`"))
-    try #require(prompt.contains("pass only the xcodebuild flags"))
+    try #require(!prompt.contains("Host Apple platform workflow"))
+    try #require(!prompt.contains("do not use `bash` for Xcode-only commands"))
+    try #require(!prompt.contains("host_xcode"))
+    try #require(!prompt.contains("pass only the xcodebuild flags"))
   }
 
-  @Test func testPlanPromptMarksFoundationModelsAsHostXcodeRequiredWhenEnabled() throws {
+  @Test func testPlanPromptIgnoresHostXcodeFlag() throws {
     let prompt = try Prompts.planPrompt(
       state: PlanProposal(immediate: nil, candidates: "", strategicContext: ""),
       completedCount: 0,
@@ -343,13 +341,8 @@ struct AgentSystemPromptTests {
       hostXcodeBuildTestEnabled: true
     )
 
-    try #require(prompt.contains("FoundationModels"))
-    try #require(prompt.contains("Apple Intelligence"))
-    try #require(prompt.contains("requiresHostXcode"))
-    try #require(prompt.contains("Do not pair `requiresHostXcode: true` with"))
-    try #require(prompt.contains("host Xcode verify commands must start with `xcodebuild`"))
-    try #require(prompt.contains(".swiftpm/xcode/package.xcworkspace"))
-    try #require(prompt.contains("-skipMacroValidation"))
+    try #require(!prompt.contains("requiresHostXcode"))
+    try #require(!prompt.contains("host_xcode"))
   }
 
   @Test func testExecutionEnvironmentSectionsAreRoutedByDescriptor() throws {
@@ -362,8 +355,8 @@ struct AgentSystemPromptTests {
     try #require(section.contains("list_toolchains"))
     try #require(section.contains("install_toolchain"))
     try #require(section.contains("Today's provisioner uses"))
-    try #require(section.contains("OS-neutral"))
-    try #require(section.contains("Linux guest can replace it later"))
+    try #require(section.contains("tool- and"))
+    try #require(section.contains("macOS-specific paths"))
     try #require(section.contains("Homebrew"))
     try #require(section.contains("rustc"))
     try #require(section.contains("cargo-llvm-cov"))
@@ -376,27 +369,27 @@ struct AgentSystemPromptTests {
     try #require(!section.contains("For SwiftPM packages, build and test with `swift build`"))
   }
 
-  @Test func testSharedVMEnvironmentWithHostXcodeMentionsHostBridge() throws {
+  @Test func testSharedVMEnvironmentWithHostXcodeFlagStillOmitsHostBridge() throws {
     let section = Prompts.executionEnvironmentSection(
       .sharedVM,
       hostXcodeBuildTestEnabled: true
     )
-    try #require(section.contains("Apple platform legacy bridge"))
-    try #require(section.contains("host_xcode"))
-    try #require(section.contains("not guest `swift test`"))
+    try #require(section.contains("Apple platform legacy limitation"))
+    try #require(!section.contains("host_xcode"))
+    try #require(section.contains("avoid guest `swift test`"))
   }
 
-  @Test func testPlanPromptIncludesHostXcodeToolWhenEnabled() throws {
+  @Test func testPlanPromptOmitsHostXcodeToolWhenFlagIsPassed() throws {
     let prompt = Prompts.agentSystemPrompt(
       phase: .plan,
       workingDirectoryPath: "/tmp/worktree",
       executionEnvironment: .sharedVM,
       hostXcodeBuildTestEnabled: true
     )
-    try #require(prompt.contains("Host Xcode: host_xcode"))
+    try #require(!prompt.contains("host_xcode"))
   }
 
-  @Test func testDevelopPromptIncludesHostAppleWorkflowWhenHostXcodeEnabled() throws {
+  @Test func testDevelopPromptOmitsHostAppleWorkflowWhenLegacyFlagIsEnabled() throws {
     let prompt = Prompts.developPrompt(
       next: PlanNext(plan: "Compile only", verify: "swift build"),
       lessons: "",
@@ -405,8 +398,8 @@ struct AgentSystemPromptTests {
       priorIssues: [],
       hostXcodeBuildTestEnabled: true
     )
-    try #require(prompt.contains("Host Apple platform workflow"))
-    try #require(prompt.contains("_TestingInterop"))
+    try #require(!prompt.contains("Host Apple platform workflow"))
+    try #require(!prompt.contains("host_xcode"))
   }
 
   @Test func testSharedVMEnvironmentListsInstalledToolchainsWhenProvided() throws {

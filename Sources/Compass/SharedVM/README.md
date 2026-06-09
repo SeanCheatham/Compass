@@ -4,7 +4,7 @@ Current native macOS guest implementation that Compass uses to isolate Develop
 iterations from the host. Built directly on `Virtualization.framework`; no
 external tooling (Tart, Docker, etc.) is required. Generated Rust projects
 should depend on the Shared VM route contract, not on macOS-specific guest
-details, so this module can adopt a smaller Linux guest later.
+details.
 
 ## Lifecycle
 
@@ -284,10 +284,8 @@ Per-session flow:
    `ls` / `glob` / `grep` call goes through vsock RPC against the
    persistent guest workspace.
 3. **Verify** (when the iteration's `verify` command is set) runs
-   inside the guest too, via the same vsock bash RPC, unless the plan
-   explicitly uses the Host Xcode bridge for a legacy imported Apple repo.
-   Generated Rust projects should build, test, lint, launch, and visually
-   verify entirely in the guest without host Xcode.
+   inside the guest too, via the same vsock bash RPC. Generated Rust projects
+   should build, test, lint, launch, and visually verify entirely in the guest.
 4. **After each attempt**, Compass requires the guest worktree to be
    clean. Verify failures prompt the agent to keep fixing, up to the
    existing 3-attempt budget.
@@ -295,8 +293,7 @@ Per-session flow:
    post-check: Compass builds the desktop crate, launches it in the guest,
    waits for readiness, sends a platform-neutral Rust visual input request,
    captures a Rust-rendered viewport PNG artifact, and terminates the app
-   cleanly. Linux guest adoption should satisfy this same contract rather
-   than adding an OS-specific verification path.
+   cleanly.
 5. **On success, or after the final failed Verify attempt**, Compass
    pushes the guest `HEAD` to a staging ref, then fast-forwards the host
    branch from that ref. Failed-Verify promotions are explicitly logged

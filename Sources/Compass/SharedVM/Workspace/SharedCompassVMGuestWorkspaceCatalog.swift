@@ -22,9 +22,9 @@ import Foundation
 /// is already gitignored (see `CompassWorkspace.ensureCompassIsIgnored`),
 /// so the ID does not leak into the user's commit history.
 enum SharedCompassVMGuestWorkspaceCatalog {
-  /// Guest layout used to allocate per-repo workspaces. Currently this is the
-  /// macOS Shared VM layout; keeping it centralized makes the future Linux guest
-  /// root a single contract swap instead of a repo-wide string rewrite.
+  /// Guest layout used to allocate per-repo workspaces. Keeping the layout
+  /// centralized prevents repo-wide string rewrites when the macOS guest
+  /// directory contract changes.
   static let guestLayout = SharedCompassVMGuestLayout.current
 
   /// Guest-side root that holds every per-repo workspace.

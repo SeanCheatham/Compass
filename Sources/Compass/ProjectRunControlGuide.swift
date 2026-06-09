@@ -475,7 +475,6 @@ struct ProjectRunControlGuide: Equatable {
 
     let digest = PlanHandoffDigest(plan: immediate.plan)
     let outcome = digest.outcome ?? "Use the current Immediate Work."
-    let verifyPrefix = immediate.requiresHostXcode ? "Host Xcode runs" : "Compass runs"
     return [
       PreviewStep(
         id: "develop",
@@ -487,8 +486,8 @@ struct ProjectRunControlGuide: Equatable {
         id: "verify",
         title: "Run verification",
         detail:
-          "\(verifyPrefix): \(StringUtils.boundedText(immediate.verify, limit: previewDetailLimit))",
-        systemImage: immediate.requiresHostXcode ? "macwindow" : "terminal"
+          "Compass runs: \(StringUtils.boundedText(immediate.verify, limit: previewDetailLimit))",
+        systemImage: "terminal"
       ),
     ]
   }

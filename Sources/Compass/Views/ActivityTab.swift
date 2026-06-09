@@ -30,9 +30,9 @@ struct ActivityTab: View {
           layout: .embedded(feedHeight: liveFeedHeight)
         )
 
-        PlanReliabilityFeedbackView(feedback: reliabilityFeedback)
+        ActivityReliabilitySummary(feedback: reliabilityFeedback)
 
-        PlanSessionHistorySection(
+        ActivityRunHistorySection(
           display: sessionHistoryDisplay,
           showAllRuns: $showAllSessionHistory,
           selectedFilter: $sessionHistoryFilter,
@@ -69,5 +69,198 @@ struct ActivityTab: View {
     return sessions.reduce(into: [Int: SessionAuditManifest]()) { result, session in
       result[session.session] = workspace.readSessionAuditManifest(session: session.session)
     }
+  }
+}
+
+private struct ActivityReliabilitySummary: View {
+  var feedback: PlanReliabilityFeedback
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      SectionHeader("Run Attention", systemImage: "exclamationmark.triangle")
+
+      if feedback.notices.isEmpty {
+        Text("No recent run attention items.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+      } else {
+        ForEach(feedback.notices) { notice in
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: notice.systemImage)
+              .foregroundStyle(reliabilityColor(for: notice.severity))
+              .frame(width: 18, height: 18)
+              .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 3) {
+              HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(notice.title)
+                  .font(.callout.weight(.semibold))
+                Text("#\(notice.sessionNumber)")
+                  .font(.caption.monospacedDigit())
+                  .foregroundStyle(.secondary)
+              }
+              Text(notice.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text(notice.actionLabel)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(reliabilityColor(for: notice.severity))
+            }
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(
+            reliabilityColor(for: notice.severity).opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 8)
+          )
+        }
+      }
+    }
+  }
+}
+
+private struct ActivityRunHistorySection: View {
+  var display: PlanSessionHistoryDisplay
+  @Binding var showAllRuns: Bool
+  @Binding var selectedFilter: PlanSessionHistoryFilter
+  var runCues: [Int: PlanReliabilityFeedback.RunCue]
+  var repoURL: URL
+  var hasOlderArchivedSessions: Bool
+  var isLoadingArchivedSessions: Bool
+  var onLoadArchivedSessions: () async -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .firstTextBaseline) {
+        SectionHeader("Run History", systemImage: "clock.arrow.circlepath")
+        Spacer()
+        Picker("Status filter", selection: $selectedFilter) {
+          ForEach(display.filterOptions) { option in
+            Text("\(option.filter.title) (\(option.count))").tag(option.filter)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .controlSize(.small)
+
+        Toggle("All", isOn: $showAllRuns)
+          .toggleStyle(.switch)
+          .controlSize(.small)
+          .disabled(!display.shouldOfferModeToggle && !showAllRuns)
+      }
+
+      Text(display.countSummary)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      if display.visibleItems.isEmpty {
+        Text("No \(selectedFilter.emptyStateName).")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .padding(12)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
+      } else {
+        VStack(alignment: .leading, spacing: 8) {
+          ForEach(display.visibleItems) { item in
+            ActivityRunHistoryRow(item: item, cue: runCues[item.sessionNumber])
+          }
+        }
+      }
+
+      if hasOlderArchivedSessions {
+        Button {
+          Task { await onLoadArchivedSessions() }
+        } label: {
+          Label(
+            isLoadingArchivedSessions ? "Loading Archived Runs" : "Load Archived Runs",
+            systemImage: "archivebox"
+          )
+        }
+        .buttonStyle(.bordered)
+        .disabled(isLoadingArchivedSessions)
+      }
+    }
+  }
+}
+
+private struct ActivityRunHistoryRow: View {
+  var item: PlanSessionHistoryItem
+  var cue: PlanReliabilityFeedback.RunCue?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text("#\(item.sessionNumber)")
+          .font(.callout.monospacedDigit().weight(.semibold))
+        Text(item.statusText)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(statusColor)
+        Spacer()
+        Text(item.startedAt, style: .relative)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      if let cue {
+        Label(cue.label, systemImage: cue.systemImage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(reliabilityColor(for: cue.severity))
+      }
+
+      if let planExcerpt = item.planExcerpt, !planExcerpt.isEmpty {
+        Text(planExcerpt)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+      }
+
+      HStack(spacing: 8) {
+        if let verifyCommand = item.verifyCommand, !verifyCommand.isEmpty {
+          ActivityPill(text: "verify")
+            .help(verifyCommand)
+        }
+        if let runtimeRouteSummary = item.runtimeRouteSummary, !runtimeRouteSummary.isEmpty {
+          ActivityPill(text: runtimeRouteSummary)
+        }
+        if !item.commits.isEmpty {
+          ActivityPill(text: "\(item.commits.count) commit(s)")
+        }
+        if !item.auditArtifacts.isEmpty {
+          ActivityPill(text: "\(item.auditArtifacts.count) artifact(s)")
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var statusColor: Color {
+    switch item.status {
+    case .succeeded:
+      return .green
+    case .failed, .rejectedByPlan:
+      return .red
+    case .cancelled, .skipped:
+      return .secondary
+    case .planning, .developing, .awaitingApproval:
+      return .blue
+    }
+  }
+}
+
+private struct ActivityPill: View {
+  var text: String
+
+  var body: some View {
+    Text(text)
+      .font(.caption2.weight(.semibold))
+      .lineLimit(1)
+      .padding(.horizontal, 6)
+      .padding(.vertical, 2)
+      .background(.quaternary, in: Capsule())
+      .foregroundStyle(.secondary)
   }
 }

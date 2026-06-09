@@ -159,14 +159,6 @@ extension CompassProject {
       environment.kind == .sharedVM
       ? SharedCompassVM.shared.makeToolchainService()
       : nil
-    let hostXcodeService =
-      try await checkedHostXcodeService(
-        for: phase,
-        hostRepoURL: workingDirectory,
-        launchPlan: environment.launchPlan,
-        requiresHostXcode: requiresHostXcode,
-        hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
-      )
     let rustCargoService =
       makeRustCargoService(
         forgeProfile: forgeProfile,
@@ -188,7 +180,6 @@ extension CompassProject {
       for: phase,
       settings: agentSettings,
       toolchainService: toolchainService,
-      hostXcodeService: hostXcodeService,
       rustCargoService: rustCargoService
     )
     let externalToolNames = tools.compactMap { tool -> String? in
@@ -208,7 +199,7 @@ extension CompassProject {
         workingDirectoryPath: environment.workingDirectory.path,
         executionEnvironment: environment.kind == .sharedVM ? .sharedVM : .host,
         installedToolchainIDs: installedToolchainIDs,
-        hostXcodeBuildTestEnabled: hostXcodeService != nil,
+        hostXcodeBuildTestEnabled: false,
         rustCargoToolsEnabled: rustCargoService != nil,
         externalToolNames: externalToolNames
       ),
@@ -223,7 +214,6 @@ extension CompassProject {
       assumptionsURL: makeWorkspace(repoURL: workingDirectory).assumptionsURL,
       sessionNumber: sessionNumber,
       toolchainService: toolchainService,
-      hostXcodeService: hostXcodeService,
       rustCargoService: rustCargoService,
       validateSubmitResult: validateSubmitResult
     )
@@ -378,59 +368,6 @@ extension CompassProject {
     }
   }
 
-  func checkedHostXcodeService(
-    for phase: AgentPhase,
-    hostRepoURL: URL,
-    launchPlan: AgentExecutionLaunchPlan,
-    requiresHostXcode: Bool,
-    hostXcodeBuildTestEnabled: Bool
-  ) async throws -> HostXcodeService? {
-    guard phase == .develop,
-      hostXcodeBuildTestEnabled,
-      requiresHostXcode
-    else {
-      return nil
-    }
-    let service = try makeHostXcodeService(hostRepoURL: hostRepoURL, launchPlan: launchPlan)
-    let status = await service.status()
-    guard status.isReady else {
-      throw AppModelError.internalInvariant(
-        "Host Xcode build/test is enabled for this project and the active plan requires it, but host Xcode is not ready. \(status.unavailableReason ?? "Open Xcode once and complete first-launch/license setup.")"
-      )
-    }
-    log(
-      "Host Xcode build/test bridge ready: \(status.version ?? "xcodebuild")",
-      level: .info
-    )
-    return service
-  }
-
-  func makeHostXcodeService(
-    hostRepoURL: URL,
-    launchPlan: AgentExecutionLaunchPlan,
-    mirrorRootURL: URL? = nil,
-    runner: ProcessRunner.InvocationRunner? = nil
-  ) throws -> HostXcodeService {
-    let root = mirrorRootURL ?? HostXcodeService.defaultMirrorRootURL()
-    switch launchPlan.effectiveRoute {
-    case .host:
-      return HostXcodeService(hostRepoURL: hostRepoURL, mirrorRootURL: root, runner: runner)
-    case .sharedVM(let route):
-      guard let machine = SharedCompassVM.shared.virtualMachine else {
-        throw AppModelError.internalInvariant(
-          "Host Xcode build/test requires the live Shared VM workspace, but no virtual machine is connected."
-        )
-      }
-      return HostXcodeService(
-        hostRepoURL: hostRepoURL,
-        guestWorkspacePath: route.guestWorkspacePath,
-        client: Self.makeVsockClient(on: machine),
-        mirrorRootURL: root,
-        runner: runner
-      )
-    }
-  }
-
   func makeRustCargoService(
     forgeProfile: ForgeProfile?,
     environmentKind: AgentEnvironment.Kind
@@ -469,41 +406,6 @@ extension CompassProject {
     hostXcodeMirrorRoot: URL? = nil,
     hostRunner: ProcessRunner.InvocationRunner? = nil
   ) async throws -> ProcessResult {
-    if hostXcodeBuildTestEnabled && requiresHostXcode {
-      do {
-        let service = try makeHostXcodeService(
-          hostRepoURL: hostWorkingDirectory,
-          launchPlan: launchPlan,
-          mirrorRootURL: hostXcodeMirrorRoot,
-          runner: hostRunner
-        )
-        let mirrorRoot = hostXcodeMirrorRoot ?? HostXcodeService.defaultMirrorRootURL()
-        let workingDirectoryDescription: String
-        switch launchPlan.effectiveRoute {
-        case .host:
-          workingDirectoryDescription = hostWorkingDirectory.path
-        case .sharedVM:
-          workingDirectoryDescription =
-            HostXcodeService.mirrorDirectory(
-              forRepoURL: hostWorkingDirectory,
-              rootURL: mirrorRoot
-            ).path
-        }
-        log(
-          "Verify: running through host Xcode build/test bridge at \(workingDirectoryDescription) (timeout \(Int(timeoutSeconds * 1000))ms).",
-          level: .info
-        )
-        return try await service.runVerifyCommand(command, timeout: timeoutSeconds)
-      } catch let error as HostXcodeError {
-        return ProcessResult(exitCode: 72, stdout: "", stderr: error.localizedDescription)
-      } catch {
-        return ProcessResult(
-          exitCode: 72,
-          stdout: "",
-          stderr: "Host Xcode verify failed: \(error.localizedDescription)"
-        )
-      }
-    }
     if case .sharedVM(let route) = launchPlan.effectiveRoute,
       let machine = SharedCompassVM.shared.virtualMachine
     {

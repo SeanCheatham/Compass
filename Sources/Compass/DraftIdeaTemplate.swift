@@ -22,7 +22,7 @@ enum DraftIdeaLibrary {
     systemImage: "macwindow.badge.plus",
     text: """
       Change: create or improve the Rust desktop output path
-      Because: generated projects should build, run, and screenshot inside the Shared VM without Host Xcode
+      Because: generated projects should build, run, and screenshot inside the Shared VM without host-only Apple build dependencies
       Done when: the Cargo workspace shows a deterministic desktop UI and Rust verification commands pass visibly
       """
   )

@@ -59,11 +59,6 @@ struct AgentExecutorLiveEventsTests {
       correlationID: "delegate-1"
     )
     executor.emitToolStart(
-      name: AgentHostXcodeTool.toolName,
-      arguments: #"{"operation":"test"}"#,
-      correlationID: "xcode-1"
-    )
-    executor.emitToolStart(
       name: AgentInstallToolchainTool.toolName,
       arguments: #"{"toolchain_id":"rust"}"#,
       correlationID: "toolchain-1"
@@ -78,7 +73,6 @@ struct AgentExecutorLiveEventsTests {
     try #require(
       events.map(\.text) == [
         "delegate · inspect the recovery guide",
-        "host_xcode · test",
         "install_toolchain · rust",
         "plan_history · offset 2",
       ])

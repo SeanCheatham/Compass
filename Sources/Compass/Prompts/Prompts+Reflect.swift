@@ -12,7 +12,7 @@ extension Prompts {
     productTournamentEvidenceIndex: ProductTournamentEvidenceIndex = .empty,
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
-    let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()
+    let promptState = state.removingHostXcodeRequirement()
     let stateJSON = try CompassWorkspace.encodeProposal(promptState.promptDigest())
     let sessionsJSON = try encodeSessions(Array(recentSessions.prefix(5)))
     let sessionBrief = ReflectSessionBrief(sessions: recentSessions).text
@@ -23,14 +23,7 @@ extension Prompts {
       config: productTournamentConfig,
       evidenceIndex: productTournamentEvidenceIndex
     )
-    let hostXcodeGuidance =
-      hostXcodeBuildTestEnabled
-      ? """
-      When preserving or rewriting `immediate`, keep `requiresHostXcode` true
-      for Swift/macOS/iOS verify that would otherwise use `swift test` or
-      `xcodebuild` in the guest. Host verify must be `xcodebuild ... build|test`.
-      """
-      : ""
+    let hostXcodeGuidance = ""
     return """
       You are the Reflect agent in Compass's Product Tournament work loop (see the system
       message for how the loop works).
@@ -84,8 +77,7 @@ extension Prompts {
       }
       When preserving a non-null `immediate`, copy the full current immediate
       object, including `plan`, `verify`, `verifyTimeoutMs`, `estimatedDifficulty`,
-      and `requiresHostXcode` if that field is present. Do not include completed
-      history.
+      and candidate/source metadata if present. Do not include completed history.
 
       \(lessonEditsGuidance())
 

@@ -1,15 +1,15 @@
 import Foundation
 
 extension Prompts {
-  static func sharedVMApplePlatformPlanningRuleWhenHostXcodeDisabled(
+  static func sharedVMApplePlatformPlanningRule(
     forgeProfile: ForgeProfile?
   ) -> String {
     guard forgeProfile == .swiftSPM else { return "" }
     return """
       - This legacy Swift repo runs in the Shared VM with Command Line Tools only.
-        Enable **Host Xcode Build/Test** in Compass before planning `swift test`
-        or `xcodebuild` verify; until then use guest `swift build` or compile-only
-        targets for verify. Do not create new generated output in Swift.
+        Avoid planning `swift test` or `xcodebuild` verify from the guest; use
+        guest `swift build`, compile-only checks, or read-only inspection. Do not
+        create new generated output in Swift.
       """
   }
 

@@ -54,32 +54,7 @@ extension Prompts {
     criticSection: String,
     hostXcodeBuildTestEnabled: Bool
   ) -> String {
-    let hostXcodeVerifyNote =
-      next.requiresHostXcode
-      ? """
-      This increment's verify runs on the host: call `host_xcode` with the
-      matching `action` and pass only the xcodebuild flags in `arguments` (the tool
-      supplies `build`/`test`).
-      """
-      : """
-      If you need to probe SwiftPM or Xcode builds before finishing, still use
-      `host_xcode` even when verify is compile-only in the guest.
-      """
-    let hostXcodeWorkflow =
-      hostXcodeBuildTestEnabled
-      ? """
-
-      Host Apple platform workflow:
-      The Shared VM guest has Command Line Tools only — not full Xcode. Keep
-      edits in the normal file tools here, but run Swift/macOS/iOS build and test
-      on the host via `host_xcode` (status/build/test). Please do not use `bash` for Xcode-only commands;
-      `host_xcode` is for build/test checks only.
-      do not use `bash` for `swift test`, `xcodebuild`, or
-      other Apple-platform compile/test commands because they fail or mislead in
-      the guest (e.g. missing `_TestingInterop`).
-      \(hostXcodeVerifyNote)
-      """
-      : ""
+    let hostXcodeWorkflow = ""
     let handoffSection = developHandoffSection(next: next)
     return """
       You are the Develop agent in Compass's Product Tournament work loop (see the system

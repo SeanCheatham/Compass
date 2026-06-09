@@ -3502,7 +3502,7 @@ struct TournamentAutomationCyclePlan: Equatable, Sendable {
     self.maxSteps = max(1, maxSteps)
     self.capped = capped
     self.refreshesQueueAfterStateChange =
-      refreshesQueueAfterStateChange && self.maxSteps > 1 && !executableSteps.isEmpty
+      refreshesQueueAfterStateChange && !executableSteps.isEmpty
   }
 }
 
@@ -5294,42 +5294,20 @@ enum TournamentAutomationPlanner {
     maxSteps: Int = 3,
     isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
   ) -> TournamentAutomationCyclePlan {
-    let limit = max(1, maxSteps)
-    let schedule = portfolioSchedule(
-      config: config,
-      evidenceIndex: evidenceIndex,
-      maxSteps: limit,
-      isPersonaModelAvailable: isPersonaModelAvailable
-    )
     let allSteps = steps(
       config: config,
       evidenceIndex: evidenceIndex,
       isPersonaModelAvailable: isPersonaModelAvailable
     )
-    let executableSteps = allSteps.filter(\.canExecute)
-    let selectedExecutableSteps = schedule.selectedWork.map(\.step)
+    let selectedExecutableSteps = allSteps.first(where: \.canExecute).map { [$0] } ?? []
     return TournamentAutomationCyclePlan(
       executableSteps: selectedExecutableSteps,
       blockedSteps: allSteps.filter { !$0.canExecute },
-      maxSteps: limit,
-      capped: executableSteps.count > selectedExecutableSteps.count,
+      maxSteps: 1,
+      capped: false,
       refreshesQueueAfterStateChange: selectedExecutableSteps.contains {
         $0.kind == .prepareWorktree
       }
-    )
-  }
-
-  static func portfolioSchedule(
-    config: ProductTournamentConfig,
-    evidenceIndex: ProductTournamentEvidenceIndex,
-    maxSteps: Int = 3,
-    isPersonaModelAvailable: Bool = FoundationModelsAvailability.isAvailable
-  ) -> TournamentPortfolioSchedule {
-    TournamentPortfolioScheduler.schedule(
-      config: config,
-      evidenceIndex: evidenceIndex,
-      maxSteps: maxSteps,
-      isPersonaModelAvailable: isPersonaModelAvailable
     )
   }
 

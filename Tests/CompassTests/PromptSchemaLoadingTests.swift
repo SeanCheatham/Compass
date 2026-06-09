@@ -13,12 +13,10 @@ struct PromptSchemaLoadingTests {
   func testAllSchemasLoadAndParseAsJSONObjects() throws {
     let schemas: [(String, String)] = [
       ("plan", Prompts.planSchema),
-      ("planHostXcode", Prompts.planHostXcodeSchema),
       ("discover", Prompts.discoverSchema),
       ("market-compiler", Prompts.marketCompilerSchema),
       ("develop", Prompts.developSchema),
       ("reflect", Prompts.reflectSchema),
-      ("reflectHostXcode", Prompts.reflectHostXcodeSchema),
       ("critic", Prompts.criticSchema),
       ("subAgent", Prompts.subAgentSchema),
     ]
@@ -33,17 +31,12 @@ struct PromptSchemaLoadingTests {
   }
 
   @Test
-  func testHostXcodeSchemasAreOnlySelectedWhenProjectOptInIsEnabled() throws {
+  func testHostXcodeSchemaSelectionFallsBackToBaseSchemas() throws {
     #expect(Prompts.planSchema(hostXcodeBuildTestEnabled: false) == Prompts.planSchema)
-    #expect(
-      Prompts.planSchema(hostXcodeBuildTestEnabled: true) == Prompts.planHostXcodeSchema
-    )
+    #expect(Prompts.planSchema(hostXcodeBuildTestEnabled: true) == Prompts.planSchema)
     #expect(Prompts.reflectSchema(hostXcodeBuildTestEnabled: false) == Prompts.reflectSchema)
-    #expect(
-      Prompts.reflectSchema(hostXcodeBuildTestEnabled: true) == Prompts.reflectHostXcodeSchema
-    )
+    #expect(Prompts.reflectSchema(hostXcodeBuildTestEnabled: true) == Prompts.reflectSchema)
     #expect(!Prompts.planSchema.contains("requiresHostXcode"))
-    #expect(Prompts.planHostXcodeSchema.contains("requiresHostXcode"))
   }
 
   @Test
@@ -157,33 +150,29 @@ struct PromptSchemaLoadingTests {
 
   @Test
   func testReflectSchemasAllowTournamentDecisionUpdates() throws {
-    for schema in [Prompts.reflectSchema, Prompts.reflectHostXcodeSchema] {
-      let properties = try schemaProperties(schema)
-      try #require(properties.keys.contains("tournamentDecisionUpdates"))
-      try #require(!properties.keys.contains("productDecisionUpdates"))
-      try #require(
-        propertyDescription("tournamentDecisionUpdates", in: properties)
-          .contains("Tournament experiment decision updates"))
-    }
+    let properties = try schemaProperties(Prompts.reflectSchema)
+    try #require(properties.keys.contains("tournamentDecisionUpdates"))
+    try #require(!properties.keys.contains("productDecisionUpdates"))
+    try #require(
+      propertyDescription("tournamentDecisionUpdates", in: properties)
+        .contains("Tournament experiment decision updates"))
   }
 
   @Test
   func testPlanSchemasKeepCommandsOutOfAcceptanceChecks() throws {
-    for schema in [Prompts.planSchema, Prompts.planHostXcodeSchema] {
-      let immediateProperties = try planImmediateProperties(schema)
-      try #require(
-        propertyDescription("plan", in: immediateProperties)
-          .contains("Acceptance checks must describe observable behavior")
-      )
-      try #require(
-        propertyDescription("plan", in: immediateProperties)
-          .contains("not shell commands")
-      )
-      try #require(
-        propertyDescription("verify", in: immediateProperties)
-          .contains("Put commands here, not in Acceptance checks")
-      )
-    }
+    let immediateProperties = try planImmediateProperties(Prompts.planSchema)
+    try #require(
+      propertyDescription("plan", in: immediateProperties)
+        .contains("Acceptance checks must describe observable behavior")
+    )
+    try #require(
+      propertyDescription("plan", in: immediateProperties)
+        .contains("not shell commands")
+    )
+    try #require(
+      propertyDescription("verify", in: immediateProperties)
+        .contains("Put commands here, not in Acceptance checks")
+    )
   }
 
   private func schemaProperties(_ schema: String) throws -> [String: Any] {

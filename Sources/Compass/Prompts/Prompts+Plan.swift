@@ -16,7 +16,7 @@ extension Prompts {
     productTournamentEvidenceIndex: ProductTournamentEvidenceIndex = .empty,
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
-    let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()
+    let promptState = state.removingHostXcodeRequirement()
     let stateJSON = try CompassWorkspace.encodeProposal(promptState.promptDigest())
     let draftIntakeGuide = DraftIntakeGuide(drafts: drafts)
     let lessonsDigest = compactPromptBlock(lessons, maxLines: 8, maxCharacters: 1800)
@@ -27,48 +27,16 @@ extension Prompts {
       config: productTournamentConfig,
       evidenceIndex: productTournamentEvidenceIndex
     )
-    let includeHostXcodeGuidance =
-      hostXcodeBuildTestEnabled && forgeProfile != .rustCargo && forgeProfile != .typeScriptVitest
     let hostXcodePlanningRule =
-      includeHostXcodeGuidance
-      ? """
-      - Shared VM develop/verify runs in the guest unless this increment uses
-        host Xcode. For Swift, SwiftPM, macOS/iOS/tvOS/watchOS,
-        Apple Intelligence / FoundationModels, and any Apple-platform build
-        or test, default to host-side execution: set
-        `requiresHostXcode` to true and choose an `xcodebuild ... build` or
-        `xcodebuild ... test` verify command (never guest `swift test` or guest
-        `xcodebuild` verify — the guest has Command Line Tools only and lacks
-        libraries such as `_TestingInterop`). Do not pair `requiresHostXcode: true` with
-        `swift test`; host Xcode verify commands must start with `xcodebuild`.
-        For SwiftPM packages use the generated workspace when needed:
-        `xcodebuild -workspace .swiftpm/xcode/package.xcworkspace -scheme <Package>-Package -destination 'platform=macOS' -skipMacroValidation ... test`.
-        During Plan probing, use `host_xcode` instead of `bash` for these checks.
-        Use `requiresHostXcode` for build/test only — not app launch, Simulator
-        control, or arbitrary host shell.
-      """
-      : sharedVMApplePlatformPlanningRuleWhenHostXcodeDisabled(forgeProfile: forgeProfile)
+      sharedVMApplePlatformPlanningRule(forgeProfile: forgeProfile)
     let compassTestsMigrationRule =
-      includeHostXcodeGuidance
-      ? """
-      - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
-        guest `swift test` as verify. Use host `xcodebuild ... test` with
-        `requiresHostXcode: true` when host Xcode is enabled; otherwise prefer
-        `swift build --target CompassTests` for compile-only guest increments.
       """
-      : """
       - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
         guest `swift test` as verify. Prefer `swift build --target CompassTests`
         for compile-only guest increments.
       """
-    let hostXcodeShape =
-      includeHostXcodeGuidance
-      ? ",\n            \"requiresHostXcode\": true"
-      : ""
-    let hostXcodeShapeGuidance =
-      includeHostXcodeGuidance
-      ? "When the field appears, set `requiresHostXcode` to the boolean `true` or `false`; do not combine both choices in the JSON value."
-      : ""
+    let hostXcodeShape = ""
+    let hostXcodeShapeGuidance = ""
     return """
       You are the Plan agent in Compass's Product Tournament work loop (see the system
       message for how the loop works). Treat the structured JSON you return as

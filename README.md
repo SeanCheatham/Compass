@@ -68,10 +68,10 @@ the deterministic semantic product-pressure replay. `product-tournament-smoke`
 adds coverage and desktop visual verification.
 
 Swift, TypeScript, and JavaScript are retained as legacy imported-repository
-inspection/evolution paths only. Host Xcode exists for those legacy Apple
-repositories and for Compass's own Swift code; it is not a generated-output
-dependency. The Compass host app remains Swift/macOS; the Rust engine is a
-Product Tournament verification sidecar and is not used for the host UI or VM lifecycle.
+inspection/evolution paths only. Apple builds are local developer concerns, not
+generated-output dependencies. The Compass host app remains Swift/macOS; the
+Rust engine is a Product Tournament verification sidecar and is not used for the
+host UI or VM lifecycle.
 
 ## Product Tournaments
 
@@ -153,55 +153,14 @@ and advances them through rounds:
   proofs, and evidence from at least two personas. When those Round 3 gates are
   not met, Tournament Automation targets the next persona-model cohort toward
   implementation-use proof first, then current-alternative comparison, then
-  explicit willingness-to-pay or sponsorship proof. Proof-target rows and
-  Product Tournament Context include each contender's position within the active
-  round, while a compact proof scoreboard groups those targets by round so the
-  Workbench and Product Tournament Context show which rival products still carry
-  plan, feasibility, or pay proof debt before narrowing or winner decisions; the
-  Workbench scoreboard can run or prepare the top proof target through the same
-  audited Tournament Automation single-step path, then show the latest
-  before/after proof-debt movement and a last-run/next-run pairing beside each
-  contender row. The compact scoreboard badges each row and the round-level top
-  action as more proof, transition ready, promotion/kill ready, or no queued
-  proof, shows a round-level pressure summary such as ready decisions, ready
-  transitions, and proof runs, groups rows under those pressure headers, gives
-  each pressure group a first-row action for running or selecting that bucket,
-  surfaces the group's latest audited proof-debt movement in the header, keeps a
-  selected-group marker on the acted-on row even if it moves into a new pressure
-  bucket, records acted pressure-group context in the audit trail for
-  Plan/Reflect, shows the latest acted group in Tournament Automation facts with
-  whether that anchored row moved, cleared, or stayed in the current proof
-  scoreboard, adds a Group Learning fact plus matching Plan/Reflect prompt line
-  when that acted group drives retargeting, turns stalled or repeatedly
-  still-present proof-group learning into an `acted_proof_group` contender
-  revision brief whose generated validation scenario tells simulated users
-  whether they are testing a direct proof stall or repeated still-present proof
-  pressure, shows the same Validation label in the Workbench revision row,
-  queued revision prompt context, and completed revision-cycle audit history,
-  surfaces the latest completed acted revision validation in Tournament
-  Automation facts, queues a source-aware validation rerun after that acted
-  revision is applied, and shows pending/completed validation-run status with
-  the current cleared/moved/still proof-pressure outcome in Tournament
-  Automation facts, selected proof-target detail, and selected evidence-run
-  detail,
-  repeats that acted-outcome signal in Plan/Reflect prompt context, feeds
-  stalled or repeatedly still-present proof-run group outcomes back into
-  the next-action guard so the planner retargets the scenario, product
-  revision, current-alternative proof, or proof bucket before repeating the same
-  run, and sorts
+  explicit willingness-to-pay or sponsorship proof. The Workbench keeps the
+  active round focused on a single next proof target, surfaces the latest
+  before/after proof-debt movement for that target, and sorts
   transition/decision/revision/worktree-ready contenders above ordinary proof
   gathering so operators can see when a contender has moved out of evidence
-  collection before opening the detail. After a proof action
-  completes, the Workbench resolves the new audit back to the affected
-  scoreboard contender and selects the matching scenario evidence run or Round 1
-  plan-evaluation outcome when the evidence index knows it; selecting a
-  scoreboard contender applies the same proof-target focus manually. The
-  selected proof-target detail promotes
-  the latest before/after proof-debt movement into a compact result strip, names
-  the current next automation step after that result, repeats the same readiness
-  badge, and exposes the row's queued proof action, so operators can run the
-  selected contender's next proof without switching back to the round-level top
-  action.
+  collection before opening the detail. After a proof action completes, the
+  Workbench selects the matching scenario evidence run or Round 1
+  plan-evaluation outcome when the evidence index knows it.
   When the proof gates are met but the low-medium
   fidelity implementation still has weak pay intent, missing capabilities, or
   mixed pull, Compass queues a Round 3 implementation revision brief instead of
@@ -641,15 +600,13 @@ Change inspection has nine main components:
 | Component | File | Description |
 | --- | --- | --- |
 | ``CodemapFileSystem`` | `Sources/Compass/Explore/CodemapFileSystem.swift` | File-system scanner; entry point for the repository snapshot tree builder |
-| ``CodemapGraphViz`` | `Sources/Compass/Explore/CodemapGraphViz.swift` | SVG export of the import graph; used by ``ArchitectureGraphPopover`` |
-| ``CommitExplainer`` | `Sources/Compass/Explore/CommitExplainer.swift` | Summarises a single diff in plain English; also serves ``WhyGeneratedPopover`` |
+| ``CodemapGraphViz`` | `Sources/Compass/Explore/CodemapGraphViz.swift` | SVG export of the import graph |
+| ``CommitExplainer`` | `Sources/Compass/Explore/CommitExplainer.swift` | Summarises a single diff in plain English |
 | ``CommitTourGenerator`` | `Sources/Compass/Explore/CommitTourGenerator.swift` | Synthesises a multi-commit diff into a 3–5 sentence guided-tour narrative |
 | ``ExploreRepositorySnapshot`` | `Sources/Compass/Explore/ExploreRepositorySnapshot.swift` | Immutable snapshot of file tree + indexed codemap entries |
 | ``FileExplainer`` | `Sources/Compass/Explore/FileExplainer.swift` | Categorises changed files and produces per-file diff summaries |
 | ``ArchitectureGraph`` | `Sources/Compass/Explore/ArchitectureGraph.swift` | Plain-English import-graph analysis for the codebase |
 | ``CommitNarrator`` | `Sources/Compass/Explore/CommitNarrator.swift` | One-sentence commit summaries for banners and inline labels |
-| ``ArchitectureGraphPopover`` | `Sources/Compass/Views/Plan/PlanExplore.swift` | SwiftUI popover for Plan history; renders the SVG from ``CodemapGraphViz`` |
-| ``WhyGeneratedPopover`` | `Sources/Compass/Views/Plan/PlanExplore.swift` | SwiftUI popover for Plan history; shows the "why this file exists" explanation |
 | ``RepoQnA`` | `Sources/Compass/Explore/RepoQnA.swift` | Free-text Q&A about repository changes using on-device Foundation Models |
 
 ## Development
@@ -702,8 +659,8 @@ then notarize the resulting `.app` before packaging.
 ## Private Workspace: Shared VM Runtime
 
 Compass runs every Develop iteration inside a private workspace backed by
-a Compass-managed VM — currently the existing macOS guest, with the runtime
-boundary being kept OS-neutral so a smaller Linux guest can replace it later.
+a Compass-managed macOS guest, with the runtime boundary exposed as a
+tool-and-workspace contract rather than direct host filesystem access.
 Each project gets a persistent per-repo workspace inside that VM, and
 Compass talks to its tools (`read_file`, `write_file`, `edit_file`, `bash`,
 etc.) over vsock. The VM provisions Rust as a first-class generated-project

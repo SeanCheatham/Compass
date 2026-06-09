@@ -170,10 +170,6 @@ struct AgentToolContext: Sendable {
   var sessionNumber: Int?
   /// Shared VM toolchain listing/installation. Nil on host-route runs.
   var toolchainService: (any SharedVMToolchainService)?
-  /// Restricted host-side Xcode build/test bridge. Nil unless the user
-  /// enabled it for this project, the active plan requires it, and host
-  /// Xcode readiness checks passed.
-  var hostXcodeService: (any HostXcodeServicing)?
   /// Rust/Cargo sidecar service. Nil unless this is a Rust Cargo project
   /// and `compass-engine` is available.
   var rustCargoService: (any RustCargoServicing)?
@@ -190,7 +186,6 @@ struct AgentToolContext: Sendable {
     phase: AgentPhase = .plan,
     sessionNumber: Int? = nil,
     toolchainService: (any SharedVMToolchainService)? = nil,
-    hostXcodeService: (any HostXcodeServicing)? = nil,
     rustCargoService: (any RustCargoServicing)? = nil
   ) {
     let normalizedWorkingDirectory = workingDirectory.standardizedFileURL
@@ -207,7 +202,6 @@ struct AgentToolContext: Sendable {
     self.phase = phase
     self.sessionNumber = sessionNumber.flatMap { $0 > 0 ? $0 : nil }
     self.toolchainService = toolchainService
-    self.hostXcodeService = hostXcodeService
     self.rustCargoService = rustCargoService
   }
 

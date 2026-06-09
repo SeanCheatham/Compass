@@ -142,11 +142,6 @@ struct ProductTournamentRoundProofOverviewTests {
       isPersonaModelAvailable: false
     )
     let context = contextLines.joined(separator: "\n")
-    let digest = ProductTournamentPlanningDigestFormatter.promptText(
-      config: config,
-      evidenceIndex: evidenceIndex
-    )
-    let workbenchBody = try await workbenchBody(for: config)
     let includesAllRivalPositions = item.rows.allSatisfy { row in
       row.tournamentPositionSummary?.contains("rival product") == true
     }
@@ -363,7 +358,7 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(priorityItem.topActionStep?.kind == .applyDecision)
     try #require(includesAllRivalPositions)
     try #require(displayDetailIncludesRows)
-    try #require(contextLines.first == "Tournament automation proof scoreboard:")
+    try #require(contextLines.first == "Tournament automation proof targets:")
     try #require(context.contains("proof_target_scoreboard"))
     try #require(context.contains("pressure Proof runs 2"))
     try #require(context.contains("group_actions Proof runs"))
@@ -372,17 +367,6 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(context.contains("top_action_status More proof"))
     try #require(context.contains("run_pair"))
     try #require(context.contains("Ready: Run Plan Proof"))
-    try #require(digest.contains("Tournament automation proof scoreboard:"))
-    try #require(digest.contains("proof_target_scoreboard"))
-    try #require(digest.contains("pressure Proof runs 2"))
-    try #require(digest.contains("group_actions Proof runs"))
-    try #require(digest.contains("group_results Proof runs: latest_result none"))
-    try #require(digest.contains("top_action"))
-    try #require(digest.contains("top_action_status More proof"))
-    try #require(digest.contains("run_pair"))
-    try #require(workbenchBody.contains("Proof Scoreboard"))
-    try #require(workbenchBody.contains("WorkbenchStatusFact"))
-    try #require(workbenchBody.contains("AccessibilityAttachmentModifier"))
   }
 
   @Test func proofTargetScoreboardShowsLatestAuditDebtMovement() async throws {
@@ -496,10 +480,6 @@ struct ProductTournamentRoundProofOverviewTests {
       isPersonaModelAvailable: false
     )
     .joined(separator: "\n")
-    let digest = ProductTournamentPlanningDigestFormatter.promptText(
-      config: config,
-      evidenceIndex: evidenceIndex
-    )
     let workbenchFacts = try #require(
       TournamentAutomationCycleWorkbenchFacts.latest(
         config: config,
@@ -508,7 +488,6 @@ struct ProductTournamentRoundProofOverviewTests {
         isPersonaModelAvailable: false
       )
     )
-    let workbenchBody = try await workbenchBody(for: config)
 
     try #require(movement.auditID == "scoreboard-proof-delta")
     try #require(movement.displaySummary == "Latest audit cleared 2 proof debt (6 -> 4)")
@@ -586,22 +565,6 @@ struct ProductTournamentRoundProofOverviewTests {
     try #require(context.contains("run_pair last cleared 2 proof debt"))
     try #require(context.contains("next_status More proof"))
     try #require(context.contains("top_action_status More proof"))
-    try #require(digest.contains("latest_audit scoreboard-proof-delta"))
-    try #require(digest.contains("proof_debt 6 -> 4 (-2)"))
-    try #require(digest.contains("pressure Proof runs 2"))
-    try #require(digest.contains("group_results Proof runs"))
-    try #require(digest.contains("latest_result cleared 2 proof debt"))
-    try #require(digest.contains("run_pair last cleared 2 proof debt"))
-    try #require(digest.contains("top_action_status More proof"))
-    try #require(digest.contains("acted group outcomes"))
-    try #require(digest.contains("reduced but still Proof runs"))
-    try #require(workbenchBody.contains("Proof Scoreboard"))
-    try #require(workbenchBody.contains("Last Group"))
-    try #require(workbenchBody.contains("Group Outcome"))
-    try #require(workbenchBody.contains("Proof runs; \(row.contenderTitle); More proof"))
-    try #require(workbenchBody.contains("reduced but still Proof runs; More proof"))
-    try #require(workbenchBody.contains("WorkbenchStatusFact"))
-    try #require(workbenchBody.contains("AccessibilityAttachmentModifier"))
   }
 
   @Test func proofTargetFocusResolvesPlanEvaluationOutcomeIDs() throws {

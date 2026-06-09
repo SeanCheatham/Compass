@@ -924,7 +924,7 @@ enum TournamentAutomationProofTargetScoreboard {
       isPersonaModelAvailable: isPersonaModelAvailable
     )
     guard !items.isEmpty else { return [] }
-    return ["Tournament automation proof scoreboard:"] + items.map(\.contextLine)
+    return ["Tournament automation proof targets:"] + items.map(\.contextLine)
   }
 
   static func focus(

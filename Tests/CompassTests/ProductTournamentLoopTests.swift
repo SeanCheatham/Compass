@@ -820,7 +820,9 @@ struct ProductTournamentLoopTests {
     try #require(initialStep.roundID == planRound.id)
     try #require(initialStep.id.contains("run_plan_proof"))
     try #require(initialStep.id.contains(contender.id))
-    try #require(initialCyclePlan.executableSteps.contains(initialStep))
+    try #require(initialSteps.contains(initialStep))
+    try #require(initialCyclePlan.executableSteps.count == 1)
+    try #require(initialCyclePlan.executableSteps[0].kind == .runPlanProof)
     let startingProofDebtSnapshot = try #require(
       TournamentAutomationProofDebtSnapshotter.snapshot(
         experimentIDs: [experiment.id],
@@ -3700,10 +3702,7 @@ struct ProductTournamentLoopTests {
         "audit tournament-cycle-stalled-acted-group") == true)
     try #require(facts.latestActedPressureGroupLearningHelp?.contains(row.selectionID) == true)
     try #require(facts.latestActedRevisionValidationSummary == nil)
-    try #require(digest.contains("acted group outcomes"))
     try #require(digest.contains("stalled in Proof runs"))
-    try #require(digest.contains("acted group learning"))
-    try #require(digest.contains("stalled Proof runs"))
     try #require(digest.contains("Retarget stalled proof group"))
     try #require(digest.contains("Tournament automation revision briefs"))
     try #require(digest.contains("source acted_proof_group"))
@@ -4093,10 +4092,7 @@ struct ProductTournamentLoopTests {
         "tournament-cycle-still-acted-group-a") == true)
     try #require(facts.latestActedPressureGroupLearningHelp?.contains(row.selectionID) == true)
     try #require(facts.latestActedRevisionValidationSummary == nil)
-    try #require(digest.contains("acted group outcomes"))
     try #require(digest.contains("still Proof runs"))
-    try #require(digest.contains("acted group learning"))
-    try #require(digest.contains("repeated still-present Proof runs"))
     try #require(digest.contains("Retarget repeated proof group"))
     try #require(digest.contains("Tournament automation revision briefs"))
     try #require(digest.contains("source acted_proof_group"))
@@ -4334,12 +4330,12 @@ struct ProductTournamentLoopTests {
 
     try #require(plan.canRun)
     try #require(plan.executableSteps.count == 1)
-    try #require(plan.capped)
-    try #require(plan.summary.contains("capped at 1"))
+    try #require(!plan.capped)
+    try #require(!plan.summary.contains("capped at 1"))
     try #require(plan.executableSteps[0].kind == .runCohort)
     try #require(plan.queueSummary.contains(plan.executableSteps[0].experimentTitle))
     try #require(plan.queueSummary.contains("Run evidence cohort"))
-    try #require(plan.queueSummary.contains("plus more queued"))
+    try #require(!plan.queueSummary.contains("plus more queued"))
   }
 
   @Test func tournamentAutomationCyclePlanReportsBlockedStep() throws {
@@ -4466,10 +4462,6 @@ struct ProductTournamentLoopTests {
       evidenceIndex: index
     )
     try #require(digest.contains("targeted proof 1 promote, 0 kill"))
-    try #require(digest.contains("acted pressure groups"))
-    try #require(digest.contains("pressure_group Proof runs"))
-    try #require(digest.contains("acted group outcomes"))
-    try #require(digest.contains("cleared from proof scoreboard"))
   }
 
   @Test func tournamentAutomationCycleOutcomeCountsPrepareWorktreeSeparatelyFromEvidence() throws {
@@ -6024,8 +6016,8 @@ struct ProductTournamentLoopTests {
     try #require(plan.summary.contains("Queue refreshes after state-changing steps"))
     try #require(plan.queueSummary.contains("Prepare implementation worktree"))
     try #require(plan.queueSummary.contains("refresh queue for newly unblocked evidence"))
-    try #require(!singleStepPlan.refreshesQueueAfterStateChange)
-    try #require(!singleStepPlan.queueSummary.contains("refresh queue"))
+    try #require(singleStepPlan.refreshesQueueAfterStateChange)
+    try #require(singleStepPlan.queueSummary.contains("refresh queue"))
   }
 
   @Test func rolloutWorkflowPromotesExperimentWithBranchCommitAndEvidenceTrail() throws {

@@ -49,13 +49,9 @@ enum ToolRegistry {
   /// probe the project (build, test, lint, git history) but must not
   /// mutate tracked files.
   static func inspectionTools(
-    hostXcodeService: (any HostXcodeServicing)? = nil,
     rustCargoService: (any RustCargoServicing)? = nil
   ) -> [AgentTool] {
     var tools: [AgentTool] = readOnlyTools() + [AgentBashTool()]
-    if hostXcodeService != nil {
-      tools.append(AgentHostXcodeTool())
-    }
     if rustCargoService != nil {
       tools.append(AgentWorkspaceOutlineTool())
       tools.append(AgentCargoCheckTool())
@@ -76,19 +72,17 @@ enum ToolRegistry {
     for phase: AgentPhase,
     settings: AgentRuntimeSettings,
     toolchainService: (any SharedVMToolchainService)? = nil,
-    hostXcodeService: (any HostXcodeServicing)? = nil,
     rustCargoService: (any RustCargoServicing)? = nil
   ) -> [AgentTool] {
     var tools: [AgentTool]
     switch phase {
     case .plan:
       tools =
-        inspectionTools(hostXcodeService: hostXcodeService, rustCargoService: rustCargoService) + [
+        inspectionTools(rustCargoService: rustCargoService) + [
           AgentPlanHistoryTool()
         ]
     case .reflect, .critic:
-      tools = inspectionTools(
-        hostXcodeService: hostXcodeService, rustCargoService: rustCargoService)
+      tools = inspectionTools(rustCargoService: rustCargoService)
     case .develop:
       tools = developTools()
       if rustCargoService != nil {
@@ -105,9 +99,6 @@ enum ToolRegistry {
       }
       if let imageAssignment = settings.imageAssignment {
         tools.append(AgentGenerateImageTool(assignment: imageAssignment))
-      }
-      if hostXcodeService != nil {
-        tools.append(AgentHostXcodeTool())
       }
     }
     if let webSearchAssignment = settings.webSearchAssignment {
@@ -132,6 +123,6 @@ enum ToolRegistry {
 
   /// Convenience overload matching the pre-toolchain signature.
   static func tools(for phase: AgentPhase, settings: AgentRuntimeSettings) -> [AgentTool] {
-    tools(for: phase, settings: settings, toolchainService: nil, hostXcodeService: nil)
+    tools(for: phase, settings: settings, toolchainService: nil)
   }
 }

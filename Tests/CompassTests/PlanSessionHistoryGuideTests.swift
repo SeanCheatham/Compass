@@ -133,7 +133,7 @@ struct PlanSessionHistoryGuideTests {
           commits: [
             SessionCommit(sha: "123456789abc", short: "1234567", subject: "Ship audit gauge")
           ],
-          runtimeRouteSummary: "Develop used host Xcode on macOS."
+          runtimeRouteSummary: "Develop used Shared VM on macOS."
         )
       ],
       mode: .all

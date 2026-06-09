@@ -8,21 +8,19 @@ extension Prompts {
   /// silently shipping a broken phase. Schemas are validated as JSON at
   /// load time so a hand-edit that breaks syntax is caught immediately.
   static let planSchema = loadSchema("plan")
-  static let planHostXcodeSchema = loadSchema("planHostXcode")
   static let discoverSchema = loadSchema("discover")
   static let marketCompilerSchema = loadSchema("market-compiler")
   static let developSchema = loadSchema("develop")
   static let reflectSchema = loadSchema("reflect")
-  static let reflectHostXcodeSchema = loadSchema("reflectHostXcode")
   static let criticSchema = loadSchema("critic")
   static let subAgentSchema = loadSchema("subAgent")
 
   static func planSchema(hostXcodeBuildTestEnabled: Bool) -> String {
-    hostXcodeBuildTestEnabled ? planHostXcodeSchema : planSchema
+    planSchema
   }
 
   static func reflectSchema(hostXcodeBuildTestEnabled: Bool) -> String {
-    hostXcodeBuildTestEnabled ? reflectHostXcodeSchema : reflectSchema
+    reflectSchema
   }
 
   /// Token type used to anchor `Bundle(for:)` lookups in the Xcode-built

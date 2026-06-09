@@ -44,12 +44,9 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
           Do not create new generated output in Swift; new generated projects must use Rust/Cargo.
         - For legacy Swift work, use SwiftPM only (`Package.swift`, `Sources/`, `Tests/`).
           Prefer Swift Testing over XCTest for new tests.
-        - In the Shared VM, Swift/macOS build and test must run on the host (see execution environment):
-          plan `requiresHostXcode: true` with `xcodebuild ... test` (package workspace when needed), use
-          `host_xcode` during Develop, and do not plan guest `swift test` verify.
-        - When host Xcode is enabled, test verify uses `xcodebuild ... test` with coverage collected host-side;
-          compile-only increments may still use guest `swift build` when probing is unnecessary.
-        - Compass collects line coverage from the `.profdata` artifact after verify passes.
+        - In the Shared VM, prefer guest-safe SwiftPM probes such as `swift build`.
+          Treat Xcode-project-only test verification as outside the guest execution contract.
+        - Compass can collect SwiftPM coverage from `.profdata` artifacts when verify produces them.
         """
     case .rustCargo:
       return """
@@ -96,8 +93,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     switch self {
     case .swiftSPM:
       return """
-        test verify must declare coverage: guest `swift test --enable-code-coverage`, or host \
-        `xcodebuild ... test` with `requiresHostXcode: true` (Compass collects coverage host-side after verify).
+        test verify must declare SwiftPM coverage, e.g. `swift test --enable-code-coverage`.
         """
     case .rustCargo:
       return "test verify commands must use `cargo llvm-cov` with summary or json output."
@@ -300,37 +296,6 @@ enum ForgeProfileService {
       workspace: workspace
     )
     return detected
-  }
-
-  /// Repos whose Product Tournament loops need full Xcode on the host mirror, not CLT in the guest.
-  static func prefersHostXcodeBridge(in repoURL: URL) -> Bool {
-    let fm = FileManager.default
-    let root = repoURL.standardizedFileURL
-    if fm.fileExists(atPath: root.appending(path: "Package.swift").path) {
-      return true
-    }
-    if hasXcodeProjectBundle(in: root, fileManager: fm) {
-      return true
-    }
-    return false
-  }
-
-  private static func hasXcodeProjectBundle(
-    in root: URL,
-    fileManager: FileManager
-  ) -> Bool {
-    guard
-      let children = try? fileManager.contentsOfDirectory(
-        at: root,
-        includingPropertiesForKeys: nil
-      )
-    else {
-      return false
-    }
-    return children.contains { url in
-      let ext = url.pathExtension.lowercased()
-      return ext == "xcodeproj" || ext == "xcworkspace"
-    }
   }
 
   static func detect(in repoURL: URL) -> ForgeProfile? {

@@ -31,10 +31,6 @@ Current migration flags:
 | `COMPASS_RUST_TOURNAMENT_DRIVER=1` | Route tournament mutations through Rust when enabled. |
 | `COMPASS_RUST_AGENT_EXECUTOR=1` | Route HTTP-provider agent runs through Rust. |
 | `COMPASS_RUST_GUEST_AGENT=1` | Install/use the Rust guest agent. |
-| `COMPASS_LINUX_GUEST=1` | Enable the experimental Linux guest path. |
-
-The Linux guest spike is documented in
-[`docs/linux-guest-spike.md`](linux-guest-spike.md).
 
 Cutover verification and rollback are tracked in
 [`docs/cutover-rollout.md`](cutover-rollout.md).

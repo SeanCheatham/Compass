@@ -300,8 +300,8 @@ enum SharedCompassVMWorktreeSync {
   ///
   /// Today this is just the persistent per-repo root used by
   /// `SharedCompassVMGuestWorkspaceCatalog`; the root is supplied by
-  /// `SharedCompassVMGuestLayout` so a future Linux guest can move it under
-  /// `/home/compass` without weakening the allow-list boundary.
+  /// `SharedCompassVMGuestLayout` so path changes stay inside the layout
+  /// contract without weakening the allow-list boundary.
   static let allowedGuestPathPrefixes: [String] = [
     SharedCompassVMGuestWorkspaceCatalog.guestReposRoot
   ]

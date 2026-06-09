@@ -11,9 +11,7 @@ func reliabilityColor(for severity: PlanReliabilityFeedback.Severity) -> Color {
   }
 }
 
-func storageAssessmentColor(for severity: CompassWorkspaceStorageAssessment.Severity)
-  -> Color
-{
+func storageAssessmentColor(for severity: CompassWorkspaceStorageAssessment.Severity) -> Color {
   switch severity {
   case .healthy:
     return .green

@@ -252,8 +252,8 @@ struct ProjectRunControlGuideTests {
       guide.previewSteps[0].detail == "Make run controls explain the next tournament action.")
     try #require(
       guide.previewSteps[1].detail
-        == "Host Xcode runs: swift test --filter ProjectRunControlGuideTests")
-    try #require(guide.previewSteps[1].systemImage == "macwindow")
+        == "Compass runs: swift test --filter ProjectRunControlGuideTests")
+    try #require(guide.previewSteps[1].systemImage == "terminal")
   }
 
   @Test

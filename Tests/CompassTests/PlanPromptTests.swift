@@ -188,7 +188,7 @@ struct PlanPromptTests {
     #expect(!prompt.contains("Host Xcode"))
   }
 
-  @Test func testHostXcodePlanningAppearsWhenProjectOptInIsEnabled() throws {
+  @Test func testHostXcodePlanningStaysAbsentWhenLegacyFlagIsEnabled() throws {
     let prompt = try Prompts.planPrompt(
       state: .empty,
       completedCount: 0,
@@ -200,12 +200,10 @@ struct PlanPromptTests {
       hostXcodeBuildTestEnabled: true
     )
 
-    #expect(prompt.contains("requiresHostXcode"))
-    #expect(prompt.contains("\"requiresHostXcode\": true"))
+    #expect(!prompt.contains("requiresHostXcode"))
+    #expect(!prompt.contains("\"requiresHostXcode\": true"))
     #expect(!prompt.contains("true|false"))
-    #expect(prompt.contains("do not combine both choices in the JSON value"))
-    #expect(prompt.contains("default to host-side execution"))
-    #expect(prompt.contains("_TestingInterop"))
+    #expect(!prompt.contains("default to host-side execution"))
     #expect(!prompt.contains("simctl"))
     #expect(!prompt.contains("`open`"))
   }
@@ -555,7 +553,7 @@ struct PlanPromptTests {
     try #require(prompt.contains("not yet run"))
   }
 
-  @Test func testDevelopPromptMentionsHostXcodeOnlyWhenEnabledAndRequired() throws {
+  @Test func testDevelopPromptOmitsHostXcodeWhenLegacyFlagIsEnabled() throws {
     let next = PlanNext(
       plan: "Build the app",
       verify: "xcodebuild -scheme App build",
@@ -569,7 +567,7 @@ struct PlanPromptTests {
       attempt: 1,
       priorIssues: []
     )
-    let enabled = Prompts.developPrompt(
+    let enabledArgumentIsIgnored = Prompts.developPrompt(
       next: next,
       lessons: "",
       vision: "",
@@ -579,8 +577,8 @@ struct PlanPromptTests {
     )
 
     #expect(!disabled.contains("host_xcode"))
-    #expect(enabled.contains("host_xcode"))
-    #expect(enabled.contains("build/test checks only"))
+    #expect(!enabledArgumentIsIgnored.contains("host_xcode"))
+    #expect(!enabledArgumentIsIgnored.contains("build/test checks only"))
   }
 
   @Test func testPhasePromptsIncludeAssumptionLedgerSection() throws {

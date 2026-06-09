@@ -580,23 +580,6 @@ struct ProjectRunControls: View {
       Menu {
         Text(executionEnvironmentMenu.statusText)
         Divider()
-        Button {
-          project.hostXcodeBuildTestEnabled.toggle()
-          model.saveProjects()
-        } label: {
-          Label(
-            project.hostXcodeBuildTestEnabled
-              ? "Disable Host Xcode Build/Test" : "Enable Host Xcode Build/Test",
-            systemImage: project.hostXcodeBuildTestEnabled ? "checkmark.square" : "square"
-          )
-        }
-        Text(
-          "Routes legacy Swift and Xcode build/test through the host. Generated projects stay Rust. Also in Settings (⌘,) → Tournament."
-        )
-        SettingsLink {
-          Label("Open Tournament Settings…", systemImage: "trophy")
-        }
-        Divider()
         let diagnosticsAction = executionEnvironmentMenu.copyDiagnosticsAction
         Button {
           copyRuntimeDiagnosticsToPasteboard(diagnosticsAction.copyText)
@@ -1067,8 +1050,6 @@ struct WorkspaceContent: View {
         VisionTab(project: project)
       case .activity:
         ActivityTab(project: project)
-      case .observatory:
-        ProductTournamentObservatoryTab(project: project)
       case .productTournament:
         ProductTournamentWorkbenchTab(project: project)
       }
@@ -1079,7 +1060,6 @@ struct WorkspaceContent: View {
 
 enum WorkspaceTab: String, CaseIterable, Identifiable {
   case productTournament
-  case observatory
   case activity
   case vision
 
@@ -1089,7 +1069,6 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .vision: return "Brief"
     case .activity: return "Activity"
-    case .observatory: return "Observatory"
     case .productTournament: return "Tournament"
     }
   }
@@ -1098,15 +1077,12 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .vision: return "scope"
     case .activity: return "waveform.path.ecg"
-    case .observatory: return "rectangle.grid.3x2"
     case .productTournament: return "trophy"
     }
   }
 
   var minWidth: CGFloat {
     switch self {
-    case .observatory:
-      return 110
     case .productTournament:
       return 98
     default:

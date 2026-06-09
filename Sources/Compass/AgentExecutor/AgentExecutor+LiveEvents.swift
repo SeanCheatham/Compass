@@ -160,8 +160,6 @@ extension AgentExecutor {
       return string("task", "prompt", "instructions", "instruction", "question", "subtask").map {
         truncateOneLine($0, limit: 100)
       }
-    case AgentHostXcodeTool.toolName:
-      return string("action", "operation", "command")
     case AgentInstallToolchainTool.toolName:
       return string("id", "toolchain", "toolchainID", "toolchain_id", "name")
     case AgentPlanHistoryTool.toolName:
