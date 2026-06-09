@@ -23,14 +23,20 @@ extension Prompts {
     let assumptionsDigest = compactPromptBlock(assumptions, maxLines: 8, maxCharacters: 1800)
     let feedbackDigest = compactPromptBlock(feedback, maxLines: 8, maxCharacters: 1800)
     let visionDigest = compactPromptBlock(vision, maxLines: 10, maxCharacters: 2400)
-    let productTournamentDigest = ProductTournamentPlanningDigestFormatter.promptText(
+    let proofLedger = PMFProofLedger.build(
       config: productTournamentConfig,
       evidenceIndex: productTournamentEvidenceIndex
     )
-    let pmfProofContext = PMFProofPromptContextFormatter.promptText(
-      config: productTournamentConfig,
-      evidenceIndex: productTournamentEvidenceIndex
+    let contextPackPlan = PMFContextPackPlanner.plan(
+      ledger: proofLedger,
+      productTournamentConfig: productTournamentConfig,
+      evidenceIndex: productTournamentEvidenceIndex,
+      phase: .plan,
+      proofActionKind: proofLedger.nextAction?.kind,
+      tokenBudget: 2_500
     )
+    let productTournamentDigest = contextPackPlan.legacyCompatibilityText
+    let pmfProofContext = contextPackPlan.promptText
     let hostXcodePlanningRule =
       sharedVMApplePlatformPlanningRule(forgeProfile: forgeProfile)
     let compassTestsMigrationRule =
@@ -122,10 +128,10 @@ extension Prompts {
         Strategic context alone is not remaining work.
       - If feedback reports a blocker, plan the next smallest step that resolves
         it or rescope so Develop can make progress.
-      - Treat PMF Proof Context as the product-facing source of truth: identify
-        the riskiest unknown, choose the smallest useful proof action, and keep
-        the Immediate handoff scoped to that proof unless repository evidence
-        shows a sharper blocker.
+      - Treat PMF Proof Context packs as the product-facing source of truth:
+        identify the riskiest unknown, choose the smallest useful proof action,
+        and keep the Immediate handoff scoped to that proof unless repository
+        evidence shows a sharper blocker.
       - When product state is available, include optional `pmfProofAction`
         metadata in submit_result. Use one of these kinds:
         `sharpen_hypothesis`, `run_plan_proof`, `build_feasibility_slice`,

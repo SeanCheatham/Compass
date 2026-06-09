@@ -106,6 +106,8 @@ struct PlanPromptTests {
     )
 
     try #require(prompt.contains("## PMF Proof Context"))
+    try #require(prompt.contains("PMF Context Packs"))
+    try #require(prompt.contains("proof_core"))
     try #require(prompt.contains("PMF Proof Ledger"))
     try #require(prompt.contains("Hypothesis:"))
     try #require(prompt.contains("pmfProofAction"))
