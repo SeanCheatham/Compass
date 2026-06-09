@@ -1239,6 +1239,7 @@ extension FlexibleModelDecoder {
 struct PlanRunResult: Codable, Equatable {
   var state: PlanProposal
   var lessonEdits: [LessonEdit]
+  var pmfProofAction: PMFProofActionMetadata?
 
   enum CodingKeys: String, CodingKey {
     case state
@@ -1251,11 +1252,18 @@ struct PlanRunResult: Codable, Equatable {
     case proposal
     case lessonEdits
     case lessonEditsSnake = "lesson_edits"
+    case pmfProofAction
+    case pmfProofActionSnake = "pmf_proof_action"
   }
 
-  init(state: PlanProposal, lessonEdits: [LessonEdit] = []) {
+  init(
+    state: PlanProposal,
+    lessonEdits: [LessonEdit] = [],
+    pmfProofAction: PMFProofActionMetadata? = nil
+  ) {
     self.state = state
     self.lessonEdits = lessonEdits
+    self.pmfProofAction = pmfProofAction
   }
 
   init(from decoder: Decoder) throws {
@@ -1272,12 +1280,19 @@ struct PlanRunResult: Codable, Equatable {
         preferredKey: .lessonEdits,
         aliases: [.lessonEditsSnake]
       ) ?? []
+    pmfProofAction =
+      try Self.decodeOptionalProofAction(
+        from: container,
+        preferredKey: .pmfProofAction,
+        aliases: [.pmfProofActionSnake]
+      )
   }
 
   func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(state, forKey: .state)
     try container.encode(lessonEdits, forKey: .lessonEdits)
+    try container.encodeIfPresent(pmfProofAction, forKey: .pmfProofAction)
   }
 
   private static func decodeRequiredPlanProposal(
@@ -1317,6 +1332,17 @@ struct PlanRunResult: Codable, Equatable {
       )
     )
   }
+
+  private static func decodeOptionalProofAction(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys]
+  ) throws -> PMFProofActionMetadata? {
+    for key in [preferredKey] + aliases where container.contains(key) {
+      return try container.decodeIfPresent(PMFProofActionMetadata.self, forKey: key)
+    }
+    return nil
+  }
 }
 
 private struct LossyString: Decodable {
@@ -1333,6 +1359,7 @@ struct ReflectSummary: Codable, Equatable {
   var summary: String
   var lessonEdits: [LessonEdit]
   var tournamentDecisionUpdates: [ProductTournamentReflectDecisionUpdate]
+  var pmfProofOutcome: PMFProofOutcomeMetadata?
 
   enum CodingKeys: String, CodingKey {
     case state
@@ -1353,18 +1380,22 @@ struct ReflectSummary: Codable, Equatable {
     case lessonEditsSnake = "lesson_edits"
     case tournamentDecisionUpdates
     case tournamentDecisionUpdatesSnake = "tournament_decision_updates"
+    case pmfProofOutcome
+    case pmfProofOutcomeSnake = "pmf_proof_outcome"
   }
 
   init(
     state: PlanProposal?,
     summary: String,
     lessonEdits: [LessonEdit] = [],
-    tournamentDecisionUpdates: [ProductTournamentReflectDecisionUpdate] = []
+    tournamentDecisionUpdates: [ProductTournamentReflectDecisionUpdate] = [],
+    pmfProofOutcome: PMFProofOutcomeMetadata? = nil
   ) {
     self.state = state
     self.summary = summary
     self.lessonEdits = lessonEdits
     self.tournamentDecisionUpdates = tournamentDecisionUpdates
+    self.pmfProofOutcome = pmfProofOutcome
   }
 
   init(from decoder: Decoder) throws {
@@ -1392,6 +1423,12 @@ struct ReflectSummary: Codable, Equatable {
         preferredKey: .tournamentDecisionUpdates,
         aliases: [.tournamentDecisionUpdatesSnake]
       ) ?? []
+    pmfProofOutcome =
+      try Self.decodeOptionalProofOutcome(
+        from: container,
+        preferredKey: .pmfProofOutcome,
+        aliases: [.pmfProofOutcomeSnake]
+      )
   }
 
   func encode(to encoder: Encoder) throws {
@@ -1403,6 +1440,7 @@ struct ReflectSummary: Codable, Equatable {
     try container.encode(summary, forKey: .summary)
     try container.encode(lessonEdits, forKey: .lessonEdits)
     try container.encode(tournamentDecisionUpdates, forKey: .tournamentDecisionUpdates)
+    try container.encodeIfPresent(pmfProofOutcome, forKey: .pmfProofOutcome)
   }
 
   private static func decodeOptionalPlanProposal(
@@ -1422,6 +1460,17 @@ struct ReflectSummary: Codable, Equatable {
     }
     if let firstTypeError {
       throw firstTypeError
+    }
+    return nil
+  }
+
+  private static func decodeOptionalProofOutcome(
+    from container: KeyedDecodingContainer<CodingKeys>,
+    preferredKey: CodingKeys,
+    aliases: [CodingKeys]
+  ) throws -> PMFProofOutcomeMetadata? {
+    for key in [preferredKey] + aliases where container.contains(key) {
+      return try container.decodeIfPresent(PMFProofOutcomeMetadata.self, forKey: key)
     }
     return nil
   }

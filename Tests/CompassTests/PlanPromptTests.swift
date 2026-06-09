@@ -87,6 +87,33 @@ struct PlanPromptTests {
     try #require(prompt.contains("cargo run -p xtask -- visual-verify --emit-base64"))
   }
 
+  @Test func testPlanPromptIncludesCompactPMFProofContextAndMetadataContract() throws {
+    let config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "ProofBoard",
+      rawPain: "Weekly reporting takes too long.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    let prompt = try Prompts.planPrompt(
+      state: .empty,
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature,
+      productTournamentConfig: config,
+      productTournamentEvidenceIndex: .empty
+    )
+
+    try #require(prompt.contains("## PMF Proof Context"))
+    try #require(prompt.contains("PMF Proof Ledger"))
+    try #require(prompt.contains("Hypothesis:"))
+    try #require(prompt.contains("pmfProofAction"))
+    try #require(prompt.contains("targetUnknown"))
+    try #require(prompt.contains("minimumContext"))
+    try #require(prompt.contains("run_buyer_proof"))
+  }
+
   @Test func testPlanPromptRequiresPlainLanguageExecutableHandoffs() throws {
     let prompt = try makePlanPrompt()
     try #require(prompt.contains("non-engineer owner"))
@@ -474,6 +501,54 @@ struct PlanPromptTests {
     try #require(prompt.contains("- Preview appears for a non-empty draft."))
     try #require(prompt.contains("Verify meaning: Runs Swift tests"))
     try #require(prompt.contains("focused on DraftRefinementTests"))
+  }
+
+  @Test func testDevelopPromptIncludesPMFProofContextFallback() throws {
+    let prompt = Prompts.developPrompt(
+      next: PlanNext(
+        plan: """
+          ## Outcome
+          Run a switching proof for spreadsheet-heavy teams.
+
+          ## Acceptance checks
+          - Switching objection notes are captured for the next Reflect pass.
+          """,
+        verify: "swift test --filter PMFProofLedgerTests"
+      ),
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: []
+    )
+
+    try #require(prompt.contains("## PMF Proof Context"))
+    try #require(prompt.contains("PMF Proof Ledger"))
+    try #require(prompt.contains("Fallback proof-action source:"))
+    try #require(prompt.contains("Run a switching proof for spreadsheet-heavy teams."))
+  }
+
+  @Test func testReflectPromptIncludesPMFProofContextAndOutcomeContract() throws {
+    let config = ProductTournamentConfig.seedDefaults(
+      projectTitle: "ProofBoard",
+      rawPain: "Weekly reporting takes too long.",
+      now: Date(timeIntervalSince1970: 10)
+    )
+    let prompt = try Prompts.reflectPrompt(
+      state: .empty,
+      lessons: "",
+      vision: "",
+      recentSessions: [],
+      iteration: 1,
+      productTournamentConfig: config,
+      productTournamentEvidenceIndex: .empty
+    )
+
+    try #require(prompt.contains("## PMF Proof Context"))
+    try #require(prompt.contains("PMF Proof Ledger"))
+    try #require(prompt.contains("Hypothesis:"))
+    try #require(prompt.contains("pmfProofOutcome"))
+    try #require(prompt.contains("proofDebtDelta"))
+    try #require(prompt.contains("tokenCostWasWorthIt"))
   }
 
   @Test func testDevelopPromptRequiresConcreteFeedbackHandoff() throws {

@@ -25,9 +25,92 @@
     "lessonEdits": {
       "type": "array",
       "items": { "$ref": "#/$defs/lessonEdit" }
+    },
+    "pmfProofAction": {
+      "anyOf": [
+        { "$ref": "#/$defs/pmfProofAction" },
+        { "type": "null" }
+      ],
+      "description": "Optional PMF proof-action metadata for the selected Immediate handoff."
     }
   },
   "$defs": {
+    "pmfProofAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "targetUnknown", "expectedProof", "minimumContext", "legacyReferences"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/pmfProofActionKind" },
+        "targetUnknown": {
+          "type": "string",
+          "description": "Short label for the PMF unknown this action reduces."
+        },
+        "expectedProof": {
+          "type": "string",
+          "description": "Observable proof signal expected from the next action."
+        },
+        "minimumContext": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/pmfContextNeed" }
+        },
+        "legacyReferences": {
+          "type": "array",
+          "maxItems": 10,
+          "items": { "$ref": "#/$defs/pmfProofSourceReference" }
+        }
+      }
+    },
+    "pmfProofActionKind": {
+      "type": "string",
+      "enum": [
+        "sharpen_hypothesis",
+        "run_plan_proof",
+        "run_buyer_proof",
+        "build_feasibility_slice",
+        "run_switching_proof",
+        "run_use_proof",
+        "revise_product",
+        "stop_no_useful_proof"
+      ]
+    },
+    "pmfContextNeed": {
+      "type": "string",
+      "enum": [
+        "hypothesis",
+        "top_unknowns",
+        "recent_evidence",
+        "legacy_ids",
+        "repo_slice",
+        "proof_instructions"
+      ]
+    },
+    "pmfProofSourceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/pmfProofSourceKind" },
+        "value": { "type": "string" }
+      }
+    },
+    "pmfProofSourceKind": {
+      "type": "string",
+      "enum": [
+        "tournamentID",
+        "contenderID",
+        "contenderPlanID",
+        "experimentID",
+        "roundID",
+        "planEvaluationID",
+        "evidenceRunID",
+        "decisionID",
+        "painID",
+        "segmentID",
+        "workflowID",
+        "alternativeID"
+      ]
+    },
     "immediate": {
       "anyOf": [
         {

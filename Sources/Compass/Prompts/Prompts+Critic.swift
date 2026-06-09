@@ -28,6 +28,10 @@ extension Prompts {
       verifyStatus: verifyStatus,
       gitDiff: gitDiff
     )
+    let pmfProofContext = PMFProofPromptContextFormatter.promptText(
+      ledger: nil,
+      fallback: next.plan
+    )
     let rustProbeSection = RustReviewProbePlanner.formattedSection(
       for: RustReviewProbePlanner.suggestions(
         forgeProfile: forgeProfile,
@@ -52,7 +56,7 @@ extension Prompts {
         """
     }
     return """
-      You are the Critic agent in Compass's Product Tournament work loop (see the system
+      You are the Critic agent in Compass's PMF Proof Loop (see the system
       message for how the loop works).
 
       A separate Develop agent just finished implementing the plan below
@@ -138,6 +142,9 @@ extension Prompts {
 
       ## Plan that was implemented
       \(next.plan)
+
+      ## PMF Proof Context
+      \(pmfProofContext)
 
       ## Verify command and outcome
       Command:

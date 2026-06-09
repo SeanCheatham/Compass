@@ -41,6 +41,35 @@ struct CriticPromptTests {
     try #require(prompt.contains("+let foo = 1"))
   }
 
+  @Test func testCriticPromptIncludesPMFProofContextFallback() throws {
+    let prompt = Prompts.criticPrompt(
+      next: makePlanNext(
+        plan: """
+          ## Outcome
+          Prove whether teams will switch from spreadsheet reporting.
+
+          ## Acceptance checks
+          - Switching proof summary is visible to Reflect.
+          """
+      ),
+      developSummary: makeDevelopSummary(),
+      verifyCommand: "swift test --filter PMFProofLedgerTests",
+      verifyExitCode: 0,
+      verifyOutput: "ok",
+      gitDiff: "",
+      priorCritiques: [],
+      lessons: "",
+      vision: "",
+      iteration: 1,
+      maxIterations: 3
+    )
+
+    try #require(prompt.contains("## PMF Proof Context"))
+    try #require(prompt.contains("PMF Proof Ledger"))
+    try #require(prompt.contains("Fallback proof-action source:"))
+    try #require(prompt.contains("Prove whether teams will switch from spreadsheet reporting."))
+  }
+
   @Test func testCriticPromptReportsBypassedVerifyClearly() throws {
     let prompt = Prompts.criticPrompt(
       next: makePlanNext(),

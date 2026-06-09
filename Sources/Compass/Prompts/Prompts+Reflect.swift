@@ -23,12 +23,16 @@ extension Prompts {
       config: productTournamentConfig,
       evidenceIndex: productTournamentEvidenceIndex
     )
+    let pmfProofContext = PMFProofPromptContextFormatter.promptText(
+      config: productTournamentConfig,
+      evidenceIndex: productTournamentEvidenceIndex
+    )
     let hostXcodeGuidance = ""
     return """
-      You are the Reflect agent in Compass's Product Tournament work loop (see the system
+      You are the Reflect agent in Compass's PMF Proof Loop (see the system
       message for how the loop works).
 
-      Run a course-correction pass for Product Tournament session \(iteration) before
+      Run a course-correction pass for PMF Proof Loop session \(iteration) before
       Plan chooses the next increment. You have read
       access to the repository plus `bash` for probing (build, test, git
       inspection — do not edit files or commit). Decide whether the project
@@ -47,13 +51,21 @@ extension Prompts {
         justified by Product Tournament evidence, or `[]` when no experiment
         decision should change. Reflect may update tournament state through this
         field but must not mutate code.
+      - `pmfProofOutcome`: optional proof-loop outcome metadata. Include it
+        when the recent session materially changed proof evidence, proof debt,
+        or token-worthiness for the prior proof action.
+        Shape: `{ "actionKind": "run_use_proof", "signal": "<evidence signal>",
+        "proofDebtDelta": "<cleared|reduced|unchanged|worsened|unknown>",
+        "tokenCostWasWorthIt": true }`. Use null only for
+        `tokenCostWasWorthIt` when the token tradeoff is unknowable.
 
       Copy this shape when no planning update is needed:
       {
         "state": null,
         "summary": "<why the current plan is still on course>",
         "lessonEdits": [],
-        "tournamentDecisionUpdates": []
+        "tournamentDecisionUpdates": [],
+        "pmfProofOutcome": null
       }
 
       If planning needs revision, replace `state: null` with an object
@@ -73,7 +85,13 @@ extension Prompts {
         },
         "summary": "<what changed and why>",
         "lessonEdits": [],
-        "tournamentDecisionUpdates": []
+        "tournamentDecisionUpdates": [],
+        "pmfProofOutcome": {
+          "actionKind": "run_use_proof",
+          "signal": "<evidence signal>",
+          "proofDebtDelta": "<cleared|reduced|unchanged|worsened|unknown>",
+          "tokenCostWasWorthIt": true
+        }
       }
       When preserving a non-null `immediate`, copy the full current immediate
       object, including `plan`, `verify`, `verifyTimeoutMs`, `estimatedDifficulty`,
@@ -92,6 +110,10 @@ extension Prompts {
       and suggest pain, contender, round, experiment, or scenario edits only
       when the evidence supports them. Product risk should not automatically
       fail normal Develop post-checks.
+      Use PMF Proof Context first: summarize whether the recent work changed
+      the proof evidence, moved proof debt, exposed the next unknown, or spent
+      too many tokens for the signal gained. Missing PMF metadata is
+      compatibility mode, not a failure.
       For tournament decisions, be skeptical of one-off persona feedback. Pay
       attention to repeated objections across scenarios, separate pain validity
       from contender validity, recommend eliminating contenders that repeatedly
@@ -138,6 +160,9 @@ extension Prompts {
 
       ## Vision
       \(fencedOrEmpty(visionDigest, empty: "_(no vision set)_"))
+
+      ## PMF Proof Context
+      \(pmfProofContext)
 
       ## Product Tournament Context
       \(productTournamentDigest)

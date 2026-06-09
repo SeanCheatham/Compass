@@ -27,6 +27,10 @@ extension Prompts {
       config: productTournamentConfig,
       evidenceIndex: productTournamentEvidenceIndex
     )
+    let pmfProofContext = PMFProofPromptContextFormatter.promptText(
+      config: productTournamentConfig,
+      evidenceIndex: productTournamentEvidenceIndex
+    )
     let hostXcodePlanningRule =
       sharedVMApplePlatformPlanningRule(forgeProfile: forgeProfile)
     let compassTestsMigrationRule =
@@ -38,7 +42,7 @@ extension Prompts {
     let hostXcodeShape = ""
     let hostXcodeShapeGuidance = ""
     return """
-      You are the Plan agent in Compass's Product Tournament work loop (see the system
+      You are the Plan agent in Compass's PMF Proof Loop (see the system
       message for how the loop works). Treat the structured JSON you return as
       Compass's plan update contract.
 
@@ -118,6 +122,15 @@ extension Prompts {
         Strategic context alone is not remaining work.
       - If feedback reports a blocker, plan the next smallest step that resolves
         it or rescope so Develop can make progress.
+      - Treat PMF Proof Context as the product-facing source of truth: identify
+        the riskiest unknown, choose the smallest useful proof action, and keep
+        the Immediate handoff scoped to that proof unless repository evidence
+        shows a sharper blocker.
+      - When product state is available, include optional `pmfProofAction`
+        metadata in submit_result. Use one of these kinds:
+        `sharpen_hypothesis`, `run_plan_proof`, `build_feasibility_slice`,
+        `run_buyer_proof`, `run_switching_proof`, `run_use_proof`,
+        `revise_product`, `stop_no_useful_proof`.
       - Treat product tournament evidence as advisory product pressure, not an
         engineering failure or Verify bypass. It can motivate product changes,
         reprioritize roadmap work, challenge the pain or contender plan,
@@ -217,8 +230,8 @@ extension Prompts {
       \(lessonEditsGuidance())
 
       submit_result arguments — call the tool with EXACTLY this shape.
-      The top-level object has exactly two keys: `state` and
-      `lessonEdits`. Do not wrap them in another object; do not nest
+      The top-level object has required keys `state` and `lessonEdits`, plus
+      optional `pmfProofAction`. Do not wrap them in another object; do not nest
       the result under another `state` field.
       {
         "state": {
@@ -261,12 +274,23 @@ extension Prompts {
             "replace": "replacement text",
             "replaceAll": false
           }
-        ]
+        ],
+        "pmfProofAction": {
+          "kind": "run_plan_proof",
+          "targetUnknown": "short name of the PMF unknown",
+          "expectedProof": "observable proof signal expected from this slice",
+          "minimumContext": ["hypothesis", "top_unknowns", "recent_evidence", "legacy_ids"],
+          "legacyReferences": [
+            { "kind": "tournamentID", "value": "legacy-id-if-known" }
+          ]
+        }
       }
       Replace `"estimatedDifficulty": "low"` with `"medium"` or `"high"` only when \
       that better fits. If the project is genuinely complete, replace the entire \
       `immediate` object with `null`; keep `candidates`, `strategicContext`, \
-      `openQuestions`, and `lessonEdits` present. \(hostXcodeShapeGuidance)
+      `openQuestions`, and `lessonEdits` present. Omit `pmfProofAction` only when \
+      no PMF proof action is relevant or compatibility mode has no proof context. \
+      \(hostXcodeShapeGuidance)
 
       \(focus.promptGuidance)
 
@@ -305,6 +329,9 @@ extension Prompts {
 
       ## Vision
       \(fencedOrEmpty(visionDigest, empty: "_(no vision set)_"))
+
+      ## PMF Proof Context
+      \(pmfProofContext)
 
       ## Product Tournament Context
       \(productTournamentDigest)

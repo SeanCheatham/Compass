@@ -189,7 +189,7 @@ struct PMFUnknown: Equatable, Sendable, Identifiable {
   var sourceReferences: [PMFProofSourceReference]
 }
 
-enum PMFUnknownKind: String, Equatable, Sendable, CaseIterable {
+enum PMFUnknownKind: String, Codable, Equatable, Sendable, CaseIterable {
   case pain
   case buyer
   case willingnessToPay = "willingness_to_pay"
@@ -200,7 +200,7 @@ enum PMFUnknownKind: String, Equatable, Sendable, CaseIterable {
   case distribution
 }
 
-enum PMFUnknownSeverity: String, Equatable, Sendable, CaseIterable {
+enum PMFUnknownSeverity: String, Codable, Equatable, Sendable, CaseIterable {
   case low
   case medium
   case high
@@ -227,7 +227,7 @@ struct PMFProofEvidence: Equatable, Sendable, Identifiable {
   var sourceReferences: [PMFProofSourceReference]
 }
 
-enum PMFProofEvidenceKind: String, Equatable, Sendable, CaseIterable {
+enum PMFProofEvidenceKind: String, Codable, Equatable, Sendable, CaseIterable {
   case planEvaluation = "plan_evaluation"
   case scenarioRun = "scenario_run"
   case implementationUse = "implementation_use"
@@ -237,7 +237,7 @@ enum PMFProofEvidenceKind: String, Equatable, Sendable, CaseIterable {
   case decision
 }
 
-enum PMFProofConfidence: String, Equatable, Sendable, CaseIterable {
+enum PMFProofConfidence: String, Codable, Equatable, Sendable, CaseIterable {
   case low
   case medium
   case high
@@ -253,8 +253,9 @@ struct PMFProofAction: Equatable, Sendable {
   var legacyReferences: [PMFProofSourceReference]
 }
 
-enum PMFProofActionKind: String, Equatable, Sendable, CaseIterable {
+enum PMFProofActionKind: String, Codable, Equatable, Sendable, CaseIterable {
   case sharpenHypothesis = "sharpen_hypothesis"
+  case runPlanProof = "run_plan_proof"
   case runBuyerProof = "run_buyer_proof"
   case runSwitchingProof = "run_switching_proof"
   case buildFeasibilitySlice = "build_feasibility_slice"
@@ -263,13 +264,13 @@ enum PMFProofActionKind: String, Equatable, Sendable, CaseIterable {
   case stopNoUsefulProof = "stop_no_useful_proof"
 }
 
-enum PMFTokenCostClass: String, Equatable, Sendable, CaseIterable {
+enum PMFTokenCostClass: String, Codable, Equatable, Sendable, CaseIterable {
   case low
   case medium
   case high
 }
 
-enum PMFContextNeed: String, Equatable, Sendable, CaseIterable {
+enum PMFContextNeed: String, Codable, Equatable, Sendable, CaseIterable {
   case hypothesis
   case topUnknowns = "top_unknowns"
   case recentEvidence = "recent_evidence"
@@ -284,12 +285,12 @@ struct PMFTokenPosture: Equatable, Sendable {
   var contextBudgetHint: String
 }
 
-struct PMFProofSourceReference: Equatable, Sendable, Hashable {
+struct PMFProofSourceReference: Codable, Equatable, Sendable, Hashable {
   var kind: PMFProofSourceKind
   var value: String
 }
 
-enum PMFProofSourceKind: String, Equatable, Sendable, Hashable, CaseIterable {
+enum PMFProofSourceKind: String, Codable, Equatable, Sendable, Hashable, CaseIterable {
   case tournamentID
   case contenderID
   case contenderPlanID
@@ -302,6 +303,47 @@ enum PMFProofSourceKind: String, Equatable, Sendable, Hashable, CaseIterable {
   case segmentID
   case workflowID
   case alternativeID
+}
+
+struct PMFProofActionMetadata: Codable, Equatable, Sendable {
+  var kind: PMFProofActionKind
+  var targetUnknown: String
+  var expectedProof: String
+  var minimumContext: [PMFContextNeed]
+  var legacyReferences: [PMFProofSourceReference]
+
+  init(
+    kind: PMFProofActionKind,
+    targetUnknown: String,
+    expectedProof: String,
+    minimumContext: [PMFContextNeed] = [],
+    legacyReferences: [PMFProofSourceReference] = []
+  ) {
+    self.kind = kind
+    self.targetUnknown = bounded(targetUnknown, limit: 180)
+    self.expectedProof = bounded(expectedProof, limit: 400)
+    self.minimumContext = minimumContext
+    self.legacyReferences = uniqueReferences(legacyReferences)
+  }
+}
+
+struct PMFProofOutcomeMetadata: Codable, Equatable, Sendable {
+  var actionKind: PMFProofActionKind
+  var signal: String
+  var proofDebtDelta: String
+  var tokenCostWasWorthIt: Bool?
+
+  init(
+    actionKind: PMFProofActionKind,
+    signal: String,
+    proofDebtDelta: String,
+    tokenCostWasWorthIt: Bool? = nil
+  ) {
+    self.actionKind = actionKind
+    self.signal = bounded(signal, limit: 400)
+    self.proofDebtDelta = bounded(proofDebtDelta, limit: 240)
+    self.tokenCostWasWorthIt = tokenCostWasWorthIt
+  }
 }
 
 private struct PMFActiveSelection {

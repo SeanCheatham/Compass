@@ -40,6 +40,59 @@ struct PromptSchemaLoadingTests {
   }
 
   @Test
+  func testPlanSchemaAllowsOptionalPMFProofActionMetadata() throws {
+    let properties = try schemaProperties(Prompts.planSchema)
+    let pmfProofAction = try #require(properties["pmfProofAction"] as? [String: Any])
+    let variants = try #require(pmfProofAction["anyOf"] as? [[String: Any]])
+    let ref = try #require(variants.compactMap { $0["$ref"] as? String }.first)
+    let proofAction = try schemaDefinition(ref, in: Prompts.planSchema)
+    let actionProperties = try #require(proofAction["properties"] as? [String: Any])
+    let required = try #require(proofAction["required"] as? [String])
+    let defs = try schemaDefinitions(Prompts.planSchema)
+    let kind = try #require(defs["pmfProofActionKind"] as? [String: Any])
+    let kindEnum = try #require(kind["enum"] as? [String])
+
+    try #require(
+      propertyDescription("pmfProofAction", in: properties)
+        .contains("proof-action metadata")
+    )
+    try #require(required == ["kind", "targetUnknown", "expectedProof", "minimumContext", "legacyReferences"])
+    try #require(actionProperties.keys.contains("targetUnknown"))
+    try #require(actionProperties.keys.contains("expectedProof"))
+    try #require(actionProperties.keys.contains("minimumContext"))
+    try #require(actionProperties.keys.contains("legacyReferences"))
+    try #require(kindEnum.contains("run_plan_proof"))
+    try #require(kindEnum.contains("run_switching_proof"))
+    try #require(defs.keys.contains("pmfContextNeed"))
+    try #require(defs.keys.contains("pmfProofSourceReference"))
+  }
+
+  @Test
+  func testReflectSchemaAllowsOptionalPMFProofOutcomeMetadata() throws {
+    let properties = try schemaProperties(Prompts.reflectSchema)
+    let pmfProofOutcome = try #require(properties["pmfProofOutcome"] as? [String: Any])
+    let variants = try #require(pmfProofOutcome["anyOf"] as? [[String: Any]])
+    let ref = try #require(variants.compactMap { $0["$ref"] as? String }.first)
+    let proofOutcome = try schemaDefinition(ref, in: Prompts.reflectSchema)
+    let outcomeProperties = try #require(proofOutcome["properties"] as? [String: Any])
+    let required = try #require(proofOutcome["required"] as? [String])
+    let defs = try schemaDefinitions(Prompts.reflectSchema)
+    let kind = try #require(defs["pmfProofActionKind"] as? [String: Any])
+    let kindEnum = try #require(kind["enum"] as? [String])
+
+    try #require(
+      propertyDescription("pmfProofOutcome", in: properties)
+        .contains("proof outcome metadata")
+    )
+    try #require(required == ["actionKind", "signal", "proofDebtDelta", "tokenCostWasWorthIt"])
+    try #require(outcomeProperties.keys.contains("signal"))
+    try #require(outcomeProperties.keys.contains("proofDebtDelta"))
+    try #require(outcomeProperties.keys.contains("tokenCostWasWorthIt"))
+    try #require(kindEnum.contains("run_use_proof"))
+    try #require(kindEnum.contains("stop_no_useful_proof"))
+  }
+
+  @Test
   func testDevelopAndCriticSchemasDescribeRepairContracts() throws {
     let developProperties = try schemaProperties(Prompts.developSchema)
     let criticProperties = try schemaProperties(Prompts.criticSchema)

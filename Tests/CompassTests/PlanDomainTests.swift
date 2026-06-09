@@ -1540,6 +1540,58 @@ struct PlanningEnvelopeDecoderTests {
     try #require(result.state.immediate == nil)
   }
 
+  @Test func planRunResultDecoderAcceptsPMFProofActionMetadata() throws {
+    let data = Data(
+      """
+      {
+        "state": {
+          "immediate": {
+            "plan": "Run the proof action decoder test.",
+            "verify": "swift test --filter PlanningEnvelopeDecoderTests",
+            "selectedBecause": "It proves optional PMF metadata stays compatible.",
+            "source": "candidate",
+            "candidateID": "pmf-proof-action"
+          },
+          "candidates": [],
+          "strategicContext": {
+            "thesis": "Keep PMF proof metadata advisory until all providers emit it.",
+            "principles": [],
+            "constraints": [],
+            "nonGoals": [],
+            "risks": []
+          },
+          "openQuestions": []
+        },
+        "lessonEdits": [],
+        "pmfProofAction": {
+          "kind": "run_plan_proof",
+          "targetUnknown": "whether reporting teams will switch from spreadsheets",
+          "expectedProof": "At least one target user selects the new flow over their current spreadsheet.",
+          "minimumContext": ["hypothesis", "legacy_ids"],
+          "legacyReferences": [
+            { "kind": "tournamentID", "value": "tournament-one" }
+          ]
+        }
+      }
+      """.utf8
+    )
+
+    let result = try JSONDecoder().decode(PlanRunResult.self, from: data)
+
+    try #require(result.pmfProofAction?.kind == .runPlanProof)
+    try #require(
+      result.pmfProofAction?.targetUnknown
+        == "whether reporting teams will switch from spreadsheets")
+    try #require(
+      result.pmfProofAction?.expectedProof
+        == "At least one target user selects the new flow over their current spreadsheet.")
+    try #require(result.pmfProofAction?.minimumContext == [.hypothesis, .legacyIDs])
+    try #require(
+      result.pmfProofAction?.legacyReferences
+        == [PMFProofSourceReference(kind: .tournamentID, value: "tournament-one")]
+    )
+  }
+
   @Test func reflectSummaryDecoderAcceptsCanonicalTypedPlanningState() throws {
     let data = Data(
       """
@@ -1577,6 +1629,33 @@ struct PlanningEnvelopeDecoderTests {
         == "The strategy still points at non-engineer UX.\nNo immediate planning update is needed."
     )
     try #require(summary.lessonEdits.isEmpty)
+  }
+
+  @Test func reflectSummaryDecoderAcceptsPMFProofOutcomeMetadata() throws {
+    let data = Data(
+      """
+      {
+        "state": null,
+        "summary": "The use proof reduced switching uncertainty.",
+        "lessonEdits": [],
+        "pmfProofOutcome": {
+          "actionKind": "run_use_proof",
+          "signal": "Two target users completed the reporting flow without spreadsheet fallback.",
+          "proofDebtDelta": "reduced",
+          "tokenCostWasWorthIt": true
+        }
+      }
+      """.utf8
+    )
+
+    let summary = try JSONDecoder().decode(ReflectSummary.self, from: data)
+
+    try #require(summary.pmfProofOutcome?.actionKind == .runUseProof)
+    try #require(
+      summary.pmfProofOutcome?.signal
+        == "Two target users completed the reporting flow without spreadsheet fallback.")
+    try #require(summary.pmfProofOutcome?.proofDebtDelta == "reduced")
+    try #require(summary.pmfProofOutcome?.tokenCostWasWorthIt == true)
   }
 
   @Test func reflectSummaryDecoderAcceptsTournamentDecisionUpdates() throws {

@@ -56,8 +56,12 @@ extension Prompts {
   ) -> String {
     let hostXcodeWorkflow = ""
     let handoffSection = developHandoffSection(next: next)
+    let pmfProofContext = PMFProofPromptContextFormatter.promptText(
+      ledger: nil,
+      fallback: next.plan
+    )
     return """
-      You are the Develop agent in Compass's Product Tournament work loop (see the system
+      You are the Develop agent in Compass's PMF Proof Loop (see the system
       message for how the loop works).
 
       Implement exactly the plan below. You may read, edit, and run shell
@@ -121,6 +125,9 @@ extension Prompts {
 
       ## Execution handoff
       \(handoffSection)
+
+      ## PMF Proof Context
+      \(pmfProofContext)
 
       ## Plan to implement
       \(next.plan)

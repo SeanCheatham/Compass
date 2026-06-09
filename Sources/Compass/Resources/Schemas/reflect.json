@@ -37,9 +37,52 @@
       "maxItems": 4,
       "description": "Tournament experiment decision updates justified by Product Tournament evidence. Use [] when no experiment decision should change.",
       "items": { "$ref": "#/$defs/tournamentDecisionUpdate" }
+    },
+    "pmfProofOutcome": {
+      "anyOf": [
+        { "$ref": "#/$defs/pmfProofOutcome" },
+        { "type": "null" }
+      ],
+      "description": "Optional PMF proof outcome metadata for the proof action just completed or reviewed."
     }
   },
   "$defs": {
+    "pmfProofOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionKind", "signal", "proofDebtDelta", "tokenCostWasWorthIt"],
+      "properties": {
+        "actionKind": { "$ref": "#/$defs/pmfProofActionKind" },
+        "signal": {
+          "type": "string",
+          "description": "Concise summary of the evidence signal produced by the proof action."
+        },
+        "proofDebtDelta": {
+          "type": "string",
+          "description": "How proof debt moved: cleared, reduced, unchanged, worsened, or unknown."
+        },
+        "tokenCostWasWorthIt": {
+          "anyOf": [
+            { "type": "boolean" },
+            { "type": "null" }
+          ],
+          "description": "Whether the token spend was worth the signal gained."
+        }
+      }
+    },
+    "pmfProofActionKind": {
+      "type": "string",
+      "enum": [
+        "sharpen_hypothesis",
+        "run_plan_proof",
+        "run_buyer_proof",
+        "build_feasibility_slice",
+        "run_switching_proof",
+        "run_use_proof",
+        "revise_product",
+        "stop_no_useful_proof"
+      ]
+    },
     "immediate": {
       "anyOf": [
         {
