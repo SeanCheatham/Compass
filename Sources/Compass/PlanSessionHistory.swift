@@ -503,6 +503,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
   var runtimeRouteSummary: String?
   var runtimeRouteDescriptor: RuntimeRouteDescriptor
   var auditArtifacts: [AuditArtifact]
+  var tokenSummary: SessionTokenSummary
 
   init(
     sessionNumber: Int,
@@ -518,7 +519,8 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     failedVerify: FailedVerify?,
     runtimeRouteSummary: String?,
     runtimeRouteDescriptor: RuntimeRouteDescriptor = .unavailable,
-    auditArtifacts: [AuditArtifact] = []
+    auditArtifacts: [AuditArtifact] = [],
+    tokenSummary: SessionTokenSummary = SessionTokenSummary()
   ) {
     self.sessionNumber = sessionNumber
     self.status = status
@@ -534,6 +536,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     self.runtimeRouteSummary = runtimeRouteSummary
     self.runtimeRouteDescriptor = runtimeRouteDescriptor
     self.auditArtifacts = auditArtifacts
+    self.tokenSummary = tokenSummary
   }
 }
 
@@ -606,6 +609,26 @@ struct PlanSessionHistoryClipboardPayload: Equatable, Sendable {
       sections.append("")
       sections.append("Runtime route:")
       sections.append(runtimeRouteSummary)
+    }
+
+    if !item.tokenSummary.isEmpty {
+      sections.append("")
+      sections.append("Token cost:")
+      sections.append("Total: \(item.tokenSummary.compactLabel ?? "0 tokens")")
+      sections.append(
+        "Input/output: \(SessionPhaseTokenUsage.formatTokens(item.tokenSummary.totalInputTokens)) / \(SessionPhaseTokenUsage.formatTokens(item.tokenSummary.totalOutputTokens))"
+      )
+      if let proofAction = item.tokenSummary.latestProofActionKind {
+        sections.append("Proof action: \(proofAction)")
+      }
+      if item.tokenSummary.compactionCount > 0 {
+        sections.append(
+          "Compactions: \(item.tokenSummary.compactionCount), summary \(SessionPhaseTokenUsage.formatTokens(item.tokenSummary.summaryTokens)) tokens"
+        )
+      }
+      if item.tokenSummary.retryCount > 0 {
+        sections.append("Retries: \(item.tokenSummary.retryCount)")
+      }
     }
 
     if !item.auditArtifacts.isEmpty {
@@ -963,7 +986,8 @@ enum PlanSessionHistory {
           runtimeRouteDescriptor: PlanSessionHistoryItem.RuntimeRouteDescriptor(
             snapshot: latestRuntimeSnapshot
           ),
-          auditArtifacts: auditArtifacts
+          auditArtifacts: auditArtifacts,
+          tokenSummary: session.tokenSummary
         )
       }
   }

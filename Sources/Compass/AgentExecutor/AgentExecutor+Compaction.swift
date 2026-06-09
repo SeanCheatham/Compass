@@ -4,6 +4,10 @@ import OpenAI
 extension AgentExecutor {
   // MARK: - Auto-compaction
 
+  struct CompactionTokenUsage: Equatable, Sendable {
+    var summaryTokens: Int
+  }
+
   /// True when the current `messages` array — sized via
   /// `estimatedTokens(in:)` — has used enough of the configured context
   /// window that the *next* turn risks an out-of-context rejection.
@@ -45,8 +49,8 @@ extension AgentExecutor {
     messages: inout [ChatQuery.ChatCompletionMessageParam],
     estimatedTokensBeforeCompaction: Int,
     contextWindowTokens: Int
-  ) async throws {
-    guard messages.count >= 2 else { return }
+  ) async throws -> CompactionTokenUsage? {
+    guard messages.count >= 2 else { return nil }
     emit(
       level: .info,
       text: "Auto-compacting conversation",
@@ -85,7 +89,7 @@ extension AgentExecutor {
         kind: .lifecycle,
         status: .failed
       )
-      return
+      return nil
     }
 
     let summary = summaryTurn.assistantText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -96,10 +100,15 @@ extension AgentExecutor {
         kind: .lifecycle,
         status: .failed
       )
-      return
+      return nil
     }
 
     let collapsedCount = messages.count
+    let summaryTokens = summaryTurn.usage?.outputTokens
+      ?? AgentRunTokenUsage.estimateTokens(
+        characters: summary.count,
+        charsPerToken: Self.estimatedCharsPerToken
+      )
     messages = Self.compactedMessages(
       system: messages[0],
       originalUser: messages[1],
@@ -109,10 +118,11 @@ extension AgentExecutor {
       level: .info,
       text: "Auto-compacted conversation",
       detail:
-        "Collapsed \(collapsedCount) messages into a summary (~\(summaryTurn.totalTokens ?? 0) tokens).",
+        "Collapsed \(collapsedCount) messages into a summary (~\(summaryTokens) tokens).",
       kind: .lifecycle,
       status: .completed
     )
+    return CompactionTokenUsage(summaryTokens: summaryTokens)
   }
 
   /// Rebuild the message history after a successful summarization.

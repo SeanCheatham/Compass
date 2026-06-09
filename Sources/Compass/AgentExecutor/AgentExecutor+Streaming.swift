@@ -18,6 +18,14 @@ extension AgentExecutor {
     /// `stream_options.include_usage`. Kept for log observability only —
     /// auto-compaction runs off `estimatedTokens(in:)` so it isn't
     /// disabled when a provider drops usage on tool-calling chunks.
+    var usage: StreamedTokenUsage?
+
+    var totalTokens: Int? { usage?.totalTokens }
+  }
+
+  struct StreamedTokenUsage: Equatable, Sendable {
+    var inputTokens: Int?
+    var outputTokens: Int?
     var totalTokens: Int?
   }
 
@@ -215,7 +223,7 @@ extension AgentExecutor {
     var reasoningText = ""
     var pending: [Int: PendingToolCall] = [:]
     var finishReason: String?
-    var totalTokens: Int?
+    var usage: StreamedTokenUsage?
 
     for try await chunk in stream {
       if cancelled { throw AgentExecutionError.cancelled }
@@ -223,8 +231,12 @@ extension AgentExecutor {
       // `choices` array but a populated `usage` field. Take the last
       // non-nil value we see — upstreams that send usage on every
       // chunk will just keep overwriting it with the running total.
-      if let usage = chunk.usage {
-        totalTokens = usage.totalTokens
+      if let chunkUsage = chunk.usage {
+        usage = StreamedTokenUsage(
+          inputTokens: chunkUsage.promptTokens,
+          outputTokens: chunkUsage.completionTokens,
+          totalTokens: chunkUsage.totalTokens
+        )
       }
       for choice in chunk.choices {
         if let delta = choice.delta.content {
@@ -267,7 +279,7 @@ extension AgentExecutor {
       reasoningText: reasoningText.trimmingCharacters(in: .whitespacesAndNewlines),
       toolCalls: valid,
       finishReason: finishReason,
-      totalTokens: totalTokens
+      usage: usage
     )
   }
 

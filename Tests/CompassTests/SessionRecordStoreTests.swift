@@ -27,6 +27,43 @@ final class SessionRecordStoreTests {
     try #require(!text.contains("[\n"))
   }
 
+  @Test func testTokenSummaryPersistsAndOldRecordsDecode() throws {
+    let compassURL = try makeTemporaryDirectory(prefix: "SessionRecordStoreTokens")
+    let store = SessionRecordStore(compassURL: compassURL)
+    var record = makeRecord(1)
+    record.tokenSummary.record(
+      SessionPhaseTokenUsage(
+        phase: "plan",
+        usage: AgentRunTokenUsage(
+          inputTokens: 18_400,
+          outputTokens: 2_100,
+          totalTokens: 20_500,
+          estimatedTokens: 0,
+          streamedUsageAvailable: true,
+          compactionCount: 1,
+          summaryTokens: 900,
+          retryCount: 1,
+          durationMs: 12_000
+        ),
+        proofActionKind: "run_plan_proof",
+        outcome: "accepted"
+      )
+    )
+
+    try store.writeActiveSessions([record])
+
+    let persisted = try #require(store.readActiveSessions().first)
+    try #require(persisted.tokenSummary.totalTokens == 20_500)
+    try #require(persisted.tokenSummary.compactionCount == 1)
+    try #require(persisted.tokenSummary.latestProofActionKind == "run_plan_proof")
+
+    let oldJSON = """
+      {"session":2,"startedAt":1,"status":"succeeded","commits":[],"notes":[]}
+      """
+    let oldRecord = try JSONDecoder().decode(SessionRecord.self, from: Data(oldJSON.utf8))
+    try #require(oldRecord.tokenSummary.isEmpty)
+  }
+
   @Test func testRotationMovesOldestSessionsIntoArchive() throws {
     let compassURL = try makeTemporaryDirectory(prefix: "SessionRecordStoreRotate")
     let store = SessionRecordStore(compassURL: compassURL)

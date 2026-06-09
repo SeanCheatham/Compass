@@ -1720,6 +1720,211 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
   }
 }
 
+struct AgentRunTokenUsage: Codable, Equatable, Sendable {
+  var inputTokens: Int
+  var outputTokens: Int
+  var totalTokens: Int
+  var estimatedTokens: Int
+  var streamedUsageAvailable: Bool
+  var compactionCount: Int
+  var summaryTokens: Int
+  var retryCount: Int
+  var durationMs: Int?
+
+  init(
+    inputTokens: Int = 0,
+    outputTokens: Int = 0,
+    totalTokens: Int = 0,
+    estimatedTokens: Int = 0,
+    streamedUsageAvailable: Bool = false,
+    compactionCount: Int = 0,
+    summaryTokens: Int = 0,
+    retryCount: Int = 0,
+    durationMs: Int? = nil
+  ) {
+    self.inputTokens = max(0, inputTokens)
+    self.outputTokens = max(0, outputTokens)
+    self.totalTokens = max(0, totalTokens)
+    self.estimatedTokens = max(0, estimatedTokens)
+    self.streamedUsageAvailable = streamedUsageAvailable
+    self.compactionCount = max(0, compactionCount)
+    self.summaryTokens = max(0, summaryTokens)
+    self.retryCount = max(0, retryCount)
+    self.durationMs = durationMs.map { max(0, $0) }
+  }
+
+  var hasUsage: Bool {
+    totalTokens > 0 || inputTokens > 0 || outputTokens > 0
+      || estimatedTokens > 0 || compactionCount > 0 || summaryTokens > 0
+  }
+
+  var usesEstimate: Bool {
+    estimatedTokens > 0 || !streamedUsageAvailable
+  }
+
+  mutating func recordTurn(
+    inputTokens: Int,
+    outputTokens: Int,
+    totalTokens: Int,
+    isEstimated: Bool,
+    streamedUsageAvailable: Bool
+  ) {
+    let normalizedInput = max(0, inputTokens)
+    let normalizedOutput = max(0, outputTokens)
+    let normalizedTotal = max(0, totalTokens == 0 ? normalizedInput + normalizedOutput : totalTokens)
+    self.inputTokens += normalizedInput
+    self.outputTokens += normalizedOutput
+    self.totalTokens += normalizedTotal
+    if isEstimated {
+      estimatedTokens += normalizedTotal
+    }
+    self.streamedUsageAvailable = self.streamedUsageAvailable || streamedUsageAvailable
+  }
+
+  mutating func recordCompaction(summaryTokens: Int) {
+    compactionCount += 1
+    self.summaryTokens += max(0, summaryTokens)
+  }
+
+  static func estimated(
+    inputCharacters: Int,
+    outputCharacters: Int,
+    charsPerToken: Int = 4,
+    retryCount: Int = 0
+  ) -> AgentRunTokenUsage {
+    let input = estimateTokens(characters: inputCharacters, charsPerToken: charsPerToken)
+    let output = estimateTokens(characters: outputCharacters, charsPerToken: charsPerToken)
+    return AgentRunTokenUsage(
+      inputTokens: input,
+      outputTokens: output,
+      totalTokens: input + output,
+      estimatedTokens: input + output,
+      streamedUsageAvailable: false,
+      retryCount: retryCount
+    )
+  }
+
+  static func estimateTokens(characters: Int, charsPerToken: Int) -> Int {
+    guard characters > 0 else { return 0 }
+    let divisor = max(1, charsPerToken)
+    return (characters + divisor - 1) / divisor
+  }
+}
+
+struct SessionPhaseTokenUsage: Codable, Equatable, Sendable, Identifiable {
+  var id: String {
+    [
+      phase,
+      proofActionKind ?? "",
+      outcome ?? "",
+      String(createdAt),
+    ]
+    .joined(separator: "|")
+  }
+
+  var phase: String
+  var inputTokens: Int
+  var outputTokens: Int
+  var totalTokens: Int
+  var estimatedTokens: Int
+  var streamedUsageAvailable: Bool
+  var compactionCount: Int
+  var summaryTokens: Int
+  var proofActionKind: String?
+  var outcome: String?
+  var retryCount: Int
+  var durationMs: Int?
+  var createdAt: Double
+
+  init(
+    phase: String,
+    usage: AgentRunTokenUsage,
+    proofActionKind: String? = nil,
+    outcome: String? = nil,
+    createdAt: Date = Date()
+  ) {
+    self.phase = phase
+    inputTokens = usage.inputTokens
+    outputTokens = usage.outputTokens
+    totalTokens = usage.totalTokens
+    estimatedTokens = usage.estimatedTokens
+    streamedUsageAvailable = usage.streamedUsageAvailable
+    compactionCount = usage.compactionCount
+    summaryTokens = usage.summaryTokens
+    self.proofActionKind = Self.normalizedOptional(proofActionKind, limit: 80)
+    self.outcome = Self.normalizedOptional(outcome, limit: 80)
+    retryCount = usage.retryCount
+    durationMs = usage.durationMs
+    self.createdAt = createdAt.timeIntervalSince1970 * 1000
+  }
+
+  var usesEstimate: Bool {
+    estimatedTokens > 0 || !streamedUsageAvailable
+  }
+
+  var compactLabel: String {
+    let suffix = usesEstimate ? " est." : ""
+    return "\(Self.formatTokens(totalTokens)) tokens\(suffix)"
+  }
+
+  private static func normalizedOptional(_ value: String?, limit: Int) -> String? {
+    let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    guard !trimmed.isEmpty else { return nil }
+    guard trimmed.count > limit else { return trimmed }
+    return String(trimmed.prefix(limit - 3)) + "..."
+  }
+
+  static func formatTokens(_ count: Int) -> String {
+    let count = max(0, count)
+    if count >= 1_000_000 {
+      let value = Double(count) / 1_000_000
+      return String(format: "%.1fM", value)
+    }
+    if count >= 1_000 {
+      let value = Double(count) / 1_000
+      return String(format: "%.1fk", value)
+    }
+    return "\(count)"
+  }
+}
+
+struct SessionTokenSummary: Codable, Equatable, Sendable {
+  var phases: [SessionPhaseTokenUsage]
+
+  init(phases: [SessionPhaseTokenUsage] = []) {
+    self.phases = phases
+  }
+
+  var isEmpty: Bool { phases.isEmpty }
+  var totalInputTokens: Int { phases.reduce(0) { $0 + $1.inputTokens } }
+  var totalOutputTokens: Int { phases.reduce(0) { $0 + $1.outputTokens } }
+  var totalTokens: Int { phases.reduce(0) { $0 + $1.totalTokens } }
+  var estimatedTokens: Int { phases.reduce(0) { $0 + $1.estimatedTokens } }
+  var compactionCount: Int { phases.reduce(0) { $0 + $1.compactionCount } }
+  var summaryTokens: Int { phases.reduce(0) { $0 + $1.summaryTokens } }
+  var retryCount: Int { phases.reduce(0) { $0 + $1.retryCount } }
+  var usesEstimate: Bool { phases.contains { $0.usesEstimate } }
+
+  var latestProofActionKind: String? {
+    phases.reversed().compactMap(\.proofActionKind).first
+  }
+
+  var latestPhase: SessionPhaseTokenUsage? {
+    phases.max { $0.createdAt < $1.createdAt }
+  }
+
+  var compactLabel: String? {
+    guard !isEmpty else { return nil }
+    let suffix = usesEstimate ? " est." : ""
+    return "\(SessionPhaseTokenUsage.formatTokens(totalTokens)) tokens\(suffix)"
+  }
+
+  mutating func record(_ usage: SessionPhaseTokenUsage) {
+    guard usage.totalTokens > 0 || usage.compactionCount > 0 else { return }
+    phases.append(usage)
+  }
+}
+
 enum SessionStatus: String, Codable, CaseIterable {
   case planning
   case awaitingApproval = "awaiting_approval"
@@ -1755,6 +1960,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
   var tournamentExperimentAfterSha: String?
   var tournamentEvidenceRunIDs: [String]
   var tournamentDecision: ProductTournamentExperimentDecision?
+  var tokenSummary: SessionTokenSummary
 
   static func started(_ number: Int) -> SessionRecord {
     SessionRecord(
@@ -1779,7 +1985,8 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       tournamentExperimentBeforeSha: nil,
       tournamentExperimentAfterSha: nil,
       tournamentEvidenceRunIDs: [],
-      tournamentDecision: nil
+      tournamentDecision: nil,
+      tokenSummary: SessionTokenSummary()
     )
   }
 
@@ -1808,6 +2015,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     case tournamentExperimentAfterSha
     case tournamentEvidenceRunIDs
     case tournamentDecision
+    case tokenSummary
   }
 
   init(
@@ -1832,7 +2040,8 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     tournamentExperimentBeforeSha: String? = nil,
     tournamentExperimentAfterSha: String? = nil,
     tournamentEvidenceRunIDs: [String] = [],
-    tournamentDecision: ProductTournamentExperimentDecision? = nil
+    tournamentDecision: ProductTournamentExperimentDecision? = nil,
+    tokenSummary: SessionTokenSummary = SessionTokenSummary()
   ) {
     self.session = session
     self.startedAt = startedAt
@@ -1883,6 +2092,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       maxCount: 20
     )
     self.tournamentDecision = tournamentDecision
+    self.tokenSummary = tokenSummary
   }
 
   init(from decoder: Decoder) throws {
@@ -1942,6 +2152,9 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       ProductTournamentExperimentDecision.self,
       forKey: .tournamentDecision
     )
+    tokenSummary =
+      try container.decodeIfPresent(SessionTokenSummary.self, forKey: .tokenSummary)
+      ?? SessionTokenSummary()
   }
 
   func encode(to encoder: Encoder) throws {
@@ -1987,6 +2200,9 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       try container.encode(tournamentEvidenceRunIDs, forKey: .tournamentEvidenceRunIDs)
     }
     try container.encodeIfPresent(tournamentDecision, forKey: .tournamentDecision)
+    if !tokenSummary.isEmpty {
+      try container.encode(tokenSummary, forKey: .tokenSummary)
+    }
   }
 
   var latestExecutionEnvironmentSnapshot: SessionExecutionEnvironmentSnapshot? {

@@ -11,6 +11,7 @@ struct AgentExecutionResult: Equatable {
   var iterations: Int
   var assistantText: String
   var reasoningText: String
+  var tokenUsage: AgentRunTokenUsage
 }
 
 /// Configuration for a single AgentExecutor.run() invocation.

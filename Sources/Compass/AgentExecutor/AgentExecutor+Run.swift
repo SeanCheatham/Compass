@@ -56,6 +56,7 @@ extension AgentExecutor {
     var remediationNudgeIndices = Set<Int>()
     var assistantTranscript = ""
     var reasoningTranscript = ""
+    var tokenUsage = AgentRunTokenUsage()
     let startedAt = Date()
 
     for iteration in 1...configuration.maxIterations {
@@ -67,6 +68,7 @@ extension AgentExecutor {
 
       emit(level: .info, text: "Agent iteration \(iteration)", kind: .lifecycle, status: .running)
 
+      let estimatedInputTokens = Self.estimatedTokens(in: messages)
       let query = ChatQuery(
         messages: messages,
         model: model,
@@ -94,6 +96,18 @@ extension AgentExecutor {
 
       assistantTranscript += aggregated.assistantText
       reasoningTranscript += aggregated.reasoningText
+      tokenUsage.recordTurn(
+        inputTokens: aggregated.usage?.inputTokens ?? estimatedInputTokens,
+        outputTokens: aggregated.usage?.outputTokens ?? Self.estimatedOutputTokens(for: aggregated),
+        totalTokens: aggregated.usage?.totalTokens
+          ?? (aggregated.usage?.inputTokens ?? estimatedInputTokens)
+            + (aggregated.usage?.outputTokens ?? Self.estimatedOutputTokens(for: aggregated)),
+        isEstimated: aggregated.usage?.inputTokens == nil
+          || aggregated.usage?.outputTokens == nil
+          || aggregated.usage?.totalTokens == nil,
+        streamedUsageAvailable: aggregated.usage != nil
+      )
+      tokenUsage.retryCount = max(tokenUsage.retryCount, iteration - 1)
 
       if !aggregated.assistantText.isEmpty {
         emit(
@@ -237,11 +251,14 @@ extension AgentExecutor {
           emit(
             level: .success, text: "submit_result", detail: previewString(toolCall.arguments),
             kind: .agentMessage, status: .completed, correlationID: toolCall.id)
+          var finalTokenUsage = tokenUsage
+          finalTokenUsage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
           return AgentExecutionResult(
             submitResultArguments: argsData,
             iterations: iteration,
             assistantText: assistantTranscript,
-            reasoningText: reasoningTranscript
+            reasoningText: reasoningTranscript,
+            tokenUsage: finalTokenUsage
           )
         }
 
@@ -294,13 +311,15 @@ extension AgentExecutor {
       if Self.shouldCompact(
         estimatedTokens: estimated, contextWindowTokens: configuration.contextWindowTokens)
       {
-        try await compactMessages(
+        if let compaction = try await compactMessages(
           openAI: openAI,
           model: model,
           messages: &messages,
           estimatedTokensBeforeCompaction: estimated,
           contextWindowTokens: configuration.contextWindowTokens
-        )
+        ) {
+          tokenUsage.recordCompaction(summaryTokens: compaction.summaryTokens)
+        }
         // Compaction rewrites the entire `messages` array (keeps system,
         // original user, appends a summary recap), so all previously
         // tracked nudge indices are stale. Drop them; any nudges we add
@@ -309,6 +328,16 @@ extension AgentExecutor {
       }
     }
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
+  }
+
+  static func estimatedOutputTokens(for turn: AggregatedTurn) -> Int {
+    let toolCallCharacters = turn.toolCalls.reduce(0) { partial, toolCall in
+      partial + toolCall.name.count + toolCall.arguments.count
+    }
+    return AgentRunTokenUsage.estimateTokens(
+      characters: turn.assistantText.count + turn.reasoningText.count + toolCallCharacters,
+      charsPerToken: Self.estimatedCharsPerToken
+    )
   }
 
   /// Build the sub-agent runner for this turn, or `nil` when this

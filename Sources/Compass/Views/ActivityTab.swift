@@ -32,6 +32,8 @@ struct ActivityTab: View {
 
         ActivityReliabilitySummary(feedback: reliabilityFeedback)
 
+        ActivityTokenCostSummary(items: sessionHistory)
+
         ActivityRunHistorySection(
           display: sessionHistoryDisplay,
           showAllRuns: $showAllSessionHistory,
@@ -68,6 +70,62 @@ struct ActivityTab: View {
     guard let workspace = project.workspace else { return [:] }
     return sessions.reduce(into: [Int: SessionAuditManifest]()) { result, session in
       result[session.session] = workspace.readSessionAuditManifest(session: session.session)
+    }
+  }
+}
+
+private struct ActivityTokenCostSummary: View {
+  var items: [PlanSessionHistoryItem]
+
+  private var tokenItems: [PlanSessionHistoryItem] {
+    items.filter { !$0.tokenSummary.isEmpty }
+  }
+
+  private var latest: PlanSessionHistoryItem? {
+    tokenItems.sorted { $0.startedAt > $1.startedAt }.first
+  }
+
+  private var totalTokens: Int {
+    tokenItems.reduce(0) { $0 + $1.tokenSummary.totalTokens }
+  }
+
+  private var compactionCount: Int {
+    tokenItems.reduce(0) { $0 + $1.tokenSummary.compactionCount }
+  }
+
+  private var retryCount: Int {
+    tokenItems.reduce(0) { $0 + $1.tokenSummary.retryCount }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      SectionHeader("Token Cost", systemImage: "gauge.with.dots.needle.67percent")
+
+      if let latest {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Text(latest.tokenSummary.compactLabel ?? "0 tokens")
+            .font(.callout.monospacedDigit().weight(.semibold))
+          Text("latest run #\(latest.sessionNumber)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Spacer()
+          Text("\(SessionPhaseTokenUsage.formatTokens(totalTokens)) total")
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.secondary)
+        }
+
+        HStack(spacing: 8) {
+          if let proofAction = latest.tokenSummary.latestProofActionKind {
+            ActivityPill(text: proofAction)
+          }
+          ActivityPill(text: "\(compactionCount) compaction(s)")
+          ActivityPill(text: "\(retryCount) retry(s)")
+        }
+      } else {
+        Text("No token usage recorded yet.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+      }
     }
   }
 }
@@ -229,6 +287,12 @@ private struct ActivityRunHistoryRow: View {
         }
         if !item.auditArtifacts.isEmpty {
           ActivityPill(text: "\(item.auditArtifacts.count) artifact(s)")
+        }
+        if let tokenLabel = item.tokenSummary.compactLabel {
+          ActivityPill(text: tokenLabel)
+        }
+        if item.tokenSummary.compactionCount > 0 {
+          ActivityPill(text: "\(item.tokenSummary.compactionCount) compact")
         }
       }
     }

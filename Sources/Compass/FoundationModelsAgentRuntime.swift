@@ -127,7 +127,13 @@ enum FoundationModelsAgentRuntime {
             submitResultArguments: captured,
             iterations: iterations,
             assistantText: assistantTranscript,
-            reasoningText: ""
+            reasoningText: "",
+            tokenUsage: estimatedTokenUsage(
+              configuration: configuration,
+              assistantTranscript: assistantTranscript,
+              iterations: iterations,
+              startedAt: startedAt
+            )
           )
         }
         // Stream finished without submit_result being called. Nudge
@@ -167,7 +173,13 @@ enum FoundationModelsAgentRuntime {
             submitResultArguments: captured,
             iterations: iterations,
             assistantText: assistantTranscript,
-            reasoningText: ""
+            reasoningText: "",
+            tokenUsage: estimatedTokenUsage(
+              configuration: configuration,
+              assistantTranscript: assistantTranscript,
+              iterations: iterations,
+              startedAt: startedAt
+            )
           )
         }
         throw AgentExecutionError.streamFailed(
@@ -182,6 +194,22 @@ enum FoundationModelsAgentRuntime {
       }
     }
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
+  }
+
+  private static func estimatedTokenUsage(
+    configuration: AgentExecutionConfiguration,
+    assistantTranscript: String,
+    iterations: Int,
+    startedAt: Date
+  ) -> AgentRunTokenUsage {
+    var usage = AgentRunTokenUsage.estimated(
+      inputCharacters: configuration.systemPrompt.count + configuration.userPrompt.count,
+      outputCharacters: assistantTranscript.count,
+      charsPerToken: AgentExecutor.estimatedCharsPerToken,
+      retryCount: max(0, iterations - 1)
+    )
+    usage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+    return usage
   }
 
   static func rejectSubmitResultIfNeeded(

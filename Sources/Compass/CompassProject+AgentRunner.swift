@@ -251,14 +251,107 @@ extension CompassProject {
         )
       }
     }
+    let decoded: T
     do {
-      return try JSONDecoder().decode(T.self, from: result.submitResultArguments)
+      decoded = try JSONDecoder().decode(T.self, from: result.submitResultArguments)
     } catch {
       let body = String(decoding: result.submitResultArguments, as: UTF8.self)
       throw AppModelError.internalInvariant(
         "Could not decode \(T.self) from submit_result: \(error.localizedDescription)\n\(body)"
       )
     }
+    if let sessionNumber {
+      recordAgentTokenUsage(
+        result.tokenUsage,
+        phase: phase,
+        decodedResult: decoded,
+        sessionNumber: sessionNumber
+      )
+    }
+    return decoded
+  }
+
+  func recordAgentTokenUsage<T>(
+    _ usage: AgentRunTokenUsage,
+    phase: AgentPhase,
+    decodedResult: T,
+    sessionNumber: Int
+  ) {
+    guard usage.hasUsage,
+      let sessionIndex = sessions.firstIndex(where: { $0.session == sessionNumber })
+    else { return }
+
+    let proofActionKind =
+      proofActionKind(from: decodedResult)
+      ?? sessions[sessionIndex].tokenSummary.latestProofActionKind
+    let phaseUsage = SessionPhaseTokenUsage(
+      phase: phase.rawValue,
+      usage: usage,
+      proofActionKind: proofActionKind,
+      outcome: tokenOutcome(from: decodedResult)
+    )
+    sessions[sessionIndex].tokenSummary.record(phaseUsage)
+    try? persistSessions()
+
+    let title = phase.rawValue.capitalized
+    let source = phaseUsage.usesEstimate ? "estimated" : "provider reported"
+    let proof = proofActionKind.map { " Proof action: \($0)." } ?? ""
+    let compaction =
+      phaseUsage.compactionCount > 0
+      ? " Compactions: \(phaseUsage.compactionCount), summary \(SessionPhaseTokenUsage.formatTokens(phaseUsage.summaryTokens)) tokens."
+      : ""
+    let retries = phaseUsage.retryCount > 0 ? " Retries: \(phaseUsage.retryCount)." : ""
+    log(
+      "\(title) used \(SessionPhaseTokenUsage.formatTokens(phaseUsage.inputTokens)) input / \(SessionPhaseTokenUsage.formatTokens(phaseUsage.outputTokens)) output tokens (\(SessionPhaseTokenUsage.formatTokens(phaseUsage.totalTokens)) total, \(source)).\(proof)\(compaction)\(retries)",
+      level: .info
+    )
+    appendAuditEvent(
+      kind: "token_usage",
+      status: "completed",
+      text: "\(title) token usage recorded.",
+      metadata: [
+        "phase": phase.rawValue,
+        "inputTokens": "\(phaseUsage.inputTokens)",
+        "outputTokens": "\(phaseUsage.outputTokens)",
+        "totalTokens": "\(phaseUsage.totalTokens)",
+        "estimatedTokens": "\(phaseUsage.estimatedTokens)",
+        "streamedUsageAvailable": phaseUsage.streamedUsageAvailable ? "true" : "false",
+        "compactionCount": "\(phaseUsage.compactionCount)",
+        "summaryTokens": "\(phaseUsage.summaryTokens)",
+        "retryCount": "\(phaseUsage.retryCount)",
+        "proofActionKind": proofActionKind ?? "",
+        "outcome": phaseUsage.outcome ?? "",
+      ]
+    )
+  }
+
+  private func proofActionKind<T>(from decodedResult: T) -> String? {
+    if let result = decodedResult as? PlanRunResult {
+      return result.pmfProofAction?.kind.rawValue
+    }
+    if let result = decodedResult as? ReflectSummary {
+      return result.pmfProofOutcome?.actionKind.rawValue
+    }
+    return nil
+  }
+
+  private func tokenOutcome<T>(from decodedResult: T) -> String? {
+    if let result = decodedResult as? PlanRunResult {
+      return result.state.immediate == nil ? "no_immediate" : "accepted"
+    }
+    if let result = decodedResult as? DevelopSummary {
+      return result.status.rawValue
+    }
+    if let result = decodedResult as? ReflectSummary {
+      if result.state != nil { return "updated_state" }
+      if !result.tournamentDecisionUpdates.isEmpty { return "updated_tournament" }
+      if result.pmfProofOutcome != nil { return "updated_proof" }
+      return "observed"
+    }
+    if let result = decodedResult as? CriticVerdict {
+      return result.verdict.rawValue
+    }
+    return nil
   }
 
   /// Reject `submit_result` in-flight when lesson edits don't match

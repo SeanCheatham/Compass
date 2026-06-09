@@ -58,6 +58,22 @@ struct AgentExecutorStreamAggregationTests {
     try #require(turn.reasoningText == "secret")
   }
 
+  @Test
+  func capturesProviderUsageChunkWhenAvailable() async throws {
+    let chunks = try chunks(fromJSONFragments: [
+      delta(content: "done"),
+      usageChunk(promptTokens: 1200, completionTokens: 75, totalTokens: 1275),
+      finalChunk(finishReason: "stop"),
+    ])
+    let executor = AgentExecutor()
+    let turn = try await executor.aggregate(stream: chunks)
+
+    try #require(turn.usage?.inputTokens == 1200)
+    try #require(turn.usage?.outputTokens == 75)
+    try #require(turn.usage?.totalTokens == 1275)
+    try #require(turn.totalTokens == 1275)
+  }
+
   // MARK: - Tool call assembly
 
   @Test
@@ -184,6 +200,14 @@ struct AgentExecutorStreamAggregationTests {
     """
     {"id":"x","object":"chat.completion.chunk","created":0,"model":"m",
     "choices":[{"index":0,"delta":{},"finish_reason":"\(finishReason)","logprobs":null}]}
+    """
+  }
+
+  private func usageChunk(promptTokens: Int, completionTokens: Int, totalTokens: Int) -> String {
+    """
+    {"id":"x","object":"chat.completion.chunk","created":0,"model":"m",
+    "choices":[],
+    "usage":{"prompt_tokens":\(promptTokens),"completion_tokens":\(completionTokens),"total_tokens":\(totalTokens)}}
     """
   }
 

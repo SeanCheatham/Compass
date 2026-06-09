@@ -241,6 +241,49 @@ struct PlanSessionHistoryTests: ~Copyable {
   }
 
   @Test
+  func testHistoryItemsExposeTokenSummaryAndClipboardDiagnostics() throws {
+    var tokenSummary = SessionTokenSummary()
+    tokenSummary.record(
+      SessionPhaseTokenUsage(
+        phase: "plan",
+        usage: AgentRunTokenUsage(
+          inputTokens: 18_400,
+          outputTokens: 2_100,
+          totalTokens: 20_500,
+          estimatedTokens: 20_500,
+          streamedUsageAvailable: false,
+          compactionCount: 1,
+          summaryTokens: 900,
+          retryCount: 2,
+          durationMs: 42_000
+        ),
+        proofActionKind: "run_plan_proof",
+        outcome: "accepted"
+      )
+    )
+    let item = try #require(
+      PlanSessionHistory.displayItems(
+        for: [
+          makeSession(
+            9,
+            startedAt: 1_000,
+            tokenSummary: tokenSummary
+          )
+        ]
+      ).first
+    )
+    let payload = PlanSessionHistoryClipboardPayload(item: item)
+
+    try #require(item.tokenSummary.compactLabel == "20.5k tokens est.")
+    try #require(item.tokenSummary.latestProofActionKind == "run_plan_proof")
+    try #require(payload.text.contains("Token cost:"))
+    try #require(payload.text.contains("Total: 20.5k tokens est."))
+    try #require(payload.text.contains("Proof action: run_plan_proof"))
+    try #require(payload.text.contains("Compactions: 1, summary 900 tokens"))
+    try #require(payload.text.contains("Retries: 2"))
+  }
+
+  @Test
   func testHistoryClipboardPayloadPackagesRunAuditForReuse() throws {
     let commit = SessionCommit(
       sha: "abcdef123456",
@@ -769,7 +812,8 @@ struct PlanSessionHistoryTests: ~Copyable {
     notes: [String] = [],
     verifyOutput: VerifyOutput? = nil,
     feedback: String? = nil,
-    executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = []
+    executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = [],
+    tokenSummary: SessionTokenSummary = SessionTokenSummary()
   ) -> SessionRecord {
     SessionRecord(
       session: number,
@@ -784,7 +828,8 @@ struct PlanSessionHistoryTests: ~Copyable {
       notes: notes,
       verifyOutput: verifyOutput,
       feedback: feedback,
-      executionEnvironmentSnapshots: executionEnvironmentSnapshots
+      executionEnvironmentSnapshots: executionEnvironmentSnapshots,
+      tokenSummary: tokenSummary
     )
   }
 
