@@ -64,6 +64,10 @@ struct ProductTournamentWorkbenchTab: View {
     )
   }
 
+  private var proofLedger: PMFProofLedger {
+    PMFProofLedger.build(config: config, evidenceIndex: evidenceIndex)
+  }
+
   private var tournamentsForBoard: [ProductTournament] {
     workbenchState.tournamentsForBoard
   }
@@ -670,41 +674,60 @@ struct ProductTournamentWorkbenchTab: View {
       VStack(alignment: .leading, spacing: 12) {
         ScrollView {
           VStack(alignment: .leading, spacing: 12) {
-            ProductTournamentMapView(
-              cockpit: productDecisionCockpit,
-              selectedContenderID: selectedCockpitContenderID,
-              onSelectContender: selectCockpitContender
-            )
-            ProductNextMovePanel(
-              nextMove: productDecisionCockpit.nextMove,
-              latestMovement: productDecisionCockpit.latestMovement,
-              canRunPrimaryAction: tournamentAutomationCanRun,
-              isRunningPrimaryAction: isRunningTournamentStep,
-              primaryDisabledReason: nextMovePanelDisabledReason,
-              onRunPrimaryAction: {
-                Task { await runTournamentAutomationStep() }
-              },
-              onViewAudit: selectNextMoveAudit
-            )
-            ProductEvidenceMatrixView(
-              cockpit: productDecisionCockpit,
-              selectedContenderID: selectedCockpitContenderID,
-              onSelectEvidence: selectCockpitEvidence
-            )
-            ProductAuditDetailView(
-              title: "Cockpit Audit",
-              references: productDecisionCockpit.auditReferences
-            )
+            PMFProofLoopView(project: project, ledger: proofLedger)
+            legacyTournamentCockpitDisclosure
+            detailedWorkbenchDisclosure
+              .frame(maxWidth: .infinity, alignment: .topLeading)
           }
           .padding(.trailing, 4)
         }
-        .frame(minHeight: 360, idealHeight: 440, maxHeight: 620)
-
-        detailedWorkbenchDisclosure
-          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+  }
+
+  private var legacyTournamentCockpitDisclosure: some View {
+    DisclosureGroup {
+      VStack(alignment: .leading, spacing: 12) {
+        ProductTournamentMapView(
+          cockpit: productDecisionCockpit,
+          selectedContenderID: selectedCockpitContenderID,
+          onSelectContender: selectCockpitContender
+        )
+        ProductNextMovePanel(
+          nextMove: productDecisionCockpit.nextMove,
+          latestMovement: productDecisionCockpit.latestMovement,
+          canRunPrimaryAction: tournamentAutomationCanRun,
+          isRunningPrimaryAction: isRunningTournamentStep,
+          primaryDisabledReason: nextMovePanelDisabledReason,
+          onRunPrimaryAction: {
+            Task { await runTournamentAutomationStep() }
+          },
+          onViewAudit: selectNextMoveAudit
+        )
+        ProductEvidenceMatrixView(
+          cockpit: productDecisionCockpit,
+          selectedContenderID: selectedCockpitContenderID,
+          onSelectEvidence: selectCockpitEvidence
+        )
+        ProductAuditDetailView(
+          title: "Cockpit Audit",
+          references: productDecisionCockpit.auditReferences
+        )
+      }
+      .padding(.top, 8)
+    } label: {
+      Label("Legacy Tournament Cockpit", systemImage: ProductIconRole.audit.systemImage)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+    }
+    .padding(10)
+    .background(Color.secondary.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(Color.secondary.opacity(0.16), lineWidth: 1)
+    )
   }
 
   private var detailedWorkbenchDisclosure: some View {
