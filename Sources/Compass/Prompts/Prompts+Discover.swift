@@ -1,34 +1,39 @@
 import Foundation
 
 extension Prompts {
-  static let discoverPromptVersionID = "discover.product_tournament.v1"
+  static let discoverPromptVersionID = "discover.pmf_proof_loop.v2"
 
   static func discoverPrompt(context: DiscoveryPromptContext) throws -> String {
     let digestJSON = try discoverPromptJSON(DiscoveryPromptDigest(context: context))
     return """
-      You are the Discover agent for Compass's pain-driven product tournament loop.
+      You are the Discover agent for Compass's PMF Proof Loop.
       Prompt version: \(discoverPromptVersionID).
 
-      Turn rough user pain into structured tournament state after the synthetic
-      market is compiled and before any implementation work starts. Do not
-      create branches, edit project files, or specify a final app as if the
-      first idea is guaranteed correct.
+      Turn rough user pain into structured PMF proof-loop state before any
+      implementation work starts. The JSON schema still carries legacy Product
+      Tournament field names for compatibility, but the product-facing model is
+      the PMF hypothesis, unknowns, proof actions, and evidence ledger.
 
       Discovery rules:
       - Start from pain, not a solution.
-      - If no market exists, compile the synthetic market first: actors, buyer,
-        incumbent/current alternative, channel, budget, adoption path, and
-        market proof debt.
+      - Name the target user, buyer or sponsor, current alternative, promised
+        outcome, and riskiest unknown before naming the app.
+      - Use `stateEdits.markets` only as a legacy compatibility holder when the
+        schema needs buyer/current-alternative/incumbent facts.
+      - Leave `distributionExperiments`, `syntheticCohorts`, and
+        `lifecycleScenarios` empty for new work.
+      - Do not create market-pressure, distribution-pressure, market backtesting,
+        or lifecycle proof plans.
       - Name the user segment before naming the app.
       - Describe what users do today, including tools, handoffs, and coping
         mechanisms.
       - Include non-software alternatives such as manual work, spreadsheets,
         internal workarounds, outsourcing, or doing nothing.
-      - Generate multiple competing product contenders when the pain is broad.
-      - Create a tournament with explicit rounds: Round 0 compiles the
-        synthetic market, Round 1 compares product plans with no built product,
-        Round 2 proves the core technology, and Round 3 evaluates low-medium
-        fidelity product implementations.
+      - Generate multiple proof contenders only when the pain is broad enough to
+        justify comparison.
+      - If legacy rounds are needed for compatibility, create only rounds that
+        map to PMF proof actions: plan proof, feasibility proof, and product-use
+        proof.
       - Make each candidate tournament experiment small enough to become the Round 2 or
         Round 3 Rust desktop track for one contender.
       - Include willingness-to-pay or willingness-to-sponsor signals in the
@@ -40,7 +45,7 @@ extension Prompts {
       - `candidateTournamentExperiments` are implementation tracks for tournament
         contenders after the plan-only round; do not treat them as Round 1.
         Do not emit them until `stateEdits.markets` or current tournament state
-        contains at least one valid synthetic market.
+        contains at least one valid compatibility market.
         When a candidate references a contender without a linked tournament
         experiment, Compass will materialize a durable Round 2/Round 3
         implementation track and starter scenario from it during apply when the
@@ -317,7 +322,7 @@ struct DiscoverPromptOutput: Codable, Equatable {
     let candidateReferenceContenderIDs = Set(config.tournamentContenders.map(\.id))
     if !candidateTournamentExperiments.isEmpty && config.marketCompilationStatus != .compiled {
       throw DiscoverPromptValidationError.invalidJSON(
-        "Candidate tournament experiments require a compiled synthetic market."
+        "Candidate tournament experiments require compatibility market state."
       )
     }
     for candidate in candidateTournamentExperiments {
@@ -929,9 +934,6 @@ struct DiscoveryStateEdits: Codable, Equatable {
     upsert(&next.tournaments, edits: tournaments, id: \.id)
     upsert(&next.tournamentContenders, edits: tournamentContenders, id: \.id)
     upsert(&next.tournamentRounds, edits: tournamentRounds, id: \.id)
-    upsert(&next.distributionExperiments, edits: distributionExperiments, id: \.id)
-    upsert(&next.syntheticCohorts, edits: syntheticCohorts, id: \.id)
-    upsert(&next.lifecycleScenarios, edits: lifecycleScenarios, id: \.id)
     upsert(&next.scenarioCohorts, edits: scenarioCohorts, id: \.id)
     upsert(&next.decisions, edits: decisions, id: \.id)
     return next

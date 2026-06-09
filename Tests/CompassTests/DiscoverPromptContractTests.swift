@@ -24,7 +24,10 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains(Prompts.discoverPromptVersionID))
     try #require(prompt.contains("Start from pain, not a solution"))
     try #require(prompt.contains("Name the user segment before naming the app"))
-    try #require(prompt.contains("Round 1 compares product"))
+    try #require(prompt.contains("PMF hypothesis, unknowns, proof actions"))
+    try #require(prompt.contains("compatibility market"))
+    try #require(prompt.contains("Leave `distributionExperiments`, `syntheticCohorts`, and"))
+    try #require(prompt.contains("Do not create market-pressure"))
     try #require(prompt.contains("candidateTournamentExperiments"))
     try #require(prompt.contains("implementationName"))
     try #require(!prompt.contains("candidateExperiments"))
@@ -45,6 +48,7 @@ struct DiscoverPromptContractTests {
     try #require(prompt.contains("tournament state"))
     try #require(prompt.contains("Support leads lose escalation decisions"))
     try #require(prompt.contains("Rust desktop"))
+    try #require(!prompt.contains("compile the synthetic market first"))
   }
 
   @Test func validDiscoverResponseAppliesStructuredProductTournamentEdits() throws {
@@ -67,6 +71,28 @@ struct DiscoverPromptContractTests {
     try #require(decoded.candidateTournamentExperiments[0].branchSlug == "incident-command-board")
     try #require(decoded.candidateTournamentExperiments[0].contenderID == "contender-command-board")
     try #require(decoded.assumptions[0].text.contains("Incident leads"))
+  }
+
+  @Test func discoverStateEditsDecodeButIgnoreLegacyDistributionLifecycleFields() throws {
+    var output = makeDiscoverOutput()
+    let legacyState = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Legacy Proof State",
+      rawPain: "Support leads lose customer handoff context.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    output.stateEdits.distributionExperiments = legacyState.distributionExperiments
+    output.stateEdits.syntheticCohorts = legacyState.syntheticCohorts
+    output.stateEdits.lifecycleScenarios = legacyState.lifecycleScenarios
+
+    let decoded = try Prompts.decodeDiscoverResponse(try encodeDiscoverJSON(output))
+    let config = try decoded.validatedProductTournamentConfig(applyingTo: .empty)
+
+    try #require(!decoded.stateEdits.distributionExperiments.isEmpty)
+    try #require(!decoded.stateEdits.syntheticCohorts.isEmpty)
+    try #require(!decoded.stateEdits.lifecycleScenarios.isEmpty)
+    try #require(config.distributionExperiments.isEmpty)
+    try #require(config.syntheticCohorts.isEmpty)
+    try #require(config.lifecycleScenarios.isEmpty)
   }
 
   @Test func discoverResponseRejectsRetiredCandidateExperimentsKey() throws {

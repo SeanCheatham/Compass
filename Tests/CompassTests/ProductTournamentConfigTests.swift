@@ -33,6 +33,30 @@ struct ProductTournamentConfigTests {
     try #require(try workspace.readProductTournamentConfig() == .empty)
   }
 
+  @Test func legacyMarketDistributionLifecycleStateLoadsIntoPMFProofLedger() throws {
+    let root = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let workspace = CompassWorkspace(repoURL: root)
+    let legacyState = ProductTournamentConfig.seedDefaults(
+      projectTitle: "Legacy State",
+      rawPain: "Operators lose weekly reporting context.",
+      now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+
+    try workspace.writeProductTournamentConfig(legacyState)
+
+    let loaded = try workspace.readProductTournamentConfig()
+    let ledger = PMFProofLedger.build(config: loaded, evidenceIndex: .empty)
+
+    try #require(!loaded.markets.isEmpty)
+    try #require(!loaded.distributionExperiments.isEmpty)
+    try #require(!loaded.lifecycleScenarios.isEmpty)
+    try #require(ledger.hypothesis.pain.contains("Operators lose weekly reporting context"))
+    try #require(ledger.riskiestUnknown != nil)
+    try #require(ledger.nextAction != nil)
+    try #require(ledger.promptDigest.contains("PMF Proof Ledger"))
+  }
+
   @Test func malformedProductTournamentConfigThrows() throws {
     let root = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: root) }

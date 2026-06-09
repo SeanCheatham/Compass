@@ -3049,6 +3049,11 @@ struct ProductTournamentLoopTests {
       ProductTournamentSimulationMode.personaModel.tournamentAutomationLabel == "Persona-model")
     try #require(
       ProductTournamentSimulationMode.modelFree.tournamentAutomationLabel == "Model-free")
+    try #require(ProductTournamentSimulationMode.activeProofModes == [.modelFree, .personaModel])
+    try #require(ProductTournamentSimulationMode.marketPressure.isRetiredLegacyMode)
+    try #require(
+      ProductTournamentSimulationMode.marketPressure.tournamentAutomationLabel
+        == "Retired market-pressure")
   }
 
   @Test func tournamentAutomationBlocksRecentlyFailedStep() throws {

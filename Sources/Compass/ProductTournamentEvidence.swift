@@ -5,11 +5,17 @@ enum ProductTournamentSimulationMode: String, Codable, CaseIterable, Equatable, 
   case personaModel = "persona_model"
   case marketPressure = "market_pressure"
 
+  static let activeProofModes: [ProductTournamentSimulationMode] = [.modelFree, .personaModel]
+
+  var isRetiredLegacyMode: Bool {
+    self == .marketPressure
+  }
+
   var tournamentAutomationLabel: String {
     switch self {
     case .modelFree: return "Model-free"
     case .personaModel: return "Persona-model"
-    case .marketPressure: return "Market-pressure"
+    case .marketPressure: return "Retired market-pressure"
     }
   }
 }

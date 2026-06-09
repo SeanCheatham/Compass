@@ -18,6 +18,23 @@ struct MarketCompilerValidationTests {
     try #require(next.marketCompilationStatus == .compiled)
   }
 
+  @Test func applyingCompilerOutputIgnoresDistributionExperimentEdits() throws {
+    var fixture = marketCompilerFixture()
+    fixture.base.distributionExperiments = []
+    let legacyDistribution = try #require(fixture.compiled.distributionExperiments.first)
+    let output = MarketCompilerOutput(
+      summary: "Compiled proof seed.",
+      status: .compiled,
+      marketEdits: fixture.compiled.markets,
+      distributionExperimentEdits: [legacyDistribution]
+    )
+
+    let next = try output.applying(to: fixture.base)
+
+    try #require(next.markets.count == 1)
+    try #require(next.distributionExperiments.isEmpty)
+  }
+
   @Test func rejectsCommitteeActorIDsThatDoNotExist() throws {
     var fixture = marketCompilerFixture()
     fixture.compiled.markets[0].buyingCommittees[0].actorIDs.append("missing-actor")

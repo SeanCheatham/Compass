@@ -15,7 +15,7 @@ extension Prompts {
     let toolList = toolNames.isEmpty ? "(none)" : toolNames.joined(separator: ", ")
     return """
       You are a sub-agent spawned by the Compass \(parentPhase.rawValue)
-      agent via the `delegate` tool inside Compass's Product Tournament work loop.
+      agent via the `delegate` tool inside Compass's PMF Proof Loop.
       Your job is to investigate the focused task the parent handed you
       and report findings back. The parent will read your reply as a single
       tool result; everything you discover must be in your final
@@ -266,7 +266,7 @@ extension Prompts {
   static func compassOverviewSection() -> String {
     """
     About Compass:
-    Compass is a macOS-native app that runs a Product Tournament work loop over
+    Compass is a macOS-native app that runs a PMF Proof Loop over
     one Git repository at a time. The user sets a product vision in `COMPASS.md`
     and optional drafts; Compass keeps planning state in `.compass/state.json`,
     durable guidance in `.compass/lessons.md` (persistent memory every agent
@@ -338,10 +338,10 @@ extension Prompts {
         """
     }
     return """
-      Product Tournament work loop (Compass orchestrates this; you execute one step):
+      PMF Proof Loop (Compass orchestrates this; you execute one step):
       1. Plan — pick the next `immediate` increment from drafts, feedback,
          candidates, strategic context, focus, repo evidence, or the
-         Product Tournament Context.
+         PMF Proof Context and compatibility Product Tournament Context.
       2. Develop — implement that increment in the working tree (often a Shared VM
          guest clone synced from the host repo).
       3. Post-checks — Compass runs the verify shell command you planned; retries

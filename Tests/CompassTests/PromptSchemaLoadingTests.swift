@@ -161,11 +161,11 @@ struct PromptSchemaLoadingTests {
     try #require(properties.keys.contains("stateEdits"))
     try #require(properties.keys.contains("candidateTournamentExperiments"))
     try #require(!properties.keys.contains("candidateExperiments"))
-    try #require(propertyDescription("stateEdits", in: properties).contains("Product Tournament"))
-    try #require(propertyDescription("stateEdits", in: properties).contains("tournament rounds"))
+    try #require(propertyDescription("stateEdits", in: properties).contains("PMF Proof Loop"))
+    try #require(propertyDescription("stateEdits", in: properties).contains("legacy rounds"))
     try #require(
       propertyDescription("candidateTournamentExperiments", in: properties)
-        .contains("after the plan-only round")
+        .contains("after plan proof")
     )
     try #require(
       propertyDescription("candidateTournamentExperiments", in: properties)

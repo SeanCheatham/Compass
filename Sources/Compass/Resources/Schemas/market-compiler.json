@@ -13,7 +13,7 @@
   "properties": {
     "summary": {
       "type": "string",
-      "description": "Concise explanation of the compiled synthetic market hypothesis."
+      "description": "Concise explanation of the PMF proof-loop compatibility hypothesis."
     },
     "status": {
       "type": "string",
@@ -26,6 +26,7 @@
     },
     "distributionExperimentEdits": {
       "type": "array",
+      "description": "Legacy compatibility field. Leave empty for new PMF Proof Loop work.",
       "maxItems": 12,
       "items": { "$ref": "#/$defs/distributionExperiment" }
     },

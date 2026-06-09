@@ -76,8 +76,8 @@ adds coverage and desktop visual verification.
 Swift, TypeScript, and JavaScript are retained as legacy imported-repository
 inspection/evolution paths only. Apple builds are local developer concerns, not
 generated-output dependencies. The Compass host app remains Swift/macOS; the
-Rust engine is a Product Tournament verification sidecar and is not used for the
-host UI or VM lifecycle.
+Rust engine is a PMF proof verification sidecar and is not used for the host UI
+or VM lifecycle.
 
 ## PMF Proof Loop
 
@@ -86,112 +86,33 @@ hypothesis is being tested, which unknown is riskiest right now, and what proof
 action can reduce that debt with the lowest useful token spend.
 
 The legacy Product Tournament implementation remains the compatibility substrate
-for existing state and proof artifacts:
+for existing state and proof artifacts.
 
-Compass frames product discovery as a tournament. A tournament starts from a
-durable user pain, creates several competing product contenders for that pain,
-and advances them through rounds:
+New product-facing work should use these PMF concepts:
 
-- **Round 1: product plans.** No product exists yet. Model-free and optional
-  Foundation Models persona simulated users inspect the plans, compare them with
-  the current alternative, and judge pain recognition, sponsorship, and
-  willingness to pay. Accumulated plan readiness tracks plan proof debt: enough
-  completed simulated-user evaluations, at least two distinct personas, a
-  buyer/sponsor signal, and a viable willingness-to-pay score. Compass only
-  advances a contender to Round 2 when that debt is clear;
-  otherwise it gathers more plan evidence, marks a plan for revision, or
-  eliminates a weak contender before implementation spend. When buyer/sponsor
-  debt remains, Round 1 plan evaluation targets an economic-buyer simulated user
-  for that contender, even if the plan was originally aimed at an operator. The
-  Workbench and Product Tournament Context show each contender's next plan proof
-  target so the next run is aimed at the missing evidence instead of merely
-  reporting a generic readiness score. They also surface commercial proof so
-  low willingness-to-pay evidence points to price, ROI, and sponsorship work
-  instead of a vague plan revision. Plan-only scoring rewards explicit monthly
-  pricing, ROI or payback claims, sponsorship language, and quantified savings,
-  and buyer/sponsor personas discount generic plans that lack those commercial
-  signals.
-- **Round 2: core technology.** Surviving contenders get the smallest technical
-  proof that demonstrates the hard part can work. After Round 1 advances a
-  contender, Compass emits a Round 2 feasibility handoff that names the narrowed
-  contender, implementation track, branch/worktree, plan-readiness evidence, and
-  acceptance signals for the next build slice. Product Tournament Context also
-  turns that handoff into a single Plan-facing implementation target, so the
-  next Immediate handoff builds only the selected contender's core-technology
-  proof on its tournament experiment branch/worktree. Scenario evidence
-  launches validate that target before running, blocking accidental evidence
-  collection against sibling contenders once Round 2 has narrowed to one
-  implementation track; the Workbench also preselects that track and visibly
-  locks sibling scenario/cohort run controls, while tournament automation
-  planning omits sibling proof targets and evidence steps. Plan/Reflect prompts
-  also receive a `round_2_evidence_lock` line naming the paused sibling
-  tournament experiments so the next handoff stays focused on the single
-  core-technology proof. A Round 2
-  core-technology proof overview summarizes that active target's readiness,
-  scoped evidence, persona breadth, experience-use proof, missing capabilities,
-  proof gaps, next validation target, and next transition recommendation in
-  both the Workbench and Product Tournament Context. Scoped Round 2 scenario
-  evidence then drives the next tournament transition: advance the contender
-  to Round 3, mark the core technology for revision, or eliminate the contender
-  before adding product implementation fidelity. When Round 2 asks for
-  revision, Compass queues a proof-gap revision brief that turns the missing
-  capability, objection, or readiness gap into implementation, scenario, and
-  validation instructions for the next simulated-user pass; Tournament
-  Automation can apply that brief into a concrete revision scenario, stamp that
-  generated scenario into the cycle audit, and queue a persona-model validation
-  rerun before applying the same proof-gap revision again. Partial post-revision
-  validation stays on that generated validation cohort and queues another
-  persona-model rerun, targeting an untested persona scenario when that cohort
-  has one, until the Round 2 proof threshold is complete. Once validation evidence
-  lands, Compass scopes the next Round 2 recommendation to the fresh
-  post-revision runs and adds a proof-gap validation digest line naming the
-  audited gaps that resolved, persisted, or justify eliminating the contender;
-  the Workbench also shows that validation state in the Round 2 proof row and
-  Tournament Automation facts. Advancement requires completed evidence from two
-  personas plus two stored completed-use proofs derived from traces that reach
-  the required product-use action sequence.
-- **Round 3: product implementation.** Agentic users exercise low-medium
-  fidelity product implementations and evaluate workflow improvement, switching
-  readiness, continued-use pull, and explicit price or sponsorship intent.
-  Scoped Round 3 evidence can select a tournament winner, force a final product
-  implementation revision, or eliminate the remaining contender. A Round 3
-  product implementation proof overview keeps the active contender's
-  winner-readiness, willingness-to-pay, explicit willingness-to-pay proof count,
-  current-alternative proof, implementation-use proof, persona breadth, missing
-  capabilities, proof gaps, next validation target, and next transition
-  recommendation visible in both the Workbench and Product Tournament Context
-  until the tournament winner is selected. Winner selection requires three
-  completed implementation-use proofs derived from completed traces, two
-  current-alternative comparisons, two explicit willingness-to-pay or sponsorship
-  proofs, and evidence from at least two personas. When those Round 3 gates are
-  not met, Tournament Automation targets the next persona-model cohort toward
-  implementation-use proof first, then current-alternative comparison, then
-  explicit willingness-to-pay or sponsorship proof. The Workbench keeps the
-  active round focused on a single next proof target, surfaces the latest
-  before/after proof-debt movement for that target, and sorts
-  transition/decision/revision/worktree-ready contenders above ordinary proof
-  gathering so operators can see when a contender has moved out of evidence
-  collection before opening the detail. After a proof action completes, the
-  Workbench selects the matching scenario evidence run or Round 1
-  plan-evaluation outcome when the evidence index knows it.
-  When the proof gates are met but the low-medium
-  fidelity implementation still has weak pay intent, missing capabilities, or
-  mixed pull, Compass queues a Round 3 implementation revision brief instead of
-  selecting a winner; that brief becomes an apply-revision checkpoint with
-  implementation, scenario, and validation instructions for the next scoped
-  simulated-user pass. After that checkpoint is applied, Compass
-  tracks Round 3 implementation revision validation as pending, partial,
-  resolved, persisted, or eliminated. Fresh post-revision validation runs become
-  the scoring set for winner selection, so stale pre-revision evidence cannot
-  select the tournament winner; partial validation keeps targeting persona-model
-  scenarios until the Round 3 winner proof gates are complete. The Workbench
-  shows that validation state in the Round 3 proof row, a dedicated Round 3
-  validation overview for pending/partial/persisted/eliminated/resolved
-  outcomes, row-level next automation steps including implementation-worktree
-  preparation when validation targets lack commits, target-commit preparation
-  detail in row help, stable row/run controls, and Tournament Automation facts.
-  Workbench scenario-run rows and selected-run details expose whether each run
-  counts as completed-use proof.
+- **Hypothesis.** The pain, target user, buyer or sponsor, current alternative,
+  promised outcome, and value claim.
+- **Unknowns.** The proof debt that most threatens PMF: pain clarity, current
+  alternative strength, buyer/sponsor pull, willingness to pay, feasibility,
+  switching, use, retention, or distribution.
+- **Proof actions.** Small next steps such as sharpening the hypothesis, running
+  a plan proof, building a feasibility slice, running buyer/current-alternative
+  proof, running use proof, revising the product, or stopping when no useful
+  proof remains.
+- **Evidence.** Compact artifacts from plan evaluations, scenario traces,
+  completed-use proof, current-alternative comparisons, pay/sponsor signals,
+  technical proof, and decisions.
+- **Token posture.** The Plan prompt receives bounded context packs
+  (`proof_core`, `evidence_slice`, and `tool_budget`) instead of the full legacy
+  tournament/distribution/lifecycle map.
+
+Old tournament rounds now map to that proof loop only for compatibility:
+Round 1 plan proof feeds buyer, sponsor, and willingness-to-pay evidence; Round
+2 core-technology work feeds feasibility and use proof; Round 3 product
+implementation feeds current-alternative, use, and pay/sponsor evidence. Compass
+keeps existing `.compass/product-tournament.json` files and evidence artifacts
+readable, but the first-class UI is the PMF Proof Loop ledger and the legacy
+cockpit is an audit/compatibility surface.
 
 Simulation is not user research, a sales forecast, or a Verify gate. It is a
 skeptical, repeatable product-pressure loop: a scenario works through the app's
@@ -220,117 +141,30 @@ strong willingness-to-pay only after that completed-use proof.
 and feedback calls are manual/interactive checks, not part of normal automated
 tests.
 
-Tournament state and evidence use the product tournament storage namespace:
-`.compass/product-tournament.json` for pain hypotheses, tournaments,
-contenders, rounds, contender plans, tournament experiment branches, scenarios, and decisions;
-`.compass/product-tournament/` for `evidence-index.json` and separate run artifacts
-for traces, feedback, transcripts, plan evaluations, and Markdown summaries. The
-state schema stores contender plans under `contenderPlans`, and Discover
-state edits store tournament implementation tracks under `tournamentExperiments`;
-Discover candidate tournament experiments reference tournament contenders with
-`contenderID`. If a candidate references a contender that is not already linked
-to a tournament experiment, Compass materializes a durable implementation track,
-starter scenario, starter scenario cohort, and built-product round cohort link
-when the Discover output is applied. Candidate-derived expected evidence and kill criteria are
-split back out in Round 2 handoffs, Product Tournament Context, and Workbench
-implementation-track rows so the next implementation slice is judged against the
-right simulated-user signal. When a candidate-derived implementation worktree is
-prepared or refreshed, Compass binds its starter scenario target to the current
-branch commit unless the scenario is pinned to a different commit. The
-Workbench and Tournament Automation now queue the prepare/refresh step when a
-candidate starter cohort is otherwise ready but lacks a recorded target commit.
-Tournament Automation cycles refresh the queue after that state-changing step,
-so a cycle can continue into newly unblocked simulated-user evidence while a
-single-step run still stops after preparation.
-The Tournament workbench lists pain hypotheses, contenders, rounds, implementation
-tracks, selectable Round 1 plan evaluations with buyer objections and
-willingness-to-pay rationale, per-plan commercial proof, evaluation mode/model
-and prompt-version provenance, scenario runs, feedback scores, objections,
-missing capabilities, failure kinds, decision history, and copyable Markdown
-summaries. Contender rows in the active plan-only round label
-the exact focused proof action, such as buyer, price/ROI, persona, or plan proof,
-and disable it once the contender is ready for the Round 2 feasibility transition.
-Tournament automation proof targets also surface those focused Round 1 actions
-with contender and round IDs, so Plan/Reflect can queue plan-only proof before a
-product implementation or core-technology artifact exists. While the active
-tournament has no tournament experience evidence yet, automation turns that
-target into a runnable `run_plan_proof` step that executes focused model-free
-plan evidence first, then prefers Foundation Models persona-model plan proof
-before Round 1 transition
-when the contender only has deterministic plan evaluations. Both write Round 1
-plan-evaluation evidence for that contender. Cycle audits report the before/after
-Round 1 plan-proof debt for automation steps directly, so a focused plan run
-shows whether it cleared buyer/sponsor, persona, evaluation, or
-willingness-to-pay debt before any tournament experience evidence exists. Product
-Tournament Context also includes recent Round 1 plan-proof automation deltas so
-Plan and Reflect can see the exact debt labels that changed after automation;
-matching context rows repeat the latest delta beside the plan-readiness state.
-The Workbench contender rows show the same latest proof-debt delta beside the
-focused proof action, with the audit and starting/ending debt labels available
-from the row help. A Round 1 proof-delta overview also groups active plan-round
-contenders so operators can compare cleared, unchanged, missing, or worsened
-proof debt before deciding which plan to test next; that overview disappears once
-the tournament advances to Round 2 while recent automation deltas remain in
-context as history.
-Later-round scenario evidence is stamped with tournament, round, and contender
-IDs when a narrowed contender is active in Round 2 or Round 3, so agentic-user
-feedback remains comparable across tournament rounds. The workbench and
-Tournament Automation can apply the best actionable Round 1, Round 2, and Round 3
-recommendations to stored tournament state, including selecting a winner when
-product implementation evidence clears the winner gate. Non-actionable Round 3
-proof gaps become targeted persona-model reruns instead of generic promotion
-decisions, so missing implementation-use, current-alternative, and pay/sponsor
-proof each point at a runnable scenario when one exists; actionable Round 3
-revision recommendations become product implementation revision briefs so a
-checkpointed low-medium fidelity change is applied and validated before another
-winner transition is considered. Round 3 validation actions can also route
-through implementation-worktree preparation when their revision scenarios need a
-target commit. Cycle audits record worktree preparation, applied revision briefs,
-and automated round transitions separately from tournament decision updates and
-simulated-user evidence runs, and Round 1 plan-proof cycles capture starting and
-ending persona-model/model-free plan evidence counts.
-Recent worktree-preparation cycles also appear as compact Plan/Reflect context
-rows with current evidence-run counts, so agents can see when a branch was
-prepared before simulated-user evidence arrived. The Workbench mirrors that
-distinction with separate last-preparation and last-evidence automation facts,
-so operators can see prepared implementation branches that still lack
-simulated-user use. When the current queue is the first runnable simulated-user
-cohort after that preparation, the Workbench also labels the post-prep evidence
-step explicitly. Stored Round 2 and Round 3 run evidence, Workbench selected-run
-details, scenario-run rows, and Plan/Reflect evidence context all include the
-implementation branch and commit used for the run, so post-prep evidence can be
-audited against the exact prepared implementation. Raw transcript JSONL entries
-also stamp the scenario, experiment, branch, and commit that produced each
-simulated-user action.
-Only the proof overview for the active tournament round is shown at a time:
-Round 1 plan proof, Round 2 core-technology proof, or Round 3 product
-implementation winner proof.
-Plan and Reflect receive only a compact advisory summary:
-current tournament round, contender plans, Round 1 plan readiness and plan proof
-debt, focused Round 1 proof actions, buyer/sponsor signals, willingness-to-pay
-signals, persona-model/model-free plan evidence counts, Round 2 feasibility
-handoffs, core-technology proof overview, experience-use proof counts, evidence
-transitions, Round 3 product implementation proof overview and winner
-recommendations, Round 3 implementation revision validation, latest evidence per
-active scenario, repeated objections, low-score clusters, verdict distribution,
-failures, current alternative comparisons, and tournament evidence-backed
-willingness to pay or sponsor.
-Raw transcripts stay out of prompt context unless a human inspects them in the
-app.
+Compatibility state and evidence still use the product tournament storage
+namespace: `.compass/product-tournament.json` for pain hypotheses, contenders,
+experiment branches, scenarios, and decisions; `.compass/product-tournament/`
+for `evidence-index.json` and separate run artifacts for traces, feedback,
+transcripts, plan evaluations, and Markdown summaries. Raw transcripts stay out
+of prompt context unless a human inspects them in the app.
 
-Interpret subjective feedback carefully. Repeated objections across personas or
+Plan receives token-minimized PMF context packs instead of the broad legacy
+tournament digest. `proof_core` carries the hypothesis, riskiest unknowns, next
+proof action, legacy IDs needed for compatibility, and any compact feasibility
+target. `evidence_slice` carries only active-hypothesis evidence. `tool_budget`
+names allowed tools, expected calls, and stop conditions for the current phase.
+
+Interpret simulated feedback carefully. Repeated objections across personas or
 tasks can justify product work; a single persona-specific complaint should be
-treated as a signal to investigate. Tournament evidence can motivate the next
-Plan increment, suggest better scenarios, or challenge the pain model, but it
-never bypasses normal build/test/Verify discipline.
+treated as a signal to investigate. Proof evidence can motivate the next Plan
+increment, suggest better scenarios, or challenge the pain model, but it never
+bypasses normal build/test/Verify discipline.
 
-Tournament prompts use the same model/provider settings already configured for
-the project and do not add a new network destination. Automatic persona-model
-scenario execution is kept disabled unless rollout controls can bound runtime and
-flake risk; Round 1 persona-model plan evaluation is available from the
-Workbench when Foundation Models is present. Run the generated
-`product-tournament-smoke` and inspect tournament evidence manually when
-evaluating the feature.
+Simulation prompts use the same model/provider settings already configured for
+the project and do not add a new network destination. Active proof modes are
+model-free and optional Foundation Models persona-model runs; market-pressure,
+distribution, lifecycle, and market backtesting records remain readable only as
+legacy audit artifacts.
 
 ## Developing compass-engine
 
@@ -523,8 +357,8 @@ Everything lives in `.compass/` inside each selected repository:
 ├── drafts.md         # User-owned draft queue.
 ├── lessons.md        # Durable guidance shared across iterations.
 ├── assumptions.json  # Agent-recorded assumptions and user reviews.
-├── product-tournament.json # Pains, tournaments, contenders, rounds, tournament experiments.
-├── product-tournament/     # Tournament evidence, runs, and worktrees.
+├── product-tournament.json # Compatibility PMF state: pains, contenders, proof tracks.
+├── product-tournament/     # Compatibility proof evidence, runs, and worktrees.
 ├── sessions.jsonl    # Per-iteration session index and latest feedback.
 ├── sessions-archive/ # Segmented older session records.
 ├── sessions/         # Session audit manifests, events, and artifacts.
@@ -533,11 +367,10 @@ Everything lives in `.compass/` inside each selected repository:
 
 ## Change Inspection
 
-Compass keeps a small change-inspection layer so tournament operators can audit
-what an agent built, why files exist, and how implementation commits fit
+Compass keeps a small change-inspection layer so PMF Proof Loop operators can
+audit what an agent built, why files exist, and how implementation commits fit
 together. These helpers are used from Plan history and related proof surfaces;
-they are support tools for the product tournament loop, not a standalone product
-mode.
+they are support tools for the proof loop, not a standalone product mode.
 
 Change inspection has nine main components:
 

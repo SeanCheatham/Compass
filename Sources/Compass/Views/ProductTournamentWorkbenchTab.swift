@@ -718,7 +718,7 @@ struct ProductTournamentWorkbenchTab: View {
       }
       .padding(.top, 8)
     } label: {
-      Label("Legacy Tournament Cockpit", systemImage: ProductIconRole.audit.systemImage)
+      Label(ProductSurfacePolicy.compatibilityAuditLabel, systemImage: ProductIconRole.audit.systemImage)
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
     }
@@ -779,10 +779,10 @@ struct ProductTournamentWorkbenchTab: View {
   private var painMap: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
-        WorkbenchSection("Legacy Tournament", systemImage: "trophy") {
+        WorkbenchSection(ProductSurfacePolicy.compatibilityRecordsTitle, systemImage: "archivebox") {
           VStack(alignment: .leading, spacing: 8) {
             if tournamentsForBoard.isEmpty {
-              WorkbenchEmptyLine("No legacy tournament seeded yet.")
+              WorkbenchEmptyLine(ProductSurfacePolicy.noCompatibilityRecords)
             } else {
               ForEach(tournamentsForBoard) { tournament in
                 tournamentRow(tournament)
@@ -4029,7 +4029,7 @@ struct ProductTournamentWorkbenchTab: View {
             targetDecision: step.action.targetDecision
           )
         case .marketPressure:
-          scenarioRunMessage = "Market-pressure evaluations run from market pressure court evidence."
+          scenarioRunMessage = ProductSurfacePolicy.retiredMarketPressureMessage
           return nil
         }
         if let scenarioOutcome {
@@ -4058,7 +4058,7 @@ struct ProductTournamentWorkbenchTab: View {
           targetDecision: step.action.targetDecision
         )
       case .marketPressure:
-        scenarioRunMessage = "Market-pressure evaluations run from market pressure court evidence."
+        scenarioRunMessage = ProductSurfacePolicy.retiredMarketPressureMessage
         return nil
       }
       if let outcome {
@@ -4143,7 +4143,7 @@ struct ProductTournamentWorkbenchTab: View {
         targetDecision: targetDecision
       )
     case .marketPressure:
-      scenarioRunMessage = "Market-pressure evaluations run from market pressure court evidence."
+      scenarioRunMessage = ProductSurfacePolicy.retiredMarketPressureMessage
       return
     }
     if let outcome {
@@ -4190,7 +4190,7 @@ struct ProductTournamentWorkbenchTab: View {
         targetDecision: targetDecision
       )
     case .marketPressure:
-      scenarioRunMessage = "Market-pressure evaluations run from market pressure court evidence."
+      scenarioRunMessage = ProductSurfacePolicy.retiredMarketPressureMessage
       return
     }
     if let outcome {
@@ -4233,7 +4233,7 @@ struct ProductTournamentWorkbenchTab: View {
         contenderID: contenderID
       )
     case .marketPressure:
-      planEvaluationMessage = "Market-pressure evaluations run from market pressure court evidence."
+      planEvaluationMessage = ProductSurfacePolicy.retiredMarketPressureMessage
       return
     }
     if let outcome {

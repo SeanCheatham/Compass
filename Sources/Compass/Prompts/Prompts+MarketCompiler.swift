@@ -1,28 +1,29 @@
 import Foundation
 
 extension Prompts {
-  static let marketCompilerPromptVersionID = "market_compiler.synthetic_market.v1"
+  static let marketCompilerPromptVersionID = ProductSurfacePolicy.marketCompilerPromptVersionID
 
   static func marketCompilerPrompt(context: DiscoveryPromptContext) throws -> String {
     let digestJSON = try marketCompilerPromptJSON(MarketCompilerPromptDigest(context: context))
     return """
-      You are the synthetic Market Compiler for Compass.
+      You are the PMF Proof Loop seed compiler for Compass.
       Prompt version: \(marketCompilerPromptVersionID).
 
-      Compile the market before product planning. Do not propose implementation
-      work, branches, UI screens, or a final app. Your job is to turn rough pain
-      into a falsifiable synthetic market hypothesis.
+      Compile the pain into compatibility state for the PMF Proof Loop. Do not
+      propose implementation work, branches, UI screens, or a final app. Your job
+      is to turn rough pain into a falsifiable PMF hypothesis and the smallest
+      proof debt the loop should attack next.
 
       Compiler rules:
-      - Start with the market, not the product.
-      - Separate operator, economic buyer, manager sponsor, gatekeeper, and incumbent defender.
+      - Start with the pain, current alternative, target user, buyer/sponsor, and riskiest unknown.
+      - Treat marketEdits as a legacy compatibility holder, not a primary product surface.
+      - Leave distributionExperimentEdits empty for new work.
+      - Do not create lifecycle cohorts, market-pressure runs, distribution pressure, or market backtests.
       - Make the current alternative persuasive, including at least one non-software alternative.
-      - Name at least one plausible distribution path and why it might be unreachable.
-      - Emit distributionExperimentEdits when a contender has a plausible channel artifact to test.
       - Mark every claim as synthetic unless it came from user-provided text.
       - Prefer needs_reframe or blocked_by_insufficient_pain over invented confidence.
-      - Contender seeds must reference market actors, likely buyer, channel, and incumbent when known.
-      - Required market proof should name attention, urgency, buyer, incumbent, channel, budget, or retention proof.
+      - Contender seeds must reference the target user, likely buyer, current alternative, and incumbent when known.
+      - Required proof should name pain, current-alternative, buyer/sponsor, willingness-to-pay, feasibility, or use proof.
 
       Return only JSON matching this schema:
       \(marketCompilerSchema)
@@ -76,7 +77,7 @@ private struct MarketCompilerPromptDigest: Encodable {
   var drafts: String
   var lessons: String
   var assumptions: String
-  var productTournamentDigest: String
+  var pmfProofDigest: String
   var repositoryShape: String
 
   init(context: DiscoveryPromptContext) {
@@ -86,7 +87,7 @@ private struct MarketCompilerPromptDigest: Encodable {
     drafts = context.drafts
     lessons = context.lessons
     assumptions = context.assumptions
-    productTournamentDigest = ProductTournamentPlanningDigestFormatter.promptText(
+    pmfProofDigest = PMFProofPromptContextFormatter.promptText(
       config: context.productTournamentConfig,
       evidenceIndex: context.evidenceIndex
     )
@@ -128,7 +129,6 @@ struct MarketCompilerOutput: Codable, Equatable {
     try validate(applyingTo: config)
     var next = config
     upsert(&next.markets, edits: marketEdits, id: \.id)
-    upsert(&next.distributionExperiments, edits: distributionExperimentEdits, id: \.id)
     return next
   }
 
@@ -148,7 +148,6 @@ struct MarketCompilerOutput: Codable, Equatable {
   {
     var next = config
     upsert(&next.markets, edits: marketEdits, id: \.id)
-    upsert(&next.distributionExperiments, edits: distributionExperimentEdits, id: \.id)
     return next
   }
 

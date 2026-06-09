@@ -16,11 +16,11 @@
     },
     "stateEdits": {
       "$ref": "#/$defs/stateEdits",
-      "description": "Structured Product Tournament state edits that seed pain hypotheses, contenders, tournament rounds, and implementation tracks."
+      "description": "Structured PMF Proof Loop compatibility state edits that seed pain hypotheses, proof contenders, legacy rounds, and implementation tracks."
     },
     "candidateTournamentExperiments": {
       "type": "array",
-      "description": "Implementation tracks for Product Tournament contenders after the plan-only round; Compass materializes each candidate into a durable tournament experiment and starter scenario when the contender is not already linked to one and the target segment/workflow can be resolved.",
+      "description": "Implementation tracks for PMF proof contenders after plan proof; Compass materializes each candidate into a durable compatibility experiment and starter scenario when the contender is not already linked to one and the target segment/workflow can be resolved.",
       "maxItems": 6,
       "items": { "$ref": "#/$defs/candidateTournamentExperiment" }
     },
@@ -119,20 +119,23 @@
           "maxItems": 12,
           "items": { "$ref": "#/$defs/productTournamentRound" }
         },
-        "distributionExperiments": {
-          "type": "array",
-          "maxItems": 12,
-          "items": { "$ref": "#/$defs/distributionExperiment" }
-        },
-        "syntheticCohorts": {
-          "type": "array",
-          "maxItems": 12,
-          "items": { "$ref": "#/$defs/syntheticCohort" }
-        },
-        "lifecycleScenarios": {
-          "type": "array",
-          "maxItems": 64,
-          "items": { "$ref": "#/$defs/lifecycleScenario" }
+    "distributionExperiments": {
+      "type": "array",
+      "description": "Legacy compatibility field. Leave empty for new PMF Proof Loop work.",
+      "maxItems": 12,
+      "items": { "$ref": "#/$defs/distributionExperiment" }
+    },
+    "syntheticCohorts": {
+      "type": "array",
+      "description": "Legacy compatibility field. Leave empty for new PMF Proof Loop work.",
+      "maxItems": 12,
+      "items": { "$ref": "#/$defs/syntheticCohort" }
+    },
+    "lifecycleScenarios": {
+      "type": "array",
+      "description": "Legacy compatibility field. Leave empty for new PMF Proof Loop work.",
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/lifecycleScenario" }
         },
         "scenarioCohorts": {
           "type": "array",

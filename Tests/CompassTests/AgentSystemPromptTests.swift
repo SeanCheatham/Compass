@@ -157,15 +157,15 @@ struct AgentSystemPromptTests {
     try #require(!critic.contains("edit_file"))
   }
 
-  // MARK: - Compass product and tournament loop
+  // MARK: - Compass product and PMF Proof Loop
 
-  @Test func testSystemPromptExplainsCompassAndProductTournamentLoop() throws {
+  @Test func testSystemPromptExplainsCompassAndPMFProofLoop() throws {
     let prompt = Prompts.agentSystemPrompt(phase: .plan, workingDirectoryPath: "/x")
     try #require(prompt.contains("About Compass:"))
-    try #require(prompt.contains("Product Tournament work loop"))
+    try #require(prompt.contains("PMF Proof Loop"))
     try #require(prompt.contains("COMPASS.md"))
-    try #require(prompt.contains("Product Tournament work loop"))
     try #require(prompt.contains("Plan — pick the next"))
+    try #require(prompt.contains("PMF Proof Context"))
     try #require(prompt.contains("Product Tournament Context"))
     try #require(prompt.contains("Your role this turn: Plan"))
     try #require(
@@ -253,7 +253,7 @@ struct AgentSystemPromptTests {
       toolNames: ["bash"]
     )
     try #require(prompt.contains("About Compass:"))
-    try #require(prompt.contains("Product Tournament work loop"))
+    try #require(prompt.contains("PMF Proof Loop"))
     try #require(prompt.contains("sub-agent"))
     try #require(prompt.contains("Human-centered product rules"))
   }
