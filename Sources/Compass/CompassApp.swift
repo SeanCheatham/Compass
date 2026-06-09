@@ -148,7 +148,7 @@ struct CompassApp: App {
 
         Divider()
 
-        Button("Copy Product Tournament Brief") {
+        Button("Copy PMF Proof Loop Brief") {
           if let guide = selectedTournamentGuide {
             copyTextToPasteboard(guide.handoffText)
           }

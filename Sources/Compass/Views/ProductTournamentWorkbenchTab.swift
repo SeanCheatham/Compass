@@ -658,9 +658,9 @@ struct ProductTournamentWorkbenchTab: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
           ContentUnavailableView(
-            "No Product Tournament State",
-            systemImage: "trophy",
-            description: Text("Enter a user pain or run Discover to seed product tournament state.")
+            "No PMF Proof Loop State",
+            systemImage: "checkmark.seal",
+            description: Text("Enter a user pain or run Discover to seed proof-loop state.")
           )
           .frame(maxWidth: .infinity, minHeight: 240)
         }
@@ -740,7 +740,7 @@ struct ProductTournamentWorkbenchTab: View {
 
   private var header: some View {
     HStack {
-      SectionHeader("Product Tournament", systemImage: "trophy")
+      SectionHeader("PMF Proof Loop", systemImage: "checkmark.seal")
       Spacer()
       Button {
         Task { await project.reloadProductTournamentEvidenceIndex() }
@@ -749,17 +749,17 @@ struct ProductTournamentWorkbenchTab: View {
           .frame(width: 18, height: 18)
       }
       .buttonStyle(.borderless)
-      .help("Reload tournament evidence")
+      .help("Reload proof evidence")
     }
   }
 
   private var painMap: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
-        WorkbenchSection("Tournament", systemImage: "trophy") {
+        WorkbenchSection("Legacy Tournament", systemImage: "trophy") {
           VStack(alignment: .leading, spacing: 8) {
             if tournamentsForBoard.isEmpty {
-              WorkbenchEmptyLine("No tournament seeded yet.")
+              WorkbenchEmptyLine("No legacy tournament seeded yet.")
             } else {
               ForEach(tournamentsForBoard) { tournament in
                 tournamentRow(tournament)

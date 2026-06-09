@@ -1,13 +1,19 @@
 # Compass
 
-Compass is a macOS-native workspace for running an agentic autonomous product
-tournament over a Git repository. The user starts with a durable pain point;
-Compass turns that pain into competing product contenders, validates them with
-agentic simulated users, and drives the winning direction toward a product plan
-plus an MVP/prototype implementation. Text can run through Apple's on-device
-Foundation Models out of the box or through an OpenAI-compatible HTTP provider,
-and Compass keeps per-repository tournament state in `.compass/` so multiple
-projects can run side by side from one desktop workspace.
+Compass is a macOS-native workspace for running a PMF Proof Loop over a Git
+repository. The user starts with a durable pain point; Compass turns that pain
+into the smallest useful proof action, validates the riskiest unknown with
+agentic simulated users or implementation slices, and updates a durable proof
+ledger. Text can run through Apple's on-device Foundation Models out of the box
+or through an OpenAI-compatible HTTP provider, and Compass keeps per-repository
+state in `.compass/` so multiple projects can run side by side from one desktop
+workspace.
+
+Compass's current storage and engine internals still use the legacy Product
+Tournament namespace for compatibility with existing `.compass/` state. The
+product direction is the PMF Proof Loop: identify the riskiest product-market-fit
+unknown, create the cheapest next proof in user effort and useful token spend,
+run it, and fold the evidence back into the Proof Ledger.
 
 Compass requires macOS 26 or newer on Apple Silicon. Its private workspace
 is built directly on Apple's `Virtualization.framework`.
@@ -73,7 +79,14 @@ generated-output dependencies. The Compass host app remains Swift/macOS; the
 Rust engine is a Product Tournament verification sidecar and is not used for the
 host UI or VM lifecycle.
 
-## Product Tournaments
+## PMF Proof Loop
+
+Compass frames product discovery as a PMF Proof Loop. The loop asks what PMF
+hypothesis is being tested, which unknown is riskiest right now, and what proof
+action can reduce that debt with the lowest useful token spend.
+
+The legacy Product Tournament implementation remains the compatibility substrate
+for existing state and proof artifacts:
 
 Compass frames product discovery as a tournament. A tournament starts from a
 durable user pain, creates several competing product contenders for that pain,

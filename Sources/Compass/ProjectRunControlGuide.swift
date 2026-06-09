@@ -72,7 +72,7 @@ struct ProjectRunControlGuide: Equatable {
       canDevelop: canDevelop,
       isPaused: isPaused
     )
-    let resumeCopy = isPaused ? "Resume the Product Tournament from its paused gate." : nil
+    let resumeCopy = isPaused ? "Resume the PMF Proof Loop from its paused gate." : nil
     let recoveryCopy =
       reliabilityStatus.isEmpty
       ? nil
@@ -311,7 +311,7 @@ struct ProjectRunControlGuide: Equatable {
         PreviewStep(
           id: "repository",
           title: "Add a repository",
-          detail: "Choose a Git repository before Compass can run the Product Tournament.",
+          detail: "Choose a Git repository before Compass can run the PMF Proof Loop.",
           systemImage: "folder.badge.plus"
         )
       ]
@@ -333,7 +333,7 @@ struct ProjectRunControlGuide: Equatable {
         PreviewStep(
           id: "resume",
           title: "Resume from the gate",
-          detail: "Compass will continue from the paused Product Tournament gate.",
+          detail: "Compass will continue from the paused PMF Proof Loop gate.",
           systemImage: "pause.circle"
         )
       ]
@@ -541,7 +541,7 @@ struct ProjectRunControlGuide: Equatable {
     if !hasRepository {
       return badge(
         label: "Needs repo",
-        detail: "Add a Git repository before any Product Tournament run can start.",
+        detail: "Add a Git repository before any PMF Proof Loop run can start.",
         systemImage: "folder.badge.plus",
         tone: .warning
       )
@@ -559,7 +559,7 @@ struct ProjectRunControlGuide: Equatable {
     if isPaused {
       return badge(
         label: "Paused",
-        detail: "Resume from the current Product Tournament gate when you are ready.",
+        detail: "Resume from the current PMF Proof Loop gate when you are ready.",
         systemImage: "pause.circle",
         tone: .paused
       )
@@ -678,7 +678,7 @@ struct ProjectRunControlGuide: Equatable {
     if !hasRepository {
       return Readiness(
         title: "Repository needed",
-        detail: "Add a Git repository before running the Product Tournament.",
+        detail: "Add a Git repository before running the PMF Proof Loop.",
         systemImage: "folder.badge.plus"
       )
     }
@@ -766,13 +766,13 @@ struct ProjectRunControlGuide: Equatable {
     visionGuide: ProjectVisionGuide?
   ) -> String {
     if !hasRepository {
-      return "Add a Git repository before running the Product Tournament."
+      return "Add a Git repository before running the PMF Proof Loop."
     }
     if isRunning || isAutoPlaying {
       return "Compass is already running."
     }
     if isPaused {
-      return "Choose how to resume the paused Product Tournament."
+      return "Choose how to resume the paused PMF Proof Loop."
     }
     if !reliabilityStatus.isEmpty {
       return "\(reliabilityStatus.primaryCue): \(reliabilityStatus.actionLabel)"

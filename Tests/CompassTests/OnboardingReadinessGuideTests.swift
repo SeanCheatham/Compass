@@ -12,7 +12,7 @@ struct OnboardingReadinessGuideTests {
       foundationModelsAvailable: true
     )
 
-    #expect(guide.title == "Product Tournament Ready")
+    #expect(guide.title == "PMF Proof Loop Ready")
     #expect(guide.actionLabel == "Ready")
     #expect(guide.tone == .ready)
     #expect(guide.steps.map(\.id) == ["text", "workspace", "firstRun"])

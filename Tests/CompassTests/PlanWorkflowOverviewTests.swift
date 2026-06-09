@@ -583,7 +583,7 @@ struct PlanWorkflowOverviewTests {
     )
     let payload = PlanTournamentBriefClipboardPayload(brief: brief)
 
-    try #require(payload.text.contains("Compass Product Tournament Brief Handoff"))
+    try #require(payload.text.contains("Compass PMF Proof Loop Brief Handoff"))
     try #require(payload.text.contains("Recipient instructions:"))
     try #require(payload.text.contains("Do not invent files, commands, credentials"))
     try #require(payload.text.contains("Status: Ready To Build (ready)"))

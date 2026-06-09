@@ -613,7 +613,7 @@ struct PlanWorkflowOverview: Equatable {
       systemImage: "target",
       rawBody: state.immediate?.plan ?? "",
       emptyMessage:
-        "No immediate plan. The Product Tournament is ready for the next scoped implementation.",
+        "No immediate plan. The PMF Proof Loop is ready for the next scoped implementation.",
       verifyCommand: state.immediate?.verify,
       verifyTimeoutLabel: state.immediate.map {
         PlanVerifyMetadata(timeoutMs: $0.verifyTimeoutMs).label
@@ -1049,7 +1049,7 @@ struct PlanTournamentBriefClipboardPayload: Equatable, Sendable {
 
   init(brief: PlanTournamentBrief) {
     var sections: [String] = [
-      "Compass Product Tournament Brief Handoff",
+      "Compass PMF Proof Loop Brief Handoff",
       "",
       "Recipient instructions:",
       "- Treat this packet as bounded current-state context. Do not invent files, "

@@ -64,10 +64,10 @@ struct ProjectIntakeGuide: Equatable, Sendable {
         ),
         Step(
           id: "write-first-draft",
-          title: "Seed the tournament",
+          title: "Seed the proof loop",
           detail:
-            "Use Drafts for plain-language pain notes, contender ideas, or validation questions Compass should turn into tournament state.",
-          systemImage: "trophy",
+            "Use Drafts for plain-language pain notes, proof ideas, or validation questions Compass should turn into proof-loop state.",
+          systemImage: "checkmark.seal",
           isPrimary: false
         ),
         Step(
@@ -83,7 +83,7 @@ struct ProjectIntakeGuide: Equatable, Sendable {
       title = "Choose a Project"
       statusLabel = projectCount == 1 ? "1 project available" : "\(projectCount) projects available"
       detail =
-        "Select a repository in the sidebar to open its tournament workbench, live run controls, drafts, and verification history."
+        "Select a repository in the sidebar to open its PMF proof workbench, live run controls, drafts, and verification history."
       actionLabel = "Add Missing Repo"
       systemImageName = "sidebar.left"
       steps = [
@@ -142,7 +142,7 @@ struct ProjectIntakeGuide: Equatable, Sendable {
         id: "git",
         label: "Git history",
         detail:
-          "Compass needs a repository so it can inspect changes and keep Product Tournament state nearby.",
+          "Compass needs a repository so it can inspect changes and keep PMF proof state nearby.",
         systemImage: "point.3.connected.trianglepath.dotted"
       ),
       Signal(
@@ -163,7 +163,7 @@ struct ProjectIntakeGuide: Equatable, Sendable {
         id: "plain-language-goal",
         label: "Pain or validation note",
         detail:
-          "The user does not need a technical spec; Compass can refine rough pain, contender, and validation notes into tournament-ready drafts.",
+          "The user does not need a technical spec; Compass can refine rough pain, proof, and validation notes into proof-loop-ready drafts.",
         systemImage: "quote.bubble"
       ),
     ]
@@ -201,7 +201,7 @@ struct ProjectIntakeClipboardPayload: Equatable, Sendable {
       "Recipient instructions:",
       "- Help the user add or select a real Git repository. Do not invent a repo path.",
       "- Keep guidance plain-language and product-focused; the user may not know build tooling.",
-      "- After a project is selected, capture the user pain, current workflow, alternatives, success signals, and guardrails in Project Vision; use Drafts for contender ideas or validation questions, and let Compass discover, plan, develop, and verify.",
+      "- After a project is selected, capture the user pain, current workflow, alternatives, success signals, and guardrails in Project Vision; use Drafts for proof ideas or validation questions, and let Compass discover, plan, develop, and verify.",
       "",
       "Status: \(guide.statusLabel)",
       "Recommended action: \(guide.actionLabel)",

@@ -121,7 +121,7 @@ struct ProductTournamentCompassGuide: Equatable {
     previewSteps: [PreviewStep]
   ) -> String {
     var sections = [
-      "Compass Product Tournament Brief",
+      "Compass PMF Proof Loop Brief",
       "",
       "Current state: \(title)",
       "Plain-English summary: \(headline)",
@@ -130,7 +130,7 @@ struct ProductTournamentCompassGuide: Equatable {
       "Recommended action: \(primaryActionTitle) (\(primaryActionIsEnabled ? "enabled" : "disabled"))",
       "Recommended action detail: \(primaryActionDetail)",
       rustHealth.map {
-        "Rust Product Tournament health: \($0.title) - \($0.detail) Next action: \($0.nextAction)"
+        "Rust proof sidecar health: \($0.title) - \($0.detail) Next action: \($0.nextAction)"
       },
       "",
       "Next run preview:",

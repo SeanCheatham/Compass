@@ -26,7 +26,7 @@ struct ProductTournamentCompassGuideTests {
       guide.previewSteps.map(\.title) == [
         "Plan one slice", "Develop in the private workspace", "Verify and review",
       ])
-    try #require(guide.handoffText.contains("Compass Product Tournament Brief"))
+    try #require(guide.handoffText.contains("Compass PMF Proof Loop Brief"))
     try #require(guide.handoffText.contains("Current state: Plan needed"))
     try #require(guide.handoffText.contains("Recommended action: Run Loop (enabled)"))
   }
@@ -92,7 +92,7 @@ struct ProductTournamentCompassGuideTests {
     try #require(guide.rustHealth?.nextAction == "./scripts/build-compass-engine.sh")
     try #require(
       guide.handoffText.contains(
-        "Rust Product Tournament health: Rust Product Tournament Needs Repair"))
+        "Rust proof sidecar health: Rust Product Tournament Needs Repair"))
   }
 
   @Test

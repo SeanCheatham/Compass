@@ -524,10 +524,10 @@ struct ProjectRunControlGuideTests {
       isPaused: true
     )
 
-    try #require(guide.primaryHelp == "Choose how to resume the paused Product Tournament.")
+    try #require(guide.primaryHelp == "Choose how to resume the paused PMF Proof Loop.")
     try #require(guide.primaryKind == .loop)
     try #require(guide.options[0].title == "Resume Loop")
-    try #require(guide.options[0].detail == "Resume the Product Tournament from its paused gate.")
+    try #require(guide.options[0].detail == "Resume the PMF Proof Loop from its paused gate.")
     try #require(guide.decisionBadge.label == "Paused")
     try #require(guide.decisionBadge.tone == .paused)
   }
@@ -625,7 +625,7 @@ struct ProjectRunControlGuideTests {
     try #require(running.decisionBadge.label == "Running")
     try #require(running.decisionBadge.tone == .info)
     try #require(
-      missingRepository.primaryHelp == "Add a Git repository before running the Product Tournament."
+      missingRepository.primaryHelp == "Add a Git repository before running the PMF Proof Loop."
     )
     try #require(missingRepository.options.allSatisfy { !$0.isEnabled })
     try #require(missingRepository.decisionBadge.label == "Needs repo")

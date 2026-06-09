@@ -47,7 +47,7 @@ struct LiveTimelineGuideTests {
   func pausedTimelineExplainsResumeAndStopChoices() {
     let guide = makeGuide(isPaused: true)
 
-    #expect(guide.title == "Product Tournament Paused")
+    #expect(guide.title == "PMF Proof Loop Paused")
     #expect(guide.statusLabel == "Paused")
     #expect(guide.tone == .paused)
     #expect(guide.checkpoints.map(\.id) == ["context", "resume", "stop"])

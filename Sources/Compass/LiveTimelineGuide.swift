@@ -84,7 +84,7 @@ struct LiveTimelineGuide: Equatable, Sendable {
     evidenceCoverage = Self.evidenceCoverage(from: liveLog)
 
     if isPaused {
-      title = "Product Tournament Paused"
+      title = "PMF Proof Loop Paused"
       detail =
         "Compass is holding the loop at a safe gate. Resume when the plan still looks right, or stop to keep the current state unchanged."
       statusLabel = "Paused"
@@ -198,7 +198,7 @@ struct LiveTimelineGuide: Equatable, Sendable {
     default:
       return (
         "Run In Progress",
-        "Compass is working through the Product Tournament loop. New events will appear here as it plans, edits, checks, and reviews.",
+        "Compass is working through the PMF Proof Loop. New events will appear here as it plans, edits, checks, and reviews.",
         statusLabel,
         "play.circle.fill"
       )

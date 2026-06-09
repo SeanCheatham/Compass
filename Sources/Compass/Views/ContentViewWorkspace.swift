@@ -680,7 +680,7 @@ struct ProjectRunControls: View {
       }
       .menuStyle(.borderlessButton)
       .disabled(project.isRunning || project.isAutoPlaying || !project.hasRepository)
-      .help("Choose a Product Tournament run mode. \(runGuide.primaryHelp)")
+      .help("Choose a PMF Proof Loop run mode. \(runGuide.primaryHelp)")
 
       Menu {
         ForEach(PauseMode.allCases) { mode in
@@ -789,7 +789,7 @@ private struct ProductTournamentCompassButton: View {
     .controlSize(.small)
     .foregroundStyle(color)
     .help("\(guide.title): \(guide.headline)")
-    .accessibilityLabel("Product Tournament compass, \(guide.controlLabel)")
+    .accessibilityLabel("PMF Proof Loop compass, \(guide.controlLabel)")
     .accessibilityValue(guide.title)
     .accessibilityHint(guide.headline)
     .popover(isPresented: $isShowingBrief, arrowEdge: .bottom) {
@@ -883,7 +883,10 @@ private struct ProductTournamentCompassPopover: View {
             copied = false
           }
         } label: {
-          Label(copied ? "Copied" : "Copy Brief", systemImage: copied ? "checkmark" : "doc.on.doc")
+          Label(
+            copied ? "Copied" : "Copy PMF Brief",
+            systemImage: copied ? "checkmark" : "doc.on.doc"
+          )
         }
         .buttonStyle(.bordered)
       }
@@ -1069,7 +1072,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .vision: return "Brief"
     case .activity: return "Activity"
-    case .productTournament: return "Tournament"
+    case .productTournament: return "Proof Loop"
     }
   }
 

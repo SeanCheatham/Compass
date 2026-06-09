@@ -16,7 +16,7 @@ struct SidebarView: View {
             model.selectSandbox()
           }
         }
-        Text("Product tournament workspace")
+        Text("PMF proof workspace")
           .font(.callout)
           .foregroundStyle(.secondary)
       }
