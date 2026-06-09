@@ -4,7 +4,8 @@ import Foundation
 ///
 /// `ArchitectureGraph` provides architectural import-graph analysis for the Explore layer.
 /// It reads every codemap entry from the store, builds a complete file-to-file ``ImportGraph``,
-/// and produces a plain-English architectural description via Foundation Models.
+/// and can produce a plain-English architectural description when generated narration is
+/// available.
 ///
 /// ## Role in the Explore layer
 ///
@@ -13,26 +14,22 @@ import Foundation
 /// architecture overview. It complements the commit-diff and Q&A components by surfacing
 /// module boundaries and cross-module dependency patterns that are otherwise invisible.
 ///
-/// ## Foundation Models boundary
+/// ## Generated narration boundary
 ///
-/// The ``explain(graph:repoURL:)`` method is gated ``@available(macOS 26.0, *)`` and streams
-/// directly to Foundation Models with a structured architectural analysis prompt. Returns
-/// `nil` when Foundation Models is unavailable or produces no content. The ``buildGraph()``
+/// The ``explain(graph:repoURL:)`` method is gated ``@available(macOS 26.0, *)`` and uses
+/// the generated narration shim with a structured architectural analysis prompt. Returns
+/// `nil` when narration is unavailable or produces no content. The ``buildGraph()``
 /// helper is version-agnostic so callers can inspect the raw graph without availability checks.
 ///
 /// ## Components (Explore layer)
 ///
-/// | Component | Role | Foundation Models entry point |
+/// | Component | Role | Generated narration entry point |
 /// |---|---|---|
 /// | ``FileExplainer`` | Orchestrator — UI entry point for changed-file lists and per-file explanations | Delegates to ``CommitExplainer`` |
 /// | ``CommitExplainer`` | Per-commit diff summarization | ``summarize(diff:)`` |
 /// | ``CommitTourGenerator`` | Guided code tours | ``generateTour(commits:repoURL:)`` |
 /// | ``RepoQnA`` | Repository-scale Q&A | ``answer(question:repoURL:)`` |
 /// | ``ArchitectureGraph`` | Architectural import-graph analysis | ``explain(graph:repoURL:)`` |
-
-#if canImport(FoundationModels)
-  import FoundationModels
-#endif
 
 /// A directed graph of files and their import relationships, built from
 /// all ``CodemapEntry`` records in a ``CodemapStore``.
@@ -165,7 +162,7 @@ struct ImportGraph: Sendable {
 /// and builds a complete ``ImportGraph`` from the `imports` field on each entry.
 ///
 /// This function is available on all macOS versions so callers can inspect
-/// the raw graph without requiring Foundation Models.
+/// the raw graph without requiring generated narration.
 func buildGraph(codemapDirectory: URL) -> ImportGraph {
   let store = CodemapStore(directory: codemapDirectory)
   let entries = store.loadAllEntries()
@@ -244,15 +241,15 @@ func buildGraph(codemapDirectory: URL) -> ImportGraph {
 ///
 /// - ``buildGraph()`` — the raw ``ImportGraph`` available on all macOS versions,
 ///   so callers can inspect graph structure without model availability.
-/// - ``explain(graph:repoURL:)`` — a Foundation-Models-powered plain-English
+/// - ``explain(graph:repoURL:)`` — a generated plain-English
 ///   architectural description of what the modules are, what the key
 ///   cross-module dependencies are, and what seems architecturally significant.
 ///
-/// ## Foundation Models boundary
+/// ## Generated narration boundary
 ///
-/// `explain` streams to Foundation Models with a structured architectural
+/// `explain` streams through the narration shim with a structured architectural
 /// analysis prompt. Output is capped at ~1 000 tokens. Returns `nil` when
-/// Foundation Models is unavailable or produces no content.
+/// narration is unavailable or produces no content.
 @available(macOS 26.0, *)
 enum ArchitectureGraph {
   /// Generates a plain-English architectural description of the given graph.
@@ -263,7 +260,7 @@ enum ArchitectureGraph {
   /// - What seems architecturally significant (central files, likely entry
   ///   points, unusual or problematic dependency patterns)
   ///
-  /// Returns `nil` when Foundation Models is unavailable or produces no
+  /// Returns `nil` when generated narration is unavailable or produces no
   /// content.
   static func explain(graph: ImportGraph, repoURL: URL) async -> String? {
     guard FoundationModelsAvailability.isAvailable else { return nil }

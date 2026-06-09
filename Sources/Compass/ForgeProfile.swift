@@ -1,136 +1,80 @@
 import Foundation
 
-/// Opinionated project shapes Compass understands.
-/// Rust/Cargo is the sole generated-project profile. SwiftPM and
-/// TypeScript/Vitest stay here as legacy imported-repo profiles so Compass can
-/// inspect and evolve existing user repositories without treating them as
-/// first-class generated output targets.
 enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   case swiftSPM = "swift-spm"
-  case rustCargo = "rust-cargo"
-  case typeScriptVitest = "ts-vitest"
+  case typeScriptPnpmVite = "typescript-pnpm-vite"
 
-  static let generatedProjectDefault: ForgeProfile = .rustCargo
-  static let generatedProjectTargets: [ForgeProfile] = [.rustCargo]
+  static let generatedProjectDefault: ForgeProfile = .typeScriptPnpmVite
+  static let generatedProjectTargets: [ForgeProfile] = [.typeScriptPnpmVite]
 
   var displayName: String {
     switch self {
-    case .swiftSPM: return "Legacy Swift (SwiftPM)"
-    case .rustCargo: return "Rust (Cargo)"
-    case .typeScriptVitest: return "Legacy TypeScript (Vitest + pnpm)"
+    case .swiftSPM: return "Imported Swift (SwiftPM)"
+    case .typeScriptPnpmVite: return "TypeScript (pnpm + Vite + Vitest)"
     }
   }
 
   var isGeneratedProjectTarget: Bool {
-    self == Self.generatedProjectDefault
+    Self.generatedProjectTargets.contains(self)
   }
 
   var generationStatusDescription: String {
     switch self {
-    case .rustCargo:
+    case .swiftSPM:
+      return "imported-repo profile; Compass-generated output is TypeScript"
+    case .typeScriptPnpmVite:
       return "default generated-project target"
-    case .swiftSPM, .typeScriptVitest:
-      return "legacy imported-repo profile; not used for new generated projects"
     }
   }
 
-  /// Planning guidance injected into Plan prompts for this profile.
   var planningGuidance: String {
     switch self {
     case .swiftSPM:
       return """
-        Legacy forge profile — Swift (SwiftPM):
-        - This profile is for existing imported Swift repositories, including Compass itself.
-          Do not create new generated output in Swift; new generated projects must use Rust/Cargo.
-        - For legacy Swift work, use SwiftPM only (`Package.swift`, `Sources/`, `Tests/`).
-          Prefer Swift Testing over XCTest for new tests.
-        - In the Shared VM, prefer guest-safe SwiftPM probes such as `swift build`.
-          Treat Xcode-project-only test verification as outside the guest execution contract.
-        - Compass can collect SwiftPM coverage from `.profdata` artifacts when verify produces them.
+        Imported Swift profile:
+        - This is for maintaining the Compass host or user-owned Swift packages.
+        - Do not create new generated output in Swift; generated projects use TypeScript.
+        - Prefer SwiftPM verification with `swift test` for package work.
         """
-    case .rustCargo:
+    case .typeScriptPnpmVite:
       return """
-        Forge profile — Rust (Cargo):
-        - This is Compass's sole generated-project target and default.
-        - Use the blessed Cargo workspace layout: `crates/app-core`, `crates/app-cli`,
-          `crates/app-desktop` (`eframe`/`egui`), `xtask`, `schemas/`, and `rust-toolchain.toml`.
-        - Standard fast verify: `\(RustVerifyCommands.cargo(RustVerifyCommands.fastVerify))`
-          runs fmt, clippy, tests, coverage, and build without launching the desktop app.
-        - Use `\(RustVerifyCommands.cargo(RustVerifyCommands.visualVerifyNoBase64))` for
-          desktop UI proof, or `\(RustVerifyCommands.cargo(RustVerifyCommands.productTournamentSmoke))`
-          when full Product Tournament proof is needed.
-        - Use `\(RustVerifyCommands.cargo(RustVerifyCommands.productTournamentSmoke))` to validate the
-          generated app's deterministic product tournament experience contract without a live model call.
-        - Verify for test increments should use `\(RustVerifyCommands.cargo(RustVerifyCommands.coverage))` or \
-        `cargo llvm-cov test --summary-only` (requires `cargo-llvm-cov` in the project or VM).
-        - When an increment touches feature-gated crates, optional providers, `cfg(...)`
-          branches, or Cargo feature wiring, include an all-feature matrix check
-          such as `cargo test --all-features` in the verify plan.
-        - Check-only increments may use `cargo check` or `cargo build` without coverage.
-        - When available, use Compass's structured Rust tools:
-          `workspace_outline` for workspace orientation, `cargo_check` for compile probes,
-          `clippy_lint` for lint failures, and scoped `cargo_test` runs for targeted tests.
-        - When changing persisted state, check `schema_contracts` and keep Rust types aligned
-          with files under `schemas/`.
-        """
-    case .typeScriptVitest:
-      return """
-        Legacy forge profile — TypeScript (Vitest + pnpm):
-        - This profile is for existing imported TypeScript repositories only.
-          Do not create new generated output in TypeScript or JavaScript; new generated
-          projects must use Rust/Cargo.
-        - For legacy TS/JS work, use pnpm as the package manager and Vitest as the sole test runner.
-        - Verify for test increments must run Vitest with coverage, e.g. \
-        `pnpm test -- --coverage --coverage.reporter=json-summary`.
-        - Build-only increments may use `pnpm build` without coverage.
-        - TypeScript strict mode is expected; do not add parallel Jest/Mocha setups.
+        Forge profile - TypeScript (pnpm + Vite + Vitest):
+        - Compass-generated project code must be TypeScript.
+        - Use the pnpm workspace layout: root package scripts plus `packages/core`,
+          `packages/cli`, and `packages/web`.
+        - Keep TypeScript strict, use Vitest for tests and coverage, `tsx` for CLI/dev scripts,
+          and Vite + React for web UI.
+        - Standard verify is `pnpm verify`; targeted test work may use
+          `pnpm test -- --coverage`.
         """
     }
   }
 
-  /// Short hint shown when Plan returns a verify command missing coverage.
   var coverageRequirementHint: String {
     switch self {
     case .swiftSPM:
-      return """
-        test verify must declare SwiftPM coverage, e.g. `swift test --enable-code-coverage`.
-        """
-    case .rustCargo:
-      return "test verify commands must use `cargo llvm-cov` with summary or json output."
-    case .typeScriptVitest:
-      return
-        "test verify commands must include Vitest coverage (e.g. `pnpm test -- --coverage --coverage.reporter=json-summary`)."
+      return "test verify should declare SwiftPM coverage, e.g. `swift test --enable-code-coverage`."
+    case .typeScriptPnpmVite:
+      return "test verify should include Vitest coverage, e.g. `pnpm test -- --coverage`."
     }
   }
 
-  /// Shell command Compass runs after a successful verify to collect/refresh
-  /// coverage artifacts. May re-run tests when verify was compile-only.
   func coverageCollectCommand() -> String {
     switch self {
     case .swiftSPM:
       return """
         set -e
-        PROFDATA="$(find .build -name '*.profdata' -path '*/codecov/*' 2>/dev/null | head -1)"
-        if [ -z "$PROFDATA" ]; then
-          PROFDATA="$(find .build -name '*.profdata' 2>/dev/null | head -1)"
-        fi
+        PROFDATA="$(find .build -name '*.profdata' 2>/dev/null | head -1)"
         if [ -z "$PROFDATA" ]; then
           echo "compass-coverage: no .profdata found; run verify with --enable-code-coverage"
           exit 0
         fi
         BIN="$(find .build -type f -perm +111 -name '*PackageTests' 2>/dev/null | head -1)"
-        if [ -z "$BIN" ]; then
-          BIN="$(find .build -type f -perm +111 -path '*xctest/*' 2>/dev/null | head -1)"
-        fi
         if [ -n "$BIN" ]; then
-          xcrun llvm-cov report "$BIN" -instr-profile="$PROFDATA" 2>/dev/null || llvm-cov report "$BIN" -instr-profile="$PROFDATA"
-        else
-          xcrun llvm-cov report -instr-profile="$PROFDATA" 2>/dev/null || llvm-cov report -instr-profile="$PROFDATA"
+          xcrun llvm-cov report "$BIN" -instr-profile="$PROFDATA" 2>/dev/null || true
         fi
         """
-    case .rustCargo:
-      return "cargo llvm-cov --summary-only 2>/dev/null || cargo llvm-cov test --summary-only"
-    case .typeScriptVitest:
+    case .typeScriptPnpmVite:
       return """
         if [ -f coverage/coverage-summary.json ]; then
           cat coverage/coverage-summary.json
@@ -144,41 +88,32 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     }
   }
 
-  /// True when the verify command is build/check-only and coverage is not required.
   func isCompileOnlyVerify(_ verify: String) -> Bool {
     let normalized = verify.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     guard !normalized.isEmpty else { return false }
     if normalized.contains(" test") || normalized.hasPrefix("test ")
       || normalized.contains("pnpm test")
-      || normalized.contains("vitest") || normalized.contains("cargo test")
+      || normalized.contains("vitest")
       || normalized.contains("swift test")
-      || normalized.contains("xcodebuild") && normalized.contains(" test")
+      || (normalized.contains("xcodebuild") && normalized.contains(" test"))
     {
       return false
     }
     switch self {
     case .swiftSPM:
       return normalized.contains("swift build") || normalized == "swift build"
-    case .rustCargo:
-      return normalized.contains("cargo check")
-        || (normalized.contains("cargo build")
-          && !normalized.contains("cargo test"))
-    case .typeScriptVitest:
-      return normalized.contains("pnpm build") || normalized.contains("tsc ")
+    case .typeScriptPnpmVite:
+      return normalized.contains("pnpm build") || normalized.contains("pnpm typecheck")
+        || normalized.contains("tsc ")
     }
   }
 
-  /// True when a test verify command declares coverage collection.
   func verifyDeclaresCoverage(_ verify: String) -> Bool {
     let normalized = verify.lowercased()
     switch self {
     case .swiftSPM:
-      return normalized.contains("--enable-code-coverage")
-        || normalized.contains("llvm-cov")
-        || (normalized.contains("xcodebuild") && normalized.contains(" test"))
-    case .rustCargo:
-      return normalized.contains("llvm-cov") || normalized.contains("-Cinstrument-coverage")
-    case .typeScriptVitest:
+      return normalized.contains("--enable-code-coverage") || normalized.contains("llvm-cov")
+    case .typeScriptPnpmVite:
       return normalized.contains("coverage")
     }
   }
@@ -187,9 +122,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     switch self {
     case .swiftSPM:
       return CoverageSnapshotParser.parseLLVMCovReport(output, profile: self)
-    case .rustCargo:
-      return CoverageSnapshotParser.parseRustLLVMCovSummary(output, profile: self)
-    case .typeScriptVitest:
+    case .typeScriptPnpmVite:
       if let json = CoverageSnapshotParser.readJSONFile(
         workingDirectory.appending(path: "coverage/coverage-summary.json")
       ) {
@@ -200,7 +133,6 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   }
 }
 
-/// Persisted `.compass/forge-profile.json` shape.
 struct ForgeProfileRecord: Codable, Equatable, Sendable {
   var profile: ForgeProfile
   var version: Int
@@ -208,7 +140,6 @@ struct ForgeProfileRecord: Codable, Equatable, Sendable {
   static let currentVersion = 1
 }
 
-/// Per-file and overall coverage Compass collected after verify.
 struct CoverageSnapshot: Codable, Equatable, Sendable {
   var profile: ForgeProfile
   var collectedAt: Date
@@ -219,8 +150,7 @@ struct CoverageSnapshot: Codable, Equatable, Sendable {
 
   func formattedForPrompt(maxFiles: Int = 12) -> String {
     guard !files.isEmpty || overallLineCoveragePercent != nil else {
-      return
-        "_(no coverage data collected yet — ensure verify enables coverage for this forge profile)_"
+      return "_(no coverage data collected yet - ensure verify enables coverage)_"
     }
     var lines: [String] = []
     if let overall = overallLineCoveragePercent {
@@ -229,15 +159,11 @@ struct CoverageSnapshot: Codable, Equatable, Sendable {
     let sorted = files.sorted {
       ($0.lineCoveragePercent ?? 100) < ($1.lineCoveragePercent ?? 100)
     }
-    let lowest = sorted.prefix(maxFiles)
-    if !lowest.isEmpty {
-      lines.append("Lowest-coverage source files:")
-      for entry in lowest {
-        if let pct = entry.lineCoveragePercent {
-          lines.append(String(format: "- `%@`: %.1f%%", entry.path, pct))
-        } else {
-          lines.append("- `\(entry.path)`: _(no data)_")
-        }
+    for entry in sorted.prefix(maxFiles) {
+      if let pct = entry.lineCoveragePercent {
+        lines.append(String(format: "- `%@`: %.1f%%", entry.path, pct))
+      } else {
+        lines.append("- `\(entry.path)`: _(no data)_")
       }
     }
     if sorted.count > maxFiles {
@@ -261,11 +187,8 @@ enum ForgeProfileService {
     workspace.compassURL.appending(path: "coverage-snapshot.json")
   }
 
-  /// Resolve the active forge profile: explicit record wins, then auto-detect.
   static func resolve(repoURL: URL, workspace: CompassWorkspace?) -> ForgeProfile? {
-    if let workspace,
-      let record = readRecord(from: workspace)
-    {
+    if let workspace, let record = readRecord(from: workspace) {
       return record.profile
     }
     return detect(in: repoURL)
@@ -281,11 +204,9 @@ enum ForgeProfileService {
     let url = forgeProfileURL(in: workspace)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(record)
-    try data.write(to: url, options: .atomic)
+    try encoder.encode(record).write(to: url, options: .atomic)
   }
 
-  /// Auto-detect from repo manifests and persist when a workspace is provided.
   static func detectAndPersist(repoURL: URL, workspace: CompassWorkspace) throws -> ForgeProfile? {
     if let existing = readRecord(from: workspace) {
       return existing.profile
@@ -299,16 +220,16 @@ enum ForgeProfileService {
   }
 
   static func detect(in repoURL: URL) -> ForgeProfile? {
-    let fm = FileManager.default
     let root = repoURL.standardizedFileURL
-    if fm.fileExists(atPath: root.appending(path: "Cargo.toml").path) {
-      return .rustCargo
+    let fm = FileManager.default
+    if TypeScriptProjectScaffold.isGeneratedWorkspace(at: root) {
+      return .typeScriptPnpmVite
+    }
+    if fm.fileExists(atPath: root.appending(path: "package.json").path) {
+      return .typeScriptPnpmVite
     }
     if fm.fileExists(atPath: root.appending(path: "Package.swift").path) {
       return .swiftSPM
-    }
-    if fm.fileExists(atPath: root.appending(path: "package.json").path) {
-      return .typeScriptVitest
     }
     return nil
   }
@@ -328,8 +249,7 @@ enum ForgeProfileService {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     encoder.dateEncodingStrategy = .iso8601
-    let data = try encoder.encode(snapshot)
-    try data.write(to: url, options: .atomic)
+    try encoder.encode(snapshot).write(to: url, options: .atomic)
   }
 }
 
@@ -340,9 +260,7 @@ enum CoverageSnapshotParser {
     for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
       let trimmed = line.trimmingCharacters(in: .whitespaces)
       if trimmed.hasPrefix("TOTAL") || trimmed.lowercased().hasPrefix("total") {
-        if let pct = trailingPercent(in: trimmed) {
-          totalPercent = pct
-        }
+        totalPercent = trailingPercent(in: trimmed) ?? totalPercent
         continue
       }
       let parts = trimmed.split(whereSeparator: { $0.isWhitespace })
@@ -363,46 +281,25 @@ enum CoverageSnapshotParser {
     )
   }
 
-  static func parseRustLLVMCovSummary(_ output: String, profile: ForgeProfile) -> CoverageSnapshot {
-    var files: [CoverageFileEntry] = []
-    var totalPercent: Double?
-    for line in output.split(separator: "\n") {
-      let trimmed = line.trimmingCharacters(in: .whitespaces)
-      if trimmed.lowercased().contains("total") || trimmed.hasPrefix("TOTAL") {
-        totalPercent = trailingPercent(in: trimmed)
-        continue
-      }
-      if trimmed.hasSuffix("%"), trimmed.contains(".rs") {
-        let path =
-          trimmed.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? trimmed
-        if let pct = trailingPercent(in: trimmed) {
-          files.append(CoverageFileEntry(path: path, lineCoveragePercent: pct))
-        }
-      }
-    }
-    return CoverageSnapshot(
-      profile: profile,
-      collectedAt: Date(),
-      sessionNumber: nil,
-      overallLineCoveragePercent: totalPercent ?? averagePercent(files),
-      files: files,
-      rawSummary: String(output.prefix(4000))
-    )
-  }
-
   static func parseVitestSummaryJSON(_ input: String, profile: ForgeProfile) -> CoverageSnapshot {
     guard let data = input.data(using: .utf8),
       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     else {
       return CoverageSnapshot(
-        profile: profile, collectedAt: Date(), sessionNumber: nil,
-        overallLineCoveragePercent: nil, files: [], rawSummary: String(input.prefix(2000)))
+        profile: profile,
+        collectedAt: Date(),
+        sessionNumber: nil,
+        overallLineCoveragePercent: nil,
+        files: [],
+        rawSummary: String(input.prefix(2000))
+      )
     }
     return parseVitestSummaryJSONObject(json, profile: profile)
   }
 
   static func parseVitestSummaryJSONObject(
-    _ json: [String: Any], profile: ForgeProfile
+    _ json: [String: Any],
+    profile: ForgeProfile
   ) -> CoverageSnapshot {
     var files: [CoverageFileEntry] = []
     var totalPercent: Double?
@@ -413,7 +310,8 @@ enum CoverageSnapshotParser {
       totalPercent = pct
     }
     for (key, value) in json {
-      guard key != "total", let entry = value as? [String: Any],
+      guard key != "total",
+        let entry = value as? [String: Any],
         let lines = entry["lines"] as? [String: Any],
         let pct = lines["pct"] as? Double
       else { continue }
@@ -438,8 +336,7 @@ enum CoverageSnapshotParser {
     guard let range = line.range(of: #"\d+(\.\d+)?%"#, options: .regularExpression) else {
       return nil
     }
-    let match = line[range].dropLast()
-    return Double(match)
+    return Double(line[range].dropLast())
   }
 
   private static func averagePercent(_ files: [CoverageFileEntry]) -> Double? {
@@ -450,7 +347,6 @@ enum CoverageSnapshotParser {
 }
 
 enum ForgeVerifyValidator {
-  /// Returns an error message when verify violates profile coverage rules.
   static func coverageViolation(verify: String, profile: ForgeProfile?) -> String? {
     guard let profile else { return nil }
     let trimmed = verify.trimmingCharacters(in: .whitespacesAndNewlines)

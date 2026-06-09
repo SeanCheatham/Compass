@@ -1,9 +1,5 @@
 import Foundation
 
-#if canImport(FoundationModels)
-  import FoundationModels
-#endif
-
 // MARK: - Overview
 
 /// `FileExplainer` is the central orchestrator of the Explore layer — it is the
@@ -14,11 +10,11 @@ import Foundation
 ///
 /// - ``changes(for:commits:)`` — collects all files modified across a commit
 ///   range and pairs each with its line-count stats and codemap summary.  This
-///   powers the Explore popover file list and never touches Foundation Models.
+///   powers the Explore popover file list and never touches generated narration.
 ///
 /// - ``explain(file:repoURL:commits:)`` — runs `git diff` for a single file and
 ///   delegates the raw diff to ``CommitExplainer`` for an AI-generated plain-
-///   English summary, bridging the Explore layer into Foundation Models.
+///   English summary, bridging the Explore layer into generated narration.
 ///
 /// ## Position in the Explore architecture
 ///
@@ -182,9 +178,9 @@ enum FileChangeCategory: String, CaseIterable {
 /// ``changes(for:commits:)`` does NOT reverse the array; the git range it
 /// passes is `newest..oldest`. Single-commit calls use `sha^..sha` directly.
 ///
-/// ## Foundation Models boundary
+/// ## Generated narration boundary
 ///
-/// ``explain(file:repoURL:commits:)`` crosses into Foundation Models via
+/// ``explain(file:repoURL:commits:)`` crosses into generated narration via
 /// ``CommitExplainer``. ``changes(for:commits:)`` is purely a git/codemap
 /// operation and never calls the model.
 enum FileExplainer {
@@ -260,7 +256,7 @@ enum FileExplainer {
   ///   The caller is responsible for grouping results by ``FileChangeCategory``.
   ///
   /// - Note: This method is purely a git/codemap operation. It never invokes
-  ///   Foundation Models — the AI-powered explanations are produced by
+  ///   generated narration — the AI-powered explanations are produced by
   ///   ``explain(file:repoURL:commits:)`` instead.
   static func changes(for repoURL: URL, commits: [SessionCommit]) async -> [FileChange] {
     guard let first = commits.first, let oldestCommit = commits.last else { return [] }

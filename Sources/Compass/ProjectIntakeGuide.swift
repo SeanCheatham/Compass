@@ -83,7 +83,7 @@ struct ProjectIntakeGuide: Equatable, Sendable {
       title = "Choose a Project"
       statusLabel = projectCount == 1 ? "1 project available" : "\(projectCount) projects available"
       detail =
-        "Select a repository in the sidebar to open its PMF proof workbench, live run controls, drafts, and verification history."
+        "Select a repository in the sidebar to open Activity, live run controls, drafts, and verification history."
       actionLabel = "Add Missing Repo"
       systemImageName = "sidebar.left"
       steps = [
@@ -142,7 +142,7 @@ struct ProjectIntakeGuide: Equatable, Sendable {
         id: "git",
         label: "Git history",
         detail:
-          "Compass needs a repository so it can inspect changes and keep PMF proof state nearby.",
+          "Compass needs a repository so it can inspect changes and keep factory state nearby.",
         systemImage: "point.3.connected.trianglepath.dotted"
       ),
       Signal(
@@ -154,14 +154,14 @@ struct ProjectIntakeGuide: Equatable, Sendable {
       ),
       Signal(
         id: "project-vision",
-        label: "Pain context",
+        label: "Task context",
         detail:
-          "Short notes on who hurts, the current workflow, alternatives, success, and guardrails give Discover, Plan, and Reflect a stable north star.",
+          "Short notes on users, desired outcomes, constraints, acceptance signals, and guardrails give Plan a stable north star.",
         systemImage: "scope"
       ),
       Signal(
         id: "plain-language-goal",
-        label: "Pain or validation note",
+        label: "Task or validation note",
         detail:
           "The user does not need a technical spec; Compass can refine rough pain, proof, and validation notes into proof-loop-ready drafts.",
         systemImage: "quote.bubble"

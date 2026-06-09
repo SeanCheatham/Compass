@@ -8,7 +8,6 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
     case placeholderVerify
     case coverageRequirement
     case weakHandoff
-    case multiExperimentImmediate
   }
 
   var message: String
@@ -43,8 +42,7 @@ enum PlanTransitionValidator {
   static func validate(
     from current: PlanState,
     to next: PlanState,
-    forgeProfile: ForgeProfile? = nil,
-    productTournamentConfig: ProductTournamentConfig? = nil
+    forgeProfile: ForgeProfile? = nil
   )
     throws
   {
@@ -153,10 +151,6 @@ enum PlanTransitionValidator {
       )
     }
 
-    try validateProductTournamentScope(
-      immediate: immediate,
-      productTournamentConfig: productTournamentConfig
-    )
   }
 
   private static func remainingPlanFields(in state: PlanState, label: String) -> [String] {
@@ -209,81 +203,4 @@ enum PlanTransitionValidator {
     return " " + details.joined(separator: " ")
   }
 
-  private static func validateProductTournamentScope(
-    immediate: PlanNext,
-    productTournamentConfig: ProductTournamentConfig?
-  ) throws {
-    guard let productTournamentConfig, productTournamentConfig.tournamentExperiments.count > 1
-    else { return }
-    let handoffText = [
-      immediate.plan,
-      immediate.selectedBecause,
-      immediate.candidateID,
-      immediate.verify,
-    ]
-    .compactMap { $0 }
-    .joined(separator: "\n")
-    guard !isSharedProductTournamentInfrastructureScope(handoffText) else { return }
-
-    let mentioned = mentionedExperimentIDs(
-      in: handoffText,
-      productTournamentConfig: productTournamentConfig
-    )
-    guard mentioned.count <= 1 else {
-      throw PlanTransitionValidationError(
-        message:
-          "Plan immediate handoff mentions multiple tournament experiments (\(mentioned.joined(separator: ", "))). Choose one experiment for the next commit-sized slice, or explicitly scope the handoff to shared tournament experiment infrastructure.",
-        reason: .multiExperimentImmediate,
-        missingLabels: ["Single experiment scope"]
-      )
-    }
-  }
-
-  private static func mentionedExperimentIDs(
-    in text: String,
-    productTournamentConfig: ProductTournamentConfig
-  ) -> [String] {
-    let normalizedText = normalizedForProductTournamentMatch(text)
-    guard !normalizedText.isEmpty else { return [] }
-
-    var matches: [String] = []
-    for experiment in productTournamentConfig.tournamentExperiments {
-      let tokens = [
-        experiment.id,
-        experiment.branchName,
-        experiment.worktreeID,
-        experiment.title,
-      ]
-      .map(normalizedForProductTournamentMatch)
-      .filter { $0.count >= 3 }
-
-      if tokens.contains(where: { normalizedText.contains($0) }) {
-        matches.append(experiment.id)
-      }
-    }
-    return Array(Set(matches)).sorted()
-  }
-
-  private static func isSharedProductTournamentInfrastructureScope(_ text: String) -> Bool {
-    let normalized = normalizedForProductTournamentMatch(text)
-    let sharedSignals = [
-      "shared experiment infrastructure",
-      "shared product tournament infrastructure",
-      "cross experiment infrastructure",
-      "cross experiment",
-      "common experiment infrastructure",
-      "common product tournament infrastructure",
-      "shared simulation harness",
-      "common simulation harness",
-    ]
-    return sharedSignals.contains { normalized.contains($0) }
-  }
-
-  private static func normalizedForProductTournamentMatch(_ value: String) -> String {
-    value
-      .lowercased()
-      .replacingOccurrences(of: #"[^a-z0-9/._-]+"#, with: " ", options: .regularExpression)
-      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-  }
 }

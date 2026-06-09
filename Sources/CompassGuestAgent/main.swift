@@ -9,7 +9,7 @@ if GitRemoteCompassHelper.shouldRun(arguments: CommandLine.arguments) {
 // Compass guest-side helper. Runs as a LaunchDaemon with UserName=compass.
 // Repo contents live in /Users/compass/Compass/Repos/<catalog-id>/worktree,
 // normally as a real clone of the Compass exchange repo over vsock Git.
-// Commands that need the desktop session (Rust visual verification) enter
+// Commands that need the desktop session enter
 // the auto-logged-in user's GUI bootstrap explicitly via launchctl asuser.
 //
 // Listens on AF_VSOCK at the canonical Compass port, accepts one request

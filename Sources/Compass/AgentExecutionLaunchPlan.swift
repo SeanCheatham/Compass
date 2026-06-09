@@ -297,9 +297,9 @@ struct AgentExecutionLaunchPlan: Equatable {
   /// out-of-agent commands like Verify steps.
   ///
   /// Always returns a host-side `/bin/zsh -lc` invocation, even when
-  /// the effective route is `.sharedVM`. Under `.sharedVM`, Verify and
-  /// Verify goes through the vsock bash RPC instead of this helper;
-  /// the host fallback remains for Plan/Reflect and for repos outside
+  /// the effective route is `.sharedVM`. Under `.sharedVM`, Verify
+  /// goes through the vsock bash RPC instead of this helper;
+  /// the host fallback remains for planning/review probes and for repos outside
   /// the guest workspace catalog.
   func shellInvocation(command: String, hostWorkingDirectory: URL) -> AgentExecutionInvocation {
     AgentExecutionInvocation(

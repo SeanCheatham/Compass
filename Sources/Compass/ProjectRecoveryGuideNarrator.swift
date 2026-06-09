@@ -33,7 +33,7 @@ enum ProjectRecoveryGuideNarrator {
 
   static func prompt(for guide: ProjectRecoveryGuide) -> String {
     """
-    You are Compass explaining how to recover a stalled Product Tournament work-loop run to a non-engineer.
+    You are Compass explaining how to recover a stalled local software-factory run to a non-engineer.
     Use only the facts below. Do not invent files, commands, credentials, outcomes, or next steps.
     Return one calm paragraph under 45 words. No Markdown.
 

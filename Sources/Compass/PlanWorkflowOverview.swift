@@ -75,17 +75,6 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
         detail = "Compass will compile the Swift package and fail on build errors."
       }
       systemImage = "hammer"
-    } else if lowercased.contains("cargo test") {
-      title = "Runs Rust tests"
-      detail =
-        lowercased.contains("--all-features")
-        ? "Compass will run the Rust test suite with all feature flags enabled."
-        : "Compass will run the Rust test suite."
-      systemImage = "checkmark.seal"
-    } else if lowercased.contains("cargo llvm-cov") {
-      title = "Runs Rust coverage"
-      detail = "Compass will run Rust tests through cargo-llvm-cov and report coverage."
-      systemImage = "chart.bar.doc.horizontal"
     } else if Self.containsAny(
       lowercased,
       [
@@ -118,11 +107,11 @@ struct PlanVerifyCommandSummary: Equatable, Sendable {
       ])
     {
       let collectsCoverage = lowercased.contains("coverage")
-      title = collectsCoverage ? "Runs JavaScript coverage" : "Runs JavaScript tests"
+      title = collectsCoverage ? "Runs TypeScript coverage" : "Runs TypeScript tests"
       detail =
         collectsCoverage
-        ? "Compass will run the project's JavaScript or TypeScript tests with coverage enabled."
-        : "Compass will run the project's JavaScript or TypeScript test command."
+        ? "Compass will run the project's TypeScript tests with coverage enabled."
+        : "Compass will run the project's TypeScript test command."
       systemImage = "checkmark.seal"
     } else if Self.containsAny(
       lowercased,
@@ -521,8 +510,6 @@ struct PlanHandoffDigest: Equatable, Sendable {
 
   private static let commandOnlyVerifyPhrases: Set<String> = [
     "bun test",
-    "cargo llvm-cov",
-    "cargo test",
     "npm run build",
     "npm run test",
     "npm test",
@@ -613,7 +600,7 @@ struct PlanWorkflowOverview: Equatable {
       systemImage: "target",
       rawBody: state.immediate?.plan ?? "",
       emptyMessage:
-        "No immediate plan. The PMF Proof Loop is ready for the next scoped implementation.",
+        "No immediate work selected. The factory is ready for the next scoped implementation.",
       verifyCommand: state.immediate?.verify,
       verifyTimeoutLabel: state.immediate.map {
         PlanVerifyMetadata(timeoutMs: $0.verifyTimeoutMs).label
@@ -804,7 +791,7 @@ struct PlanWorkflowOverview: Equatable {
   }
 }
 
-struct PlanTournamentBrief: Equatable, Sendable {
+struct PlanFactoryBrief: Equatable, Sendable {
   static let detailLimit = 260
   static let labelLimit = 90
 
@@ -859,7 +846,7 @@ struct PlanTournamentBrief: Equatable, Sendable {
 
     if let notice = reliabilityFeedback.notices.first {
       status = notice.severity == .paused ? .paused : .needsAttention
-      title = notice.severity == .paused ? "Develop Is Ready" : "Tournament Needs Attention"
+      title = notice.severity == .paused ? "Develop Is Ready" : "Factory Needs Attention"
       detail = Self.bounded("\(notice.title): \(notice.detail)")
       primaryActionLabel = notice.actionLabel
     } else if let immediate = state.immediate {
@@ -1042,14 +1029,14 @@ struct PlanTournamentBrief: Equatable, Sendable {
   }
 }
 
-struct PlanTournamentBriefClipboardPayload: Equatable, Sendable {
+struct PlanFactoryBriefClipboardPayload: Equatable, Sendable {
   static let textLimit = 2_800
 
   var text: String
 
-  init(brief: PlanTournamentBrief) {
+  init(brief: PlanFactoryBrief) {
     var sections: [String] = [
-      "Compass PMF Proof Loop Brief Handoff",
+      "Compass Factory Brief Handoff",
       "",
       "Recipient instructions:",
       "- Treat this packet as bounded current-state context. Do not invent files, "
@@ -1093,7 +1080,7 @@ struct PlanTournamentBriefClipboardPayload: Equatable, Sendable {
       sections.append(contentsOf: brief.chips.map { "- \($0.label)" })
     }
 
-    text = PlanTournamentBriefClipboardText.boundedMultilineText(
+    text = PlanFactoryBriefClipboardText.boundedMultilineText(
       sections.joined(separator: "\n"),
       limit: Self.textLimit
     )
@@ -1104,7 +1091,7 @@ struct PlanTournamentBriefClipboardPayload: Equatable, Sendable {
   }
 }
 
-private enum PlanTournamentBriefClipboardText {
+private enum PlanFactoryBriefClipboardText {
   static func boundedMultilineText(_ text: String, limit: Int) -> String {
     guard limit > 0 else { return "" }
     guard text.count > limit else { return text }
@@ -1115,15 +1102,15 @@ private enum PlanTournamentBriefClipboardText {
   }
 }
 
-struct PlanTournamentBriefNarration: Equatable, Sendable {
+struct PlanFactoryBriefNarration: Equatable, Sendable {
   var briefIdentifier: String
   var text: String
 }
 
-enum PlanTournamentBriefNarrator {
+enum PlanFactoryBriefNarrator {
   static let maxCharacters = 320
 
-  static func narrate(brief: PlanTournamentBrief) async -> PlanTournamentBriefNarration? {
+  static func narrate(brief: PlanFactoryBrief) async -> PlanFactoryBriefNarration? {
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
     if #available(macOS 26.0, *) {
@@ -1136,7 +1123,7 @@ enum PlanTournamentBriefNarrator {
       }
       let text = sanitized(generated)
       guard !text.isEmpty else { return nil }
-      return PlanTournamentBriefNarration(
+      return PlanFactoryBriefNarration(
         briefIdentifier: brief.narrationIdentifier,
         text: text
       )
@@ -1145,7 +1132,7 @@ enum PlanTournamentBriefNarrator {
     return nil
   }
 
-  static func prompt(for brief: PlanTournamentBrief) -> String {
+  static func prompt(for brief: PlanFactoryBrief) -> String {
     """
     You write a calm plain-language status brief for a non-engineer using Compass.
     Use only the facts below. Do not invent files, commands, outcomes, deadlines, or

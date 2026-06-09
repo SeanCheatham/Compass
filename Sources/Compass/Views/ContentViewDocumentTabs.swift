@@ -17,7 +17,7 @@ struct VisionTab: View {
 
     VStack(alignment: .leading, spacing: 12) {
       HStack {
-        SectionHeader("PMF Brief", systemImage: "scope")
+        SectionHeader("Project Brief", systemImage: "scope")
         Spacer()
         Picker("Vision display mode", selection: $mode) {
           ForEach(MarkdownDocumentMode.allCases) { mode in
@@ -41,8 +41,8 @@ struct VisionTab: View {
       MarkdownDocumentBody(
         text: $project.vision,
         mode: mode,
-        empty: "No PMF brief.",
-        editPlaceholder: "Sketch audience, pain, success, and guardrails for the proof loop."
+        empty: "No project brief.",
+        editPlaceholder: "Sketch the software goal, target users, success signals, and constraints."
       )
     }
     .task(id: "\(guide.narrationIdentifier)|running-\(project.isRunning)") {

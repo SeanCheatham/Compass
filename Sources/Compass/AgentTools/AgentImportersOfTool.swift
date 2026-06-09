@@ -2,7 +2,7 @@ import Foundation
 
 /// Best-effort reverse-lookup: list codemap entries whose imports appear
 /// to reference the supplied file. Approximate by design — the codemap
-/// stores the literal source string of each `import` / `use` / `from`
+/// stores the literal source string of each `import` / `from`
 /// statement, not the resolved path, so this matches loosely against the
 /// target file's basename and extensionless path. Useful for the question
 /// "who depends on this?" without modeling each language's module
@@ -52,7 +52,7 @@ struct AgentImportersOfTool: AgentTool {
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Best-effort reverse import lookup: list files whose import statements reference the target file. Matches against the target's filename and extensionless path — does not resolve aliased imports, package re-exports, or Swift/Rust module hierarchies. Use `grep` to verify a specific call site.",
+        "Best-effort reverse import lookup: list files whose import statements reference the target file. Matches against the target's filename and extensionless path — does not resolve aliased imports, package re-exports, or language module hierarchies. Use `grep` to verify a specific call site.",
       parameters: schema
     )
   }
@@ -75,24 +75,6 @@ struct AgentImportersOfTool: AgentTool {
       return .failure(
         "No codemap entry for '\(normalized)'. The reverse lookup needs the target to be indexed too."
       )
-    }
-
-    if target.language == .rust {
-      let workspace = RustCodemapEnricher.workspace(from: context)
-      if let moduleIndex = RustCodemapEnricher.loadModuleIndex(workspace: workspace),
-        let file = moduleIndex.files[target.relativePath],
-        !file.incoming.isEmpty
-      {
-        let hits = file.incoming.sorted {
-          (($0.fromFile ?? ""), $0.line) < (($1.fromFile ?? ""), $1.line)
-        }
-        var lines: [String] = []
-        lines.append("importers: \(hits.count)")
-        for hit in hits.prefix(Self.maxResults) {
-          lines.append("  \(hit.fromFile ?? "(unknown)"):\(hit.line)  \"\(hit.raw)\"")
-        }
-        return .ok(lines.joined(separator: "\n"))
-      }
     }
 
     let candidates = Self.candidates(for: target.relativePath)

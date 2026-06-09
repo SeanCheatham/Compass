@@ -16,157 +16,70 @@ extension Prompts {
     iteration: Int,
     maxIterations: Int
   ) -> String {
-    let verifyStatus: String
-    if let code = verifyExitCode {
-      verifyStatus = code == 0 ? "passed (exit 0)" : "exited with code \(code)"
-    } else {
-      verifyStatus = "was skipped (Develop requested bypassVerify=true)"
-    }
-    let reviewBrief = criticReviewBrief(
-      next: next,
-      verifyCommand: verifyCommand,
-      verifyStatus: verifyStatus,
-      gitDiff: gitDiff
-    )
-    let pmfProofContext = PMFProofPromptContextFormatter.promptText(
-      ledger: nil,
-      fallback: next.plan
-    )
-    let rustProbeSection = RustReviewProbePlanner.formattedSection(
-      for: RustReviewProbePlanner.suggestions(
-        forgeProfile: forgeProfile,
-        gitDiff: gitDiff,
-        verifyCommand: verifyCommand,
-        verifyOutput: verifyOutput
-      )
-    )
-    let rustProbeBlock =
-      rustProbeSection.isEmpty ? "" : "\n\n## Suggested Rust review probes\n\(rustProbeSection)"
-    let priorBlock: String
-    if priorCritiques.isEmpty {
-      priorBlock = "_(this is the first critic review for this Develop pass)_"
-    } else {
-      let formatted = priorCritiques.enumerated()
+    let verifyStatus =
+      verifyExitCode.map { $0 == 0 ? "passed (exit 0)" : "exited with code \($0)" }
+      ?? "was bypassed by Develop"
+    let prior =
+      priorCritiques.isEmpty
+      ? "_(first critic review for this Develop pass)_"
+      : priorCritiques.enumerated()
         .map { "Review \($0.offset + 1):\n\($0.element)" }
         .joined(separator: "\n\n")
-      priorBlock = """
-        ```
-        \(formatted)
-        ```
-        """
-    }
+
     return """
-      You are the Critic agent in Compass's PMF Proof Loop (see the system
-      message for how the loop works).
+      You are the Critic agent in Compass, a local software factory. Review the diff against
+      the immediate packet and decide whether it is fit to land.
 
-      A separate Develop agent just finished implementing the plan below
-      and its post-checks completed. Verify may have passed or been
-      explicitly bypassed; the exact outcome is listed below.
-      Your job is an adversarial review: independently judge whether the
-      diff actually delivers the planned increment and is fit to land,
-      then either approve or request changes.
+      This is review \(iteration) of at most \(maxIterations). Request changes only for a real,
+      fixable issue the next Develop pass can address in one small step.
 
-      You have read-only file access plus `bash` so you can run extra
-      checks (re-run a specific test, run a linter, inspect git history,
-      grep for related callers). You CANNOT edit, write, or commit. Do
-      not run mutating shell commands (no `git commit`, no `git push`,
-      no file rewrites via `sed -i` or shell redirection into tracked
-      files). Treat this as a code-review session, not a second Develop
-      pass.
+      Review rules:
+      - Generated Compass output must remain TypeScript.
+      - Check whether the diff implements the plan without overshooting it.
+      - Look for bugs verify may not catch, missing tests, broken strict typing, accidental
+        generated artifacts, and ignored lessons or denied assumptions.
+      - You may use read-only tools and `bash` probes. Do not edit, commit, or push.
 
-      This is critic review \(iteration) of at most \(maxIterations). On
-      the final review Compass will accept and proceed regardless of
-      verdict, so be decisive: request_changes only when there is a
-      real, fixable problem the next Develop pass can act on.
-
-      What to look for:
-      - Does the diff implement the plan, or does it miss / overshoot it?
-      - For generated-output work, does the diff stay Rust/Cargo-only across
-        backend/core, CLI, desktop UI, tests, schemas, and automation? Swift is
-        acceptable for Compass itself or legacy imported Swift repos only;
-        TypeScript/JavaScript is legacy imported-repo work only.
-      - Are there obvious bugs the verify command wouldn't catch
-        (logic errors in untested branches, leaked resources, race
-        conditions, broken edge cases)?
-      - Does the diff break invariants stated in the lessons?
-      - Does the diff rely on a denied assumption or lean too heavily on
-        an implicit assumption that should have been verified?
-      - Are new code paths exercised by tests or just by the verify
-        smoke command?
-      - If the change touched feature-gated, optional-provider, platform-specific,
-        or conditional-compilation code, did Verify cover the relevant matrix
-        (for Rust/Cargo, default tests plus all-features when appropriate)?
-      - For Rust/Cargo diffs, use the structured tools when they are available:
-        `workspace_outline` for workspace shape, `cargo_check` for compiler
-        diagnostics, `clippy_lint` for lint gates, `cargo_test`/`coverage_gaps`
-        for proof depth, `schema_contracts` when schemas or persisted
-        state changed, and `scaffold_check` when scaffold contract paths
-        changed. Structured tool results are review evidence, not permission
-        to mutate the working tree.
-      - If structured Rust tool output includes "Repair hints", treat those
-        hints as stronger review evidence than guesses from raw logs and ask
-        Develop to verify the repair with structured tools.
-      - If you find one instance of a bug class, search for sibling call sites
-        before requesting changes so the feedback asks Develop to fix the whole
-        local pattern.
-      - Are generated build outputs or caches accidentally included in the diff?
-      - Are there leftover TODOs, dead code, or unrelated changes that
-        shouldn't be in this commit?
-
-      Finish by calling the `submit_result` tool exactly once with:
-      - `verdict`: `"approve"` or `"request_changes"`.
-      - `summary`: 1-3 sentences for the human reviewer / log.
-      - `feedback`: when requesting changes, a concrete punch list the
-        Develop agent can act on in one more pass. Lead with the most
-        important item; reference file paths and line numbers from the
-        diff. Do not use `fix it`, `needs work`, `ok`, or other placeholder
-        wording. Empty string when approving; if you cannot name a concrete
-        recovery action, approve instead of requesting changes.
-
-      Copy exactly one of these shapes:
-      Approve:
+      Finish with exactly one of these envelopes:
       {
-        "verdict": "approve",
-        "summary": "<why no blocking issue remains>",
-        "feedback": ""
+        "kind": "critic_submit",
+        "payload": {
+          "verdict": "approve",
+          "summary": "<why no blocker remains>",
+          "feedback": ""
+        }
       }
-      Request changes:
       {
-        "verdict": "request_changes",
-        "summary": "<blocking review summary>",
-        "feedback": "- <specific failing behavior or file>\\n- <smallest Develop recovery action>"
+        "kind": "critic_submit",
+        "payload": {
+          "verdict": "request_changes",
+          "summary": "<blocking review summary>",
+          "feedback": "- <specific issue>\\n- <smallest Develop recovery action>"
+        }
       }
 
-      ## Review brief
-      \(reviewBrief)\(rustProbeBlock)
-
-      ## Plan that was implemented
+      ## Plan
       \(next.plan)
 
-      ## PMF Proof Context
-      \(pmfProofContext)
-
-      ## Verify command and outcome
+      ## Verify
       Command:
       ```bash
       \(verifyCommand)
       ```
       Verify \(verifyStatus).
-      Output (tail):
+      Output:
       \(fencedOrEmpty(verifyOutput, empty: "_(no captured output)_"))
 
-      ## Develop summary (from the agent that just ran)
+      ## Develop summary
       Status: \(developSummary.status.rawValue)
       Summary: \(developSummary.summary)
-      Handoff feedback: \(developSummary.feedback)
+      Feedback: \(developSummary.feedback)
 
-      ## Diff under review
-      Output of `git diff` against the pre-Develop SHA. This is what
-      would be committed if you approve.
-      \(fencedOrEmpty(gitDiff, empty: "_(diff is empty — the Develop pass may have been a no-op)_"))
+      ## Diff
+      \(fencedOrEmpty(gitDiff, empty: "_(diff is empty)_"))
 
-      ## Prior critic reviews for this Develop pass
-      \(priorBlock)
+      ## Prior critic reviews
+      \(fencedOrEmpty(prior, empty: "_(none)_"))
 
       ## Lessons
       \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
@@ -174,53 +87,10 @@ extension Prompts {
       ## Assumptions
       \(fencedOrEmpty(assumptions, empty: "_(no assumptions recorded)_"))
 
-      ## Vision
-      \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
+      ## Project context
+      \(fencedOrEmpty(vision, empty: "_(no project context set)_"))
 
-      Call submit_result when you have decided.
+      Use `critic_continue` for any read-only tool you need. Use `critic_submit` when decided.
       """
-  }
-
-  private static func criticReviewBrief(
-    next: PlanNext,
-    verifyCommand: String,
-    verifyStatus: String,
-    gitDiff: String
-  ) -> String {
-    let digest = PlanHandoffDigest(plan: next.plan)
-    let verify = PlanVerifyCommandSummary(command: verifyCommand)
-    var lines: [String] = [
-      "Primary question: did this diff deliver the planned outcome without unrelated changes?",
-      "Review the acceptance checks before style preferences or nice-to-have cleanup.",
-      "Handoff status: \(digest.title). \(digest.detail)",
-    ]
-
-    if let outcome = digest.outcome {
-      lines.append("Planned outcome: \(outcome)")
-    }
-    if let whyItMatters = digest.whyItMatters {
-      lines.append("Why it matters: \(whyItMatters)")
-    }
-
-    if digest.acceptanceChecks.isEmpty {
-      let missing = digest.missingPieces.map(\.label).joined(separator: ", ")
-      lines.append("No explicit acceptance checks were extracted. Missing: \(missing).")
-    } else {
-      lines.append("Acceptance checks to audit:")
-      for check in digest.acceptanceChecks {
-        lines.append("- \(check)")
-      }
-    }
-
-    lines.append("Verify meaning: \(verify.title). \(verify.detail)")
-    lines.append("Verify result: \(verifyStatus).")
-
-    if gitDiff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      lines.append("Diff signal: empty diff; scrutinize whether Develop was a no-op.")
-    } else {
-      lines.append("Diff signal: review only the diff below plus any directly related callers.")
-    }
-
-    return lines.joined(separator: "\n")
   }
 }

@@ -19,7 +19,7 @@ struct NoProjectView: View {
 
 struct MainWorkspaceView: View {
   @ObservedObject var project: CompassProject
-  @State private var selectedTab: WorkspaceTab = .productTournament
+  @State private var selectedTab: WorkspaceTab = .activity
 
   var body: some View {
     VStack(spacing: 0) {
@@ -547,6 +547,7 @@ struct ProjectPhasePill: View {
 struct ProjectRunControls: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject var project: CompassProject
+  @ObservedObject private var localModelManager: LocalModelManager = .shared
   @State private var runGuideNarration: ProjectRunControlGuideNarration?
 
   var body: some View {
@@ -566,16 +567,9 @@ struct ProjectRunControls: View {
     let snapshotPayload = ProjectSnapshotBuilder.payload(
       for: project,
       agentSettings: model.agentSettings,
-      foundationModelsAvailable: FoundationModelsAvailability.isAvailable,
+      modelSnapshot: localModelManager.snapshot,
       runGuide: runGuide
     )
-    let rustProductTournamentHealth = RustProductTournamentHealth.local(
-      repoURL: project.repoURL, workspace: project.workspace)
-    let tournamentGuide = ProductTournamentCompassGuide(
-      runGuide: runGuide,
-      rustHealth: rustProductTournamentHealth
-    )
-
     HStack(spacing: 5) {
       Menu {
         Text(executionEnvironmentMenu.statusText)
@@ -636,7 +630,6 @@ struct ProjectRunControls: View {
 
       CopyRunControlButton(payload: runControlPayload)
       CopyProjectSnapshotButton(payload: snapshotPayload)
-      ProductTournamentCompassButton(guide: tournamentGuide)
       ProjectRunDecisionBadge(badge: runGuide.decisionBadge)
 
       Button {
@@ -680,7 +673,7 @@ struct ProjectRunControls: View {
       }
       .menuStyle(.borderlessButton)
       .disabled(project.isRunning || project.isAutoPlaying || !project.hasRepository)
-      .help("Choose a PMF Proof Loop run mode. \(runGuide.primaryHelp)")
+      .help("Choose a factory run mode. \(runGuide.primaryHelp)")
 
       Menu {
         ForEach(PauseMode.allCases) { mode in
@@ -770,188 +763,6 @@ private struct CopyProjectSnapshotButton: View {
     .disabled(payload.isEmpty)
     .help(ClipboardHelpText.projectSnapshot)
     .accessibilityLabel(copied ? "Copied project snapshot" : "Copy project snapshot")
-  }
-}
-
-private struct ProductTournamentCompassButton: View {
-  var guide: ProductTournamentCompassGuide
-  @State private var isShowingBrief = false
-
-  var body: some View {
-    Button {
-      isShowingBrief.toggle()
-    } label: {
-      Label(guide.controlLabel, systemImage: "location.north.circle.fill")
-        .lineLimit(1)
-        .frame(minWidth: 78)
-    }
-    .buttonStyle(.bordered)
-    .controlSize(.small)
-    .foregroundStyle(color)
-    .help("\(guide.title): \(guide.headline)")
-    .accessibilityLabel("PMF Proof Loop compass, \(guide.controlLabel)")
-    .accessibilityValue(guide.title)
-    .accessibilityHint(guide.headline)
-    .popover(isPresented: $isShowingBrief, arrowEdge: .bottom) {
-      ProductTournamentCompassPopover(guide: guide)
-    }
-  }
-
-  private var color: Color {
-    productTournamentCompassColor(for: guide.tone)
-  }
-}
-
-private struct ProductTournamentCompassPopover: View {
-  var guide: ProductTournamentCompassGuide
-  @State private var copied = false
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      HStack(alignment: .top, spacing: 10) {
-        Image(systemName: guide.systemImage)
-          .font(.system(size: 20, weight: .semibold))
-          .foregroundStyle(color)
-          .frame(width: 26, height: 26)
-        VStack(alignment: .leading, spacing: 4) {
-          Text(guide.title)
-            .font(.headline)
-          Text(guide.headline)
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-      }
-
-      Divider()
-
-      VStack(alignment: .leading, spacing: 10) {
-        ProductTournamentCompassFactRow(
-          systemImage: guide.primaryActionIsEnabled ? "bolt.circle.fill" : "lock.circle",
-          title: guide.primaryActionTitle,
-          detail: guide.primaryActionDetail,
-          color: guide.primaryActionIsEnabled ? color : .secondary
-        )
-        ProductTournamentCompassFactRow(
-          systemImage: guide.systemImage,
-          title: guide.readinessTitle,
-          detail: guide.readinessDetail,
-          color: color
-        )
-        ProductTournamentCompassFactRow(
-          systemImage: "dot.radiowaves.left.and.right",
-          title: guide.signalLabel,
-          detail: guide.signalDetail,
-          color: color
-        )
-        if let health = guide.rustHealth {
-          ProductTournamentCompassFactRow(
-            systemImage: health.systemImage,
-            title: health.title,
-            detail: "\(health.detail) Next: \(health.nextAction)",
-            color: rustProductTournamentHealthColor(for: health.status)
-          )
-        }
-      }
-
-      if !guide.previewSteps.isEmpty {
-        Divider()
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Next run")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-          ForEach(guide.previewSteps) { step in
-            ProductTournamentCompassFactRow(
-              systemImage: step.systemImage,
-              title: step.title,
-              detail: step.detail,
-              color: .secondary
-            )
-          }
-        }
-      }
-
-      Divider()
-
-      HStack {
-        Spacer()
-        Button {
-          copyTextToPasteboard(guide.handoffText)
-          copied = true
-          Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            copied = false
-          }
-        } label: {
-          Label(
-            copied ? "Copied" : "Copy PMF Brief",
-            systemImage: copied ? "checkmark" : "doc.on.doc"
-          )
-        }
-        .buttonStyle(.bordered)
-      }
-    }
-    .padding(16)
-    .frame(width: 440)
-  }
-
-  private var color: Color {
-    productTournamentCompassColor(for: guide.tone)
-  }
-}
-
-private struct ProductTournamentCompassFactRow: View {
-  var systemImage: String
-  var title: String
-  var detail: String
-  var color: Color
-
-  var body: some View {
-    HStack(alignment: .top, spacing: 9) {
-      Image(systemName: systemImage)
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(color)
-        .frame(width: 18, height: 18)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(title)
-          .font(.callout.weight(.semibold))
-          .lineLimit(2)
-        Text(detail)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-    }
-  }
-}
-
-private func productTournamentCompassColor(for tone: ProductTournamentCompassGuide.Tone) -> Color {
-  switch tone {
-  case .ready:
-    return .green
-  case .info:
-    return .blue
-  case .warning:
-    return .orange
-  case .failure:
-    return .red
-  case .paused:
-    return .blue
-  }
-}
-
-private func rustProductTournamentHealthColor(for status: RustProductTournamentHealth.Status)
-  -> Color
-{
-  switch status {
-  case .healthy:
-    return .green
-  case .warning:
-    return .orange
-  case .failed:
-    return .red
-  case .unknown:
-    return .secondary
   }
 }
 
@@ -1053,8 +864,6 @@ struct WorkspaceContent: View {
         VisionTab(project: project)
       case .activity:
         ActivityTab(project: project)
-      case .productTournament:
-        ProductTournamentWorkbenchTab(project: project)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1062,7 +871,6 @@ struct WorkspaceContent: View {
 }
 
 enum WorkspaceTab: String, CaseIterable, Identifiable {
-  case productTournament
   case activity
   case vision
 
@@ -1072,7 +880,6 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .vision: return "Brief"
     case .activity: return "Activity"
-    case .productTournament: return "Proof Loop"
     }
   }
 
@@ -1080,16 +887,10 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     switch self {
     case .vision: return "scope"
     case .activity: return "waveform.path.ecg"
-    case .productTournament: return "trophy"
     }
   }
 
   var minWidth: CGFloat {
-    switch self {
-    case .productTournament:
-      return 98
-    default:
-      return 82
-    }
+    82
   }
 }

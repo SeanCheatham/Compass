@@ -1,7 +1,7 @@
 import Foundation
 
 /// Active planning fields agents may propose. Completed history is owned
-/// by Compass and is not part of the Plan/Reflect submit_result contract.
+/// by Compass and is not part of the Plan submit payload contract.
 struct PlanProposal: Codable, Equatable {
   var immediate: PlanNext?
   var candidates: [PlanCandidate]
@@ -18,7 +18,9 @@ struct PlanProposal: Codable, Equatable {
 
   enum CodingKeys: String, CodingKey {
     case immediate
+    case queue
     case candidates
+    case brief
     case strategicContext
     case openQuestions
   }
@@ -56,8 +58,12 @@ struct PlanProposal: Codable, Equatable {
       preferredKey: .immediate,
       fieldName: "immediate"
     )
-    candidates = try container.decode([PlanCandidate].self, forKey: .candidates)
-    strategicContext = try container.decode(PlanStrategicContext.self, forKey: .strategicContext)
+    candidates =
+      try container.decodeIfPresent([PlanCandidate].self, forKey: .queue)
+      ?? container.decode([PlanCandidate].self, forKey: .candidates)
+    strategicContext =
+      try container.decodeIfPresent(PlanStrategicContext.self, forKey: .brief)
+      ?? container.decode(PlanStrategicContext.self, forKey: .strategicContext)
     openQuestions = try container.decode([PlanQuestion].self, forKey: .openQuestions)
   }
 
@@ -67,8 +73,8 @@ struct PlanProposal: Codable, Equatable {
     if immediate == nil {
       try container.encodeNil(forKey: .immediate)
     }
-    try container.encode(candidates, forKey: .candidates)
-    try container.encode(strategicContext, forKey: .strategicContext)
+    try container.encode(candidates, forKey: .queue)
+    try container.encode(strategicContext, forKey: .brief)
     try container.encode(openQuestions, forKey: .openQuestions)
   }
 
@@ -118,17 +124,17 @@ struct PlanProposal: Codable, Equatable {
         )
       }
     let compactContext = PlanStrategicContext(
-      thesis: Self.bounded(strategicContext.thesis, limit: 500),
-      principles: strategicContext.principles.prefix(maxStrategicBullets).map {
+      summary: Self.bounded(strategicContext.summary, limit: 500),
+      targetUsers: strategicContext.targetUsers.prefix(maxStrategicBullets).map {
+        Self.bounded($0, limit: 180)
+      },
+      desiredOutcomes: strategicContext.desiredOutcomes.prefix(maxStrategicBullets).map {
         Self.bounded($0, limit: 180)
       },
       constraints: strategicContext.constraints.prefix(maxStrategicBullets).map {
         Self.bounded($0, limit: 180)
       },
-      nonGoals: strategicContext.nonGoals.prefix(maxStrategicBullets).map {
-        Self.bounded($0, limit: 180)
-      },
-      risks: strategicContext.risks.prefix(maxStrategicBullets).map {
+      acceptanceSignals: strategicContext.acceptanceSignals.prefix(maxStrategicBullets).map {
         Self.bounded($0, limit: 180)
       }
     )

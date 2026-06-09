@@ -28,15 +28,14 @@ extension Prompts {
     4. Errors encountered, why they happened, and how they were addressed (or not).
     5. The current in-flight step: what was just attempted, what tool result is pending, and what the immediate next action should be.
 
-    Be terse but specific. Reply ONLY with the summary as plain text — no preamble, no tool call, no `submit_result`. The next turn will receive only this summary plus the original task.
+    Be terse but specific. Reply ONLY with the summary as plain text — no preamble, no tool call, no submit envelope. The next turn will receive only this summary plus the original task.
     """
 
   static func forgeProfileSection(forgeProfile: ForgeProfile?) -> String {
     guard let forgeProfile else {
       return """
         ## Forge profile
-        _(not detected — generated Compass projects default to Rust/Cargo. SwiftPM and
-        TypeScript/Vitest are legacy imported-repo profiles only.)_
+        _(not detected - generated Compass projects default to TypeScript with pnpm, Vite, and Vitest.)_
         """
     }
     return """

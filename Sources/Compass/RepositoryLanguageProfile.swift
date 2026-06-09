@@ -2,7 +2,6 @@ import Foundation
 
 enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   case typeScriptJavaScript
-  case rust
   case swift
   case markdown
   case other
@@ -11,7 +10,6 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   var displayName: String {
     switch self {
     case .typeScriptJavaScript: return "TypeScript/JavaScript"
-    case .rust: return "Rust"
     case .swift: return "Swift"
     case .markdown: return "Markdown"
     case .other: return "Other"
@@ -22,7 +20,6 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   var sourceNoun: String {
     switch self {
     case .typeScriptJavaScript: return "TS/JS files"
-    case .rust: return "Rust files"
     case .swift: return "Swift files"
     case .markdown: return "Markdown files"
     case .other: return "other files"
@@ -33,20 +30,18 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
 
 struct RepositoryLanguageCounts: Codable, Equatable {
   var typeScriptJavaScript = 0
-  var rust = 0
   var swift = 0
   var markdown = 0
   var other = 0
 
   var total: Int {
-    typeScriptJavaScript + rust + swift + markdown + other
+    typeScriptJavaScript + swift + markdown + other
   }
 
   subscript(language: RepositoryLanguage) -> Int {
     get {
       switch language {
       case .typeScriptJavaScript: return typeScriptJavaScript
-      case .rust: return rust
       case .swift: return swift
       case .markdown: return markdown
       case .other: return other
@@ -57,8 +52,6 @@ struct RepositoryLanguageCounts: Codable, Equatable {
       switch language {
       case .typeScriptJavaScript:
         typeScriptJavaScript = newValue
-      case .rust:
-        rust = newValue
       case .swift:
         swift = newValue
       case .markdown:
@@ -78,15 +71,12 @@ struct RepositoryLanguageCounts: Codable, Equatable {
 
 enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable {
   case packageJSON = "package.json"
-  case cargoToml = "Cargo.toml"
   case packageSwift = "Package.swift"
 
   init?(fileName: String) {
     switch fileName {
     case Self.packageJSON.rawValue:
       self = .packageJSON
-    case Self.cargoToml.rawValue:
-      self = .cargoToml
     case Self.packageSwift.rawValue:
       self = .packageSwift
     default:
@@ -97,15 +87,13 @@ enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable 
   var language: RepositoryLanguage {
     switch self {
     case .packageJSON: return .typeScriptJavaScript
-    case .cargoToml: return .rust
     case .packageSwift: return .swift
     }
   }
 
   var forgeProfile: ForgeProfile {
     switch self {
-    case .packageJSON: return .typeScriptVitest
-    case .cargoToml: return .rustCargo
+    case .packageJSON: return .typeScriptPnpmVite
     case .packageSwift: return .swiftSPM
     }
   }
@@ -149,11 +137,9 @@ struct RepositoryLanguageProfile: Codable, Equatable {
     let prefix: String
     switch primaryLanguage {
     case .swift:
-      prefix = "Legacy Swift profile"
+      prefix = "Imported Swift profile"
     case .typeScriptJavaScript:
-      prefix = "Legacy TypeScript/JavaScript profile"
-    case .rust:
-      prefix = "Rust generated-project profile"
+      prefix = "TypeScript/JavaScript profile"
     case .markdown:
       prefix = "Markdown-heavy profile"
     case .other:
@@ -317,7 +303,7 @@ private struct RepositoryLanguageProfileScanner {
     case "cjs", "cts", "js", "jsx", "mjs", "mts", "ts", "tsx":
       return .typeScriptJavaScript
     case "rs":
-      return .rust
+      return .other
     case "swift":
       return .swift
     case "markdown", "md", "mdx":
@@ -333,7 +319,6 @@ private struct RepositoryLanguageProfileScanner {
   ) -> RepositoryLanguage {
     let codeLanguages: [RepositoryLanguage] = [
       .typeScriptJavaScript,
-      .rust,
       .swift,
       .markdown,
     ]

@@ -32,8 +32,6 @@ extension CompassProject {
       lessons = ""
       assumptions = []
       vision = ""
-      productTournamentConfig = .empty
-      productTournamentEvidenceIndex = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -64,8 +62,6 @@ extension CompassProject {
       lessons = ""
       assumptions = []
       vision = ""
-      productTournamentConfig = .empty
-      productTournamentEvidenceIndex = .empty
       sessions = []
       archivedSessions = []
       hasOlderArchivedSessions = false
@@ -84,77 +80,9 @@ extension CompassProject {
     lessons = workspace.readLessons()
     assumptions = try workspace.readAssumptionLedger().assumptions
     vision = workspace.readVision()
-    let rawProductPain = [vision, includeDrafts ? drafts : workspace.readDrafts()]
-      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-      .filter { !$0.isEmpty }
-      .joined(separator: "\n\n")
-    productTournamentConfig = try workspace.readOrSeedProductTournamentConfig(
-      projectTitle: workspace.repoURL.lastPathComponent,
-      rawPain: rawProductPain.isEmpty ? vision : rawProductPain
-    )
-    productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
     sessions = workspace.readSessions()
     archivedSessions = []
     hasOlderArchivedSessions = workspace.hasArchivedSessions()
-  }
-
-  func saveProductTournamentConfig(_ config: ProductTournamentConfig? = nil) async {
-    do {
-      guard let workspace else {
-        fail(AppModelError.noRepositorySelected)
-        return
-      }
-      let value = config ?? productTournamentConfig
-      try workspace.writeProductTournamentConfig(value)
-      productTournamentConfig = value
-    } catch {
-      fail(error)
-    }
-  }
-
-  func reloadProductTournamentEvidenceIndex() async {
-    guard let workspace else {
-      productTournamentEvidenceIndex = .empty
-      return
-    }
-    productTournamentEvidenceIndex = workspace.readProductTournamentEvidenceIndex()
-  }
-
-  func readProductTournamentEvidenceRecord(id: String) throws -> ProductTournamentEvidenceRecord {
-    guard let workspace else {
-      throw AppModelError.noRepositorySelected
-    }
-    return try workspace.readProductTournamentEvidenceRecord(id: id)
-  }
-
-  func readProductTournamentPlanEvaluationRecord(
-    id: String
-  ) throws -> ProductTournamentPlanEvaluationRecord {
-    guard let workspace else {
-      throw AppModelError.noRepositorySelected
-    }
-    return try workspace.readProductTournamentPlanEvaluationRecord(id: id)
-  }
-
-  func readMarketPressureRecord(id: String) throws -> MarketPressureEvaluationRecord {
-    guard let workspace else {
-      throw AppModelError.noRepositorySelected
-    }
-    return try workspace.readMarketPressureRecord(id: id)
-  }
-
-  func readDistributionPressureRecord(id: String) throws -> DistributionPressureRecord {
-    guard let workspace else {
-      throw AppModelError.noRepositorySelected
-    }
-    return try workspace.readDistributionPressureRecord(id: id)
-  }
-
-  func readLifecycleRunRecord(id: String) throws -> LifecycleRunRecord {
-    guard let workspace else {
-      throw AppModelError.noRepositorySelected
-    }
-    return try workspace.readLifecycleRunRecord(id: id)
   }
 
   func initializeIfNeeded(_ workspace: CompassWorkspace) async throws {
@@ -227,10 +155,7 @@ extension CompassProject {
     if codemapRefreshedForSession == sessionNumber { return }
     let refresher = CodemapRefresher.make(
       workspace: workspace,
-      settings: agentSettings,
-      rustCargoService: forgeProfile == .rustCargo
-        ? RustEngineLocator.locateEngineBinary().map { RustCargoService(engineURL: $0) }
-        : nil
+      settings: agentSettings
     )
     do {
       let result = try await refresher.refresh()

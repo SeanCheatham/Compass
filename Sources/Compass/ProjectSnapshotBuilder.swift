@@ -5,7 +5,7 @@ enum ProjectSnapshotBuilder {
   static func payload(
     for project: CompassProject,
     agentSettings: AgentRuntimeSettings,
-    foundationModelsAvailable: Bool,
+    modelSnapshot: LocalModelSnapshot,
     runGuide providedRunGuide: ProjectRunControlGuide? = nil
   ) -> ProjectSnapshotClipboardPayload {
     let runGuide = providedRunGuide ?? self.runGuide(for: project)
@@ -13,7 +13,7 @@ enum ProjectSnapshotBuilder {
     let visionGuide = ProjectVisionGuide(vision: project.vision)
     let settingsGuide = AgentSettingsGuide(
       settings: agentSettings,
-      foundationModelsAvailable: foundationModelsAvailable
+      modelSnapshot: modelSnapshot
     )
     let recoveryGuide = ProjectRecoveryGuide(status: project.reliabilityStatus)
 

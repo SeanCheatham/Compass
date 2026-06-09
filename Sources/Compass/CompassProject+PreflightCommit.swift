@@ -134,16 +134,16 @@ extension CompassProject {
       do {
         let artifactURL = try workspace.writeSessionAuditArtifact(
           session: sessionNumber,
-          name: "preflight-commit-submit-result.json",
-          kind: "submit_result",
+          name: "preflight-commit-submit-payload.json",
+          kind: "phase_submit_payload",
           contents: String(decoding: result.submitResultArguments, as: UTF8.self),
-          note: "Preflight commit submit_result payload."
+          note: "Preflight commit submit payload."
         )
         recordSessionAuditArtifactEvent(
           session: sessionNumber,
-          kind: "submit_result_saved",
+          kind: "phase_submit_payload_saved",
           artifactURL: artifactURL,
-          note: "Saved preflight commit submit_result payload.",
+          note: "Saved preflight commit submit payload.",
           metadata: [
             "phase": "preflight-commit",
             "iterations": "\(result.iterations)",
@@ -151,7 +151,7 @@ extension CompassProject {
         )
       } catch {
         appendAuditEvent(
-          kind: "submit_result_save_failed",
+          kind: "phase_submit_payload_save_failed",
           status: "failed",
           text: error.localizedDescription,
           metadata: ["phase": "preflight-commit"]

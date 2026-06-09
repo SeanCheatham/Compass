@@ -1,9 +1,5 @@
 import Foundation
 
-#if canImport(FoundationModels)
-  import FoundationModels
-#endif
-
 struct DraftRefinement: Equatable, Sendable {
   enum Source: String, Equatable, Sendable {
     case generated
@@ -199,12 +195,6 @@ enum DraftRefinementService {
   }
 
   private static var isGeneratedPreviewAvailable: Bool {
-    #if canImport(FoundationModels)
-      if #available(macOS 26.0, *) {
-        return FoundationModelDraftRefinementGenerator.isAvailable
-      }
-    #endif
-
     return false
   }
 
@@ -214,17 +204,6 @@ enum DraftRefinementService {
   ) async -> DraftRefinement? {
     let trimmedDraft = normalizeDraft(draft)
     guard !trimmedDraft.isEmpty else { return nil }
-
-    #if canImport(FoundationModels)
-      if #available(macOS 26.0, *), isGeneratedPreviewAvailable {
-        if let generated = try? await FoundationModelDraftRefinementGenerator.generate(
-          draft: trimmedDraft,
-          context: context
-        ) {
-          return generated
-        }
-      }
-    #endif
 
     return deterministicRefinement(draft: trimmedDraft, context: context)
   }
@@ -535,51 +514,3 @@ enum DraftRefinementService {
     return "\(text)."
   }
 }
-
-#if canImport(FoundationModels)
-  @available(macOS 26.0, *)
-  private enum FoundationModelDraftRefinementGenerator {
-    static var isAvailable: Bool {
-      FoundationModelsAvailability.isAvailable
-    }
-
-    static func generate(
-      draft: String,
-      context: DraftRefinementContext
-    ) async throws -> DraftRefinement? {
-      try await FoundationModelsSessionGate.shared.withExclusiveAccess {
-        let model = SystemLanguageModel.default
-        guard model.isAvailable else { return nil }
-
-        let session = LanguageModelSession(
-          model: model,
-          instructions: """
-            You refine a user's Compass draft into one queued instruction.
-            Return exactly one line in this format: "Refined: ...".
-            Use only facts present in the supplied draft and context.
-            Do not invent file paths, commands, tests, outcomes, counts, deadlines, constraints, or acceptance criteria.
-            Preserve uncertainty and keep the request as a future instruction, not completed work.
-            """)
-
-        let response = try await session.respond(
-          to: """
-            Draft:
-            \(draft)
-
-            Repository context:
-            \(context.promptText)
-
-            Rewrite the draft as one clear instruction under 80 words.
-            """,
-          options: GenerationOptions(temperature: 0.35, maximumResponseTokens: 160)
-        )
-
-        return DraftRefinementService.parseGeneratedRefinement(
-          response.content,
-          draft: draft,
-          context: context
-        )
-      }
-    }
-  }
-#endif

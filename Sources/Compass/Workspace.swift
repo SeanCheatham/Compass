@@ -22,16 +22,6 @@ struct CompassWorkspace {
   var lessonsURL: URL { compassURL.appending(path: "lessons.md") }
   var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
   var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
-  var productTournamentConfigURL: URL { compassURL.appending(path: "product-tournament.json") }
-  var productTournamentURL: URL {
-    compassURL.appending(path: "product-tournament", directoryHint: .isDirectory)
-  }
-  var productTournamentEvidenceStore: ProductTournamentEvidenceStore {
-    ProductTournamentEvidenceStore(workspace: self)
-  }
-  var tournamentStore: TournamentWorkspaceStore {
-    TournamentWorkspaceStore(workspace: self)
-  }
   var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
   var sessionsRecordURL: URL { sessionRecordStore.activeRecordURL }
   var sessionRecordStore: SessionRecordStore {
@@ -75,8 +65,6 @@ struct CompassWorkspace {
     try createFileIfMissing(assumptionsURL, contents: AssumptionLedger.emptyJSON)
     try createFileIfMissing(visionURL, contents: "")
     try createFileIfMissing(sessionsRecordURL, contents: "")
-    try fm.createDirectory(at: productTournamentURL, withIntermediateDirectories: true)
-    _ = try productTournamentEvidenceStore.rebuildIndex()
     if isRepoLocalStorage {
       try ensureCompassIsIgnored()
     }
@@ -166,7 +154,7 @@ struct CompassWorkspace {
     }
   }
 
-  /// Validate `lessonEdits` embedded in a phase's `submit_result` payload.
+  /// Validate `lessonEdits` embedded in a phase submit payload.
   func validateSubmitResultLessonEdits(_ submitResultJSON: Data) throws {
     let payload = try JSONDecoder().decode(
       SubmitResultLessonEditsPayload.self,
@@ -230,142 +218,6 @@ struct CompassWorkspace {
 
   func writeVision(_ text: String) throws {
     try text.write(to: visionURL, atomically: true, encoding: .utf8)
-  }
-
-  func readProductTournamentConfig() throws -> ProductTournamentConfig {
-    guard FileManager.default.fileExists(atPath: productTournamentConfigURL.path) else {
-      return .empty
-    }
-    let data = try Data(contentsOf: productTournamentConfigURL)
-    guard !data.isEmpty else { return .empty }
-    return try JSONDecoder().decode(ProductTournamentConfig.self, from: data)
-  }
-
-  func readOrSeedProductTournamentConfig(
-    projectTitle: String,
-    rawPain: String,
-    now: Date = Date()
-  ) throws -> ProductTournamentConfig {
-    guard FileManager.default.fileExists(atPath: productTournamentConfigURL.path) else {
-      return ProductTournamentConfig.seedDefaults(
-        projectTitle: projectTitle,
-        rawPain: rawPain,
-        now: now
-      )
-    }
-    let config = try readProductTournamentConfig()
-    return config.isEmpty
-      ? ProductTournamentConfig.seedDefaults(projectTitle: projectTitle, rawPain: rawPain, now: now)
-      : config
-  }
-
-  func writeProductTournamentConfig(_ config: ProductTournamentConfig) throws {
-    try FileManager.default.createDirectory(at: compassURL, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(
-      at: productTournamentURL, withIntermediateDirectories: true)
-    try Self.encodeProductTournamentConfig(config).write(
-      to: productTournamentConfigURL,
-      atomically: true,
-      encoding: .utf8
-    )
-  }
-
-  @discardableResult
-  func applyDiscoverOutput(
-    _ output: DiscoverPromptOutput,
-    currentConfig: ProductTournamentConfig? = nil
-  ) throws -> ProductTournamentConfig {
-    let baseConfig = try currentConfig ?? readProductTournamentConfig()
-    let nextConfig = try output.validatedProductTournamentConfig(applyingTo: baseConfig)
-    try writeProductTournamentConfig(nextConfig)
-    return nextConfig
-  }
-
-  func readProductTournamentEvidenceIndex() -> ProductTournamentEvidenceIndex {
-    (try? productTournamentEvidenceStore.readIndex()) ?? .empty
-  }
-
-  func readProductTournamentEvidenceRecord(id: String) throws -> ProductTournamentEvidenceRecord {
-    try productTournamentEvidenceStore.readRecord(id: id)
-  }
-
-  func readProductTournamentPlanEvaluationRecord(
-    id: String
-  ) throws -> ProductTournamentPlanEvaluationRecord {
-    try productTournamentEvidenceStore.readPlanEvaluationRecord(id: id)
-  }
-
-  func readMarketPressureRecord(id: String) throws -> MarketPressureEvaluationRecord {
-    try productTournamentEvidenceStore.readMarketPressureRecord(id: id)
-  }
-
-  func readDistributionPressureRecord(id: String) throws -> DistributionPressureRecord {
-    try productTournamentEvidenceStore.readDistributionPressureRecord(id: id)
-  }
-
-  func readLifecycleRunRecord(id: String) throws -> LifecycleRunRecord {
-    try productTournamentEvidenceStore.readLifecycleRunRecord(id: id)
-  }
-
-  @discardableResult
-  func writeProductTournamentEvidenceRecord(
-    _ record: ProductTournamentEvidenceRecord,
-    traceJSON: String? = nil,
-    feedbackJSON: String? = nil,
-    transcriptJSONL: String? = nil,
-    summaryMarkdown: String? = nil
-  ) throws -> ProductTournamentEvidenceRecord {
-    try productTournamentEvidenceStore.writeRecord(
-      record,
-      traceJSON: traceJSON,
-      feedbackJSON: feedbackJSON,
-      transcriptJSONL: transcriptJSONL,
-      summaryMarkdown: summaryMarkdown
-    )
-  }
-
-  @discardableResult
-  func writeProductTournamentPlanEvaluationRecord(
-    _ record: ProductTournamentPlanEvaluationRecord,
-    summaryMarkdown: String? = nil
-  ) throws -> ProductTournamentPlanEvaluationRecord {
-    try productTournamentEvidenceStore.writePlanEvaluationRecord(
-      record,
-      summaryMarkdown: summaryMarkdown
-    )
-  }
-
-  @discardableResult
-  func writeMarketPressureRecord(
-    _ record: MarketPressureEvaluationRecord,
-    summaryMarkdown: String? = nil
-  ) throws -> MarketPressureEvaluationRecord {
-    try productTournamentEvidenceStore.writeMarketPressureRecord(
-      record,
-      summaryMarkdown: summaryMarkdown
-    )
-  }
-
-  @discardableResult
-  func writeDistributionPressureRecord(
-    _ record: DistributionPressureRecord,
-    summaryMarkdown: String? = nil
-  ) throws -> DistributionPressureRecord {
-    try productTournamentEvidenceStore.writeDistributionPressureRecord(
-      record,
-      summaryMarkdown: summaryMarkdown
-    )
-  }
-
-  @discardableResult
-  func writeLifecycleRunRecord(
-    _ record: LifecycleRunRecord,
-    summaryMarkdown: String? = nil
-  ) throws -> LifecycleRunRecord {
-    try productTournamentEvidenceStore.writeLifecycleRunRecord(
-      record,
-      summaryMarkdown: summaryMarkdown
-    )
   }
 
   func readSessions(includeArchived: Bool = false) -> [SessionRecord] {
@@ -536,13 +388,6 @@ struct CompassWorkspace {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(state)
-    return String(decoding: data, as: UTF8.self) + "\n"
-  }
-
-  static func encodeProductTournamentConfig(_ config: ProductTournamentConfig) throws -> String {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(config)
     return String(decoding: data, as: UTF8.self) + "\n"
   }
 

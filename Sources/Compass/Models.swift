@@ -717,7 +717,6 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     case feedback
     case repository
     case plan
-    case reflect
     case lesson
     case user
   }
@@ -819,13 +818,40 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
 }
 
 struct PlanStrategicContext: Codable, Equatable {
-  var thesis: String
-  var principles: [String]
+  var summary: String
+  var targetUsers: [String]
+  var desiredOutcomes: [String]
   var constraints: [String]
-  var nonGoals: [String]
-  var risks: [String]
+  var acceptanceSignals: [String]
+
+  var thesis: String {
+    get { summary }
+    set { summary = newValue.trimmingCharacters(in: .whitespacesAndNewlines) }
+  }
+
+  var principles: [String] {
+    get { desiredOutcomes }
+    set { desiredOutcomes = Self.cleaned(newValue) }
+  }
+
+  var nonGoals: [String] {
+    get { [] }
+    set { _ = newValue }
+  }
+
+  var risks: [String] {
+    get { acceptanceSignals }
+    set { acceptanceSignals = Self.cleaned(newValue) }
+  }
 
   enum CodingKeys: String, CodingKey {
+    case summary
+    case targetUsers
+    case targetUsersSnake = "target_users"
+    case desiredOutcomes
+    case desiredOutcomesSnake = "desired_outcomes"
+    case acceptanceSignals
+    case acceptanceSignalsSnake = "acceptance_signals"
     case thesis
     case principles
     case constraints
@@ -836,52 +862,69 @@ struct PlanStrategicContext: Codable, Equatable {
   }
 
   static let empty = PlanStrategicContext(
-    thesis: "",
-    principles: [],
+    summary: "",
+    targetUsers: [],
+    desiredOutcomes: [],
     constraints: [],
-    nonGoals: [],
-    risks: []
+    acceptanceSignals: []
   )
 
   init(
+    summary: String = "",
+    targetUsers: [String] = [],
+    desiredOutcomes: [String] = [],
+    constraints: [String] = [],
+    acceptanceSignals: [String] = [],
     thesis: String = "",
     principles: [String] = [],
-    constraints: [String] = [],
     nonGoals: [String] = [],
     risks: [String] = []
   ) {
-    self.thesis = thesis.trimmingCharacters(in: .whitespacesAndNewlines)
-    self.principles = Self.cleaned(principles)
+    self.summary =
+      (summary.nilIfEmpty ?? thesis).trimmingCharacters(in: .whitespacesAndNewlines)
+    self.targetUsers = Self.cleaned(targetUsers)
+    self.desiredOutcomes = Self.cleaned(desiredOutcomes.isEmpty ? principles : desiredOutcomes)
     self.constraints = Self.cleaned(constraints)
-    self.nonGoals = Self.cleaned(nonGoals)
-    self.risks = Self.cleaned(risks)
+    self.acceptanceSignals = Self.cleaned(acceptanceSignals.isEmpty ? risks : acceptanceSignals)
+    _ = nonGoals
   }
 
   init(from decoder: Decoder) throws {
     if let container = try? decoder.container(keyedBy: CodingKeys.self) {
-      let thesis =
-        try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .thesis) ?? ""
-      let principles =
-        try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: .principles)
-        ?? []
+      let summary =
+        try FlexibleModelDecoder.decodeStringIfPresent(
+          from: container,
+          preferredKey: .summary,
+          aliases: [.thesis]
+        ) ?? ""
+      let targetUsers =
+        try Self.decodeStringArrayIfPresent(
+          from: container,
+          preferredKey: .targetUsers,
+          aliases: [.targetUsersSnake]
+        ) ?? []
+      let desiredOutcomes =
+        try Self.decodeStringArrayIfPresent(
+          from: container,
+          preferredKey: .desiredOutcomes,
+          aliases: [.desiredOutcomesSnake, .principles]
+        ) ?? []
       let constraints =
         try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: .constraints)
         ?? []
-      let nonGoals =
+      let acceptanceSignals =
         try Self.decodeStringArrayIfPresent(
           from: container,
-          preferredKey: .nonGoals,
-          aliases: [.nonGoalsSnake, .nonGoalsKebab]
+          preferredKey: .acceptanceSignals,
+          aliases: [.acceptanceSignalsSnake, .risks]
         ) ?? []
-      let risks =
-        try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: .risks) ?? []
 
       self.init(
-        thesis: thesis,
-        principles: principles,
+        summary: summary,
+        targetUsers: targetUsers,
+        desiredOutcomes: desiredOutcomes,
         constraints: constraints,
-        nonGoals: nonGoals,
-        risks: risks
+        acceptanceSignals: acceptanceSignals
       )
       return
     }
@@ -897,42 +940,44 @@ struct PlanStrategicContext: Codable, Equatable {
 
   func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(thesis, forKey: .thesis)
-    try container.encode(principles, forKey: .principles)
+    try container.encode(summary, forKey: .summary)
+    try container.encode(targetUsers, forKey: .targetUsers)
+    try container.encode(desiredOutcomes, forKey: .desiredOutcomes)
     try container.encode(constraints, forKey: .constraints)
-    try container.encode(nonGoals, forKey: .nonGoals)
-    try container.encode(risks, forKey: .risks)
+    try container.encode(acceptanceSignals, forKey: .acceptanceSignals)
   }
 
   var digestLines: [String] {
     var lines: [String] = []
-    if !thesis.isEmpty {
-      lines.append("Thesis: \(thesis)")
+    if !summary.isEmpty {
+      lines.append("Summary: \(summary)")
     }
-    lines += principles.prefix(5).map { "Principle: \($0)" }
+    lines += targetUsers.prefix(5).map { "Target user: \($0)" }
+    lines += desiredOutcomes.prefix(5).map { "Outcome: \($0)" }
     lines += constraints.prefix(5).map { "Constraint: \($0)" }
-    lines += nonGoals.prefix(4).map { "Non-goal: \($0)" }
-    lines += risks.prefix(4).map { "Risk: \($0)" }
+    lines += acceptanceSignals.prefix(5).map { "Acceptance signal: \($0)" }
     return lines
   }
 
   var markdownSummary: String {
     var sections: [String] = []
-    if !thesis.isEmpty {
-      sections.append(thesis)
+    if !summary.isEmpty {
+      sections.append(summary)
     }
-    if !principles.isEmpty {
-      sections.append(principles.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
+    if !targetUsers.isEmpty {
+      sections.append("Target users:\n" + targetUsers.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
+    }
+    if !desiredOutcomes.isEmpty {
+      sections.append("Desired outcomes:\n" + desiredOutcomes.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
     }
     if !constraints.isEmpty {
       sections.append(
         "Constraints:\n" + constraints.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
     }
-    if !nonGoals.isEmpty {
-      sections.append("Non-goals:\n" + nonGoals.prefix(4).map { "- \($0)" }.joined(separator: "\n"))
-    }
-    if !risks.isEmpty {
-      sections.append("Risks:\n" + risks.prefix(4).map { "- \($0)" }.joined(separator: "\n"))
+    if !acceptanceSignals.isEmpty {
+      sections.append(
+        "Acceptance signals:\n"
+          + acceptanceSignals.prefix(5).map { "- \($0)" }.joined(separator: "\n"))
     }
     return sections.joined(separator: "\n\n")
   }
@@ -985,21 +1030,26 @@ extension String {
 }
 
 struct PlanState: Codable, Equatable {
+  var schemaVersion: Int
   var completed: [String]
   var immediate: PlanNext?
-  var candidates: [PlanCandidate]
-  var strategicContext: PlanStrategicContext
+  var queue: [PlanCandidate]
+  var brief: PlanStrategicContext
   var openQuestions: [PlanQuestion]
 
   static let empty = PlanState(
+    schemaVersion: 1,
     completed: [],
     immediate: nil,
-    candidates: [],
-    strategicContext: .empty,
+    queue: [],
+    brief: .empty,
     openQuestions: []
   )
 
   enum CodingKeys: String, CodingKey {
+    case schemaVersion
+    case brief
+    case queue
     case completed
     case immediate
     case candidates
@@ -1008,29 +1058,60 @@ struct PlanState: Codable, Equatable {
   }
 
   init(
+    schemaVersion: Int = 1,
     completed: [String],
     immediate: PlanNext?,
+    queue: [PlanCandidate]? = nil,
+    brief: PlanStrategicContext? = nil,
     candidates: [PlanCandidate] = [],
     strategicContext: PlanStrategicContext = .empty,
     openQuestions: [PlanQuestion] = []
   ) {
+    self.schemaVersion = max(1, schemaVersion)
     self.completed = completed
     self.immediate = immediate
-    self.candidates = candidates
-    self.strategicContext = strategicContext
+    self.queue = queue ?? candidates
+    self.brief = brief ?? strategicContext
     self.openQuestions = openQuestions
   }
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
+    schemaVersion = max(1, try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1)
     let completedValues =
       try container.decodeIfPresent([LossyString].self, forKey: .completed) ?? []
     completed = completedValues.compactMap(\.value)
     immediate = try container.decodeIfPresent(PlanNext.self, forKey: .immediate)
-    candidates = try container.decodeIfPresent([PlanCandidate].self, forKey: .candidates) ?? []
-    strategicContext =
-      try container.decodeIfPresent(PlanStrategicContext.self, forKey: .strategicContext) ?? .empty
+    queue =
+      try container.decodeIfPresent([PlanCandidate].self, forKey: .queue)
+      ?? container.decodeIfPresent([PlanCandidate].self, forKey: .candidates) ?? []
+    brief =
+      try container.decodeIfPresent(PlanStrategicContext.self, forKey: .brief)
+      ?? container.decodeIfPresent(PlanStrategicContext.self, forKey: .strategicContext) ?? .empty
     openQuestions = try container.decodeIfPresent([PlanQuestion].self, forKey: .openQuestions) ?? []
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(schemaVersion, forKey: .schemaVersion)
+    try container.encode(brief, forKey: .brief)
+    try container.encode(queue, forKey: .queue)
+    try container.encodeIfPresent(immediate, forKey: .immediate)
+    if immediate == nil {
+      try container.encodeNil(forKey: .immediate)
+    }
+    try container.encode(completed, forKey: .completed)
+    try container.encode(openQuestions, forKey: .openQuestions)
+  }
+
+  var candidates: [PlanCandidate] {
+    get { queue }
+    set { queue = newValue }
+  }
+
+  var strategicContext: PlanStrategicContext {
+    get { brief }
+    set { brief = newValue }
   }
 
   var candidatesMarkdown: String {
@@ -1061,6 +1142,12 @@ struct PlanState: Codable, Equatable {
     proposal.applying(to: self)
   }
 }
+
+typealias FactoryState = PlanState
+typealias FactoryBrief = PlanStrategicContext
+typealias FactoryWorkItem = PlanCandidate
+typealias FactoryImmediate = PlanNext
+typealias FactoryQuestion = PlanQuestion
 
 struct LessonEdit: Codable, Equatable {
   var find: String
@@ -1239,7 +1326,6 @@ extension FlexibleModelDecoder {
 struct PlanRunResult: Codable, Equatable {
   var state: PlanProposal
   var lessonEdits: [LessonEdit]
-  var pmfProofAction: PMFProofActionMetadata?
 
   enum CodingKeys: String, CodingKey {
     case state
@@ -1252,18 +1338,14 @@ struct PlanRunResult: Codable, Equatable {
     case proposal
     case lessonEdits
     case lessonEditsSnake = "lesson_edits"
-    case pmfProofAction
-    case pmfProofActionSnake = "pmf_proof_action"
   }
 
   init(
     state: PlanProposal,
-    lessonEdits: [LessonEdit] = [],
-    pmfProofAction: PMFProofActionMetadata? = nil
+    lessonEdits: [LessonEdit] = []
   ) {
     self.state = state
     self.lessonEdits = lessonEdits
-    self.pmfProofAction = pmfProofAction
   }
 
   init(from decoder: Decoder) throws {
@@ -1280,19 +1362,12 @@ struct PlanRunResult: Codable, Equatable {
         preferredKey: .lessonEdits,
         aliases: [.lessonEditsSnake]
       ) ?? []
-    pmfProofAction =
-      try Self.decodeOptionalProofAction(
-        from: container,
-        preferredKey: .pmfProofAction,
-        aliases: [.pmfProofActionSnake]
-      )
   }
 
   func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(state, forKey: .state)
     try container.encode(lessonEdits, forKey: .lessonEdits)
-    try container.encodeIfPresent(pmfProofAction, forKey: .pmfProofAction)
   }
 
   private static func decodeRequiredPlanProposal(
@@ -1333,16 +1408,6 @@ struct PlanRunResult: Codable, Equatable {
     )
   }
 
-  private static func decodeOptionalProofAction(
-    from container: KeyedDecodingContainer<CodingKeys>,
-    preferredKey: CodingKeys,
-    aliases: [CodingKeys]
-  ) throws -> PMFProofActionMetadata? {
-    for key in [preferredKey] + aliases where container.contains(key) {
-      return try container.decodeIfPresent(PMFProofActionMetadata.self, forKey: key)
-    }
-    return nil
-  }
 }
 
 private struct LossyString: Decodable {
@@ -1351,150 +1416,6 @@ private struct LossyString: Decodable {
   init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
     value = try? container.decode(String.self)
-  }
-}
-
-struct ReflectSummary: Codable, Equatable {
-  var state: PlanProposal?
-  var summary: String
-  var lessonEdits: [LessonEdit]
-  var tournamentDecisionUpdates: [ProductTournamentReflectDecisionUpdate]
-  var pmfProofOutcome: PMFProofOutcomeMetadata?
-
-  enum CodingKeys: String, CodingKey {
-    case state
-    case planState
-    // swift-format-ignore: AlwaysUseLowerCamelCase
-    case plan_state
-    case planningState
-    // swift-format-ignore: AlwaysUseLowerCamelCase
-    case planning_state
-    case proposal
-    case summary
-    case reflection
-    case result
-    case outcome
-    case details
-    case notes
-    case lessonEdits
-    case lessonEditsSnake = "lesson_edits"
-    case tournamentDecisionUpdates
-    case tournamentDecisionUpdatesSnake = "tournament_decision_updates"
-    case pmfProofOutcome
-    case pmfProofOutcomeSnake = "pmf_proof_outcome"
-  }
-
-  init(
-    state: PlanProposal?,
-    summary: String,
-    lessonEdits: [LessonEdit] = [],
-    tournamentDecisionUpdates: [ProductTournamentReflectDecisionUpdate] = [],
-    pmfProofOutcome: PMFProofOutcomeMetadata? = nil
-  ) {
-    self.state = state
-    self.summary = summary
-    self.lessonEdits = lessonEdits
-    self.tournamentDecisionUpdates = tournamentDecisionUpdates
-    self.pmfProofOutcome = pmfProofOutcome
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    state = try Self.decodeOptionalPlanProposal(
-      from: container,
-      preferredKey: .state,
-      aliases: [.planState, .plan_state, .planningState, .planning_state, .proposal]
-    )
-    summary = try FlexibleModelDecoder.decodeRequiredString(
-      from: container,
-      preferredKey: .summary,
-      aliases: [.reflection, .result, .outcome, .details, .notes],
-      fieldName: "summary"
-    )
-    lessonEdits =
-      try FlexibleModelDecoder.decodeLessonEditsIfPresent(
-        from: container,
-        preferredKey: .lessonEdits,
-        aliases: [.lessonEditsSnake]
-      ) ?? []
-    tournamentDecisionUpdates =
-      try Self.decodeTournamentDecisionUpdates(
-        from: container,
-        preferredKey: .tournamentDecisionUpdates,
-        aliases: [.tournamentDecisionUpdatesSnake]
-      ) ?? []
-    pmfProofOutcome =
-      try Self.decodeOptionalProofOutcome(
-        from: container,
-        preferredKey: .pmfProofOutcome,
-        aliases: [.pmfProofOutcomeSnake]
-      )
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encodeIfPresent(state, forKey: .state)
-    if state == nil {
-      try container.encodeNil(forKey: .state)
-    }
-    try container.encode(summary, forKey: .summary)
-    try container.encode(lessonEdits, forKey: .lessonEdits)
-    try container.encode(tournamentDecisionUpdates, forKey: .tournamentDecisionUpdates)
-    try container.encodeIfPresent(pmfProofOutcome, forKey: .pmfProofOutcome)
-  }
-
-  private static func decodeOptionalPlanProposal(
-    from container: KeyedDecodingContainer<CodingKeys>,
-    preferredKey: CodingKeys,
-    aliases: [CodingKeys]
-  ) throws -> PlanProposal? {
-    var firstTypeError: Error?
-    for key in [preferredKey] + aliases where container.contains(key) {
-      do {
-        if let state = try container.decodeIfPresent(PlanProposal.self, forKey: key) {
-          return state
-        }
-      } catch {
-        firstTypeError = firstTypeError ?? error
-      }
-    }
-    if let firstTypeError {
-      throw firstTypeError
-    }
-    return nil
-  }
-
-  private static func decodeOptionalProofOutcome(
-    from container: KeyedDecodingContainer<CodingKeys>,
-    preferredKey: CodingKeys,
-    aliases: [CodingKeys]
-  ) throws -> PMFProofOutcomeMetadata? {
-    for key in [preferredKey] + aliases where container.contains(key) {
-      return try container.decodeIfPresent(PMFProofOutcomeMetadata.self, forKey: key)
-    }
-    return nil
-  }
-
-  private static func decodeTournamentDecisionUpdates(
-    from container: KeyedDecodingContainer<CodingKeys>,
-    preferredKey: CodingKeys,
-    aliases: [CodingKeys]
-  ) throws -> [ProductTournamentReflectDecisionUpdate]? {
-    var firstTypeError: Error?
-    for key in [preferredKey] + aliases where container.contains(key) {
-      do {
-        return try container.decodeIfPresent(
-          [ProductTournamentReflectDecisionUpdate].self,
-          forKey: key
-        )
-      } catch {
-        firstTypeError = firstTypeError ?? error
-      }
-    }
-    if let firstTypeError {
-      throw firstTypeError
-    }
-    return nil
   }
 }
 
@@ -1951,15 +1872,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
   var verifyOutput: VerifyOutput?
   var feedback: String?
   var executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot]
-  var tournamentExperimentID: String?
-  var tournamentContenderPlanID: String?
-  var tournamentPainID: String?
-  var tournamentExperimentBranchName: String?
-  var tournamentExperimentCommitSha: String?
-  var tournamentExperimentBeforeSha: String?
-  var tournamentExperimentAfterSha: String?
-  var tournamentEvidenceRunIDs: [String]
-  var tournamentDecision: ProductTournamentExperimentDecision?
   var tokenSummary: SessionTokenSummary
 
   static func started(_ number: Int) -> SessionRecord {
@@ -1977,15 +1889,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       verifyOutput: nil,
       feedback: nil,
       executionEnvironmentSnapshots: [],
-      tournamentExperimentID: nil,
-      tournamentContenderPlanID: nil,
-      tournamentPainID: nil,
-      tournamentExperimentBranchName: nil,
-      tournamentExperimentCommitSha: nil,
-      tournamentExperimentBeforeSha: nil,
-      tournamentExperimentAfterSha: nil,
-      tournamentEvidenceRunIDs: [],
-      tournamentDecision: nil,
       tokenSummary: SessionTokenSummary()
     )
   }
@@ -2006,15 +1909,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     case verifyOutput
     case feedback
     case executionEnvironmentSnapshots
-    case tournamentExperimentID
-    case tournamentContenderPlanID
-    case tournamentPainID
-    case tournamentExperimentBranchName
-    case tournamentExperimentCommitSha
-    case tournamentExperimentBeforeSha
-    case tournamentExperimentAfterSha
-    case tournamentEvidenceRunIDs
-    case tournamentDecision
     case tokenSummary
   }
 
@@ -2032,15 +1926,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     verifyOutput: VerifyOutput?,
     feedback: String?,
     executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = [],
-    tournamentExperimentID: String? = nil,
-    tournamentContenderPlanID: String? = nil,
-    tournamentPainID: String? = nil,
-    tournamentExperimentBranchName: String? = nil,
-    tournamentExperimentCommitSha: String? = nil,
-    tournamentExperimentBeforeSha: String? = nil,
-    tournamentExperimentAfterSha: String? = nil,
-    tournamentEvidenceRunIDs: [String] = [],
-    tournamentDecision: ProductTournamentExperimentDecision? = nil,
     tokenSummary: SessionTokenSummary = SessionTokenSummary()
   ) {
     self.session = session
@@ -2058,40 +1943,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     self.executionEnvironmentSnapshots = Self.normalizedExecutionEnvironmentSnapshots(
       executionEnvironmentSnapshots
     )
-    self.tournamentExperimentID = Self.normalizedOptionalProductTournamentField(
-      tournamentExperimentID,
-      limit: 120
-    )
-    self.tournamentContenderPlanID = Self.normalizedOptionalProductTournamentField(
-      tournamentContenderPlanID,
-      limit: 120
-    )
-    self.tournamentPainID = Self.normalizedOptionalProductTournamentField(
-      tournamentPainID,
-      limit: 120
-    )
-    self.tournamentExperimentBranchName = Self.normalizedOptionalProductTournamentField(
-      tournamentExperimentBranchName,
-      limit: 240
-    )
-    self.tournamentExperimentCommitSha = Self.normalizedOptionalProductTournamentField(
-      tournamentExperimentCommitSha,
-      limit: 80
-    )
-    self.tournamentExperimentBeforeSha = Self.normalizedOptionalProductTournamentField(
-      tournamentExperimentBeforeSha,
-      limit: 80
-    )
-    self.tournamentExperimentAfterSha = Self.normalizedOptionalProductTournamentField(
-      tournamentExperimentAfterSha,
-      limit: 80
-    )
-    self.tournamentEvidenceRunIDs = Self.normalizedProductTournamentFields(
-      tournamentEvidenceRunIDs,
-      limit: 120,
-      maxCount: 20
-    )
-    self.tournamentDecision = tournamentDecision
     self.tokenSummary = tokenSummary
   }
 
@@ -2115,43 +1966,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         forKey: .executionEnvironmentSnapshots
       ) ?? []
     )
-    tournamentExperimentID = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .tournamentExperimentID),
-      limit: 120
-    )
-    tournamentContenderPlanID = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .tournamentContenderPlanID),
-      limit: 120
-    )
-    tournamentPainID = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .tournamentPainID),
-      limit: 120
-    )
-    tournamentExperimentBranchName = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .tournamentExperimentBranchName),
-      limit: 240
-    )
-    tournamentExperimentCommitSha = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .tournamentExperimentCommitSha),
-      limit: 80
-    )
-    tournamentExperimentBeforeSha = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .tournamentExperimentBeforeSha),
-      limit: 80
-    )
-    tournamentExperimentAfterSha = Self.normalizedOptionalProductTournamentField(
-      try container.decodeIfPresent(String.self, forKey: .tournamentExperimentAfterSha),
-      limit: 80
-    )
-    tournamentEvidenceRunIDs = Self.normalizedProductTournamentFields(
-      try container.decodeIfPresent([String].self, forKey: .tournamentEvidenceRunIDs) ?? [],
-      limit: 120,
-      maxCount: 20
-    )
-    tournamentDecision = try container.decodeIfPresent(
-      ProductTournamentExperimentDecision.self,
-      forKey: .tournamentDecision
-    )
     tokenSummary =
       try container.decodeIfPresent(SessionTokenSummary.self, forKey: .tokenSummary)
       ?? SessionTokenSummary()
@@ -2174,32 +1988,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     if !executionEnvironmentSnapshots.isEmpty {
       try container.encode(executionEnvironmentSnapshots, forKey: .executionEnvironmentSnapshots)
     }
-    try container.encodeIfPresent(tournamentExperimentID, forKey: .tournamentExperimentID)
-    try container.encodeIfPresent(
-      tournamentContenderPlanID,
-      forKey: .tournamentContenderPlanID
-    )
-    try container.encodeIfPresent(tournamentPainID, forKey: .tournamentPainID)
-    try container.encodeIfPresent(
-      tournamentExperimentBranchName,
-      forKey: .tournamentExperimentBranchName
-    )
-    try container.encodeIfPresent(
-      tournamentExperimentCommitSha,
-      forKey: .tournamentExperimentCommitSha
-    )
-    try container.encodeIfPresent(
-      tournamentExperimentBeforeSha,
-      forKey: .tournamentExperimentBeforeSha
-    )
-    try container.encodeIfPresent(
-      tournamentExperimentAfterSha,
-      forKey: .tournamentExperimentAfterSha
-    )
-    if !tournamentEvidenceRunIDs.isEmpty {
-      try container.encode(tournamentEvidenceRunIDs, forKey: .tournamentEvidenceRunIDs)
-    }
-    try container.encodeIfPresent(tournamentDecision, forKey: .tournamentDecision)
     if !tokenSummary.isEmpty {
       try container.encode(tokenSummary, forKey: .tokenSummary)
     }
@@ -2238,28 +2026,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     }
   }
 
-  private static func normalizedOptionalProductTournamentField(_ value: String?, limit: Int)
-    -> String?
-  {
-    let bounded = StringUtils.boundedText(value ?? "", limit: limit)
-    return bounded.isEmpty ? nil : bounded
-  }
-
-  private static func normalizedProductTournamentFields(
-    _ values: [String],
-    limit: Int,
-    maxCount: Int
-  ) -> [String] {
-    var seen = Set<String>()
-    var result: [String] = []
-    for value in values {
-      let bounded = StringUtils.boundedText(value, limit: limit)
-      guard !bounded.isEmpty, seen.insert(bounded).inserted else { continue }
-      result.append(bounded)
-      if result.count >= maxCount { break }
-    }
-    return result
-  }
 }
 
 struct DevelopSummary: Codable, Equatable {

@@ -10,23 +10,19 @@ import Foundation
 /// for Explore popovers, `CommitNarrator` is optimised for compact display
 /// where only one sentence of context is appropriate.
 ///
-/// ## Foundation Models boundary
+/// ## Generated narration boundary
 ///
 /// The ``narrate(commit:diff:)`` method is gated ``@available(macOS 26.0, *)``
-/// and streams directly to Foundation Models with a single-sentence prompt
-/// template. Returns `nil` when Foundation Models is unavailable or
+/// and streams through the narration shim with a single-sentence prompt
+/// template. Returns `nil` when generated narration is unavailable or
 /// produces no content.
-
-#if canImport(FoundationModels)
-  import FoundationModels
-#endif
 
 /// Narrates a single commit as one plain-English sentence.
 ///
 /// Distinct from ``CommitExplainer/summarize(diff:)`` which produces ~3 sentences
 /// and requires the caller to compute the diff separately.
 ///
-/// Returns `nil` when Foundation Models is unavailable or produces no content.
+/// Returns `nil` when generated narration is unavailable or produces no content.
 @available(macOS 26.0, *)
 enum CommitNarrator {
   /// Narrates a single commit as one plain-English sentence.
@@ -34,7 +30,7 @@ enum CommitNarrator {
   /// The returned string is a single concise sentence suitable for use in
   /// notification banners, inline commit-list labels, or tour step headers.
   ///
-  /// Returns `nil` when Foundation Models is unavailable or produces no content.
+  /// Returns `nil` when generated narration is unavailable or produces no content.
   static func narrate(commit: SessionCommit, diff: String) async -> String? {
     let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }

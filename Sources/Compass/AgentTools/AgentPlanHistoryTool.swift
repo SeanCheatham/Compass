@@ -2,7 +2,7 @@ import Foundation
 
 /// Read-only access to Compass-managed completed plan history. The history
 /// lives in host-side state and is injected into the tool context — agents
-/// cannot mutate it through submit_result.
+/// cannot mutate it through Plan submit.
 struct AgentPlanHistoryTool: AgentTool {
   static let toolName = "plan_history"
 

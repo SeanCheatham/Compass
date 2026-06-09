@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Critic phase submit_result payload. Approve when the diff is fit to land; request changes only with a concrete fix.",
+  "description": "Critic phase submit payload. Approve when the diff is fit to land; request changes only with a concrete fix.",
   "additionalProperties": false,
   "required": ["verdict", "summary", "feedback"],
   "properties": {

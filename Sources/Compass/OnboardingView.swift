@@ -10,20 +10,20 @@ import Virtualization
 struct OnboardingView: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject private var vmHost: SharedCompassVM = .shared
+  @ObservedObject private var localModelManager = LocalModelManager.shared
   @State private var readinessNarration: OnboardingReadinessGuideNarration?
 
   var body: some View {
-    let foundationModelsAvailable = FoundationModelsAvailability.isAvailable
     let readinessGuide = OnboardingReadinessGuide(
       settings: model.agentSettings,
       vmReadiness: vmHost.readiness,
-      foundationModelsAvailable: foundationModelsAvailable
+      modelSnapshot: localModelManager.snapshot
     )
     let setupPayload = OnboardingSetupClipboardPayload(
       guide: readinessGuide,
       settings: model.agentSettings,
       vmReadiness: vmHost.readiness,
-      foundationModelsAvailable: foundationModelsAvailable
+      modelSnapshot: localModelManager.snapshot
     )
 
     ScrollView {
@@ -39,16 +39,12 @@ struct OnboardingView: View {
         )
         OnboardingStep(
           number: 1,
-          title: "Choose a Text provider",
+          title: "Download the local model",
           description:
-            "Compass can use Apple Intelligence on this Mac with no API key. You can also choose a cloud Text provider like MiniMax Token or OpenAI API from Settings.",
+            "Compass uses one approved MLX model on this Mac with no API key or hosted model provider.",
           isComplete: textProviderConfigured
         ) {
-          if model.agentSettings.textProvider.requiresCredentials {
-            APIKeyStepBody()
-          } else {
-            FoundationModelsStepBody(isAvailable: foundationModelsAvailable)
-          }
+          LocalModelStepBody()
         }
         OnboardingStep(
           number: 2,
@@ -79,9 +75,8 @@ struct OnboardingView: View {
   }
 
   /// Surfaces `AppModel.errorMessage` while the user is gated by onboarding.
-  /// Without this, a failed write to the secrets file (permissions, full
-  /// disk) silently zeroed the API key field on every paste, so the user
-  /// couldn't tell why the field kept "clearing".
+  /// Without this, setup failures can look like a locked run button with no
+  /// explanation.
   private func onboardingErrorBanner(message: String) -> some View {
     HStack(alignment: .top, spacing: 10) {
       Image(systemName: "exclamationmark.triangle.fill")
@@ -153,11 +148,7 @@ struct OnboardingView: View {
   }
 
   private var textProviderBlockerText: String {
-    if model.agentSettings.textProvider == .appleFoundationModels {
-      return
-        "Apple Intelligence is unavailable; switch Text provider in Settings."
-    }
-    return "Add an API key for \(model.agentSettings.textProvider.displayName)."
+    "Download the blessed MLX model in Settings."
   }
 
   /// After provisioning lands at `.guestPrepping`, we need to kick the
@@ -377,148 +368,49 @@ private struct OnboardingStep<Content: View>: View {
   }
 }
 
-// MARK: - API key step
+// MARK: - Local model step
 
-private struct APIKeyStepBody: View {
-  @EnvironmentObject private var model: AppModel
-  /// Local mirror of the API key. SwiftUI's `SecureField` on macOS wraps
-  /// `NSSecureTextField`, whose `stringValue` is intentionally unreadable
-  /// for security. Paste/typing events don't always round-trip the bound
-  /// value cleanly, and submit (Return / focus loss) sometimes re-fires
-  /// the setter with an empty string. We hold the typed value here and
-  /// only push to the model on real, non-empty changes — plus expose an
-  /// explicit Save button so the user always has a deterministic way to
-  /// commit the field even if SwiftUI's auto-propagation misses a paste.
-  @State private var apiKey: String = ""
-  @State private var baseURL: String = ""
-
-  private var apiKeyMatchesModel: Bool {
-    apiKey == model.agentSettings.apiKey
-  }
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Base URL")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
-        TextField("Base URL", text: $baseURL)
-          .textFieldStyle(.roundedBorder)
-          .help(
-            "Chat API endpoint for this provider. Default: \(AgentRuntimeSettings.defaultBaseURLString)"
-          )
-          .onChange(of: baseURL) { _, newValue in
-            guard newValue != model.agentSettings.baseURL.absoluteString else { return }
-            model.setAgentBaseURL(newValue)
-          }
-      }
-
-      VStack(alignment: .leading, spacing: 4) {
-        Text("API key")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
-        HStack(spacing: 8) {
-          // Deliberately a plain TextField, not a SecureField:
-          // macOS `NSSecureTextField` keeps pasted text in an
-          // internal secure buffer that SwiftUI's binding can't
-          // reread, so pastes silently failed to reach the model
-          // (the field showed dots, but `@State apiKey` stayed
-          // empty and Save had nothing to commit). Onboarding is
-          // a one-shot, gated flow — once the key is saved the
-          // gate unlocks and this field is gone — so showing it
-          // in plaintext during entry is an acceptable trade
-          // for entering it correctly the first time. Settings
-          // (⌘,) keeps the SecureField for ongoing edits.
-          TextField("sk-…", text: $apiKey)
-            .textFieldStyle(.roundedBorder)
-            .help("Stored in a 0600 file under ~/Library/Application Support/Compass.")
-            .onSubmit {
-              commitAPIKey()
-            }
-            .onChange(of: apiKey) { _, newValue in
-              guard !newValue.isEmpty else { return }
-              guard newValue != model.agentSettings.apiKey else { return }
-              model.setAgentAPIKey(newValue)
-            }
-          Button("Save") {
-            commitAPIKey()
-          }
-          .disabled(apiKey.isEmpty || apiKeyMatchesModel)
-          .keyboardShortcut(.defaultAction)
-        }
-        if !apiKey.isEmpty && !apiKeyMatchesModel {
-          Text("Click Save (or press Return) to store this key.")
-            .font(.caption)
-            .foregroundStyle(.orange)
-        }
-      }
-
-      Text(
-        "Visible while you enter it, then stored in a 0600 file under ~/Library/Application Support/Compass. Change later from Compass → Settings… (⌘,)."
-      )
-      .font(.caption)
-      .foregroundStyle(.secondary)
-    }
-    .onAppear {
-      apiKey = model.agentSettings.apiKey
-      baseURL = model.agentSettings.baseURL.absoluteString
-    }
-    // If something else updates the model (env-var fallback, Settings
-    // window, etc.) while onboarding is visible, refresh the local
-    // mirrors so they don't drift out of sync.
-    .onChange(of: model.agentSettings.apiKey) { _, newValue in
-      if apiKey != newValue { apiKey = newValue }
-    }
-    .onChange(of: model.agentSettings.baseURL.absoluteString) { _, newValue in
-      if baseURL != newValue { baseURL = newValue }
-    }
-  }
-
-  private func commitAPIKey() {
-    guard !apiKey.isEmpty else { return }
-    guard apiKey != model.agentSettings.apiKey else { return }
-    model.setAgentAPIKey(apiKey)
-  }
-}
-
-// MARK: - Foundation Models step
-
-/// Replaces the API-key field when the Text capability is wired to
-/// Apple's on-device Foundation Models. There is nothing for the
-/// user to enter — selecting a different provider happens via the
-/// Settings screen — so this just confirms the default and points
-/// at where to switch.
-private struct FoundationModelsStepBody: View {
-  var isAvailable: Bool
+private struct LocalModelStepBody: View {
+  @ObservedObject private var localModelManager = LocalModelManager.shared
 
   var body: some View {
     HStack(alignment: .top, spacing: 10) {
-      Image(systemName: isAvailable ? "cpu" : "exclamationmark.triangle.fill")
-        .foregroundStyle(isAvailable ? Color.accentColor : .orange)
+      Image(systemName: localModelManager.snapshot.isRunnable ? "cpu" : "arrow.down.circle")
+        .foregroundStyle(localModelManager.snapshot.isRunnable ? Color.accentColor : .orange)
         .padding(.top, 2)
       VStack(alignment: .leading, spacing: 4) {
-        Text(isAvailable ? "Using Apple Intelligence" : "Apple Intelligence unavailable")
+        Text(localModelManager.snapshot.isRunnable ? "MLX model ready" : "MLX model missing")
           .font(.callout.weight(.semibold))
-        if isAvailable {
-          Text(
-            "Runs on this Mac with no API key. Switch to MiniMax Token or OpenAI API in Settings (⌘,) if you want Text to use a cloud provider."
-          )
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
-        } else {
-          Text(
-            "The on-device Text provider cannot run on this Mac right now. Choose MiniMax Token or OpenAI API in Settings, or enable Apple Intelligence if supported."
-          )
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
+        Text(
+          "\(localModelManager.snapshot.modelID) is \(localModelManager.snapshot.statusLabel.lowercased())."
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        HStack {
+          Button {
+            localModelManager.downloadBlessedModel()
+          } label: {
+            Label("Download", systemImage: "arrow.down.circle")
+          }
+          .disabled(localModelManager.isDownloadActive || localModelManager.snapshot.isRunnable)
+
+          Button {
+            localModelManager.cancelDownload()
+          } label: {
+            Label("Cancel", systemImage: "xmark.circle")
+          }
+          .disabled(!localModelManager.isDownloadActive)
+
           SettingsLink {
-            Label("Open Text Provider Settings", systemImage: "gearshape")
+            Label("Runtime Settings", systemImage: "gearshape")
           }
         }
       }
       Spacer()
+    }
+    .onAppear {
+      localModelManager.refresh()
     }
   }
 }

@@ -164,9 +164,6 @@ struct CodemapIndexer: Sendable {
       summaryModel: existing?.summaryContentHash == contentHash ? existing?.summaryModel : nil,
       summaryContentHash: existing?.summaryContentHash == contentHash
         ? existing?.summaryContentHash : nil,
-      docBlurb: language == .rust
-        ? RustDocCommentScanner.blurb(for: extraction.symbols, source: source)
-        : existing?.docBlurb,
       isGenerated: existing?.isGenerated ?? false
     )
     do {

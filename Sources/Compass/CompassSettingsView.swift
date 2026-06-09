@@ -6,25 +6,26 @@ struct CompassSettingsView: View {
   var body: some View {
     AgentSettingsTab()
       .environmentObject(model)
-    .frame(minWidth: 580, minHeight: 520)
+      .frame(minWidth: 580, minHeight: 420)
   }
 }
 
-// MARK: - Agent tab
-
 private struct AgentSettingsTab: View {
   @EnvironmentObject var model: AppModel
+  @ObservedObject private var localModelManager = LocalModelManager.shared
   @State private var settingsNarration: AgentSettingsGuideNarration?
+  @AppStorage(AgentSettingsStore.Key.contextWindowTokens.rawValue)
+  private var contextWindowTokens = "\(AgentRuntimeSettings.defaultContextWindowTokens)"
 
   var body: some View {
     let settingsGuide = AgentSettingsGuide(
       settings: model.agentSettings,
-      foundationModelsAvailable: FoundationModelsAvailability.isAvailable
+      modelSnapshot: localModelManager.snapshot
     )
     let settingsPayload = AgentSettingsClipboardPayload(
       settings: model.agentSettings,
       guide: settingsGuide,
-      foundationModelsAvailable: FoundationModelsAvailability.isAvailable
+      modelSnapshot: localModelManager.snapshot
     )
 
     Form {
@@ -36,20 +37,65 @@ private struct AgentSettingsTab: View {
         )
       }
 
-      ForEach(AgentCapability.allCases, id: \.self) { capability in
-        capabilitySection(for: capability)
+      Section(header: Label("Local Model", systemImage: "cpu")) {
+        LabeledContent("Runtime", value: localModelManager.snapshot.runtimeName)
+        LabeledContent("Model", value: localModelManager.snapshot.modelID)
+        LabeledContent("Status", value: localModelManager.snapshot.statusLabel)
+        LabeledContent("Storage", value: localModelManager.snapshot.directory.path)
+          .textSelection(.enabled)
+        LabeledContent("Credentials", value: "Not required")
+        LabeledContent("Network calls", value: "Only approved model download")
+
+        if let error = localModelManager.snapshot.errorMessage {
+          Text(error)
+            .font(.caption)
+            .foregroundStyle(.red)
+        }
+
+        HStack {
+          Button("Download") {
+            localModelManager.downloadBlessedModel()
+          }
+          .disabled(localModelManager.isDownloadActive || localModelManager.snapshot.status == .loaded)
+
+          Button("Cancel") {
+            localModelManager.cancelDownload()
+          }
+          .disabled(!localModelManager.isDownloadActive)
+
+          Button("Delete", role: .destructive) {
+            localModelManager.deleteBlessedModel()
+          }
+          .disabled(localModelManager.isDownloadActive || localModelManager.snapshot.status == .missing)
+
+          Button("Open Model Folder") {
+            localModelManager.openModelFolder()
+          }
+        }
       }
 
-      Section {
-        Text(
-          "Settings persist per (capability, provider) cell — switching providers preserves each cell's key and models. Environment variables `COMPASS_AGENT_BASE_URL`, `COMPASS_AGENT_API_KEY`, and `COMPASS_AGENT_MODEL[_PLAN/_DEV/_REFLECT/_CRITIC]` seed the active Text provider's fields when empty."
-        )
-        .font(.callout)
-        .foregroundStyle(.secondary)
+      Section(header: Label("Local Execution", systemImage: "cpu")) {
+        TextField("Context window tokens", text: $contextWindowTokens)
+          .textFieldStyle(.roundedBorder)
+          .onSubmit {
+            normalizeContextWindow()
+          }
+          .help("Used as the local planning budget for MLX prompts.")
+
+        Text("Compass uses deterministic tools for files, shell commands, verification, and state updates. The model is only asked for narrow decomposition, implementation text, and review.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
       }
     }
     .formStyle(.grouped)
     .padding()
+    .onAppear {
+      localModelManager.refresh()
+      contextWindowTokens = "\(model.agentSettings.contextWindowTokens)"
+    }
+    .onChange(of: contextWindowTokens) { _, _ in
+      normalizeContextWindow()
+    }
     .task(id: settingsGuide.narrationIdentifier) {
       settingsNarration = nil
       settingsNarration = await AgentSettingsGuideNarrator.narrate(guide: settingsGuide)
@@ -65,252 +111,15 @@ private struct AgentSettingsTab: View {
     return settingsNarration
   }
 
-  @ViewBuilder
-  private func capabilitySection(for capability: AgentCapability) -> some View {
-    Section(header: Label(capability.displayName, systemImage: capability.systemImageName)) {
-      providerPicker(for: capability)
-      if let provider = model.agentSettings.selectedProvider(for: capability),
-        provider.requiresCredentials
-      {
-        cellCredentialsFields(capability: capability, provider: provider)
-        cellModelFields(capability: capability, provider: provider)
-      } else if let provider = model.agentSettings.selectedProvider(for: capability),
-        !provider.requiresCredentials
-      {
-        Text(onDeviceHint(for: provider))
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
-    }
-  }
-
-  @ViewBuilder
-  private func providerPicker(for capability: AgentCapability) -> some View {
-    let options = providerOptions(for: capability)
-    Picker(
-      "Provider",
-      selection: Binding(
-        get: { model.agentSettings.selectedProvider(for: capability) },
-        set: { model.setProvider($0, for: capability) }
-      )
-    ) {
-      ForEach(options, id: \.tagID) { option in
-        Text(option.label).tag(option.provider as AgentProviderKind?)
-      }
-    }
-    .pickerStyle(.menu)
-  }
-
-  @ViewBuilder
-  private func cellCredentialsFields(
-    capability: AgentCapability, provider: AgentProviderKind
-  ) -> some View {
-    TextField(
-      "Base URL",
-      text: Binding(
-        get: { model.agentSettings.baseURLString(for: capability, provider: provider) },
-        set: { model.setCellBaseURL($0, capability: capability, provider: provider) }
-      )
-    )
-    .textFieldStyle(.roundedBorder)
-    .help(
-      "OpenAI-compatible endpoint for \(provider.displayName). Default: \(provider.defaultBaseURLString ?? "—")"
-    )
-
-    SecureField(
-      "API key",
-      text: Binding(
-        get: { model.agentSettings.apiKey(for: capability, provider: provider) },
-        set: { model.setCellAPIKey($0, capability: capability, provider: provider) }
-      )
-    )
-    .textFieldStyle(.roundedBorder)
-    .help(
-      "Stored in a 0600 file under ~/Library/Application Support/Compass, scoped to this \(capability.displayName) + \(provider.displayName) cell."
-    )
-  }
-
-  @ViewBuilder
-  private func cellModelFields(
-    capability: AgentCapability, provider: AgentProviderKind
-  ) -> some View {
-    if provider.usesModelField(for: capability) {
-      if capability == .text, provider == .minimaxToken {
-        minimaxVersionPicker()
-      } else {
-        let placeholder = provider.defaultModel(for: capability) ?? "—"
-        TextField(
-          "\(capability == .text ? "Default model" : "\(capability.displayName) model")",
-          text: Binding(
-            get: { model.agentSettings.model(for: capability, provider: provider) },
-            set: { model.setCellModel($0, capability: capability, provider: provider) }
-          )
-        )
-        .textFieldStyle(.roundedBorder)
-        .help("Default for \(provider.displayName): \(placeholder)")
-      }
-    } else {
-      Text("\(provider.displayName) uses a fixed \(capability.displayName) service endpoint.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-    }
-
-    if capability == .text {
-      ForEach(AgentPhase.allCases, id: \.self) { phase in
-        phaseModelField(phase, provider: provider)
-      }
-    }
-  }
-
-  @ViewBuilder
-  private func minimaxVersionPicker() -> some View {
-    Picker(
-      "MiniMax version",
-      selection: Binding(
-        get: {
-          MiniMaxTextModelVersion(modelIdentifier: model.agentSettings.model)
-            ?? MiniMaxTextModelVersion.default
-        },
-        set: { version in
-          model.setCellModel(
-            version.modelIdentifier,
-            capability: .text,
-            provider: .minimaxToken
-          )
-        }
-      )
-    ) {
-      ForEach(MiniMaxTextModelVersion.allCases) { version in
-        Text(version.displayName).tag(version)
-      }
-    }
-    .pickerStyle(.menu)
-    .help("Selects the MiniMax text model and matching context window.")
-  }
-
-  @ViewBuilder
-  private func phaseModelField(_ phase: AgentPhase, provider: AgentProviderKind) -> some View {
-    if provider == .minimaxToken {
-      minimaxPhaseModelPicker(phase)
-    } else {
-      TextField(
-        "\(phaseLabel(phase)) model (optional)",
-        text: Binding(
-          get: {
-            model.agentSettings.phaseOverride(phase, provider: provider) ?? ""
-          },
-          set: { model.setTextPhaseOverride(phase, $0, provider: provider) }
-        )
-      )
-      .textFieldStyle(.roundedBorder)
-      .help(phaseHelp(phase))
-    }
-  }
-
-  @ViewBuilder
-  private func minimaxPhaseModelPicker(_ phase: AgentPhase) -> some View {
-    let defaultModel =
-      model.agentSettings.textProvider.defaultModel(
-        for: phase,
-        baseModel: model.agentSettings.model
-      ) ?? MiniMaxTextModelVersion.default.modelIdentifier
-    Picker(
-      "\(phaseLabel(phase)) model",
-      selection: Binding(
-        get: {
-          minimaxPhaseSelection(for: phase)
-        },
-        set: { selection in
-          switch selection {
-          case .defaultRole:
-            model.setTextPhaseOverride(phase, "", provider: .minimaxToken)
-          case .version(let version):
-            model.setTextPhaseOverride(
-              phase,
-              version.modelIdentifier,
-              provider: .minimaxToken
-            )
-          }
-        }
-      )
-    ) {
-      Text("Default (\(defaultModel))").tag(MiniMaxPhaseModelSelection.defaultRole)
-      ForEach(MiniMaxTextModelVersion.allCases) { version in
-        Text(version.displayName).tag(MiniMaxPhaseModelSelection.version(version))
-      }
-    }
-    .pickerStyle(.menu)
-    .help(phaseHelp(phase))
-  }
-
-  private func minimaxPhaseSelection(for phase: AgentPhase) -> MiniMaxPhaseModelSelection {
-    guard
-      let raw = model.agentSettings.phaseOverride(phase, provider: .minimaxToken),
-      let version = MiniMaxTextModelVersion(modelIdentifier: raw)
-    else {
-      return .defaultRole
-    }
-    return .version(version)
-  }
-
-  private enum MiniMaxPhaseModelSelection: Hashable {
-    case defaultRole
-    case version(MiniMaxTextModelVersion)
-  }
-
-  private struct ProviderOption {
-    let provider: AgentProviderKind?
-    let label: String
-    var tagID: String { provider?.rawValue ?? "__none__" }
-  }
-
-  private func providerOptions(for capability: AgentCapability) -> [ProviderOption] {
-    var out: [ProviderOption] = []
-    if !capability.isRequired {
-      out.append(ProviderOption(provider: nil, label: "None"))
-    }
-    out.append(
-      contentsOf: capability.availableProviders.map {
-        ProviderOption(provider: $0, label: $0.displayName)
-      }
-    )
-    return out
-  }
-
-  private func onDeviceHint(for provider: AgentProviderKind) -> String {
-    switch provider {
-    case .appleFoundationModels:
+  private func normalizeContextWindow() {
+    let trimmed = contextWindowTokens.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let parsed = Int(trimmed), parsed > 0 else {
+      contextWindowTokens = "\(AgentRuntimeSettings.defaultContextWindowTokens)"
+      model.setAgentContextWindowTokens(AgentRuntimeSettings.defaultContextWindowTokens)
       return
-        "Runs on this Mac through Apple Intelligence. No API key or model name is needed; macOS selects the available on-device model."
-    default:
-      return ""
     }
-  }
-
-  private func phaseLabel(_ phase: AgentPhase) -> String {
-    switch phase {
-    case .plan: return "Plan"
-    case .develop: return "Develop"
-    case .reflect: return "Reflect"
-    case .critic: return "Critic"
-    }
-  }
-
-  private func phaseHelp(_ phase: AgentPhase) -> String {
-    switch phase {
-    case .plan:
-      return
-        "Optional override for the reasoning and architecture phase. Defaults to the 'Default model' when empty."
-    case .develop:
-      return
-        "Optional override for the code implementation phase. Defaults to the 'Default model' when empty."
-    case .reflect:
-      return
-        "Optional override for the iteration assessment phase. Defaults to the 'Default model' when empty."
-    case .critic:
-      return
-        "Adversarial review pass that gates Develop output. Pointing this at a different / stronger model than Develop produces more independent critique."
-    }
+    contextWindowTokens = "\(parsed)"
+    model.setAgentContextWindowTokens(parsed)
   }
 }
 
@@ -427,82 +236,5 @@ private struct CopyAgentSettingsButton: View {
     .controlSize(.small)
     .disabled(payload.isEmpty)
     .help(ClipboardHelpText.runtimeSettings)
-  }
-}
-
-// MARK: - AgentRuntimeSettings UI helpers
-
-extension AgentRuntimeSettings {
-  /// Provider selected for `capability` based on this snapshot.
-  /// For text this is always `textProvider`; for media capabilities
-  /// it's derived from the matching `MediaAssignment` (nil = None).
-  func selectedProvider(for capability: AgentCapability) -> AgentProviderKind? {
-    switch capability {
-    case .text: return textProvider
-    case .webSearch: return webSearchAssignment?.provider
-    case .imageUnderstanding: return imageUnderstandingAssignment?.provider
-    case .image: return imageAssignment?.provider
-    case .audio: return audioAssignment?.provider
-    case .video: return videoAssignment?.provider
-    }
-  }
-
-  /// Base URL string the UI shows for the `(capability, provider)`
-  /// cell. Returns "" for cells whose provider does not require
-  /// credentials (Foundation Models) or whose stored URL has not
-  /// diverged from the provider default.
-  func baseURLString(for capability: AgentCapability, provider: AgentProviderKind) -> String {
-    guard provider.requiresCredentials else { return "" }
-    if selectedProvider(for: capability) == provider {
-      switch capability {
-      case .text: return baseURL.absoluteString
-      case .webSearch: return webSearchAssignment?.baseURL.absoluteString ?? ""
-      case .imageUnderstanding: return imageUnderstandingAssignment?.baseURL.absoluteString ?? ""
-      case .image: return imageAssignment?.baseURL.absoluteString ?? ""
-      case .audio: return audioAssignment?.baseURL.absoluteString ?? ""
-      case .video: return videoAssignment?.baseURL.absoluteString ?? ""
-      }
-    }
-    return provider.defaultBaseURLString ?? ""
-  }
-
-  func apiKey(for capability: AgentCapability, provider: AgentProviderKind) -> String {
-    guard provider.requiresCredentials else { return "" }
-    if selectedProvider(for: capability) == provider {
-      switch capability {
-      case .text: return apiKey
-      case .webSearch: return webSearchAssignment?.apiKey ?? ""
-      case .imageUnderstanding: return imageUnderstandingAssignment?.apiKey ?? ""
-      case .image: return imageAssignment?.apiKey ?? ""
-      case .audio: return audioAssignment?.apiKey ?? ""
-      case .video: return videoAssignment?.apiKey ?? ""
-      }
-    }
-    return ""
-  }
-
-  func model(for capability: AgentCapability, provider: AgentProviderKind) -> String {
-    guard provider.usesModelField(for: capability) else { return "" }
-    if selectedProvider(for: capability) == provider {
-      switch capability {
-      case .text: return model
-      case .webSearch: return webSearchAssignment?.model ?? ""
-      case .imageUnderstanding: return imageUnderstandingAssignment?.model ?? ""
-      case .image: return imageAssignment?.model ?? ""
-      case .audio: return audioAssignment?.model ?? ""
-      case .video: return videoAssignment?.model ?? ""
-      }
-    }
-    return ""
-  }
-
-  func phaseOverride(_ phase: AgentPhase, provider: AgentProviderKind) -> String? {
-    guard provider.requiresCredentials, textProvider == provider else { return nil }
-    switch phase {
-    case .plan: return planModelOverride
-    case .develop: return developModelOverride
-    case .reflect: return reflectModelOverride
-    case .critic: return criticModelOverride
-    }
   }
 }

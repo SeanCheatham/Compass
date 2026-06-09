@@ -70,31 +70,28 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
   init(
     settings: AgentRuntimeSettings,
     vmReadiness: SharedCompassVMReadiness,
-    foundationModelsAvailable: Bool
+    modelSnapshot: LocalModelSnapshot
   ) {
     let textReady = settings.isTextCapabilityRunnable(
-      foundationModelsAvailable: foundationModelsAvailable
+      localModelReady: modelSnapshot.isRunnable
     )
     let vmReady = vmReadiness.isReady
     let vmInProgress = Self.vmIsInProgress(vmReadiness)
 
     if textReady && vmReady {
-      title = "PMF Proof Loop Ready"
+      title = "Factory Loop Ready"
       detail =
-        "Compass has a runnable Text provider and a private macOS workspace, so it can plan, develop, verify, and review safely."
+        "Compass has a runnable local MLX model and a private macOS workspace, so it can plan, develop, verify, and review safely."
       actionLabel = "Ready"
       tone = .ready
       systemImageName = "checkmark.seal.fill"
     } else if !textReady {
-      title =
-        settings.textProvider == .appleFoundationModels
-        ? "Choose a Runnable Text Provider"
-        : "Finish Text Provider"
+      title = "Download Local Model"
       detail = Self.textDetail(
         settings: settings,
-        foundationModelsAvailable: foundationModelsAvailable
+        modelSnapshot: modelSnapshot
       )
-      actionLabel = "Text blocked"
+      actionLabel = "Model blocked"
       tone = .needsText
       systemImageName = "text.bubble.badge.exclamationmark"
     } else if vmInProgress {
@@ -117,7 +114,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     steps = Self.steps(
       settings: settings,
       vmReadiness: vmReadiness,
-      foundationModelsAvailable: foundationModelsAvailable,
+      modelSnapshot: modelSnapshot,
       textReady: textReady,
       vmReady: vmReady
     )
@@ -132,40 +129,35 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
       unlockPreview: unlockPreview,
       settings: settings,
       vmReadiness: vmReadiness,
-      foundationModelsAvailable: foundationModelsAvailable
+      modelSnapshot: modelSnapshot
     )
   }
 
   private static func textDetail(
     settings: AgentRuntimeSettings,
-    foundationModelsAvailable: Bool
+    modelSnapshot: LocalModelSnapshot
   ) -> String {
-    if settings.textProvider == .appleFoundationModels, !foundationModelsAvailable {
-      return
-        "Apple Intelligence is unavailable on this Mac, so the default on-device Text provider cannot run. Switch Text to MiniMax Token or OpenAI API in Settings, or enable Apple Intelligence if supported."
-    }
-    return
-      "Add an API key for \(settings.textProvider.displayName) before Compass can ask an agent to plan or develop."
+    _ = settings
+    return "\(modelSnapshot.modelID) is \(modelSnapshot.statusLabel.lowercased()). Download it before Compass can ask an agent to plan or develop."
   }
 
   private static func steps(
     settings: AgentRuntimeSettings,
     vmReadiness: SharedCompassVMReadiness,
-    foundationModelsAvailable: Bool,
+    modelSnapshot: LocalModelSnapshot,
     textReady: Bool,
     vmReady: Bool
   ) -> [Step] {
     [
       Step(
         id: "text",
-        label: "Text provider",
+        label: "Local model",
         detail: textStepDetail(
           settings: settings,
-          foundationModelsAvailable: foundationModelsAvailable,
+          modelSnapshot: modelSnapshot,
           isReady: textReady
         ),
-        systemImageName: settings.textProvider.requiresCredentials
-          ? "key.fill" : "cpu",
+        systemImageName: "cpu",
         isComplete: textReady
       ),
       Step(
@@ -215,18 +207,13 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
 
   private static func textStepDetail(
     settings: AgentRuntimeSettings,
-    foundationModelsAvailable: Bool,
+    modelSnapshot: LocalModelSnapshot,
     isReady: Bool
   ) -> String {
-    if settings.textProvider == .appleFoundationModels {
-      return foundationModelsAvailable
-        ? "Apple Intelligence is available on this Mac; no API key is needed."
-        : "Apple Intelligence is unavailable on this Mac."
-    }
-
+    _ = settings
     return isReady
-      ? "\(settings.textProvider.displayName) has a saved API key."
-      : "Add a \(settings.textProvider.displayName) API key."
+      ? "\(modelSnapshot.modelID) is ready under Application Support."
+      : "\(modelSnapshot.modelID) is \(modelSnapshot.statusLabel.lowercased())."
   }
 
   private static func vmStepDetail(_ readiness: SharedCompassVMReadiness) -> String {
@@ -265,7 +252,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     unlockPreview: [UnlockPreview],
     settings: AgentRuntimeSettings,
     vmReadiness: SharedCompassVMReadiness,
-    foundationModelsAvailable: Bool
+    modelSnapshot: LocalModelSnapshot
   ) -> String {
     let raw = [
       "title:\(title)",
@@ -274,8 +261,8 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
       "tone:\(tone.rawValue)",
       "image:\(systemImageName)",
       "provider:\(settings.textProvider.rawValue)",
-      "textReady:\(settings.isTextCapabilityRunnable(foundationModelsAvailable: foundationModelsAvailable))",
-      "fmAvailable:\(foundationModelsAvailable)",
+      "textReady:\(settings.isTextCapabilityRunnable(localModelReady: modelSnapshot.isRunnable))",
+      "modelStatus:\(modelSnapshot.status.rawValue)",
       "vm:\(vmReadiness.privateWorkspaceStatusSummary)",
       "steps:\(steps.map { "\($0.id):\($0.isComplete)" }.joined(separator: ","))",
       "unlocks:\(unlockPreview.map { "\($0.id):\($0.isUnlocked)" }.joined(separator: ","))",
@@ -294,10 +281,10 @@ struct OnboardingSetupClipboardPayload: Equatable, Sendable {
     guide: OnboardingReadinessGuide,
     settings: AgentRuntimeSettings,
     vmReadiness: SharedCompassVMReadiness,
-    foundationModelsAvailable: Bool
+    modelSnapshot: LocalModelSnapshot
   ) {
     let textReady = settings.isTextCapabilityRunnable(
-      foundationModelsAvailable: foundationModelsAvailable
+      localModelReady: modelSnapshot.isRunnable
     )
     let vmReady = vmReadiness.isReady
 
@@ -307,8 +294,7 @@ struct OnboardingSetupClipboardPayload: Equatable, Sendable {
       "Recipient instructions:",
       "- Treat this packet as bounded onboarding context. Do not invent credentials, "
         + "device support, files, commands, outcomes, or extra setup state.",
-      "- Never ask the user to paste an API key into chat. This packet only reports "
-        + "whether a credential is saved.",
+      "- Do not ask for API keys or hosted model settings. This build uses one local MLX model.",
       "- Use the checklist and raw readiness fields to identify the next safe setup action.",
       "- If Text or the private workspace is blocked, ask for the missing user-verifiable fact "
         + "instead of assuming the environment can run.",
@@ -318,18 +304,13 @@ struct OnboardingSetupClipboardPayload: Equatable, Sendable {
       "Detail: \(guide.detail)",
       "Run controls: \(textReady && vmReady ? "unlocked" : "locked")",
       "",
-      "Text provider:",
-      "Provider: \(settings.textProvider.displayName)",
+      "Local model:",
+      "Runtime: \(modelSnapshot.runtimeName)",
+      "Model: \(modelSnapshot.modelID)",
       "Runnable: \(Self.yesNo(textReady))",
-      "Foundation Models available: \(Self.yesNo(foundationModelsAvailable))",
-      "Credential requirement: \(Self.credentialRequirementLabel(settings))",
-      "Credential saved: \(Self.credentialSavedLabel(settings))",
+      "Status: \(modelSnapshot.statusLabel)",
+      "Directory: \(modelSnapshot.directory.path)",
     ]
-
-    if settings.textProvider.requiresCredentials {
-      sections.append("Base URL: \(settings.baseURL.absoluteString)")
-      sections.append("Model: \(Self.modelLabel(settings.model))")
-    }
 
     sections.append("")
     sections.append("Private workspace:")
@@ -364,21 +345,6 @@ struct OnboardingSetupClipboardPayload: Equatable, Sendable {
 
   private static func yesNo(_ value: Bool) -> String {
     value ? "yes" : "no"
-  }
-
-  private static func credentialSavedLabel(_ settings: AgentRuntimeSettings) -> String {
-    guard settings.textProvider.requiresCredentials else { return "not required" }
-    return settings.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      ? "no" : "yes"
-  }
-
-  private static func credentialRequirementLabel(_ settings: AgentRuntimeSettings) -> String {
-    settings.textProvider.requiresCredentials ? "API key required" : "No API key required"
-  }
-
-  private static func modelLabel(_ model: String) -> String {
-    let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty ? "not set" : trimmed
   }
 }
 

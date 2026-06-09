@@ -1,14 +1,11 @@
 import Foundation
-import OpenAI
 
 /// Drives the per-file summary pass. Inputs come from the on-disk
 /// `CodemapStore` (which `CodemapIndexer` populates with symbols); for any
 /// entry whose `summary` is missing or whose `summaryContentHash` no longer
 /// matches `contentHash`, the summarizer reads the file via
-/// `AgentFilesystem`, sends a single-turn chat completion to the configured
-/// codemap model, and persists the reply back into the store entry. The
-/// fan-out is capped (Swift Concurrency `TaskGroup` of ≤8 in-flight calls)
-/// so a fresh repo doesn't open one HTTP connection per file.
+/// `AgentFilesystem`, builds a deterministic summary, and persists it back
+/// into the store entry.
 struct RepoSummarizer: Sendable {
   /// Hard cap on in-flight chat calls. Tuned so a 500-file repo on a
   /// home connection finishes in ~minutes without saturating any
@@ -31,25 +28,19 @@ struct RepoSummarizer: Sendable {
   }
 
   enum SummarizerError: Error, LocalizedError, Equatable {
-    case missingAPIKey
     case emptyResponse
-    case providerError(String)
     case readFailure(String)
 
     var errorDescription: String? {
       switch self {
-      case .missingAPIKey: return "Codemap summarizer has no API key configured."
       case .emptyResponse: return "Codemap model returned an empty summary."
-      case .providerError(let detail): return "Codemap provider error: \(detail)"
       case .readFailure(let detail): return "Could not read file: \(detail)"
       }
     }
   }
 
-  /// One chat call: given a prompt and a model name, return the summary
-  /// string. Pulled behind a closure so tests can mock the HTTP call and
-  /// so a future runtime (Anthropic-native, on-device LLM) can drop in
-  /// without surgery on the summarizer.
+  /// Given a prompt and model name, return the summary string. Kept injectable
+  /// so tests can override the deterministic default.
   typealias ChatRequest = @Sendable (_ prompt: String, _ model: String) async throws -> String
 
   let workingDirectory: URL
@@ -81,30 +72,23 @@ struct RepoSummarizer: Sendable {
     self.chatRequest = chatRequest ?? RepoSummarizer.makeDefaultChatRequest(settings: settings)
   }
 
-  /// Default chat request: rebuild the OpenAI client per call (cheap —
-  /// it's just a config wrapper) and issue a single completion. Reuses
-  /// `AgentExecutor.makeClient(settings:)` so the codemap summary pass
-  /// honors the same base URL / API key the rest of Compass does.
   static func makeDefaultChatRequest(settings: AgentRuntimeSettings) -> ChatRequest {
-    return { @Sendable prompt, model in
-      let query = ChatQuery(
-        messages: [
-          .user(.init(content: .string(prompt)))
-        ],
-        model: model,
-        maxCompletionTokens: RepoSummarizer.maxSummaryTokens
-      )
-      let client = AgentExecutor.makeClient(settings: settings)
-      let result: ChatResult
-      do {
-        result = try await client.chats(query: query)
-      } catch {
-        throw SummarizerError.providerError(error.localizedDescription)
-      }
-      let raw = result.choices.first?.message.content ?? ""
-      let text = Self.cleanedSummaryText(raw)
-      if text.isEmpty { throw SummarizerError.emptyResponse }
-      return text
+    _ = settings
+    return { @Sendable prompt, _ in
+      let lines =
+        prompt
+        .split(separator: "\n", omittingEmptySubsequences: false)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty && !$0.hasPrefix("```") }
+      let fileLine = lines.first { $0.hasPrefix("File: ") } ?? "File: source"
+      let sample =
+        lines
+        .drop { !$0.hasPrefix("```") }
+        .dropFirst()
+        .prefix(8)
+        .joined(separator: " ")
+      let summary = "\(fileLine.replacingOccurrences(of: "File: ", with: "")) provides source code. Key local context: \(sample)"
+      return String(summary.prefix(500)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
   }
 
@@ -118,12 +102,6 @@ struct RepoSummarizer: Sendable {
     let targets = pickTargets()
     guard !targets.isEmpty else {
       return Result(generated: 0, skipped: 0, failed: 0, unchanged: 0)
-    }
-
-    if settings.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      return Result(
-        generated: 0, skipped: 0, failed: targets.count, unchanged: 0
-      )
     }
 
     let counters = SummaryCounters()
@@ -170,9 +148,6 @@ struct RepoSummarizer: Sendable {
       entry.summaryModel == settings.codemapModel
     {
       return summary
-    }
-    if settings.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      throw SummarizerError.missingAPIKey
     }
     return try await runSummary(for: entry, model: settings.codemapModel)
   }

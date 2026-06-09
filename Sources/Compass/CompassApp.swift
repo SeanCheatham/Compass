@@ -29,9 +29,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // shutdown overlay in front of the user.
     let host = SharedCompassVM.shared
     guard host.virtualMachine != nil else {
-      Task { @MainActor in
-        await CompassDaemonService.shared.shutdown()
-      }
       return .terminateNow
     }
     // Flip the shutdown flag *synchronously* before yielding to the
@@ -40,7 +37,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     host.beginShutdown()
     Task { @MainActor in
       await Self.stopSharedVMWithBudget(host: host)
-      await CompassDaemonService.shared.shutdown()
       NSApp.reply(toApplicationShouldTerminate: true)
     }
     return .terminateLater
@@ -68,16 +64,16 @@ struct CompassApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
   @StateObject private var model = AppModel()
   @ObservedObject private var sharedVMHost: SharedCompassVM = .shared
+  @ObservedObject private var localModelManager: LocalModelManager = .shared
 
   init() {
     CompassWindowStateRepair.repairNavigationSplitViewFrames()
-    RustProductTournamentSmokeBootstrap.startIfRequested()
   }
 
   /// Mirrors `ContentView.isOnboardingComplete` so menu shortcuts
   /// (⌘O / ⌘R / ⌘Return) can't bypass the onboarding gate.
   private var isOnboardingComplete: Bool {
-    sharedVMHost.readiness.isReady && model.agentSettings.isTextCapabilityReady
+    sharedVMHost.readiness.isReady && localModelManager.snapshot.isRunnable
   }
 
   var body: some Scene {
@@ -93,15 +89,15 @@ struct CompassApp: App {
     .windowStyle(.titleBar)
     .commands {
       CommandGroup(replacing: .newItem) {
-        Button("New Rust Project") {
-          Task { await model.createRustProject() }
+        Button("New TypeScript Project") {
+          Task { await model.createTypeScriptProject() }
         }
         .keyboardShortcut("n", modifiers: [.command])
         .disabled(!isOnboardingComplete)
       }
       CommandMenu("Compass") {
-        Button("New Rust Project") {
-          Task { await model.createRustProject() }
+        Button("New TypeScript Project") {
+          Task { await model.createTypeScriptProject() }
         }
         .disabled(!isOnboardingComplete)
 
@@ -147,14 +143,6 @@ struct CompassApp: App {
             || (model.selectedProject?.isAutoPlaying ?? true))
 
         Divider()
-
-        Button("Copy PMF Proof Loop Brief") {
-          if let guide = selectedTournamentGuide {
-            copyTextToPasteboard(guide.handoffText)
-          }
-        }
-        .keyboardShortcut("c", modifiers: [.command, .option])
-        .disabled(selectedTournamentGuide == nil)
 
         Button("Copy Project Snapshot") {
           if let payload = selectedProjectSnapshotPayload {
@@ -209,21 +197,6 @@ struct CompassApp: App {
             .disabled(true)
         }
 
-        Button("Copy compassd Diagnostics") {
-          NSPasteboard.general.clearContents()
-          NSPasteboard.general.setString(
-            model.daemonDiagnostics.copyText,
-            forType: .string
-          )
-        }
-
-        Button("Copy Rust Migration Flags") {
-          NSPasteboard.general.clearContents()
-          NSPasteboard.general.setString(
-            model.runtimeFeatureFlags.copyText,
-            forType: .string
-          )
-        }
       }
     }
 
@@ -238,17 +211,12 @@ struct CompassApp: App {
     return ProjectSnapshotBuilder.runGuide(for: project)
   }
 
-  private var selectedTournamentGuide: ProductTournamentCompassGuide? {
-    guard let runGuide = selectedRunGuide else { return nil }
-    return ProductTournamentCompassGuide(runGuide: runGuide)
-  }
-
   private var selectedProjectSnapshotPayload: ProjectSnapshotClipboardPayload? {
     guard isOnboardingComplete, let project = model.selectedProject else { return nil }
     let payload = ProjectSnapshotBuilder.payload(
       for: project,
       agentSettings: model.agentSettings,
-      foundationModelsAvailable: FoundationModelsAvailability.isAvailable
+      modelSnapshot: localModelManager.snapshot
     )
     return payload.isEmpty ? nil : payload
   }
@@ -260,15 +228,14 @@ struct CompassApp: App {
   }
 
   private var runtimeSettingsPayload: AgentSettingsClipboardPayload {
-    let foundationModelsAvailable = FoundationModelsAvailability.isAvailable
     let guide = AgentSettingsGuide(
       settings: model.agentSettings,
-      foundationModelsAvailable: foundationModelsAvailable
+      modelSnapshot: localModelManager.snapshot
     )
     return AgentSettingsClipboardPayload(
       settings: model.agentSettings,
       guide: guide,
-      foundationModelsAvailable: foundationModelsAvailable
+      modelSnapshot: localModelManager.snapshot
     )
   }
 

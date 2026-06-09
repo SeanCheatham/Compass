@@ -1,7 +1,6 @@
 import Foundation
 import SwiftTreeSitter
 import TreeSitterJavaScript
-import TreeSitterRust
 import TreeSitterSwift
 import TreeSitterTSX
 import TreeSitterTypeScript
@@ -81,14 +80,6 @@ final class LanguageRegistry: @unchecked Sendable {
         errorTypes: ["catch_clause"],
         callTypes: ["call_expression"]
       )
-    case .rust:
-      return RuntimeNodeKinds(
-        branchTypes: ["if_expression"],
-        loopTypes: ["for_expression", "while_expression", "loop_expression"],
-        switchTypes: ["match_expression"],
-        errorTypes: ["try_expression"],
-        callTypes: ["call_expression"]
-      )
     }
   }
 
@@ -98,7 +89,6 @@ final class LanguageRegistry: @unchecked Sendable {
     case .typescript: return Language(language: tree_sitter_typescript())
     case .tsx: return Language(language: tree_sitter_tsx())
     case .javascript: return Language(language: tree_sitter_javascript())
-    case .rust: return Language(language: tree_sitter_rust())
     }
   }
 
@@ -118,7 +108,6 @@ final class LanguageRegistry: @unchecked Sendable {
     case .typescript: return typeScriptQuery
     case .tsx: return typeScriptQuery
     case .javascript: return javaScriptQuery
-    case .rust: return rustQuery
     }
   }
 
@@ -199,46 +188,4 @@ final class LanguageRegistry: @unchecked Sendable {
         value: [(arrow_function) (function_expression)])) @def.function
     """#
 
-  private static let rustQuery = #"""
-    (use_declaration
-      argument: (_) @import.source) @import
-
-    (function_item
-      name: (identifier) @name) @def.function
-
-    (impl_item
-      (declaration_list
-        (function_item
-          name: (identifier) @name))) @def.method
-
-    (const_item
-      name: (identifier) @name) @def.constant
-
-    (static_item
-      name: (identifier) @name) @def.constant
-
-    (struct_item
-      name: (type_identifier) @name) @def.struct
-
-    (enum_item
-      name: (type_identifier) @name) @def.enum
-
-    (union_item
-      name: (type_identifier) @name) @def.struct
-
-    (trait_item
-      name: (type_identifier) @name) @def.trait
-
-    (type_item
-      name: (type_identifier) @name) @def.type
-
-    (mod_item
-      name: (identifier) @name) @def.module
-
-    (macro_definition
-      name: (identifier) @name) @def.macro
-
-    (impl_item
-      type: (type_identifier) @name) @def.impl
-    """#
 }

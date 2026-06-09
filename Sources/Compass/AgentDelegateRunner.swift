@@ -2,8 +2,8 @@ import Foundation
 
 /// Spawn a focused sub-agent that runs inside the same working
 /// directory / filesystem / bash runner as the parent and returns a
-/// single `findings` string. The sub-agent inherits the parent's
-/// OpenAI-compatible endpoint and (by default) its model.
+/// single `findings` string. The sub-agent inherits the parent's local
+/// MLX runtime and working context.
 ///
 /// `toolNames == nil` means "give the sub-agent the parent's full tool
 /// set (minus `delegate`)". A non-nil array filters the parent's tools
@@ -49,7 +49,6 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   let parentMaxIterations: Int
   let parentWallClockTimeout: TimeInterval
   let toolchainService: (any SharedVMToolchainService)?
-  let rustCargoService: (any RustCargoServicing)?
   /// Live-log sink so sub-agent activity surfaces under the parent run.
   let onEvent: @Sendable (LiveEvent) -> Void
 
@@ -85,6 +84,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
     let configuration = AgentExecutionConfiguration(
       settings: settings,
       phase: parentPhase,
+      continuationPhase: .delegate,
       modelOverride: (modelOverride?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap {
         $0.isEmpty ? nil : $0
       } ?? parentModelOverride,
@@ -99,7 +99,6 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       assumptionsURL: assumptionsURL,
       sessionNumber: sessionNumber,
       toolchainService: toolchainService,
-      rustCargoService: rustCargoService,
       maxIterations: min(parentMaxIterations, Self.maxSubAgentIterations),
       wallClockTimeout: min(parentWallClockTimeout, Self.maxSubAgentWallClock)
     )
@@ -138,38 +137,15 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       !profile.isEmpty
     else { return nil }
     switch profile {
-    case "rust-clippy":
+    case "test", "typecheck":
       return [
         AgentReadFileTool.toolName,
         AgentListFilesTool.toolName,
         AgentOutlineTool.toolName,
         AgentFindSymbolTool.toolName,
         AgentSummaryTool.toolName,
-        AgentImportersOfTool.toolName,
-        AgentWorkspaceOutlineTool.toolName,
-        AgentClippyLintTool.toolName,
-      ]
-    case "rust-test":
-      return [
-        AgentReadFileTool.toolName,
-        AgentListFilesTool.toolName,
-        AgentOutlineTool.toolName,
-        AgentFindSymbolTool.toolName,
-        AgentSummaryTool.toolName,
-        AgentWorkspaceOutlineTool.toolName,
-        AgentCargoCheckTool.toolName,
-        AgentCargoTestTool.toolName,
-      ]
-    case "rust-ui":
-      return [
-        AgentReadFileTool.toolName,
-        AgentListFilesTool.toolName,
-        AgentOutlineTool.toolName,
-        AgentFindSymbolTool.toolName,
-        AgentWorkspaceOutlineTool.toolName,
-        AgentVisualVerifyTool.toolName,
-        AgentWriteFileTool.toolName,
-        AgentEditFileTool.toolName,
+        AgentGrepTool.toolName,
+        AgentBashTool.toolName,
       ]
     default:
       return nil

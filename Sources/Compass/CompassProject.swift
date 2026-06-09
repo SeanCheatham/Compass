@@ -12,8 +12,6 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var lessons = ""
   @Published var assumptions: [AssumptionRecord] = []
   @Published var vision = ""
-  @Published var productTournamentConfig = ProductTournamentConfig.empty
-  @Published var productTournamentEvidenceIndex = ProductTournamentEvidenceIndex.empty
   @Published var sessions: [SessionRecord] = []
   @Published var archivedSessions: [SessionRecord] = []
   @Published var hasOlderArchivedSessions = false
@@ -67,7 +65,6 @@ final class CompassProject: ObservableObject, Identifiable {
   /// review rounds to expect. Critic-driven retries re-run the full
   /// Develop + post-checks inner loop with critic feedback added.
   let maxCriticAttempts = 3
-  let reflectSessionWindow = 10
   var allSessions: [SessionRecord] {
     let merged = archivedSessions + sessions
     var bySession: [Int: SessionRecord] = [:]

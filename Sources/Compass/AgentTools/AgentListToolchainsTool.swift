@@ -52,7 +52,7 @@ struct AgentListToolchainsTool: AgentTool {
     }
     lines.append("")
     lines.append(
-      "Install missing on-demand toolchains with install_toolchain. Unknown means Compass could not probe the guest right now. Default-provisioned toolchains (command_line_tools, homebrew, ripgrep, rust) are installed during VM setup; the Rust stack includes compass-engine for structured Cargo tooling."
+      "Install missing on-demand toolchains with install_toolchain. Unknown means Compass could not probe the guest right now. Default-provisioned toolchains (command_line_tools, homebrew, ripgrep, node) are installed during VM setup for TypeScript work."
     )
     return lines.joined(separator: "\n")
   }

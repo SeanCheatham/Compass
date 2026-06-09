@@ -15,16 +15,12 @@ import Foundation
 /// ``ArchitectureGraph`` (static import-graph analysis) — its strength is narrative
 /// coherence across time.
 ///
-/// ## Foundation Models boundary
+/// ## Generated narration boundary
 ///
 /// The ``generateTour(commits:repoURL:)`` method is gated ``@available(macOS 26.0, *)``
-/// and streams to Foundation Models with a structured architectural-tour prompt.
+/// and streams through the narration shim with a structured architectural-tour prompt.
 /// Output is capped at ~800 tokens to keep responses navigable. Returns `nil` when
-/// Foundation Models is unavailable or produces no content.
-
-#if canImport(FoundationModels)
-  import FoundationModels
-#endif
+/// generated narration is unavailable or produces no content.
 
 /// Synthesizes a full multi-commit diff into a 3–5 sentence architectural narrative.
 ///
@@ -34,11 +30,11 @@ import Foundation
 /// range and produces a coherent guided-tour description of what was built,
 /// why, and how the pieces fit together — going well beyond per-file summaries.
 ///
-/// ## Foundation Models boundary
+/// ## Generated narration boundary
 ///
-/// The full diff text is streamed to Foundation Models with a structured
+/// The full diff text is streamed through the narration shim with a structured
 /// architectural-tour prompt. Output is capped at ~800 tokens to keep
-/// responses navigable. Returns `nil` when Foundation Models is unavailable
+/// responses navigable. Returns `nil` when generated narration is unavailable
 /// or produces no content.
 ///
 /// ## Position in the pipeline
@@ -53,7 +49,7 @@ enum CommitTourGenerator {
   /// The narrative is 3–5 sentences and caps output at approximately 800 tokens
   /// to keep responses navigable.
   ///
-  /// Returns `nil` when Foundation Models is unavailable, the input is empty
+  /// Returns `nil` when generated narration is unavailable, the input is empty
   /// or whitespace-only, or when the model produces no content.
   static func generate(diff: String) async -> String? {
     guard FoundationModelsAvailability.isAvailable else { return nil }
@@ -81,7 +77,7 @@ enum CommitTourGenerator {
   ///   - repoURL: The local URL of the repository.
   ///
   /// Computes the appropriate git diff range internally and delegates to
-  /// ``generate(diff:)``. Returns `nil` when Foundation Models is unavailable
+  /// ``generate(diff:)``. Returns `nil` when generated narration is unavailable
   /// or when the diff is empty.
   static func generateTour(commits: [SessionCommit], repoURL: URL) async -> String? {
     guard let firstCommit = commits.first, let oldestCommit = commits.last else { return nil }

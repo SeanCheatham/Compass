@@ -25,10 +25,7 @@ struct ContentView: View {
   }
 
   /// Mandatory onboarding gate. Compass routes every agent run through
-  /// the Shared VM and needs a configured Text provider to call the
-  /// LLM, so neither is optional — the rest of the UI is hidden until
-  /// both land. On-device Foundation Models must be available on this
-  /// Mac; HTTP providers need a key.
+  /// the Shared VM and needs the local MLX model before agent runs can start.
   private var isOnboardingComplete: Bool {
     sharedVMHost.readiness.isReady && model.agentSettings.isTextCapabilityReady
   }

@@ -1,8 +1,7 @@
 import Foundation
 
 /// JSON schema for tool parameters, stored as JSON-encoded bytes so it can
-/// safely cross actor boundaries and be re-emitted into any OpenAI-compatible
-/// tool-calling envelope without round-tripping through `[String: Any]`.
+/// safely cross actor boundaries without round-tripping through `[String: Any]`.
 struct AgentToolParametersSchema: Sendable, Equatable {
   let json: Data
 
@@ -159,7 +158,7 @@ struct AgentToolContext: Sendable {
   /// stand-alone tool invocations work without configuration.
   var codemapStoreDirectory: URL
   /// Completed plan summaries from host-side state.json. Plan agents read
-  /// these through `plan_history`; they are not writable via submit_result.
+  /// these through `plan_history`; they are not writable via Plan submit.
   var planHistoryEntries: [String]
   /// Host-side assumptions ledger. The agent may run inside a Shared VM
   /// copy, but assumptions are durable Compass state and are always written
@@ -170,10 +169,6 @@ struct AgentToolContext: Sendable {
   var sessionNumber: Int?
   /// Shared VM toolchain listing/installation. Nil on host-route runs.
   var toolchainService: (any SharedVMToolchainService)?
-  /// Rust/Cargo sidecar service. Nil unless this is a Rust Cargo project
-  /// and `compass-engine` is available.
-  var rustCargoService: (any RustCargoServicing)?
-
   init(
     workingDirectory: URL,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
@@ -185,8 +180,7 @@ struct AgentToolContext: Sendable {
     assumptionsURL: URL? = nil,
     phase: AgentPhase = .plan,
     sessionNumber: Int? = nil,
-    toolchainService: (any SharedVMToolchainService)? = nil,
-    rustCargoService: (any RustCargoServicing)? = nil
+    toolchainService: (any SharedVMToolchainService)? = nil
   ) {
     let normalizedWorkingDirectory = workingDirectory.standardizedFileURL
     self.workingDirectory = normalizedWorkingDirectory
@@ -202,7 +196,6 @@ struct AgentToolContext: Sendable {
     self.phase = phase
     self.sessionNumber = sessionNumber.flatMap { $0 > 0 ? $0 : nil }
     self.toolchainService = toolchainService
-    self.rustCargoService = rustCargoService
   }
 
   static func defaultCodemapDirectory(forWorkingDirectory workingDirectory: URL) -> URL {
@@ -279,7 +272,7 @@ extension AgentToolContext {
   /// Resolve a possibly-relative path against the working directory. Paths
   /// that resolve outside the working directory are rejected so a buggy or
   /// adversarial tool call can't read `/etc/passwd` from a sandbox-style
-  /// Plan/Reflect pass.
+  /// read-only planning or review pass.
   func resolvePath(_ raw: String) throws -> URL {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {

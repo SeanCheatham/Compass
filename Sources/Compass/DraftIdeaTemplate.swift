@@ -10,20 +10,20 @@ struct DraftIdeaTemplate: Identifiable, Equatable, Sendable {
 enum DraftIdeaLibrary {
   static func ideas(for profile: RepositoryLanguageProfile) -> [DraftIdeaTemplate] {
     [
-      rustDesktopIdea,
+      typeScriptFactoryIdea,
       feedbackIdea,
       languageIdea(for: profile.primaryLanguage),
     ]
   }
 
-  private static let rustDesktopIdea = DraftIdeaTemplate(
-    id: "rust-desktop-output",
-    title: "Rust Desktop",
-    systemImage: "macwindow.badge.plus",
+  private static let typeScriptFactoryIdea = DraftIdeaTemplate(
+    id: "typescript-factory-output",
+    title: "TypeScript Factory",
+    systemImage: "curlybraces.square",
     text: """
-      Change: create or improve the Rust desktop output path
-      Because: generated projects should build, run, and screenshot inside the Shared VM without host-only Apple build dependencies
-      Done when: the Cargo workspace shows a deterministic desktop UI and Rust verification commands pass visibly
+      Change: create or improve the TypeScript output path
+      Because: generated projects should build, test, typecheck, and run inside the Shared VM with pnpm
+      Done when: `pnpm verify` passes and the workspace has core, CLI, and web packages
       """
   )
 
@@ -47,7 +47,7 @@ enum DraftIdeaLibrary {
         systemImage: "macwindow",
         text: """
           Change: polish the imported Swift repo without creating new generated Swift output
-          Because: legacy Swift work is still inspectable, while new Compass-generated projects should be Rust
+          Because: legacy Swift work is still inspectable, while new Compass-generated projects should be TypeScript
           Done when: the affected view uses clear controls, accessible labels, and existing Swift tests pass
           """
       )
@@ -58,19 +58,8 @@ enum DraftIdeaLibrary {
         systemImage: "rectangle.3.group",
         text: """
           Change: repair or clarify the imported TS/JS repo without creating new generated web output
-          Because: legacy web repos are still inspectable, while new Compass-generated projects should be Rust
+          Because: legacy web repos are still inspectable, while new Compass-generated projects use the pnpm TypeScript scaffold
           Done when: the active view shows ready, blocked, and in-progress states clearly
-          """
-      )
-    case .rust:
-      return DraftIdeaTemplate(
-        id: "rust-xtask-verification",
-        title: "Rust Verify",
-        systemImage: "checkmark.seal",
-        text: """
-          Change: strengthen Rust workspace verification
-          Because: generated projects should have fmt, clippy, tests, build, run, and visual verification available in Cargo
-          Done when: `cargo run -p xtask -- verify` passes and desktop visual verification shows a screenshot
           """
       )
     case .markdown:
@@ -87,12 +76,12 @@ enum DraftIdeaLibrary {
     case .other, .unknown:
       return DraftIdeaTemplate(
         id: "project-tour",
-        title: "Pain Discovery",
+        title: "Factory Brief",
         systemImage: "scope",
         text: """
-          Change: clarify the pain, current workflow, and alternatives before building
-          Because: contenders should compete on a real user problem instead of a vague feature idea
-          Done when: Project Vision shows the affected user, current workaround, success signal, and guardrails
+          Change: clarify the next software task before building
+          Because: tiny models need a narrow brief with explicit constraints and acceptance signals
+          Done when: Project Brief names the user, outcome, constraints, and verification command
           """
       )
     }

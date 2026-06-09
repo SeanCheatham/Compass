@@ -1,359 +1,233 @@
 import Foundation
-import OpenAI
 
 extension AgentExecutor {
   func run(_ configuration: AgentExecutionConfiguration) async throws -> AgentExecutionResult {
-    // Foundation Models (on-device) is a separate backend with its own
-    // session + tool-dispatch shape — see `FoundationModelsAgentRuntime`.
-    // Branch up front so the OpenAI-compatible stream/tool/compaction
-    // machinery below stays focused on its own provider class.
-    if configuration.settings.textProvider == .appleFoundationModels {
-      let onEvent = self.onEvent
-      return try await FoundationModelsAgentRuntime.run(
-        configuration,
-        isCancelled: { [weak self] in self?.cancelled ?? false },
-        emit: { event in onEvent(event) }
-      )
-    }
+    try AgentExecutor.ensureUniqueToolNames(configuration.tools)
 
-    try Self.ensureUniqueToolNames(configuration.tools)
-    let registry = Dictionary(uniqueKeysWithValues: configuration.tools.map { ($0.spec.name, $0) })
-    let dispatchableToolNames = Set(registry.keys).union([Self.submitResultToolName])
-
-    let requestRecorder = UpstreamRequestRecorder()
-    let openAI = Self.makeClient(
-      settings: configuration.settings, requestRecorder: requestRecorder)
-    let openAITools = try Self.buildOpenAITools(configuration: configuration)
-    let delegateRunner: AgentDelegateRunner? = Self.makeDelegateRunner(
-      configuration: configuration, onEvent: onEvent)
+    let startedAt = Date()
+    let runtime = configuration.modelRuntime ?? MLXLocalModelRuntime.shared
     let toolContext = AgentToolContext(
       workingDirectory: configuration.workingDirectory,
       filesystem: configuration.filesystem,
       bashRunner: configuration.bashRunner,
-      delegateRunner: delegateRunner,
+      delegateRunner: AgentExecutor.makeDelegateRunner(
+        configuration: configuration,
+        onEvent: onEvent
+      ),
       codemapStoreDirectory: configuration.codemapStoreDirectory,
       planHistoryEntries: configuration.planHistoryEntries,
       assumptionsURL: configuration.assumptionsURL,
       phase: configuration.phase,
       sessionNumber: configuration.sessionNumber,
-      toolchainService: configuration.toolchainService,
-      rustCargoService: configuration.rustCargoService
+      toolchainService: configuration.toolchainService
     )
-    let model = configuration.settings.model(
-      for: configuration.phase, sidebarOverride: configuration.modelOverride)
+    let toolsByName = Dictionary(uniqueKeysWithValues: configuration.tools.map { ($0.spec.name, $0) })
+    let availableToolNames = Set(toolsByName.keys)
 
-    var messages: [ChatQuery.ChatCompletionMessageParam] = [
-      .system(.init(content: .textContent(configuration.systemPrompt))),
-      .user(.init(content: .string(configuration.userPrompt))),
-    ]
-    // Indices of `.user` messages we appended as remediation nudges (for
-    // invalid submit_result or "no tool calls" stalls). Tracked so two
-    // consecutive failed iterations collapse into a single nudge instead
-    // of pushing back-to-back `.user` messages, which strict providers
-    // reject as a malformed role sequence. The set is mutated alongside
-    // `messages`; on rollback we drop entries whose index no longer
-    // exists.
-    var remediationNudgeIndices = Set<Int>()
+    var iterations = 0
     var assistantTranscript = ""
-    var reasoningTranscript = ""
+    var transcript: [ContinuationTranscriptEntry] = []
     var tokenUsage = AgentRunTokenUsage()
-    let startedAt = Date()
 
-    for iteration in 1...configuration.maxIterations {
+    while iterations < configuration.maxIterations {
       if cancelled { throw AgentExecutionError.cancelled }
       let elapsed = Date().timeIntervalSince(startedAt)
       if elapsed > configuration.wallClockTimeout {
         throw AgentExecutionError.wallClockExceeded(configuration.wallClockTimeout)
       }
 
-      emit(level: .info, text: "Agent iteration \(iteration)", kind: .lifecycle, status: .running)
-
-      let estimatedInputTokens = Self.estimatedTokens(in: messages)
-      let query = ChatQuery(
-        messages: messages,
-        model: model,
-        maxCompletionTokens: Self.maxCompletionTokensPerTurn,
-        tools: openAITools,
-        stream: true,
-        // Asks the upstream to emit a final usage chunk for log
-        // observability only — compaction itself runs off a local
-        // chars/4 estimate so providers that drop usage on
-        // tool-calling chunks can't silently disable it.
-        streamOptions: .init(includeUsage: true)
+      iterations += 1
+      emit(
+        level: .info,
+        text: "MLX continuation iteration \(iterations)",
+        kind: .lifecycle,
+        status: .running
       )
 
-      let aggregated: AggregatedTurn
+      let prompt = Self.continuationPrompt(
+        configuration: configuration,
+        transcript: transcript
+      )
+      let generation: LocalModelGenerationResult
       do {
-        aggregated = try await streamOneTurnWithRetry(openAI: openAI, query: query)
+        generation = try await runtime.generateText(
+          request: LocalModelGenerationRequest(
+            modelID: LocalModelCatalog.blessedModelID,
+            systemPrompt: configuration.systemPrompt,
+            prompt: prompt,
+            maxOutputTokens: Self.maxCompletionTokensPerTurn
+          )
+        )
       } catch is CancellationError {
         throw AgentExecutionError.cancelled
+      } catch let agentError as AgentExecutionError {
+        throw agentError
       } catch {
-        if cancelled { throw AgentExecutionError.cancelled }
-        let enriched = await enrichedStreamFailureDetail(
-          error: error, recorder: requestRecorder)
-        throw AgentExecutionError.streamFailed(enriched)
+        throw AgentExecutionError.streamFailed(error.localizedDescription)
       }
 
-      assistantTranscript += aggregated.assistantText
-      reasoningTranscript += aggregated.reasoningText
       tokenUsage.recordTurn(
-        inputTokens: aggregated.usage?.inputTokens ?? estimatedInputTokens,
-        outputTokens: aggregated.usage?.outputTokens ?? Self.estimatedOutputTokens(for: aggregated),
-        totalTokens: aggregated.usage?.totalTokens
-          ?? (aggregated.usage?.inputTokens ?? estimatedInputTokens)
-            + (aggregated.usage?.outputTokens ?? Self.estimatedOutputTokens(for: aggregated)),
-        isEstimated: aggregated.usage?.inputTokens == nil
-          || aggregated.usage?.outputTokens == nil
-          || aggregated.usage?.totalTokens == nil,
-        streamedUsageAvailable: aggregated.usage != nil
+        inputTokens: generation.tokenUsage.inputTokens,
+        outputTokens: generation.tokenUsage.outputTokens,
+        totalTokens: generation.tokenUsage.totalTokens,
+        isEstimated: generation.tokenUsage.usesEstimate,
+        streamedUsageAvailable: generation.tokenUsage.streamedUsageAvailable
       )
-      tokenUsage.retryCount = max(tokenUsage.retryCount, iteration - 1)
+      if let durationMs = generation.tokenUsage.durationMs {
+        tokenUsage.durationMs = (tokenUsage.durationMs ?? 0) + durationMs
+      }
 
-      if !aggregated.assistantText.isEmpty {
+      let output = generation.text.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !output.isEmpty {
+        assistantTranscript += assistantTranscript.isEmpty ? output : "\n\n\(output)"
         emit(
-          level: .raw, text: "Assistant", detail: previewString(aggregated.assistantText),
-          kind: .agentMessage, status: .completed)
+          level: .raw,
+          text: "Assistant JSON",
+          detail: previewString(output),
+          kind: .agentMessage,
+          status: .completed
+        )
+        transcript.append(.assistant(output))
       }
 
-      // Snapshot the message count *before* this iteration appends its
-      // assistant turn. If any tool call in this turn carries malformed
-      // JSON arguments we roll back to here, dropping the assistant
-      // (and, in the pre-flight path, never appending tool responses
-      // for its siblings). Leaving a `.tool` response without its
-      // declaring assistant turn would orphan its `toolCallId`, which
-      // is exactly the 400 cascade MiniMax surfaces.
-      let messageCountBeforeAssistant = messages.count
-
-      let toolCalls = aggregated.toolCalls.map {
-        Self.canonicalizedToolCall($0, availableToolNames: dispatchableToolNames)
-      }
-
-      messages.append(
-        .assistant(
-          .init(
-            content: aggregated.assistantText.isEmpty
-              ? nil : .textContent(aggregated.assistantText),
-            toolCalls: toolCalls.isEmpty
-              ? nil : toolCalls.map { $0.asAssistantToolCall() }
-          )))
-
-      // No tool calls → either submit_result was missed, the turn was
-      // truncated before the tool call, or the model gave up in prose.
-      // Nudge with the phase-specific shape so the next loop can finish
-      // without the user having to interpret a stalled transcript.
-      if toolCalls.isEmpty {
-        let nudge = Self.missingSubmitResultNudge(
-          finishReason: aggregated.finishReason,
-          maxCompletionTokens: Self.maxCompletionTokensPerTurn,
-          phase: configuration.phase
+      let continuation: AgentContinuation
+      do {
+        continuation = try AgentContinuationParser.parse(
+          output,
+          phase: configuration.continuationPhase,
+          availableToolNames: availableToolNames
         )
-        Self.appendRemediationNudge(
-          nudge.userMessage,
-          messages: &messages,
-          nudgeIndices: &remediationNudgeIndices
-        )
+      } catch {
+        let detail = error.localizedDescription
         emit(
           level: .warning,
-          text: nudge.eventText,
-          detail: nudge.eventDetail,
+          text: "Continuation rejected",
+          detail: previewString(detail),
           kind: .agentMessage,
           status: .failed
         )
-        continue
-      }
-
-      // Pre-flight: any tool call whose `arguments` field isn't
-      // well-formed JSON will be rejected by strict upstream
-      // providers (MiniMax has been observed doing this) on the
-      // *next* request, with a 400 that aborts the whole run.
-      // MiniMax has been seen truncating mid-token without setting
-      // `finishReason == "length"`, so this catches all sources of
-      // bad args: silent truncation, model-emitted escape bugs in
-      // big `edit_file` / `write_file` payloads, etc. Drop the
-      // assistant turn and inject a remediation nudge instead of
-      // invoking any tools — replaying the bad turn would orphan
-      // its tool responses too.
-      if let bad = toolCalls.first(where: {
-        (try? JSONSerialization.jsonObject(with: Data($0.arguments.utf8))) == nil
-      }) {
-        Self.rollback(
-          messages: &messages,
-          nudgeIndices: &remediationNudgeIndices,
-          to: messageCountBeforeAssistant
-        )
-        let nudge: InvalidToolArgumentsNudge =
-          bad.name == Self.submitResultToolName
-          ? Self.invalidSubmitResultNudge(
-            finishReason: aggregated.finishReason,
-            argumentsPreview: previewString(bad.arguments),
-            maxCompletionTokens: Self.maxCompletionTokensPerTurn,
-            phase: configuration.phase
+        transcript.append(
+          .repair(
+            Self.continuationRepairMessage(
+              error: detail,
+              invalidOutput: output,
+              phase: configuration.continuationPhase
+            )
           )
-          : Self.invalidToolArgumentsNudge(
-            toolName: bad.name,
-            finishReason: aggregated.finishReason,
-            argumentsPreview: previewString(bad.arguments),
-            maxCompletionTokens: Self.maxCompletionTokensPerTurn
-          )
-        Self.appendRemediationNudge(
-          nudge.userMessage,
-          messages: &messages,
-          nudgeIndices: &remediationNudgeIndices
-        )
-        emit(
-          level: .warning,
-          text: nudge.eventText,
-          detail: nudge.eventDetail,
-          kind: .agentMessage,
-          status: .failed,
-          correlationID: bad.id
         )
         continue
       }
 
-      var rejectedSubmitResult = false
-      for toolCall in toolCalls {
-        if cancelled { throw AgentExecutionError.cancelled }
-
-        if toolCall.name == Self.submitResultToolName {
-          // JSON validity already enforced by the pre-flight above.
-          let argsData = Data(toolCall.arguments.utf8)
-          if let validate = configuration.validateSubmitResult {
-            do {
-              try validate(argsData)
-            } catch {
-              Self.rollback(
-                messages: &messages,
-                nudgeIndices: &remediationNudgeIndices,
-                to: messageCountBeforeAssistant
-              )
-              let nudge = Self.submitResultValidationNudge(
-                for: error,
-                phase: configuration.phase
-              )
-              Self.appendRemediationNudge(
-                nudge.userMessage,
-                messages: &messages,
-                nudgeIndices: &remediationNudgeIndices
-              )
-              emit(
-                level: .warning,
-                text: nudge.eventText,
-                detail: nudge.eventDetail,
-                kind: .agentMessage,
-                status: .failed,
-                correlationID: toolCall.id
-              )
-              rejectedSubmitResult = true
-              break
-            }
-          }
+      switch continuation.action {
+      case .submit(let payload):
+        if let rejection = Self.rejectSubmitResultIfNeeded(
+          payload,
+          configuration: configuration
+        ) {
           emit(
-            level: .success, text: "submit_result", detail: previewString(toolCall.arguments),
-            kind: .agentMessage, status: .completed, correlationID: toolCall.id)
-          var finalTokenUsage = tokenUsage
-          finalTokenUsage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
-          return AgentExecutionResult(
-            submitResultArguments: argsData,
-            iterations: iteration,
-            assistantText: assistantTranscript,
-            reasoningText: reasoningTranscript,
-            tokenUsage: finalTokenUsage
+            level: .warning,
+            text: rejection.eventText,
+            detail: rejection.eventDetail,
+            kind: .agentMessage,
+            status: .failed
           )
+          transcript.append(
+            .repair(
+              Self.continuationRepairMessage(
+                error: rejection.userMessage,
+                invalidOutput: output,
+                phase: configuration.continuationPhase
+              )
+            )
+          )
+          continue
         }
+        emit(
+          level: .success,
+          text: continuation.kind,
+          detail: previewString(String(decoding: payload, as: UTF8.self)),
+          kind: .agentMessage,
+          status: .completed
+        )
+        tokenUsage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+        return AgentExecutionResult(
+          submitResultArguments: payload,
+          iterations: iterations,
+          assistantText: assistantTranscript,
+          reasoningText: "",
+          tokenUsage: tokenUsage
+        )
 
-        guard let tool = registry[toolCall.name] else {
-          let detail = "Unknown tool: \(toolCall.name)"
-          messages.append(.tool(.init(content: .textContent(detail), toolCallId: toolCall.id)))
-          emit(
-            level: .error, text: detail, kind: .lifecycle, status: .failed,
-            correlationID: toolCall.id)
+      case .continueTool(let toolName, let arguments, let reason):
+        guard let tool = toolsByName[toolName] else {
+          transcript.append(
+            .repair(
+              Self.continuationRepairMessage(
+                error: "Unknown tool `\(toolName)` after validation.",
+                invalidOutput: output,
+                phase: configuration.continuationPhase
+              )
+            )
+          )
           continue
         }
 
-        emitToolStart(
-          name: toolCall.name, arguments: toolCall.arguments, correlationID: toolCall.id)
-
+        let argumentText = String(decoding: arguments, as: UTF8.self)
+        let correlationID = UUID().uuidString
+        emitToolStart(name: toolName, arguments: argumentText, correlationID: correlationID)
         let result: AgentToolInvocationResult
         do {
-          result = try await tool.invoke(
-            arguments: Data(toolCall.arguments.utf8), context: toolContext)
+          result = try await tool.invoke(arguments: arguments, context: toolContext)
         } catch let toolError as AgentToolError {
-          // Preserve the typed kind so the UI / logs can categorize.
-          let failure = AgentToolInvocationResult.failure(toolError)
-          messages.append(
-            .tool(.init(content: .textContent(failure.content), toolCallId: toolCall.id)))
-          emitToolEnd(
-            name: toolCall.name, arguments: toolCall.arguments, result: failure,
-            correlationID: toolCall.id)
-          continue
+          result = .failure(toolError)
         } catch {
-          let message = "Tool \(toolCall.name) threw: \(error.localizedDescription)"
-          messages.append(.tool(.init(content: .textContent(message), toolCallId: toolCall.id)))
-          emitToolEnd(
-            name: toolCall.name, arguments: toolCall.arguments,
-            result: .failure(message, kind: .unknown),
-            correlationID: toolCall.id)
-          continue
+          result = .failure("Tool \(toolName) threw: \(error.localizedDescription)", kind: .unknown)
         }
-        messages.append(
-          .tool(.init(content: .textContent(result.content), toolCallId: toolCall.id)))
-        emitToolEnd(
-          name: toolCall.name, arguments: toolCall.arguments, result: result,
-          correlationID: toolCall.id)
-      }
+        emitToolEnd(name: toolName, arguments: argumentText, result: result, correlationID: correlationID)
 
-      if rejectedSubmitResult {
-        continue
-      }
-
-      let estimated = Self.estimatedTokens(in: messages)
-      if Self.shouldCompact(
-        estimatedTokens: estimated, contextWindowTokens: configuration.contextWindowTokens)
-      {
-        if let compaction = try await compactMessages(
-          openAI: openAI,
-          model: model,
-          messages: &messages,
-          estimatedTokensBeforeCompaction: estimated,
-          contextWindowTokens: configuration.contextWindowTokens
-        ) {
-          tokenUsage.recordCompaction(summaryTokens: compaction.summaryTokens)
-        }
-        // Compaction rewrites the entire `messages` array (keeps system,
-        // original user, appends a summary recap), so all previously
-        // tracked nudge indices are stale. Drop them; any nudges we add
-        // in subsequent iterations will be re-tracked from scratch.
-        remediationNudgeIndices.removeAll()
+        let observation = Self.toolObservationJSON(
+          toolName: toolName,
+          result: result,
+          reason: reason
+        )
+        transcript.append(.toolObservation(observation))
       }
     }
+
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
   }
 
-  static func estimatedOutputTokens(for turn: AggregatedTurn) -> Int {
-    let toolCallCharacters = turn.toolCalls.reduce(0) { partial, toolCall in
-      partial + toolCall.name.count + toolCall.arguments.count
+  static func ensureUniqueToolNames(_ tools: [AgentTool]) throws {
+    var names = Set<String>()
+    for tool in tools {
+      let name = tool.spec.name
+      guard names.insert(name).inserted else {
+        throw AgentExecutionError.duplicateToolName(name)
+      }
     }
-    return AgentRunTokenUsage.estimateTokens(
-      characters: turn.assistantText.count + turn.reasoningText.count + toolCallCharacters,
-      charsPerToken: Self.estimatedCharsPerToken
-    )
   }
 
-  /// Build the sub-agent runner for this turn, or `nil` when this
-  /// configuration is itself a sub-agent (we detect that by the absence
-  /// of `AgentDelegateTool` from the tool list — top-level configs
-  /// always include it). Returning nil leaves the delegate tool — if
-  /// somehow re-added in a child — surfacing a clean failure instead
-  /// of crashing on a missing runner.
+  static func canonicalToolName(_ raw: String, availableToolNames: Set<String>) -> String? {
+    let normalized =
+      raw
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+      .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "_", options: .regularExpression)
+      .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+    guard !normalized.isEmpty else { return nil }
+    if availableToolNames.contains(normalized) { return normalized }
+    return availableToolNames.first { name in
+      name.replacingOccurrences(of: "-", with: "_").lowercased() == normalized
+    }
+  }
+
   static func makeDelegateRunner(
     configuration: AgentExecutionConfiguration,
-    onEvent: @Sendable @escaping (LiveEvent) -> Void
+    onEvent: @escaping @Sendable (LiveEvent) -> Void
   ) -> AgentDelegateRunner? {
-    let hasDelegateTool = configuration.tools.contains {
-      $0.spec.name == AgentDelegateTool.toolName
+    guard configuration.tools.contains(where: { $0.spec.name == AgentDelegateTool.toolName }) else {
+      return nil
     }
-    guard hasDelegateTool else { return nil }
     return AgentExecutorDelegateRunner(
       settings: configuration.settings,
       parentPhase: configuration.phase,
@@ -368,181 +242,171 @@ extension AgentExecutor {
       parentMaxIterations: configuration.maxIterations,
       parentWallClockTimeout: configuration.wallClockTimeout,
       toolchainService: configuration.toolchainService,
-      rustCargoService: configuration.rustCargoService,
       onEvent: onEvent
     )
   }
 
-  static func ensureUniqueToolNames(_ tools: [AgentTool]) throws {
-    var seen = Set<String>()
-    for tool in tools {
-      if tool.spec.name == Self.submitResultToolName {
-        throw AgentExecutionError.duplicateToolName(tool.spec.name)
-      }
-      if !seen.insert(tool.spec.name).inserted {
-        throw AgentExecutionError.duplicateToolName(tool.spec.name)
-      }
+  static func stripThinkBlocks(_ text: String) -> (String, String) {
+    var cleaned = text
+    var extracted: [String] = []
+    while let start = cleaned.range(of: "<think>", options: .caseInsensitive),
+      let end = cleaned.range(of: "</think>", options: .caseInsensitive, range: start.upperBound..<cleaned.endIndex)
+    {
+      let body = String(cleaned[start.upperBound..<end.lowerBound])
+      extracted.append(body.trimmingCharacters(in: .whitespacesAndNewlines))
+      cleaned.removeSubrange(start.lowerBound..<end.upperBound)
     }
-    try ensureUniqueToolAliasKeys(seen.union([Self.submitResultToolName]))
+    return (
+      cleaned.trimmingCharacters(in: .whitespacesAndNewlines),
+      extracted.filter { !$0.isEmpty }.joined(separator: "\n\n")
+    )
   }
 
-  static func canonicalizedToolCall(
-    _ toolCall: PendingToolCall,
-    availableToolNames: Set<String>
-  ) -> PendingToolCall {
-    guard
-      let canonical = canonicalToolName(
-        toolCall.name,
-        availableToolNames: availableToolNames
+  private struct ContinuationTranscriptEntry: Equatable {
+    var title: String
+    var body: String
+
+    static func assistant(_ body: String) -> Self {
+      Self(title: "Assistant JSON", body: body)
+    }
+
+    static func toolObservation(_ body: String) -> Self {
+      Self(title: "Compass Observation", body: body)
+    }
+
+    static func repair(_ body: String) -> Self {
+      Self(title: "Compass Repair", body: body)
+    }
+  }
+
+  private static func continuationPrompt(
+    configuration: AgentExecutionConfiguration,
+    transcript: [ContinuationTranscriptEntry]
+  ) -> String {
+    var sections: [String] = [
+      """
+      ## Original Phase Packet
+      \(fencedContinuationText(configuration.userPrompt, limit: 16_000))
+      """,
+      """
+      ## Continuation Contract
+      Emit exactly one JSON object and no prose.
+      Use `\(configuration.continuationPhase.continueKind)` to request one Compass tool.
+      Use `\(configuration.continuationPhase.submitKind)` with `payload` to finish this phase.
+      """
+    ]
+
+    if !transcript.isEmpty {
+      let recent = transcript.suffix(8).map { entry in
+        """
+        ### \(entry.title)
+        \(fencedContinuationText(entry.body, limit: 8_000))
+        """
+      }.joined(separator: "\n\n")
+      sections.append(
+        """
+        ## Recent History
+        \(recent)
+        """
+      )
+    }
+
+    sections.append(
+      """
+      ## Next Output
+      Return exactly one JSON object for the current phase.
+      """
+    )
+    return sections.joined(separator: "\n\n")
+  }
+
+  private static func continuationRepairMessage(
+    error: String,
+    invalidOutput: String,
+    phase: AgentContinuationPhase
+  ) -> String {
+    """
+    Your previous response could not be used.
+
+    Error:
+    \(error)
+
+    Required shape:
+    {"kind":"\(phase.continueKind)","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current package scripts."}
+    or
+    {"kind":"\(phase.submitKind)","payload":{...}}
+
+    Invalid response:
+    \(fencedContinuationText(invalidOutput, limit: 4_000))
+    """
+  }
+
+  private static func toolObservationJSON(
+    toolName: String,
+    result: AgentToolInvocationResult,
+    reason: String?
+  ) -> String {
+    var object: [String: Any] = [
+      "tool": toolName,
+      "isError": result.isError,
+      "content": boundedObservation(result.content),
+    ]
+    if let reason, !reason.isEmpty {
+      object["reason"] = reason
+    }
+    if let errorKind = result.errorKind {
+      object["errorKind"] = errorKind.rawValue
+    }
+    guard JSONSerialization.isValidJSONObject(object),
+      let data = try? JSONSerialization.data(
+        withJSONObject: object,
+        options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
       )
     else {
-      return toolCall
+      return #"{"tool":"\#(toolName)","isError":true,"content":"Compass could not serialize the observation."}"#
     }
-    var canonicalized = toolCall
-    canonicalized.name = canonical
-    return canonicalized
+    return String(decoding: data, as: UTF8.self)
   }
 
-  static func canonicalToolName(
-    _ requestedName: String,
-    availableToolNames: Set<String>
-  ) -> String? {
-    let trimmed = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
-    if availableToolNames.contains(trimmed) {
-      return trimmed
-    }
+  private static func boundedObservation(_ text: String, limit: Int = 6_000) -> String {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.count > limit else { return trimmed }
+    let headCount = max(0, (limit / 2) - 80)
+    let tailCount = max(0, (limit / 2) - 80)
+    return """
+    \(String(trimmed.prefix(headCount)))
 
-    let normalizedCandidates = toolNameNormalizedCandidates(for: trimmed)
-    if let normalizedMatch = uniqueToolNameMatch(
-      in: availableToolNames,
-      matching: normalizedCandidates,
-      key: { FlexibleModelDecoder.normalizedIdentifier($0) }
-    ) {
-      return normalizedMatch
-    }
+    ... [Compass truncated \(trimmed.count - headCount - tailCount) characters from this observation] ...
 
-    let compactCandidates = Set(
-      normalizedCandidates.map { $0.replacingOccurrences(of: "_", with: "") })
-    return uniqueToolNameMatch(
-      in: availableToolNames,
-      matching: compactCandidates,
-      key: {
-        FlexibleModelDecoder.normalizedIdentifier($0).replacingOccurrences(of: "_", with: "")
-      }
-    )
+    \(String(trimmed.suffix(tailCount)))
+    """
   }
 
-  private static func ensureUniqueToolAliasKeys(_ names: Set<String>) throws {
-    var seen = [String: String]()
-    for name in names {
-      let normalizedCandidates = toolNameNormalizedCandidates(for: name)
-      let keys = normalizedCandidates.union(
-        normalizedCandidates.map { $0.replacingOccurrences(of: "_", with: "") }
-      )
-      for key in keys where !key.isEmpty {
-        if let existing = seen[key], existing != name {
-          throw AgentExecutionError.duplicateToolName(name)
-        }
-        seen[key] = name
-      }
+  private static func fencedContinuationText(_ text: String, limit: Int) -> String {
+    let bounded: String
+    if text.count <= limit {
+      bounded = text
+    } else {
+      bounded = String(text.prefix(max(0, limit - 80)))
+        + "\n... [Compass truncated \(text.count - limit) characters] ..."
     }
+    return """
+    ```
+    \(bounded)
+    ```
+    """
   }
 
-  private static func toolNameNormalizedCandidates(for name: String) -> Set<String> {
-    let normalized = FlexibleModelDecoder.normalizedIdentifier(name)
-    guard !normalized.isEmpty else { return [] }
-    var candidates: Set<String> = [normalized]
-    if normalized.hasSuffix("_tool") {
-      candidates.insert(String(normalized.dropLast("_tool".count)))
-    }
-    for candidate in Array(candidates) {
-      candidates.formUnion(toolNamePluralityVariants(for: candidate))
-    }
-    return candidates
-  }
-
-  private static func toolNamePluralityVariants(for name: String) -> Set<String> {
-    let parts = name.split(separator: "_", omittingEmptySubsequences: false).map(String.init)
-    guard !parts.isEmpty else { return [] }
-    var variants = Set<String>()
-    for index in parts.indices {
-      guard parts[index].count > 3 else { continue }
-      var toggled = parts
-      if parts[index].hasSuffix("s") {
-        toggled[index] = String(parts[index].dropLast())
-      } else {
-        toggled[index] += "s"
-      }
-      variants.insert(toggled.joined(separator: "_"))
-    }
-    return variants
-  }
-
-  private static func uniqueToolNameMatch(
-    in availableToolNames: Set<String>,
-    matching requestedKeys: Set<String>,
-    key: (String) -> String
-  ) -> String? {
-    let matches = availableToolNames.filter { requestedKeys.contains(key($0)) }.sorted()
-    guard matches.count == 1 else { return nil }
-    return matches[0]
-  }
-
-  static func makeClient(
-    settings: AgentRuntimeSettings,
-    requestRecorder: UpstreamRequestRecorder? = nil
-  ) -> OpenAI {
-    let components = URLComponents(url: settings.baseURL, resolvingAgainstBaseURL: false)
-    let host = components?.host ?? "api.openai.com"
-    let port = components?.port ?? (settings.baseURL.scheme == "http" ? 80 : 443)
-    let scheme = components?.scheme ?? "https"
-    let basePath = components.flatMap { $0.path.isEmpty ? nil : $0.path } ?? "/v1"
-
-    let configuration = OpenAI.Configuration(
-      token: settings.apiKey,
-      organizationIdentifier: nil,
-      host: host,
-      port: port,
-      scheme: scheme,
-      basePath: basePath,
-      timeoutInterval: 600.0,
-      customHeaders: [:],
-      parsingOptions: [.relaxed]
-    )
-    return OpenAI(
-      configuration: configuration,
-      middlewares: requestRecorder.map { [$0] } ?? []
-    )
-  }
-
-  static func buildOpenAITools(
+  private static func rejectSubmitResultIfNeeded(
+    _ submitResultJSON: Data,
     configuration: AgentExecutionConfiguration
-  ) throws -> [ChatQuery.ChatCompletionToolParam] {
-    var out: [ChatQuery.ChatCompletionToolParam] = []
-    for tool in configuration.tools {
-      out.append(try Self.buildFunctionParam(spec: tool.spec))
+  ) -> InvalidToolArgumentsNudge? {
+    guard let validate = configuration.validateSubmitResult else { return nil }
+    do {
+      try validate(submitResultJSON)
+      return nil
+    } catch {
+      return submitResultValidationNudge(for: error, phase: configuration.phase)
     }
-    let submitSpec = AgentToolSpec(
-      name: Self.submitResultToolName,
-      description:
-        "Call this once with the structured result for this phase. The arguments object must match the phase output schema. Calling this ends the phase.",
-      parameters: configuration.submitResultSchema
-    )
-    out.append(try Self.buildFunctionParam(spec: submitSpec))
-    return out
-  }
-
-  private static func buildFunctionParam(spec: AgentToolSpec) throws
-    -> ChatQuery.ChatCompletionToolParam
-  {
-    let schema = try JSONDecoder().decode(JSONSchema.self, from: spec.parameters.json)
-    return ChatQuery.ChatCompletionToolParam(
-      function: .init(
-        name: spec.name,
-        description: spec.description,
-        parameters: schema,
-        strict: nil
-      ))
   }
 }

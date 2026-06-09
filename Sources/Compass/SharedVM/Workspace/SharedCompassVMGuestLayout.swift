@@ -3,7 +3,7 @@ import Foundation
 /// Guest filesystem layout for the Shared VM route.
 ///
 /// The current implementation still provisions a macOS guest, but generated
-/// Rust workflows should depend on this layout contract rather than scattering
+/// TypeScript workflows should depend on this layout contract rather than scattering
 /// macOS home-directory assumptions through sync and verification code.
 struct SharedCompassVMGuestLayout: Equatable, Sendable {
   var id: String

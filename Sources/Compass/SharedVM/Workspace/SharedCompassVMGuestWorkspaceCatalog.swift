@@ -6,7 +6,7 @@ import Foundation
 /// Compass keeps a single persistent guest-side worktree per host repo
 /// (rather than one per Develop iteration) so:
 ///
-///   * Plan / Reflect / Develop / Verify all share the same guest
+///   * Plan / Develop / Verify / Critic all share the same guest
 ///     working directory — no phase ever falls back to host execution
 ///     just because it lives outside a `Worktrees/dev-<UUID>/worktree`
 ///     subtree.
@@ -124,7 +124,7 @@ enum SharedCompassVMGuestWorkspaceCatalog {
     }
     let entry = CatalogEntry(
       id: UUID().uuidString.lowercased(),
-      experimentID: ProductTournamentModelText.identifier(experimentID, fallback: "experiment"),
+      experimentID: sanitizedIdentifier(experimentID, fallback: "workspace"),
       branchName: StringUtils.boundedText(branchName, limit: 240),
       lastSyncedHostFingerprint: nil
     )
@@ -133,6 +133,25 @@ enum SharedCompassVMGuestWorkspaceCatalog {
       return observed
     }
     return entry
+  }
+
+  private static func sanitizedIdentifier(_ raw: String, fallback: String) -> String {
+    let lowered = raw.lowercased()
+    var output = ""
+    var previousWasSeparator = false
+    for scalar in lowered.unicodeScalars {
+      let isAllowed =
+        CharacterSet.alphanumerics.contains(scalar) || scalar == "-" || scalar == "_"
+      if isAllowed {
+        output.unicodeScalars.append(scalar)
+        previousWasSeparator = false
+      } else if !previousWasSeparator {
+        output.append("-")
+        previousWasSeparator = true
+      }
+    }
+    let trimmed = output.trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+    return StringUtils.boundedText(trimmed.isEmpty ? fallback : trimmed, limit: 120)
   }
 
   /// Returns the catalog entry for `repoURL` if one has been allocated,

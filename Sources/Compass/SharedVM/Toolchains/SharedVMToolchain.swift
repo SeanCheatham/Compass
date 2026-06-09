@@ -5,7 +5,6 @@ enum SharedVMToolchainID: String, CaseIterable, Sendable, Equatable {
   case commandLineTools = "command_line_tools"
   case homebrew
   case ripgrep
-  case rust
   case node
 }
 
@@ -66,8 +65,6 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
       return Self.renderHomebrewInstallScript()
     case .ripgrep:
       return Self.renderRipgrepInstallScript()
-    case .rust:
-      return Self.renderRustInstallScript()
     case .node:
       return Self.renderNodeInstallScript()
     }
@@ -85,10 +82,6 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
         test -x \(SharedVMToolchainPaths.ripgrepInstallPath)
         \(SharedVMToolchainPaths.ripgrepInstallPath) --version >/dev/null 2>&1
         """
-    case .rust:
-      return """
-        \(Self.rustVerificationCommand) >/dev/null 2>&1
-        """
     case .node:
       return """
         \(Self.nodeVerificationCommand) >/dev/null 2>&1
@@ -96,18 +89,12 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
     }
   }
 
-  /// Login-shell check that Rust's generated-project toolchain is on PATH.
-  static let rustShellPrefix = "export PATH=\"$HOME/.cargo/bin:$PATH\";"
-
-  static let rustVerificationCommand =
-    "\(rustShellPrefix) command -v rustc && command -v cargo && command -v rustfmt && command -v cargo-clippy && command -v cargo-llvm-cov && rustc --version && cargo --version && rustfmt --version && cargo clippy --version && cargo llvm-cov --version"
-
-  /// Login-shell check that the optional legacy JS/TS imported-repo toolchain is on PATH.
+  /// Login-shell check that the generated TypeScript toolchain is on PATH.
   static let nodeVerificationCommand =
-    "command -v node && command -v npm && command -v npx && command -v tsc && node --version && tsc --version"
+    "command -v node && command -v npm && command -v npx && command -v corepack && command -v pnpm && command -v tsc && node --version && pnpm --version && tsc --version"
 
   static let nodeProbeCommand = """
-    command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v npx >/dev/null 2>&1 && command -v tsc >/dev/null 2>&1 && echo PRESENT || echo MISSING
+    command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v npx >/dev/null 2>&1 && command -v corepack >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1 && command -v tsc >/dev/null 2>&1 && echo PRESENT || echo MISSING
     """
 
   func parseProgressFraction(fromLogTail tail: String) -> Double {
@@ -211,30 +198,6 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
         """)
   }
 
-  private static func renderRustInstallScript() -> String {
-    let id = SharedVMToolchainID.rust.rawValue
-    let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
-    return renderScriptShell(
-      id: id,
-      body: """
-        GUEST_USER="\(guestUser)"
-        if su - "$GUEST_USER" -c '\(rustVerificationCommand)' >/dev/null 2>&1; then
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
-        else
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) installing rustup"
-          su - "$GUEST_USER" -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable' \\
-            || fail 2 "rustup install failed"
-          su - "$GUEST_USER" -c '\(rustShellPrefix) rustup component add rustfmt clippy' \\
-            || fail 3 "rustfmt/clippy install failed"
-          su - "$GUEST_USER" -c '\(rustShellPrefix) cargo install cargo-llvm-cov --locked' \\
-            || fail 4 "cargo-llvm-cov install failed"
-          su - "$GUEST_USER" -c '\(rustVerificationCommand)' \\
-            || fail 5 "rust generated-project toolchain verification failed"
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed rust, cargo, rustfmt, clippy, and cargo-llvm-cov"
-        fi
-        """)
-  }
-
   private static func renderNodeInstallScript() -> String {
     let id = SharedVMToolchainID.node.rawValue
     let brewBin = SharedVMToolchainPaths.brewInstallPath
@@ -253,16 +216,18 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
             su - "$GUEST_USER" -c "'$BREW_BIN' install node" \\
               || fail 3 "brew install node failed"
           fi
-          su - "$GUEST_USER" -c 'command -v node && command -v npm && command -v npx && node --version && npm --version' \\
+          su - "$GUEST_USER" -c 'command -v node && command -v npm && command -v npx && command -v corepack && node --version && npm --version' \\
             || fail 4 "node/npm/npx verification failed"
+          su - "$GUEST_USER" -c 'corepack enable && corepack prepare pnpm@9.15.4 --activate' \\
+            || fail 5 "corepack pnpm activation failed"
           if ! su - "$GUEST_USER" -c 'command -v tsc' >/dev/null 2>&1; then
             echo "\(SharedVMToolchainPaths.logTag(id: id)) npm install -g typescript"
             su - "$GUEST_USER" -c 'npm install -g typescript' \\
-              || fail 5 "npm install -g typescript failed"
+              || fail 6 "npm install -g typescript failed"
           fi
           su - "$GUEST_USER" -c '\(nodeVerificationCommand)' \\
-            || fail 6 "node/js/ts verification failed"
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed node, npm, npx, and typescript"
+            || fail 7 "node/pnpm/typescript verification failed"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed node, npm, corepack, pnpm, and typescript"
         fi
         """)
   }
@@ -276,7 +241,7 @@ enum SharedVMToolchainCatalog {
       id: .commandLineTools,
       displayName: "Xcode Command Line Tools",
       description:
-        "clang, git, make, Swift, and the macOS SDK. Required for Rust native linking and legacy Swift repo inspection in the Shared VM.",
+        "clang, git, make, Swift, and the macOS SDK. Required for baseline guest development tooling.",
       defaultProvisioned: true,
       dependencies: [],
       probeCommand: "xcode-select -p >/dev/null 2>&1 && echo PRESENT || echo MISSING",
@@ -306,24 +271,11 @@ enum SharedVMToolchainCatalog {
       installableViaGenericProvisioner: true
     ),
     SharedVMToolchainDefinition(
-      id: .rust,
-      displayName: "Rust",
-      description:
-        "Rust generated-project stack via rustup (rustc, cargo, rustfmt, clippy, cargo-llvm-cov) plus Compass's compass-engine sidecar.",
-      defaultProvisioned: true,
-      dependencies: [],
-      probeCommand: """
-        \(SharedVMToolchainDefinition.rustVerificationCommand) >/dev/null 2>&1 && echo PRESENT || echo MISSING
-        """,
-      installTimeout: 15 * 60,
-      installableViaGenericProvisioner: true
-    ),
-    SharedVMToolchainDefinition(
       id: .node,
-      displayName: "Legacy Node.js (JavaScript / TypeScript)",
+      displayName: "Node.js + pnpm (TypeScript)",
       description:
-        "Optional legacy imported-repo toolchain with Node.js, npm, npx, and global TypeScript (`tsc`). Not provisioned for generated Rust projects.",
-      defaultProvisioned: false,
+        "Default generated-project toolchain with Node.js, npm, Corepack/pnpm, and global TypeScript (`tsc`).",
+      defaultProvisioned: true,
       dependencies: [.homebrew],
       probeCommand: SharedVMToolchainDefinition.nodeProbeCommand,
       installTimeout: 15 * 60,

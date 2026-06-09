@@ -2,7 +2,7 @@ import Foundation
 
 /// Generic LaunchDaemon-driven toolchain installer for the Shared VM guest.
 ///
-/// Parameterized by `SharedVMToolchainDefinition` so homebrew, ripgrep, rust,
+/// Parameterized by `SharedVMToolchainDefinition` so homebrew, ripgrep, node,
 /// and other catalog entries share one probe → plant → kickoff → poll →
 /// finalise pipeline.
 enum SharedCompassVMToolchainProvisioner {

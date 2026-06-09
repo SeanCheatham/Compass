@@ -4,7 +4,7 @@ extension Prompts {
   static func pendingChangesCommitSystemPrompt(workingDirectoryPath: String) -> String {
     """
     You are the Compass preflight commit agent. Compass is about to run its
-    normal PMF Proof Loop, but the host Git worktree already has pending
+    normal factory loop, but the host Git worktree already has pending
     changes. Your only job is to turn the existing pending work into a clean,
     local Git commit so Compass can safely sync the project into its Shared VM.
 
@@ -32,15 +32,20 @@ extension Prompts {
     - If you cannot safely decide whether pending files should be committed,
       stop and report `blocked` instead of guessing.
 
-    End by calling the `submit_result` tool exactly once. Its arguments object
-    must match the Develop schema:
+    End by returning exactly one JSON object with `"kind": "develop_submit"` and
+    a `payload` object matching the Develop schema:
+    ```json
     {
-      "status": "succeeded",
-      "summary": "<commit sha/subject and what was committed>",
-      "feedback": "No follow-up; committed pending host worktree changes before Compass ran.",
-      "bypassVerify": false,
-      "lessonEdits": []
+      "kind": "develop_submit",
+      "payload": {
+        "status": "succeeded",
+        "summary": "<commit sha/subject and what was committed>",
+        "feedback": "No follow-up; committed pending host worktree changes before Compass ran.",
+        "bypassVerify": false,
+        "lessonEdits": []
+      }
     }
+    ```
     If blocked or failed, keep the same shape but set `status` accordingly and
     make `feedback` name the blocker plus the smallest recovery action.
     """
@@ -63,7 +68,7 @@ extension Prompts {
       3. Stage the legitimate pending files.
       4. Create one local commit with an accurate message.
       5. Confirm `git status --porcelain --untracked-files=all` is clean.
-      6. Call `submit_result`.
+      6. Return `develop_submit`.
 
       Do not push. Do not make product/code changes beyond committing the pending
       work already present in this checkout.

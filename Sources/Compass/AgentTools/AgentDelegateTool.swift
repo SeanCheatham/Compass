@@ -127,7 +127,7 @@ struct AgentDelegateTool: AgentTool {
         ],
         "profile": [
           "type": "string",
-          "enum": ["rust-clippy", "rust-test", "rust-ui"],
+          "enum": ["test", "typecheck"],
           "description":
             "Optional predefined focused tool profile. Ignored when `tools` is supplied.",
         ],

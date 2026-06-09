@@ -1,7 +1,7 @@
 import Foundation
 
 /// Run a shell command via `/bin/zsh -lc`. Available to every phase:
-/// Develop uses it to apply changes; Plan, Reflect, and Critic get it for
+/// Develop uses it to apply changes; Plan and Critic get it for
 /// probing only (build, test, git inspection) and must not mutate tracked
 /// files — enforcement of that intent lives in the system prompt.
 struct AgentBashTool: AgentTool {

@@ -36,7 +36,7 @@ extension CompassProject {
   /// real guest clone in sync through the vsock Git exchange instead.
   ///
   /// Callers must pass the user's main repo URL — never a derived
-  /// per-iteration path — so every Compass phase (Plan / Reflect /
+  /// per-iteration path — so every Compass phase (Plan /
   /// Develop / Verify) keys off the same catalog entry and sees the
   /// same guest workspace.
   private static func makeSharedVMRoute(
@@ -129,7 +129,7 @@ extension CompassProject {
   }
 
   /// Build an AgentExecutionConfiguration, run it, and decode the
-  /// `submit_result` arguments into the phase result model. Assigns the
+  /// phase submit payload into the phase result model. Assigns the
   /// executor to `self.executor` so `stopRun()` can cancel mid-stream.
   func runAgent<T: Decodable>(
     phase: AgentPhase,
@@ -159,11 +159,6 @@ extension CompassProject {
       environment.kind == .sharedVM
       ? SharedCompassVM.shared.makeToolchainService()
       : nil
-    let rustCargoService =
-      makeRustCargoService(
-        forgeProfile: forgeProfile,
-        environmentKind: environment.kind
-      )
     var installedToolchainIDs: [String] = []
     if environment.kind == .sharedVM {
       installedToolchainIDs =
@@ -179,17 +174,8 @@ extension CompassProject {
     let tools = ToolRegistry.tools(
       for: phase,
       settings: agentSettings,
-      toolchainService: toolchainService,
-      rustCargoService: rustCargoService
+      toolchainService: toolchainService
     )
-    let externalToolNames = tools.compactMap { tool -> String? in
-      switch tool.spec.name {
-      case AgentWebSearchTool.toolName, AgentUnderstandImageTool.toolName:
-        return tool.spec.name
-      default:
-        return nil
-      }
-    }
     let configuration = AgentExecutionConfiguration(
       settings: agentSettings,
       phase: phase,
@@ -200,8 +186,7 @@ extension CompassProject {
         executionEnvironment: environment.kind == .sharedVM ? .sharedVM : .host,
         installedToolchainIDs: installedToolchainIDs,
         hostXcodeBuildTestEnabled: false,
-        rustCargoToolsEnabled: rustCargoService != nil,
-        externalToolNames: externalToolNames
+        externalToolNames: []
       ),
       userPrompt: userPrompt,
       tools: tools,
@@ -214,7 +199,6 @@ extension CompassProject {
       assumptionsURL: makeWorkspace(repoURL: workingDirectory).assumptionsURL,
       sessionNumber: sessionNumber,
       toolchainService: toolchainService,
-      rustCargoService: rustCargoService,
       validateSubmitResult: validateSubmitResult
     )
     log("\(phase.rawValue.capitalized): starting agent loop.", level: .info)
@@ -227,16 +211,16 @@ extension CompassProject {
       do {
         let artifactURL = try makeWorkspace(repoURL: workingDirectory).writeSessionAuditArtifact(
           session: sessionNumber,
-          name: "\(phase.rawValue)-submit-result.json",
-          kind: "submit_result",
+          name: "\(phase.rawValue)-submit-payload.json",
+          kind: "phase_submit_payload",
           contents: String(decoding: result.submitResultArguments, as: UTF8.self),
-          note: "\(phase.rawValue) submit_result payload."
+          note: "\(phase.rawValue) submit payload."
         )
         recordSessionAuditArtifactEvent(
           session: sessionNumber,
-          kind: "submit_result_saved",
+          kind: "phase_submit_payload_saved",
           artifactURL: artifactURL,
-          note: "Saved \(phase.rawValue) submit_result payload.",
+          note: "Saved \(phase.rawValue) submit payload.",
           metadata: [
             "phase": phase.rawValue,
             "iterations": "\(result.iterations)",
@@ -244,7 +228,7 @@ extension CompassProject {
         )
       } catch {
         appendAuditEvent(
-          kind: "submit_result_save_failed",
+          kind: "phase_submit_payload_save_failed",
           status: "failed",
           text: error.localizedDescription,
           metadata: ["phase": phase.rawValue]
@@ -257,7 +241,7 @@ extension CompassProject {
     } catch {
       let body = String(decoding: result.submitResultArguments, as: UTF8.self)
       throw AppModelError.internalInvariant(
-        "Could not decode \(T.self) from submit_result: \(error.localizedDescription)\n\(body)"
+        "Could not decode \(T.self) from phase submit payload: \(error.localizedDescription)\n\(body)"
       )
     }
     if let sessionNumber {
@@ -281,13 +265,9 @@ extension CompassProject {
       let sessionIndex = sessions.firstIndex(where: { $0.session == sessionNumber })
     else { return }
 
-    let proofActionKind =
-      proofActionKind(from: decodedResult)
-      ?? sessions[sessionIndex].tokenSummary.latestProofActionKind
     let phaseUsage = SessionPhaseTokenUsage(
       phase: phase.rawValue,
       usage: usage,
-      proofActionKind: proofActionKind,
       outcome: tokenOutcome(from: decodedResult)
     )
     sessions[sessionIndex].tokenSummary.record(phaseUsage)
@@ -295,14 +275,13 @@ extension CompassProject {
 
     let title = phase.rawValue.capitalized
     let source = phaseUsage.usesEstimate ? "estimated" : "provider reported"
-    let proof = proofActionKind.map { " Proof action: \($0)." } ?? ""
     let compaction =
       phaseUsage.compactionCount > 0
       ? " Compactions: \(phaseUsage.compactionCount), summary \(SessionPhaseTokenUsage.formatTokens(phaseUsage.summaryTokens)) tokens."
       : ""
     let retries = phaseUsage.retryCount > 0 ? " Retries: \(phaseUsage.retryCount)." : ""
     log(
-      "\(title) used \(SessionPhaseTokenUsage.formatTokens(phaseUsage.inputTokens)) input / \(SessionPhaseTokenUsage.formatTokens(phaseUsage.outputTokens)) output tokens (\(SessionPhaseTokenUsage.formatTokens(phaseUsage.totalTokens)) total, \(source)).\(proof)\(compaction)\(retries)",
+      "\(title) used \(SessionPhaseTokenUsage.formatTokens(phaseUsage.inputTokens)) input / \(SessionPhaseTokenUsage.formatTokens(phaseUsage.outputTokens)) output tokens (\(SessionPhaseTokenUsage.formatTokens(phaseUsage.totalTokens)) total, \(source)).\(compaction)\(retries)",
       level: .info
     )
     appendAuditEvent(
@@ -319,20 +298,9 @@ extension CompassProject {
         "compactionCount": "\(phaseUsage.compactionCount)",
         "summaryTokens": "\(phaseUsage.summaryTokens)",
         "retryCount": "\(phaseUsage.retryCount)",
-        "proofActionKind": proofActionKind ?? "",
         "outcome": phaseUsage.outcome ?? "",
       ]
     )
-  }
-
-  private func proofActionKind<T>(from decodedResult: T) -> String? {
-    if let result = decodedResult as? PlanRunResult {
-      return result.pmfProofAction?.kind.rawValue
-    }
-    if let result = decodedResult as? ReflectSummary {
-      return result.pmfProofOutcome?.actionKind.rawValue
-    }
-    return nil
   }
 
   private func tokenOutcome<T>(from decodedResult: T) -> String? {
@@ -342,19 +310,13 @@ extension CompassProject {
     if let result = decodedResult as? DevelopSummary {
       return result.status.rawValue
     }
-    if let result = decodedResult as? ReflectSummary {
-      if result.state != nil { return "updated_state" }
-      if !result.tournamentDecisionUpdates.isEmpty { return "updated_tournament" }
-      if result.pmfProofOutcome != nil { return "updated_proof" }
-      return "observed"
-    }
     if let result = decodedResult as? CriticVerdict {
       return result.verdict.rawValue
     }
     return nil
   }
 
-  /// Reject `submit_result` in-flight when lesson edits don't match
+  /// Reject a phase submit payload in-flight when lesson edits don't match
   /// lessons.md or the payload can't decode into the phase result model.
   func submitResultValidation<T: Decodable>(
     for phase: AgentPhase,
@@ -362,7 +324,7 @@ extension CompassProject {
     decode: T.Type
   ) -> (@Sendable (Data) throws -> Void) {
     let hostWorkspace = makeWorkspace(repoURL: hostRepoURL)
-    let validatesLessonEdits = phase == .plan || phase == .develop || phase == .reflect
+    let validatesLessonEdits = phase == .plan || phase == .develop
     let activeForgeProfile = forgeProfile
     return { args in
       if validatesLessonEdits {
@@ -382,8 +344,7 @@ extension CompassProject {
       try PlanTransitionValidator.validate(
         from: currentState,
         to: nextState,
-        forgeProfile: activeForgeProfile,
-        productTournamentConfig: try? hostWorkspace.readProductTournamentConfig()
+        forgeProfile: activeForgeProfile
       )
     }
   }
@@ -444,7 +405,7 @@ extension CompassProject {
       }
       // `route.guestWorkspacePath` is the persistent per-repo
       // guest workspace (from `SharedCompassVMGuestWorkspaceCatalog`)
-      // — the same directory for every Plan / Reflect / Develop /
+      // — the same directory for every Plan / Develop /
       // Verify run against this repo.
       let guestWorkingDirectory = URL(fileURLWithPath: route.guestWorkspacePath)
       log(
@@ -459,24 +420,6 @@ extension CompassProject {
         launchPlan: launchPlan
       )
     }
-  }
-
-  func makeRustCargoService(
-    forgeProfile: ForgeProfile?,
-    environmentKind: AgentEnvironment.Kind
-  ) -> RustCargoService? {
-    guard forgeProfile == .rustCargo else { return nil }
-    guard environmentKind == .host else {
-      // The Shared VM route will use the guest-installed engine once
-      // the RPC handoff lands; until then avoid handing a host process
-      // a guest-only workspace path.
-      return nil
-    }
-    guard let engineURL = RustEngineLocator.locateEngineBinary() else { return nil }
-    return RustCargoService(
-      engineURL: engineURL,
-      pathPrefix: "\(NSHomeDirectory())/.cargo/bin"
-    )
   }
 
   /// Runs the Verify shell command in the same place the agent just

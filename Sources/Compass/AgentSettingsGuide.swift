@@ -45,48 +45,59 @@ struct AgentSettingsGuide: Equatable, Sendable {
   var rows: [Row]
   var narrationIdentifier: String
 
-  init(settings: AgentRuntimeSettings, foundationModelsAvailable: Bool) {
+  init(settings: AgentRuntimeSettings, modelSnapshot: LocalModelSnapshot) {
     let textReady = settings.isTextCapabilityRunnable(
-      foundationModelsAvailable: foundationModelsAvailable
+      localModelReady: modelSnapshot.isRunnable
     )
-    rows = Self.rows(
-      settings: settings,
-      foundationModelsAvailable: foundationModelsAvailable,
-      textReady: textReady
-    )
-    runtimeCoverage = Self.runtimeCoverage(rows: rows, textReady: textReady)
+    rows = [
+      Row(
+        id: "mlxModel",
+        label: "MLX model",
+        detail: Self.boundedRowDetail(
+          textReady
+            ? "\(modelSnapshot.modelID) is ready for local runs."
+            : "\(modelSnapshot.modelID) must be downloaded before the factory loop can start."
+        ),
+        status: textReady ? .ready : .blocked
+      ),
+      Row(
+        id: "execution",
+        label: "Execution",
+        detail: Self.boundedRowDetail(
+          "Plan, Develop, and Critic all use the local model. Deterministic tools handle file access, edits, shell checks, and verification."
+        ),
+        status: textReady ? .ready : .blocked
+      ),
+      Row(
+        id: "context",
+        label: "Context window",
+        detail: Self.boundedRowDetail("\(settings.contextWindowTokens) token working budget."),
+        status: .ready
+      ),
+    ]
 
-    let textBlocked = rows.contains { $0.id == "text" && $0.status == .blocked }
-    let optionalNeedsAttention = rows.contains { $0.status == .attention }
-    if textBlocked {
-      title = "Agent Setup Needs Text"
-      detail = Self.textBlockedDetail(
-        settings: settings,
-        foundationModelsAvailable: foundationModelsAvailable
-      )
-      actionLabel = "Fix Text"
-      tone = .blocked
-      systemImageName = "text.bubble.badge.exclamationmark"
-    } else if optionalNeedsAttention {
-      title = "Core Agent Ready"
-      detail =
-        "Text can run now. One or more optional tools are selected but need an API key before agents can use them."
-      actionLabel = "Optional setup"
-      tone = .optionalAttention
-      systemImageName = "checkmark.seal"
-    } else if rows.contains(where: { $0.status == .ready && Self.isOptionalToolRowID($0.id) }) {
-      title = "Agent Stack Ready"
-      detail = "Text can run, and every selected optional tool has credentials."
+    runtimeCoverage = Self.coverage(
+      readyCount: textReady ? 1 : 0,
+      selectedCount: 1,
+      fraction: textReady ? 1 : 0,
+      label: textReady ? "Local runtime ready" : "Local runtime blocked",
+      detail: textReady
+        ? "The local MLX model can handle the software-factory loop."
+        : "Download the blessed Qwen model before running Compass."
+    )
+
+    if textReady {
+      title = "Local Runtime Ready"
+      detail = "Compass will use MLX for narrow non-deterministic work and keep the rest of the factory loop deterministic."
       actionLabel = "Ready"
       tone = .ready
       systemImageName = "checkmark.seal.fill"
     } else {
-      title = "Core Agent Ready"
-      detail =
-        "Text can run now. Optional search, vision, and media tools can stay off until a project needs them."
-      actionLabel = "Ready"
-      tone = .ready
-      systemImageName = "checkmark.seal.fill"
+      title = "Local Model Missing"
+      detail = "Compass is MLX-only in this build. The run loop is blocked until the blessed Qwen model is downloaded."
+      actionLabel = "Blocked"
+      tone = .blocked
+      systemImageName = "text.bubble.badge.exclamationmark"
     }
 
     detail = StringUtils.boundedText(detail, limit: Self.detailLimit)
@@ -98,209 +109,7 @@ struct AgentSettingsGuide: Equatable, Sendable {
       systemImageName: systemImageName,
       runtimeCoverage: runtimeCoverage,
       rows: rows,
-      settings: settings,
-      foundationModelsAvailable: foundationModelsAvailable
-    )
-  }
-
-  private static func rows(
-    settings: AgentRuntimeSettings,
-    foundationModelsAvailable: Bool,
-    textReady: Bool
-  ) -> [Row] {
-    [
-      textRow(
-        settings: settings,
-        foundationModelsAvailable: foundationModelsAvailable,
-        textReady: textReady
-      ),
-      phaseRoutingRow(settings: settings, textReady: textReady),
-      optionalToolRow(capability: .webSearch, assignment: settings.webSearchAssignment),
-      optionalToolRow(
-        capability: .imageUnderstanding,
-        assignment: settings.imageUnderstandingAssignment
-      ),
-      optionalToolRow(capability: .image, assignment: settings.imageAssignment),
-      optionalToolRow(capability: .audio, assignment: settings.audioAssignment),
-      optionalToolRow(capability: .video, assignment: settings.videoAssignment),
-    ]
-  }
-
-  private static func textRow(
-    settings: AgentRuntimeSettings,
-    foundationModelsAvailable: Bool,
-    textReady: Bool
-  ) -> Row {
-    let detail: String
-    let status: RowStatus
-    if settings.textProvider == .appleFoundationModels {
-      if foundationModelsAvailable {
-        detail =
-          "Apple Intelligence is available on this Mac; Text can run on device with no API key."
-        status = .ready
-      } else {
-        detail =
-          "Apple Intelligence is unavailable on this Mac. Switch Text to MiniMax Token or OpenAI API."
-        status = .blocked
-      }
-    } else if textReady {
-      detail =
-        "\(settings.textProvider.displayName) has an API key and will use \(textModelName(settings))."
-      status = .ready
-    } else {
-      detail =
-        "Add a \(settings.textProvider.displayName) API key before Plan or Develop can run."
-      status = .blocked
-    }
-
-    return Row(
-      id: "text",
-      label: "Text provider",
-      detail: boundedRowDetail(detail),
-      status: status
-    )
-  }
-
-  private static func phaseRoutingRow(
-    settings: AgentRuntimeSettings,
-    textReady: Bool
-  ) -> Row {
-    let detail: String
-    let status: RowStatus
-    if !textReady {
-      detail = "Model roles appear once Text can reach a runnable provider."
-      status = .blocked
-    } else if settings.textProvider == .appleFoundationModels {
-      detail =
-        "Plan, Develop, Reflect, and Critic share the on-device model; deterministic checks carry the safety load."
-      status = .ready
-    } else {
-      let phaseModels = AgentPhase.allCases.map { phase in
-        "\(phase.displayLabel)=\(settings.model(for: phase))"
-      }
-      let uniqueModels = Set(AgentPhase.allCases.map { settings.model(for: $0) })
-      if uniqueModels.count <= 1 {
-        detail =
-          "Plan, Develop, Reflect, and Critic use \(textModelName(settings)); set Critic only when you want an independent reviewer."
-      } else {
-        detail =
-          "Role routing: \(phaseModels.joined(separator: ", "))."
-      }
-      status = .ready
-    }
-
-    return Row(
-      id: "phaseRouting",
-      label: "Model roles",
-      detail: boundedRowDetail(detail),
-      status: status
-    )
-  }
-
-  private static func optionalToolRow(
-    capability: AgentCapability,
-    assignment: CapabilityAssignment?
-  ) -> Row {
-    guard let assignment else {
-      return Row(
-        id: capability.rawValue,
-        label: capability.displayName,
-        detail: boundedRowDetail(
-          "\(capability.displayName) tools are off; core planning and code work are unaffected."
-        ),
-        status: .off
-      )
-    }
-
-    let hasKey = !assignment.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    let modelDetail = assignment.model.trimmingCharacters(in: .whitespacesAndNewlines)
-    let readyDetail =
-      modelDetail.isEmpty
-      ? "\(assignment.provider.displayName) is ready."
-      : "\(assignment.provider.displayName) is ready with \(modelDetail)."
-    let detail =
-      hasKey
-      ? readyDetail
-      : "\(assignment.provider.displayName) is selected for \(capability.displayName), but its API key is missing. Core runs still work."
-
-    return Row(
-      id: capability.rawValue,
-      label: capability.displayName,
-      detail: boundedRowDetail(detail),
-      status: hasKey ? .ready : .attention
-    )
-  }
-
-  private static func textBlockedDetail(
-    settings: AgentRuntimeSettings,
-    foundationModelsAvailable: Bool
-  ) -> String {
-    if settings.textProvider == .appleFoundationModels, !foundationModelsAvailable {
-      return
-        "The run loop is blocked because Apple Intelligence is unavailable on this Mac. Choose MiniMax Token or OpenAI API for Text, or enable Apple Intelligence if this Mac supports it."
-    }
-    return "The run loop is blocked until the selected Text provider has an API key."
-  }
-
-  private static func textModelName(_ settings: AgentRuntimeSettings) -> String {
-    let trimmed = settings.model.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !trimmed.isEmpty { return trimmed }
-    return settings.textProvider.defaultModel(for: .text) ?? "the provider default"
-  }
-
-  private static func isOptionalToolRowID(_ id: String) -> Bool {
-    id == AgentCapability.webSearch.rawValue
-      || id == AgentCapability.imageUnderstanding.rawValue
-      || id == AgentCapability.image.rawValue
-      || id == AgentCapability.audio.rawValue
-      || id == AgentCapability.video.rawValue
-  }
-
-  private static func runtimeCoverage(rows: [Row], textReady: Bool) -> RuntimeCoverage {
-    let selectedOptionalRows = rows.filter { row in
-      isOptionalToolRowID(row.id) && row.status != .off
-    }
-    let readyOptionalCount = selectedOptionalRows.filter { $0.status == .ready }.count
-    let selectedCount = 1 + selectedOptionalRows.count
-
-    if !textReady {
-      return coverage(
-        readyCount: 0,
-        selectedCount: selectedCount,
-        fraction: 0,
-        label: "Text blocked",
-        detail: "Plan and Develop stay locked until Text reaches a runnable provider."
-      )
-    }
-
-    if selectedOptionalRows.isEmpty {
-      return coverage(
-        readyCount: 1,
-        selectedCount: 1,
-        fraction: 1,
-        label: "Core Text ready",
-        detail: "No optional tools are selected; core planning and code work can run."
-      )
-    }
-
-    if readyOptionalCount == selectedOptionalRows.count {
-      return coverage(
-        readyCount: selectedCount,
-        selectedCount: selectedCount,
-        fraction: 1,
-        label: "All \(selectedOptionalRows.count) optional ready",
-        detail: "Text and every selected optional tool have runnable credentials."
-      )
-    }
-
-    let readyCount = 1 + readyOptionalCount
-    return coverage(
-      readyCount: readyCount,
-      selectedCount: selectedCount,
-      fraction: Double(readyCount) / Double(selectedCount),
-      label: "\(readyOptionalCount) of \(selectedOptionalRows.count) optional ready",
-      detail:
-        "Text is ready; selected optional tools with missing credentials stay unavailable until their keys are saved."
+      modelSnapshot: modelSnapshot
     )
   }
 
@@ -332,8 +141,7 @@ struct AgentSettingsGuide: Equatable, Sendable {
     systemImageName: String,
     runtimeCoverage: RuntimeCoverage,
     rows: [Row],
-    settings: AgentRuntimeSettings,
-    foundationModelsAvailable: Bool
+    modelSnapshot: LocalModelSnapshot
   ) -> String {
     let raw = [
       "title:\(title)",
@@ -342,9 +150,8 @@ struct AgentSettingsGuide: Equatable, Sendable {
       "tone:\(tone.rawValue)",
       "image:\(systemImageName)",
       "coverage:\(runtimeCoverage.label):\(runtimeCoverage.readyCount)/\(runtimeCoverage.selectedCount)",
-      "provider:\(settings.textProvider.rawValue)",
-      "textReady:\(settings.isTextCapabilityRunnable(foundationModelsAvailable: foundationModelsAvailable))",
-      "fmAvailable:\(foundationModelsAvailable)",
+      "modelStatus:\(modelSnapshot.status.rawValue)",
+      "modelID:\(modelSnapshot.modelID)",
       "rows:\(rows.map { "\($0.id):\($0.status.rawValue):\($0.detail)" }.joined(separator: ","))",
     ].joined(separator: "|")
 
@@ -360,60 +167,36 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
   init(
     settings: AgentRuntimeSettings,
     guide: AgentSettingsGuide,
-    foundationModelsAvailable: Bool
+    modelSnapshot: LocalModelSnapshot
   ) {
     let textReady = settings.isTextCapabilityRunnable(
-      foundationModelsAvailable: foundationModelsAvailable
+      localModelReady: modelSnapshot.isRunnable
     )
 
     var sections: [String] = [
       "Compass Runtime Settings Handoff",
       "",
       "Recipient instructions:",
-      "- Treat this packet as bounded runtime configuration context. Do not invent "
-        + "API keys, endpoints, model names, provider assignments, files, or run outcomes.",
-      "- Never ask the user to paste an API key into chat. Credentials are reported "
-        + "only as saved, missing, or not required.",
-      "- Text readiness is load-bearing for Plan and Develop. Search, vision, and "
-        + "media capabilities are optional unless the current project explicitly needs them.",
-      "- Foundation Models availability is a local machine fact; ask the user to verify "
-        + "Settings or choose a network Text provider instead of assuming availability.",
+      "- Treat this packet as bounded local runtime context.",
+      "- Do not invent credentials, network endpoints, model names, files, or run outcomes.",
+      "- Compass is MLX-only; deterministic tools carry file edits, shell checks, and verification.",
       "",
       "Status: \(guide.title) (\(guide.tone.rawValue))",
       "Action: \(guide.actionLabel)",
       "Detail: \(guide.detail)",
       "Runtime coverage: \(guide.runtimeCoverage.label) - \(guide.runtimeCoverage.detail)",
       "",
-      "Text:",
-      "Provider: \(settings.textProvider.displayName)",
+      "Local model:",
       "Runnable: \(Self.yesNo(textReady))",
-      "Foundation Models available: \(Self.yesNo(foundationModelsAvailable))",
-      "Credential requirement: \(Self.credentialRequirementLabel(settings.textProvider))",
-      "Credential saved: \(Self.credentialSavedLabel(settings.apiKey, provider: settings.textProvider))",
-      "Base URL: \(Self.baseURLLabel(settings.baseURL, provider: settings.textProvider))",
-      "Default model: \(Self.modelLabel(settings.model, provider: settings.textProvider, capability: .text))",
+      "Runtime: \(modelSnapshot.runtimeName)",
+      "Model: \(modelSnapshot.modelID)",
+      "Status: \(modelSnapshot.statusLabel)",
+      "Directory: \(modelSnapshot.directory.path)",
       "Context window tokens: \(settings.contextWindowTokens)",
-      "Codemap model: \(Self.codemapModelLabel(settings))",
-      "Phase routing: \(Self.phaseRoutingLabel(settings))",
       "",
-      "Optional tools:",
+      "Guide rows:",
     ]
 
-    sections.append(
-      Self.capabilityLine(capability: .webSearch, assignment: settings.webSearchAssignment)
-    )
-    sections.append(
-      Self.capabilityLine(
-        capability: .imageUnderstanding,
-        assignment: settings.imageUnderstandingAssignment
-      )
-    )
-    sections.append(Self.capabilityLine(capability: .image, assignment: settings.imageAssignment))
-    sections.append(Self.capabilityLine(capability: .audio, assignment: settings.audioAssignment))
-    sections.append(Self.capabilityLine(capability: .video, assignment: settings.videoAssignment))
-
-    sections.append("")
-    sections.append("Guide rows:")
     for row in guide.rows {
       sections.append("- [\(row.status.rawValue)] \(row.label): \(row.detail)")
     }
@@ -431,76 +214,6 @@ struct AgentSettingsClipboardPayload: Equatable, Sendable {
   private static func yesNo(_ value: Bool) -> String {
     value ? "yes" : "no"
   }
-
-  private static func credentialRequirementLabel(_ provider: AgentProviderKind) -> String {
-    provider.requiresCredentials ? "API key required" : "not required"
-  }
-
-  private static func credentialSavedLabel(_ apiKey: String, provider: AgentProviderKind) -> String
-  {
-    guard provider.requiresCredentials else { return "not required" }
-    return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "missing" : "saved"
-  }
-
-  private static func baseURLLabel(_ baseURL: URL, provider: AgentProviderKind) -> String {
-    guard provider.requiresCredentials else { return "not used" }
-    return baseURL.absoluteString
-  }
-
-  private static func modelLabel(
-    _ model: String,
-    provider: AgentProviderKind,
-    capability: AgentCapability
-  ) -> String {
-    let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !trimmed.isEmpty { return trimmed }
-    return provider.defaultModel(for: capability) ?? "provider default"
-  }
-
-  private static func phaseRoutingLabel(_ settings: AgentRuntimeSettings) -> String {
-    let parts = AgentPhase.allCases.map { phase in
-      "\(phase.displayLabel)=\(phaseModelLabel(phase, settings: settings))"
-    }
-    return parts.joined(separator: ", ")
-  }
-
-  private static func phaseModelLabel(
-    _ phase: AgentPhase,
-    settings: AgentRuntimeSettings
-  ) -> String {
-    settings.model(for: phase)
-  }
-
-  private static func codemapModelLabel(_ settings: AgentRuntimeSettings) -> String {
-    let override =
-      settings.codemapModelOverride?.trimmingCharacters(in: .whitespacesAndNewlines)
-      ?? ""
-    if !override.isEmpty { return override }
-    return
-      "default (\(Self.modelLabel(settings.model, provider: settings.textProvider, capability: .text)))"
-  }
-
-  private static func capabilityLine(
-    capability: AgentCapability,
-    assignment: CapabilityAssignment?
-  ) -> String {
-    guard let assignment else {
-      return "- \(capability.displayName): off"
-    }
-
-    var parts = [
-      "- \(capability.displayName): provider \(assignment.provider.displayName)",
-      "credential \(Self.credentialSavedLabel(assignment.apiKey, provider: assignment.provider))",
-      "base URL \(assignment.baseURL.absoluteString)",
-    ]
-    let model = assignment.model.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !model.isEmpty || assignment.provider.usesModelField(for: capability) {
-      parts.append(
-        "model \(Self.modelLabel(assignment.model, provider: assignment.provider, capability: capability))"
-      )
-    }
-    return parts.joined(separator: ", ")
-  }
 }
 
 private enum AgentSettingsClipboardText {
@@ -511,16 +224,5 @@ private enum AgentSettingsClipboardText {
 
     return String(text.prefix(limit - 3))
       .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
-  }
-}
-
-extension AgentPhase {
-  fileprivate var displayLabel: String {
-    switch self {
-    case .plan: return "Plan"
-    case .develop: return "Develop"
-    case .reflect: return "Reflect"
-    case .critic: return "Critic"
-    }
   }
 }

@@ -1,9 +1,5 @@
 import Foundation
 
-#if canImport(FoundationModels)
-  import FoundationModels
-#endif
-
 struct LiveActivitySummary: Equatable, Sendable {
   var clusterKey: String
   var text: String
@@ -350,16 +346,6 @@ enum LiveActivitySummaryService {
   static let modelPromptEventMaxCharacters = 180
 
   static func makeSummary(for cluster: LiveActivityCluster) async -> LiveActivitySummary {
-    #if canImport(FoundationModels)
-      if #available(macOS 26.0, *) {
-        if let generated = try? await FoundationModelLiveActivitySummaryGenerator.generate(
-          cluster: cluster
-        ) {
-          return generated
-        }
-      }
-    #endif
-
     return deterministicSummary(for: cluster)
   }
 
@@ -600,45 +586,6 @@ enum LiveActivitySummaryService {
     }
   }
 }
-
-#if canImport(FoundationModels)
-  @available(macOS 26.0, *)
-  private enum FoundationModelLiveActivitySummaryGenerator {
-    static func generate(cluster: LiveActivityCluster) async throws -> LiveActivitySummary? {
-      try await FoundationModelsSessionGate.shared.withExclusiveAccess {
-        let model = SystemLanguageModel.default
-        guard model.isAvailable else { return nil }
-
-        let session = LanguageModelSession(
-          instructions: """
-            You summarize a batch of recent Compass live activity for a macOS Product Tournament work loop.
-            Return a single paragraph of 2 to 3 plain-text sentences describing what happened.
-            Write in past tense, third person, present a calm narrative of the work.
-            Ground every claim in the supplied events; you may reference file names, commands, counts, and outcomes that appear in those events.
-            Do not use markdown, code fences, JSON, bullet points, or URLs.
-            """)
-
-        let events = LiveActivitySummaryService.modelPromptLines(for: cluster)
-          .joined(separator: "\n")
-
-        let response = try await session.respond(
-          to: """
-            Events since the last summary:
-            \(events)
-
-            Write 2 to 3 sentences summarizing what the agent did in this batch.
-            """,
-          options: GenerationOptions(temperature: 0.4, maximumResponseTokens: 220)
-        )
-
-        return LiveActivitySummaryService.parseGeneratedSummary(
-          response.content,
-          cluster: cluster
-        )
-      }
-    }
-  }
-#endif
 
 private struct StableLiveActivityHasher {
   private var value: UInt64 = 14_695_981_039_346_656_037

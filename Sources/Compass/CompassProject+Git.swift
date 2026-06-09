@@ -94,7 +94,7 @@ extension CompassProject {
   }
 
   /// Renders the host-side commit message Compass writes after pulling
-  /// from the guest workspace. Format mirrors the agent's submit_result:
+  /// from the guest workspace. Format mirrors the Develop submit payload:
   /// the summary becomes the subject (truncated), feedback the body.
   func commitMessage(for summary: DevelopSummary) -> String {
     let subject = boundedFirstLine(summary.summary, limit: 72)

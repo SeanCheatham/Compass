@@ -31,10 +31,8 @@ final class AppModel: ObservableObject {
   @Published var workspaceSelection: WorkspaceSelection = .sandbox
   @Published var modelOverride = ""
   @Published private(set) var agentSettings: AgentRuntimeSettings
-  @Published private(set) var daemonDiagnostics: CompassDaemonDiagnostics
   @Published private(set) var runtimeFeatureFlags: CompassRuntimeFeatureFlags
   private let agentSettingsStore: AgentSettingsStore
-  private let daemonService: CompassDaemonService
   @Published var errorMessage: String?
 
   /// Process-wide shared VM host. Bound to the singleton in
@@ -44,97 +42,18 @@ final class AppModel: ObservableObject {
   let sharedVMHost: SharedCompassVM = SharedCompassVM.shared
 
   init(
-    agentSettingsStore: AgentSettingsStore = AgentSettingsStore(),
-    daemonService: CompassDaemonService = .shared
+    agentSettingsStore: AgentSettingsStore = AgentSettingsStore()
   ) {
     self.agentSettingsStore = agentSettingsStore
-    self.daemonService = daemonService
     self.agentSettings = agentSettingsStore.load()
-    self.daemonDiagnostics = daemonService.diagnostics
     self.runtimeFeatureFlags = CompassRuntimeFeatureFlags()
   }
 
   // MARK: - Agent settings setters
 
-  /// Pick the provider that will handle `capability`. Passing `nil`
-  /// for an optional capability disables it ("None"); the Text
-  /// capability always has a provider — passing `nil` resets it to
-  /// the built-in default (Foundation Models).
-  func setProvider(_ kind: AgentProviderKind?, for capability: AgentCapability) {
-    agentSettingsStore.setSelectedProvider(kind, for: capability)
+  func setAgentContextWindowTokens(_ tokens: Int) {
+    agentSettingsStore.setContextWindowTokens(tokens)
     agentSettings = agentSettingsStore.load()
-  }
-
-  /// Edit a (capability, provider) cell's base URL.
-  func setCellBaseURL(
-    _ raw: String, capability: AgentCapability, provider: AgentProviderKind
-  ) {
-    agentSettingsStore.setCellBaseURL(raw, capability: capability, provider: provider)
-    agentSettings = agentSettingsStore.load()
-  }
-
-  /// Edit a (capability, provider) cell's API key.
-  func setCellAPIKey(
-    _ raw: String, capability: AgentCapability, provider: AgentProviderKind
-  ) {
-    do {
-      try agentSettingsStore.setCellAPIKey(raw, capability: capability, provider: provider)
-    } catch {
-      errorMessage = "Could not save API key: \(error.localizedDescription)"
-    }
-    agentSettings = agentSettingsStore.load()
-  }
-
-  /// Edit a (capability, provider) cell's model identifier.
-  func setCellModel(
-    _ raw: String, capability: AgentCapability, provider: AgentProviderKind
-  ) {
-    agentSettingsStore.setCellModel(raw, capability: capability, provider: provider)
-    agentSettings = agentSettingsStore.load()
-  }
-
-  /// Edit a text-phase override for a specific provider's text cell.
-  func setTextPhaseOverride(
-    _ phase: AgentPhase, _ raw: String, provider: AgentProviderKind
-  ) {
-    agentSettingsStore.setTextPhaseOverride(phase, raw, provider: provider)
-    agentSettings = agentSettingsStore.load()
-  }
-
-  // MARK: - Convenience setters scoped to the active Text provider
-
-  /// Onboarding and other "active text path" surfaces edit the
-  /// currently-selected Text provider's cell. These thin wrappers
-  /// route through the cell setters above using
-  /// `agentSettings.textProvider`. Foundation Models is on-device
-  /// (no credentials), so calls are silently no-op'd in that case.
-
-  func setAgentBaseURL(_ raw: String) {
-    setCellBaseURL(raw, capability: .text, provider: agentSettings.textProvider)
-  }
-
-  func setAgentAPIKey(_ raw: String) {
-    setCellAPIKey(raw, capability: .text, provider: agentSettings.textProvider)
-  }
-
-  func setAgentDefaultModel(_ raw: String) {
-    setCellModel(raw, capability: .text, provider: agentSettings.textProvider)
-  }
-
-  func setAgentPlanModelOverride(_ raw: String) {
-    setTextPhaseOverride(.plan, raw, provider: agentSettings.textProvider)
-  }
-
-  func setAgentDevelopModelOverride(_ raw: String) {
-    setTextPhaseOverride(.develop, raw, provider: agentSettings.textProvider)
-  }
-
-  func setAgentReflectModelOverride(_ raw: String) {
-    setTextPhaseOverride(.reflect, raw, provider: agentSettings.textProvider)
-  }
-
-  func setAgentCriticModelOverride(_ raw: String) {
-    setTextPhaseOverride(.critic, raw, provider: agentSettings.textProvider)
   }
 
   var selectedProject: CompassProject? {
@@ -148,8 +67,6 @@ final class AppModel: ObservableObject {
   }
 
   func bootstrap() async {
-    await daemonService.startIfEnabled()
-    daemonDiagnostics = daemonService.diagnostics
     runtimeFeatureFlags = CompassRuntimeFeatureFlags()
 
     projects = KnownProjectStore.load().map(CompassProject.init(record:))
@@ -228,20 +145,20 @@ final class AppModel: ObservableObject {
     }
   }
 
-  func createRustProject() async {
+  func createTypeScriptProject() async {
     let panel = NSSavePanel()
     panel.canCreateDirectories = true
     panel.canSelectHiddenExtension = false
     panel.isExtensionHidden = true
-    panel.nameFieldStringValue = "CompassRustApp"
-    panel.message = "Create a Rust project for Compass to evolve"
+    panel.nameFieldStringValue = "CompassTypeScriptApp"
+    panel.message = "Create a TypeScript project for Compass to evolve"
     panel.prompt = "Create"
 
     guard panel.runModal() == .OK, let url = panel.url else { return }
     let projectURL = url.standardizedFileURL
 
     do {
-      try await Self.initializeGeneratedRustProject(at: projectURL)
+      try await Self.initializeGeneratedTypeScriptProject(at: projectURL)
       let project = upsertProject(repoURL: projectURL)
       selectProject(project)
       project.logProjectSelected()
@@ -302,20 +219,20 @@ final class AppModel: ObservableObject {
     return project
   }
 
-  static func initializeGeneratedRustProject(at url: URL) async throws {
+  static func initializeGeneratedTypeScriptProject(at url: URL) async throws {
     let projectURL = url.standardizedFileURL
     try ensureCreatableProjectDirectory(projectURL)
-    try RustProjectScaffold.write(
+    try TypeScriptProjectScaffold.write(
       to: projectURL,
-      options: RustProjectScaffold.Options(projectName: projectURL.lastPathComponent)
+      options: TypeScriptProjectScaffold.Options(projectName: projectURL.lastPathComponent)
     )
     let workspace = CompassWorkspace(repoURL: projectURL)
     try workspace.initialize()
     try ForgeProfileService.writeRecord(
-      ForgeProfileRecord(profile: .rustCargo, version: ForgeProfileRecord.currentVersion),
+      ForgeProfileRecord(profile: .typeScriptPnpmVite, version: ForgeProfileRecord.currentVersion),
       workspace: workspace
     )
-    try await initializeGeneratedRustGitRepository(at: projectURL)
+    try await initializeGeneratedTypeScriptGitRepository(at: projectURL)
   }
 
   private static func ensureCreatableProjectDirectory(_ url: URL) throws {
@@ -323,19 +240,19 @@ final class AppModel: ObservableObject {
     var isDirectory: ObjCBool = false
     if fm.fileExists(atPath: url.path, isDirectory: &isDirectory) {
       guard isDirectory.boolValue else {
-        throw AppModelError.internalInvariant("Cannot create a Rust project over a file.")
+        throw AppModelError.internalInvariant("Cannot create a TypeScript project over a file.")
       }
       let children = try fm.contentsOfDirectory(atPath: url.path)
       guard children.isEmpty else {
         throw AppModelError.internalInvariant(
-          "Choose an empty folder or a new folder name for the Rust project.")
+          "Choose an empty folder or a new folder name for the TypeScript project.")
       }
     } else {
       try fm.createDirectory(at: url, withIntermediateDirectories: true)
     }
   }
 
-  private static func initializeGeneratedRustGitRepository(at url: URL) async throws {
+  private static func initializeGeneratedTypeScriptGitRepository(at url: URL) async throws {
     let fm = FileManager.default
     if !fm.fileExists(atPath: url.appending(path: ".git").path) {
       let initResult = try await ProcessRunner.runEnv(
@@ -370,7 +287,7 @@ final class AppModel: ObservableObject {
       [
         "-c", "user.email=compass@example.invalid",
         "-c", "user.name=Compass",
-        "commit", "-q", "-m", "Create Rust project scaffold",
+        "commit", "-q", "-m", "Create TypeScript project scaffold",
       ],
       workingDirectory: url
     )

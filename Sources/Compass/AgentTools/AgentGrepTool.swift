@@ -72,7 +72,7 @@ struct AgentGrepTool: AgentTool {
       "properties": [
         "pattern": [
           "type": "string",
-          "description": "Regex pattern to search for (extended POSIX / Rust regex syntax).",
+          "description": "Regex pattern to search for (extended POSIX regex syntax).",
         ],
         "path": [
           "type": "string",

@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Develop phase submit_result payload. Call once after implementing the immediate plan or identifying the smallest concrete blocker.",
+  "description": "Develop phase submit payload. Return once after implementing the immediate plan or identifying the smallest concrete blocker.",
   "additionalProperties": false,
   "required": ["status", "summary", "feedback", "bypassVerify", "lessonEdits"],
   "properties": {

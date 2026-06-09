@@ -1,3 +1,0 @@
-pub fn broken() -> i32 {
-    missing_value
-}

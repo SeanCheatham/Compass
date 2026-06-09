@@ -4,6 +4,7 @@ import SwiftUI
 struct SidebarView: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject private var sharedVMHost: SharedCompassVM = .shared
+  @ObservedObject private var localModelManager: LocalModelManager = .shared
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -16,7 +17,7 @@ struct SidebarView: View {
             model.selectSandbox()
           }
         }
-        Text("PMF proof workspace")
+        Text("Local software factory")
           .font(.callout)
           .foregroundStyle(.secondary)
       }
@@ -35,12 +36,12 @@ struct SidebarView: View {
           .foregroundStyle(.secondary)
         Spacer()
         Button {
-          Task { await model.createRustProject() }
+          Task { await model.createTypeScriptProject() }
         } label: {
-          Label("New Rust Project", systemImage: "plus.square.dashed")
+          Label("New TypeScript Project", systemImage: "plus.square.dashed")
         }
         .labelStyle(.iconOnly)
-        .help("New Rust project")
+        .help("New TypeScript project")
 
         Button {
           Task { await model.chooseRepository() }
@@ -89,7 +90,7 @@ struct SidebarView: View {
       DisclosureGroup {
         let runtimeSummary = AgentRuntimeSidebarSummary(
           settings: model.agentSettings,
-          foundationModelsAvailable: FoundationModelsAvailability.isAvailable
+          modelSnapshot: localModelManager.snapshot
         )
         VStack(alignment: .leading, spacing: 8) {
           ForEach(runtimeSummary.lines) { line in
@@ -97,7 +98,7 @@ struct SidebarView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
           }
-          Text("Settings: Agent… (⌘,) → Agent.")
+          Text("Settings: Runtime… (⌘,) → Agent.")
             .font(.caption2)
             .foregroundStyle(.tertiary)
           if let diagnosticsAction = model.selectedProject?.runtimeDiagnosticsMenu

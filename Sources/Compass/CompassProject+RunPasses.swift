@@ -49,12 +49,6 @@ extension CompassProject {
         sessionNumber: sessionNumber,
         agentSettings: agentSettings
       )
-      try await runReflectIfNeeded(
-        workspace,
-        sessionIndex: sessionIndex,
-        agentSettings: agentSettings,
-        modelOverride: modelOverride
-      )
 
       let priorFeedback = previousFeedback(excluding: sessionNumber)
       consumedDrafts = try workspace.snapshotAndClearDrafts()
@@ -80,14 +74,6 @@ extension CompassProject {
       log("Plan focus this iteration: \(focus.displayName).", level: .info)
 
       let visionText = workspace.readVision()
-      let productPainText = [visionText, consumedDrafts]
-        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        .filter { !$0.isEmpty }
-        .joined(separator: "\n\n")
-      let productTournamentConfigForPrompt = try workspace.readOrSeedProductTournamentConfig(
-        projectTitle: workspace.repoURL.lastPathComponent,
-        rawPain: productPainText.isEmpty ? visionText : productPainText
-      )
       let prompt = try Prompts.planPrompt(
         state: currentState.proposal,
         completedCount: currentState.completed.count,
@@ -99,8 +85,6 @@ extension CompassProject {
         focus: focus,
         forgeProfile: forgeProfile,
         coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace),
-        productTournamentConfig: productTournamentConfigForPrompt,
-        productTournamentEvidenceIndex: workspace.readProductTournamentEvidenceIndex(),
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
       let promptURL = try workspace.writeSessionArtifact(
@@ -136,8 +120,7 @@ extension CompassProject {
 
       try validatePlanTransition(
         from: currentState,
-        to: nextState,
-        productTournamentConfig: productTournamentConfigForPrompt
+        to: nextState
       )
       let lessonEditCount = try workspace.applyLessonEdits(planResult.lessonEdits)
       try workspace.writeState(nextState)
@@ -153,11 +136,6 @@ extension CompassProject {
       }
       sessions[sessionIndex].plan = nextState.immediate?.plan
       sessions[sessionIndex].verify = nextState.immediate?.verify
-      recordProductTournamentPlanMetadata(
-        for: nextState.immediate,
-        productTournamentConfig: productTournamentConfigForPrompt,
-        sessionIndex: sessionIndex
-      )
       try persistSessions()
 
       if nextState.immediate == nil {
@@ -399,7 +377,7 @@ extension CompassProject {
             // budget-exhaustion context so the next attempt starts
             // fresh, rather than aborting the whole Develop pass.
             let note =
-              "Develop attempt \(attempt) ended without submit_result: \(error.localizedDescription)."
+              "Develop attempt \(attempt) ended without a phase submit envelope: \(error.localizedDescription)."
             log(note, level: .warning)
             appendSessionNote(note, to: sessionIndex)
             priorIssues = [note]
@@ -633,95 +611,6 @@ extension CompassProject {
     await refresh()
   }
 
-  func runReflectIfNeeded(
-    _ workspace: CompassWorkspace,
-    sessionIndex: Int,
-    agentSettings: AgentRuntimeSettings,
-    modelOverride: String
-  ) async throws {
-    guard sessions.indices.contains(sessionIndex) else { return }
-    let cadence = reflectEvery()
-    guard cadence > 0, sessions[sessionIndex].session % cadence == 0 else { return }
-
-    let iteration = sessions[sessionIndex].session
-    let recentSessions =
-      sessions
-      .filter { $0.session != iteration && $0.endedAt != nil }
-      .sorted { $0.startedAt > $1.startedAt }
-      .prefix(reflectSessionWindow)
-
-    let visionText = workspace.readVision()
-    let productTournamentConfigForPrompt = try workspace.readOrSeedProductTournamentConfig(
-      projectTitle: workspace.repoURL.lastPathComponent,
-      rawPain: visionText
-    )
-    let prompt = try Prompts.reflectPrompt(
-      state: workspace.readState().proposal,
-      lessons: workspace.readLessons(),
-      assumptions: try workspace.readAssumptionLedger().formattedForPrompt(),
-      vision: visionText,
-      recentSessions: Array(recentSessions),
-      iteration: iteration,
-      productTournamentConfig: productTournamentConfigForPrompt,
-      productTournamentEvidenceIndex: workspace.readProductTournamentEvidenceIndex(),
-      hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
-    )
-
-    let launchPlan = agentLaunchPlan(for: workspace.repoURL)
-    logExecutionEnvironmentPreflight(
-      phase: "Reflect",
-      nativeExecutionURL: workspace.repoURL,
-      launchPlan: launchPlan,
-      sessionIndex: sessionIndex
-    )
-    log("Reflect: launching agent.", level: .info)
-    let result = try await runAgent(
-      phase: .reflect,
-      agentSettings: agentSettings,
-      modelOverride: modelOverride,
-      workingDirectory: workspace.repoURL,
-      userPrompt: prompt,
-      submitResultSchema: Prompts.reflectSchema(
-        hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
-      ),
-      codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
-      sessionNumber: iteration,
-      decode: ReflectSummary.self
-    )
-
-    let tournamentDecisionUpdateCount = try applyProductTournamentDecisionUpdates(
-      result.tournamentDecisionUpdates,
-      from: productTournamentConfigForPrompt,
-      workspace: workspace,
-      sessionIndex: sessionIndex
-    )
-    let lessonEditCount = try workspace.applyLessonEdits(result.lessonEdits)
-    if let reflectedProposal = result.state {
-      let currentState = try workspace.readState()
-      let mergedState = currentState.applying(proposal: reflectedProposal)
-      try workspace.writeState(mergedState)
-      state = mergedState
-      log("Reflect updated state.json: \(result.summary)", level: .success)
-    } else {
-      log("Reflect: \(result.summary)", level: .info)
-    }
-    logLessonEdits(lessonEditCount)
-    if tournamentDecisionUpdateCount > 0 {
-      log(
-        "Reflect updated \(tournamentDecisionUpdateCount) tournament experiment decision(s).",
-        level: .success
-      )
-    }
-  }
-
-  func reflectEvery() -> Int {
-    let raw = ProcessInfo.processInfo.environment["COMPASS_REFLECT_EVERY"]
-    guard let raw, !raw.isEmpty, let parsed = Int(raw), parsed >= 0 else {
-      return 5
-    }
-    return parsed
-  }
-
   /// Run one Critic review pass against the Develop output that just
   /// passed post-checks. Always returns a verdict — Critic infrastructure
   /// failures (network, schema decode) log a warning and fall through to
@@ -802,152 +691,17 @@ extension CompassProject {
 
   func validatePlanTransition(
     from current: PlanState,
-    to next: PlanState,
-    productTournamentConfig: ProductTournamentConfig? = nil
+    to next: PlanState
   ) throws {
     do {
       try PlanTransitionValidator.validate(
         from: current,
         to: next,
-        forgeProfile: forgeProfile,
-        productTournamentConfig: productTournamentConfig
+        forgeProfile: forgeProfile
       )
     } catch let error as PlanTransitionValidationError {
       throw AppModelError.rejectedPlan(error.message)
     }
-  }
-
-  func applyProductTournamentDecisionUpdates(
-    _ updates: [ProductTournamentReflectDecisionUpdate],
-    from currentConfig: ProductTournamentConfig,
-    workspace: CompassWorkspace,
-    sessionIndex: Int
-  ) throws -> Int {
-    guard !updates.isEmpty else { return 0 }
-    let nextConfig = try ProductTournamentReflectDecisionApplier.applying(
-      updates,
-      to: currentConfig
-    )
-    try workspace.writeProductTournamentConfig(nextConfig)
-    productTournamentConfig = nextConfig
-
-    recordProductTournamentDecisionMetadata(
-      updates,
-      previousConfig: currentConfig,
-      nextConfig: nextConfig,
-      sessionIndex: sessionIndex
-    )
-    try persistSessions()
-    return updates.count
-  }
-
-  func recordProductTournamentPlanMetadata(
-    for immediate: PlanNext?,
-    productTournamentConfig: ProductTournamentConfig,
-    sessionIndex: Int
-  ) {
-    guard sessions.indices.contains(sessionIndex), let immediate else { return }
-    let experimentIDs = productTournamentExperimentIDs(
-      mentionedIn: [
-        immediate.plan,
-        immediate.selectedBecause,
-        immediate.candidateID,
-      ]
-      .compactMap { $0 }
-      .joined(separator: "\n"),
-      productTournamentConfig: productTournamentConfig
-    )
-    guard experimentIDs.count == 1,
-      let experiment = productTournamentConfig.tournamentExperiments.first(where: {
-        $0.id == experimentIDs[0]
-      })
-    else { return }
-
-    sessions[sessionIndex].tournamentExperimentID = experiment.id
-    sessions[sessionIndex].tournamentContenderPlanID = experiment.contenderPlanID
-    sessions[sessionIndex].tournamentPainID = productTournamentPainID(
-      forContenderPlanID: experiment.contenderPlanID,
-      config: productTournamentConfig
-    )
-    sessions[sessionIndex].tournamentExperimentBranchName = experiment.branchName
-    sessions[sessionIndex].tournamentExperimentCommitSha =
-      experiment.currentSha ?? experiment.baseSha
-    sessions[sessionIndex].tournamentExperimentBeforeSha =
-      experiment.currentSha ?? experiment.baseSha
-    sessions[sessionIndex].tournamentDecision = experiment.decision
-  }
-
-  func recordProductTournamentDecisionMetadata(
-    _ updates: [ProductTournamentReflectDecisionUpdate],
-    previousConfig: ProductTournamentConfig,
-    nextConfig: ProductTournamentConfig,
-    sessionIndex: Int
-  ) {
-    guard sessions.indices.contains(sessionIndex), let latest = updates.last,
-      let experiment = nextConfig.tournamentExperiments.first(where: {
-        $0.id == latest.experimentID
-      })
-    else { return }
-
-    let previousExperiment = previousConfig.tournamentExperiments.first {
-      $0.id == latest.experimentID
-    }
-    sessions[sessionIndex].tournamentExperimentID = experiment.id
-    sessions[sessionIndex].tournamentContenderPlanID = experiment.contenderPlanID
-    sessions[sessionIndex].tournamentPainID = productTournamentPainID(
-      forContenderPlanID: experiment.contenderPlanID,
-      config: nextConfig
-    )
-    sessions[sessionIndex].tournamentExperimentBranchName = experiment.branchName
-    sessions[sessionIndex].tournamentExperimentCommitSha =
-      experiment.currentSha ?? experiment.baseSha
-    sessions[sessionIndex].tournamentExperimentBeforeSha =
-      previousExperiment?.currentSha ?? previousExperiment?.baseSha
-    sessions[sessionIndex].tournamentExperimentAfterSha =
-      experiment.currentSha ?? experiment.baseSha
-    sessions[sessionIndex].tournamentEvidenceRunIDs = Array(
-      Set(updates.flatMap(\.evidenceRunIDs))
-    )
-    .sorted()
-    sessions[sessionIndex].tournamentDecision = latest.decision
-  }
-
-  private func productTournamentPainID(
-    forContenderPlanID contenderPlanID: String,
-    config: ProductTournamentConfig
-  ) -> String? {
-    config.contenderPlans.first { $0.id == contenderPlanID }?.painID
-  }
-
-  private func productTournamentExperimentIDs(
-    mentionedIn text: String,
-    productTournamentConfig: ProductTournamentConfig
-  ) -> [String] {
-    let normalizedText = normalizedProductTournamentMatchText(text)
-    guard !normalizedText.isEmpty else { return [] }
-    var matches: [String] = []
-    for experiment in productTournamentConfig.tournamentExperiments {
-      let tokens = [
-        experiment.id,
-        experiment.branchName,
-        experiment.worktreeID,
-        experiment.title,
-      ]
-      .map(normalizedProductTournamentMatchText)
-      .filter { $0.count >= 3 }
-      if tokens.contains(where: { normalizedText.contains($0) }) {
-        matches.append(experiment.id)
-      }
-    }
-    return Array(Set(matches)).sorted()
-  }
-
-  private func normalizedProductTournamentMatchText(_ text: String) -> String {
-    text
-      .lowercased()
-      .replacingOccurrences(of: #"[^a-z0-9/._-]+"#, with: " ", options: .regularExpression)
-      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   func runPostChecks(
@@ -963,7 +717,6 @@ extension CompassProject {
     var gitStatusIssues: [String] = []
     var verifyOutput: VerifyOutput?
     var requiresPlanRepair = false
-    var verifyPassed = false
 
     switch summary.status {
     case .succeeded:
@@ -1052,7 +805,6 @@ extension CompassProject {
         durationMs: Int(Date().timeIntervalSince(verifyStartedAt) * 1000)
       )
       if verify.exitCode == 0 {
-        verifyPassed = true
         log("Verify passed.", level: .success)
         feedback(.verifyPassed)
         if let profile = forgeProfile {
@@ -1091,36 +843,6 @@ extension CompassProject {
         }
         verifyOutput = output
         log("Verify failed (exit \(verify.exitCode)).", level: .error)
-      }
-    }
-
-    if verifyPassed, forgeProfile == .rustCargo {
-      let visualIssues = await runRustDesktopVisualVerificationIfAvailable(
-        workingDirectory: workingDirectory,
-        launchPlan: launchPlan,
-        sessionIndex: sessionIndex,
-        attempt: attempt
-      )
-      verifyIssues.append(contentsOf: visualIssues)
-      if !next.verify.contains("clippy") {
-        let clippy = try await runVerifyCommand(
-          command:
-            "if command -v compass-engine >/dev/null 2>&1; then compass-engine clippy-lint --repo . --format json; else cargo clippy --workspace --all-targets --all-features -- -D warnings; fi",
-          hostWorkingDirectory: workingDirectory,
-          timeoutSeconds: 120,
-          launchPlan: launchPlan
-        )
-        if clippy.exitCode != 0 {
-          verifyIssues.append(
-            """
-            [verify] Rust post-verify clippy soft gate reported issues. Output (tail):
-            ```
-            \(tail(clippy.stdout + clippy.stderr, max: 4000))
-            ```
-            """
-          )
-          log("Rust post-verify clippy soft gate reported issues.", level: .warning)
-        }
       }
     }
 

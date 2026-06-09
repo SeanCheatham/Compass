@@ -13,16 +13,12 @@ import Foundation
 /// an entire multi-commit range) or ``RepoQnA`` (free-form questions), it focuses on the
 /// single-file diff for a single commit — the most targeted explanation in the layer.
 ///
-/// ## Foundation Models boundary
+/// ## Generated narration boundary
 ///
-/// The ``summarize(diff:)`` method is gated ``@available(macOS 26.0, *)`` and streams
-/// directly to Foundation Models with a fixed 3-sentence prompt template. Output is
-/// capped at ~600 tokens. Returns `nil` when Foundation Models is unavailable or
+/// The ``summarize(diff:)`` method is gated ``@available(macOS 26.0, *)`` and uses
+/// the generated narration shim with a fixed 3-sentence prompt template. Output is
+/// capped at ~600 tokens. Returns `nil` when narration is unavailable or
 /// produces no content.
-
-#if canImport(FoundationModels)
-  import FoundationModels
-#endif
 
 /// Summarizes a single-file git diff for use in the Explore Q&A pipeline.
 ///
@@ -33,11 +29,11 @@ import Foundation
 /// list (newest first) and passes it directly; this enum handles the
 /// single-file ``git diff`` call internally.
 ///
-/// ## Foundation Models boundary
+/// ## Generated narration boundary
 ///
-/// The diff text is streamed directly to Foundation Models with a fixed
+/// The diff text is streamed through the narration shim with a fixed
 /// 3-sentence prompt template. Output is capped at ~600 tokens. Returns `nil`
-/// when Foundation Models is unavailable or produces no content, with a
+/// when narration is unavailable or produces no content, with a
 /// non-nil ``ExplainUnavailableReason`` in the second tuple position to
 /// enable user-facing messaging in the UI.
 ///
@@ -53,7 +49,7 @@ enum CommitExplainer {
   /// The summary is kept to roughly three sentences and caps output
   /// at approximately 600 tokens.
   ///
-  /// Returns `(nil, reason)` when Foundation Models is unavailable or
+  /// Returns `(nil, reason)` when generated narration is unavailable or
   /// produces no content; `reason` carries a user-facing message explaining
   /// why the feature did not activate.
   static func summarize(diff: String) async -> (String?, ExplainUnavailableReason?) {
@@ -64,7 +60,7 @@ enum CommitExplainer {
   /// and what role it plays in the codebase. Distinct from the diff-based
   /// "what changed" summary.
   ///
-  /// Returns `(nil, reason)` when Foundation Models is unavailable or produces
+  /// Returns `(nil, reason)` when generated narration is unavailable or produces
   /// no content; `reason` carries a user-facing message.
   static func summarizeWhyGenerated(diff: String) async -> (String?, ExplainUnavailableReason?) {
     return await summarize(
@@ -257,7 +253,7 @@ enum CommitExplainer {
   /// already hold a `SessionCommit` can use this directly rather than
   /// constructing a single-element array.
   ///
-  /// Returns `nil` when the diff is empty, git fails, or Foundation Models
+  /// Returns `nil` when the diff is empty, git fails, or generated narration
   /// is unavailable.
   static func explain(commit: SessionCommit, repoURL: URL) async -> (
     String?, ExplainUnavailableReason?

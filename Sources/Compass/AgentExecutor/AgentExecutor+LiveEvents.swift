@@ -1,5 +1,4 @@
 import Foundation
-import OpenAI
 
 extension AgentExecutor {
   // MARK: - LiveEvent mapping
@@ -149,13 +148,6 @@ extension AgentExecutor {
       return name
     case AgentListFilesTool.toolName:
       return string("filter", "query", "search", "path", "directory", "dir") ?? "(all)"
-    case AgentGenerateImageTool.toolName:
-      return string(
-        "output_path", "outputPath", "path", "filePath", "file_path", "output", "destination"
-      )
-        ?? string("prompt", "description", "imagePrompt", "image_prompt").map {
-          truncateOneLine($0, limit: 80)
-        }
     case AgentDelegateTool.toolName:
       return string("task", "prompt", "instructions", "instruction", "question", "subtask").map {
         truncateOneLine($0, limit: 100)

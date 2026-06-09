@@ -25,14 +25,7 @@ struct VerifyBypassAutoRepair: Equatable, Sendable {
     }
 
     switch forgeProfile {
-    case .rustCargo:
-      return VerifyBypassAutoRepair(
-        command: RustVerifyCommands.cargo(RustVerifyCommands.fastVerify),
-        reason: .sortedDiffFileList,
-        note:
-          "Develop reported only a sorted git-diff file-list contract problem, so Compass replaced the brittle planned verify wrapper with the Rust fast verify tier."
-      )
-    case .swiftSPM, .typeScriptVitest, nil:
+    case .swiftSPM, .typeScriptPnpmVite, nil:
       return nil
     }
   }

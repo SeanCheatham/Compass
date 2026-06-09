@@ -105,6 +105,8 @@ struct LiveFailureInsight: Equatable, Sendable {
     if containsAny(
       normalized,
       [
+        "phase submit missing",
+        "phase submit envelope",
         "submit_result missing",
         "ended without submit_result",
         "model stopped without calling submit_result",
@@ -115,8 +117,8 @@ struct LiveFailureInsight: Equatable, Sendable {
       return (
         .missingResult,
         "Agent Did Not Hand Back A Result",
-        "The model ended its turn without the result tool Compass needs to safely finish this phase.",
-        "Compass will ask for the same answer again as a `submit_result` call instead of accepting prose.",
+        "The model ended its turn without the JSON submit envelope Compass needs to safely finish this phase.",
+        "Compass will ask for the same answer again as a phase submit envelope instead of accepting prose.",
         "Result handoff",
         "arrow.uturn.backward.circle"
       )
@@ -125,6 +127,7 @@ struct LiveFailureInsight: Equatable, Sendable {
     if containsAny(
       normalized,
       [
+        "develop_submit verify bypass rejected",
         "submit_result verify bypass rejected", "bypassverify=true", "bypassverify: true",
       ]
     ) {
@@ -141,6 +144,7 @@ struct LiveFailureInsight: Equatable, Sendable {
     if containsAny(
       normalized,
       [
+        "plan_submit rejected",
         "submit_result plan rejected", "placeholder verify command",
         "failure-masking verify command", "command-only acceptance checks",
         "vague acceptance checks", "missing acceptance checks",
@@ -160,6 +164,7 @@ struct LiveFailureInsight: Equatable, Sendable {
     if containsAny(
       normalized,
       [
+        "develop_submit feedback rejected", "critic_submit feedback rejected",
         "submit_result feedback rejected", "submit_result critic feedback rejected",
         "too weak to hand", "without actionable", "weak handoff",
       ]
@@ -177,6 +182,7 @@ struct LiveFailureInsight: Equatable, Sendable {
     if containsAny(
       normalized,
       [
+        "phase payload contract rejected",
         "submit_result contract rejected",
         "wrong type at `state.",
         "missing required field `state.",
@@ -186,7 +192,7 @@ struct LiveFailureInsight: Equatable, Sendable {
       return (
         .resultContractRepair,
         "Result Shape Needs Repair",
-        "Compass received a `submit_result` call, but one of the result fields did not match the phase contract.",
+        "Compass received a submit envelope, but one of the result fields did not match the phase contract.",
         "The agent should resend the same result with the exact required field types, especially object-vs-string and array-vs-string fields.",
         "Schema",
         "curlybraces"
@@ -247,24 +253,18 @@ struct LiveFailureInsight: Equatable, Sendable {
       normalized,
       [
         "chat completions stream failed",
-        "rate limit",
-        "unauthorized",
-        "forbidden",
-        "invalid api key",
-        "status code: 401",
-        "status code: 403",
-        "status code: 429",
-        "network connection lost",
-        "cannot connect to host",
-        "not connected to internet",
+        "local model generation failed",
+        "model missing",
+        "mlx",
+        "could not load",
       ]
     ) {
       return (
         .providerFailure,
-        "Model Provider Needs Attention",
-        "The selected Text provider failed before Compass could receive a complete model response.",
-        "Check the selected model, endpoint, API key, and network connection before retrying the same phase.",
-        "Provider",
+        "Local Model Needs Attention",
+        "The MLX runtime failed before Compass could receive a complete model response.",
+        "Confirm the blessed model is downloaded and retry once the local runtime is ready.",
+        "MLX",
         "antenna.radiowaves.left.and.right"
       )
     }
@@ -291,23 +291,23 @@ struct LiveFailureInsight: Equatable, Sendable {
       )
     }
 
-    if containsAny(normalized, ["compass-engine not found", "could not locate compass-engine"]) {
+    if containsAny(normalized, ["pnpm: command not found", "corepack: command not found"]) {
       return (
         .unavailableService,
-        "Rust Engine Is Not Installed",
-        "Compass could not find the Rust sidecar that provides structured Cargo tooling.",
-        "Build or install `compass-engine`, then rerun the Rust tool or repair the Shared VM provisioning.",
-        "Rust engine",
+        "Node Toolchain Is Not Ready",
+        "Compass could not find the Node/pnpm tools needed for generated TypeScript work.",
+        "Repair Shared VM provisioning or install the Node.js + pnpm toolchain, then rerun verify.",
+        "Node toolchain",
         "shippingbox"
       )
     }
 
-    if containsAny(normalized, ["missing-cargo-llvm-cov", "cargo-llvm-cov is not installed"]) {
+    if containsAny(normalized, ["vitest: command not found", "cannot find package 'vitest'"]) {
       return (
         .commandFailure,
-        "Rust Coverage Tool Is Missing",
-        "The Rust coverage probe needs cargo-llvm-cov, but it is not installed or could not run.",
-        "Install `cargo-llvm-cov`, then rerun `coverage_gaps` or the planned Rust verify command.",
+        "Test Tooling Is Missing",
+        "The TypeScript test command could not find Vitest or its coverage tooling.",
+        "Run `pnpm install`, then rerun the planned verify command.",
         "Coverage",
         "gauge.with.dots.needle.bottom.50percent"
       )
@@ -316,50 +316,50 @@ struct LiveFailureInsight: Equatable, Sendable {
     if containsAny(
       normalized,
       [
-        "generated-scaffold-missing-member",
-        "generated-scaffold-metadata-drift",
-        "scaffold-check: fail",
+        "pnpm-workspace.yaml",
+        "workspace package not found",
+        "no projects matched the filters",
       ]
     ) {
       return (
         .commandFailure,
-        "Rust Scaffold Drift Detected",
-        "The generated Rust project no longer matches the Compass scaffold contract.",
-        "Use `scaffold_check`, restore the missing scaffold file or member, then rerun the structured Rust probe.",
+        "Workspace Scaffold Needs Repair",
+        "The generated TypeScript workspace no longer matches the Compass scaffold contract.",
+        "Restore the missing workspace file or package reference, then rerun `pnpm verify`.",
         "Scaffold",
         "wrench.and.screwdriver"
       )
     }
 
-    if normalized.contains("clippy::") {
+    if containsAny(normalized, ["tsc ", "typescript", "type error"]) {
       return (
         .commandFailure,
-        "Clippy Lint Failure",
-        "Rust linting found an issue that should be fixed before the proof passes.",
-        "Use the clippy diagnostic location, make the smallest code change, then rerun `clippy_lint` or verify.",
-        "Clippy",
+        "TypeScript Check Failed",
+        "The TypeScript compiler found an issue that should be fixed before the change lands.",
+        "Start at the first reported file and line, make the smallest code change, then rerun `pnpm typecheck` or verify.",
+        "TypeScript",
         "paintbrush.pointed"
       )
     }
 
-    if normalized.contains("error[e0") {
+    if normalized.contains("vite build") || normalized.contains("failed to resolve import") {
       return (
         .commandFailure,
-        "Rust Compile Error",
-        "rustc reported a compile error with a stable error code.",
-        "Start at the reported file and line, fix the first compiler error, then rerun `cargo_check`.",
-        "Rustc",
+        "Web Build Failed",
+        "The Vite build found a bundling or import issue.",
+        "Fix the first Vite error, then rerun `pnpm build` or verify.",
+        "Vite",
         "curlybraces"
       )
     }
 
-    if normalized.contains("could not compile `") {
+    if containsAny(normalized, ["npm err!", "pnpm err!", "lockfile"]) {
       return (
         .commandFailure,
-        "Rust Crate Did Not Compile",
-        "Cargo identified a crate that failed to compile.",
-        "Use the diagnostic immediately above the crate failure, fix that crate first, then rerun the scoped Cargo proof.",
-        "Cargo",
+        "Package Command Failed",
+        "The package manager reported an install, script, or lockfile problem.",
+        "Use the first package-manager error, repair dependencies or scripts, then rerun the scoped verify command.",
+        "pnpm",
         "terminal"
       )
     }
@@ -432,8 +432,8 @@ struct LiveFailureInsight: Equatable, Sendable {
       )
     case .providerFailure:
       return owner(
-        label: "Text provider",
-        detail: "Check the selected model, endpoint, API key, and network connection.",
+        label: "MLX runtime",
+        detail: "Check that the blessed model is downloaded and ready.",
         systemImageName: "text.bubble.badge.exclamationmark"
       )
     case .guestBridge:

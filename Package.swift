@@ -13,7 +13,6 @@ let package = Package(
     .library(name: "CompassAgentRPC", targets: ["CompassAgentRPC"]),
   ],
   dependencies: [
-    .package(url: "https://github.com/MacPaw/OpenAI.git", from: "0.4.9"),
     .package(url: "https://github.com/ChimeHQ/SwiftTreeSitter", from: "0.9.0"),
     .package(
       url: "https://github.com/alex-pinkus/tree-sitter-swift",
@@ -28,12 +27,20 @@ let package = Package(
       revision: "58404d8cf191d69f2674a8fd507bd5776f46cb11"
     ),
     .package(
-      url: "https://github.com/tree-sitter/tree-sitter-rust",
-      revision: "77a3747266f4d621d0757825e6b11edcbf991ca5"
-    ),
-    .package(
       url: "https://github.com/apple/swift-testing",
       exact: "6.3.2"
+    ),
+    .package(
+      url: "https://github.com/ml-explore/mlx-swift-lm",
+      branch: "main"
+    ),
+    .package(
+      url: "https://github.com/huggingface/swift-huggingface",
+      from: "0.9.0"
+    ),
+    .package(
+      url: "https://github.com/huggingface/swift-transformers",
+      from: "1.3.0"
     ),
   ],
   targets: [
@@ -58,12 +65,15 @@ let package = Package(
       dependencies: [
         "CompassAgentRPC",
         "TreeSitterScanners",
-        .product(name: "OpenAI", package: "OpenAI"),
         .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
         .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
         .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
         .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
-        .product(name: "TreeSitterRust", package: "tree-sitter-rust"),
+        .product(name: "MLXLLM", package: "mlx-swift-lm"),
+        .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
+        .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
+        .product(name: "HuggingFace", package: "swift-huggingface"),
+        .product(name: "Tokenizers", package: "swift-transformers"),
       ],
       exclude: [
         "SharedVM/README.md"

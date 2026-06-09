@@ -15,15 +15,11 @@ import Foundation
 /// All three are called through or alongside ``FileExplainer``; ``RepoQnA`` stands alone
 /// as the exploratory Q&A surface.
 ///
-/// ## Foundation Models boundary
+/// ## Generated narration boundary
 ///
-/// All public methods are gated ``@available(macOS 26.0, *)`` and stream directly to
-/// Foundation Models. All return `nil` when Foundation Models is unavailable or
+/// All public methods are gated ``@available(macOS 26.0, *)`` and stream through
+/// the generated narration shim. All return `nil` when narration is unavailable or
 /// produces no content.
-
-#if canImport(FoundationModels)
-  import FoundationModels
-#endif
 
 /// Interactive Q&A about repository changes, grounded in the actual diff
 /// and codemap of a commit range.
@@ -39,7 +35,7 @@ import Foundation
 ///    commit, ``git diff newest..oldest`` for a range. Truncated to ~8000 chars
 ///    to stay within token limits while preserving early file headers.
 ///
-/// 3. Foundation Models text generation — the file list and truncated diff
+/// 3. Generated narration — the file list and truncated diff
 ///    are streamed as a single prompt to produce a grounded plain-English answer.
 ///
 /// ## `isAvailable` guard contract
@@ -62,15 +58,15 @@ enum RepoQnA {
   }
 
   /// Answers a natural-language question about a commit range using
-  /// Foundation Models, grounded in the actual diff and codemap context.
+  /// generated narration, grounded in the actual diff and codemap context.
   ///
   /// The answer is assembled by first collecting file changes with codemap
   /// summaries, then building a combined prompt from the file list and the
   /// truncated diff text, and finally streaming the result from Foundation
-  /// Models. The diff is truncated to approximately 8 000 characters before
+  /// narration. The diff is truncated to approximately 8 000 characters before
   /// being sent to the model to respect token limits.
   ///
-  /// Returns `nil` when Foundation Models is unavailable, when no commits are
+  /// Returns `nil` when generated narration is unavailable, when no commits are
   /// supplied, or when the model produces no content.
   static func answer(
     question: String,
@@ -123,7 +119,7 @@ enum RepoQnA {
       \(truncatedDiff)
       """
 
-    // 5. Stream the answer from Foundation Models.
+    // 5. Stream the answer from generated narration.
     guard let result = await FoundationModelsAvailability._streamText(prompt: prompt) else {
       return nil
     }

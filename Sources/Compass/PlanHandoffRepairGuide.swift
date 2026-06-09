@@ -233,9 +233,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     if let hint = profile.manifestHints.first {
       switch hint {
       case .packageJSON:
-        return "npm test"
-      case .cargoToml:
-        return coverageReadyVerifyCommand(for: .rustCargo)
+        return coverageReadyVerifyCommand(for: .typeScriptPnpmVite)
       case .packageSwift:
         return "swift test"
       }
@@ -245,9 +243,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     case .swift:
       return "swift test"
     case .typeScriptJavaScript:
-      return "npm test"
-    case .rust:
-      return coverageReadyVerifyCommand(for: .rustCargo)
+      return coverageReadyVerifyCommand(for: .typeScriptPnpmVite)
     case .markdown, .other, .unknown:
       return coverageReadyVerifyCommand(for: ForgeProfile.generatedProjectDefault)
     }
@@ -257,9 +253,7 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
     switch forgeProfile {
     case .swiftSPM:
       return "swift test --enable-code-coverage"
-    case .rustCargo:
-      return "cargo llvm-cov --summary-only"
-    case .typeScriptVitest:
+    case .typeScriptPnpmVite:
       return "pnpm test -- --coverage --coverage.reporter=json-summary"
     }
   }

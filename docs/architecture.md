@@ -1,36 +1,32 @@
 # Compass Architecture
 
-Compass keeps the native macOS experience while moving product logic into Rust.
+Compass is a native macOS host around a local software factory loop.
 
-```text
-Compass.app (Swift)
-  UI, app lifecycle, Keychain, Foundation Models, Virtualization.framework
-        |
-        | Unix socket NDJSON, schema_version = 1
-        v
-compassd / compass-core (Rust)
-  tournament state, agent lifecycle, tools, schemas, replay tests
-        |
-        | AgentRPC vsock JSON
-        v
-Guest workspace
-  bash, cargo, compass-engine, future compass-guest-agent
-```
+## Host
 
-The Swift shell should aggregate UI state and call `compassd`; it should not own
-new tournament transitions or HTTP agent-loop behavior. Rust APIs should remain
-schema-first and process-isolated rather than FFI-bound so streaming and
-cancellation can evolve without Swift ABI coupling.
+The Swift/macOS app owns projects, workspace state, Activity/Live UI, prompt assembly, tool execution, and Shared VM lifecycle.
 
-Current migration flags:
+## Model Backend
 
-| Flag | Meaning |
-| --- | --- |
-| `COMPASS_RUST_DAEMON_DISABLED=1` | Skip daemon launch for UI-only work. |
-| `COMPASS_RUST_TOURNAMENT_SHADOW=1` | Compare Swift tournament reads with Rust read models. |
-| `COMPASS_RUST_TOURNAMENT_DRIVER=1` | Route tournament mutations through Rust when enabled. |
-| `COMPASS_RUST_AGENT_EXECUTOR=1` | Route HTTP-provider agent runs through Rust. |
-| `COMPASS_RUST_GUEST_AGENT=1` | Install/use the Rust guest agent. |
+Native Swift MLX is the only model backend. Runtime settings are limited to local model availability and the context budget used when shaping prompts. The blessed v1 model is `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit`.
 
-Cutover verification and rollback are tracked in
-[`docs/cutover-rollout.md`](cutover-rollout.md).
+## Factory State
+
+`.compass/state.json` stores `FactoryState`:
+
+- `schemaVersion`
+- `brief`
+- `queue`
+- `immediate`
+- `completed`
+- `openQuestions`
+
+Legacy state files from older projects are ignored in-place.
+
+## Generated Output
+
+Compass-generated projects use a TypeScript pnpm workspace with `packages/core`, `packages/cli`, and `packages/web`.
+
+## Shared VM
+
+The Shared VM provides a deterministic execution surface for generated TypeScript work. Default provisioning installs Command Line Tools, Homebrew, ripgrep, Node.js, npm, Corepack/pnpm, and TypeScript.

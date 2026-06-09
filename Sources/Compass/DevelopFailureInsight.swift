@@ -27,11 +27,11 @@ struct DevelopFailureInsight: Equatable {
       inspectTitle = "Inspect the missing result"
       inspectDetail =
         detail.isEmpty
-        ? "Develop ended before Compass received a `submit_result` handoff."
-        : "Develop ended before Compass received a `submit_result` handoff: \(detail)"
+        ? "Develop ended before Compass received a phase submit envelope."
+        : "Develop ended before Compass received a phase submit envelope: \(detail)"
       repairTitle = "Ask for one smaller finish"
       repairDetail =
-        "Keep the same plan, but have Develop finish one narrow change and report status through `submit_result` instead of continuing in prose."
+        "Keep the same plan, but have Develop finish one narrow change and report status through `develop_submit` instead of continuing in prose."
       retryDetail = "Compass will retry Develop with the result handoff requirement preserved."
     case .malformedToolCall:
       guideTitle = "Repair the tool request"
@@ -46,16 +46,16 @@ struct DevelopFailureInsight: Equatable {
       retryDetail =
         "Compass will retry Develop after the model has the concrete tool-shape failure."
     case .providerFailure:
-      guideTitle = "Restore the model connection"
-      inspectTitle = "Inspect the provider failure"
+      guideTitle = "Restore the local model"
+      inspectTitle = "Inspect the model failure"
       inspectDetail =
         detail.isEmpty
-        ? "The model provider failed before Develop could finish."
-        : "The model provider failed before Develop could finish: \(detail)"
-      repairTitle = "Check the active provider"
+        ? "The local model failed before Develop could finish."
+        : "The local model failed before Develop could finish: \(detail)"
+      repairTitle = "Check the MLX runtime"
       repairDetail =
-        "Confirm the selected model, endpoint, credentials, and network path before retrying the same work."
-      retryDetail = "Retry Develop once the provider can stream a complete response."
+        "Confirm the blessed model is downloaded and retry once the MLX runtime is ready."
+      retryDetail = "Retry Develop once the local model can produce a complete response."
     case .generic:
       guideTitle = "Retry with the captured failure"
       inspectTitle = "Keep the failure visible"
@@ -71,6 +71,7 @@ struct DevelopFailureInsight: Equatable {
       text,
       [
         "ended without submit_result", "model stopped without calling submit_result",
+        "phase submit envelope", "phase submit missing",
         "agent exceeded max iterations", "agent exceeded wall-clock timeout",
       ])
     {
@@ -87,7 +88,7 @@ struct DevelopFailureInsight: Equatable {
     }
     if containsAny(
       text,
-      ["chat completions stream failed", "rate limit", "unauthorized", "provider"]
+      ["local model generation failed", "mlx", "model missing", "model provider failed", "provider"]
     ) {
       return .providerFailure
     }
