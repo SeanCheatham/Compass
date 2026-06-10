@@ -468,6 +468,15 @@ struct AgentEditFileTool: AgentTool {
     }
 
     current = Self.joinLines(lines)
+    if Self.isSourceFile(url),
+      !originalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    {
+      return .failure(
+        .invalidArguments(
+          "edit_file would leave \(relative) empty after editing a non-empty source file. Do not clear a source file as a placeholder; provide complete replacementLines for the implementation, or submit status=failed/status=blocked if you cannot reconstruct it."
+        ))
+    }
     if let selfReference = Self.newSelfRelativeModuleReference(
       originalText: originalText,
       editedText: current,
@@ -794,6 +803,28 @@ struct AgentEditFileTool: AgentTool {
 
   private static func joinLines(_ lines: [String]) -> String {
     lines.joined(separator: "\n")
+  }
+
+  private static func isSourceFile(_ url: URL) -> Bool {
+    [
+      "c",
+      "cc",
+      "cpp",
+      "css",
+      "go",
+      "h",
+      "hpp",
+      "html",
+      "js",
+      "jsx",
+      "mjs",
+      "mts",
+      "py",
+      "rs",
+      "swift",
+      "ts",
+      "tsx",
+    ].contains(url.pathExtension.lowercased())
   }
 
   private static func argumentRepairMessage(_ detail: String) -> String {

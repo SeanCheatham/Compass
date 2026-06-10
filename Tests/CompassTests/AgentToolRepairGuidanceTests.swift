@@ -394,6 +394,37 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileRejectsClearingNonEmptySourceFile() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "summarize.ts")
+    let original = """
+      export function summarizeCLI(entries: string[]): string {
+        return `${entries.length} total`;
+      }
+      """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"summarize.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(#"{"path":"summarize.ts","startLine":1,"endLine":3,"replacement":""}"#.utf8),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("would leave summarize.ts empty"))
+    #expect(result.content.contains("provide complete replacementLines"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == original)
+  }
+
+  @Test
   func editFileRejectsNewMissingRelativeModuleImport() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
