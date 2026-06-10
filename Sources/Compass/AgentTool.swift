@@ -105,8 +105,8 @@ struct AgentToolInvocationResult: Sendable, Equatable {
 }
 
 /// Tracks which file paths have been freshly read during an agent execution.
-/// `edit_file` and `write_file` (when overwriting) consult this to refuse
-/// edits against contents the model has not actually seen — so edits against
+/// `edit_file` consults this to refuse edits against contents the model has not
+/// actually seen — so edits against
 /// stale or hallucinated line numbers get caught early instead of silently
 /// corrupting state.
 actor AgentReadTracker {

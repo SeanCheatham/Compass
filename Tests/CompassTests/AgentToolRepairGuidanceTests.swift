@@ -168,6 +168,44 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("- main.ts"))
     #expect(result.content.contains("- main.test.ts"))
     #expect(result.content.contains("use read_file/edit_file on the existing path"))
+    #expect(result.content.contains("write_file only creates new files"))
+  }
+
+  @Test
+  func writeFileRejectsExistingFileEvenAfterRead() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let cliSrc =
+      tempURL
+      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "cli", directoryHint: .isDirectory)
+      .appending(path: "src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
+    let mainURL = cliSrc.appending(path: "main.ts")
+    try "export function main() {}\nconsole.log(main());".write(
+      to: mainURL,
+      atomically: true,
+      encoding: .utf8
+    )
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentWriteFileTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/src/main.ts","content":"export {};"}"#.utf8),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("write_file refused to overwrite packages/cli/src/main.ts"))
+    #expect(result.content.contains("Use edit_file for existing files"))
+    #expect(result.content.contains("startLine=1, endLine=2"))
+    let current = try String(contentsOf: mainURL, encoding: .utf8)
+    #expect(current == "export function main() {}\nconsole.log(main());")
   }
 
   @Test

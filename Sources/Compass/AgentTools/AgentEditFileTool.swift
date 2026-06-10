@@ -802,7 +802,7 @@ struct AgentEditFileTool: AgentTool {
     edit_file requires path plus startLine, endLine, and replacement lines. Read the target file first, then use the returned line numbers.
     Example replace: {"path":"packages/cli/src/main.ts","startLine":4,"endLine":6,"insert":["new line"]}
     Example insert after line 6: {"path":"packages/cli/src/main.ts","startLine":7,"endLine":6,"insert":["new line"]}
-    Use write_file instead only when creating a new file or intentionally replacing a whole file.
+    Use write_file instead only when creating a new file.
     """
   }
 }

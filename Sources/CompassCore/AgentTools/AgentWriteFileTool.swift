@@ -1,9 +1,9 @@
 import Foundation
 
-/// Create or overwrite a UTF-8 text file. Intermediate directories are
-/// created automatically. The model uses this for net-new files; in-place
+/// Create a UTF-8 text file. Intermediate directories are
+/// created automatically. The model uses this for net-new files; existing file
 /// edits should go through `AgentEditFileTool`, which preserves the rest of
-/// the file and forces a contextual `oldString` match.
+/// the file and uses line ranges from `read_file`.
 struct AgentWriteFileTool: AgentTool {
   static let toolName = "write_file"
 
@@ -54,14 +54,15 @@ struct AgentWriteFileTool: AgentTool {
         ],
         "content": [
           "type": "string",
-          "description": "UTF-8 contents to write. Existing files are overwritten.",
+          "description":
+            "UTF-8 contents for a new file. Existing files are refused; use edit_file.",
         ],
       ],
     ])
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Create or overwrite a UTF-8 text file at the given path. Intermediate directories are created. Use `edit_file` for in-place edits.",
+        "Create a new UTF-8 text file at the given path. Intermediate directories are created. Use `edit_file` for existing files.",
       parameters: schema
     )
   }
@@ -92,12 +93,23 @@ struct AgentWriteFileTool: AgentTool {
     } catch {
       return .failure(.ioFailure("stat failed: \(error.localizedDescription)"))
     }
-    if let existing, existing.isRegularFile,
-      await !context.readTracker.wasRead(url)
-    {
+    if let existing, existing.isRegularFile {
+      let relative = context.relativize(url)
+      let wasRead = await context.readTracker.wasRead(url)
+      let wholeFileRange: String
+      if let lineCount = await context.readTracker.lineCount(for: url) {
+        wholeFileRange = "startLine=1, endLine=\(lineCount)"
+      } else {
+        wholeFileRange = "startLine=1, endLine=<last line from read_file>"
+      }
+      let guidance =
+        "write_file refused to overwrite \(relative) because it already exists. Use edit_file for existing files. \(wasRead ? "Use the line numbers from the prior read_file" : "Call read_file on \(relative) first"), then call edit_file with startLine/endLine and replacement lines. For a whole-file replacement, use edit_file with \(wholeFileRange)."
+      if wasRead {
+        return .failure(.invalidArguments(guidance))
+      }
       return .failure(
         .readNotTracked(
-          "write_file would overwrite \(context.relativize(url)) but it has not been read in this session. Call read_file first to confirm its current contents before replacing them."
+          guidance
         ))
     }
     if existing == nil,
@@ -133,7 +145,8 @@ struct AgentWriteFileTool: AgentTool {
 
     await context.readTracker.markRead(url)
     let relative = context.relativize(url)
-    var message = "wrote \(data.count) bytes to \(relative)"
+    var message =
+      "created \(relative) (\(data.count) bytes)\nFuture changes to \(relative) must use read_file/edit_file; write_file only creates new files."
     if let newFileSiblingHint {
       message += "\n\(newFileSiblingHint)"
     }
