@@ -29,10 +29,16 @@ extension Prompts {
       - Prefer `pnpm verify` as the verify command. Do not use bare `pnpm test`.
         For focused test slices use `pnpm test -- --coverage`; for compile-only
         or docs-only slices use `pnpm typecheck` or `pnpm build`.
+      - Prefer dependency-free implementation packets. If the next slice needs a new
+        package, the handoff must explicitly include the owning `package.json` update
+        and tests.
       - Keep `brief` stable and short: summary, target users, desired outcomes, constraints,
         and acceptance signals.
       - Keep `queue` to at most six actionable work items. Mark obsolete work stale or drop it.
       - Pick one `immediate` item with a concrete Markdown handoff and a real verify command.
+      - For generated TypeScript work, name the likely target files in the handoff.
+        Use `packages/core/src` for domain logic, `packages/cli/src` for CLI behavior,
+        and `packages/web/src` for React UI.
       - Use `immediate: null` only when there is no useful draft, feedback, queue item, or
         repository-originated cleanup/test/docs slice.
       - Acceptance checks describe observable behavior or state. Put shell commands only in

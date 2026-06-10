@@ -79,6 +79,7 @@ enum TypeScriptProjectScaffold {
     node_modules/
     dist/
     coverage/
+    .pnpm-store/
     .DS_Store
     *.log
     """

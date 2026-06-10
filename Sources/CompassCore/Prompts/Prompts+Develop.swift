@@ -27,12 +27,21 @@ extension Prompts {
       - Generated Compass output is TypeScript only.
       - Use pnpm, strict TypeScript, Vite + React for web UI, Vitest coverage, and `tsx`
         for CLI/dev scripts.
+      - Prefer existing project dependencies and simple TypeScript over new packages. If
+        you import a new package, update the owning `package.json` and tests in the same
+        change before submitting.
       - Do not push or use destructive git operations.
       - Run the verify command before finishing unless the command itself is wrong or out
         of scope.
       - Leave the working tree clean, or explain why you are blocked.
       - Do not commit generated outputs or caches: `node_modules/`, `dist/`, `coverage/`,
         `.build/`, `build/`, or editor artifacts.
+      - Generated TypeScript workspaces use `packages/core/src`, `packages/cli/src`, and
+        `packages/web/src`. Do not invent top-level `src/...` paths unless `list_files`
+        or `glob` proves they exist.
+      - Before `edit_file`, read the exact target file in this Develop session. If a path
+        is missing, use `list_files` or `glob` to find the existing target; use
+        `write_file` only when the plan explicitly requires a new file.
       - End with one `develop_submit` JSON envelope.
 
       \(lessonEditsGuidance())
@@ -100,9 +109,11 @@ extension Prompts {
       return """
         Workflow:
         1. Inspect the relevant files.
-        2. Implement the packet without broadening scope.
-        3. Run verify and fix failures.
-        4. Return a concrete summary and feedback.
+        2. If a planned path is uncertain or missing, list files or glob for the correct
+           generated workspace location before editing.
+        3. Implement the packet without broadening scope.
+        4. Run verify and fix failures.
+        5. Return a concrete summary and feedback.
         """
     }
     let issues = priorIssues.isEmpty ? "_(no captured prior issue text)_" : priorIssues.joined(separator: "\n\n")
