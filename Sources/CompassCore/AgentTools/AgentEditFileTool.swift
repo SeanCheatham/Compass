@@ -479,6 +479,13 @@ struct AgentEditFileTool: AgentTool {
       ) {
         return .failure(.invalidArguments(declarationRemoval))
       }
+      if let nestedTopLevel = Self.suspiciousNestedTopLevelDeclarationMessage(
+        editIndex: idx,
+        edit: edit,
+        linesBeforeEdit: Array(lines.prefix(startIndex))
+      ) {
+        return .failure(.invalidArguments(nestedTopLevel))
+      }
       if existing == edit.replacementLines {
         noOpEditCount += 1
         continue
@@ -766,6 +773,65 @@ struct AgentEditFileTool: AgentTool {
 
     return
       "edits[\(editIndex)] would remove the function declaration `\(declaration.name)` on line \(declaration.lineNumber) and replace it with body-only lines while leaving \(lineCount - edit.endLine) existing lines after the edit. This usually breaks the surrounding source structure. Keep line \(declaration.lineNumber) in the replacement, or edit only the function body lines instead."
+  }
+
+  private struct OpenBlockLine {
+    let lineNumber: Int
+    let preview: String
+  }
+
+  private static func suspiciousNestedTopLevelDeclarationMessage(
+    editIndex: Int,
+    edit: EditOperation,
+    linesBeforeEdit: [String]
+  ) -> String? {
+    guard let openBlock = innermostOpenBlock(before: linesBeforeEdit),
+      let declaration = firstTopLevelDeclaration(in: edit.replacementLines)
+    else {
+      return nil
+    }
+
+    return
+      "edits[\(editIndex)] starts inside an open block from line \(openBlock.lineNumber) (`\(openBlock.preview)`) but the replacement contains top-level \(declaration). This would nest an import/export/function declaration inside the existing block and usually causes a parse error. If you intended to rewrite the enclosing block, include line \(openBlock.lineNumber) in the edit range. If you intended to add an import, insert it near the top of the file instead."
+  }
+
+  private static func innermostOpenBlock(before lines: [String]) -> OpenBlockLine? {
+    var stack: [OpenBlockLine] = []
+    for (offset, line) in lines.enumerated() {
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      for character in line {
+        if character == "{" {
+          stack.append(
+            OpenBlockLine(
+              lineNumber: offset + 1,
+              preview: String(trimmed.prefix(120))
+            ))
+        } else if character == "}", !stack.isEmpty {
+          _ = stack.removeLast()
+        }
+      }
+    }
+    return stack.last
+  }
+
+  private static func firstTopLevelDeclaration(in lines: [String]) -> String? {
+    for line in lines {
+      guard line.first?.isWhitespace != true else { continue }
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty else { continue }
+      if trimmed.hasPrefix("import ") {
+        return "import `\(String(trimmed.prefix(120)))`"
+      }
+      if trimmed.hasPrefix("export ")
+        || trimmed.hasPrefix("function ")
+        || trimmed.hasPrefix("class ")
+        || trimmed.hasPrefix("interface ")
+        || trimmed.hasPrefix("type ")
+      {
+        return "declaration `\(String(trimmed.prefix(120)))`"
+      }
+    }
+    return nil
   }
 
   private static func firstFunctionDeclaration(

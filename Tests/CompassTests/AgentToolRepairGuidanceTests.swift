@@ -323,6 +323,29 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func writeFileRejectsVitestJestPackageImport() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    let fileURL = srcURL.appending(path: "summarize.test.ts")
+    let result = try await AgentWriteFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/summarize.test.ts","content":"import { summarizeCLI } from './summarize';\nimport { describe, expect, test } from '@vitest/jest';\n\ndescribe('summarizeCLI', () => {\n  test('formats counts', () => {\n    expect(summarizeCLI([])).toBe('Done: 0, Pending: 0');\n  });\n});\n"}"#
+          .utf8
+      ),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("`@vitest/jest` is not a Vitest package import"))
+    #expect(result.content.contains("from \"vitest\""))
+    #expect(!FileManager.default.fileExists(atPath: fileURL.path))
+  }
+
+  @Test
   func editFileMissingLineFieldsShowsRepairShape() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -643,6 +666,49 @@ struct AgentToolRepairGuidanceTests {
     #expect(!result.isError)
     let changed = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(changed.hasPrefix("import { readFileSync } from \"node:fs\";\n"))
+  }
+
+  @Test
+  func editFileRejectsTopLevelImportInsideOpenFunction() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "main.ts")
+    let original = """
+    #!/usr/bin/env tsx
+    import { summarizeQueue } from "@compass-test/core";
+
+    export function main(argv = process.argv.slice(2)): string {
+      const title = argv.join(" ").trim() || "First Compass task";
+      return summarizeQueue([{ id: "task-1", title, done: false }]);
+    }
+
+    if (import.meta.url === `file://${process.argv[1]}`) {
+      console.log(main());
+    }
+    """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"main.ts","startLine":5,"endLine":11,"content":"import { summarizeCLI } from './summarize';\n\nexport function main(argv = process.argv.slice(2)): string {\n  const title = argv.join(' ').trim() || 'First Compass task';\n  return summarizeCLI([{ id: 'task-1', title, done: false }]);\n}\n\nif (import.meta.url === `file://${process.argv[1]}`) {\n  console.log(main());\n}"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("starts inside an open block from line 4"))
+    #expect(result.content.contains("top-level import"))
+    #expect(result.content.contains("include line 4 in the edit range"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == original)
   }
 
   @Test

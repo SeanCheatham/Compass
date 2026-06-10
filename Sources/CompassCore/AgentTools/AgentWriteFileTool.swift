@@ -131,6 +131,16 @@ struct AgentWriteFileTool: AgentTool {
     }
     if existing == nil,
       Self.isSourceFile(url),
+      let unsupportedVitestImport = Self.unsupportedVitestJestImport(in: args.content)
+    {
+      let relative = context.relativize(url)
+      return .failure(
+        .invalidArguments(
+          "write_file refused to create \(relative) because \(unsupportedVitestImport) is not a Vitest package import. Use `import { describe, expect, it } from \"vitest\"` or `import { describe, expect, test } from \"vitest\"` instead."
+        ))
+    }
+    if existing == nil,
+      Self.isSourceFile(url),
       let skeleton = Self.emptyOrCommentOnlySourceContent(
         in: args.content,
         pathExtension: url.pathExtension
@@ -346,6 +356,22 @@ struct AgentWriteFileTool: AgentTool {
 
   private struct EmptyOrCommentOnlySourceContent {
     let preview: String
+  }
+
+  private static func unsupportedVitestJestImport(in text: String) -> String? {
+    for line in text.components(separatedBy: "\n") {
+      let trimmed = line.trimmingCharacters(in: .whitespaces)
+      guard trimmed.hasPrefix("import ") else { continue }
+      for pattern in [
+        #"from\s+["'](@?vitest/jest)["']"#,
+        #"^\s*import\s+["'](@?vitest/jest)["']"#,
+      ] {
+        if let specifier = firstCapture(in: trimmed, pattern: pattern) {
+          return "`\(specifier)`"
+        }
+      }
+    }
+    return nil
   }
 
   private static func emptyOrCommentOnlySourceContent(
