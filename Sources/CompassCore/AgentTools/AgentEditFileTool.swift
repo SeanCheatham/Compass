@@ -464,6 +464,14 @@ struct AgentEditFileTool: AgentTool {
       ) {
         return .failure(.invalidArguments(suspiciousExpansion))
       }
+      if let declarationRemoval = Self.suspiciousDeclarationBodyReplacementMessage(
+        editIndex: idx,
+        edit: edit,
+        existingLines: existing,
+        lineCount: lineCount
+      ) {
+        return .failure(.invalidArguments(declarationRemoval))
+      }
       if existing == edit.replacementLines {
         return .failure(
           .invalidArguments(
@@ -697,6 +705,74 @@ struct AgentEditFileTool: AgentTool {
 
     return
       "edits[\(editIndex)] inserts \(edit.replacementLines.count) lines before line \(edit.startLine) while leaving \(lineCount) existing lines after it. This looks like a whole-file rewrite expressed as an insertion. Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with the same replacement. If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to add an import or header, insert only those new lines. Otherwise replace the exact line range that should be removed."
+  }
+
+  private struct FunctionDeclarationLine {
+    let name: String
+    let lineNumber: Int
+  }
+
+  private static func suspiciousDeclarationBodyReplacementMessage(
+    editIndex: Int,
+    edit: EditOperation,
+    existingLines: [String],
+    lineCount: Int
+  ) -> String? {
+    guard lineCount > edit.endLine,
+      let declaration = firstFunctionDeclaration(
+        in: existingLines,
+        startLine: edit.startLine
+      ),
+      !replacementDeclaresFunction(named: declaration.name, in: edit.replacementLines),
+      let firstReplacementLine = edit.replacementLines.first(where: {
+        !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      }),
+      looksLikeIndentedBodyLine(firstReplacementLine)
+    else {
+      return nil
+    }
+
+    return
+      "edits[\(editIndex)] would remove the function declaration `\(declaration.name)` on line \(declaration.lineNumber) and replace it with body-only lines while leaving \(lineCount - edit.endLine) existing lines after the edit. This usually breaks the surrounding source structure. Keep line \(declaration.lineNumber) in the replacement, or edit only the function body lines instead."
+  }
+
+  private static func firstFunctionDeclaration(
+    in lines: [String],
+    startLine: Int
+  ) -> FunctionDeclarationLine? {
+    for (offset, line) in lines.enumerated() {
+      guard line.contains("{"),
+        let name = firstCapture(
+          in: line,
+          pattern: #"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\b"#
+        )
+      else {
+        continue
+      }
+      return FunctionDeclarationLine(name: name, lineNumber: startLine + offset)
+    }
+    return nil
+  }
+
+  private static func replacementDeclaresFunction(named name: String, in lines: [String]) -> Bool {
+    lines.contains { line in
+      firstCapture(
+        in: line,
+        pattern: #"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\b"#
+      ) == name
+    }
+  }
+
+  private static func looksLikeIndentedBodyLine(_ line: String) -> Bool {
+    guard line.first?.isWhitespace == true else { return false }
+    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return false }
+    return !trimmed.hasPrefix("export ")
+      && !trimmed.hasPrefix("import ")
+      && !trimmed.hasPrefix("function ")
+      && !trimmed.hasPrefix("class ")
+      && !trimmed.hasPrefix("interface ")
+      && !trimmed.hasPrefix("type ")
   }
 
   private struct MissingRelativeModuleReference {
