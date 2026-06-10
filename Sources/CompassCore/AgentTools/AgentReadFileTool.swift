@@ -133,7 +133,10 @@ struct AgentReadFileTool: AgentTool {
     } catch let error as AgentFilesystemError {
       switch error {
       case .notFound:
-        return .failure(.fileNotFound(args.path))
+        return .failure(
+          await missingFileMessage(requestedPath: args.path, resolvedURL: url, context: context),
+          kind: .fileNotFound
+        )
       case .notRegularFile:
         return .failure(.notRegularFile(args.path))
       case .transportFailure(let detail):
@@ -184,5 +187,60 @@ struct AgentReadFileTool: AgentTool {
     output += "\n(total \(totalLines) lines)"
     await context.readTracker.markRead(url, lineCount: totalLines)
     return .ok(output)
+  }
+
+  private func missingFileMessage(
+    requestedPath: String,
+    resolvedURL: URL,
+    context: AgentToolContext
+  ) async -> String {
+    var message = "File not found: \(requestedPath)"
+    guard let nearest = await nearestExistingDirectory(from: resolvedURL, context: context) else {
+      return message
+        + "\nUse list_files or glob to discover the current repo paths before creating a new file."
+    }
+
+    let relativeDirectory = context.relativize(nearest.url)
+    message += "\nNearest existing directory: \(relativeDirectory)"
+    if !nearest.entries.isEmpty {
+      message += "\nExisting entries there:"
+      message += nearest.entries.prefix(12).map { "\n- \($0)" }.joined()
+      if nearest.entries.count > 12 {
+        message += "\n- ... \(nearest.entries.count - 12) more"
+      }
+    }
+    message +=
+      "\nUse read_file with one of these paths, or list_files/glob before creating a new file. Use write_file only when the plan truly requires a new file."
+    return message
+  }
+
+  private func nearestExistingDirectory(
+    from url: URL,
+    context: AgentToolContext
+  ) async -> (url: URL, entries: [String])? {
+    let workingDirectory = context.workingDirectory.standardizedFileURL
+    let workingPath = workingDirectory.path
+    var candidate = url.deletingLastPathComponent().standardizedFileURL
+
+    while candidate.path.hasPrefix(workingPath) {
+      do {
+        let entries = try await context.filesystem.listDirectory(at: candidate)
+          .map { entry in entry.isDirectory ? "\(entry.name)/" : entry.name }
+          .filter { !$0.hasPrefix(".") }
+          .sorted()
+        if !entries.isEmpty || candidate.path == workingPath {
+          return (candidate, entries)
+        }
+      } catch {
+        let parent = candidate.deletingLastPathComponent().standardizedFileURL
+        if parent.path == candidate.path { break }
+        candidate = parent
+        continue
+      }
+      let parent = candidate.deletingLastPathComponent().standardizedFileURL
+      if parent.path == candidate.path { break }
+      candidate = parent
+    }
+    return nil
   }
 }

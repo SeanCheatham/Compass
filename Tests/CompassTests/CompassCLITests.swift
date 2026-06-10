@@ -29,7 +29,7 @@ struct CompassCLITests {
     if case .run(let options, let format) = try CompassCLICommand.parse([
       "run", "--repo", "/tmp/project", "--brief", "Add a slice", "--mode", "fixture",
       "--fixture", "/tmp/fixture.jsonl", "--max-iterations", "3", "--max-develop-attempts", "4",
-      "--prompt-log", "/tmp/prompts", "--critic", "--format", "text",
+      "--max-verify-repairs", "2", "--prompt-log", "/tmp/prompts", "--critic", "--format", "text",
     ]) {
       #expect(options.repoURL.path == "/tmp/project")
       #expect(options.brief == "Add a slice")
@@ -38,6 +38,7 @@ struct CompassCLITests {
       #expect(options.promptLogDirectory?.path == "/tmp/prompts")
       #expect(options.maxIterations == 3)
       #expect(options.maxDevelopAttempts == 4)
+      #expect(options.maxVerifyRepairAttempts == 2)
       #expect(options.runCritic)
       #expect(format == .text)
     } else {
@@ -198,6 +199,137 @@ struct CompassCLITests {
     #expect(
       FileManager.default.fileExists(atPath: auditDir.appending(path: "verify-attempt-2.log").path))
   }
+
+  @Test
+  func fixtureRunnerRetriesDevelopWhenSuccessHasNoGitChanges() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      FixtureBashRunner()
+    }
+    try runner.scaffoldTypeScript(at: tempURL, name: "cli-no-change-fixture", onEvent: record)
+
+    let fixtureURL = tempURL.appending(path: "no-change-fixture.jsonl")
+    try writeFixture(noChangeRetryFixtureOutputs, to: fixtureURL)
+    try await initializeFixtureGitRepo(at: tempURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Add a no-change retry marker to the README",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 6,
+        maxDevelopAttempts: 2,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let readme = try String(contentsOf: tempURL.appending(path: "README.md"), encoding: .utf8)
+    #expect(readme.contains("No-change retry marker."))
+    let snapshot = events.snapshot()
+    #expect(snapshot.contains { $0.kind == "develop_retry" })
+    #expect(
+      snapshot.contains {
+        $0.kind == "develop_retry"
+          && ($0.detail ?? "").contains("did not detect any Git-visible file changes")
+      })
+    #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "completed" })
+  }
+
+  @Test
+  func fixtureRunnerUsesReservedVerifyRepairAfterDevelopFailures() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      FixtureBashRunner()
+    }
+    try runner.scaffoldTypeScript(at: tempURL, name: "cli-verify-repair-fixture", onEvent: record)
+
+    let fixtureURL = tempURL.appending(path: "verify-repair-fixture.jsonl")
+    try writeFixture(verifyRepairFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Add a verify repair marker to the README",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 6,
+        maxDevelopAttempts: 3,
+        maxVerifyRepairAttempts: 1,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let readme = try String(contentsOf: tempURL.appending(path: "README.md"), encoding: .utf8)
+    #expect(readme.contains("Fixed verify marker."))
+    #expect(!readme.contains("Broken verify marker."))
+    let snapshot = events.snapshot()
+    #expect(
+      snapshot.contains {
+        $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "verify_repair"
+          && $0.metadata?["attempt"] == "3" && $0.metadata?["nextAttempt"] == "4"
+      })
+    #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "failed" })
+    #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "completed" })
+    let auditDir = tempURL.appending(path: ".compass/sessions/000001", directoryHint: .isDirectory)
+    #expect(
+      FileManager.default.fileExists(atPath: auditDir.appending(path: "verify-attempt-3.log").path))
+    #expect(
+      FileManager.default.fileExists(atPath: auditDir.appending(path: "verify-attempt-4.log").path))
+  }
+
+  @Test
+  func fixtureRunnerRetriesDevelopAfterIterationBudgetExhaustion() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      FixtureBashRunner()
+    }
+    try runner.scaffoldTypeScript(at: tempURL, name: "cli-budget-fixture", onEvent: record)
+
+    let fixtureURL = tempURL.appending(path: "budget-fixture.jsonl")
+    try writeFixture(budgetExhaustionFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Exercise Develop budget retry handling",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 1,
+        maxDevelopAttempts: 2,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let snapshot = events.snapshot()
+    #expect(
+      snapshot.contains {
+        $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "budget_exhaustion"
+          && ($0.detail ?? "").contains("Agent exceeded max iterations")
+      })
+    #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "completed" })
+  }
 }
 
 private struct FixtureBashRunner: AgentBashRunner {
@@ -216,6 +348,14 @@ private struct FixtureBashRunner: AgentBashRunner {
         return ProcessResult(exitCode: 0, stdout: "Retry marker present.\n", stderr: "")
       }
       return ProcessResult(exitCode: 1, stdout: "", stderr: "Retry marker missing.\n")
+    }
+    if command.trimmingCharacters(in: .whitespacesAndNewlines) == "tsc verify-repair-check" {
+      let readmeURL = workingDirectory.appending(path: "README.md")
+      let readme = (try? String(contentsOf: readmeURL, encoding: .utf8)) ?? ""
+      if readme.contains("Fixed verify marker.") {
+        return ProcessResult(exitCode: 0, stdout: "Fixed verify marker present.\n", stderr: "")
+      }
+      return ProcessResult(exitCode: 1, stdout: "", stderr: "Fixed verify marker missing.\n")
     }
     return try await AgentHostBashRunner().run(
       command: command,
@@ -249,6 +389,16 @@ private func makeCLITempDirectory() throws -> URL {
   return url
 }
 
+private func initializeFixtureGitRepo(at url: URL) async throws {
+  let result = try await AgentHostBashRunner().run(
+    command:
+      "git init && git add . && git -c user.name='Compass Test' -c user.email='compass-test@localhost' commit -m 'Baseline fixture'",
+    workingDirectory: url,
+    timeout: 30
+  )
+  #expect(result.exitCode == 0)
+}
+
 private struct FixtureLine: Encodable {
   var text: String
 }
@@ -279,6 +429,66 @@ private let retryFixtureOutputs = [
   """,
   """
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now contains the Retry marker sentence required by verify.","feedback":"Retry marker is present in README.md and grep verification can pass; Plan can choose another small slice.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
+private let noChangeRetryFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a No-change retry marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner does not accept baseline verify when Develop changed nothing.\\n\\n## Acceptance checks\\n- README.md contains No-change retry marker.","verify":"tsc --version","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This tiny documentation slice catches false-positive Develop success without file changes.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI no-change retry after a false success.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Develop retries when a Git-backed run changes no files."],"constraints":["No pnpm dependency for this retry test."],"acceptanceSignals":["README.md contains No-change retry marker."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Claimed the README marker was added without making any file changes.","feedback":"README.md still needs the exact No-change retry marker sentence; the next Develop attempt should patch README.md before submitting success.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before adding the missing marker."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"README.md","startLine":3,"endLine":2,"insert":["No-change retry marker.",""]},"reason":"Add the marker sentence required by the handoff."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now contains the No-change retry marker sentence.","feedback":"No-change retry marker is present in README.md and verify can pass; Plan can choose another small slice.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
+private let verifyRepairFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Fixed verify marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner reserves a verify-repair pass after earlier Develop failures.\\n\\n## Acceptance checks\\n- README.md contains Fixed verify marker.","verify":"tsc verify-repair-check","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This tiny documentation slice fails verify once after exhausting the regular Develop budget.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI reserved verify repair after failed Develop attempts.","targetUsers":["Compass maintainers"],"desiredOutcomes":["A concrete verify failure still reaches one repair attempt."],"constraints":["No pnpm dependency for this retry test."],"acceptanceSignals":["README.md contains Fixed verify marker."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"failed","summary":"Could not identify the target file on the first pass.","feedback":"Retry should still have enough budget to continue toward a concrete implementation.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"failed","summary":"Still did not produce a verifiable change on the second pass.","feedback":"The next attempt should edit README.md before submitting success.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before adding the marker."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"README.md","startLine":3,"endLine":2,"insert":["Broken verify marker.",""]},"reason":"Add an intentionally wrong marker so verify produces concrete repair feedback."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now contains a marker sentence, but it is intentionally wrong for verify.","feedback":"If verify fails, replace Broken verify marker. with Fixed verify marker.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before repairing the failed verify check."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"README.md","startLine":3,"endLine":3,"replacement":["Fixed verify marker."]},"reason":"Repair the marker sentence required by verify."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now contains the Fixed verify marker sentence required by verify.","feedback":"Fixed verify marker is present in README.md and verification can pass; Plan can choose another small slice.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
+private let budgetExhaustionFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nExercise budget exhaustion recovery without changing files.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner retries Develop after max-iteration exhaustion.\\n\\n## Acceptance checks\\n- The second Develop attempt submits successfully.","verify":"tsc --version","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"The first Develop output intentionally consumes the full max-iteration budget without submitting.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI Develop retry after iteration budget exhaustion.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Budget exhaustion reaches a fresh Develop attempt."],"constraints":["No file changes required for this control fixture."],"acceptanceSignals":["Verify runs after the second attempt."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Consume the only allowed Develop iteration without submitting."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Recovered after the first Develop attempt exhausted its iteration budget.","feedback":"The headless runner converted budget exhaustion into retry context and verification can run.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 

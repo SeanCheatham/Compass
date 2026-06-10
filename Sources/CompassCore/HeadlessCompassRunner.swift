@@ -44,6 +44,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
   public var promptLogDirectory: URL?
   public var maxIterations: Int
   public var maxDevelopAttempts: Int
+  public var maxVerifyRepairAttempts: Int
   public var runDevelop: Bool
   public var runCritic: Bool
 
@@ -55,6 +56,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     promptLogDirectory: URL? = nil,
     maxIterations: Int = 24,
     maxDevelopAttempts: Int = 2,
+    maxVerifyRepairAttempts: Int = 1,
     runDevelop: Bool = true,
     runCritic: Bool = false
   ) {
@@ -65,6 +67,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     self.promptLogDirectory = promptLogDirectory?.standardizedFileURL
     self.maxIterations = max(1, maxIterations)
     self.maxDevelopAttempts = max(1, maxDevelopAttempts)
+    self.maxVerifyRepairAttempts = max(0, maxVerifyRepairAttempts)
     self.runDevelop = runDevelop
     self.runCritic = runCritic
   }
@@ -312,22 +315,58 @@ public struct HeadlessCompassRunner: Sendable {
       var priorIssues: [String] = []
       var successfulDevelop: DevelopSummary?
       var ok = false
+      var attempt = 1
+      var verifyRepairAttemptsUsed = 0
 
-      for attempt in 1...options.maxDevelopAttempts {
+      while attempt <= options.maxDevelopAttempts + options.maxVerifyRepairAttempts {
         session.status = .developing
         try persist(session: session, workspace: workspace)
 
-        let develop = try await runDevelop(
-          immediate: immediate,
-          workspace: workspace,
-          settings: settings,
-          runtime: runtime,
-          sessionNumber: sessionNumber,
-          attempt: attempt,
-          priorIssues: priorIssues,
-          maxIterations: options.maxIterations,
-          onEvent: onEvent
-        )
+        let develop: DevelopSummary
+        do {
+          develop = try await runDevelop(
+            immediate: immediate,
+            workspace: workspace,
+            settings: settings,
+            runtime: runtime,
+            sessionNumber: sessionNumber,
+            attempt: attempt,
+            priorIssues: priorIssues,
+            maxIterations: options.maxIterations,
+            onEvent: onEvent
+          )
+        } catch let error as AgentExecutionError where error.isAgentBudgetExhaustion {
+          let issue = developBudgetExhaustionIssue(attempt: attempt, error: error)
+          session.notes.append(issue)
+          if attempt < options.maxDevelopAttempts {
+            priorIssues = [issue]
+            try persist(session: session, workspace: workspace)
+            emitDevelopRetry(
+              attempt: attempt,
+              maxAttempts: options.maxDevelopAttempts,
+              issue: issue,
+              retryKind: "budget_exhaustion",
+              onEvent: onEvent
+            )
+            attempt += 1
+            continue
+          }
+
+          session.status = .failed
+          session.endedAt = Date().timeIntervalSince1970 * 1000
+          try persist(session: session, workspace: workspace)
+          onEvent(
+            HeadlessCompassEvent(
+              kind: "session_end",
+              level: "error",
+              status: "failed",
+              message: "Develop exhausted its execution budget.",
+              detail: issue,
+              metadata: ["session": "\(sessionNumber)"]
+            )
+          )
+          return false
+        }
         try workspace.applyLessonEdits(develop.lessonEdits)
         session.feedback = develop.feedback
 
@@ -341,8 +380,10 @@ public struct HeadlessCompassRunner: Sendable {
               attempt: attempt,
               maxAttempts: options.maxDevelopAttempts,
               issue: issue,
+              retryKind: "develop_postcheck",
               onEvent: onEvent
             )
+            attempt += 1
             continue
           }
 
@@ -355,6 +396,39 @@ public struct HeadlessCompassRunner: Sendable {
               level: "error",
               status: "failed",
               message: "Develop did not produce a verifiable success.",
+              detail: issue,
+              metadata: ["session": "\(sessionNumber)"]
+            )
+          )
+          return false
+        }
+
+        if let changed = await gitHasChangesSince(session.beforeSha, repoURL: repoURL), !changed {
+          let issue = noDevelopChangesIssue(develop)
+          session.notes.append(issue)
+          if attempt < options.maxDevelopAttempts {
+            priorIssues = [issue]
+            try persist(session: session, workspace: workspace)
+            emitDevelopRetry(
+              attempt: attempt,
+              maxAttempts: options.maxDevelopAttempts,
+              issue: issue,
+              retryKind: "no_git_changes",
+              onEvent: onEvent
+            )
+            attempt += 1
+            continue
+          }
+
+          session.status = .failed
+          session.endedAt = Date().timeIntervalSince1970 * 1000
+          try persist(session: session, workspace: workspace)
+          onEvent(
+            HeadlessCompassEvent(
+              kind: "session_end",
+              level: "error",
+              status: "failed",
+              message: "Develop reported success without changing the repository.",
               detail: issue,
               metadata: ["session": "\(sessionNumber)"]
             )
@@ -390,16 +464,26 @@ public struct HeadlessCompassRunner: Sendable {
 
         let issue = verifyFailureIssue(command: immediate.verify, result: verify)
         session.notes.append("Verify attempt \(attempt) failed.")
-        if attempt < options.maxDevelopAttempts {
+        let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
+        let canUseVerifyRepairAttempt =
+          !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
+        if canUseDevelopAttempt || canUseVerifyRepairAttempt {
+          if canUseVerifyRepairAttempt {
+            verifyRepairAttemptsUsed += 1
+          }
           priorIssues = [issue]
           try persist(session: session, workspace: workspace)
           emitDevelopRetry(
             attempt: attempt,
-            maxAttempts: options.maxDevelopAttempts,
+            maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
             issue: issue,
+            retryKind: canUseVerifyRepairAttempt ? "verify_repair" : "verify_failure",
             onEvent: onEvent
           )
+          attempt += 1
+          continue
         }
+        break
       }
 
       if ok, options.runCritic, let successfulDevelop {
@@ -801,6 +885,7 @@ public struct HeadlessCompassRunner: Sendable {
     attempt: Int,
     maxAttempts: Int,
     issue: String,
+    retryKind: String,
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
   ) {
     onEvent(
@@ -815,6 +900,7 @@ public struct HeadlessCompassRunner: Sendable {
           "attempt": "\(attempt)",
           "nextAttempt": "\(attempt + 1)",
           "maxAttempts": "\(maxAttempts)",
+          "retryKind": retryKind,
         ]
       )
     )
@@ -831,6 +917,33 @@ public struct HeadlessCompassRunner: Sendable {
       bypassVerify: \(develop.bypassVerify == true ? "true" : "false")
 
       \(detail.isEmpty ? "_(no summary or feedback)_" : detail)
+      """
+  }
+
+  private func developBudgetExhaustionIssue(
+    attempt: Int,
+    error: AgentExecutionError
+  ) -> String {
+    """
+    Develop attempt \(attempt) ended without a phase submit envelope: \(error.localizedDescription).
+
+    The next attempt should make a smaller, more direct change. Reuse already discovered file paths and tool results, avoid repeating failed path guesses, and submit status=failed with concise feedback if the requested plan is not achievable within the iteration budget.
+    """
+  }
+
+  private func noDevelopChangesIssue(_ develop: DevelopSummary) -> String {
+    let summary = develop.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+    let feedback = develop.feedback.trimmingCharacters(in: .whitespacesAndNewlines)
+    return """
+      Develop submitted status=succeeded, but Compass did not detect any Git-visible file changes or commits.
+
+      A successful Develop pass must modify, create, delete, or commit files that implement the handoff before verification can prove anything. Do not submit success after only failed tool calls.
+
+      Reported summary:
+      \(summary.isEmpty ? "_(empty)_" : summary)
+
+      Reported feedback:
+      \(feedback.isEmpty ? "_(empty)_" : feedback)
       """
   }
 
@@ -938,6 +1051,41 @@ public struct HeadlessCompassRunner: Sendable {
       return nil
     }
     return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+  }
+
+  private func gitHasChangesSince(_ beforeSha: String?, repoURL: URL) async -> Bool? {
+    guard let beforeSha, !beforeSha.isEmpty else { return nil }
+    let command = """
+      if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        exit 2
+      fi
+      current="$(git rev-parse HEAD 2>/dev/null || true)"
+      if [ "$current" != "\(beforeSha)" ]; then
+        exit 0
+      fi
+      if ! git diff --quiet || ! git diff --cached --quiet; then
+        exit 0
+      fi
+      if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+        exit 0
+      fi
+      exit 1
+      """
+    guard
+      let result = try? await ProcessRunner.runShell(
+        command,
+        workingDirectory: repoURL,
+        timeout: 10,
+        launchPlan: .host()
+      )
+    else {
+      return nil
+    }
+    switch result.exitCode {
+    case 0: return true
+    case 1: return false
+    default: return nil
+    }
   }
 
   private func gitDiffSinceSHA(_ sha: String?, repoURL: URL) async -> String {

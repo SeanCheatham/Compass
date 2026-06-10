@@ -160,6 +160,7 @@ enum CompassCLICommand: Equatable {
       let promptLog = try parser.optionalURLOption("--prompt-log")
       let maxIterations = try parser.optionalInt("--max-iterations") ?? 24
       let maxDevelopAttempts = try parser.optionalInt("--max-develop-attempts") ?? 2
+      let maxVerifyRepairAttempts = try parser.optionalInt("--max-verify-repairs") ?? 1
       let runCritic = parser.consumeFlag("--critic")
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
@@ -172,6 +173,7 @@ enum CompassCLICommand: Equatable {
           promptLogDirectory: promptLog,
           maxIterations: maxIterations,
           maxDevelopAttempts: maxDevelopAttempts,
+          maxVerifyRepairAttempts: maxVerifyRepairAttempts,
           runCritic: runCritic
         ),
         format: format
@@ -377,7 +379,7 @@ enum CompassCLIError: LocalizedError, Equatable {
     Usage:
       compass-cli doctor --repo <path> [--format json|text]
       compass-cli scaffold typescript <path> [--name <name>] [--format json|text]
-      compass-cli run --repo <path> --brief <file-or-inline> [--mode fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--max-develop-attempts <n>] [--prompt-log <dir>] [--critic] [--format json|text]
+      compass-cli run --repo <path> --brief <file-or-inline> [--mode fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--format json|text]
       compass-cli replay --repo <path> --session <number> [--mode fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
 

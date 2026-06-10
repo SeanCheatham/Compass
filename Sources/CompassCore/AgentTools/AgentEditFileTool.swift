@@ -324,7 +324,8 @@ struct AgentEditFileTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
+      return .failure(
+        .invalidArguments(Self.argumentRepairMessage(agentToolDecodingErrorDescription(error))))
     }
 
     guard !args.edits.isEmpty else {
@@ -355,6 +356,12 @@ struct AgentEditFileTool: AgentTool {
     }
 
     if await !context.readTracker.wasRead(url) {
+      if !FileManager.default.fileExists(atPath: url.path) {
+        return .failure(
+          .readNotTracked(
+            "edit_file cannot edit \(context.relativize(url)) because the file does not exist. Use write_file to create this new file, or choose an existing path from read_file/list_files and then edit that file."
+          ))
+      }
       return .failure(
         .readNotTracked(
           "edit_file requires a prior read_file for \(context.relativize(url)) in this session. Read the file first and use the returned line numbers for startLine/endLine."
@@ -474,6 +481,8 @@ struct AgentEditFileTool: AgentTool {
       let preview = Self.nearbyLineHints(around: startLine, in: lines)
       message +=
         "\nReread the file — line numbers may have shifted:\n" + preview.joined(separator: "\n")
+      message +=
+        "\nFor this file, replace the last line with startLine=\(lineCount), endLine=\(lineCount). To insert after the last line, use startLine=\(lineCount + 1), endLine=\(lineCount). Do not retry the same out-of-range range."
     } else {
       message += "; use write_file to create the file from scratch"
     }
@@ -498,5 +507,15 @@ struct AgentEditFileTool: AgentTool {
 
   private static func joinLines(_ lines: [String]) -> String {
     lines.joined(separator: "\n")
+  }
+
+  private static func argumentRepairMessage(_ detail: String) -> String {
+    """
+    \(detail)
+    edit_file requires path plus startLine, endLine, and replacement lines. Read the target file first, then use the returned line numbers.
+    Example replace: {"path":"packages/cli/src/main.ts","startLine":4,"endLine":6,"insert":["new line"]}
+    Example insert after line 6: {"path":"packages/cli/src/main.ts","startLine":7,"endLine":6,"insert":["new line"]}
+    Use write_file instead only when creating a new file or intentionally replacing a whole file.
+    """
   }
 }

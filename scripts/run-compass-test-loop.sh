@@ -8,6 +8,8 @@ CLI="${ROOT}/.build/debug/compass-cli"
 TEST_REPO="${COMPASS_TEST_REPO:-${HOME}/tmp/compass-test}"
 BRIEF="${COMPASS_TEST_BRIEF:-${TEST_REPO}/factory-brief.md}"
 MAX_ITERATIONS="${COMPASS_MAX_ITERATIONS:-10}"
+MAX_DEVELOP_ATTEMPTS="${COMPASS_MAX_DEVELOP_ATTEMPTS:-3}"
+MAX_VERIFY_REPAIRS="${COMPASS_MAX_VERIFY_REPAIRS:-1}"
 RUN_ID="${COMPASS_RUN_ID:-$(date +%Y%m%d-%H%M%S)}"
 PROMPT_LOG_DIR="${TEST_REPO}/.compass/prompt-logs/${RUN_ID}"
 RUN_LOG="${TEST_REPO}/.compass/runs/${RUN_ID}.jsonl"
@@ -50,6 +52,8 @@ set +e
   --mode mlx \
   --prompt-log "${PROMPT_LOG_DIR}" \
   --max-iterations "${MAX_ITERATIONS}" \
+  --max-develop-attempts "${MAX_DEVELOP_ATTEMPTS}" \
+  --max-verify-repairs "${MAX_VERIFY_REPAIRS}" \
   --format json | tee "${RUN_LOG}"
 status="${PIPESTATUS[0]}"
 set -e
