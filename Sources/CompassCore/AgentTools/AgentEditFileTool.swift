@@ -412,6 +412,8 @@ struct AgentEditFileTool: AgentTool {
     let originalText = current
     var lines = Self.fileLines(from: current)
     let relative = context.relativize(url)
+    var appliedEditCount = 0
+    var noOpEditCount = 0
     var totalLinesAffected = 0
 
     for (idx, edit) in args.edits.enumerated() {
@@ -442,6 +444,7 @@ struct AgentEditFileTool: AgentTool {
           return .failure(.invalidArguments(suspiciousInsertion))
         }
         lines.insert(contentsOf: edit.replacementLines, at: edit.startLine - 1)
+        appliedEditCount += 1
         totalLinesAffected += edit.replacementLines.count
         continue
       }
@@ -477,13 +480,12 @@ struct AgentEditFileTool: AgentTool {
         return .failure(.invalidArguments(declarationRemoval))
       }
       if existing == edit.replacementLines {
-        return .failure(
-          .invalidArguments(
-            "edits[\(idx)] replacementLines are identical to the current lines \(edit.startLine)-\(edit.endLine); no edit needed"
-          ))
+        noOpEditCount += 1
+        continue
       }
 
       lines.replaceSubrange(startIndex...endIndex, with: edit.replacementLines)
+      appliedEditCount += 1
       totalLinesAffected += max(existing.count, edit.replacementLines.count)
     }
 
@@ -519,21 +521,36 @@ struct AgentEditFileTool: AgentTool {
         ))
     }
 
-    do {
-      try await context.filesystem.writeFile(Data(current.utf8), at: url)
-    } catch let error as AgentFilesystemError {
-      if case .transportFailure(let detail) = error {
-        return .failure(.rpcFailure(detail))
+    if current != originalText {
+      do {
+        try await context.filesystem.writeFile(Data(current.utf8), at: url)
+      } catch let error as AgentFilesystemError {
+        if case .transportFailure(let detail) = error {
+          return .failure(.rpcFailure(detail))
+        }
+        return .failure(.ioFailure(error.errorDescription ?? "I/O failure"))
+      } catch {
+        return .failure(.ioFailure("write failed: \(error.localizedDescription)"))
       }
-      return .failure(.ioFailure(error.errorDescription ?? "I/O failure"))
-    } catch {
-      return .failure(.ioFailure("write failed: \(error.localizedDescription)"))
     }
 
     await context.readTracker.markRead(url, lineCount: lines.count)
-    let editPlural = args.edits.count == 1 ? "" : "s"
+    if appliedEditCount == 0 {
+      let noOpPlural = noOpEditCount == 1 ? "" : "s"
+      return .ok(
+        "no changes needed for \(relative); \(noOpEditCount) edit\(noOpPlural) already matched the current file. Do not retry the identical edit; continue with the next required task, run verify if implementation is complete, or submit only when the plan is done."
+      )
+    }
+
+    let editPlural = appliedEditCount == 1 ? "" : "s"
+    var message =
+      "applied \(appliedEditCount) edit\(editPlural) to \(relative); file now has \(lines.count) lines (touched \(totalLinesAffected) line\(totalLinesAffected == 1 ? "" : "s"))"
+    if noOpEditCount > 0 {
+      let noOpPlural = noOpEditCount == 1 ? "" : "s"
+      message += "; skipped \(noOpEditCount) no-op edit\(noOpPlural) that already matched"
+    }
     return .ok(
-      "applied \(args.edits.count) edit\(editPlural) to \(relative); file now has \(lines.count) lines (touched \(totalLinesAffected) line\(totalLinesAffected == 1 ? "" : "s"))"
+      message
     )
   }
 

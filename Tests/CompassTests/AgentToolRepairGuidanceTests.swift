@@ -460,6 +460,41 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileTreatsIdenticalReplacementAsNoOp() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "summarize.ts")
+    let original = """
+    import { summarizeQueue } from "@compass-test/core";
+
+    export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {
+      return summarizeQueue(entries);
+    }
+    """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"summarize.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"summarize.ts","startLine":1,"endLine":5,"replacement":"import { summarizeQueue } from \"@compass-test/core\";\n\nexport function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {\n  return summarizeQueue(entries);\n}"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(!result.isError)
+    #expect(result.content.contains("no changes needed for summarize.ts"))
+    #expect(result.content.contains("Do not retry the identical edit"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == original)
+  }
+
+  @Test
   func editFileRejectsSuspiciousTopOfFileBulkInsertion() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
