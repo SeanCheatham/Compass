@@ -660,7 +660,7 @@ struct AgentEditFileTool: AgentTool {
     }
 
     return
-      "edits[\(editIndex)] replaces only line \(edit.startLine) with \(edit.replacementLines.count) lines while leaving \(lineCount - edit.endLine) existing lines after it. This looks like a partial whole-file rewrite. If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to insert before line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1). Otherwise replace the exact line range that should be removed."
+      "edits[\(editIndex)] replaces only line \(edit.startLine) with \(edit.replacementLines.count) lines while leaving \(lineCount - edit.endLine) existing lines after it. This looks like a partial whole-file rewrite. Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with the same replacement. If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to insert before line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1). Otherwise replace the exact line range that should be removed."
   }
 
   private struct MissingRelativeModuleReference {

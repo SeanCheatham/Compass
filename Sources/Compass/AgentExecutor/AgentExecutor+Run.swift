@@ -27,6 +27,8 @@ extension AgentExecutor {
     var assistantTranscript = ""
     var transcript: [ContinuationTranscriptEntry] = []
     var tokenUsage = AgentRunTokenUsage()
+    var lastFailedToolCall: FailedToolCallSignature?
+    var repeatedFailedToolCallCount = 0
 
     while iterations < configuration.maxIterations {
       if cancelled { throw AgentExecutionError.cancelled }
@@ -190,6 +192,30 @@ extension AgentExecutor {
           reason: reason
         )
         transcript.append(.toolObservation(observation))
+        if result.isError {
+          let signature = FailedToolCallSignature(toolName: toolName, arguments: argumentText)
+          if signature == lastFailedToolCall {
+            repeatedFailedToolCallCount += 1
+          } else {
+            lastFailedToolCall = signature
+            repeatedFailedToolCallCount = 1
+          }
+          if repeatedFailedToolCallCount >= 2 {
+            transcript.append(
+              .repair(
+                Self.repeatedToolFailureRepairMessage(
+                  toolName: toolName,
+                  arguments: argumentText,
+                  repeatCount: repeatedFailedToolCallCount,
+                  phase: configuration.continuationPhase
+                )
+              )
+            )
+          }
+        } else {
+          lastFailedToolCall = nil
+          repeatedFailedToolCallCount = 0
+        }
       }
     }
 
@@ -277,6 +303,11 @@ extension AgentExecutor {
     }
   }
 
+  private struct FailedToolCallSignature: Equatable {
+    var toolName: String
+    var arguments: String
+  }
+
   private static func continuationPrompt(
     configuration: AgentExecutionConfiguration,
     transcript: [ContinuationTranscriptEntry]
@@ -336,6 +367,25 @@ extension AgentExecutor {
 
     Invalid response:
     \(fencedContinuationText(invalidOutput, limit: 4_000))
+    """
+  }
+
+  private static func repeatedToolFailureRepairMessage(
+    toolName: String,
+    arguments: String,
+    repeatCount: Int,
+    phase: AgentContinuationPhase
+  ) -> String {
+    """
+    You repeated the exact same failed `\(toolName)` call \(repeatCount) times.
+
+    Do not call `\(toolName)` again with the same arguments. Choose a different next action:
+    - If this is an edit_file failure, change the startLine/endLine and replacement lines using the latest read_file output.
+    - If the path or lines are uncertain, call read_file or list_files first.
+    - If you cannot make a different concrete tool call now, return `\(phase.submitKind)` with status=failed or status=blocked and concise feedback.
+
+    Repeated arguments:
+    \(fencedContinuationText(arguments, limit: 2_000))
     """
   }
 

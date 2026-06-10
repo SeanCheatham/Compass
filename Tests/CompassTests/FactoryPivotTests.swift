@@ -516,6 +516,48 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorEscalatesRepeatedIdenticalToolFailures() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try """
+    export function one() { return 1; }
+    export function two() { return 2; }
+    export function three() { return 3; }
+    """.write(
+      to: tempURL.appending(path: "index.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    let invalidEdit =
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"index.ts","startLine":1,"endLine":1,"content":"import { next } from './next';\n\nexport function replacement() {\n  return next();\n}\n\nexport function extra() {\n  return 42;\n}"},"reason":"Replace the module."}"#
+
+    let runtime = FakeLocalModelRuntime(outputs: [
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current exports."}"#,
+      invalidEdit,
+      invalidEdit,
+      #"{"kind":"develop_submit","payload":{"status":"blocked","summary":"The edit range needs correction.","feedback":"Use a different edit_file range based on read_file output.","bypassVerify":true,"lessonEdits":[]}}"#,
+    ])
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [AgentReadFileTool(), AgentEditFileTool()],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 4
+      )
+    )
+
+    #expect(result.iterations == 4)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 4)
+    #expect(prompts[3].contains("You repeated the exact same failed `edit_file` call 2 times"))
+    #expect(prompts[3].contains("Do not call `edit_file` again with the same arguments"))
+    #expect(prompts[3].contains("change the startLine/endLine"))
+    #expect(prompts[3].contains(#""path":"index.ts""#))
+  }
+
+  @Test
   func executorRepairsMalformedOutput() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
