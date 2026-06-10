@@ -56,6 +56,25 @@ struct FeedbackHandoffValidatorTests {
   }
 
   @Test
+  func rejectsSucceededDevelopFeedbackWithBareNextWork() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Moved the existing summarizeCLI function to packages/cli/src/summarize.ts.",
+      feedback:
+        "Next, create tests for the new `summarizeCLI` function in `packages/cli/src/summarize.test.ts`.",
+      bypassVerify: false
+    )
+
+    do {
+      try DevelopFeedbackValidator.validate(summary)
+      Issue.record("Expected bare next-work feedback rejection.")
+    } catch let error as DevelopFeedbackValidationError {
+      #expect(error.reason == .unfinishedSuccess)
+      #expect(error.feedback?.contains("Next, create tests") == true)
+    }
+  }
+
+  @Test
   func rejectsSucceededDevelopFeedbackStartingWithImperativeWork() throws {
     let summary = DevelopSummary(
       status: .succeeded,

@@ -379,6 +379,11 @@ private enum UnfinishedSuccessFeedback {
         return normalized
       }
     }
+    if tokens.first == "next",
+      tokens.dropFirst().contains(where: nextStepActions.contains)
+    {
+      return normalized
+    }
     if let first = tokens.first, nextStepActions.contains(first) {
       return normalized
     }
