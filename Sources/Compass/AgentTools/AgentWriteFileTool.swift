@@ -100,6 +100,12 @@ struct AgentWriteFileTool: AgentTool {
           "write_file would overwrite \(context.relativize(url)) but it has not been read in this session. Call read_file first to confirm its current contents before replacing them."
         ))
     }
+    let newFileSiblingHint: String?
+    if existing == nil {
+      newFileSiblingHint = await newFileHint(for: url, context: context)
+    } else {
+      newFileSiblingHint = nil
+    }
 
     let data = Data(args.content.utf8)
     do {
@@ -119,6 +125,34 @@ struct AgentWriteFileTool: AgentTool {
 
     await context.readTracker.markRead(url)
     let relative = context.relativize(url)
-    return .ok("wrote \(data.count) bytes to \(relative)")
+    var message = "wrote \(data.count) bytes to \(relative)"
+    if let newFileSiblingHint {
+      message += "\n\(newFileSiblingHint)"
+    }
+    return .ok(message)
+  }
+
+  private func newFileHint(for url: URL, context: AgentToolContext) async -> String? {
+    let parent = url.deletingLastPathComponent().standardizedFileURL
+    guard let entries = try? await context.filesystem.listDirectory(at: parent) else {
+      return nil
+    }
+    let targetName = url.lastPathComponent
+    let visibleEntries =
+      entries
+      .map { entry in entry.isDirectory ? "\(entry.name)/" : entry.name }
+      .filter { !$0.hasPrefix(".") && $0 != targetName }
+      .sorted()
+    guard !visibleEntries.isEmpty else { return nil }
+
+    var message =
+      "Created a new file in existing directory \(context.relativize(parent)). Existing entries there before this write:"
+    message += visibleEntries.prefix(12).map { "\n- \($0)" }.joined()
+    if visibleEntries.count > 12 {
+      message += "\n- ... \(visibleEntries.count - 12) more"
+    }
+    message +=
+      "\nIf the plan was to update one of those files, stop using \(context.relativize(url)) and use read_file/edit_file on the existing path instead."
+    return message
   }
 }

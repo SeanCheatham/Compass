@@ -92,7 +92,82 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.isError)
     #expect(result.errorKind == .readNotTracked)
     #expect(result.content.contains("file does not exist"))
-    #expect(result.content.contains("Use write_file to create this new file"))
+    #expect(
+      result.content.contains(
+        "Use write_file for packages/core/src/utils/activity.ts only when the plan explicitly requires creating that exact new file"
+      ))
+  }
+
+  @Test
+  func editFileMissingPathListsNearbyExistingFiles() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let cliSrc =
+      tempURL
+      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "cli", directoryHint: .isDirectory)
+      .appending(path: "src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
+    try "export function main() {}\n".write(
+      to: cliSrc.appending(path: "main.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    try "import { main } from './main';\n".write(
+      to: cliSrc.appending(path: "main.test.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/cli.ts","startLine":1,"endLine":1,"content":"export {};"}"#.utf8
+      ),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .readNotTracked)
+    #expect(result.content.contains("Nearest existing directory: packages/cli/src"))
+    #expect(result.content.contains("- main.ts"))
+    #expect(result.content.contains("- main.test.ts"))
+    #expect(result.content.contains("read_file on one of these paths"))
+    #expect(result.content.contains("only when the plan explicitly requires creating"))
+  }
+
+  @Test
+  func writeFileNewSiblingMentionsExistingFiles() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let cliSrc =
+      tempURL
+      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "cli", directoryHint: .isDirectory)
+      .appending(path: "src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
+    try "export function main() {}\n".write(
+      to: cliSrc.appending(path: "main.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    try "import { main } from './main';\n".write(
+      to: cliSrc.appending(path: "main.test.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let result = try await AgentWriteFileTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/src/cli.ts","content":"export {};"}"#.utf8),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+
+    #expect(!result.isError)
+    #expect(result.content.contains("Created a new file in existing directory packages/cli/src"))
+    #expect(result.content.contains("- main.ts"))
+    #expect(result.content.contains("- main.test.ts"))
+    #expect(result.content.contains("use read_file/edit_file on the existing path"))
   }
 
   @Test
