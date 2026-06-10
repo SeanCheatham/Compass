@@ -16,9 +16,7 @@ extension CompassProject {
   }
 
   var agentExecutionEnvironment: AgentExecutionEnvironment {
-    AgentExecutionEnvironment.discover(
-      vmReadiness: SharedCompassVM.shared.readiness
-    )
+    AgentExecutionEnvironment.discover()
   }
 
   var runtimeDiagnosticsMenu: AgentExecutionEnvironmentMenu {

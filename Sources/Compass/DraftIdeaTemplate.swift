@@ -22,7 +22,7 @@ enum DraftIdeaLibrary {
     systemImage: "curlybraces.square",
     text: """
       Change: create or improve the TypeScript output path
-      Because: generated projects should build, test, typecheck, and run inside the Shared VM with pnpm
+      Because: generated projects should build, test, typecheck, and run inside the containerized Linux runtime with pnpm
       Done when: `pnpm verify` passes and the workspace has core, CLI, and web packages
       """
   )

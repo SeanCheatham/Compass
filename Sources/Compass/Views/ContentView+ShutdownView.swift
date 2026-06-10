@@ -9,7 +9,7 @@ struct ShutdownView: View {
       VStack(spacing: 6) {
         Text("Shutting down Compass")
           .font(.title3.weight(.semibold))
-        Text("Stopping the Shared VM cleanly so it boots fast next time.")
+        Text("Stopping the containerized Linux runtime cleanly so it boots fast next time.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)

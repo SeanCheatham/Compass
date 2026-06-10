@@ -1,3 +1,4 @@
+import CompassSandbox
 import Foundation
 
 public enum HeadlessModelMode: String, Codable, Equatable, Sendable {
@@ -83,7 +84,19 @@ public struct HeadlessVerifyOptions: Equatable, Sendable {
 }
 
 public struct HeadlessCompassRunner: Sendable {
-  public init() {}
+  typealias BashRunnerFactory = @Sendable (URL, String) -> any AgentBashRunner
+
+  private let bashRunnerFactory: BashRunnerFactory
+
+  public init() {
+    self.init { repoURL, label in
+      AgentContainerBashRunner(repoRoot: repoURL, label: label)
+    }
+  }
+
+  init(bashRunnerFactory: @escaping BashRunnerFactory) {
+    self.bashRunnerFactory = bashRunnerFactory
+  }
 
   @discardableResult
   public func doctor(
@@ -93,7 +106,21 @@ public struct HeadlessCompassRunner: Sendable {
     let repoURL = repoURL.standardizedFileURL
     let workspace = CompassWorkspace(repoURL: repoURL)
     let modelReady = LocalModelCatalog.isBlessedModelReady()
-    let toolchain = await HostToolchainPreflight.snapshot()
+    let sandboxConfiguration = ContainerSandboxConfiguration()
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "container_runtime",
+        status: "checking",
+        message: "Checking containerized Linux runtime.",
+        metadata: [
+          "runtime": "containerized_linux",
+          "stateRoot": sandboxConfiguration.stateRoot.path,
+          "runtimeImage": sandboxConfiguration.runtimeImage,
+          "initfsReference": sandboxConfiguration.initfsReference,
+        ]
+      )
+    )
+    let sandboxStatus = await ContainerizedLinuxSandbox.shared.smokeTest()
 
     onEvent(
       HeadlessCompassEvent(
@@ -109,24 +136,27 @@ public struct HeadlessCompassRunner: Sendable {
         ]
       )
     )
-    for tool in toolchain.tools {
-      var metadata = ["tool": tool.name]
-      if let path = tool.path {
-        metadata["path"] = path
-      }
-      if let version = tool.version {
-        metadata["version"] = version
-      }
-      onEvent(
-        HeadlessCompassEvent(
-          kind: "toolchain",
-          level: tool.isAvailable ? "success" : "warning",
-          status: tool.isAvailable ? "ready" : "missing",
-          message: tool.isAvailable ? "\(tool.name) ready." : "\(tool.name) missing.",
-          metadata: metadata
-        )
-      )
+    var runtimeMetadata = [
+      "runtime": "containerized_linux",
+      "stateRoot": sandboxStatus.stateRoot.path,
+      "runtimeImage": sandboxStatus.runtimeImage,
+      "initfsReference": sandboxStatus.initfsReference,
+      "message": sandboxStatus.message,
+    ]
+    if let kernelURL = sandboxStatus.kernelURL {
+      runtimeMetadata["kernel"] = kernelURL.path
     }
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "container_runtime",
+        level: sandboxStatus.ok ? "success" : "error",
+        status: sandboxStatus.ok ? "ready" : "failed",
+        message: sandboxStatus.ok
+          ? "Containerized Linux runtime is ready."
+          : "Containerized Linux runtime smoke test failed.",
+        metadata: runtimeMetadata
+      )
+    )
     if !modelReady {
       onEvent(
         HeadlessCompassEvent(
@@ -138,7 +168,7 @@ public struct HeadlessCompassRunner: Sendable {
         )
       )
     }
-    return modelReady && toolchain.isTypeScriptReady
+    return modelReady && sandboxStatus.ok
   }
 
   public func scaffoldTypeScript(
@@ -547,8 +577,7 @@ public struct HeadlessCompassRunner: Sendable {
       systemPrompt: Prompts.agentSystemPrompt(
         phase: phase,
         workingDirectoryPath: workspace.repoURL.path,
-        executionEnvironment: .host,
-        installedToolchainIDs: [],
+        executionEnvironment: .containerizedLinux,
         externalToolNames: []
       ),
       userPrompt: userPrompt,
@@ -557,7 +586,7 @@ public struct HeadlessCompassRunner: Sendable {
       submitResultSchema: AgentToolParametersSchema(json: Data(schema.utf8)),
       workingDirectory: workspace.repoURL,
       filesystem: AgentHostFilesystem(),
-      bashRunner: AgentHostBashRunner(),
+      bashRunner: bashRunnerFactory(workspace.repoURL, phase.rawValue),
       codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
       planHistoryEntries: workspace.readSessions(includeArchived: true).compactMap(\.plan),
       assumptionsURL: workspace.assumptionsURL,
@@ -665,38 +694,20 @@ public struct HeadlessCompassRunner: Sendable {
     timeoutSeconds: TimeInterval,
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
   ) async throws -> ProcessResult {
-    if HostToolchainPreflight.verifyCommandRequiresPnpm(command) {
-      let toolchain = await HostToolchainPreflight.snapshot()
-      if toolchain.tool(named: "pnpm")?.isAvailable != true {
-        onEvent(
-          HeadlessCompassEvent(
-            kind: "toolchain_missing",
-            level: "error",
-            status: "failed",
-            phase: "verify",
-            message: "Cannot run verify because pnpm is missing.",
-            metadata: ["command": command, "tool": "pnpm"]
-          )
-        )
-        throw HeadlessCompassError.missingTool("pnpm")
-      }
-    }
-
     onEvent(
       HeadlessCompassEvent(
         kind: "verify_start",
         status: "running",
         phase: "verify",
-        message: "Running verify command.",
-        metadata: ["command": command]
+        message: "Running verify command in containerized Linux runtime.",
+        metadata: ["command": command, "runtime": "containerized_linux"]
       )
     )
     let started = Date()
-    let result = try await ProcessRunner.runShell(
-      command,
+    let result = try await bashRunnerFactory(repoURL, "verify").run(
+      command: command,
       workingDirectory: repoURL,
-      timeout: timeoutSeconds,
-      launchPlan: .host()
+      timeout: timeoutSeconds
     )
     let combined = result.stdout + result.stderr
     onEvent(

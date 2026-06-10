@@ -35,7 +35,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   let bashRunner: AgentBashRunner
   /// Host-side codemap directory inherited from the parent run. Nil
   /// means the sub-agent falls back to `<workingDirectory>/.compass/codemap`,
-  /// which is wrong for Shared-VM routes — top-level callers should
+  /// which is wrong for container routes — top-level callers should
   /// always supply this.
   let codemapStoreDirectory: URL?
   /// Host-side assumptions ledger inherited from the parent so sub-agents
@@ -48,7 +48,6 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   let parentTools: [AgentTool]
   let parentMaxIterations: Int
   let parentWallClockTimeout: TimeInterval
-  let toolchainService: (any SharedVMToolchainService)?
   /// Live-log sink so sub-agent activity surfaces under the parent run.
   let onEvent: @Sendable (LiveEvent) -> Void
 
@@ -98,7 +97,6 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       codemapStoreDirectory: codemapStoreDirectory,
       assumptionsURL: assumptionsURL,
       sessionNumber: sessionNumber,
-      toolchainService: toolchainService,
       maxIterations: min(parentMaxIterations, Self.maxSubAgentIterations),
       wallClockTimeout: min(parentWallClockTimeout, Self.maxSubAgentWallClock)
     )

@@ -1,4 +1,4 @@
-// Copy this file to App/LocalSigning.xcconfig for local Shared VM debugging.
+// Copy this file to App/LocalSigning.xcconfig for local containerized Linux runtime debugging.
 // LocalSigning.xcconfig is git-ignored so personal team identifiers stay local.
 
 COMPASS_DEVELOPMENT_TEAM = ABCDE12345

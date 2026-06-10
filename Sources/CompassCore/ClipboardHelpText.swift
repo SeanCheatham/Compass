@@ -1,6 +1,6 @@
 enum ClipboardHelpText {
   static let setup = "Copy a concise setup note."
-  static let privateWorkspaceReadiness = "Copy a concise private workspace status note."
+  static let runtimeReadiness = "Copy a concise container runtime status note."
   static let runtimeSettings = "Copy a redacted runtime settings note."
   static let tournamentRouting = "Copy a concise factory routing note."
   static let runtimeDiagnostics = "Copy a concise runtime report with workspace readiness."
@@ -22,7 +22,7 @@ enum ClipboardHelpText {
 
   static let allUserFacing: [String] = [
     setup,
-    privateWorkspaceReadiness,
+    runtimeReadiness,
     runtimeSettings,
     tournamentRouting,
     runtimeDiagnostics,

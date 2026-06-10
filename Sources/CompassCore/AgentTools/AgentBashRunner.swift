@@ -1,9 +1,6 @@
 import Foundation
 
-/// Execution backend for `AgentBashTool`. Today the only concrete runner is
-/// host-side; the Shared VM transport will land alongside the vsock guest
-/// agent (see Sources/Compass/SharedVM/README.md) and conform to this same
-/// protocol so the tool layer above doesn't have to learn about it.
+/// Execution backend for `AgentBashTool`.
 protocol AgentBashRunner: Sendable {
   func run(
     command: String,
@@ -13,7 +10,8 @@ protocol AgentBashRunner: Sendable {
 }
 
 /// Runs the command in a `/bin/zsh -lc` subshell on the host, in the given
-/// working directory.
+/// working directory. Agent phases use `AgentContainerBashRunner`; this
+/// remains for host-side maintenance probes.
 struct AgentHostBashRunner: AgentBashRunner {
   let shellPath: String
 

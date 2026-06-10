@@ -3,7 +3,7 @@ import Foundation
 /// Walks a working directory, parses each supported source file through
 /// `SymbolExtractor`, and persists the results to a `CodemapStore`. Reading
 /// is delegated to `AgentFilesystem` so the same indexer works on the host
-/// and (eventually) over the Shared VM SSH route. Parsing itself runs
+/// and (eventually) over the containerized Linux runtime SSH route. Parsing itself runs
 /// in-process — tree-sitter is fast enough that the IO dominates.
 struct CodemapIndexer: Sendable {
   /// Max file size to index. Anything larger almost always indicates a

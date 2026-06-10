@@ -967,8 +967,8 @@ struct PlanFactoryBrief: Equatable, Sendable {
   private static func routeSummary(for launchPlan: AgentExecutionLaunchPlan) -> RouteSummary {
     if launchPlan.isVMRoute {
       return RouteSummary(
-        label: "Private workspace",
-        detail: "Develop will run inside your isolated private workspace."
+        label: "Container runtime",
+        detail: "Develop will run inside your isolated container runtime."
       )
     }
 

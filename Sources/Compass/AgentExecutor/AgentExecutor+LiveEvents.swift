@@ -152,8 +152,6 @@ extension AgentExecutor {
       return string("task", "prompt", "instructions", "instruction", "question", "subtask").map {
         truncateOneLine($0, limit: 100)
       }
-    case AgentInstallToolchainTool.toolName:
-      return string("id", "toolchain", "toolchainID", "toolchain_id", "name")
     case AgentPlanHistoryTool.toolName:
       if let offset = string("offset", "start", "skip") {
         return "offset \(offset)"

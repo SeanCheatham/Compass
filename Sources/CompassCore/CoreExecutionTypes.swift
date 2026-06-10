@@ -1,29 +1,39 @@
 import Foundation
 
 enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
-  case sharedVM = "shared_vm"
+  case containerizedLinux = "containerized_linux"
 
   var id: Self { self }
-  var title: String { "Host" }
-  var systemImage: String { "desktopcomputer" }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    let raw = try container.decode(String.self)
+    switch raw {
+    case Self.containerizedLinux.rawValue, "shared_vm", "native_macos", "devcontainer_preferred":
+      self = .containerizedLinux
+    default:
+      self = .containerizedLinux
+    }
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.singleValueContainer()
+    try container.encode(rawValue)
+  }
+
+  var title: String { "Containerized Linux" }
+  var systemImage: String { "shippingbox" }
 }
 
-enum SharedCompassVMReadiness: Equatable, Codable {
-  case unavailable(String)
-  case notProvisioned
-  case downloadingIPSW(Double)
-  case installing(Double)
-  case guestPrepping
-  case provisioningDevTools(Double)
-  case ready(String)
-  case error(String)
-}
+struct ContainerSandboxRoute: Equatable, Codable {
+  var hostWorkspacePath: String
+  var containerWorkspacePath: String
 
-struct SharedVMRoute: Equatable, Codable {
-  var guestWorkspacePath: String
+  init(hostWorkspacePath: String, containerWorkspacePath: String = "/workspace") {
+    self.hostWorkspacePath = hostWorkspacePath
+    self.containerWorkspacePath = containerWorkspacePath
+  }
 }
-
-protocol SharedVMToolchainService: Sendable {}
 
 struct AgentExecutionInvocation: Sendable, Equatable {
   var executable: String
@@ -43,63 +53,86 @@ struct AgentExecutionLaunchPlan: Equatable {
 
   enum Route: Equatable {
     case host
-    case sharedVM(SharedVMRoute)
+    case containerizedLinux(ContainerSandboxRoute)
   }
 
   var selectedPreference: AgentExecutionEnvironmentPreference
   var effectiveRoute: Route
-  var vmReadiness: SharedCompassVMReadiness?
   var fallbackReason: String?
 
-  static func host(
-    vmReadiness: SharedCompassVMReadiness? = nil,
+  init(
+    selectedPreference: AgentExecutionEnvironmentPreference = .containerizedLinux,
+    effectiveRoute: Route,
     fallbackReason: String? = nil
+  ) {
+    self.selectedPreference = selectedPreference
+    self.effectiveRoute = effectiveRoute
+    self.fallbackReason = Self.boundedOptionalText(fallbackReason, limit: Self.fallbackReasonLimit)
+  }
+
+  static func host(fallbackReason: String? = nil) -> Self {
+    Self(effectiveRoute: .host, fallbackReason: fallbackReason)
+  }
+
+  static func containerizedLinux(
+    repoURL: URL,
+    containerWorkspacePath: String = "/workspace"
   ) -> Self {
     Self(
-      selectedPreference: .sharedVM,
-      effectiveRoute: .host,
-      vmReadiness: vmReadiness,
-      fallbackReason: fallbackReason
+      effectiveRoute: .containerizedLinux(
+        ContainerSandboxRoute(
+          hostWorkspacePath: repoURL.standardizedFileURL.path,
+          containerWorkspacePath: containerWorkspacePath
+        )
+      )
     )
   }
 
   var effectiveRouteIdentifier: String {
     switch effectiveRoute {
     case .host: return "host"
-    case .sharedVM: return "shared-vm"
+    case .containerizedLinux: return "containerized-linux"
     }
   }
 
   var effectiveRouteTitle: String {
     switch effectiveRoute {
     case .host: return "Host"
-    case .sharedVM: return "Shared VM"
+    case .containerizedLinux: return "Containerized Linux"
     }
   }
 
   var imageLabel: String {
     switch effectiveRoute {
     case .host: return "none"
-    case .sharedVM: return "shared-vm"
+    case .containerizedLinux: return "docker.io/library/node:22-bookworm"
     }
   }
 
   var workspaceLabel: String {
     switch effectiveRoute {
     case .host: return "host"
-    case .sharedVM(let route): return route.guestWorkspacePath
+    case .containerizedLinux(let route): return route.containerWorkspacePath
     }
   }
 
+  var fallbackReasonLabel: String {
+    fallbackReason ?? "none"
+  }
+
   var isVMRoute: Bool {
+    false
+  }
+
+  var isContainerRoute: Bool {
     switch effectiveRoute {
     case .host: return false
-    case .sharedVM: return true
+    case .containerizedLinux: return true
     }
   }
 
   static func userFacingFallbackReason(_ reason: String) -> String {
-    StringUtils.boundedText(reason, limit: fallbackReasonLimit)
+    boundedText(reason, limit: fallbackReasonLimit)
   }
 
   func shellInvocation(command: String, hostWorkingDirectory: URL) -> AgentExecutionInvocation {
@@ -108,6 +141,23 @@ struct AgentExecutionLaunchPlan: Equatable {
       arguments: ["-lc", command],
       workingDirectory: hostWorkingDirectory
     )
+  }
+
+  static func boundedText(_ text: String, limit: Int) -> String {
+    guard limit > 0 else { return "" }
+    let normalized =
+      text
+      .replacingOccurrences(of: "\r", with: " ")
+      .replacingOccurrences(of: "\n", with: " ")
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard normalized.count > limit else { return normalized }
+    return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {
+    let bounded = boundedText(text ?? "", limit: limit)
+    return bounded.isEmpty ? nil : bounded
   }
 }
 
@@ -135,13 +185,13 @@ enum DraftRefinementService {
   }
 }
 
-enum PrivateWorkspaceCopy {
+enum RuntimeCopy {
   static func containsImplementationTerm(_ text: String) -> Bool {
     let normalized = text.lowercased()
     return normalized.contains("shared vm")
       || normalized.contains("ssh")
       || normalized.contains("ipsw")
-      || normalized.contains("guest")
+
       || normalized.range(
         of: #"\b[\w.-]+@\d{1,3}(?:\.\d{1,3}){3}\b"#,
         options: .regularExpression

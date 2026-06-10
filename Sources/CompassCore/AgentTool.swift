@@ -66,7 +66,7 @@ enum AgentToolErrorKind: String, Sendable, Equatable, Codable {
   case editConflict
   /// Underlying I/O failed (permission denied, disk error, ...).
   case ioFailure
-  /// RPC to the guest VM failed (vsock, framing, decode).
+  /// RPC to the container runtime failed (container transport, framing, decode).
   case rpcFailure
   /// Bash command failed with a non-zero exit.
   case bashFailure
@@ -133,8 +133,8 @@ actor AgentReadTracker {
 /// Execution context handed to a tool at invocation time. The working
 /// directory is the root the tool must scope itself to — any path that
 /// escapes it is rejected. The filesystem picks how file ops are served
-/// (host `FileManager` vs. SSH into the Shared VM); the bash runner picks
-/// how shell commands are dispatched (host shell vs. SSH). The read tracker
+/// (host `FileManager` vs. container-mounted workspace); the bash runner picks
+/// how shell commands are dispatched. The read tracker
 /// is shared across every tool call in one execution so the mutation tools
 /// can require a prior `read_file`.
 struct AgentToolContext: Sendable {
@@ -149,8 +149,8 @@ struct AgentToolContext: Sendable {
   var delegateRunner: AgentDelegateRunner?
   /// Directory the codemap-backed tools read entries from. The codemap
   /// is built host-side at `<workspace.compassURL>/codemap/`, but when
-  /// the agent runs in the Shared VM, `workingDirectory` is the guest
-  /// worktree — which doesn't (and shouldn't) have its own codemap. The
+  /// the agent runs in the containerized Linux runtime, `workingDirectory` is the container
+  /// workspace — which doesn't (and shouldn't) have its own codemap. The
   /// caller threads the host-side store path through here so
   /// `list_files`, `find_symbol`, `outline`, `summary`, and
   /// `importers_of` keep finding entries regardless of route. Defaults
@@ -160,15 +160,13 @@ struct AgentToolContext: Sendable {
   /// Completed plan summaries from host-side state.json. Plan agents read
   /// these through `plan_history`; they are not writable via Plan submit.
   var planHistoryEntries: [String]
-  /// Host-side assumptions ledger. The agent may run inside a Shared VM
+  /// Host-side assumptions ledger. The agent may run inside a containerized Linux runtime
   /// copy, but assumptions are durable Compass state and are always written
   /// through this host URL when present.
   var assumptionsURL: URL?
   /// Phase/session metadata attached to assumptions recorded by tools.
   var phase: AgentPhase
   var sessionNumber: Int?
-  /// Shared VM toolchain listing/installation. Nil on host-route runs.
-  var toolchainService: (any SharedVMToolchainService)?
   init(
     workingDirectory: URL,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
@@ -179,8 +177,7 @@ struct AgentToolContext: Sendable {
     planHistoryEntries: [String] = [],
     assumptionsURL: URL? = nil,
     phase: AgentPhase = .plan,
-    sessionNumber: Int? = nil,
-    toolchainService: (any SharedVMToolchainService)? = nil
+    sessionNumber: Int? = nil
   ) {
     let normalizedWorkingDirectory = workingDirectory.standardizedFileURL
     self.workingDirectory = normalizedWorkingDirectory
@@ -195,7 +192,6 @@ struct AgentToolContext: Sendable {
     self.assumptionsURL = assumptionsURL?.standardizedFileURL
     self.phase = phase
     self.sessionNumber = sessionNumber.flatMap { $0 > 0 ? $0 : nil }
-    self.toolchainService = toolchainService
   }
 
   static func defaultCodemapDirectory(forWorkingDirectory workingDirectory: URL) -> URL {
@@ -224,7 +220,7 @@ enum AgentToolError: LocalizedError, Equatable {
   case editConflict(String)
   /// I/O failure surfaced by the underlying filesystem.
   case ioFailure(String)
-  /// RPC to the shared VM guest failed (vsock / framing / decode).
+  /// RPC to the containerized Linux runtime failed (container transport / framing / decode).
   case rpcFailure(String)
   /// Bash command exited non-zero or could not be launched.
   case bashFailure(String)
@@ -243,7 +239,7 @@ enum AgentToolError: LocalizedError, Equatable {
     case .readNotTracked(let detail): return detail
     case .editConflict(let detail): return "Edit did not apply: \(detail)"
     case .ioFailure(let detail): return "I/O failure: \(detail)"
-    case .rpcFailure(let detail): return "Guest RPC failed: \(detail)"
+    case .rpcFailure(let detail): return "Runtime transport failed: \(detail)"
     case .bashFailure(let detail): return "Bash command failed: \(detail)"
     case .delegateFailure(let detail): return "Delegation failed: \(detail)"
     }
@@ -309,7 +305,7 @@ extension AgentToolContext {
   /// Codemap cache directory for this run. Tools read this rather than
   /// re-deriving the path so the executor can point them at the
   /// host-side store even when `workingDirectory` is a remote (e.g.
-  /// Shared VM) guest path.
+  /// containerized Linux runtime) container path.
   func codemapStore() -> CodemapStore {
     CodemapStore(directory: codemapStoreDirectory)
   }

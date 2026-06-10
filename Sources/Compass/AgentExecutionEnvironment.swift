@@ -1,24 +1,19 @@
 import Foundation
 
-/// The runtime environment Compass targets for an agent run.
-///
-/// Compass has collapsed to a single user-facing environment (the
-/// Shared VM); the type is retained so diagnostics and stored session
-/// history continue to carry an explicit identifier for the chosen
-/// environment. Legacy stored values (`native_macos`, etc.) are decoded
-/// as `.sharedVM`.
 enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
-  case sharedVM = "shared_vm"
+  case containerizedLinux = "containerized_linux"
 
   var id: Self { self }
 
-  /// Any stored raw value (including legacy `native_macos` /
-  /// `devcontainer_preferred`) is silently upgraded — Compass no longer
-  /// supports a host-execution preference.
   init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
-    _ = try container.decode(String.self)
-    self = .sharedVM
+    let raw = try container.decode(String.self)
+    switch raw {
+    case Self.containerizedLinux.rawValue, "shared_vm", "native_macos", "devcontainer_preferred":
+      self = .containerizedLinux
+    default:
+      self = .containerizedLinux
+    }
   }
 
   func encode(to encoder: Encoder) throws {
@@ -27,54 +22,11 @@ enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
   }
 
   var title: String {
-    "Private workspace"
+    "Containerized Linux"
   }
 
   var systemImage: String {
-    "macwindow.on.rectangle"
-  }
-}
-
-struct AgentExecutionEnvironmentReadiness: Equatable {
-  static let detailLimit = 280
-
-  var vmReadiness: SharedCompassVMReadiness
-  var detail: String
-
-  init(
-    vmReadiness: SharedCompassVMReadiness,
-    detail: String? = nil
-  ) {
-    self.vmReadiness = vmReadiness
-    let computed = detail ?? Self.detail(for: vmReadiness)
-    self.detail = StringUtils.boundedText(computed, limit: Self.detailLimit)
-  }
-
-  static func inspect(vmReadiness: SharedCompassVMReadiness) -> Self {
-    Self(vmReadiness: vmReadiness)
-  }
-
-  private static func detail(for readiness: SharedCompassVMReadiness) -> String {
-    switch readiness {
-    case .unavailable(let reason):
-      return "Private workspace is unavailable: \(reason)."
-    case .notProvisioned:
-      return "Private workspace has not been prepared yet."
-    case .downloadingIPSW(let fraction):
-      return
-        "Private workspace is downloading macOS (\(Int((fraction * 100).rounded()))%)."
-    case .installing(let fraction):
-      return "Private workspace is installing macOS (\(Int((fraction * 100).rounded()))%)."
-    case .guestPrepping:
-      return "Private workspace setup is finishing."
-    case .provisioningDevTools(let fraction):
-      return
-        "Private workspace is installing developer tools (\(Int((fraction * 100).rounded()))%)."
-    case .ready:
-      return "Private workspace is ready."
-    case .error(let detail):
-      return "Private workspace needs attention: \(detail)."
-    }
+    "shippingbox"
   }
 }
 
@@ -106,79 +58,29 @@ struct AgentExecutionEnvironmentPresentation: Equatable {
 
 struct AgentExecutionEnvironment: Equatable {
   var preference: AgentExecutionEnvironmentPreference
-  var readiness: AgentExecutionEnvironmentReadiness
 
-  init(
-    preference: AgentExecutionEnvironmentPreference = .sharedVM,
-    readiness: AgentExecutionEnvironmentReadiness
-  ) {
+  init(preference: AgentExecutionEnvironmentPreference = .containerizedLinux) {
     self.preference = preference
-    self.readiness = readiness
   }
 
-  static func discover(
-    vmReadiness: SharedCompassVMReadiness = .notProvisioned
-  ) -> Self {
-    Self(
-      preference: .sharedVM,
-      readiness: AgentExecutionEnvironmentReadiness.inspect(vmReadiness: vmReadiness)
-    )
+  static func discover() -> Self {
+    Self()
   }
 
   func presentation(launchPlan plan: AgentExecutionLaunchPlan)
     -> AgentExecutionEnvironmentPresentation
   {
-    if plan.isVMRoute {
-      return AgentExecutionEnvironmentPresentation(
-        title: plan.effectiveRouteTitle,
-        status: "Running agents inside your private workspace.",
-        detail: plan.routeDetail(),
-        systemImage: preference.systemImage
-      )
-    }
-    // When the VM is ready but the route still falls back to host,
-    // surface it as informational; reserve warning styling for actual
-    // VM-availability problems.
-    if case .ready = readiness.vmReadiness {
-      return AgentExecutionEnvironmentPresentation(
-        title: plan.effectiveRouteTitle,
-        status:
-          "Private workspace ready. This phase is using this Mac as an internal fallback.",
-        detail: plan.routeDetail(),
-        systemImage: preference.systemImage
-      )
-    }
-    return AgentExecutionEnvironmentPresentation(
-      title: preference.title,
-      status:
-        "Private workspace not ready; Develop will unlock when setup finishes.",
-      detail: fallbackDetail(plan: plan),
-      systemImage: "desktopcomputer.trianglebadge.exclamationmark",
-      isWarning: true
+    AgentExecutionEnvironmentPresentation(
+      title: plan.effectiveRouteTitle,
+      status: "Running agents in the containerized Linux runtime.",
+      detail: plan.routeDetail(),
+      systemImage: preference.systemImage,
+      isWarning: false
     )
   }
 
-  func launchPlan(
-    repoURL: URL,
-    sharedVMRouteFactory: (URL) -> SharedVMRoute? = { _ in nil }
-  ) -> AgentExecutionLaunchPlan {
-    AgentExecutionLaunchPlan.plan(
-      repoURL: repoURL,
-      vmReadiness: readiness.vmReadiness,
-      sharedVMRouteFactory: sharedVMRouteFactory
-    )
-  }
-
-  private func fallbackDetail(plan: AgentExecutionLaunchPlan) -> String {
-    [
-      readiness.detail,
-      plan.fallbackReason.map {
-        "Using this Mac because \(AgentExecutionLaunchPlan.userFacingFallbackReason($0))"
-      },
-    ]
-    .compactMap { $0 }
-    .filter { !$0.isEmpty }
-    .joined(separator: " ")
+  func launchPlan(repoURL: URL) -> AgentExecutionLaunchPlan {
+    AgentExecutionLaunchPlan.plan(repoURL: repoURL)
   }
 }
 
@@ -187,16 +89,12 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
   static let fieldLimit = 120
   static let helpLimit = 240
   static let stableCopyActionIdentifier = "runtime-diagnostics.copy"
-  static let copyIdentifierPrefix = "runtime-diagnostics.copy.v1"
+  static let copyIdentifierPrefix = "runtime-diagnostics.copy.v2"
 
   var selectedPreferenceIdentifier: String
   var selectedPreferenceTitle: String
   var effectiveRouteIdentifier: String
   var effectiveRouteTitle: String
-  var vmReadinessIdentifier: String
-  var vmBuildStateIdentifier: String
-  var vmBundleSizeLabel: String
-  var vmGuestOSVersion: String
   var imageLabel: String
   var workspaceLabel: String
   var fallbackReason: String
@@ -208,9 +106,11 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
   init(
     environment: AgentExecutionEnvironment,
     launchPlan: AgentExecutionLaunchPlan,
-    vmBundleSizeBytes: Int? = nil,
-    vmGuestOSVersion: String? = nil
+    runtimeBundleSizeBytes: Int? = nil,
+    runtimeOSVersion: String? = nil
   ) {
+    _ = runtimeBundleSizeBytes
+    _ = runtimeOSVersion
     selectedPreferenceIdentifier = environment.preference.rawValue
     selectedPreferenceTitle = Self.sanitizedField(
       environment.preference.title,
@@ -221,11 +121,6 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
       launchPlan.effectiveRouteTitle,
       limit: Self.fieldLimit
     )
-    vmReadinessIdentifier = Self.vmReadinessIdentifier(launchPlan.vmReadiness)
-    vmBuildStateIdentifier = Self.vmBuildStateIdentifier(launchPlan.vmReadiness)
-    vmBundleSizeLabel = Self.vmBundleSizeLabel(vmBundleSizeBytes)
-    self.vmGuestOSVersion = Self.sanitizedField(
-      vmGuestOSVersion ?? "unknown", limit: Self.fieldLimit)
     imageLabel = Self.sanitizedField(launchPlan.imageLabel, limit: Self.fieldLimit)
     workspaceLabel = Self.sanitizedField(launchPlan.workspaceLabel, limit: Self.fieldLimit)
     fallbackReason = Self.sanitizedField(
@@ -238,7 +133,6 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
       Self.copyIdentifierPrefix,
       selectedPreferenceIdentifier,
       effectiveRouteIdentifier,
-      vmReadinessIdentifier,
     ].joined(separator: ".")
   }
 
@@ -250,10 +144,7 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
         "copy-action-id: \(copyActionIdentifier)",
         "selected-preference: \(selectedPreferenceIdentifier) (\(selectedPreferenceTitle))",
         "effective-route: \(effectiveRouteIdentifier) (\(effectiveRouteTitle))",
-        "vm-readiness: \(vmReadinessIdentifier)",
-        "vm-build-state: \(vmBuildStateIdentifier)",
-        "vm-bundle-size: \(vmBundleSizeLabel)",
-        "vm-guest-os: \(vmGuestOSVersion)",
+        "runtime: containerized_linux",
         "image: \(imageLabel)",
         "workspace: \(workspaceLabel)",
         "fallback: \(fallbackReason)",
@@ -264,55 +155,9 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
 
   var helpText: String {
     Self.boundedField(
-      "Copy sanitized runtime diagnostics using \(copyActionIdentifier). No runtime preference, workspace lifecycle, or project state is changed.",
+      "Copy sanitized runtime diagnostics using \(copyActionIdentifier). No runtime preference, cache state, or project state is changed.",
       limit: Self.helpLimit
     )
-  }
-
-  private static func vmReadinessIdentifier(_ readiness: SharedCompassVMReadiness?) -> String {
-    guard let readiness else { return "not-evaluated" }
-    switch readiness {
-    case .unavailable:
-      return "unavailable"
-    case .notProvisioned:
-      return "not-provisioned"
-    case .downloadingIPSW:
-      return "downloading-ipsw"
-    case .installing:
-      return "installing"
-    case .guestPrepping:
-      return "guest-prepping"
-    case .provisioningDevTools:
-      return "provisioning-dev-tools"
-    case .ready:
-      return "ready"
-    case .error:
-      return "error"
-    }
-  }
-
-  private static func vmBuildStateIdentifier(_ readiness: SharedCompassVMReadiness?) -> String {
-    guard let readiness else { return "not-evaluated" }
-    switch readiness {
-    case .downloadingIPSW, .installing:
-      return "building"
-    case .ready, .guestPrepping, .provisioningDevTools:
-      return "built"
-    case .notProvisioned:
-      return "not-built"
-    case .unavailable, .error:
-      return "blocked"
-    }
-  }
-
-  private static func vmBundleSizeLabel(_ bytes: Int?) -> String {
-    guard let bytes, bytes > 0 else { return "unknown" }
-    let gigabytes = Double(bytes) / 1_073_741_824
-    if gigabytes >= 1 {
-      return String(format: "%.1fGB", gigabytes)
-    }
-    let megabytes = Double(bytes) / 1_048_576
-    return String(format: "%.0fMB", megabytes)
   }
 
   private static func sanitizedField(_ text: String, limit: Int) -> String {
@@ -397,8 +242,8 @@ struct AgentExecutionEnvironmentMenu: Equatable {
   init(
     environment: AgentExecutionEnvironment,
     launchPlan: AgentExecutionLaunchPlan? = nil,
-    vmBundleSizeBytes: Int? = nil,
-    vmGuestOSVersion: String? = nil
+    runtimeBundleSizeBytes: Int? = nil,
+    runtimeOSVersion: String? = nil
   ) {
     let effectiveLaunchPlan =
       launchPlan ?? environment.launchPlan(repoURL: URL(fileURLWithPath: "/"))
@@ -412,8 +257,8 @@ struct AgentExecutionEnvironmentMenu: Equatable {
       report: AgentExecutionEnvironmentDiagnosticsReport(
         environment: environment,
         launchPlan: effectiveLaunchPlan,
-        vmBundleSizeBytes: vmBundleSizeBytes,
-        vmGuestOSVersion: vmGuestOSVersion
+        runtimeBundleSizeBytes: runtimeBundleSizeBytes,
+        runtimeOSVersion: runtimeOSVersion
       )
     )
   }

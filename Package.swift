@@ -10,9 +10,8 @@ let package = Package(
   products: [
     .executable(name: "Compass", targets: ["Compass"]),
     .executable(name: "compass-cli", targets: ["CompassCLI"]),
+    .library(name: "CompassSandbox", targets: ["CompassSandbox"]),
     .library(name: "CompassCore", targets: ["CompassCore"]),
-    .executable(name: "CompassGuestAgent", targets: ["CompassGuestAgent"]),
-    .library(name: "CompassAgentRPC", targets: ["CompassAgentRPC"]),
   ],
   dependencies: [
     .package(url: "https://github.com/ChimeHQ/SwiftTreeSitter", from: "0.9.0"),
@@ -44,10 +43,20 @@ let package = Package(
       url: "https://github.com/huggingface/swift-transformers",
       from: "1.3.0"
     ),
+    .package(
+      url: "https://github.com/apple/containerization.git",
+      exact: "0.33.4"
+    ),
   ],
   targets: [
     .target(
-      name: "CompassAgentRPC"
+      name: "CompassSandbox",
+      dependencies: [
+        .product(name: "Containerization", package: "containerization"),
+        .product(name: "ContainerizationArchive", package: "containerization"),
+        .product(name: "ContainerizationExtras", package: "containerization"),
+        .product(name: "ContainerizationOCI", package: "containerization"),
+      ]
     ),
     .target(
       name: "TreeSitterScanners",
@@ -58,13 +67,10 @@ let package = Package(
         .unsafeFlags(["-w"]),
       ]
     ),
-    .executableTarget(
-      name: "CompassGuestAgent",
-      dependencies: ["CompassAgentRPC"]
-    ),
     .target(
       name: "CompassCore",
       dependencies: [
+        "CompassSandbox",
         "TreeSitterScanners",
         .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
         .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
@@ -86,7 +92,7 @@ let package = Package(
     .executableTarget(
       name: "Compass",
       dependencies: [
-        "CompassAgentRPC",
+        "CompassSandbox",
         "TreeSitterScanners",
         .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
         .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
@@ -97,22 +103,16 @@ let package = Package(
         .product(name: "HuggingFace", package: "swift-huggingface"),
         .product(name: "Tokenizers", package: "swift-transformers"),
       ],
-      exclude: [
-        "SharedVM/README.md"
-      ],
       resources: [
         .process("Resources")
       ]
-    ),
-    .testTarget(
-      name: "CompassAgentRPCTests",
-      dependencies: ["CompassAgentRPC", .product(name: "Testing", package: "swift-testing")]
     ),
     .testTarget(
       name: "CompassTests",
       dependencies: [
         "Compass",
         "CompassCore",
+        "CompassSandbox",
         .product(name: "Testing", package: "swift-testing"),
       ]
     ),

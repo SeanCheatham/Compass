@@ -1,16 +1,15 @@
 import AppKit
 import Foundation
-import Virtualization
 
 /// Top-level workspace selection driven by the sidebar.
 ///
-/// The sidebar has two kinds of entries: the singleton Sandbox section
-/// (hosting the shared VM view + first-boot checklist + provisioning UI)
+/// The sidebar has two kinds of entries: the singleton Runtime section
+/// (hosting the container runtime status view)
 /// and the per-project list. `WorkspaceSelection` lets the detail pane
 /// swap between them without losing track of which project was last
 /// viewed.
 enum WorkspaceSelection: Equatable {
-  case sandbox
+  case runtime
   case project(UUID)
 
   var projectID: UUID? {
@@ -19,7 +18,7 @@ enum WorkspaceSelection: Equatable {
   }
 
   var isSandbox: Bool {
-    if case .sandbox = self { return true }
+    if case .runtime = self { return true }
     return false
   }
 }
@@ -28,18 +27,12 @@ enum WorkspaceSelection: Equatable {
 final class AppModel: ObservableObject {
   @Published var projects: [CompassProject] = []
   @Published var selectedProjectID: UUID?
-  @Published var workspaceSelection: WorkspaceSelection = .sandbox
+  @Published var workspaceSelection: WorkspaceSelection = .runtime
   @Published var modelOverride = ""
   @Published private(set) var agentSettings: AgentRuntimeSettings
   @Published private(set) var runtimeFeatureFlags: CompassRuntimeFeatureFlags
   private let agentSettingsStore: AgentSettingsStore
   @Published var errorMessage: String?
-
-  /// Process-wide shared VM host. Bound to the singleton in
-  /// `SharedCompassVM.shared` so every call site sees the same readiness
-  /// snapshot. UI binds to its `@Published` properties via the singleton's
-  /// own `ObservableObject` surface — there is no per-AppModel mirror.
-  let sharedVMHost: SharedCompassVM = SharedCompassVM.shared
 
   init(
     agentSettingsStore: AgentSettingsStore = AgentSettingsStore()
@@ -60,9 +53,9 @@ final class AppModel: ObservableObject {
     projects.first { $0.id == selectedProjectID }
   }
 
-  /// Switches the detail pane to the Sandbox section.
+  /// Switches the detail pane to the runtime section.
   func selectSandbox() {
-    workspaceSelection = .sandbox
+    workspaceSelection = .runtime
     errorMessage = nil
   }
 
@@ -74,7 +67,7 @@ final class AppModel: ObservableObject {
     if let id = selectedProjectID {
       workspaceSelection = .project(id)
     } else {
-      workspaceSelection = .sandbox
+      workspaceSelection = .runtime
     }
 
     if projects.isEmpty {
@@ -83,45 +76,6 @@ final class AppModel: ObservableObject {
       for project in projects {
         await project.refresh()
       }
-    }
-
-    // Always-on lifecycle: warm up the shared VM, and if the bundle is
-    // already provisioned, kick off the live VZ instance so agent runs
-    // against `.sharedVM` projects don't pay a cold-start tax. Failures
-    // are non-fatal — readiness captures any problem and Develop falls
-    // back to `.host` automatically.
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        try await self.sharedVMHost.warmup()
-      } catch {
-        self.log(error.localizedDescription, level: .warning)
-        return
-      }
-      if self.sharedVMHost.bundle.existsOnDisk() {
-        do {
-          try await self.sharedVMHost.start()
-        } catch {
-          self.log(
-            "Shared VM start failed: \(error.localizedDescription)",
-            level: .warning
-          )
-        }
-      }
-    }
-  }
-
-  /// Surface for AppModel-level log lines (the per-project loggers route
-  /// through `CompassProject`). Used by the warmup task.
-  private func log(_ message: String, level: LiveLine.Level) {
-    // No global log buffer at the AppModel layer today; surface via
-    // `errorMessage` for warnings/errors so the UI shows them and discard
-    // info lines.
-    switch level {
-    case .warning, .error:
-      errorMessage = message
-    default:
-      break
     }
   }
 
@@ -187,7 +141,7 @@ final class AppModel: ObservableObject {
       if let newID = selectedProjectID {
         workspaceSelection = .project(newID)
       } else {
-        workspaceSelection = .sandbox
+        workspaceSelection = .runtime
       }
     }
     saveProjects()

@@ -6,7 +6,7 @@ extension Prompts {
     You are the Compass preflight commit agent. Compass is about to run its
     normal factory loop, but the host Git worktree already has pending
     changes. Your only job is to turn the existing pending work into a clean,
-    local Git commit so Compass can safely sync the project into its Shared VM.
+    local Git commit before Compass starts the next containerized Linux phase.
 
     Working directory: \(workingDirectoryPath)
     All tool paths are resolved against this directory. Relative paths are
@@ -54,7 +54,7 @@ extension Prompts {
   static func pendingChangesCommitPrompt(status: String) -> String {
     let renderedStatus = status.trimmingCharacters(in: .newlines)
     return """
-      The host checkout is dirty before Compass can sync it into the Shared VM.
+      The host checkout is dirty before Compass can start the next containerized Linux phase.
 
       Current `git status --porcelain --untracked-files=all`:
       ```text

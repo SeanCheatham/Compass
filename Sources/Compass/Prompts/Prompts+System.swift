@@ -5,7 +5,7 @@ extension Prompts {
     parentPhase: AgentPhase,
     workingDirectoryPath: String,
     toolNames: [String],
-    executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM,
+    executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
     hostXcodeBuildTestEnabled: Bool = false
   ) -> String {
     """
@@ -29,14 +29,13 @@ extension Prompts {
 
   enum ExecutionEnvironmentDescriptor {
     case host
-    case sharedVM
+    case containerizedLinux
   }
 
   static func agentSystemPrompt(
     phase: AgentPhase,
     workingDirectoryPath: String,
-    executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM,
-    installedToolchainIDs: [String] = [],
+    executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
     hostXcodeBuildTestEnabled: Bool = false,
     externalToolNames: [String] = []
   ) -> String {
@@ -93,7 +92,6 @@ extension Prompts {
 
     \(executionEnvironmentSection(
       executionEnvironment,
-      installedToolchainIDs: installedToolchainIDs,
       hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
     ))
 
@@ -158,22 +156,19 @@ extension Prompts {
 
   static func executionEnvironmentSection(
     _ env: ExecutionEnvironmentDescriptor,
-    installedToolchainIDs: [String] = [],
     hostXcodeBuildTestEnabled: Bool = false
   ) -> String {
+    _ = hostXcodeBuildTestEnabled
     switch env {
     case .host:
       return "Execution environment: native macOS host. Probe tools before relying on them."
-    case .sharedVM:
-      let installed =
-        installedToolchainIDs.isEmpty
-        ? ""
-        : "\nInstalled toolchains: \(installedToolchainIDs.joined(separator: ", "))."
+    case .containerizedLinux:
       return """
-      Execution environment: Compass Shared VM guest. It is intended for agent file edits,
-      shell commands, and generated TypeScript verification. Expected tools include git,
-      make, Homebrew, ripgrep, Node.js, npm, Corepack/pnpm, TypeScript, and common CLI tools.
-      Docker is unavailable.\(installed)
+      Execution environment: containerized Linux runtime.
+      File tools read and write repo-relative paths on the Compass-owned host worktree.
+      Bash commands run inside Linux with the repo mounted at `/workspace`; use relative
+      paths or `/workspace/...` in shell commands. Expected tools include git, Node.js,
+      npm, Corepack, and pinned pnpm. Docker, Xcode, and Homebrew are unavailable.
       """
     }
   }

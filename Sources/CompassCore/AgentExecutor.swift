@@ -27,8 +27,8 @@ struct AgentExecutionConfiguration {
   var workingDirectory: URL
   var filesystem: AgentFilesystem
   var bashRunner: AgentBashRunner
-  /// Host-side codemap directory. When the agent runs in the Shared VM,
-  /// `workingDirectory` is the guest worktree path and is *not* where
+  /// Host-side codemap directory. When the agent runs in the containerized Linux runtime,
+  /// `workingDirectory` is the container workspace path and is *not* where
   /// the codemap lives — the caller must supply the actual store
   /// location so codemap-backed tools see real entries. `nil` falls
   /// back to `<workingDirectory>/.compass/codemap`, which is correct
@@ -40,7 +40,6 @@ struct AgentExecutionConfiguration {
   var assumptionsURL: URL?
   /// Compass session number associated with this phase, when one exists.
   var sessionNumber: Int?
-  var toolchainService: (any SharedVMToolchainService)?
   /// Optional post-decode guard for the phase submit payload. When it throws,
   /// the executor rolls back the turn and reprompts — same remediation
   /// path as malformed tool JSON. `runAgent` uses this to reject lesson
@@ -67,7 +66,6 @@ struct AgentExecutionConfiguration {
     planHistoryEntries: [String] = [],
     assumptionsURL: URL? = nil,
     sessionNumber: Int? = nil,
-    toolchainService: (any SharedVMToolchainService)? = nil,
     validateSubmitResult: (@Sendable (Data) throws -> Void)? = nil,
     maxIterations: Int = 512,
     wallClockTimeout: TimeInterval = 60 * 60
@@ -88,7 +86,6 @@ struct AgentExecutionConfiguration {
     self.planHistoryEntries = planHistoryEntries
     self.assumptionsURL = assumptionsURL
     self.sessionNumber = sessionNumber
-    self.toolchainService = toolchainService
     self.validateSubmitResult = validateSubmitResult
     self.maxIterations = maxIterations
     self.wallClockTimeout = wallClockTimeout

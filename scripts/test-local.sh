@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the SwiftPM test suite (fast iteration; no app bundle / VM entitlements).
+# Run the SwiftPM test suite (fast iteration; no app bundle/runtime smoke).
 #
 # Usage:
 #   ./scripts/test-local.sh

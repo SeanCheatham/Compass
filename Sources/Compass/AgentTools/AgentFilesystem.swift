@@ -1,10 +1,10 @@
 import Foundation
 
 /// Filesystem operations the agent tools need, behind a protocol so the
-/// in-guest backing for the Shared VM can be swapped in without individual
-/// tools learning about the vsock transport layer. The host implementation in this file mirrors the
+/// alternate backing for the containerized Linux runtime can be swapped in without individual
+/// tools learning about the container transport layer. The host implementation in this file mirrors the
 /// `FileManager` calls the tools used to make directly, so behavior is
-/// unchanged when no Shared VM route is active.
+/// unchanged when no containerized Linux runtime route is active.
 protocol AgentFilesystem: Sendable {
   /// Read a regular file's contents. Throws `.notFound` / `.notRegularFile`
   /// so the calling tool can surface a precise error.
@@ -75,7 +75,7 @@ enum AgentFilesystemError: LocalizedError, Equatable {
 }
 
 /// Host-side `FileManager` implementation. Used when Compass runs entirely
-/// on the host (no Shared VM route) and as the implicit default for unit
+/// on the host (no containerized Linux runtime route) and as the implicit default for unit
 /// tests, which construct `AgentToolContext` with just a working directory.
 struct AgentHostFilesystem: AgentFilesystem {
   let grepExecutable: AgentGrepExecutable
@@ -307,7 +307,7 @@ enum AgentGrepExecutable: Sendable, Equatable {
 }
 
 /// Glob pattern → regex translator, factored out of `AgentGlobTool` so
-/// other filesystem implementations (e.g. the Shared VM one) can share
+/// other filesystem implementations (e.g. the containerized Linux runtime one) can share
 /// the same pattern semantics without depending on the tool type.
 enum AgentGlobPattern {
   /// Translate a glob pattern into an anchored regex.

@@ -4,7 +4,7 @@ import Foundation
 @MainActor
 extension CompassProject {
   /// Commit the Develop iteration's changes onto the host's current
-  /// branch (under `.sharedVM`) and apply any lesson edits. Returns nil
+  /// branch (under the containerized Linux route) and apply any lesson edits. Returns nil
   /// on success or a single human-readable issue string when the host
   /// commit fails. Lesson-edit failures are logged but not treated as
   /// blockers — they're durable guidance, not the iteration's product.
@@ -14,7 +14,7 @@ extension CompassProject {
     launchPlan: AgentExecutionLaunchPlan,
     sessionIndex: Int
   ) async -> String? {
-    if case .sharedVM = launchPlan.effectiveRoute {
+    if case .containerizedLinux = launchPlan.effectiveRoute {
       if let commitIssue = await commitAgentChangesOnHost(
         mainRepoURL: workspace.repoURL,
         summary: summary
@@ -34,7 +34,7 @@ extension CompassProject {
 
   /// Stages whatever a legacy post-Verify tar pull left in the main
   /// repo and lands it as a single commit on the user's current branch.
-  /// In the normal Shared VM git-backed route, agent commits are already
+  /// In the normal containerized Linux runtime git-backed route, agent commits are already
   /// promoted by fast-forward before this runs, so this becomes a no-op.
   ///
   /// Returns nil on success, or a human-readable issue string on
@@ -64,7 +64,7 @@ extension CompassProject {
     }
     if status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       log(
-        "Host-side commit: pulled guest workspace is identical to the host branch — nothing to commit.",
+        "Host-side commit: pulled container workspace is identical to the host branch — nothing to commit.",
         level: .info)
       return nil
     }
@@ -94,7 +94,7 @@ extension CompassProject {
   }
 
   /// Renders the host-side commit message Compass writes after pulling
-  /// from the guest workspace. Format mirrors the Develop submit payload:
+  /// from the container workspace. Format mirrors the Develop submit payload:
   /// the summary becomes the subject (truncated), feedback the body.
   func commitMessage(for summary: DevelopSummary) -> String {
     let subject = boundedFirstLine(summary.summary, limit: 72)

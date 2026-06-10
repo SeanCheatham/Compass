@@ -86,11 +86,13 @@ struct CompassCLITests {
   }
 
   @Test
-  func pnpmPreflightDetectsCommandsThatRequirePnpm() {
-    #expect(HostToolchainPreflight.verifyCommandRequiresPnpm("pnpm verify"))
-    #expect(HostToolchainPreflight.verifyCommandRequiresPnpm("corepack pnpm test -- --coverage"))
-    #expect(!HostToolchainPreflight.verifyCommandRequiresPnpm("tsc --version"))
-    #expect(!HostToolchainPreflight.verifyCommandRequiresPnpm("swift test"))
+  func legacySharedVMSessionPreferenceDecodesAsContainerizedLinux() throws {
+    let decoded = try JSONDecoder().decode(
+      AgentExecutionEnvironmentPreference.self,
+      from: Data(#""shared_vm""#.utf8)
+    )
+    #expect(decoded == .containerizedLinux)
+    #expect(decoded.rawValue == "containerized_linux")
   }
 
   @Test
@@ -121,7 +123,9 @@ struct CompassCLITests {
     let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
       events.record(event)
     }
-    let runner = HeadlessCompassRunner()
+    let runner = HeadlessCompassRunner { _, _ in
+      FixtureBashRunner()
+    }
     try runner.scaffoldTypeScript(at: tempURL, name: "cli-fixture", onEvent: record)
 
     let fixtureURL = tempURL.appending(path: "fixture.jsonl")
@@ -145,8 +149,26 @@ struct CompassCLITests {
     let snapshot = events.snapshot()
     #expect(snapshot.contains { $0.kind == "assistant_json" && $0.phase == "plan" })
     #expect(snapshot.contains { $0.kind == "tool_end" && $0.metadata?["tool"] == "edit_file" })
+    #expect(snapshot.contains { $0.kind == "tool_end" && $0.metadata?["tool"] == "bash" })
     #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "completed" })
     #expect(FileManager.default.fileExists(atPath: tempURL.appending(path: ".compass/state.json").path))
+  }
+}
+
+private struct FixtureBashRunner: AgentBashRunner {
+  func run(
+    command: String,
+    workingDirectory: URL,
+    timeout: TimeInterval
+  ) async throws -> ProcessResult {
+    if command.trimmingCharacters(in: .whitespacesAndNewlines) == "tsc --version" {
+      return ProcessResult(exitCode: 0, stdout: "Version 5.0.0\n", stderr: "")
+    }
+    return try await AgentHostBashRunner().run(
+      command: command,
+      workingDirectory: workingDirectory,
+      timeout: timeout
+    )
   }
 }
 
@@ -178,5 +200,6 @@ private let fixtureJSONL = """
   {"text":"{\\"kind\\":\\"plan_submit\\",\\"payload\\":{\\"state\\":{\\"immediate\\":{\\"plan\\":\\"## Outcome\\\\nAdd a short README note that says Fixture smoke note.\\\\n\\\\n## Why it matters\\\\nThis proves the CLI fixture loop can plan a small observable documentation edit.\\\\n\\\\n## Acceptance checks\\\\n- README.md contains the sentence Fixture smoke note.\\",\\"verify\\":\\"tsc --version\\",\\"verifyTimeoutMs\\":60000,\\"estimatedDifficulty\\":\\"low\\",\\"selectedBecause\\":\\"This is a tiny deterministic slice for the CLI fixture harness.\\",\\"source\\":\\"repository\\",\\"candidateID\\":null},\\"queue\\":[],\\"brief\\":{\\"summary\\":\\"Smoke test the CompassCLI fixture harness on a generated TypeScript workspace.\\",\\"targetUsers\\":[\\"Compass maintainers\\"],\\"desiredOutcomes\\":[\\"A deterministic CLI run edits a file and verifies on host.\\"],\\"constraints\\":[\\"No pnpm dependency for this smoke test.\\"],\\"acceptanceSignals\\":[\\"README.md contains Fixture smoke note.\\"]},\\"openQuestions\\":[]},\\"lessonEdits\\":[]}}"}
   {"text":"{\\"kind\\":\\"develop_continue\\",\\"tool\\":\\"read_file\\",\\"arguments\\":{\\"path\\":\\"README.md\\"},\\"reason\\":\\"Need the current README contents before editing.\\"}"}
   {"text":"{\\"kind\\":\\"develop_continue\\",\\"tool\\":\\"edit_file\\",\\"arguments\\":{\\"path\\":\\"README.md\\",\\"startLine\\":3,\\"endLine\\":2,\\"insert\\":[\\"Fixture smoke note.\\",\\"\\"]},\\"reason\\":\\"Insert the planned smoke-test note near the top of the README.\\"}"}
+  {"text":"{\\"kind\\":\\"develop_continue\\",\\"tool\\":\\"bash\\",\\"arguments\\":{\\"command\\":\\"git add README.md && git -c user.name='Compass Agent' -c user.email='compass-agent@localhost' commit -m 'Add fixture smoke note'\\",\\"timeoutSeconds\\":60},\\"reason\\":\\"Commit the README edit so post-check git status is clean.\\"}"}
   {"text":"{\\"kind\\":\\"develop_submit\\",\\"payload\\":{\\"status\\":\\"succeeded\\",\\"summary\\":\\"README.md now includes the Fixture smoke note near the top of the file.\\",\\"feedback\\":\\"README.md contains the Fixture smoke note; Plan can pick the next small TypeScript workspace slice.\\",\\"bypassVerify\\":false,\\"lessonEdits\\":[]}}"}
   """

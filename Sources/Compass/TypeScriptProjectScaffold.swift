@@ -279,6 +279,7 @@ enum TypeScriptProjectScaffold {
         "react-dom": "^19.0.0"
       },
       "devDependencies": {
+        "@types/jsdom": "^21.1.7",
         "@types/react": "^19.0.4",
         "@types/react-dom": "^19.0.2",
         "jsdom": "^25.0.1"

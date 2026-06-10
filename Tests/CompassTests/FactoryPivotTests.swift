@@ -94,15 +94,6 @@ struct FactoryPivotTests {
     #expect(settingsGuide.rows.first?.status == .attention)
     #expect(!settingsGuide.actionLabel.localizedCaseInsensitiveContains("blocked"))
 
-    let onboardingGuide = OnboardingReadinessGuide(
-      settings: settings,
-      vmReadiness: .notProvisioned,
-      modelSnapshot: snapshot
-    )
-    #expect(onboardingGuide.title == "Downloading Local Model")
-    #expect(onboardingGuide.actionLabel == "Downloading 42%")
-    #expect(onboardingGuide.tone == .inProgress)
-    #expect(!onboardingGuide.actionLabel.localizedCaseInsensitiveContains("blocked"))
   }
 
   @Test
@@ -154,8 +145,7 @@ struct FactoryPivotTests {
       ),
       Prompts.agentSystemPrompt(
         phase: .develop,
-        workingDirectoryPath: "/tmp/workspace",
-        installedToolchainIDs: SharedVMToolchainCatalog.defaultProvisionedIDs
+        workingDirectoryPath: "/tmp/workspace"
       ),
     ].joined(separator: "\n")
 
@@ -210,6 +200,7 @@ struct FactoryPivotTests {
     let webPackage = try #require(byPath["packages/web/package.json"])
     #expect(webPackage.contains("\"vite\""))
     #expect(webPackage.contains("\"react\""))
+    #expect(webPackage.contains("\"@types/jsdom\""))
   }
 
   @Test
@@ -285,19 +276,18 @@ struct FactoryPivotTests {
   }
 
   @Test
-  func sharedVMDefaultsNodePnpmAndNotRemovedToolchains() {
-    let ids = SharedVMToolchainCatalog.defaultProvisionedIDs
+  func containerRuntimePromptAndToolsAreTypeScriptOnly() {
+    let prompt = Prompts.agentSystemPrompt(
+      phase: .develop,
+      workingDirectoryPath: "/tmp/workspace"
+    )
+    let toolNames = Set(ToolRegistry.tools(for: .develop).map(\.spec.name))
 
-    #expect(ids.contains(SharedVMToolchainID.commandLineTools.rawValue))
-    #expect(ids.contains(SharedVMToolchainID.homebrew.rawValue))
-    #expect(ids.contains(SharedVMToolchainID.ripgrep.rawValue))
-    #expect(ids.contains(SharedVMToolchainID.node.rawValue))
-    #expect(!ids.contains("rust"))
-
-    let node = SharedVMToolchainCatalog.definition(for: .node)
-    #expect(node.defaultProvisioned)
-    #expect(node.probeCommand.contains("pnpm"))
-    #expect(node.probeCommand.contains("tsc"))
+    #expect(prompt.contains("containerized Linux runtime"))
+    #expect(prompt.contains("/workspace"))
+    #expect(prompt.contains("Docker, Xcode, and Homebrew are unavailable"))
+    #expect(!toolNames.contains("list_toolchains"))
+    #expect(!toolNames.contains("install_toolchain"))
   }
 
   @Test

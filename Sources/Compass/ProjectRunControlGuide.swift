@@ -392,8 +392,8 @@ struct ProjectRunControlGuide: Equatable {
         ),
         PreviewStep(
           id: "develop",
-          title: "Develop in the private workspace",
-          detail: "Develop edits the selected slice inside your private workspace.",
+          title: "Develop in the container runtime",
+          detail: "Develop edits the selected slice inside your container runtime.",
           systemImage: "hammer.fill"
         ),
         PreviewStep(

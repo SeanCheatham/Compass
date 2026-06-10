@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build CompassLocal via xcodebuild and copy to /Applications.
 #
-# Shared VM work needs the signed Xcode app bundle (Virtualization entitlement).
-# Pure `swift build` / `swift run` is fine for tests and non-VM work only.
+# Apple Containerization needs a signed app bundle with the Virtualization
+# entitlement. Pure `swift build` is fine for compile checks only.
 #
 # Usage:
 #   ./scripts/build-local.sh          # incremental Debug build + copy

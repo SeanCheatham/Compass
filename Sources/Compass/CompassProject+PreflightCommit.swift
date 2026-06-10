@@ -106,7 +106,7 @@ extension CompassProject {
       submitResultSchema: AgentToolParametersSchema(json: Data(Prompts.developSchema.utf8)),
       workingDirectory: workspace.repoURL,
       filesystem: AgentHostFilesystem(),
-      bashRunner: AgentHostBashRunner(),
+      bashRunner: AgentContainerBashRunner(repoRoot: workspace.repoURL, label: "preflight-commit"),
       codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
       planHistoryEntries: [],
       assumptionsURL: nil,
@@ -118,7 +118,7 @@ extension CompassProject {
       wallClockTimeout: 15 * 60
     )
 
-    log("Preflight commit: starting host agent loop.", level: .info)
+    log("Preflight commit: starting containerized Linux agent loop.", level: .info)
     let agent = AgentExecutor { [weak self] event in
       Task { @MainActor in self?.log(event) }
     }

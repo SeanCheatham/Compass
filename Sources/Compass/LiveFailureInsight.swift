@@ -13,7 +13,7 @@ struct LiveFailureInsight: Equatable, Sendable {
     case missingFile
     case timeout
     case commandFailure
-    case guestBridge
+    case runtimeBridge
     case unavailableService
     case providerFailure
     case missingResult
@@ -280,12 +280,12 @@ struct LiveFailureInsight: Equatable, Sendable {
       )
     }
 
-    if containsAny(normalized, ["guest rpc", "vsock", "transport", "guest internal error"]) {
+    if containsAny(normalized, ["runtime transport", "container transport", "transport", "runtime internal error"]) {
       return (
-        .guestBridge,
-        "Private Workspace Connection Had Trouble",
-        "Compass had trouble talking to the private workspace that runs agent commands.",
-        "Retry after the private workspace is ready; if it repeats, repair or restart the workspace.",
+        .runtimeBridge,
+        "Container Runtime Connection Had Trouble",
+        "Compass had trouble talking to the container runtime that runs agent commands.",
+        "Retry after the container runtime is ready; if it repeats, repair or restart the workspace.",
         "Workspace",
         "network"
       )
@@ -294,10 +294,10 @@ struct LiveFailureInsight: Equatable, Sendable {
     if containsAny(normalized, ["pnpm: command not found", "corepack: command not found"]) {
       return (
         .unavailableService,
-        "Node Toolchain Is Not Ready",
+        "Node Runtime Tools Are Not Ready",
         "Compass could not find the Node/pnpm tools needed for generated TypeScript work.",
-        "Repair Shared VM provisioning or install the Node.js + pnpm toolchain, then rerun verify.",
-        "Node toolchain",
+        "Repair the containerized Linux runtime bootstrap, then rerun verify.",
+        "Runtime tools",
         "shippingbox"
       )
     }
@@ -436,10 +436,10 @@ struct LiveFailureInsight: Equatable, Sendable {
         detail: "Check that the blessed model is downloaded and ready.",
         systemImageName: "text.bubble.badge.exclamationmark"
       )
-    case .guestBridge:
+    case .runtimeBridge:
       return owner(
-        label: "Private workspace",
-        detail: "Repair or restart the private workspace before retrying.",
+        label: "Container runtime",
+        detail: "Repair or restart the container runtime before retrying.",
         systemImageName: "network"
       )
     case .unavailableService:
@@ -636,7 +636,7 @@ enum LiveFailureInsightNarrator {
       !normalized.hasPrefix("-"),
       !lowercased.contains("http://"),
       !lowercased.contains("https://"),
-      !PrivateWorkspaceCopy.containsImplementationTerm(normalized)
+      !RuntimeCopy.containsImplementationTerm(normalized)
     else {
       return ""
     }

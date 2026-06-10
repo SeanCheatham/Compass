@@ -2,11 +2,6 @@ import AppKit
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-  /// Bounded delay we accept to gracefully stop the shared VM before the
-  /// host terminates. macOS will SIGKILL the process at ~10s if we miss
-  /// the reply window, so we pick a value comfortably under that.
-  private static let vmStopBudget: TimeInterval = 6
-
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.setActivationPolicy(.regular)
     NSApp.activate(ignoringOtherApps: true)
@@ -19,51 +14,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     true
   }
-
-  /// Defers termination until the shared VM has had a chance to stop
-  /// cleanly. Without this, the VZ guest just gets its references
-  /// dropped — VZ does not guarantee a clean halt in that case, and
-  /// subsequent boots can land in NVRAM-corruption territory.
-  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-    // If there's no VM to stop, quit instantly — no need to flash a
-    // shutdown overlay in front of the user.
-    let host = SharedCompassVM.shared
-    guard host.virtualMachine != nil else {
-      return .terminateNow
-    }
-    // Flip the shutdown flag *synchronously* before yielding to the
-    // Task so SwiftUI gets a chance to render the shutdown view in the
-    // same run-loop turn we return `.terminateLater`.
-    host.beginShutdown()
-    Task { @MainActor in
-      await Self.stopSharedVMWithBudget(host: host)
-      NSApp.reply(toApplicationShouldTerminate: true)
-    }
-    return .terminateLater
-  }
-
-  @MainActor
-  private static func stopSharedVMWithBudget(host: SharedCompassVM) async {
-    await withTaskGroup(of: Void.self) { group in
-      group.addTask { @MainActor in
-        await host.stop()
-      }
-      group.addTask {
-        try? await Task.sleep(nanoseconds: UInt64(vmStopBudget * 1_000_000_000))
-      }
-      // First task wins; whichever returns first cancels the rest so
-      // we don't hold the app open past the budget.
-      await group.next()
-      group.cancelAll()
-    }
-  }
 }
 
 @main
 struct CompassApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
   @StateObject private var model = AppModel()
-  @ObservedObject private var sharedVMHost: SharedCompassVM = .shared
   @ObservedObject private var localModelManager: LocalModelManager = .shared
 
   init() {
@@ -73,7 +29,7 @@ struct CompassApp: App {
   /// Mirrors `ContentView.isOnboardingComplete` so menu shortcuts
   /// (⌘O / ⌘R / ⌘Return) can't bypass the onboarding gate.
   private var isOnboardingComplete: Bool {
-    sharedVMHost.readiness.isReady && localModelManager.snapshot.isRunnable
+    localModelManager.snapshot.isRunnable
   }
 
   var body: some Scene {

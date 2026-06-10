@@ -4,13 +4,8 @@ extension Prompts {
   static func sharedVMApplePlatformPlanningRule(
     forgeProfile: ForgeProfile?
   ) -> String {
-    guard forgeProfile == .swiftSPM else { return "" }
-    return """
-      - This legacy Swift repo runs in the Shared VM with Command Line Tools only.
-        Avoid planning `swift test` or `xcodebuild` verify from the guest; use
-        guest `swift build`, compile-only checks, or read-only inspection. Do not
-        create new generated output in Swift.
-      """
+    _ = forgeProfile
+    return ""
   }
 
   /// Instruction appended to the live conversation when the executor

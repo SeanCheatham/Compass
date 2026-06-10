@@ -18,8 +18,7 @@ extension AgentExecutor {
       planHistoryEntries: configuration.planHistoryEntries,
       assumptionsURL: configuration.assumptionsURL,
       phase: configuration.phase,
-      sessionNumber: configuration.sessionNumber,
-      toolchainService: configuration.toolchainService
+      sessionNumber: configuration.sessionNumber
     )
     let toolsByName = Dictionary(uniqueKeysWithValues: configuration.tools.map { ($0.spec.name, $0) })
     let availableToolNames = Set(toolsByName.keys)
@@ -241,7 +240,6 @@ extension AgentExecutor {
       parentTools: configuration.tools,
       parentMaxIterations: configuration.maxIterations,
       parentWallClockTimeout: configuration.wallClockTimeout,
-      toolchainService: configuration.toolchainService,
       onEvent: onEvent
     )
   }

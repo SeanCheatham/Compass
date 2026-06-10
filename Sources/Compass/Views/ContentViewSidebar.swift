@@ -3,7 +3,6 @@ import SwiftUI
 
 struct SidebarView: View {
   @EnvironmentObject private var model: AppModel
-  @ObservedObject private var sharedVMHost: SharedCompassVM = .shared
   @ObservedObject private var localModelManager: LocalModelManager = .shared
 
   var body: some View {
@@ -13,7 +12,7 @@ struct SidebarView: View {
           Label("Compass", systemImage: "safari")
             .font(.title2.weight(.semibold))
           Spacer()
-          SidebarSharedVMStatusButton(readiness: sharedVMHost.readiness) {
+          SidebarRuntimeStatusButton {
             model.selectSandbox()
           }
         }
@@ -24,7 +23,6 @@ struct SidebarView: View {
       .padding(.bottom, 4)
 
       SidebarSandboxRow(
-        readiness: sharedVMHost.readiness,
         isSelected: model.workspaceSelection.isSandbox
       ) {
         model.selectSandbox()
@@ -143,36 +141,36 @@ struct EmptyProjectList: View {
   }
 }
 
-/// Sidebar entry for the singleton Sandbox section. Selecting it sets
-/// `workspaceSelection = .sandbox` and swaps the detail pane to `SandboxView`.
+/// Sidebar entry for the singleton runtime section.
 
 struct SidebarSandboxRow: View {
-  let readiness: SharedCompassVMReadiness
   let isSelected: Bool
   let action: () -> Void
 
   var statusText: String {
-    readiness.privateWorkspaceStatusSummary
+    "Containerized Linux"
   }
 
   var helpText: String {
-    "Open the private workspace"
+    "Open container runtime status"
   }
 
   var accessibilityText: String {
-    "Private workspace, \(statusText)"
+    "Container runtime, \(statusText)"
   }
 
   var body: some View {
     Button(action: action) {
       HStack(spacing: 10) {
-        SandboxReadinessDot(readiness: readiness, size: 10)
+        Circle()
+          .fill(Color.green)
+          .frame(width: 10, height: 10)
           .padding(.top, 1)
         VStack(alignment: .leading, spacing: 2) {
           HStack(spacing: 6) {
             Image(systemName: "shippingbox")
               .font(.callout)
-            Text("Sandbox")
+            Text("Runtime")
               .font(.callout.weight(.semibold))
           }
           Text(statusText)
@@ -202,32 +200,33 @@ struct SidebarSandboxRow: View {
 }
 
 /// Status indicator next to the sidebar title. Tapping it activates the
-/// Sandbox detail pane.
+/// runtime detail pane.
 
-struct SidebarSharedVMStatusButton: View {
-  let readiness: SharedCompassVMReadiness
+struct SidebarRuntimeStatusButton: View {
   let action: () -> Void
 
   var helpText: String {
-    "Private workspace status: \(readiness.privateWorkspaceStatusSummary)"
+    "Container runtime status"
   }
 
   var accessibilityText: String {
-    "Private workspace status, \(readiness.privateWorkspaceStatusSummary)"
+    "Container runtime status"
   }
 
   var body: some View {
     Button(action: action) {
       HStack(spacing: 4) {
-        SandboxReadinessDot(readiness: readiness, size: 8)
-        Image(systemName: readiness.systemImage)
+        Circle()
+          .fill(Color.green)
+          .frame(width: 8, height: 8)
+        Image(systemName: "shippingbox")
           .font(.system(size: 10, weight: .semibold))
-          .foregroundStyle(readiness.tintColor)
+          .foregroundStyle(.green)
       }
       .padding(.horizontal, 6)
       .padding(.vertical, 3)
-      .background(readiness.tintColor.opacity(0.12), in: Capsule())
-      .overlay(Capsule().stroke(readiness.tintColor.opacity(0.30)))
+      .background(Color.green.opacity(0.12), in: Capsule())
+      .overlay(Capsule().stroke(Color.green.opacity(0.30)))
     }
     .buttonStyle(.plain)
     .help(helpText)

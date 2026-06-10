@@ -355,7 +355,7 @@ struct CompassCLIOutput: Sendable {
       if let detail = event.detail, !detail.isEmpty {
         line += "\n\(detail)"
       }
-      print(line)
+      FileHandle.standardOutput.write(Data((line + "\n").utf8))
     }
   }
 }

@@ -12,129 +12,78 @@ struct AgentExecutionInvocation: Sendable, Equatable {
   }
 }
 
+struct ContainerSandboxRoute: Equatable, Codable {
+  var hostWorkspacePath: String
+  var containerWorkspacePath: String
+
+  init(hostWorkspacePath: String, containerWorkspacePath: String = "/workspace") {
+    self.hostWorkspacePath = hostWorkspacePath
+    self.containerWorkspacePath = containerWorkspacePath
+  }
+}
+
 struct AgentExecutionLaunchPlan: Equatable {
   static let fallbackReasonLimit = 180
   static let labelLimit = 80
 
-  /// How an agent run is actually dispatched. The user no longer chooses
-  /// between routes — Compass always targets the Shared VM. `Route.host`
-  /// remains as an internal-only fallback when the guest workspace catalog
-  /// cannot map this repo or the VM is not ready yet.
   enum Route: Equatable {
     case host
-    case sharedVM(SharedVMRoute)
+    case containerizedLinux(ContainerSandboxRoute)
   }
 
   var selectedPreference: AgentExecutionEnvironmentPreference
   var effectiveRoute: Route
-  var vmReadiness: SharedCompassVMReadiness?
   var fallbackReason: String?
 
   init(
-    selectedPreference: AgentExecutionEnvironmentPreference = .sharedVM,
+    selectedPreference: AgentExecutionEnvironmentPreference = .containerizedLinux,
     effectiveRoute: Route,
-    vmReadiness: SharedCompassVMReadiness? = nil,
     fallbackReason: String? = nil
   ) {
     self.selectedPreference = selectedPreference
     self.effectiveRoute = effectiveRoute
-    self.vmReadiness = vmReadiness
     self.fallbackReason = Self.boundedOptionalText(fallbackReason, limit: Self.fallbackReasonLimit)
   }
 
-  static func host(
-    vmReadiness: SharedCompassVMReadiness? = nil,
-    fallbackReason: String? = nil
+  static func host(fallbackReason: String? = nil) -> Self {
+    Self(effectiveRoute: .host, fallbackReason: fallbackReason)
+  }
+
+  static func containerizedLinux(
+    repoURL: URL,
+    containerWorkspacePath: String = "/workspace"
   ) -> Self {
     Self(
-      selectedPreference: .sharedVM,
-      effectiveRoute: .host,
-      vmReadiness: vmReadiness,
-      fallbackReason: fallbackReason
+      effectiveRoute: .containerizedLinux(
+        ContainerSandboxRoute(
+          hostWorkspacePath: repoURL.standardizedFileURL.path,
+          containerWorkspacePath: containerWorkspacePath
+        )
+      )
     )
   }
 
-  static func plan(
-    repoURL: URL,
-    vmReadiness: SharedCompassVMReadiness? = nil,
-    sharedVMRouteFactory: (URL) -> SharedVMRoute? = { _ in nil }
-  ) -> Self {
-    guard let readiness = vmReadiness else {
-      return host(
-        vmReadiness: nil,
-        fallbackReason: "Shared VM readiness has not been evaluated yet."
-      )
-    }
-
-    switch readiness {
-    case .ready:
-      if let route = sharedVMRouteFactory(repoURL.standardizedFileURL) {
-        return Self(
-          selectedPreference: .sharedVM,
-          effectiveRoute: .sharedVM(route),
-          vmReadiness: readiness
-        )
-      }
-      return host(
-        vmReadiness: readiness,
-        fallbackReason:
-          "Repository is not registered in the Shared VM workspace catalog; this phase runs on the host."
-      )
-    case .unavailable(let reason):
-      return host(
-        vmReadiness: readiness,
-        fallbackReason: Self.boundedText(
-          "Shared VM unavailable: \(reason)",
-          limit: Self.fallbackReasonLimit
-        )
-      )
-    case .error(let detail):
-      return host(
-        vmReadiness: readiness,
-        fallbackReason: Self.boundedText(
-          "Shared VM error: \(detail)",
-          limit: Self.fallbackReasonLimit
-        )
-      )
-    case .notProvisioned:
-      return host(
-        vmReadiness: readiness,
-        fallbackReason: "Shared VM has not been provisioned yet."
-      )
-    case .downloadingIPSW:
-      return host(
-        vmReadiness: readiness,
-        fallbackReason: "Shared VM is downloading the restore image."
-      )
-    case .installing:
-      return host(
-        vmReadiness: readiness,
-        fallbackReason: "Shared VM is installing macOS."
-      )
-    case .guestPrepping:
-      return host(
-        vmReadiness: readiness,
-        fallbackReason: "Shared VM guest preparation is in progress."
-      )
-    case .provisioningDevTools:
-      return host(
-        vmReadiness: readiness,
-        fallbackReason: "Shared VM is installing developer tools inside the guest."
-      )
-    }
+  static func plan(repoURL: URL) -> Self {
+    containerizedLinux(repoURL: repoURL)
   }
 
   var isVMRoute: Bool {
-    if case .sharedVM = effectiveRoute { return true }
-    return false
+    false
+  }
+
+  var isContainerRoute: Bool {
+    switch effectiveRoute {
+    case .host: return false
+    case .containerizedLinux: return true
+    }
   }
 
   var effectiveRouteTitle: String {
     switch effectiveRoute {
     case .host:
       return "This Mac"
-    case .sharedVM:
-      return "Private workspace"
+    case .containerizedLinux:
+      return "Containerized Linux"
     }
   }
 
@@ -142,8 +91,8 @@ struct AgentExecutionLaunchPlan: Equatable {
     switch effectiveRoute {
     case .host:
       return "native-macos"
-    case .sharedVM:
-      return "shared-vm"
+    case .containerizedLinux:
+      return "containerized-linux"
     }
   }
 
@@ -151,8 +100,8 @@ struct AgentExecutionLaunchPlan: Equatable {
     switch effectiveRoute {
     case .host:
       return "none"
-    case .sharedVM(let route):
-      return Self.boundedText(route.sshDestination, limit: Self.labelLimit)
+    case .containerizedLinux:
+      return "docker.io/library/node:22-bookworm"
     }
   }
 
@@ -160,8 +109,8 @@ struct AgentExecutionLaunchPlan: Equatable {
     switch effectiveRoute {
     case .host:
       return "host"
-    case .sharedVM(let route):
-      return Self.boundedText(route.guestWorkspacePath, limit: Self.labelLimit)
+    case .containerizedLinux(let route):
+      return Self.boundedText(route.containerWorkspacePath, limit: Self.labelLimit)
     }
   }
 
@@ -169,95 +118,8 @@ struct AgentExecutionLaunchPlan: Equatable {
     fallbackReason ?? "none"
   }
 
-  var vmReadinessLabel: String {
-    guard let vmReadiness else { return "not-inspected" }
-    return Self.readinessSummary(vmReadiness)
-  }
-
-  static func readinessSummary(_ readiness: SharedCompassVMReadiness) -> String {
-    switch readiness {
-    case .unavailable(let reason):
-      return "unavailable: \(reason)"
-    case .notProvisioned:
-      return "not-provisioned"
-    case .downloadingIPSW(let fraction):
-      return "downloading-ipsw \(Int((fraction * 100).rounded()))%"
-    case .installing(let fraction):
-      return "installing \(Int((fraction * 100).rounded()))%"
-    case .guestPrepping:
-      return "guest-prepping"
-    case .provisioningDevTools(let fraction):
-      return "provisioning-dev-tools \(Int((fraction * 100).rounded()))%"
-    case .ready(let sshDestination):
-      return "ready \(sshDestination)"
-    case .error(let detail):
-      return "error: \(detail)"
-    }
-  }
-
-  static func userFacingReadinessSummary(_ readiness: SharedCompassVMReadiness?) -> String {
-    guard let readiness else { return "not checked yet" }
-    switch readiness {
-    case .unavailable(let reason):
-      return "unavailable: \(reason)"
-    case .notProvisioned:
-      return "not prepared yet"
-    case .downloadingIPSW(let fraction):
-      return "downloading macOS \(Int((fraction * 100).rounded()))%"
-    case .installing(let fraction):
-      return "installing macOS \(Int((fraction * 100).rounded()))%"
-    case .guestPrepping:
-      return "finishing workspace setup"
-    case .provisioningDevTools(let fraction):
-      return "installing developer tools \(Int((fraction * 100).rounded()))%"
-    case .ready:
-      return "ready"
-    case .error(let detail):
-      return "needs attention: \(detail)"
-    }
-  }
-
   static func userFacingFallbackReason(_ reason: String) -> String {
-    let normalized = boundedText(reason, limit: fallbackReasonLimit)
-    let exactRewrites: [String: String] = [
-      "Shared VM readiness has not been evaluated yet.":
-        "private workspace readiness has not been checked yet.",
-      "Repository is not registered in the Shared VM workspace catalog; this phase runs on the host.":
-        "this project is not registered in the private workspace yet.",
-      "Shared VM unavailable: 2-guest cap":
-        "private workspace capacity is currently full.",
-      "Shared VM has not been provisioned yet.":
-        "the private workspace has not been prepared yet.",
-      "Shared VM is downloading the restore image.":
-        "the private workspace is downloading macOS.",
-      "Shared VM is installing macOS.":
-        "the private workspace is installing macOS.",
-      "Shared VM guest preparation is in progress.":
-        "private workspace setup is finishing.",
-      "Shared VM is installing developer tools inside the guest.":
-        "the private workspace is installing developer tools.",
-    ]
-    if let rewritten = exactRewrites[normalized] {
-      return punctuatedSentence(rewritten)
-    }
-    if normalized.hasPrefix("Shared VM unavailable: 2-guest cap") {
-      return "private workspace capacity is currently full."
-    }
-
-    var rewritten =
-      normalized
-      .replacingOccurrences(of: "Shared VM", with: "private workspace")
-      .replacingOccurrences(of: "inside the guest", with: "inside the private workspace")
-      .replacingOccurrences(of: "guest preparation", with: "private workspace setup")
-      .replacingOccurrences(of: "workspace catalog", with: "workspace registration")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    if let first = rewritten.first, first.isUppercase {
-      rewritten.replaceSubrange(
-        rewritten.startIndex...rewritten.startIndex,
-        with: String(first).lowercased()
-      )
-    }
-    return punctuatedSentence(rewritten)
+    punctuatedSentence(boundedText(reason, limit: fallbackReasonLimit))
   }
 
   private static func punctuatedSentence(_ text: String) -> String {
@@ -272,7 +134,6 @@ struct AgentExecutionLaunchPlan: Equatable {
   func preflightSummary(phase: String) -> String {
     [
       "\(phase) runtime: selected \(selectedPreference.title)",
-      "private workspace readiness \(Self.userFacingReadinessSummary(vmReadiness))",
       "effective route \(effectiveRouteTitle)",
       "image \(imageLabel)",
       "workspace \(workspaceLabel)",
@@ -284,23 +145,14 @@ struct AgentExecutionLaunchPlan: Equatable {
     switch effectiveRoute {
     case .host:
       if let fallbackReason {
-        return
-          "Using this Mac because \(Self.userFacingFallbackReason(fallbackReason)) Private workspace readiness: \(Self.userFacingReadinessSummary(vmReadiness))."
+        return "Using this Mac because \(Self.userFacingFallbackReason(fallbackReason))"
       }
       return "Using this Mac for this phase."
-    case .sharedVM:
-      return "Using your private workspace for this phase."
+    case .containerizedLinux:
+      return "Using the containerized Linux runtime for this phase."
     }
   }
 
-  /// Build a one-shot shell invocation. Used by `ProcessRunner.runShell` for
-  /// out-of-agent commands like Verify steps.
-  ///
-  /// Always returns a host-side `/bin/zsh -lc` invocation, even when
-  /// the effective route is `.sharedVM`. Under `.sharedVM`, Verify
-  /// goes through the vsock bash RPC instead of this helper;
-  /// the host fallback remains for planning/review probes and for repos outside
-  /// the guest workspace catalog.
   func shellInvocation(command: String, hostWorkingDirectory: URL) -> AgentExecutionInvocation {
     AgentExecutionInvocation(
       executable: "/bin/zsh",
