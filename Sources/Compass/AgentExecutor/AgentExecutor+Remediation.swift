@@ -41,6 +41,25 @@ extension AgentExecutor {
       )
     }
     if let error = error as? DevelopFeedbackValidationError {
+      if error.reason == .unfinishedSuccess {
+        let unfinished = error.feedback.map { "`\($0)`" } ?? "planned work"
+        return InvalidToolArgumentsNudge(
+          eventText: "develop_submit feedback rejected",
+          eventDetail: error.message,
+          userMessage: """
+            Your previous `develop_submit` claimed success, but its feedback still says work remains:
+            \(unfinished)
+
+            Do not resubmit that success packet. Choose exactly one next action:
+            - Return `develop_continue` to do the missing edit or run the missing verification command.
+            - Return `develop_submit` with status=failed or status=blocked if you cannot finish in budget.
+            - Return status=succeeded only after the packet is complete and `feedback` summarizes the
+              verified result without future work.
+
+            \(submitResultDecodeRetryShape(for: .develop))
+            """
+        )
+      }
       return InvalidToolArgumentsNudge(
         eventText: "develop_submit feedback rejected",
         eventDetail: error.message,

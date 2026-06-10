@@ -276,6 +276,25 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func unfinishedDevelopSuccessNudgeTellsAgentToContinueOrFail() {
+    let error = DevelopFeedbackValidationError(
+      message:
+        "Develop reported status=succeeded, but feedback says planned work remains: `Run pnpm verify`.",
+      reason: .unfinishedSuccess,
+      feedback: "Run `pnpm verify` to check if the changes pass."
+    )
+
+    let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .develop)
+
+    #expect(nudge.eventText == "develop_submit feedback rejected")
+    #expect(nudge.userMessage.contains("Do not resubmit that success packet"))
+    #expect(nudge.userMessage.contains("Return `develop_continue`"))
+    #expect(nudge.userMessage.contains("status=failed"))
+    #expect(nudge.userMessage.contains("status=blocked"))
+    #expect(nudge.userMessage.contains("Return status=succeeded only after"))
+  }
+
+  @Test
   func containerRuntimePromptAndToolsAreTypeScriptOnly() {
     let prompt = Prompts.agentSystemPrompt(
       phase: .develop,
