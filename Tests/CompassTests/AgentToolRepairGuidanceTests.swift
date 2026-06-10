@@ -253,6 +253,30 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func writeFileRejectsNewSelfRelativeModuleImport() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    let fileURL = srcURL.appending(path: "summarize.ts")
+    let result = try await AgentWriteFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/summarize.ts","content":"import { summarizeCLI } from './summarize';\n\nexport { summarizeCLI };\n"}"#
+          .utf8
+      ),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("write_file refused to create packages/cli/src/summarize.ts"))
+    #expect(result.content.contains("self-referential relative module `./summarize`"))
+    #expect(result.content.contains("define the symbol directly in packages/cli/src/summarize.ts"))
+    #expect(!FileManager.default.fileExists(atPath: fileURL.path))
+  }
+
+  @Test
   func editFileMissingLineFieldsShowsRepairShape() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

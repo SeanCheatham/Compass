@@ -120,6 +120,15 @@ struct AgentWriteFileTool: AgentTool {
           "write_file refused to create \(context.relativize(url)) because \(conflict.manifestPath) \(conflict.field) already points at existing entry point \(conflict.declaredPath). Edit \(conflict.declaredPath) instead, or update the manifest to point at \(context.relativize(url)) before creating a replacement entry point."
         ))
     }
+    if existing == nil,
+      let selfReference = Self.selfRelativeModuleReference(in: args.content, sourceURL: url)
+    {
+      let relative = context.relativize(url)
+      return .failure(
+        .invalidArguments(
+          "write_file refused to create \(relative) because its content imports or exports self-referential relative module \(selfReference.specifier). A file cannot import or export from itself; define the symbol directly in \(relative), or import it from a different existing module."
+        ))
+    }
     let newFileSiblingHint: String?
     if existing == nil {
       newFileSiblingHint = await newFileHint(for: url, context: context)
@@ -238,6 +247,73 @@ struct AgentWriteFileTool: AgentTool {
     path = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     guard !path.isEmpty, !path.hasPrefix("../") else { return nil }
     return path
+  }
+
+  private struct SelfRelativeModuleReference {
+    let specifier: String
+  }
+
+  private static func selfRelativeModuleReference(
+    in text: String,
+    sourceURL: URL
+  ) -> SelfRelativeModuleReference? {
+    for specifier in relativeModuleReferences(in: text) {
+      let baseURL = sourceURL.deletingLastPathComponent()
+        .appending(path: specifier)
+        .standardizedFileURL
+      let sourcePath = sourceURL.standardizedFileURL.path
+      if moduleResolutionCandidates(for: baseURL).contains(where: {
+        $0.standardizedFileURL.path == sourcePath
+      }) {
+        return SelfRelativeModuleReference(specifier: "`\(specifier)`")
+      }
+    }
+    return nil
+  }
+
+  private static func relativeModuleReferences(in text: String) -> Set<String> {
+    var references: Set<String> = []
+    for line in text.components(separatedBy: "\n") {
+      let trimmed = line.trimmingCharacters(in: .whitespaces)
+      guard trimmed.hasPrefix("import ") || trimmed.hasPrefix("export ") else { continue }
+      for pattern in [
+        #"from\s+["'](\.{1,2}/[^"']+)["']"#,
+        #"^\s*import\s+["'](\.{1,2}/[^"']+)["']"#,
+        #"^\s*export\s+["'](\.{1,2}/[^"']+)["']"#,
+      ] {
+        if let specifier = firstCapture(in: line, pattern: pattern) {
+          references.insert(specifier)
+        }
+      }
+    }
+    return references
+  }
+
+  private static func firstCapture(in text: String, pattern: String) -> String? {
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+    guard let match = regex.firstMatch(in: text, range: nsRange),
+      match.numberOfRanges > 1,
+      let range = Range(match.range(at: 1), in: text)
+    else {
+      return nil
+    }
+    return String(text[range])
+  }
+
+  private static func moduleResolutionCandidates(for baseURL: URL) -> [URL] {
+    let fileExtensions = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "json"]
+    if !baseURL.pathExtension.isEmpty {
+      return [baseURL]
+    }
+    var candidates = [baseURL]
+    candidates += fileExtensions.map { baseURL.appendingPathExtension($0) }
+    candidates += fileExtensions.map {
+      baseURL
+        .appending(path: "index")
+        .appendingPathExtension($0)
+    }
+    return candidates
   }
 
   private func newFileHint(for url: URL, context: AgentToolContext) async -> String? {
