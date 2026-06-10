@@ -129,6 +129,16 @@ struct AgentWriteFileTool: AgentTool {
           "write_file refused to create \(relative) because its content imports or exports self-referential relative module \(selfReference.specifier). A file cannot import or export from itself; define the symbol directly in \(relative), or import it from a different existing module."
         ))
     }
+    if existing == nil,
+      Self.isSourceFile(url),
+      let placeholder = Self.placeholderImplementationMarker(in: args.content)
+    {
+      let relative = context.relativize(url)
+      return .failure(
+        .invalidArguments(
+          "write_file refused to create \(relative) because line \(placeholder.lineNumber) looks like placeholder implementation code: \(placeholder.preview). Do not leave TODO/not-implemented placeholders in source files; provide the complete implementation now, or submit status=failed/status=blocked if you cannot."
+        ))
+    }
     let newFileSiblingHint: String?
     if existing == nil {
       newFileSiblingHint = await newFileHint(for: url, context: context)
@@ -314,6 +324,53 @@ struct AgentWriteFileTool: AgentTool {
         .appendingPathExtension($0)
     }
     return candidates
+  }
+
+  private struct PlaceholderImplementationMarker {
+    let lineNumber: Int
+    let preview: String
+  }
+
+  private static func placeholderImplementationMarker(in text: String)
+    -> PlaceholderImplementationMarker?
+  {
+    text.components(separatedBy: "\n").enumerated().compactMap { offset, line in
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard looksLikePlaceholderImplementation(trimmed.lowercased()) else { return nil }
+      return PlaceholderImplementationMarker(
+        lineNumber: offset + 1,
+        preview: "`\(String(trimmed.prefix(120)))`"
+      )
+    }.first
+  }
+
+  private static func looksLikePlaceholderImplementation(_ lowercasedLine: String) -> Bool {
+    (lowercasedLine.contains("todo")
+      && (lowercasedLine.contains("implement") || lowercasedLine.contains("placeholder")))
+      || lowercasedLine.contains("not implemented")
+      || lowercasedLine.contains("unimplemented")
+  }
+
+  private static func isSourceFile(_ url: URL) -> Bool {
+    [
+      "c",
+      "cc",
+      "cpp",
+      "css",
+      "go",
+      "h",
+      "hpp",
+      "html",
+      "js",
+      "jsx",
+      "mjs",
+      "mts",
+      "py",
+      "rs",
+      "swift",
+      "ts",
+      "tsx",
+    ].contains(url.pathExtension.lowercased())
   }
 
   private func newFileHint(for url: URL, context: AgentToolContext) async -> String? {

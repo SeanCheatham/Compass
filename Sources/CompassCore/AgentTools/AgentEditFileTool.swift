@@ -499,6 +499,17 @@ struct AgentEditFileTool: AgentTool {
           "edit_file would leave \(relative) empty after editing a non-empty source file. Do not clear a source file as a placeholder; provide complete replacementLines for the implementation, or submit status=failed/status=blocked if you cannot reconstruct it."
         ))
     }
+    if Self.isSourceFile(url),
+      let placeholder = Self.newPlaceholderImplementationMarker(
+        originalText: originalText,
+        editedText: current
+      )
+    {
+      return .failure(
+        .invalidArguments(
+          "edit_file would introduce placeholder implementation code in \(relative) at line \(placeholder.lineNumber): \(placeholder.preview). Do not replace working source with TODO/not-implemented placeholders; provide the complete implementation now, or submit status=failed/status=blocked if you cannot."
+        ))
+    }
     if let selfReference = Self.newSelfRelativeModuleReference(
       originalText: originalText,
       editedText: current,
@@ -799,6 +810,46 @@ struct AgentEditFileTool: AgentTool {
   private struct MissingRelativeModuleReference {
     let specifier: String
     let expectedDescription: String
+  }
+
+  private struct PlaceholderImplementationMarker {
+    let lineNumber: Int
+    let preview: String
+    let fingerprint: String
+  }
+
+  private static func newPlaceholderImplementationMarker(
+    originalText: String,
+    editedText: String
+  ) -> PlaceholderImplementationMarker? {
+    let originalFingerprints = Set(
+      placeholderImplementationMarkers(in: originalText).map(\.fingerprint)
+    )
+    return placeholderImplementationMarkers(in: editedText).first {
+      !originalFingerprints.contains($0.fingerprint)
+    }
+  }
+
+  private static func placeholderImplementationMarkers(in text: String)
+    -> [PlaceholderImplementationMarker]
+  {
+    text.components(separatedBy: "\n").enumerated().compactMap { offset, line in
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      let fingerprint = trimmed.lowercased()
+      guard looksLikePlaceholderImplementation(fingerprint) else { return nil }
+      return PlaceholderImplementationMarker(
+        lineNumber: offset + 1,
+        preview: "`\(String(trimmed.prefix(120)))`",
+        fingerprint: fingerprint
+      )
+    }
+  }
+
+  private static func looksLikePlaceholderImplementation(_ lowercasedLine: String) -> Bool {
+    (lowercasedLine.contains("todo")
+      && (lowercasedLine.contains("implement") || lowercasedLine.contains("placeholder")))
+      || lowercasedLine.contains("not implemented")
+      || lowercasedLine.contains("unimplemented")
   }
 
   private static func newMissingRelativeModuleReference(
