@@ -353,6 +353,77 @@ struct AgentToolRepairGuidanceTests {
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged.contains("export function one()"))
   }
+
+  @Test
+  func editFileRejectsNewMissingRelativeModuleImport() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    let fileURL = srcURL.appending(path: "main.ts")
+    try """
+    import { summarizeQueue } from "@compass-test/core";
+
+    export function main(): string {
+      return summarizeQueue([]);
+    }
+    """.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/main.ts","startLine":1,"endLine":1,"content":"import { summarizeCLI } from './utils';\n\nimport { summarizeQueue } from \"@compass-test/core\";"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("unresolved relative module `./utils`"))
+    #expect(result.content.contains("packages/cli/src/utils.ts"))
+    #expect(result.content.contains("keep the implementation inside packages/cli/src/main.ts"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(!unchanged.contains("./utils"))
+  }
+
+  @Test
+  func editFileAllowsNewRelativeModuleImportWhenTargetExists() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    let fileURL = srcURL.appending(path: "main.ts")
+    try "export const main = true;\n".write(to: fileURL, atomically: true, encoding: .utf8)
+    try "export const summarizeCLI = true;\n".write(
+      to: srcURL.appending(path: "utils.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/main.ts","startLine":1,"endLine":1,"content":"import { summarizeCLI } from './utils';\nexport const main = summarizeCLI;"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(!result.isError)
+    let changed = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(changed.contains("./utils"))
+  }
 }
 
 private func makeToolGuidanceTempDirectory() throws -> URL {

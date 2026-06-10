@@ -405,6 +405,7 @@ struct AgentEditFileTool: AgentTool {
       return .failure(error)
     }
 
+    let originalText = current
     var lines = Self.fileLines(from: current)
     let relative = context.relativize(url)
     var totalLinesAffected = 0
@@ -467,6 +468,17 @@ struct AgentEditFileTool: AgentTool {
     }
 
     current = Self.joinLines(lines)
+    if let missingReference = await Self.newMissingRelativeModuleReference(
+      originalText: originalText,
+      editedText: current,
+      sourceURL: url,
+      context: context
+    ) {
+      return .failure(
+        .invalidArguments(
+          "edit_file would introduce unresolved relative module \(missingReference.specifier) in \(relative). Compass could not find \(missingReference.expectedDescription). Create the referenced module first, use an existing relative path, or keep the implementation inside \(relative)."
+        ))
+    }
 
     do {
       try await context.filesystem.writeFile(Data(current.utf8), at: url)
@@ -639,6 +651,106 @@ struct AgentEditFileTool: AgentTool {
 
     return
       "edits[\(editIndex)] replaces only line \(edit.startLine) with \(edit.replacementLines.count) lines while leaving \(lineCount - edit.endLine) existing lines after it. This looks like a partial whole-file rewrite. If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to insert before line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1). Otherwise replace the exact line range that should be removed."
+  }
+
+  private struct MissingRelativeModuleReference {
+    let specifier: String
+    let expectedDescription: String
+  }
+
+  private static func newMissingRelativeModuleReference(
+    originalText: String,
+    editedText: String,
+    sourceURL: URL,
+    context: AgentToolContext
+  ) async -> MissingRelativeModuleReference? {
+    let originalReferences = relativeModuleReferences(in: originalText)
+    for specifier in relativeModuleReferences(in: editedText)
+    where !originalReferences.contains(specifier) {
+      guard
+        let expected = await missingRelativeModuleDescription(
+          specifier: specifier,
+          sourceURL: sourceURL,
+          context: context
+        )
+      else {
+        continue
+      }
+      return MissingRelativeModuleReference(
+        specifier: "`\(specifier)`",
+        expectedDescription: expected
+      )
+    }
+    return nil
+  }
+
+  private static func relativeModuleReferences(in text: String) -> Set<String> {
+    var references: Set<String> = []
+    for line in text.components(separatedBy: "\n") {
+      let trimmed = line.trimmingCharacters(in: .whitespaces)
+      guard trimmed.hasPrefix("import ") || trimmed.hasPrefix("export ") else { continue }
+      for pattern in [
+        #"from\s+["'](\.{1,2}/[^"']+)["']"#,
+        #"^\s*import\s+["'](\.{1,2}/[^"']+)["']"#,
+        #"^\s*export\s+["'](\.{1,2}/[^"']+)["']"#,
+      ] {
+        if let specifier = firstCapture(in: line, pattern: pattern) {
+          references.insert(specifier)
+        }
+      }
+    }
+    return references
+  }
+
+  private static func firstCapture(in text: String, pattern: String) -> String? {
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+    guard let match = regex.firstMatch(in: text, range: nsRange),
+      match.numberOfRanges > 1,
+      let range = Range(match.range(at: 1), in: text)
+    else {
+      return nil
+    }
+    return String(text[range])
+  }
+
+  private static func missingRelativeModuleDescription(
+    specifier: String,
+    sourceURL: URL,
+    context: AgentToolContext
+  ) async -> String? {
+    let baseURL = sourceURL.deletingLastPathComponent()
+      .appending(path: specifier)
+      .standardizedFileURL
+    let candidates = moduleResolutionCandidates(for: baseURL)
+    for candidate in candidates {
+      if let metadata = try? await context.filesystem.metadata(of: candidate),
+        metadata.isRegularFile
+      {
+        return nil
+      }
+    }
+    let relativeCandidates =
+      candidates
+      .prefix(6)
+      .map { context.relativize($0) }
+      .joined(separator: ", ")
+    return relativeCandidates.isEmpty ? context.relativize(baseURL) : relativeCandidates
+  }
+
+  private static func moduleResolutionCandidates(for baseURL: URL) -> [URL] {
+    let fileExtensions = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "json"]
+    if !baseURL.pathExtension.isEmpty {
+      return [baseURL]
+    }
+    var candidates = [baseURL]
+    candidates += fileExtensions.map { baseURL.appendingPathExtension($0) }
+    candidates += fileExtensions.map {
+      baseURL
+        .appending(path: "index")
+        .appendingPathExtension($0)
+    }
+    return candidates
   }
 
   private static func fileLines(from text: String) -> [String] {
