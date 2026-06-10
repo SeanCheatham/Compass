@@ -787,7 +787,12 @@ public struct HeadlessCompassRunner: Sendable {
       guard phase == .plan, let plan = decoded as? PlanRunResult else { return }
       let current = try workspace.readState()
       let next = current.applying(proposal: plan.state)
-      try PlanTransitionValidator.validate(from: current, to: next, forgeProfile: forgeProfile)
+      try PlanTransitionValidator.validate(
+        from: current,
+        to: next,
+        forgeProfile: forgeProfile,
+        repoURL: workspace.repoURL
+      )
     }
   }
 

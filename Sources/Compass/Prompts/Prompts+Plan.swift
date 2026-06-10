@@ -33,6 +33,16 @@ extension Prompts {
         and acceptance signals.
       - Keep `queue` to at most six actionable work items. Mark obsolete work stale or drop it.
       - Pick one `immediate` item with a concrete Markdown handoff and a real verify command.
+      - For generated TypeScript work, name likely target files in the handoff. Use
+        `packages/core/src` for domain logic, `packages/cli/src` for CLI behavior, and
+        `packages/web/src` for React UI.
+      - Do not name a file path as an existing target unless a read-only tool proved it
+        exists. If a path is intentionally new, say `create new file <path>` in the
+        handoff.
+      - If the Outcome or Acceptance checks claim new CLI/web behavior, include the
+        matching test file/update in the handoff or choose a verify command that directly
+        exercises that behavior. Generic `pnpm verify` only proves new behavior when the
+        packet adds or updates tests for it.
       - Use `immediate: null` only when there is no useful draft, feedback, queue item, or
         repository-originated cleanup/test/docs slice.
       - Acceptance checks describe observable behavior or state. Put shell commands only in

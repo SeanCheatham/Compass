@@ -4,6 +4,7 @@ enum FeedbackHandoffValidationReason: Equatable {
   case empty
   case placeholder
   case tooShort
+  case unfinishedSuccess
 }
 
 struct DevelopFeedbackValidationError: LocalizedError, Equatable {
@@ -30,6 +31,17 @@ struct DevelopVerifyBypassValidationError: LocalizedError, Equatable {
 
 enum DevelopFeedbackValidator {
   static func validate(_ summary: DevelopSummary) throws {
+    if summary.status == .succeeded,
+      let unfinished = UnfinishedSuccessFeedback.detect(in: summary.feedback)
+    {
+      throw DevelopFeedbackValidationError(
+        message:
+          "Develop reported status=succeeded, but feedback says planned work remains: `\(unfinished)`. If implementation work remains, return status=failed or status=blocked; if the packet is complete, feedback should summarize the verified result with no future implementation step.",
+        reason: .unfinishedSuccess,
+        feedback: unfinished
+      )
+    }
+
     guard let rejection = FeedbackHandoffTextQuality.rejection(for: summary.feedback) else {
       return
     }
@@ -54,6 +66,13 @@ enum DevelopFeedbackValidator {
         message:
           "Develop feedback `\(rejection.feedback ?? "")` is too short. Write one concrete sentence with the result, blocker, or next recovery action.",
         reason: .tooShort,
+        feedback: rejection.feedback
+      )
+    case .unfinishedSuccess:
+      throw DevelopFeedbackValidationError(
+        message:
+          "Develop feedback `\(rejection.feedback ?? "")` says planned work remains despite status=succeeded.",
+        reason: .unfinishedSuccess,
         feedback: rejection.feedback
       )
     }
@@ -195,6 +214,13 @@ enum CriticFeedbackValidator {
         reason: .tooShort,
         feedback: rejection.feedback
       )
+    case .unfinishedSuccess:
+      throw CriticFeedbackValidationError(
+        message:
+          "Critic feedback `\(rejection.feedback ?? "")` is too ambiguous. Name the failing behavior or file and one recovery action.",
+        reason: .unfinishedSuccess,
+        feedback: rejection.feedback
+      )
     }
   }
 }
@@ -304,6 +330,64 @@ private enum FeedbackHandoffTextQuality {
       return FeedbackHandoffRejection(reason: .tooShort, feedback: feedback)
     }
 
+    return nil
+  }
+}
+
+private enum UnfinishedSuccessFeedback {
+  private static let unfinishedPhrases = [
+    "still needs",
+    "still need",
+    "needs to",
+    "need to",
+    "remaining work",
+    "work remains",
+    "not implemented",
+    "not complete",
+    "not done",
+    "todo",
+    "to do",
+  ]
+
+  private static let nextStepActions: Set<String> = [
+    "add",
+    "create",
+    "fix",
+    "implement",
+    "update",
+    "use",
+    "wire",
+  ]
+
+  static func detect(in feedback: String) -> String? {
+    let normalized = HandoffText.normalizedWhitespace(feedback)
+    guard !normalized.isEmpty else { return nil }
+    let lowercased = normalized.lowercased()
+    if lowercased.contains("no follow")
+      || lowercased.contains("nothing else")
+      || lowercased.contains("verified")
+      || lowercased.contains("verify passed")
+    {
+      return nil
+    }
+    let tokens = HandoffText.wordTokens(in: lowercased)
+    if lowercased.contains("next step") || lowercased.contains("next action")
+      || lowercased.contains("follow up")
+    {
+      let tokenSet = Set(tokens)
+      if !tokenSet.isDisjoint(with: nextStepActions) {
+        return normalized
+      }
+    }
+    if let first = tokens.first, nextStepActions.contains(first) {
+      return normalized
+    }
+    if unfinishedPhrases.contains(where: { lowercased.contains($0) }) {
+      return normalized
+    }
+    if lowercased.hasPrefix("run ") && lowercased.contains("verify") {
+      return normalized
+    }
     return nil
   }
 }

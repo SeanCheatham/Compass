@@ -242,7 +242,8 @@ extension CompassProject {
       try PlanTransitionValidator.validate(
         from: currentState,
         to: nextState,
-        forgeProfile: activeForgeProfile
+        forgeProfile: activeForgeProfile,
+        repoURL: hostRepoURL
       )
     }
   }

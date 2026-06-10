@@ -437,7 +437,7 @@ private let noChangeRetryFixtureOutputs = [
   {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a No-change retry marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner does not accept baseline verify when Develop changed nothing.\\n\\n## Acceptance checks\\n- README.md contains No-change retry marker.","verify":"tsc --version","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This tiny documentation slice catches false-positive Develop success without file changes.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI no-change retry after a false success.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Develop retries when a Git-backed run changes no files."],"constraints":["No pnpm dependency for this retry test."],"acceptanceSignals":["README.md contains No-change retry marker."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Claimed the README marker was added without making any file changes.","feedback":"README.md still needs the exact No-change retry marker sentence; the next Develop attempt should patch README.md before submitting success.","bypassVerify":false,"lessonEdits":[]}}
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Claimed the README marker was added without making any file changes.","feedback":"No-change retry marker is present in README.md and verify can pass.","bypassVerify":false,"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before adding the missing marker."}

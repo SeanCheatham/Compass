@@ -645,7 +645,8 @@ extension CompassProject {
       try PlanTransitionValidator.validate(
         from: current,
         to: next,
-        forgeProfile: forgeProfile
+        forgeProfile: forgeProfile,
+        repoURL: workspace?.repoURL
       )
     } catch let error as PlanTransitionValidationError {
       throw AppModelError.rejectedPlan(error.message)
