@@ -411,6 +411,37 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func continuationParserExplainsBacktickTemplateLiteralJSON() {
+    do {
+      _ = try AgentContinuationParser.parse(
+        """
+        {
+          "kind": "develop_continue",
+          "tool": "edit_file",
+          "arguments": {
+            "path": "packages/cli/src/main.ts",
+            "startLine": 1,
+            "endLine": 1,
+            "content": `const one = 1;
+        const two = 2;`
+          }
+        }
+        """,
+        phase: .develop,
+        availableToolNames: ["edit_file"]
+      )
+      Issue.record("Expected malformed JSON error")
+    } catch let error as AgentContinuationParseError {
+      let message = error.errorDescription ?? ""
+      #expect(message.contains("backtick/template-literal strings are invalid"))
+      #expect(message.contains("replacementLines as an array with one source line per string"))
+      #expect(message.contains("Do not wrap content in backticks"))
+    } catch {
+      Issue.record("Expected AgentContinuationParseError, got \(error)")
+    }
+  }
+
+  @Test
   func executorRunsToolObservationThenSubmitWithFakeRuntime() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

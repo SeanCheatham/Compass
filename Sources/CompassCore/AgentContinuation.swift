@@ -82,7 +82,9 @@ enum AgentContinuationParser {
     do {
       raw = try JSONSerialization.jsonObject(with: data)
     } catch {
-      throw AgentContinuationParseError.malformedJSON(error.localizedDescription)
+      throw AgentContinuationParseError.malformedJSON(
+        malformedJSONDetail(for: jsonText, underlying: error.localizedDescription)
+      )
     }
     guard let object = raw as? [String: Any] else {
       throw AgentContinuationParseError.topLevelNotObject
@@ -168,6 +170,21 @@ enum AgentContinuationParser {
       .trimmingCharacters(in: .whitespacesAndNewlines)
     guard body.hasPrefix("{"), body.hasSuffix("}") else { return nil }
     return body
+  }
+
+  private static func malformedJSONDetail(for text: String, underlying: String) -> String {
+    var detail = underlying
+    if containsBacktickStringSyntax(in: text) {
+      detail +=
+        " JSON strings must use double quotes; JavaScript backtick/template-literal strings are invalid here. For multiline edit_file content, pass replacementLines as an array with one source line per string or use a normal JSON string with \\n escapes. Do not wrap content in backticks."
+    }
+    return detail
+  }
+
+  private static func containsBacktickStringSyntax(in text: String) -> Bool {
+    text.range(of: #":\s*`"#, options: .regularExpression) != nil
+      || text.range(of: #"\[\s*`"#, options: .regularExpression) != nil
+      || text.range(of: #",\s*`"#, options: .regularExpression) != nil
   }
 
   private static func encodeJSONObject(_ object: [String: Any]) throws -> Data {

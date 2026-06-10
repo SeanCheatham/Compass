@@ -288,6 +288,71 @@ struct AgentToolRepairGuidanceTests {
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged == "const ok = true;\n")
   }
+
+  @Test
+  func editFileRejectsEmbeddedNewlineInsideReplacementLineEntry() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "notes.txt")
+    try "const ok = true;\n".write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"notes.txt"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"notes.txt","edits":[{"startLine":1,"endLine":1,"replacementLines":["const one = 1;\nconst two = 2;"]}]}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("contains embedded newline characters"))
+    #expect(result.content.contains("one source line per string"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == "const ok = true;\n")
+  }
+
+  @Test
+  func editFileRejectsSuspiciousSingleLineBulkReplacement() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "main.ts")
+    try """
+    import { current } from "./current";
+    export function one() { return 1; }
+    export function two() { return 2; }
+    export function three() { return 3; }
+    export function four() { return 4; }
+    export function five() { return 5; }
+    """.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"main.ts","startLine":1,"endLine":1,"content":"import { next } from './next';\n\nexport function replacement() {\n  return next();\n}\n\nexport function extra() {\n  return 42;\n}"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("partial whole-file rewrite"))
+    #expect(result.content.contains("use startLine=1, endLine=6"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged.contains("export function one()"))
+  }
 }
 
 private func makeToolGuidanceTempDirectory() throws -> URL {

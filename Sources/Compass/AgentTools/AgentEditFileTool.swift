@@ -344,6 +344,12 @@ struct AgentEditFileTool: AgentTool {
             "edits[\(idx)].endLine must be >= startLine - 1; got startLine=\(edit.startLine), endLine=\(edit.endLine)"
           ))
       }
+      if let embeddedNewline = Self.embeddedNewline(in: edit.replacementLines) {
+        return .failure(
+          .invalidArguments(
+            "edits[\(idx)].replacementLines[\(embeddedNewline.lineIndex)] contains embedded newline characters: \(embeddedNewline.preview). Pass replacementLines as an array with one source line per string, for example [\"line one\", \"line two\"], instead of packing multiple source lines into one array entry."
+          ))
+      }
       if let contamination = Self.replacementLineContamination(in: edit.replacementLines) {
         return .failure(
           .invalidArguments(
@@ -442,6 +448,13 @@ struct AgentEditFileTool: AgentTool {
       let startIndex = edit.startLine - 1
       let endIndex = edit.endLine - 1
       let existing = Array(lines[startIndex...endIndex])
+      if let suspiciousExpansion = Self.suspiciousPartialRewriteMessage(
+        editIndex: idx,
+        edit: edit,
+        lineCount: lineCount
+      ) {
+        return .failure(.invalidArguments(suspiciousExpansion))
+      }
       if existing == edit.replacementLines {
         return .failure(
           .invalidArguments(
@@ -592,6 +605,40 @@ struct AgentEditFileTool: AgentTool {
   private static func linePreview(_ line: String) -> String {
     let display = line.count > 80 ? String(line.prefix(80)) + "..." : line
     return "`\(display)`"
+  }
+
+  private struct EmbeddedNewline {
+    let lineIndex: Int
+    let preview: String
+  }
+
+  private static func embeddedNewline(in lines: [String]) -> EmbeddedNewline? {
+    for (index, line) in lines.enumerated()
+    where line.contains("\n") || line.contains("\r") {
+      let escaped =
+        line
+        .replacingOccurrences(of: "\r", with: "\\r")
+        .replacingOccurrences(of: "\n", with: "\\n")
+      return EmbeddedNewline(lineIndex: index, preview: linePreview(escaped))
+    }
+    return nil
+  }
+
+  private static func suspiciousPartialRewriteMessage(
+    editIndex: Int,
+    edit: EditOperation,
+    lineCount: Int
+  ) -> String? {
+    let replacedLineCount = edit.endLine - edit.startLine + 1
+    guard replacedLineCount == 1,
+      edit.replacementLines.count >= 8,
+      lineCount > edit.endLine
+    else {
+      return nil
+    }
+
+    return
+      "edits[\(editIndex)] replaces only line \(edit.startLine) with \(edit.replacementLines.count) lines while leaving \(lineCount - edit.endLine) existing lines after it. This looks like a partial whole-file rewrite. If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to insert before line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1). Otherwise replace the exact line range that should be removed."
   }
 
   private static func fileLines(from text: String) -> [String] {
