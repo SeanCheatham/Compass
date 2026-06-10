@@ -49,14 +49,14 @@ struct AgentListFilesTool: AgentTool {
         "filter": [
           "type": "string",
           "description":
-            "Optional case-insensitive substring or glob-like filter on the relative path. Omit to list every indexed file.",
+            "Optional case-insensitive substring or glob-like filter on the relative path. Supports common extension groups like `**/*.{ts,tsx}` and `**/*.(ts|tsx)`. Omit to list every indexed file.",
         ]
       ],
     ])
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "List the repo-relative paths the codemap has indexed, with each file's detected language. Use a `filter` substring or glob-like pattern to narrow to a subdirectory or filename. Capped at 500 results.",
+        "List the repo-relative paths the codemap has indexed, with each file's detected language. Use a `filter` substring or glob-like pattern to narrow to a subdirectory or filename. Common extension groups like `**/*.{ts,tsx}` and `**/*.(ts|tsx)` are accepted. Capped at 500 results.",
       parameters: schema
     )
   }
@@ -72,24 +72,105 @@ struct AgentListFilesTool: AgentTool {
     let filter = args.filter?.trimmingCharacters(in: .whitespacesAndNewlines)
     let store = context.codemapStore()
     var entries = store.loadAllEntries()
+    let filterVariants = filter.map(Self.filterVariants) ?? []
     if let filter, !filter.isEmpty {
-      entries = entries.filter { Self.path($0.relativePath, matchesFilter: filter) }
+      entries = entries.filter { entry in
+        filterVariants.contains { Self.path(entry.relativePath, matchesFilter: $0) }
+      }
     }
     entries.sort { $0.relativePath < $1.relativePath }
     if entries.isEmpty {
       let suffix = (filter.flatMap { $0.isEmpty ? nil : " matching '\($0)'" }) ?? ""
-      return .ok("(no codemap files\(suffix))")
+      return .ok(
+        "(no codemap files\(suffix))\(Self.emptyResultHint(for: filter, variants: filterVariants))")
     }
 
     let truncated = entries.count > Self.maxResults
     let shown = entries.prefix(Self.maxResults)
     var lines: [String] = []
     lines.append("files: \(entries.count)\(truncated ? " (truncated)" : "")")
+    if let filter, let note = Self.normalizedFilterNote(original: filter, variants: filterVariants)
+    {
+      lines.append("matched normalized filters: \(note)")
+    }
     for entry in shown {
       let count = entry.symbols.count
       lines.append("  \(entry.relativePath)  [\(entry.language.displayName), \(count) symbol(s)]")
     }
     return .ok(lines.joined(separator: "\n"))
+  }
+
+  private static func filterVariants(for filter: String) -> [String] {
+    var variants = [filter]
+    variants.append(
+      contentsOf: expandExtensionAlternation(in: filter, opener: ".(", closer: ")", separator: "|"))
+    variants.append(
+      contentsOf: expandExtensionAlternation(in: filter, opener: ".{", closer: "}", separator: ","))
+
+    var seen = Set<String>()
+    return variants.filter { variant in
+      let normalized = variant.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !normalized.isEmpty else { return false }
+      return seen.insert(normalized).inserted
+    }
+  }
+
+  private static func expandExtensionAlternation(
+    in filter: String,
+    opener: String,
+    closer: Character,
+    separator: Character
+  ) -> [String] {
+    guard let openRange = filter.range(of: opener),
+      let closeIndex = filter[openRange.upperBound...].firstIndex(of: closer)
+    else {
+      return []
+    }
+
+    let body = filter[openRange.upperBound..<closeIndex]
+    let extensions =
+      body
+      .split(separator: separator)
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty && $0.allSatisfy(isExtensionCharacter) }
+    guard extensions.count > 1 else { return [] }
+
+    let prefix = String(filter[..<openRange.lowerBound])
+    let suffix = String(filter[filter.index(after: closeIndex)...])
+    return extensions.map { "\(prefix).\($0)\(suffix)" }
+  }
+
+  private static func isExtensionCharacter(_ character: Character) -> Bool {
+    character.isLetter || character.isNumber || character == "_" || character == "-"
+      || character == "+"
+  }
+
+  private static func normalizedFilterNote(original: String, variants: [String]) -> String? {
+    let expanded = variants.filter { $0 != original }
+    guard !expanded.isEmpty else { return nil }
+    return expanded.joined(separator: ", ")
+  }
+
+  private static func emptyResultHint(for filter: String?, variants: [String]) -> String {
+    guard let filter, !filter.isEmpty else { return "" }
+
+    var hints: [String] = []
+    if let note = normalizedFilterNote(original: filter, variants: variants) {
+      hints.append("tried normalized filters: \(note)")
+    }
+    if let broad = broadDirectoryHint(for: filter) {
+      hints.append("try a broader filter such as '\(broad)'")
+    }
+    guard !hints.isEmpty else { return "" }
+    return "\nHint: \(hints.joined(separator: "; "))."
+  }
+
+  private static func broadDirectoryHint(for filter: String) -> String? {
+    let wildcardIndex = filter.firstIndex { $0 == "*" || $0 == "?" }
+    let prefix = wildcardIndex.map { String(filter[..<$0]) } ?? filter
+    let trimmed = prefix.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    guard !trimmed.isEmpty else { return nil }
+    return trimmed
   }
 
   private static func path(_ path: String, matchesFilter filter: String) -> Bool {

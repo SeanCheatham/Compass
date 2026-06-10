@@ -43,6 +43,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
   public var fixtureURL: URL?
   public var promptLogDirectory: URL?
   public var maxIterations: Int
+  public var maxDevelopAttempts: Int
   public var runDevelop: Bool
   public var runCritic: Bool
 
@@ -53,6 +54,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     fixtureURL: URL? = nil,
     promptLogDirectory: URL? = nil,
     maxIterations: Int = 24,
+    maxDevelopAttempts: Int = 2,
     runDevelop: Bool = true,
     runCritic: Bool = false
   ) {
@@ -62,6 +64,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     self.fixtureURL = fixtureURL?.standardizedFileURL
     self.promptLogDirectory = promptLogDirectory?.standardizedFileURL
     self.maxIterations = max(1, maxIterations)
+    self.maxDevelopAttempts = max(1, maxDevelopAttempts)
     self.runDevelop = runDevelop
     self.runCritic = runCritic
   }
@@ -306,61 +309,103 @@ public struct HeadlessCompassRunner: Sendable {
         return true
       }
 
-      session.status = .developing
-      try persist(session: session, workspace: workspace)
-      let develop = try await runDevelop(
-        immediate: immediate,
-        workspace: workspace,
-        settings: settings,
-        runtime: runtime,
-        sessionNumber: sessionNumber,
-        maxIterations: options.maxIterations,
-        onEvent: onEvent
-      )
-      try workspace.applyLessonEdits(develop.lessonEdits)
-      session.feedback = develop.feedback
-      guard develop.status == .succeeded, develop.bypassVerify != true else {
-        session.notes.append(develop.summary)
-        session.status = .failed
-        session.endedAt = Date().timeIntervalSince1970 * 1000
+      var priorIssues: [String] = []
+      var successfulDevelop: DevelopSummary?
+      var ok = false
+
+      for attempt in 1...options.maxDevelopAttempts {
+        session.status = .developing
         try persist(session: session, workspace: workspace)
-        onEvent(
-          HeadlessCompassEvent(
-            kind: "session_end",
-            level: "error",
-            status: "failed",
-            message: "Develop did not produce a verifiable success.",
-            detail: develop.summary,
-            metadata: ["session": "\(sessionNumber)"]
-          )
+
+        let develop = try await runDevelop(
+          immediate: immediate,
+          workspace: workspace,
+          settings: settings,
+          runtime: runtime,
+          sessionNumber: sessionNumber,
+          attempt: attempt,
+          priorIssues: priorIssues,
+          maxIterations: options.maxIterations,
+          onEvent: onEvent
         )
-        return false
+        try workspace.applyLessonEdits(develop.lessonEdits)
+        session.feedback = develop.feedback
+
+        guard develop.status == .succeeded, develop.bypassVerify != true else {
+          let issue = developFailureIssue(develop)
+          session.notes.append(issue)
+          if attempt < options.maxDevelopAttempts {
+            priorIssues = [issue]
+            try persist(session: session, workspace: workspace)
+            emitDevelopRetry(
+              attempt: attempt,
+              maxAttempts: options.maxDevelopAttempts,
+              issue: issue,
+              onEvent: onEvent
+            )
+            continue
+          }
+
+          session.status = .failed
+          session.endedAt = Date().timeIntervalSince1970 * 1000
+          try persist(session: session, workspace: workspace)
+          onEvent(
+            HeadlessCompassEvent(
+              kind: "session_end",
+              level: "error",
+              status: "failed",
+              message: "Develop did not produce a verifiable success.",
+              detail: issue,
+              metadata: ["session": "\(sessionNumber)"]
+            )
+          )
+          return false
+        }
+
+        let verify = try await runVerifyCommand(
+          immediate.verify,
+          repoURL: repoURL,
+          timeoutSeconds: TimeInterval(immediate.verifyTimeoutMs ?? 600_000) / 1000,
+          onEvent: onEvent
+        )
+        let verifyTail = tail(verify.stdout + verify.stderr, max: 4000)
+        session.verifyOutput = VerifyOutput(
+          command: immediate.verify,
+          exitCode: Int(verify.exitCode),
+          tail: verifyTail
+        )
+        writeVerifyAuditArtifacts(
+          workspace: workspace,
+          sessionNumber: sessionNumber,
+          attempt: attempt,
+          contents: verify.stdout + verify.stderr
+        )
+        try persist(session: session, workspace: workspace)
+
+        if verify.exitCode == 0 {
+          successfulDevelop = develop
+          ok = true
+          break
+        }
+
+        let issue = verifyFailureIssue(command: immediate.verify, result: verify)
+        session.notes.append("Verify attempt \(attempt) failed.")
+        if attempt < options.maxDevelopAttempts {
+          priorIssues = [issue]
+          try persist(session: session, workspace: workspace)
+          emitDevelopRetry(
+            attempt: attempt,
+            maxAttempts: options.maxDevelopAttempts,
+            issue: issue,
+            onEvent: onEvent
+          )
+        }
       }
 
-      let verify = try await runVerifyCommand(
-        immediate.verify,
-        repoURL: repoURL,
-        timeoutSeconds: TimeInterval(immediate.verifyTimeoutMs ?? 600_000) / 1000,
-        onEvent: onEvent
-      )
-      session.verifyOutput = VerifyOutput(
-        command: immediate.verify,
-        exitCode: Int(verify.exitCode),
-        tail: tail(verify.stdout + verify.stderr, max: 4000)
-      )
-      _ = try? workspace.writeSessionAuditArtifact(
-        session: sessionNumber,
-        name: "verify.log",
-        kind: "verify_output",
-        contents: verify.stdout + verify.stderr,
-        note: "CLI verify output."
-      )
-
-      var ok = verify.exitCode == 0
-      if ok, options.runCritic {
+      if ok, options.runCritic, let successfulDevelop {
         let critic = try await runCritic(
           immediate: immediate,
-          develop: develop,
+          develop: successfulDevelop,
           verify: session.verifyOutput,
           beforeSha: session.beforeSha,
           workspace: workspace,
@@ -463,6 +508,8 @@ public struct HeadlessCompassRunner: Sendable {
     settings: AgentRuntimeSettings,
     runtime: any LocalModelGenerating,
     sessionNumber: Int,
+    attempt: Int,
+    priorIssues: [String],
     maxIterations: Int,
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
   ) async throws -> DevelopSummary {
@@ -471,15 +518,15 @@ public struct HeadlessCompassRunner: Sendable {
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: workspace.readVision(),
-      attempt: 1,
-      priorIssues: []
+      attempt: attempt,
+      priorIssues: priorIssues
     )
     _ = try workspace.writeSessionAuditArtifact(
       session: sessionNumber,
-      name: "develop-prompt.md",
+      name: attempt == 1 ? "develop-prompt.md" : "develop-attempt-\(attempt)-prompt.md",
       kind: "prompt",
       contents: prompt,
-      note: "Develop prompt."
+      note: "Develop prompt for attempt \(attempt)."
     )
     return try await runAgent(
       phase: .develop,
@@ -728,6 +775,83 @@ public struct HeadlessCompassRunner: Sendable {
     return result
   }
 
+  private func writeVerifyAuditArtifacts(
+    workspace: CompassWorkspace,
+    sessionNumber: Int,
+    attempt: Int,
+    contents: String
+  ) {
+    _ = try? workspace.writeSessionAuditArtifact(
+      session: sessionNumber,
+      name: "verify.log",
+      kind: "verify_output",
+      contents: contents,
+      note: "Latest CLI verify output."
+    )
+    _ = try? workspace.writeSessionAuditArtifact(
+      session: sessionNumber,
+      name: "verify-attempt-\(attempt).log",
+      kind: "verify_output",
+      contents: contents,
+      note: "CLI verify output for attempt \(attempt)."
+    )
+  }
+
+  private func emitDevelopRetry(
+    attempt: Int,
+    maxAttempts: Int,
+    issue: String,
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void
+  ) {
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "develop_retry",
+        level: "warning",
+        status: "running",
+        phase: "develop",
+        message: "Develop attempt \(attempt) failed post-checks; retrying with failure context.",
+        detail: tail(issue, max: 4000),
+        metadata: [
+          "attempt": "\(attempt)",
+          "nextAttempt": "\(attempt + 1)",
+          "maxAttempts": "\(maxAttempts)",
+        ]
+      )
+    )
+  }
+
+  private func developFailureIssue(_ develop: DevelopSummary) -> String {
+    let summary = develop.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+    let feedback = develop.feedback.trimmingCharacters(in: .whitespacesAndNewlines)
+    let detail = [summary, feedback].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    return """
+      Develop did not produce a verifiable success.
+
+      Status: \(develop.status.rawValue)
+      bypassVerify: \(develop.bypassVerify == true ? "true" : "false")
+
+      \(detail.isEmpty ? "_(no summary or feedback)_" : detail)
+      """
+  }
+
+  private func verifyFailureIssue(command: String, result: ProcessResult) -> String {
+    let combined = tail(result.stdout + result.stderr, max: 4000)
+    let insight = VerifyFailureInsight(
+      detail: combined,
+      metadata: "command=\(command) exitCode=\(result.exitCode)"
+    )
+    return """
+      Verify failed for `\(command)` with exit code \(result.exitCode).
+
+      \(insight.inspectDetail)
+
+      Repair guidance: \(insight.repairDetail)
+
+      Verify output:
+      \(combined.isEmpty ? "_(no output)_" : combined)
+      """
+  }
+
   private func makeRuntime(
     mode: HeadlessModelMode,
     fixtureURL: URL?,
@@ -819,7 +943,8 @@ public struct HeadlessCompassRunner: Sendable {
   private func gitDiffSinceSHA(_ sha: String?, repoURL: URL) async -> String {
     let command: String
     if let sha, !sha.isEmpty {
-      command = "git -c core.quotepath=false diff --stat && git -c core.quotepath=false diff \(sha)..HEAD"
+      command =
+        "git -c core.quotepath=false diff --stat && git -c core.quotepath=false diff \(sha)..HEAD"
     } else {
       command = "git -c core.quotepath=false diff --stat && git -c core.quotepath=false diff"
     }
@@ -844,8 +969,8 @@ private func tail(_ text: String, max: Int) -> String {
   return String(trimmed.suffix(max))
 }
 
-private extension String {
-  var nilIfBlank: String? {
+extension String {
+  fileprivate var nilIfBlank: String? {
     let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
   }

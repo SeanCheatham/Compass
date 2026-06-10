@@ -81,8 +81,11 @@ struct VerifyFailureInsight: Equatable {
     ) {
       return .missingTool
     }
-    if containsAny(text, ["coverage", "profdata", "lcov", "coverprofile"]) {
-      return .coverage
+    if containsAny(
+      text,
+      ["typecheck", "tsc -p", "error ts", "syntax error", "compile error", "compiler error"]
+    ) {
+      return .buildFailure
     }
     if containsAny(
       text,
@@ -101,6 +104,9 @@ struct VerifyFailureInsight: Equatable {
       ]
     ) {
       return .buildFailure
+    }
+    if containsAny(text, ["coverage", "profdata", "lcov", "coverprofile"]) {
+      return .coverage
     }
     return .generic
   }

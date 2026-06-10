@@ -39,7 +39,8 @@ public enum CompassCLI {
         let ok = try await runner.run(options: options, onEvent: emit)
         return ok ? 0 : 1
 
-      case .replay(let repo, let session, let mode, let fixture, let promptLog, let maxIterations, _):
+      case .replay(
+        let repo, let session, let mode, let fixture, let promptLog, let maxIterations, _):
         let workspace = CompassWorkspace(repoURL: repo)
         try workspace.initialize()
         let record = workspace.readSessions(includeArchived: true).first { $0.session == session }
@@ -158,6 +159,7 @@ enum CompassCLICommand: Equatable {
       let fixture = try parser.optionalURLOption("--fixture")
       let promptLog = try parser.optionalURLOption("--prompt-log")
       let maxIterations = try parser.optionalInt("--max-iterations") ?? 24
+      let maxDevelopAttempts = try parser.optionalInt("--max-develop-attempts") ?? 2
       let runCritic = parser.consumeFlag("--critic")
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
@@ -169,6 +171,7 @@ enum CompassCLICommand: Equatable {
           fixtureURL: fixture,
           promptLogDirectory: promptLog,
           maxIterations: maxIterations,
+          maxDevelopAttempts: maxDevelopAttempts,
           runCritic: runCritic
         ),
         format: format
@@ -374,7 +377,7 @@ enum CompassCLIError: LocalizedError, Equatable {
     Usage:
       compass-cli doctor --repo <path> [--format json|text]
       compass-cli scaffold typescript <path> [--name <name>] [--format json|text]
-      compass-cli run --repo <path> --brief <file-or-inline> [--mode fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--critic] [--format json|text]
+      compass-cli run --repo <path> --brief <file-or-inline> [--mode fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--max-develop-attempts <n>] [--prompt-log <dir>] [--critic] [--format json|text]
       compass-cli replay --repo <path> --session <number> [--mode fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
 
@@ -385,8 +388,8 @@ enum CompassCLIError: LocalizedError, Equatable {
   var exitCode: Int { 64 }
 }
 
-private extension String {
-  var nilIfBlank: String? {
+extension String {
+  fileprivate var nilIfBlank: String? {
     let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
   }

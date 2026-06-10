@@ -28,8 +28,8 @@ struct CompassCLITests {
 
     if case .run(let options, let format) = try CompassCLICommand.parse([
       "run", "--repo", "/tmp/project", "--brief", "Add a slice", "--mode", "fixture",
-      "--fixture", "/tmp/fixture.jsonl", "--max-iterations", "3", "--prompt-log", "/tmp/prompts",
-      "--critic", "--format", "text",
+      "--fixture", "/tmp/fixture.jsonl", "--max-iterations", "3", "--max-develop-attempts", "4",
+      "--prompt-log", "/tmp/prompts", "--critic", "--format", "text",
     ]) {
       #expect(options.repoURL.path == "/tmp/project")
       #expect(options.brief == "Add a slice")
@@ -37,6 +37,7 @@ struct CompassCLITests {
       #expect(options.fixtureURL?.path == "/tmp/fixture.jsonl")
       #expect(options.promptLogDirectory?.path == "/tmp/prompts")
       #expect(options.maxIterations == 3)
+      #expect(options.maxDevelopAttempts == 4)
       #expect(options.runCritic)
       #expect(format == .text)
     } else {
@@ -151,7 +152,51 @@ struct CompassCLITests {
     #expect(snapshot.contains { $0.kind == "tool_end" && $0.metadata?["tool"] == "edit_file" })
     #expect(snapshot.contains { $0.kind == "tool_end" && $0.metadata?["tool"] == "bash" })
     #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "completed" })
-    #expect(FileManager.default.fileExists(atPath: tempURL.appending(path: ".compass/state.json").path))
+    #expect(
+      FileManager.default.fileExists(atPath: tempURL.appending(path: ".compass/state.json").path))
+  }
+
+  @Test
+  func fixtureRunnerRetriesDevelopAfterVerifyFailure() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      FixtureBashRunner()
+    }
+    try runner.scaffoldTypeScript(at: tempURL, name: "cli-retry-fixture", onEvent: record)
+
+    let fixtureURL = tempURL.appending(path: "retry-fixture.jsonl")
+    try writeFixture(retryFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Add a retry marker to the README",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 6,
+        maxDevelopAttempts: 2,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let readme = try String(contentsOf: tempURL.appending(path: "README.md"), encoding: .utf8)
+    #expect(readme.contains("Retry marker."))
+    let snapshot = events.snapshot()
+    #expect(snapshot.contains { $0.kind == "develop_retry" })
+    #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "failed" })
+    #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "completed" })
+    let auditDir = tempURL.appending(path: ".compass/sessions/000001", directoryHint: .isDirectory)
+    #expect(
+      FileManager.default.fileExists(atPath: auditDir.appending(path: "verify-attempt-1.log").path))
+    #expect(
+      FileManager.default.fileExists(atPath: auditDir.appending(path: "verify-attempt-2.log").path))
   }
 }
 
@@ -163,6 +208,14 @@ private struct FixtureBashRunner: AgentBashRunner {
   ) async throws -> ProcessResult {
     if command.trimmingCharacters(in: .whitespacesAndNewlines) == "tsc --version" {
       return ProcessResult(exitCode: 0, stdout: "Version 5.0.0\n", stderr: "")
+    }
+    if command.trimmingCharacters(in: .whitespacesAndNewlines) == "tsc retry-marker-check" {
+      let readmeURL = workingDirectory.appending(path: "README.md")
+      let readme = (try? String(contentsOf: readmeURL, encoding: .utf8)) ?? ""
+      if readme.contains("Retry marker.") {
+        return ProcessResult(exitCode: 0, stdout: "Retry marker present.\n", stderr: "")
+      }
+      return ProcessResult(exitCode: 1, stdout: "", stderr: "Retry marker missing.\n")
     }
     return try await AgentHostBashRunner().run(
       command: command,
@@ -195,6 +248,39 @@ private func makeCLITempDirectory() throws -> URL {
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url
 }
+
+private struct FixtureLine: Encodable {
+  var text: String
+}
+
+private func writeFixture(_ outputs: [String], to url: URL) throws {
+  let encoder = JSONEncoder()
+  encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+  let lines = try outputs.map { output in
+    let data = try encoder.encode(FixtureLine(text: output))
+    return String(decoding: data, as: UTF8.self)
+  }
+  .joined(separator: "\n")
+  try lines.write(to: url, atomically: true, encoding: .utf8)
+}
+
+private let retryFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Retry marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner can retry Develop after a verify failure.\\n\\n## Acceptance checks\\n- README.md contains Retry marker.","verify":"tsc retry-marker-check","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This tiny documentation slice has a deterministic failing then passing verify command.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI Develop retry after verify failure.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Verify failure output reaches a second Develop attempt."],"constraints":["No pnpm dependency for this retry test."],"acceptanceSignals":["README.md contains Retry marker."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Reported the README marker complete before editing it so verify can catch the missing sentence.","feedback":"Verify should fail until README.md contains the exact Retry marker sentence; the next Develop attempt should patch README.md.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before repairing the failed verify check."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"README.md","startLine":3,"endLine":2,"insert":["Retry marker.",""]},"reason":"Add the marker sentence required by verify."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now contains the Retry marker sentence required by verify.","feedback":"Retry marker is present in README.md and grep verification can pass; Plan can choose another small slice.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
 
 private let fixtureJSONL = """
   {"text":"{\\"kind\\":\\"plan_submit\\",\\"payload\\":{\\"state\\":{\\"immediate\\":{\\"plan\\":\\"## Outcome\\\\nAdd a short README note that says Fixture smoke note.\\\\n\\\\n## Why it matters\\\\nThis proves the CLI fixture loop can plan a small observable documentation edit.\\\\n\\\\n## Acceptance checks\\\\n- README.md contains the sentence Fixture smoke note.\\",\\"verify\\":\\"tsc --version\\",\\"verifyTimeoutMs\\":60000,\\"estimatedDifficulty\\":\\"low\\",\\"selectedBecause\\":\\"This is a tiny deterministic slice for the CLI fixture harness.\\",\\"source\\":\\"repository\\",\\"candidateID\\":null},\\"queue\\":[],\\"brief\\":{\\"summary\\":\\"Smoke test the CompassCLI fixture harness on a generated TypeScript workspace.\\",\\"targetUsers\\":[\\"Compass maintainers\\"],\\"desiredOutcomes\\":[\\"A deterministic CLI run edits a file and verifies on host.\\"],\\"constraints\\":[\\"No pnpm dependency for this smoke test.\\"],\\"acceptanceSignals\\":[\\"README.md contains Fixture smoke note.\\"]},\\"openQuestions\\":[]},\\"lessonEdits\\":[]}}"}
