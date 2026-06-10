@@ -1,12 +1,14 @@
 import Foundation
 
-/// Enumerate every file currently in the codemap, optionally narrowed by a
-/// substring or glob-like filter on the relative path. The output is one
-/// path per line with the detected language so the model can quickly find
-/// candidates without paging through `glob`.
+/// Enumerate source files currently in the codemap plus live source files
+/// that may have been created after the last codemap refresh, optionally
+/// narrowed by a substring or glob-like filter on the relative path. The
+/// output is one path per line with the detected language so the model can
+/// quickly find candidates without paging through `glob`.
 struct AgentListFilesTool: AgentTool {
   static let toolName = "list_files"
   static let maxResults = 500
+  static let liveWalkCap = 20_000
 
   struct Arguments: Decodable {
     let filter: String?
@@ -49,14 +51,14 @@ struct AgentListFilesTool: AgentTool {
         "filter": [
           "type": "string",
           "description":
-            "Optional case-insensitive substring or glob-like filter on the relative path. Supports common extension groups like `**/*.{ts,tsx}` and `**/*.(ts|tsx)`. Omit to list every indexed file.",
+            "Optional case-insensitive substring or glob-like filter on the relative path. Supports common extension groups like `**/*.{ts,tsx}` and `**/*.(ts|tsx)`. Omit to list every known source file.",
         ]
       ],
     ])
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "List the repo-relative paths the codemap has indexed, with each file's detected language. Use a `filter` substring or glob-like pattern to narrow to a subdirectory or filename. Common extension groups like `**/*.{ts,tsx}` and `**/*.(ts|tsx)` are accepted. Capped at 500 results.",
+        "List repo-relative source paths from the codemap and live filesystem, with each file's detected language. Use a `filter` substring or glob-like pattern to narrow to a subdirectory or filename. Common extension groups like `**/*.{ts,tsx}` and `**/*.(ts|tsx)` are accepted. Capped at 500 results.",
       parameters: schema
     )
   }
@@ -70,8 +72,23 @@ struct AgentListFilesTool: AgentTool {
       return .failure(.invalidArguments(agentToolDecodingErrorDescription(error)))
     }
     let filter = args.filter?.trimmingCharacters(in: .whitespacesAndNewlines)
-    let store = context.codemapStore()
-    var entries = store.loadAllEntries()
+    var entriesByPath = Dictionary(
+      uniqueKeysWithValues: context.codemapStore().loadAllEntries().map { entry in
+        (
+          entry.relativePath,
+          ListedFile(
+            relativePath: entry.relativePath,
+            language: entry.language,
+            symbolCount: entry.symbols.count
+          )
+        )
+      })
+    for liveEntry in await Self.liveSourceFiles(context: context)
+    where entriesByPath[liveEntry.relativePath] == nil {
+      entriesByPath[liveEntry.relativePath] = liveEntry
+    }
+
+    var entries = Array(entriesByPath.values)
     let filterVariants = filter.map(Self.filterVariants) ?? []
     if let filter, !filter.isEmpty {
       entries = entries.filter { entry in
@@ -82,7 +99,7 @@ struct AgentListFilesTool: AgentTool {
     if entries.isEmpty {
       let suffix = (filter.flatMap { $0.isEmpty ? nil : " matching '\($0)'" }) ?? ""
       return .ok(
-        "(no codemap files\(suffix))\(Self.emptyResultHint(for: filter, variants: filterVariants))")
+        "(no source files\(suffix))\(Self.emptyResultHint(for: filter, variants: filterVariants))")
     }
 
     let truncated = entries.count > Self.maxResults
@@ -94,10 +111,45 @@ struct AgentListFilesTool: AgentTool {
       lines.append("matched normalized filters: \(note)")
     }
     for entry in shown {
-      let count = entry.symbols.count
-      lines.append("  \(entry.relativePath)  [\(entry.language.displayName), \(count) symbol(s)]")
+      if let count = entry.symbolCount {
+        lines.append("  \(entry.relativePath)  [\(entry.language.displayName), \(count) symbol(s)]")
+      } else {
+        lines.append("  \(entry.relativePath)  [\(entry.language.displayName), unindexed]")
+      }
     }
     return .ok(lines.joined(separator: "\n"))
+  }
+
+  private struct ListedFile {
+    let relativePath: String
+    let language: CodemapLanguage
+    let symbolCount: Int?
+  }
+
+  private static func liveSourceFiles(context: AgentToolContext) async -> [ListedFile] {
+    guard
+      let matches = try? await context.filesystem.glob(
+        pattern: "**/*",
+        under: context.workingDirectory,
+        walkCap: liveWalkCap
+      )
+    else {
+      return []
+    }
+
+    return matches.compactMap { match in
+      let relativePath = context.relativize(match.url)
+      guard RepositoryWalkRules.shouldInclude(relativePath: relativePath),
+        let language = CodemapLanguage.forRelativePath(relativePath)
+      else {
+        return nil
+      }
+      return ListedFile(
+        relativePath: relativePath,
+        language: language,
+        symbolCount: nil
+      )
+    }
   }
 
   private static func filterVariants(for filter: String) -> [String] {

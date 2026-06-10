@@ -40,6 +40,62 @@ struct AgentListFilesToolTests {
     #expect(!braced.isError)
     #expect(braced.content.contains("packages/web/src/App.tsx"))
   }
+
+  @Test
+  func includesLiveSourceFilesMissingFromCodemap() async throws {
+    let tempURL = try makeListFilesTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let cliSrc =
+      tempURL
+      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "cli", directoryHint: .isDirectory)
+      .appending(path: "src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
+    try "export function main() { return true; }\n".write(
+      to: cliSrc.appending(path: "main.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    try "export function summarizeCLI() { return 'ok'; }\n".write(
+      to: cliSrc.appending(path: "summarize.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    try "compiled output".write(
+      to: cliSrc.appending(path: "ignored.txt"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let codemapURL = tempURL.appending(path: "codemap", directoryHint: .isDirectory)
+    let store = CodemapStore(directory: codemapURL)
+    try store.saveEntry(entry("packages/cli/src/main.ts", language: .typescript))
+
+    let result = try await AgentListFilesTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/src"}"#.utf8),
+      context: AgentToolContext(
+        workingDirectory: tempURL,
+        codemapStoreDirectory: codemapURL
+      )
+    )
+
+    #expect(!result.isError)
+    #expect(result.content.contains("files: 2"))
+    #expect(result.content.contains("packages/cli/src/main.ts  [TypeScript, 0 symbol(s)]"))
+    #expect(result.content.contains("packages/cli/src/summarize.ts  [TypeScript, unindexed]"))
+    #expect(!result.content.contains("ignored.txt"))
+
+    let globResult = try await AgentListFilesTool().invoke(
+      arguments: Data(#"{"pattern":"packages/cli/src/*.ts"}"#.utf8),
+      context: AgentToolContext(
+        workingDirectory: tempURL,
+        codemapStoreDirectory: codemapURL
+      )
+    )
+    #expect(!globResult.isError)
+    #expect(globResult.content.contains("packages/cli/src/summarize.ts"))
+  }
 }
 
 private func makeListFilesTempDirectory() throws -> URL {
