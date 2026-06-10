@@ -111,6 +111,64 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("Example insert after line 6"))
     #expect(result.content.contains("Use write_file instead only when creating a new file"))
   }
+
+  @Test
+  func editFileRejectsReadFileLineNumberPrefixesInReplacementContent() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "notes.txt")
+    try "const ok = true;\n".write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"notes.txt"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"notes.txt","startLine":1,"endLine":1,"content":"    10\tconst bad = true;"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("line-number prefixes"))
+    #expect(result.content.contains("pass only source text"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == "const ok = true;\n")
+  }
+
+  @Test
+  func editFileRejectsReadFileFooterTextInReplacementContent() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "notes.txt")
+    try "const ok = true;\n".write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"notes.txt"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"notes.txt","edits":[{"startLine":1,"endLine":1,"replacementLines":["const bad = true;","(total 12 lines)"]}]}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("read_file footer text"))
+    #expect(result.content.contains("pass only source text"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == "const ok = true;\n")
+  }
 }
 
 private func makeToolGuidanceTempDirectory() throws -> URL {

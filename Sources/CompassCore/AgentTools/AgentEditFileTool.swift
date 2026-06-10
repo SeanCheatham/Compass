@@ -344,6 +344,12 @@ struct AgentEditFileTool: AgentTool {
             "edits[\(idx)].endLine must be >= startLine - 1; got startLine=\(edit.startLine), endLine=\(edit.endLine)"
           ))
       }
+      if let contamination = Self.replacementLineContamination(in: edit.replacementLines) {
+        return .failure(
+          .invalidArguments(
+            "edits[\(idx)].replacementLines appears to include \(contamination.kind) copied from read_file output at replacement line \(contamination.lineNumber): \(contamination.preview). Remove read_file line-number prefixes and footer text; pass only source text."
+          ))
+      }
     }
 
     let url: URL
@@ -499,6 +505,41 @@ struct AgentEditFileTool: AgentTool {
       let display = raw.count > 160 ? String(raw.prefix(160)) + "…" : raw
       return "  line \(number): \(display)"
     }
+  }
+
+  private struct ReplacementLineContamination {
+    let kind: String
+    let lineNumber: Int
+    let preview: String
+  }
+
+  private static func replacementLineContamination(in lines: [String])
+    -> ReplacementLineContamination?
+  {
+    for (index, line) in lines.enumerated() {
+      let trimmedWhitespace = line.trimmingCharacters(in: .whitespaces)
+      let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      if trimmedWhitespace.range(of: #"^\d+\t"#, options: .regularExpression) != nil {
+        return ReplacementLineContamination(
+          kind: "line-number prefixes",
+          lineNumber: index + 1,
+          preview: linePreview(line)
+        )
+      }
+      if trimmedLine.range(of: #"^\(total \d+ lines\)$"#, options: .regularExpression) != nil {
+        return ReplacementLineContamination(
+          kind: "read_file footer text",
+          lineNumber: index + 1,
+          preview: linePreview(line)
+        )
+      }
+    }
+    return nil
+  }
+
+  private static func linePreview(_ line: String) -> String {
+    let display = line.count > 80 ? String(line.prefix(80)) + "..." : line
+    return "`\(display)`"
   }
 
   private static func fileLines(from text: String) -> [String] {
