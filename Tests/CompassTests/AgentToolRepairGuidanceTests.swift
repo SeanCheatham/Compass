@@ -171,6 +171,50 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func writeFileRejectsDuplicatePackageEntrypoint() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let cliDirectory =
+      tempURL
+      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "cli", directoryHint: .isDirectory)
+    let cliSrc = cliDirectory.appending(path: "src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
+    try "export function main() {}\n".write(
+      to: cliSrc.appending(path: "main.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    try """
+    {
+      "name": "@compass-test/cli",
+      "type": "module",
+      "bin": {
+        "compass-test": "./src/main.ts"
+      }
+    }
+    """.write(
+      to: cliDirectory.appending(path: "package.json"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let result = try await AgentWriteFileTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/src/cli.ts","content":"export {};"}"#.utf8),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("write_file refused to create packages/cli/src/cli.ts"))
+    #expect(result.content.contains("packages/cli/package.json"))
+    #expect(result.content.contains("bin.compass-test"))
+    #expect(result.content.contains("packages/cli/src/main.ts"))
+    #expect(result.content.contains("Edit packages/cli/src/main.ts instead"))
+  }
+
+  @Test
   func editFileMissingLineFieldsShowsRepairShape() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

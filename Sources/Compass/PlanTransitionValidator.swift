@@ -215,7 +215,8 @@ enum PlanTransitionValidator {
     let suspiciousNewPaths = explicitPaths.compactMap { path -> String? in
       guard isExplicitNewFilePath(path, in: plan),
         !FileManager.default.fileExists(atPath: repoURL.appending(path: path).path),
-        let conflict = packageEntryPointConflict(forNewPath: path, repoURL: repoURL)
+        let conflict = packageEntryPointConflict(forNewPath: path, repoURL: repoURL),
+        !planExplicitlyMovesEntryPoint(to: path, conflict: conflict, in: plan)
       else {
         return nil
       }
@@ -223,12 +224,26 @@ enum PlanTransitionValidator {
     }
     guard suspiciousNewPaths.isEmpty else {
       let details = suspiciousNewPaths.prefix(4).joined(separator: "\n")
+      let repairs = explicitPaths.compactMap { path -> String? in
+        guard isExplicitNewFilePath(path, in: plan),
+          !FileManager.default.fileExists(atPath: repoURL.appending(path: path).path),
+          let conflict = packageEntryPointConflict(forNewPath: path, repoURL: repoURL),
+          !planExplicitlyMovesEntryPoint(to: path, conflict: conflict, in: plan)
+        else {
+          return nil
+        }
+        return
+          "- Replace `\(path)` with `\(conflict.declaredPath)` in the Outcome and Acceptance checks."
+      }.prefix(4).joined(separator: "\n")
       throw PlanTransitionValidationError(
         message: """
           Plan marked new file paths that look like duplicate package entry points:
           \(details)
 
-          Read the existing entry point and update it, or include an explicit package.json routing change if the new file must become the entry point.
+          Repair the handoff by targeting the existing entry point:
+          \(repairs)
+
+          Do not resubmit the same new-file path. Do not add a second package.json entry for the same CLI. If the new file truly must replace the existing entry point, explicitly say to change the listed package.json field from the existing path to the new path and explain why.
           """,
         reason: .ungroundedPaths
       )
@@ -425,6 +440,31 @@ enum PlanTransitionValidator {
     conflict: PackageEntryPointConflict
   ) -> String {
     "- \(path) (\(conflict.manifestPath) \(conflict.field) already points at \(conflict.declaredPath))"
+  }
+
+  private static func planExplicitlyMovesEntryPoint(
+    to path: String,
+    conflict: PackageEntryPointConflict,
+    in plan: String
+  ) -> Bool {
+    let loweredPlan = plan.lowercased()
+    let loweredPath = path.lowercased()
+    let loweredDeclaredPath = conflict.declaredPath.lowercased()
+    let loweredField = conflict.field.lowercased()
+    guard loweredPlan.contains(loweredPath),
+      loweredPlan.contains(loweredDeclaredPath),
+      loweredPlan.contains(loweredField)
+    else {
+      return false
+    }
+    return [
+      "change",
+      "replace",
+      "move",
+      "point",
+      "route",
+      "reroute",
+    ].contains { loweredPlan.contains($0) }
   }
 
   private static func isEntryPointAlias(_ path: String) -> Bool {

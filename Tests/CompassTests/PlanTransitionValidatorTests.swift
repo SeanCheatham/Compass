@@ -77,7 +77,28 @@ struct PlanTransitionValidatorTests {
       #expect(error.message.contains("packages/cli/package.json"))
       #expect(error.message.contains("bin.compass-test"))
       #expect(error.message.contains("packages/cli/src/main.ts"))
+      #expect(
+        error.message.contains(
+          "Replace `packages/cli/src/cli.ts` with `packages/cli/src/main.ts`"
+        ))
+      #expect(error.message.contains("Do not resubmit the same new-file path"))
     }
+
+    let explicitEntrypointMove = planState(
+      """
+      ## Outcome
+      Change `bin.compass-test` from `packages/cli/src/main.ts` to `packages/cli/src/cli.ts`, then create new file `packages/cli/src/cli.ts` as the replacement CLI entry point.
+
+      ## Acceptance checks
+      - The package bin routes compass-test through the replacement entry point.
+      """
+    )
+
+    try PlanTransitionValidator.validate(
+      from: .empty,
+      to: explicitEntrypointMove,
+      repoURL: tempURL
+    )
 
     let explicitNewUtilityFile = planState(
       """
