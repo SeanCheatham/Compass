@@ -468,6 +468,16 @@ struct AgentEditFileTool: AgentTool {
     }
 
     current = Self.joinLines(lines)
+    if let selfReference = Self.newSelfRelativeModuleReference(
+      originalText: originalText,
+      editedText: current,
+      sourceURL: url
+    ) {
+      return .failure(
+        .invalidArguments(
+          "edit_file would introduce self-referential relative module \(selfReference.specifier) in \(relative). A file cannot import or export from itself; define the symbol directly in \(relative), or move it to a separate file and import that file."
+        ))
+    }
     if let missingReference = await Self.newMissingRelativeModuleReference(
       originalText: originalText,
       editedText: current,
@@ -680,6 +690,31 @@ struct AgentEditFileTool: AgentTool {
         specifier: "`\(specifier)`",
         expectedDescription: expected
       )
+    }
+    return nil
+  }
+
+  private struct SelfRelativeModuleReference {
+    let specifier: String
+  }
+
+  private static func newSelfRelativeModuleReference(
+    originalText: String,
+    editedText: String,
+    sourceURL: URL
+  ) -> SelfRelativeModuleReference? {
+    let originalReferences = relativeModuleReferences(in: originalText)
+    for specifier in relativeModuleReferences(in: editedText)
+    where !originalReferences.contains(specifier) {
+      let baseURL = sourceURL.deletingLastPathComponent()
+        .appending(path: specifier)
+        .standardizedFileURL
+      let sourcePath = sourceURL.standardizedFileURL.path
+      if moduleResolutionCandidates(for: baseURL).contains(where: {
+        $0.standardizedFileURL.path == sourcePath
+      }) {
+        return SelfRelativeModuleReference(specifier: "`\(specifier)`")
+      }
     }
     return nil
   }

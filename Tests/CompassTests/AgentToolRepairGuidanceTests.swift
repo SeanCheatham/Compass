@@ -424,6 +424,42 @@ struct AgentToolRepairGuidanceTests {
     let changed = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(changed.contains("./utils"))
   }
+
+  @Test
+  func editFileRejectsNewSelfRelativeModuleImport() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    let fileURL = srcURL.appending(path: "main.ts")
+    try """
+    export function main(): string {
+      return "ok";
+    }
+    """.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/main.ts","startLine":1,"endLine":1,"content":"import { summarizeCLI } from './main';\nexport function main(): string {"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("self-referential relative module `./main`"))
+    #expect(result.content.contains("A file cannot import or export from itself"))
+    #expect(result.content.contains("define the symbol directly in packages/cli/src/main.ts"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(!unchanged.contains("./main"))
+  }
 }
 
 private func makeToolGuidanceTempDirectory() throws -> URL {
