@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "description": "Critic phase submit payload. Approve when the diff is fit to land; request changes only with a concrete fix.",
+  "additionalProperties": false,
+  "required": ["verdict", "summary", "feedback"],
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "description": "approve or request_changes. Use request_changes only for a real, fixable problem.",
+      "enum": ["approve", "request_changes"]
+    },
+    "summary": {
+      "type": "string",
+      "description": "One to three concise sentences for the human reviewer and run log."
+    },
+    "feedback": {
+      "type": "string",
+      "description": "When requesting changes, a concrete punch list with the failing behavior or file and the smallest Develop recovery action. Use an empty string when approving."
+    }
+  }
+}

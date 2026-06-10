@@ -53,23 +53,41 @@ private struct AgentSettingsTab: View {
         }
 
         HStack {
-          Button("Download") {
+          Button {
             localModelManager.downloadBlessedModel()
+          } label: {
+            Label("Download", systemImage: "arrow.down.circle")
           }
-          .disabled(localModelManager.isDownloadActive || localModelManager.snapshot.status == .loaded)
+          .disabled(localModelManager.isDownloadActive || localModelManager.snapshot.isRunnable)
 
-          Button("Cancel") {
+          Button {
             localModelManager.cancelDownload()
+          } label: {
+            Label("Cancel", systemImage: "xmark.circle")
           }
           .disabled(!localModelManager.isDownloadActive)
 
-          Button("Delete", role: .destructive) {
+          Button(role: .destructive) {
             localModelManager.deleteBlessedModel()
+          } label: {
+            Label("Delete", systemImage: "trash")
           }
           .disabled(localModelManager.isDownloadActive || localModelManager.snapshot.status == .missing)
 
-          Button("Open Model Folder") {
+          Button {
             localModelManager.openModelFolder()
+          } label: {
+            Label("Open Model Folder", systemImage: "folder")
+          }
+        }
+
+        if localModelManager.isDownloadActive {
+          if let fraction = localModelManager.snapshot.progressFraction {
+            ProgressView(value: fraction)
+              .help("Downloading \(localModelManager.snapshot.modelID)")
+          } else {
+            ProgressView()
+              .help("Downloading \(localModelManager.snapshot.modelID)")
           }
         }
       }

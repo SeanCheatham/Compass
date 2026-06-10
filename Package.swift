@@ -9,6 +9,8 @@ let package = Package(
   ],
   products: [
     .executable(name: "Compass", targets: ["Compass"]),
+    .executable(name: "compass-cli", targets: ["CompassCLI"]),
+    .library(name: "CompassCore", targets: ["CompassCore"]),
     .executable(name: "CompassGuestAgent", targets: ["CompassGuestAgent"]),
     .library(name: "CompassAgentRPC", targets: ["CompassAgentRPC"]),
   ],
@@ -60,6 +62,27 @@ let package = Package(
       name: "CompassGuestAgent",
       dependencies: ["CompassAgentRPC"]
     ),
+    .target(
+      name: "CompassCore",
+      dependencies: [
+        "TreeSitterScanners",
+        .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
+        .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
+        .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
+        .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
+        .product(name: "MLXLLM", package: "mlx-swift-lm"),
+        .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
+        .product(name: "HuggingFace", package: "swift-huggingface"),
+        .product(name: "Tokenizers", package: "swift-transformers"),
+      ],
+      resources: [
+        .process("Resources")
+      ]
+    ),
+    .executableTarget(
+      name: "CompassCLI",
+      dependencies: ["CompassCore"]
+    ),
     .executableTarget(
       name: "Compass",
       dependencies: [
@@ -71,7 +94,6 @@ let package = Package(
         .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
         .product(name: "MLXLLM", package: "mlx-swift-lm"),
         .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
-        .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
         .product(name: "HuggingFace", package: "swift-huggingface"),
         .product(name: "Tokenizers", package: "swift-transformers"),
       ],
@@ -88,7 +110,11 @@ let package = Package(
     ),
     .testTarget(
       name: "CompassTests",
-      dependencies: ["Compass", .product(name: "Testing", package: "swift-testing")]
+      dependencies: [
+        "Compass",
+        "CompassCore",
+        .product(name: "Testing", package: "swift-testing"),
+      ]
     ),
   ]
 )

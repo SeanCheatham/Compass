@@ -1,0 +1,116 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state", "lessonEdits"],
+  "properties": {
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["immediate", "queue", "brief", "openQuestions"],
+      "properties": {
+        "immediate": {
+          "anyOf": [
+            { "$ref": "#/$defs/immediate" },
+            { "type": "null" }
+          ]
+        },
+        "queue": {
+          "type": "array",
+          "maxItems": 6,
+          "items": { "$ref": "#/$defs/workItem" }
+        },
+        "brief": { "$ref": "#/$defs/brief" },
+        "openQuestions": {
+          "type": "array",
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/question" }
+        }
+      }
+    },
+    "lessonEdits": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/lessonEdit" }
+    }
+  },
+  "$defs": {
+    "immediate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan", "verify"],
+      "properties": {
+        "plan": { "type": "string", "minLength": 1 },
+        "verify": { "type": "string", "minLength": 1 },
+        "verifyTimeoutMs": { "type": ["integer", "null"], "minimum": 1 },
+        "estimatedDifficulty": {
+          "type": ["string", "null"],
+          "enum": ["low", "medium", "high", null]
+        },
+        "selectedBecause": { "type": ["string", "null"] },
+        "source": {
+          "type": ["string", "null"],
+          "enum": ["draft", "feedback", "candidate", "focus", "repository", "repair", null]
+        },
+        "candidateID": { "type": ["string", "null"] }
+      }
+    },
+    "workItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "outcome", "why", "category", "origin", "priority", "status", "evidence", "blockedBy"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "outcome": { "type": "string" },
+        "why": { "type": "string" },
+        "category": {
+          "type": "string",
+          "enum": ["feature", "test", "cleanup", "docs", "bugHunt", "reliability", "exploration"]
+        },
+        "origin": {
+          "type": "string",
+          "enum": ["draft", "feedback", "repository", "plan", "lesson", "user"]
+        },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "status": {
+          "type": "string",
+          "enum": ["available", "active", "blocked", "deferred", "done", "stale"]
+        },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "blockedBy": { "type": "array", "items": { "type": "string" } },
+        "risk": { "type": ["string", "null"] }
+      }
+    },
+    "brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "targetUsers", "desiredOutcomes", "constraints", "acceptanceSignals"],
+      "properties": {
+        "summary": { "type": "string" },
+        "targetUsers": { "type": "array", "items": { "type": "string" } },
+        "desiredOutcomes": { "type": "array", "items": { "type": "string" } },
+        "constraints": { "type": "array", "items": { "type": "string" } },
+        "acceptanceSignals": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "question", "impact"],
+      "properties": {
+        "id": { "type": "string" },
+        "question": { "type": "string" },
+        "impact": { "type": "string" }
+      }
+    },
+    "lessonEdit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["find", "replace"],
+      "properties": {
+        "find": { "type": "string" },
+        "replace": { "type": "string" },
+        "replaceAll": { "type": ["boolean", "null"] }
+      }
+    }
+  }
+}

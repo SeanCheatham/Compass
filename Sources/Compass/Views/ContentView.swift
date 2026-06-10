@@ -4,6 +4,7 @@ import SwiftUI
 struct ContentView: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject private var sharedVMHost: SharedCompassVM = .shared
+  @ObservedObject private var localModelManager: LocalModelManager = .shared
 
   var body: some View {
     Group {
@@ -27,7 +28,7 @@ struct ContentView: View {
   /// Mandatory onboarding gate. Compass routes every agent run through
   /// the Shared VM and needs the local MLX model before agent runs can start.
   private var isOnboardingComplete: Bool {
-    sharedVMHost.readiness.isReady && model.agentSettings.isTextCapabilityReady
+    sharedVMHost.readiness.isReady && localModelManager.snapshot.isRunnable
   }
 
   @ViewBuilder

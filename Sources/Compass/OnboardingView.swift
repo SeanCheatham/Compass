@@ -110,10 +110,9 @@ struct OnboardingView: View {
   }
 
   /// True when the Text capability is ready to drive a run. Mirrors
-  /// `ContentView.isOnboardingComplete`'s Text-side check — see
-  /// `AgentRuntimeSettings.isTextCapabilityReady`.
+  /// `ContentView.isOnboardingComplete`'s Text-side check.
   private var textProviderConfigured: Bool {
-    model.agentSettings.isTextCapabilityReady
+    localModelManager.snapshot.isRunnable
   }
 
   @ViewBuilder
@@ -148,7 +147,22 @@ struct OnboardingView: View {
   }
 
   private var textProviderBlockerText: String {
-    "Download the blessed MLX model in Settings."
+    let snapshot = localModelManager.snapshot
+    switch snapshot.status {
+    case .downloading:
+      return "\(snapshot.modelID) is \(snapshot.statusLabel.lowercased())."
+    case .error:
+      if let error = snapshot.errorMessage {
+        return "\(snapshot.modelID) download failed: \(error)"
+      }
+      return "\(snapshot.modelID) download failed."
+    case .missing:
+      return "Download the blessed MLX model in Settings."
+    case .unloading:
+      return "Compass is unloading the local model."
+    case .ready, .loaded:
+      return "\(snapshot.modelID) is ready."
+    }
   }
 
   /// After provisioning lands at `.guestPrepping`, we need to kick the
@@ -374,19 +388,36 @@ private struct LocalModelStepBody: View {
   @ObservedObject private var localModelManager = LocalModelManager.shared
 
   var body: some View {
+    let snapshot = localModelManager.snapshot
     HStack(alignment: .top, spacing: 10) {
-      Image(systemName: localModelManager.snapshot.isRunnable ? "cpu" : "arrow.down.circle")
-        .foregroundStyle(localModelManager.snapshot.isRunnable ? Color.accentColor : .orange)
+      Image(systemName: snapshot.isRunnable ? "cpu" : "arrow.down.circle")
+        .foregroundStyle(snapshot.isRunnable ? Color.accentColor : .orange)
         .padding(.top, 2)
       VStack(alignment: .leading, spacing: 4) {
-        Text(localModelManager.snapshot.isRunnable ? "MLX model ready" : "MLX model missing")
+        Text(localModelTitle(snapshot))
           .font(.callout.weight(.semibold))
         Text(
-          "\(localModelManager.snapshot.modelID) is \(localModelManager.snapshot.statusLabel.lowercased())."
+          "\(snapshot.modelID) is \(snapshot.statusLabel.lowercased())."
         )
         .font(.caption)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
+
+        if let error = snapshot.errorMessage, snapshot.status == .error {
+          Text(error)
+            .font(.caption)
+            .foregroundStyle(.red)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        if localModelManager.isDownloadActive {
+          if let fraction = snapshot.progressFraction {
+            ProgressView(value: fraction)
+          } else {
+            ProgressView()
+          }
+        }
+
         HStack {
           Button {
             localModelManager.downloadBlessedModel()
@@ -411,6 +442,21 @@ private struct LocalModelStepBody: View {
     }
     .onAppear {
       localModelManager.refresh()
+    }
+  }
+
+  private func localModelTitle(_ snapshot: LocalModelSnapshot) -> String {
+    switch snapshot.status {
+    case .ready, .loaded:
+      return "MLX model ready"
+    case .downloading:
+      return "MLX model downloading"
+    case .error:
+      return "MLX model download failed"
+    case .missing:
+      return "MLX model missing"
+    case .unloading:
+      return "MLX model removing"
     }
   }
 }

@@ -75,6 +75,7 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     let textReady = settings.isTextCapabilityRunnable(
       localModelReady: modelSnapshot.isRunnable
     )
+    let modelDownloading = modelSnapshot.status == .downloading
     let vmReady = vmReadiness.isReady
     let vmInProgress = Self.vmIsInProgress(vmReadiness)
 
@@ -85,6 +86,15 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
       actionLabel = "Ready"
       tone = .ready
       systemImageName = "checkmark.seal.fill"
+    } else if modelDownloading {
+      title = "Downloading Local Model"
+      detail = Self.textDetail(
+        settings: settings,
+        modelSnapshot: modelSnapshot
+      )
+      actionLabel = modelSnapshot.statusLabel
+      tone = .inProgress
+      systemImageName = "arrow.down.circle"
     } else if !textReady {
       title = "Download Local Model"
       detail = Self.textDetail(
@@ -138,6 +148,14 @@ struct OnboardingReadinessGuide: Equatable, Sendable {
     modelSnapshot: LocalModelSnapshot
   ) -> String {
     _ = settings
+    if modelSnapshot.status == .downloading {
+      return "\(modelSnapshot.modelID) is \(modelSnapshot.statusLabel.lowercased()). Compass will unlock model runs when the download finishes."
+    }
+    if let error = modelSnapshot.errorMessage,
+      modelSnapshot.status == .error
+    {
+      return "\(modelSnapshot.modelID) download failed: \(error)"
+    }
     return "\(modelSnapshot.modelID) is \(modelSnapshot.statusLabel.lowercased()). Download it before Compass can ask an agent to plan or develop."
   }
 

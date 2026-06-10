@@ -4,6 +4,8 @@
 <dict>
 	<key>com.apple.security.virtualization</key>
 	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
 	<!--
 	Enables the data protection keychain on macOS, scoping items by
 	`<team>.<bundle>` instead of cdhash. Required by

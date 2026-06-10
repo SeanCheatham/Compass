@@ -1,0 +1,182 @@
+import Foundation
+import Testing
+
+@testable import CompassCore
+
+@Suite("CompassCLI")
+struct CompassCLITests {
+  @Test
+  func parsesSupportedCommands() throws {
+    if case .doctor(let repo, let format) = try CompassCLICommand.parse([
+      "doctor", "--repo", "/tmp/project", "--format", "text",
+    ]) {
+      #expect(repo.path == "/tmp/project")
+      #expect(format == .text)
+    } else {
+      Issue.record("Expected doctor command.")
+    }
+
+    if case .scaffoldTypeScript(let path, let name, let format) = try CompassCLICommand.parse([
+      "scaffold", "typescript", "/tmp/new-project", "--name", "new-project",
+    ]) {
+      #expect(path.path == "/tmp/new-project")
+      #expect(name == "new-project")
+      #expect(format == .json)
+    } else {
+      Issue.record("Expected scaffold command.")
+    }
+
+    if case .run(let options, let format) = try CompassCLICommand.parse([
+      "run", "--repo", "/tmp/project", "--brief", "Add a slice", "--mode", "fixture",
+      "--fixture", "/tmp/fixture.jsonl", "--max-iterations", "3", "--prompt-log", "/tmp/prompts",
+      "--critic", "--format", "text",
+    ]) {
+      #expect(options.repoURL.path == "/tmp/project")
+      #expect(options.brief == "Add a slice")
+      #expect(options.mode == .fixture)
+      #expect(options.fixtureURL?.path == "/tmp/fixture.jsonl")
+      #expect(options.promptLogDirectory?.path == "/tmp/prompts")
+      #expect(options.maxIterations == 3)
+      #expect(options.runCritic)
+      #expect(format == .text)
+    } else {
+      Issue.record("Expected run command.")
+    }
+
+    if case .replay(let repo, let session, let mode, let fixture, _, let maxIterations, _) =
+      try CompassCLICommand.parse([
+        "replay", "--repo", "/tmp/project", "--session", "7", "--mode", "fixture",
+        "--fixture", "/tmp/fixture.jsonl", "--max-iterations", "2",
+      ])
+    {
+      #expect(repo.path == "/tmp/project")
+      #expect(session == 7)
+      #expect(mode == .fixture)
+      #expect(fixture?.path == "/tmp/fixture.jsonl")
+      #expect(maxIterations == 2)
+    } else {
+      Issue.record("Expected replay command.")
+    }
+
+    if case .verify(let repo, let command, let format) = try CompassCLICommand.parse([
+      "verify", "--repo", "/tmp/project", "--command", "pnpm verify", "--format", "text",
+    ]) {
+      #expect(repo.path == "/tmp/project")
+      #expect(command == "pnpm verify")
+      #expect(format == .text)
+    } else {
+      Issue.record("Expected verify command.")
+    }
+  }
+
+  @Test
+  func parserRejectsMissingArguments() {
+    #expect(throws: CompassCLIError.self) {
+      try CompassCLICommand.parse(["doctor"])
+    }
+    #expect(throws: CompassCLIError.self) {
+      try CompassCLICommand.parse(["scaffold", "rust", "/tmp/project"])
+    }
+    #expect(throws: CompassCLIError.self) {
+      try CompassCLICommand.parse(["run", "--repo", "/tmp/project"])
+    }
+    #expect(throws: CompassCLIError.self) {
+      try CompassCLICommand.parse(["replay", "--repo", "/tmp/project", "--session", "nope"])
+    }
+  }
+
+  @Test
+  func pnpmPreflightDetectsCommandsThatRequirePnpm() {
+    #expect(HostToolchainPreflight.verifyCommandRequiresPnpm("pnpm verify"))
+    #expect(HostToolchainPreflight.verifyCommandRequiresPnpm("corepack pnpm test -- --coverage"))
+    #expect(!HostToolchainPreflight.verifyCommandRequiresPnpm("tsc --version"))
+    #expect(!HostToolchainPreflight.verifyCommandRequiresPnpm("swift test"))
+  }
+
+  @Test
+  func editFileAcceptsInsertAliases() throws {
+    let plain = try JSONDecoder().decode(
+      AgentEditFileTool.Arguments.self,
+      from: Data(
+        #"{"path":"README.md","startLine":2,"endLine":1,"insert":["hello",""]}"#.utf8
+      )
+    )
+    #expect(plain.path == "README.md")
+    #expect(plain.edits[0].replacementLines == ["hello", ""])
+
+    let underscored = try JSONDecoder().decode(
+      AgentEditFileTool.Arguments.self,
+      from: Data(
+        #"{"path":"README.md","edits":[{"startLine":2,"endLine":1,"_insert":"hello"}]}"#.utf8
+      )
+    )
+    #expect(underscored.edits[0].replacementLines == ["hello"])
+  }
+
+  @Test
+  func fixtureRunnerPlansDevelopsAndVerifiesHostRepo() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner()
+    try runner.scaffoldTypeScript(at: tempURL, name: "cli-fixture", onEvent: record)
+
+    let fixtureURL = tempURL.appending(path: "fixture.jsonl")
+    try fixtureJSONL.write(to: fixtureURL, atomically: true, encoding: .utf8)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Add a fixture smoke note to the README",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 8,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let readme = try String(contentsOf: tempURL.appending(path: "README.md"), encoding: .utf8)
+    #expect(readme.contains("Fixture smoke note."))
+    let snapshot = events.snapshot()
+    #expect(snapshot.contains { $0.kind == "assistant_json" && $0.phase == "plan" })
+    #expect(snapshot.contains { $0.kind == "tool_end" && $0.metadata?["tool"] == "edit_file" })
+    #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "completed" })
+    #expect(FileManager.default.fileExists(atPath: tempURL.appending(path: ".compass/state.json").path))
+  }
+}
+
+private final class HeadlessEventRecorder: @unchecked Sendable {
+  private let lock = NSLock()
+  private var events: [HeadlessCompassEvent] = []
+
+  func record(_ event: HeadlessCompassEvent) {
+    lock.lock()
+    events.append(event)
+    lock.unlock()
+  }
+
+  func snapshot() -> [HeadlessCompassEvent] {
+    lock.lock()
+    defer { lock.unlock() }
+    return events
+  }
+}
+
+private func makeCLITempDirectory() throws -> URL {
+  let url = FileManager.default.temporaryDirectory
+    .appending(path: "CompassCLITests-\(UUID().uuidString)")
+  try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+  return url
+}
+
+private let fixtureJSONL = """
+  {"text":"{\\"kind\\":\\"plan_submit\\",\\"payload\\":{\\"state\\":{\\"immediate\\":{\\"plan\\":\\"## Outcome\\\\nAdd a short README note that says Fixture smoke note.\\\\n\\\\n## Why it matters\\\\nThis proves the CLI fixture loop can plan a small observable documentation edit.\\\\n\\\\n## Acceptance checks\\\\n- README.md contains the sentence Fixture smoke note.\\",\\"verify\\":\\"tsc --version\\",\\"verifyTimeoutMs\\":60000,\\"estimatedDifficulty\\":\\"low\\",\\"selectedBecause\\":\\"This is a tiny deterministic slice for the CLI fixture harness.\\",\\"source\\":\\"repository\\",\\"candidateID\\":null},\\"queue\\":[],\\"brief\\":{\\"summary\\":\\"Smoke test the CompassCLI fixture harness on a generated TypeScript workspace.\\",\\"targetUsers\\":[\\"Compass maintainers\\"],\\"desiredOutcomes\\":[\\"A deterministic CLI run edits a file and verifies on host.\\"],\\"constraints\\":[\\"No pnpm dependency for this smoke test.\\"],\\"acceptanceSignals\\":[\\"README.md contains Fixture smoke note.\\"]},\\"openQuestions\\":[]},\\"lessonEdits\\":[]}}"}
+  {"text":"{\\"kind\\":\\"develop_continue\\",\\"tool\\":\\"read_file\\",\\"arguments\\":{\\"path\\":\\"README.md\\"},\\"reason\\":\\"Need the current README contents before editing.\\"}"}
+  {"text":"{\\"kind\\":\\"develop_continue\\",\\"tool\\":\\"edit_file\\",\\"arguments\\":{\\"path\\":\\"README.md\\",\\"startLine\\":3,\\"endLine\\":2,\\"insert\\":[\\"Fixture smoke note.\\",\\"\\"]},\\"reason\\":\\"Insert the planned smoke-test note near the top of the README.\\"}"}
+  {"text":"{\\"kind\\":\\"develop_submit\\",\\"payload\\":{\\"status\\":\\"succeeded\\",\\"summary\\":\\"README.md now includes the Fixture smoke note near the top of the file.\\",\\"feedback\\":\\"README.md contains the Fixture smoke note; Plan can pick the next small TypeScript workspace slice.\\",\\"bypassVerify\\":false,\\"lessonEdits\\":[]}}"}
+  """

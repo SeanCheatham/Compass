@@ -76,6 +76,36 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func modelDownloadingGuidesDoNotReportBlocked() {
+    let snapshot = LocalModelSnapshot(
+      runtimeName: LocalModelCatalog.runtimeName,
+      modelID: LocalModelCatalog.blessedModelID,
+      status: .downloading,
+      progressFraction: 0.42,
+      errorMessage: nil,
+      directory: URL(fileURLWithPath: "/tmp/CompassModel")
+    )
+    let settings = AgentRuntimeSettings()
+
+    let settingsGuide = AgentSettingsGuide(settings: settings, modelSnapshot: snapshot)
+    #expect(settingsGuide.title == "Local Model Downloading")
+    #expect(settingsGuide.actionLabel == "Downloading 42%")
+    #expect(settingsGuide.tone == .optionalAttention)
+    #expect(settingsGuide.rows.first?.status == .attention)
+    #expect(!settingsGuide.actionLabel.localizedCaseInsensitiveContains("blocked"))
+
+    let onboardingGuide = OnboardingReadinessGuide(
+      settings: settings,
+      vmReadiness: .notProvisioned,
+      modelSnapshot: snapshot
+    )
+    #expect(onboardingGuide.title == "Downloading Local Model")
+    #expect(onboardingGuide.actionLabel == "Downloading 42%")
+    #expect(onboardingGuide.tone == .inProgress)
+    #expect(!onboardingGuide.actionLabel.localizedCaseInsensitiveContains("blocked"))
+  }
+
+  @Test
   func promptsDoNotMentionRemovedDirections() throws {
     let state = PlanProposal(from: FactoryState.empty)
     let next = PlanNext(
@@ -145,6 +175,7 @@ struct FactoryPivotTests {
     #expect(prompts.contains("local software factory"))
     #expect(prompts.contains("TypeScript"))
     #expect(prompts.contains("pnpm verify"))
+    #expect(prompts.contains("Do not use bare `pnpm test`"))
     #expect(prompts.contains("develop_continue"))
     #expect(prompts.contains("develop_submit"))
   }
@@ -202,6 +233,58 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func typeScriptVerifyGateAcceptsCompassStandardVerify() {
+    #expect(
+      ForgeVerifyValidator.coverageViolation(
+        verify: "pnpm verify",
+        profile: .typeScriptPnpmVite
+      ) == nil
+    )
+    #expect(
+      ForgeVerifyValidator.coverageViolation(
+        verify: "pnpm run verify",
+        profile: .typeScriptPnpmVite
+      ) == nil
+    )
+    #expect(
+      ForgeVerifyValidator.coverageViolation(
+        verify: "pnpm typecheck",
+        profile: .typeScriptPnpmVite
+      ) == nil
+    )
+    #expect(
+      ForgeVerifyValidator.coverageViolation(
+        verify: "pnpm test -- --coverage",
+        profile: .typeScriptPnpmVite
+      ) == nil
+    )
+
+    let violation = ForgeVerifyValidator.coverageViolation(
+      verify: "pnpm test",
+      profile: .typeScriptPnpmVite
+    )
+    #expect(violation != nil)
+    #expect(violation?.contains("pnpm verify") == true)
+  }
+
+  @Test
+  func coverageRepairNudgeNamesExactTypeScriptVerifyCommand() {
+    let error = PlanTransitionValidationError(
+      message: "Verify command must collect coverage.",
+      reason: .coverageRequirement,
+      missingLabels: ["Coverage-ready verify command"],
+      rejectedVerify: "pnpm test"
+    )
+
+    let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
+
+    #expect(nudge.eventText == "plan_submit rejected")
+    #expect(nudge.userMessage.contains("`pnpm test`"))
+    #expect(nudge.userMessage.contains("`pnpm verify`"))
+    #expect(nudge.userMessage.contains("Do not use bare `pnpm test`"))
+  }
+
+  @Test
   func sharedVMDefaultsNodePnpmAndNotRemovedToolchains() {
     let ids = SharedVMToolchainCatalog.defaultProvisionedIDs
 
@@ -245,6 +328,35 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func continuationParserUnwrapsSingleJSONCodeFence() throws {
+    let json = """
+      ```json
+      {
+        "kind": "plan_continue",
+        "tool": "read_file",
+        "arguments": {
+          "path": "package.json"
+        },
+        "reason": "Need current package scripts."
+      }
+      ```
+      """
+    let parsed = try AgentContinuationParser.parse(
+      json,
+      phase: .plan,
+      availableToolNames: ["read_file"]
+    )
+
+    guard case .continueTool(let toolName, let arguments, let reason) = parsed.action else {
+      Issue.record("Expected continue action")
+      return
+    }
+    #expect(toolName == "read_file")
+    #expect(String(decoding: arguments, as: UTF8.self).contains("package.json"))
+    #expect(reason == "Need current package scripts.")
+  }
+
+  @Test
   func continuationParserAcceptsValidSubmitPerPhase() throws {
     let payloads: [AgentContinuationPhase: String] = [
       .plan: #"{"state":{"immediate":null,"queue":[],"brief":{"summary":"","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}"#,
@@ -272,6 +384,18 @@ struct FactoryPivotTests {
   func continuationParserRejectsMalformedAndInvalidContinuations() {
     #expect(throws: AgentContinuationParseError.self) {
       try AgentContinuationParser.parse("not json", phase: .develop, availableToolNames: [])
+    }
+    #expect(throws: AgentContinuationParseError.self) {
+      try AgentContinuationParser.parse(
+        """
+        Here is the JSON:
+        ```json
+        {"kind":"develop_continue","tool":"read_file","arguments":{}}
+        ```
+        """,
+        phase: .develop,
+        availableToolNames: ["read_file"]
+      )
     }
     #expect(throws: AgentContinuationParseError.self) {
       try AgentContinuationParser.parse(
