@@ -38,6 +38,7 @@ struct AgentEditFileTool: AgentTool {
       case insert
       case insertSnake = "_insert"
       case insertText
+      case insertion
     }
 
     init(from decoder: Decoder) throws {
@@ -119,6 +120,7 @@ struct AgentEditFileTool: AgentTool {
         .insert,
         .insertSnake,
         .insertText,
+        .insertion,
       ].contains { container.contains($0) }
     }
   }
@@ -146,6 +148,7 @@ struct AgentEditFileTool: AgentTool {
       case insert
       case insertSnake = "_insert"
       case insertText
+      case insertion
     }
 
     init(from decoder: Decoder) throws {
@@ -243,6 +246,7 @@ struct AgentEditFileTool: AgentTool {
         .insert,
         .insertSnake,
         .insertText,
+        .insertion,
       ] where container.contains(key) {
         if try container.decodeNil(forKey: key) {
           return []

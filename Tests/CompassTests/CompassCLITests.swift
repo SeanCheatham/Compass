@@ -115,6 +115,17 @@ struct CompassCLITests {
       )
     )
     #expect(underscored.edits[0].replacementLines == ["hello"])
+
+    let insertion = try JSONDecoder().decode(
+      AgentEditFileTool.Arguments.self,
+      from: Data(
+        #"{"path":"README.md","startLine":1,"endLine":1,"insertion":"import { summarizeCLI } from './summarize';\n"}"#
+          .utf8
+      )
+    )
+    #expect(insertion.edits[0].replacementLines == [
+      "import { summarizeCLI } from './summarize';", "",
+    ])
   }
 
   @Test
