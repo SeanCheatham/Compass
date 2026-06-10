@@ -131,6 +131,19 @@ struct AgentWriteFileTool: AgentTool {
     }
     if existing == nil,
       Self.isSourceFile(url),
+      let skeleton = Self.emptyOrCommentOnlySourceContent(
+        in: args.content,
+        pathExtension: url.pathExtension
+      )
+    {
+      let relative = context.relativize(url)
+      return .failure(
+        .invalidArguments(
+          "write_file refused to create \(relative) because source files cannot be empty or comment-only: \(skeleton.preview). Provide the complete implementation in this write_file call, including imports/exports/functions/classes/tests as needed, or submit status=failed/status=blocked if you cannot."
+        ))
+    }
+    if existing == nil,
+      Self.isSourceFile(url),
       let placeholder = Self.placeholderImplementationMarker(in: args.content)
     {
       let relative = context.relativize(url)
@@ -329,6 +342,84 @@ struct AgentWriteFileTool: AgentTool {
   private struct PlaceholderImplementationMarker {
     let lineNumber: Int
     let preview: String
+  }
+
+  private struct EmptyOrCommentOnlySourceContent {
+    let preview: String
+  }
+
+  private static func emptyOrCommentOnlySourceContent(
+    in text: String,
+    pathExtension: String
+  ) -> EmptyOrCommentOnlySourceContent? {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      return EmptyOrCommentOnlySourceContent(preview: "empty content")
+    }
+
+    let stripped = sourceTextWithoutComments(trimmed, pathExtension: pathExtension)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard stripped.isEmpty else { return nil }
+
+    let firstLine = trimmed.components(separatedBy: "\n").first?
+      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return EmptyOrCommentOnlySourceContent(
+      preview: "`\(String(firstLine.prefix(120)))`"
+    )
+  }
+
+  private static func sourceTextWithoutComments(
+    _ text: String,
+    pathExtension: String
+  ) -> String {
+    let ext = pathExtension.lowercased()
+    var stripped = text
+
+    if ["html"].contains(ext) {
+      stripped = replacingMatches(
+        in: stripped,
+        pattern: #"<!--.*?-->"#,
+        options: [.dotMatchesLineSeparators]
+      )
+    }
+    if [
+      "c", "cc", "cpp", "css", "go", "h", "hpp", "js", "jsx", "mjs", "mts", "rs", "swift",
+      "ts", "tsx",
+    ].contains(ext) {
+      stripped = replacingMatches(
+        in: stripped,
+        pattern: #"/\*.*?\*/"#,
+        options: [.dotMatchesLineSeparators]
+      )
+      stripped = replacingMatches(in: stripped, pattern: #"(?m)//.*$"#)
+    }
+    if ["py", "rb"].contains(ext) {
+      stripped = replacingMatches(
+        in: stripped,
+        pattern: #"'''.*?'''"#,
+        options: [.dotMatchesLineSeparators]
+      )
+      stripped = replacingMatches(
+        in: stripped,
+        pattern: #""{3}.*?"{3}"#,
+        options: [.dotMatchesLineSeparators]
+      )
+      stripped = replacingMatches(in: stripped, pattern: #"(?m)#.*$"#)
+    }
+
+    return stripped
+  }
+
+  private static func replacingMatches(
+    in text: String,
+    pattern: String,
+    options: NSRegularExpression.Options = []
+  ) -> String {
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else {
+      return text
+    }
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    return regex.stringByReplacingMatches(in: text, range: range, withTemplate: "")
   }
 
   private static func placeholderImplementationMarker(in text: String)

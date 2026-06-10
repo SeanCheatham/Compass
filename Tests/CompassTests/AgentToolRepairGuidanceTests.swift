@@ -300,6 +300,29 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func writeFileRejectsCommentOnlySourceFile() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    let fileURL = srcURL.appending(path: "summarize.ts")
+    let result = try await AgentWriteFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/summarize.ts","content":"// This file holds the summarizeCLI function\n"}"#
+          .utf8
+      ),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("source files cannot be empty or comment-only"))
+    #expect(result.content.contains("complete implementation"))
+    #expect(!FileManager.default.fileExists(atPath: fileURL.path))
+  }
+
+  @Test
   func editFileMissingLineFieldsShowsRepairShape() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
