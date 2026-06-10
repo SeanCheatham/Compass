@@ -394,6 +394,75 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileRejectsSuspiciousTopOfFileBulkInsertion() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "main.ts")
+    let original = """
+    #!/usr/bin/env tsx
+    import { summarizeQueue } from "@compass-test/core";
+
+    export function main(argv = process.argv.slice(2)): string {
+      const title = argv.join(" ").trim() || "First Compass task";
+      return summarizeQueue([{ id: "task-1", title, done: false }]);
+    }
+    """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"main.ts","startLine":1,"endLine":0,"content":"import { summarizeCLI } from \"./summarize\";\n\nexport function main(argv = process.argv.slice(2)): string {\n  const title = argv.join(\" \").trim() || \"First Compass task\";\n  return summarizeCLI([{ id: \"task-1\", title, done: false }]);\n}\n\nif (import.meta.url === `file://${process.argv[1]}`) {\n  console.log(main());\n}"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("whole-file rewrite expressed as an insertion"))
+    #expect(result.content.contains("Do not retry startLine=1, endLine=0"))
+    #expect(result.content.contains("use startLine=1, endLine=7"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == original)
+  }
+
+  @Test
+  func editFileAllowsSmallTopOfFileInsertion() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "main.ts")
+    try "export function main() { return true; }\n".write(
+      to: fileURL,
+      atomically: true,
+      encoding: .utf8
+    )
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"main.ts","startLine":1,"endLine":0,"content":"import { readFileSync } from \"node:fs\";"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(!result.isError)
+    let changed = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(changed.hasPrefix("import { readFileSync } from \"node:fs\";\n"))
+  }
+
+  @Test
   func editFileRejectsClearingNonEmptySourceFile() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

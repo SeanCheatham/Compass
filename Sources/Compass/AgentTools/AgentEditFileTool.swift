@@ -429,6 +429,14 @@ struct AgentEditFileTool: AgentTool {
             .invalidArguments(
               "edits[\(idx)] inserts nothing; provide replacementLines or use a replace range"))
         }
+        if let suspiciousInsertion = Self.suspiciousWholeFileInsertionMessage(
+          editIndex: idx,
+          edit: edit,
+          lineCount: lineCount,
+          isSourceFile: Self.isSourceFile(url)
+        ) {
+          return .failure(.invalidArguments(suspiciousInsertion))
+        }
         lines.insert(contentsOf: edit.replacementLines, at: edit.startLine - 1)
         totalLinesAffected += edit.replacementLines.count
         continue
@@ -670,6 +678,25 @@ struct AgentEditFileTool: AgentTool {
 
     return
       "edits[\(editIndex)] replaces only line \(edit.startLine) with \(edit.replacementLines.count) lines while leaving \(lineCount - edit.endLine) existing lines after it. This looks like a partial whole-file rewrite. Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with the same replacement. If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to insert before line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1). Otherwise replace the exact line range that should be removed."
+  }
+
+  private static func suspiciousWholeFileInsertionMessage(
+    editIndex: Int,
+    edit: EditOperation,
+    lineCount: Int,
+    isSourceFile: Bool
+  ) -> String? {
+    guard isSourceFile,
+      edit.startLine <= 2,
+      lineCount > 0,
+      edit.replacementLines.count >= 8,
+      edit.replacementLines.count >= max(8, lineCount / 2)
+    else {
+      return nil
+    }
+
+    return
+      "edits[\(editIndex)] inserts \(edit.replacementLines.count) lines before line \(edit.startLine) while leaving \(lineCount) existing lines after it. This looks like a whole-file rewrite expressed as an insertion. Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with the same replacement. If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to add an import or header, insert only those new lines. Otherwise replace the exact line range that should be removed."
   }
 
   private struct MissingRelativeModuleReference {
