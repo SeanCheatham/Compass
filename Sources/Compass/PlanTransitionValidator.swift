@@ -211,7 +211,30 @@ enum PlanTransitionValidator {
   }
 
   private static func validateGroundedPaths(in plan: String, repoURL: URL) throws {
-    let missingPaths = explicitFilePaths(in: plan).filter { path in
+    let explicitPaths = explicitFilePaths(in: plan)
+    let suspiciousNewPaths = explicitPaths.compactMap { path -> String? in
+      guard isExplicitNewFilePath(path, in: plan),
+        !FileManager.default.fileExists(atPath: repoURL.appending(path: path).path),
+        let conflict = packageEntryPointConflict(forNewPath: path, repoURL: repoURL)
+      else {
+        return nil
+      }
+      return suspiciousNewFileDetail(path, conflict: conflict)
+    }
+    guard suspiciousNewPaths.isEmpty else {
+      let details = suspiciousNewPaths.prefix(4).joined(separator: "\n")
+      throw PlanTransitionValidationError(
+        message: """
+          Plan marked new file paths that look like duplicate package entry points:
+          \(details)
+
+          Read the existing entry point and update it, or include an explicit package.json routing change if the new file must become the entry point.
+          """,
+        reason: .ungroundedPaths
+      )
+    }
+
+    let missingPaths = explicitPaths.filter { path in
       guard !isExplicitNewFilePath(path, in: plan) else { return false }
       return !FileManager.default.fileExists(atPath: repoURL.appending(path: path).path)
     }
@@ -357,6 +380,116 @@ enum PlanTransitionValidator {
     }
     detail += ")"
     return detail
+  }
+
+  private struct PackageEntryPointConflict {
+    let manifestPath: String
+    let declaredPath: String
+    let field: String
+  }
+
+  private static func packageEntryPointConflict(forNewPath path: String, repoURL: URL)
+    -> PackageEntryPointConflict?
+  {
+    guard isEntryPointAlias(path) else { return nil }
+    let targetURL = repoURL.appending(path: path).standardizedFileURL
+    guard
+      let packageDirectory = nearestPackageDirectory(
+        from: targetURL.deletingLastPathComponent(),
+        repoURL: repoURL
+      ),
+      let entryPoints = packageEntryPoints(in: packageDirectory)
+    else {
+      return nil
+    }
+
+    for entryPoint in entryPoints {
+      let entryURL = packageDirectory.appending(path: entryPoint.path).standardizedFileURL
+      guard entryURL.path != targetURL.path,
+        FileManager.default.fileExists(atPath: entryURL.path)
+      else {
+        continue
+      }
+      return PackageEntryPointConflict(
+        manifestPath: relativePath(
+          packageDirectory.appending(path: "package.json"), repoURL: repoURL),
+        declaredPath: relativePath(entryURL, repoURL: repoURL),
+        field: entryPoint.field
+      )
+    }
+    return nil
+  }
+
+  private static func suspiciousNewFileDetail(
+    _ path: String,
+    conflict: PackageEntryPointConflict
+  ) -> String {
+    "- \(path) (\(conflict.manifestPath) \(conflict.field) already points at \(conflict.declaredPath))"
+  }
+
+  private static func isEntryPointAlias(_ path: String) -> Bool {
+    let stem = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent.lowercased()
+    return ["app", "cli", "index", "main", "server"].contains(stem)
+  }
+
+  private static func nearestPackageDirectory(from url: URL, repoURL: URL) -> URL? {
+    let repoPath = repoURL.standardizedFileURL.path
+    var candidate = url.standardizedFileURL
+    while candidate.path.hasPrefix(repoPath) {
+      let manifestURL = candidate.appending(path: "package.json")
+      if FileManager.default.fileExists(atPath: manifestURL.path) {
+        return candidate
+      }
+      let parent = candidate.deletingLastPathComponent().standardizedFileURL
+      if parent.path == candidate.path { break }
+      candidate = parent
+    }
+    return nil
+  }
+
+  private static func packageEntryPoints(in packageDirectory: URL) -> [(
+    field: String, path: String
+  )]? {
+    let manifestURL = packageDirectory.appending(path: "package.json")
+    guard let data = try? Data(contentsOf: manifestURL),
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else {
+      return nil
+    }
+
+    var entryPoints: [(field: String, path: String)] = []
+    for field in ["main", "module", "browser", "types", "typings"] {
+      if let raw = object[field] as? String,
+        let normalized = normalizedPackageEntryPoint(raw)
+      {
+        entryPoints.append((field, normalized))
+      }
+    }
+    if let raw = object["bin"] as? String,
+      let normalized = normalizedPackageEntryPoint(raw)
+    {
+      entryPoints.append(("bin", normalized))
+    } else if let bin = object["bin"] as? [String: Any] {
+      for key in bin.keys.sorted() {
+        if let raw = bin[key] as? String,
+          let normalized = normalizedPackageEntryPoint(raw)
+        {
+          entryPoints.append(("bin.\(key)", normalized))
+        }
+      }
+    }
+    return entryPoints
+  }
+
+  private static func normalizedPackageEntryPoint(_ raw: String) -> String? {
+    var path = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !path.isEmpty, !path.hasPrefix("#"), !path.contains("://") else { return nil }
+    while path.hasPrefix("./") {
+      path.removeFirst(2)
+    }
+    path = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    guard !path.isEmpty, !path.hasPrefix("../") else { return nil }
+    return path
   }
 
   private static func nearestExistingDirectory(from url: URL, repoURL: URL) -> URL? {
