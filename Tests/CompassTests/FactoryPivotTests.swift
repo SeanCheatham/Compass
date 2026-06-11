@@ -953,6 +953,9 @@ struct FactoryPivotTests {
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 3)
     #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
+    #expect(prompts[2].contains("You just changed files with `write_file` after Compass observed `pnpm verify` exit 0"))
+    #expect(prompts[2].contains("That earlier verify result no longer proves the current worktree"))
+    #expect(prompts[2].contains("call `bash` with `pnpm verify` again"))
     #expect(!prompts[2].contains("Compass already observed this verify command pass"))
   }
 

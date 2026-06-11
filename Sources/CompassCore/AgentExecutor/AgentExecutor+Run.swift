@@ -284,6 +284,17 @@ extension AgentExecutor {
           transcript.append(.assistantNote(note))
         }
         if !result.isError, Self.isFileMutationTool(toolName) {
+          if let lastSuccessfulVerifyCommand {
+            transcript.append(
+              .repair(
+                Self.successfulVerifyInvalidatedByMutationRepairMessage(
+                  command: lastSuccessfulVerifyCommand,
+                  toolName: toolName,
+                  phase: configuration.continuationPhase
+                )
+              )
+            )
+          }
           lastSuccessfulVerifyCommand = nil
         }
         if let command = Self.successfulVerifyCommand(
@@ -846,6 +857,23 @@ extension AgentExecutor {
     If the requested packet and acceptance checks are complete, return `\(phase.submitKind)` now
     with status=succeeded, bypassVerify=false, and feedback naming `\(command)` as verified.
     Continue only if a specific acceptance requirement is still missing.
+    """
+  }
+
+  private static func successfulVerifyInvalidatedByMutationRepairMessage(
+    command: String,
+    toolName: String,
+    phase: AgentContinuationPhase
+  ) -> String {
+    """
+    You just changed files with `\(toolName)` after Compass observed `\(command)` exit 0.
+
+    That earlier verify result no longer proves the current worktree. Do not submit
+    status=succeeded based on the old verify result. Choose exactly one next action:
+    - If the requested packet is now complete, call `bash` with `\(command)` again.
+    - If a specific acceptance requirement is still missing, make that concrete edit now.
+    - If you cannot complete the repair in this budget, return `\(phase.submitKind)` with
+      status=failed or status=blocked and concise feedback.
     """
   }
 
