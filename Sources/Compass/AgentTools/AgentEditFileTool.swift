@@ -129,6 +129,7 @@ struct AgentEditFileTool: AgentTool {
     let startLine: Int
     let endLine: Int
     let replacementLines: [String]
+    let usesInsertionAlias: Bool
 
     enum CodingKeys: String, CodingKey {
       case startLine
@@ -165,7 +166,9 @@ struct AgentEditFileTool: AgentTool {
         aliases: [.endLineSnake, .end],
         fieldName: "endLine"
       )
-      replacementLines = try Self.decodeReplacementLines(from: container)
+      let decodedReplacement = try Self.decodeReplacementLines(from: container)
+      replacementLines = decodedReplacement.lines
+      usesInsertionAlias = decodedReplacement.usesInsertionAlias
     }
 
     private static func decodeRequiredLine<Key: CodingKey>(
@@ -233,7 +236,7 @@ struct AgentEditFileTool: AgentTool {
 
     private static func decodeReplacementLines(
       from container: KeyedDecodingContainer<CodingKeys>
-    ) throws -> [String] {
+    ) throws -> (lines: [String], usesInsertionAlias: Bool) {
       for key in [
         CodingKeys.replacementLines,
         .replacementLinesSnake,
@@ -248,14 +251,16 @@ struct AgentEditFileTool: AgentTool {
         .insertText,
         .insertion,
       ] where container.contains(key) {
+        let usesInsertionAlias =
+          key == .insert || key == .insertSnake || key == .insertText || key == .insertion
         if try container.decodeNil(forKey: key) {
-          return []
+          return ([], usesInsertionAlias)
         }
         if let values = try? container.decode([String].self, forKey: key) {
-          return values
+          return (values, usesInsertionAlias)
         }
         if let value = try? container.decode(String.self, forKey: key) {
-          return value.components(separatedBy: "\n")
+          return (value.components(separatedBy: "\n"), usesInsertionAlias)
         }
       }
       throw DecodingError.keyNotFound(
@@ -346,6 +351,12 @@ struct AgentEditFileTool: AgentTool {
         return .failure(
           .invalidArguments(
             "edits[\(idx)].endLine must be >= startLine - 1; got startLine=\(edit.startLine), endLine=\(edit.endLine)"
+          ))
+      }
+      if edit.usesInsertionAlias, edit.endLine != edit.startLine - 1 {
+        return .failure(
+          .invalidArguments(
+            "edits[\(idx)] uses insert/insertion but startLine=\(edit.startLine), endLine=\(edit.endLine) is a replacement range. Insert aliases must use endLine=startLine - 1; to insert at line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1). If you meant to replace existing lines, use replacementLines or content instead of insert."
           ))
       }
       if let embeddedNewline = Self.embeddedNewline(in: edit.replacementLines) {
@@ -1180,7 +1191,7 @@ struct AgentEditFileTool: AgentTool {
     """
     \(detail)
     edit_file requires path plus startLine, endLine, and replacement lines. Read the target file first, then use the returned line numbers.
-    Example replace: {"path":"packages/cli/src/main.ts","startLine":4,"endLine":6,"insert":["new line"]}
+    Example replace: {"path":"packages/cli/src/main.ts","startLine":4,"endLine":6,"replacementLines":["new line"]}
     Example insert after line 6: {"path":"packages/cli/src/main.ts","startLine":7,"endLine":6,"insert":["new line"]}
     Use write_file instead only when creating a new file.
     """

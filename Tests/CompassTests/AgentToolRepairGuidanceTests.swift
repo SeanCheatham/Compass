@@ -70,10 +70,10 @@ struct AgentToolRepairGuidanceTests {
     )
 
     #expect(result.isError)
-    #expect(result.errorKind == .editConflict)
-    #expect(result.content.contains("replace the last line with startLine=2, endLine=2"))
-    #expect(result.content.contains("insert after the last line, use startLine=3, endLine=2"))
-    #expect(result.content.contains("Do not retry the same out-of-range range"))
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("uses insert/insertion"))
+    #expect(result.content.contains("use startLine=3, endLine=2"))
+    #expect(result.content.contains("use replacementLines or content instead of insert"))
   }
 
   @Test
@@ -96,6 +96,51 @@ struct AgentToolRepairGuidanceTests {
       result.content.contains(
         "Use write_file for packages/core/src/utils/activity.ts only when the plan explicitly requires creating that exact new file"
       ))
+  }
+
+  @Test
+  func editFileRejectsInsertAliasWithReplacementRange() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    let mainURL = srcURL.appending(path: "main.ts")
+    let original = """
+    #!/usr/bin/env tsx
+    import { summarizeQueue } from "@compass-test/core";
+
+    export function main(): string {
+      return summarizeQueue([]);
+    }
+    """
+    try original.write(to: mainURL, atomically: true, encoding: .utf8)
+    try "export function summarizeCLI() { return ''; }\n".write(
+      to: srcURL.appending(path: "summarize.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/main.ts","startLine":1,"endLine":1,"insert":"import { summarizeCLI } from './summarize';\n"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("uses insert/insertion"))
+    #expect(result.content.contains("use startLine=1, endLine=0"))
+    #expect(result.content.contains("use replacementLines or content instead of insert"))
+    let unchanged = try String(contentsOf: mainURL, encoding: .utf8)
+    #expect(unchanged == original)
   }
 
   @Test

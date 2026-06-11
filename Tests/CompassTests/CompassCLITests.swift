@@ -119,7 +119,7 @@ struct CompassCLITests {
     let insertion = try JSONDecoder().decode(
       AgentEditFileTool.Arguments.self,
       from: Data(
-        #"{"path":"README.md","startLine":1,"endLine":1,"insertion":"import { summarizeCLI } from './summarize';\n"}"#
+        #"{"path":"README.md","startLine":2,"endLine":1,"insertion":"import { summarizeCLI } from './summarize';\n"}"#
           .utf8
       )
     )
