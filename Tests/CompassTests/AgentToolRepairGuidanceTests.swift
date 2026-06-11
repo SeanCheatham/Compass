@@ -987,6 +987,45 @@ struct AgentToolRepairGuidanceTests {
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(!unchanged.contains("./main"))
   }
+
+  @Test
+  func bashVerifySuccessTellsDevelopToSubmit() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let context = AgentToolContext(
+      workingDirectory: tempURL,
+      bashRunner: StaticBashRunner(
+        result: ProcessResult(exitCode: 0, stdout: "verify passed\n", stderr: "")
+      ),
+      phase: .develop
+    )
+
+    let result = try await AgentBashTool().invoke(
+      arguments: Data(#"{"command":"pnpm verify"}"#.utf8),
+      context: context
+    )
+
+    #expect(!result.isError)
+    #expect(result.content.contains("[stdout]\nverify passed"))
+    #expect(result.content.contains("[exit 0]"))
+    #expect(result.content.contains("`pnpm verify` exited 0"))
+    #expect(result.content.contains("do not keep editing"))
+    #expect(result.content.contains("submit status=succeeded now"))
+    #expect(result.content.contains("specific acceptance requirement is still missing"))
+  }
+}
+
+private struct StaticBashRunner: AgentBashRunner {
+  let result: ProcessResult
+
+  func run(
+    command _: String,
+    workingDirectory _: URL,
+    timeout _: TimeInterval
+  ) async throws -> ProcessResult {
+    result
+  }
 }
 
 private func makeToolGuidanceTempDirectory() throws -> URL {

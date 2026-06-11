@@ -139,6 +139,7 @@ struct AgentBashTool: AgentTool {
 
     return .ok(
       formatOutput(
+        command: command,
         stdout: result.stdout,
         stderr: result.stderr,
         exitCode: result.exitCode,
@@ -148,6 +149,7 @@ struct AgentBashTool: AgentTool {
   }
 
   private func formatOutput(
+    command: String,
     stdout: String,
     stderr: String,
     exitCode: Int32,
@@ -167,7 +169,31 @@ struct AgentBashTool: AgentTool {
       sections.append("[timed out after \(timeoutMs) ms]")
     }
     sections.append("[exit \(exitCode)]")
+    if exitCode == 0, !timedOut, let guidance = successfulVerificationGuidance(for: command) {
+      sections.append(guidance)
+    }
     return sections.joined(separator: "\n\n")
+  }
+
+  private func successfulVerificationGuidance(for command: String) -> String? {
+    let normalized = command
+      .lowercased()
+      .components(separatedBy: .whitespacesAndNewlines)
+      .filter { !$0.isEmpty }
+      .joined(separator: " ")
+
+    guard normalized == "pnpm verify"
+      || normalized == "pnpm run verify"
+      || normalized.contains(" pnpm verify")
+      || normalized.contains(" pnpm run verify")
+      || normalized.hasSuffix(" pnpm verify")
+      || normalized.hasSuffix(" pnpm run verify")
+    else {
+      return nil
+    }
+
+    return
+      "[next]\n`\(command)` exited 0. If the requested implementation and tests are complete, do not keep editing, do not rerun the same verify command, and submit status=succeeded now with feedback that names this verified command. Continue only if a specific acceptance requirement is still missing."
   }
 
   func truncateOutput(_ text: String, label: String) -> String {
