@@ -392,6 +392,9 @@ struct FactoryPivotTests {
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("Do not call another tool"))
     #expect(nudge.userMessage.contains("packages/cli/src/main.test.ts"))
+    #expect(nudge.userMessage.contains(#"main(["--format", "json", "Ship", "it"])"#))
+    #expect(nudge.userMessage.contains("parsed JSON title is `Ship it`"))
+    #expect(nudge.userMessage.contains("Keep `state.immediate.verify` as `pnpm verify`"))
     #expect(nudge.userMessage.contains("narrow the Outcome to core-only work"))
     #expect(nudge.userMessage.contains("exactly one repair"))
   }
@@ -833,7 +836,53 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("If the rejected payload said a verify command still needs to run"))
     #expect(prompts[3].contains("Do not call `read_file`, `list_files`, or reread"))
     #expect(prompts[3].contains("Return `plan_submit` with a corrected `payload`"))
+    #expect(prompts[3].contains("For Plan, read-only tools cannot repair a rejected handoff"))
+    #expect(prompts[3].contains("Latest rejected-payload repair to apply now"))
+    #expect(prompts[3].contains("Your previous Plan payload claimed new CLI behavior without proof"))
+    #expect(prompts[3].contains("Do not call another tool to repair this"))
+    #expect(prompts[3].contains(#"main(["--format", "json", "Ship", "it"])"#))
     #expect(prompts[3].contains(#""path":"package.json""#))
+  }
+
+  @Test
+  func executorEscalatesRepeatedSubmitRejections() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let weakPlanSubmit =
+      #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Add JSON CLI output.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
+    let runtime = FakeLocalModelRuntime(outputs: [
+      weakPlanSubmit,
+      weakPlanSubmit,
+      weakPlanSubmit,
+    ])
+    let validator = RejectFirstTwoPlanSubmitValidator()
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .plan,
+        runtime: runtime,
+        tools: [],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.planSchema,
+        maxIterations: 3,
+        validateSubmitResult: { data in
+          try validator.validate(data)
+        }
+      )
+    )
+
+    #expect(result.iterations == 3)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 3)
+    #expect(prompts[1].contains("Your previous Plan payload claimed new CLI behavior without proof"))
+    #expect(prompts[2].contains("Compass rejected `plan_submit` for the same reason 2 times"))
+    #expect(prompts[2].contains("Do not return the same payload again"))
+    #expect(prompts[2].contains("Plan repair checklist"))
+    #expect(prompts[2].contains("Do not resubmit the same `state.immediate.plan`"))
+    #expect(prompts[2].contains("Keep `state.immediate.verify` as `pnpm verify`"))
+    #expect(prompts[2].contains(#"main(["--format", "json", "Ship", "it"])"#))
+    #expect(prompts[2].contains("Latest rejected-payload repair to apply now"))
   }
 
   @Test
@@ -1169,6 +1218,28 @@ private final class RejectFirstPlanSubmitValidator: @unchecked Sendable {
     lock.unlock()
 
     if attempt == 1 {
+      throw PlanTransitionValidationError(
+        message:
+          "Plan selected generic `pnpm verify` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
+        reason: .weakVerifyCoverage,
+        rejectedVerify: "pnpm verify"
+      )
+    }
+    _ = try JSONDecoder().decode(PlanRunResult.self, from: data)
+  }
+}
+
+private final class RejectFirstTwoPlanSubmitValidator: @unchecked Sendable {
+  private let lock = NSLock()
+  private var attempts = 0
+
+  func validate(_ data: Data) throws {
+    lock.lock()
+    attempts += 1
+    let attempt = attempts
+    lock.unlock()
+
+    if attempt <= 2 {
       throw PlanTransitionValidationError(
         message:
           "Plan selected generic `pnpm verify` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",

@@ -59,8 +59,13 @@ extension AgentExecutor {
             exactly one repair:
             - Keep the CLI behavior and add an acceptance check that Develop updates
               `packages/cli/src/main.test.ts` to execute the new CLI path.
+              For `--format json` work, include a concrete check like:
+              `packages/cli/src/main.test.ts` calls `main(["--format", "json", "Ship", "it"])`
+              and asserts the parsed JSON title is `Ship it`.
             - Or narrow the Outcome to core-only work and remove CLI/list/status-count claims
               from the Outcome and Acceptance checks.
+
+            Keep `state.immediate.verify` as `pnpm verify` after adding the CLI test proof.
 
             \(submitResultDecodeRetryShape(for: .plan))
             """

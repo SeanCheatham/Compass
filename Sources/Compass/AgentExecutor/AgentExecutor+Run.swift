@@ -31,6 +31,9 @@ extension AgentExecutor {
     var lastFailedToolCall: ToolCallSignature?
     var repeatedFailedToolCallCount = 0
     var sawSubmitRejection = false
+    var latestSubmitRejectionRepairMessage: String?
+    var lastSubmitRejectionSignature: String?
+    var repeatedSubmitRejectionCount = 0
     var lastSuccessfulToolCallAfterSubmitRejection: ToolCallSignature?
     var repeatedSuccessfulToolCallAfterSubmitRejectionCount = 0
     var lastSuccessfulVerifyCommand: String?
@@ -212,6 +215,14 @@ extension AgentExecutor {
           )
         {
           sawSubmitRejection = true
+          latestSubmitRejectionRepairMessage = rejection.userMessage
+          let rejectionSignature = "\(rejection.eventText)\n\(rejection.eventDetail)"
+          if rejectionSignature == lastSubmitRejectionSignature {
+            repeatedSubmitRejectionCount += 1
+          } else {
+            lastSubmitRejectionSignature = rejectionSignature
+            repeatedSubmitRejectionCount = 1
+          }
           emit(
             level: .warning,
             text: rejection.eventText,
@@ -228,6 +239,19 @@ extension AgentExecutor {
               )
             )
           )
+          if repeatedSubmitRejectionCount >= 2 {
+            transcript.append(
+              .repair(
+                Self.repeatedSubmitRejectionRepairMessage(
+                  eventText: rejection.eventText,
+                  eventDetail: rejection.eventDetail,
+                  latestRepairMessage: rejection.userMessage,
+                  repeatCount: repeatedSubmitRejectionCount,
+                  phase: configuration.continuationPhase
+                )
+              )
+            )
+          }
           continue
         }
         emit(
@@ -381,6 +405,7 @@ extension AgentExecutor {
                     toolName: toolName,
                     arguments: argumentText,
                     repeatCount: repeatedSuccessfulToolCallAfterSubmitRejectionCount,
+                    latestRepairMessage: latestSubmitRejectionRepairMessage,
                     phase: configuration.continuationPhase
                   )
                 )
@@ -795,9 +820,26 @@ extension AgentExecutor {
     toolName: String,
     arguments: String,
     repeatCount: Int,
+    latestRepairMessage: String?,
     phase: AgentContinuationPhase
   ) -> String {
-    """
+    let planInstruction =
+      phase == .plan
+      ? """
+
+        For Plan, read-only tools cannot repair a rejected handoff. Return `\(phase.submitKind)` now.
+        Do not call `read_file`, `list_files`, `bash`, or reread `package.json` just to repair
+        Plan payload text.
+        """
+      : ""
+    let latestRepair = latestRepairMessage.map {
+      """
+
+      Latest rejected-payload repair to apply now:
+      \($0)
+      """
+    } ?? ""
+    return """
     Compass already rejected a recent `\(phase.submitKind)` payload, and you then called
     `\(toolName)` with the same arguments \(repeatCount) times. The repeated observation
     did not repair the rejected payload.
@@ -811,10 +853,47 @@ extension AgentExecutor {
       `package.json` merely to rediscover scripts.
     - Return `\(phase.submitKind)` with a corrected `payload`.
     - Only call a different tool if the repair instruction explicitly requires new evidence.
+    \(planInstruction)\(latestRepair)
 
     Repeated arguments:
     \(fencedContinuationText(arguments, limit: 2_000))
     """
+  }
+
+  private static func repeatedSubmitRejectionRepairMessage(
+    eventText: String,
+    eventDetail: String,
+    latestRepairMessage: String,
+    repeatCount: Int,
+    phase: AgentContinuationPhase
+  ) -> String {
+    let planRepair =
+      phase == .plan
+      ? """
+
+        Plan repair checklist:
+        - Do not call another tool. The rejected payload text is what must change.
+        - Do not resubmit the same `state.immediate.plan`.
+        - Keep `state.immediate.verify` as `pnpm verify` unless the latest repair says otherwise.
+        - If the rejection is about CLI proof, add an explicit Acceptance check in
+          `state.immediate.plan` naming the CLI test file and invocation, for example:
+          `packages/cli/src/main.test.ts` calls `main(["--format", "json", "Ship", "it"])`
+          and asserts the parsed JSON title is `Ship it`.
+        """
+      : ""
+    return """
+      Compass rejected `\(phase.submitKind)` for the same reason \(repeatCount) times:
+      \(eventText)
+
+      Rejection detail:
+      \(eventDetail)
+
+      Do not return the same payload again. Return `\(phase.submitKind)` now with a changed
+      `payload` that applies the latest repair exactly.\(planRepair)
+
+      Latest rejected-payload repair to apply now:
+      \(latestRepairMessage)
+      """
   }
 
   private static func repeatedReadOnlyDevelopToolRepairMessage(
