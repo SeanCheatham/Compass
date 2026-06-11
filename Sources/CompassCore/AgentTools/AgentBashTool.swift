@@ -18,6 +18,7 @@ struct AgentBashTool: AgentTool {
     enum CodingKeys: String, CodingKey {
       case command
       case cmd
+      case commands
       case shellCommand
       case shellCommandSnake = "shell_command"
       case script
@@ -37,7 +38,7 @@ struct AgentBashTool: AgentTool {
       command = try FlexibleModelDecoder.decodeRequiredString(
         from: container,
         preferredKey: .command,
-        aliases: [.cmd, .shellCommand, .shellCommandSnake, .script],
+        aliases: [.cmd, .commands, .shellCommand, .shellCommandSnake, .script],
         fieldName: "command"
       )
       timeoutMs = try FlexibleModelDecoder.decodeIntIfPresent(

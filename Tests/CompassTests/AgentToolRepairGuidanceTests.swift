@@ -1341,6 +1341,53 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func bashAcceptsCommandsArrayAlias() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let bashRunner = RecordingBashRunner(
+      result: ProcessResult(exitCode: 0, stdout: "verify passed\n", stderr: "")
+    )
+    let context = AgentToolContext(
+      workingDirectory: tempURL,
+      bashRunner: bashRunner,
+      phase: .develop
+    )
+
+    let result = try await AgentBashTool().invoke(
+      arguments: Data(#"{"commands":["pnpm verify"]}"#.utf8),
+      context: context
+    )
+
+    #expect(!result.isError)
+    #expect(await bashRunner.commands == ["pnpm verify"])
+    #expect(result.content.contains("`pnpm verify` exited 0"))
+  }
+
+  @Test
+  func bashCommandsArrayRunsAsSingleShellScript() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let bashRunner = RecordingBashRunner(
+      result: ProcessResult(exitCode: 0, stdout: "ok\n", stderr: "")
+    )
+    let context = AgentToolContext(
+      workingDirectory: tempURL,
+      bashRunner: bashRunner,
+      phase: .develop
+    )
+
+    let result = try await AgentBashTool().invoke(
+      arguments: Data(#"{"commands":["pnpm install --frozen-lockfile","pnpm verify"]}"#.utf8),
+      context: context
+    )
+
+    #expect(!result.isError)
+    #expect(await bashRunner.commands == ["pnpm install --frozen-lockfile\npnpm verify"])
+  }
+
+  @Test
   func bashNonzeroExitIsToolFailure() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -1375,6 +1422,28 @@ private struct StaticBashRunner: AgentBashRunner {
     timeout _: TimeInterval
   ) async throws -> ProcessResult {
     result
+  }
+}
+
+private actor RecordingBashRunner: AgentBashRunner {
+  private let result: ProcessResult
+  private var recordedCommands: [String] = []
+
+  init(result: ProcessResult) {
+    self.result = result
+  }
+
+  var commands: [String] {
+    recordedCommands
+  }
+
+  func run(
+    command: String,
+    workingDirectory _: URL,
+    timeout _: TimeInterval
+  ) async throws -> ProcessResult {
+    recordedCommands.append(command)
+    return result
   }
 }
 
