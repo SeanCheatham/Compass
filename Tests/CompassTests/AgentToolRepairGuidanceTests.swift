@@ -600,6 +600,48 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileRejectsCommentOnlyReplacementOfWorkingSource() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "main.ts")
+    let original = """
+    #!/usr/bin/env tsx
+    import { summarizeQueue } from "@compass-test/core";
+
+    export function main(argv = process.argv.slice(2)): string {
+      const title = argv.join(" ").trim() || "First Compass task";
+      return summarizeQueue([{ id: "task-1", title, done: false }]);
+    }
+
+    if (import.meta.url === `file://${process.argv[1]}`) {
+      console.log(main());
+    }
+    """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"main.ts","startLine":4,"endLine":8,"content":"// TODO: Move logic to summarize.ts\n// export function main(argv = process.argv.slice(2)): string {\n//   const title = argv.join(\" \").trim() || \"First Compass task\";\n//   return summarizeQueue([{ id: \"task-1\", title, done: false }]);\n// }\n"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("comment-only content"))
+    #expect(result.content.contains("Do not replace working source"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == original)
+  }
+
+  @Test
   func editFileRejectsSuspiciousTopOfFileBulkInsertion() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

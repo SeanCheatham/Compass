@@ -464,6 +464,17 @@ struct AgentEditFileTool: AgentTool {
       let startIndex = edit.startLine - 1
       let endIndex = edit.endLine - 1
       let existing = Array(lines[startIndex...endIndex])
+      if Self.isSourceFile(url),
+        let commentOnlyReplacement = Self.commentOnlySourceReplacementMessage(
+          editIndex: idx,
+          relativePath: relative,
+          existingLines: existing,
+          replacementLines: edit.replacementLines,
+          pathExtension: url.pathExtension
+        )
+      {
+        return .failure(.invalidArguments(commentOnlyReplacement))
+      }
       if let suspiciousExpansion = Self.suspiciousPartialRewriteMessage(
         editIndex: idx,
         edit: edit,
@@ -708,6 +719,103 @@ struct AgentEditFileTool: AgentTool {
       return EmbeddedNewline(lineIndex: index, preview: linePreview(escaped))
     }
     return nil
+  }
+
+  private static func commentOnlySourceReplacementMessage(
+    editIndex: Int,
+    relativePath: String,
+    existingLines: [String],
+    replacementLines: [String],
+    pathExtension: String
+  ) -> String? {
+    let nonEmptyReplacementLines =
+      replacementLines
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+    guard !replacementLines.isEmpty,
+      !nonEmptyReplacementLines.isEmpty,
+      containsMeaningfulSource(existingLines, pathExtension: pathExtension),
+      !containsMeaningfulSource(replacementLines, pathExtension: pathExtension)
+    else {
+      return nil
+    }
+
+    let preview =
+      nonEmptyReplacementLines
+      .first
+      .map { linePreview($0) } ?? "comment-only replacement"
+    return
+      "edits[\(editIndex)] would replace working source lines in \(relativePath) with comment-only content: \(preview). Do not replace working source with TODO/comment-only placeholders; provide complete replacementLines, delete the range only if removal is intended, or submit status=failed/status=blocked if you cannot reconstruct it."
+  }
+
+  private static func containsMeaningfulSource(
+    _ lines: [String],
+    pathExtension: String
+  ) -> Bool {
+    let stripped = sourceTextWithoutComments(
+      lines.joined(separator: "\n"),
+      pathExtension: pathExtension
+    )
+    return stripped
+      .components(separatedBy: .newlines)
+      .contains { line in
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && !trimmed.hasPrefix("#!")
+      }
+  }
+
+  private static func sourceTextWithoutComments(
+    _ text: String,
+    pathExtension: String
+  ) -> String {
+    let ext = pathExtension.lowercased()
+    var stripped = text
+
+    if ["html"].contains(ext) {
+      stripped = replacingMatches(
+        in: stripped,
+        pattern: #"<!--.*?-->"#,
+        options: [.dotMatchesLineSeparators]
+      )
+    }
+    if [
+      "c", "cc", "cpp", "css", "go", "h", "hpp", "js", "jsx", "mjs", "mts", "rs", "swift",
+      "ts", "tsx",
+    ].contains(ext) {
+      stripped = replacingMatches(
+        in: stripped,
+        pattern: #"/\*.*?\*/"#,
+        options: [.dotMatchesLineSeparators]
+      )
+      stripped = replacingMatches(in: stripped, pattern: #"(?m)//.*$"#)
+    }
+    if ["py", "rb"].contains(ext) {
+      stripped = replacingMatches(
+        in: stripped,
+        pattern: #"'''.*?'''"#,
+        options: [.dotMatchesLineSeparators]
+      )
+      stripped = replacingMatches(
+        in: stripped,
+        pattern: #""{3}.*?"{3}"#,
+        options: [.dotMatchesLineSeparators]
+      )
+      stripped = replacingMatches(in: stripped, pattern: #"(?m)#.*$"#)
+    }
+
+    return stripped
+  }
+
+  private static func replacingMatches(
+    in text: String,
+    pattern: String,
+    options: NSRegularExpression.Options = []
+  ) -> String {
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else {
+      return text
+    }
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    return regex.stringByReplacingMatches(in: text, range: range, withTemplate: "")
   }
 
   private static func suspiciousPartialRewriteMessage(
