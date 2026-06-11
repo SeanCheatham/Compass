@@ -47,6 +47,25 @@ extension AgentExecutor {
             """
         )
       }
+      if error.reason == .weakVerifyCoverage {
+        return InvalidToolArgumentsNudge(
+          eventText: "plan_submit rejected",
+          eventDetail: error.message,
+          userMessage: """
+            Your previous Plan payload claimed new CLI behavior without proof:
+            \(error.message)
+
+            Do not call another tool to repair this. Return `plan_submit` again and choose
+            exactly one repair:
+            - Keep the CLI behavior and add an acceptance check that Develop updates
+              `packages/cli/src/main.test.ts` to execute the new CLI path.
+            - Or narrow the Outcome to core-only work and remove CLI/list/status-count claims
+              from the Outcome and Acceptance checks.
+
+            \(submitResultDecodeRetryShape(for: .plan))
+            """
+        )
+      }
       return InvalidToolArgumentsNudge(
         eventText: "plan_submit rejected",
         eventDetail: error.message,

@@ -376,6 +376,27 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func weakCLIProofNudgeTellsPlanToRepairWithoutTools() {
+    let error = PlanTransitionValidationError(
+      message: """
+        Plan selected generic `pnpm verify` for new CLI behavior, but the handoff does not include a CLI test or direct proof.
+
+        `pnpm verify` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `packages/cli/src/main.test.ts`.
+        """,
+      reason: .weakVerifyCoverage,
+      rejectedVerify: "pnpm verify"
+    )
+
+    let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
+
+    #expect(nudge.eventText == "plan_submit rejected")
+    #expect(nudge.userMessage.contains("Do not call another tool"))
+    #expect(nudge.userMessage.contains("packages/cli/src/main.test.ts"))
+    #expect(nudge.userMessage.contains("narrow the Outcome to core-only work"))
+    #expect(nudge.userMessage.contains("exactly one repair"))
+  }
+
+  @Test
   func unfinishedDevelopSuccessNudgeTellsAgentToContinueOrFail() {
     let error = DevelopFeedbackValidationError(
       message:
@@ -711,6 +732,57 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorEscalatesRepeatedSuccessfulToolCallsAfterSubmitRejection() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try #"{"scripts":{"verify":"pnpm verify"}}"#.write(
+      to: tempURL.appending(path: "package.json"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let planSubmit =
+      #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Build decision notes.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
+    let readPackage =
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts."}"#
+    let validator = RejectFirstPlanSubmitValidator()
+    let runtime = FakeLocalModelRuntime(outputs: [
+      planSubmit,
+      readPackage,
+      readPackage,
+      planSubmit,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .plan,
+        runtime: runtime,
+        tools: [AgentReadFileTool()],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.planSchema,
+        maxIterations: 4,
+        validateSubmitResult: { data in
+          try validator.validate(data)
+        }
+      )
+    )
+
+    #expect(result.iterations == 4)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 4)
+    #expect(
+      prompts[3].contains(
+        "Compass already rejected a recent `plan_submit` payload"
+      ))
+    #expect(prompts[3].contains("called\n`read_file` with the same arguments 2 times")
+      || prompts[3].contains("called `read_file` with the same arguments 2 times"))
+    #expect(prompts[3].contains("The repeated observation\ndid not repair the rejected payload")
+      || prompts[3].contains("The repeated observation did not repair the rejected payload"))
+    #expect(prompts[3].contains("Return `plan_submit` with a corrected `payload`"))
+    #expect(prompts[3].contains(#""path":"package.json""#))
+  }
+
+  @Test
   func executorCompactsContinuationHistoryWithoutCountingAnAgentIteration() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -903,6 +975,28 @@ private actor FakeLocalModelRuntime: LocalModelGenerating {
   }
 }
 
+private final class RejectFirstPlanSubmitValidator: @unchecked Sendable {
+  private let lock = NSLock()
+  private var attempts = 0
+
+  func validate(_ data: Data) throws {
+    lock.lock()
+    attempts += 1
+    let attempt = attempts
+    lock.unlock()
+
+    if attempt == 1 {
+      throw PlanTransitionValidationError(
+        message:
+          "Plan selected generic `pnpm verify` for new CLI behavior, but the handoff does not include a CLI test or direct proof.",
+        reason: .weakVerifyCoverage,
+        rejectedVerify: "pnpm verify"
+      )
+    }
+    _ = try JSONDecoder().decode(PlanRunResult.self, from: data)
+  }
+}
+
 private func makeTempDirectory() throws -> URL {
   let url = FileManager.default.temporaryDirectory
     .appending(path: "CompassFactoryPivotTests-\(UUID().uuidString)")
@@ -918,7 +1012,8 @@ private func testConfiguration(
   workingDirectory: URL,
   submitResultSchema: String,
   maxIterations: Int = 8,
-  wallClockTimeout: TimeInterval = 60
+  wallClockTimeout: TimeInterval = 60,
+  validateSubmitResult: (@Sendable (Data) throws -> Void)? = nil
 ) -> AgentExecutionConfiguration {
   AgentExecutionConfiguration(
     settings: settings,
@@ -933,7 +1028,7 @@ private func testConfiguration(
     modelRuntime: runtime,
     submitResultSchema: AgentToolParametersSchema(json: Data(submitResultSchema.utf8)),
     workingDirectory: workingDirectory,
-    validateSubmitResult: { data in
+    validateSubmitResult: validateSubmitResult ?? { data in
       switch phase {
       case .plan:
         _ = try JSONDecoder().decode(PlanRunResult.self, from: data)

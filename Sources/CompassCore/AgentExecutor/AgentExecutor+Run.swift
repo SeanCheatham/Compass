@@ -28,8 +28,11 @@ extension AgentExecutor {
     var transcript: [ContinuationTranscriptEntry] = []
     var compactedHistory: String?
     var tokenUsage = AgentRunTokenUsage()
-    var lastFailedToolCall: FailedToolCallSignature?
+    var lastFailedToolCall: ToolCallSignature?
     var repeatedFailedToolCallCount = 0
+    var sawSubmitRejection = false
+    var lastSuccessfulToolCallAfterSubmitRejection: ToolCallSignature?
+    var repeatedSuccessfulToolCallAfterSubmitRejectionCount = 0
 
     while iterations < configuration.maxIterations {
       if cancelled { throw AgentExecutionError.cancelled }
@@ -197,6 +200,7 @@ extension AgentExecutor {
           payload,
           configuration: configuration
         ) {
+          sawSubmitRejection = true
           emit(
             level: .warning,
             text: rejection.eventText,
@@ -246,6 +250,7 @@ extension AgentExecutor {
         }
 
         let argumentText = String(decoding: arguments, as: UTF8.self)
+        let signature = ToolCallSignature(toolName: toolName, arguments: argumentText)
         let correlationID = UUID().uuidString
         emitToolStart(name: toolName, arguments: argumentText, correlationID: correlationID)
         let result: AgentToolInvocationResult
@@ -268,7 +273,6 @@ extension AgentExecutor {
           transcript.append(.assistantNote(note))
         }
         if result.isError {
-          let signature = FailedToolCallSignature(toolName: toolName, arguments: argumentText)
           if signature == lastFailedToolCall {
             repeatedFailedToolCallCount += 1
           } else {
@@ -287,9 +291,31 @@ extension AgentExecutor {
               )
             )
           }
+          lastSuccessfulToolCallAfterSubmitRejection = nil
+          repeatedSuccessfulToolCallAfterSubmitRejectionCount = 0
         } else {
           lastFailedToolCall = nil
           repeatedFailedToolCallCount = 0
+          if sawSubmitRejection {
+            if signature == lastSuccessfulToolCallAfterSubmitRejection {
+              repeatedSuccessfulToolCallAfterSubmitRejectionCount += 1
+            } else {
+              lastSuccessfulToolCallAfterSubmitRejection = signature
+              repeatedSuccessfulToolCallAfterSubmitRejectionCount = 1
+            }
+            if repeatedSuccessfulToolCallAfterSubmitRejectionCount >= 2 {
+              transcript.append(
+                .repair(
+                  Self.repeatedToolAfterSubmitRejectionRepairMessage(
+                    toolName: toolName,
+                    arguments: argumentText,
+                    repeatCount: repeatedSuccessfulToolCallAfterSubmitRejectionCount,
+                    phase: configuration.continuationPhase
+                  )
+                )
+              )
+            }
+          }
         }
       }
     }
@@ -392,7 +418,7 @@ extension AgentExecutor {
     var tokenUsage: AgentRunTokenUsage
   }
 
-  private struct FailedToolCallSignature: Equatable {
+  private struct ToolCallSignature: Equatable {
     var toolName: String
     var arguments: String
   }
@@ -636,6 +662,29 @@ extension AgentExecutor {
     - If this is an edit_file failure, change the startLine/endLine and replacement lines using the latest read_file output.
     - If the path or lines are uncertain, call read_file or list_files first.
     - If you cannot make a different concrete tool call now, return `\(phase.submitKind)` with status=failed or status=blocked and concise feedback.
+
+    Repeated arguments:
+    \(fencedContinuationText(arguments, limit: 2_000))
+    """
+  }
+
+  private static func repeatedToolAfterSubmitRejectionRepairMessage(
+    toolName: String,
+    arguments: String,
+    repeatCount: Int,
+    phase: AgentContinuationPhase
+  ) -> String {
+    """
+    Compass already rejected a recent `\(phase.submitKind)` payload, and you then called
+    `\(toolName)` with the same arguments \(repeatCount) times. The repeated observation
+    did not repair the rejected payload.
+
+    Do not call `\(toolName)` again with the same arguments. Repair the rejected
+    `\(phase.submitKind)` now:
+    - Reuse the useful fields from your rejected payload.
+    - Apply the latest Compass Repair instruction exactly.
+    - Return `\(phase.submitKind)` with a corrected `payload`.
+    - Only call a different tool if the repair instruction explicitly requires new evidence.
 
     Repeated arguments:
     \(fencedContinuationText(arguments, limit: 2_000))
