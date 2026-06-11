@@ -814,6 +814,52 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileRejectsDuplicateSourceInsertionBlock() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "main.ts")
+    let original = """
+    #!/usr/bin/env tsx
+    import { summarizeQueue } from "@compass-test/core";
+
+      const limit = parseInt(argv.shift(), 10);
+      if (!isNaN(limit)) {
+        argv.unshift(title);
+        title = `Open ${limit} / ${limit} total`;
+      }
+
+    export function main(argv = process.argv.slice(2)): string {
+      const title = argv.join(" ").trim() || "First Compass task";
+      return summarizeQueue([{ id: "task-1", title, done: false }]);
+    }
+    """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"main.ts","startLine":4,"endLine":3,"insert":"\n  const limit = parseInt(argv.shift(), 10);\n  if (!isNaN(limit)) {\n    argv.unshift(title);\n    title = `Open ${limit} / ${limit} total`;\n  }\n"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("same nonblank source block already exists"))
+    #expect(result.content.contains("Do not insert this block again"))
+    #expect(result.content.contains("replace or remove lines"))
+    #expect(result.content.contains("rewrite the enclosing function or whole file"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == original)
+  }
+
+  @Test
   func editFileRejectsNewPlaceholderImplementation() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

@@ -492,6 +492,15 @@ struct AgentEditFileTool: AgentTool {
             .invalidArguments(
               "edits[\(idx)] inserts nothing; provide replacementLines or use a replace range"))
         }
+        if let duplicateInsertion = Self.duplicateSourceInsertionMessage(
+          editIndex: idx,
+          edit: edit,
+          relativePath: relative,
+          lines: lines,
+          isSourceFile: Self.isSourceFile(url)
+        ) {
+          return .failure(.invalidArguments(duplicateInsertion))
+        }
         if let suspiciousInsertion = Self.suspiciousWholeFileInsertionMessage(
           editIndex: idx,
           edit: edit,
@@ -1044,6 +1053,52 @@ struct AgentEditFileTool: AgentTool {
     return
       "edits[\(editIndex)] inserts \(edit.replacementLines.count) lines before line \(edit.startLine) while leaving \(lineCount) existing lines after it. This looks like a whole-file rewrite expressed as an insertion. Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with the same replacement. If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to add an import or header, insert only those new lines. Otherwise replace the exact line range that should be removed."
       + repairHint
+  }
+
+  private static func duplicateSourceInsertionMessage(
+    editIndex: Int,
+    edit: EditOperation,
+    relativePath: String,
+    lines: [String],
+    isSourceFile: Bool
+  ) -> String? {
+    guard isSourceFile,
+      let block = trimmedInsertionBlock(edit.replacementLines),
+      block.count >= 2,
+      let existingRange = firstContiguousRange(of: block, in: lines)
+    else {
+      return nil
+    }
+
+    let replacementStart = existingRange.lowerBound + 1
+    let replacementEnd = existingRange.upperBound
+    return
+      "edits[\(editIndex)] inserts \(edit.replacementLines.count) lines, but the same nonblank source block already exists in \(relativePath) at lines \(replacementStart)-\(replacementEnd). Do not insert this block again at any line; repeated duplicate insertions usually make verification failures worse. If the existing block is wrong, replace or remove lines \(replacementStart)-\(replacementEnd), or rewrite the enclosing function or whole file once with a single complete version."
+  }
+
+  private static func trimmedInsertionBlock(_ lines: [String]) -> [String]? {
+    var start = 0
+    var end = lines.count
+    while start < end && lines[start].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      start += 1
+    }
+    while end > start && lines[end - 1].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      end -= 1
+    }
+    guard start < end else { return nil }
+    return Array(lines[start..<end])
+  }
+
+  private static func firstContiguousRange(of needle: [String], in haystack: [String]) -> Range<Int>? {
+    guard !needle.isEmpty, haystack.count >= needle.count else { return nil }
+    let lastStart = haystack.count - needle.count
+    for start in 0...lastStart {
+      let end = start + needle.count
+      if Array(haystack[start..<end]) == needle {
+        return start..<end
+      }
+    }
+    return nil
   }
 
   private struct FunctionDeclarationLine {
