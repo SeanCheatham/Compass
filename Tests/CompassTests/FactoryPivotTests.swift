@@ -740,6 +740,50 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorEscalatesRepeatedReadOnlyDevelopLoopBeforeSubmitRejection() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try """
+    export function main(argv = process.argv.slice(2)): string {
+      return argv.join(" ");
+    }
+    """.write(
+      to: tempURL.appending(path: "index.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let readIndex =
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current line numbers before editing."}"#
+    let runtime = FakeLocalModelRuntime(outputs: [
+      readIndex,
+      readIndex,
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Did not edit the CLI.","feedback":"The model repeated reads instead of calling edit_file.","bypassVerify":false,"lessonEdits":[]}}"#,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [AgentReadFileTool()],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 3
+      )
+    )
+
+    #expect(result.iterations == 3)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 3)
+    #expect(prompts[2].contains("You repeated successful read-only Develop tool calls"))
+    #expect(prompts[2].contains("Do not call `read_file` again with the same arguments"))
+    #expect(prompts[2].contains("Choose exactly one next action"))
+    #expect(prompts[2].contains("Call `edit_file` or `write_file`"))
+    #expect(prompts[2].contains("status=failed or status=blocked"))
+    #expect(prompts[2].contains(#""path":"index.ts""#))
+  }
+
+  @Test
   func executorEscalatesRepeatedSuccessfulToolCallsAfterSubmitRejection() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -916,24 +960,26 @@ struct FactoryPivotTests {
   func executorCompactsContinuationHistoryWithoutCountingAnAgentIteration() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    try "export const answer = 42\n".write(
-      to: tempURL.appending(path: "index.ts"),
-      atomically: true,
-      encoding: .utf8
-    )
+    for index in 1...5 {
+      try "export const answer\(index) = \(index)\n".write(
+        to: tempURL.appending(path: "file\(index).ts"),
+        atomically: true,
+        encoding: .utf8
+      )
+    }
 
     let continues = (1...5).map { index in
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Read pass \#(index)."}"#
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"file\#(index).ts"},"reason":"Read pass \#(index)."}"#
     }
     let summary = """
       Goal / Current Phase
-      Develop is reading index.ts before deciding.
+      Develop is reading small fixture files before deciding.
 
       Established Facts
       Older summary from compactor.
 
       Files / Symbols
-      index.ts has been read in prior turns.
+      Small fixture files have been read in prior turns.
 
       Errors / Repairs
       None.

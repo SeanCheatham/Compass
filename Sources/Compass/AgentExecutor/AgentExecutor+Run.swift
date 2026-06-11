@@ -34,6 +34,9 @@ extension AgentExecutor {
     var lastSuccessfulToolCallAfterSubmitRejection: ToolCallSignature?
     var repeatedSuccessfulToolCallAfterSubmitRejectionCount = 0
     var lastSuccessfulVerifyCommand: String?
+    var lastSuccessfulReadOnlyDevelopToolCall: ToolCallSignature?
+    var repeatedSuccessfulReadOnlyDevelopToolCallCount = 0
+    var consecutiveSuccessfulReadOnlyDevelopToolCallCount = 0
 
     while iterations < configuration.maxIterations {
       if cancelled { throw AgentExecutionError.cancelled }
@@ -299,6 +302,9 @@ extension AgentExecutor {
           )
         }
         if result.isError {
+          lastSuccessfulReadOnlyDevelopToolCall = nil
+          repeatedSuccessfulReadOnlyDevelopToolCallCount = 0
+          consecutiveSuccessfulReadOnlyDevelopToolCallCount = 0
           if signature == lastFailedToolCall {
             repeatedFailedToolCallCount += 1
           } else {
@@ -322,6 +328,34 @@ extension AgentExecutor {
         } else {
           lastFailedToolCall = nil
           repeatedFailedToolCallCount = 0
+          if configuration.phase == .develop, Self.isReadOnlyInspectionTool(toolName) {
+            consecutiveSuccessfulReadOnlyDevelopToolCallCount += 1
+            if signature == lastSuccessfulReadOnlyDevelopToolCall {
+              repeatedSuccessfulReadOnlyDevelopToolCallCount += 1
+            } else {
+              lastSuccessfulReadOnlyDevelopToolCall = signature
+              repeatedSuccessfulReadOnlyDevelopToolCallCount = 1
+            }
+            if repeatedSuccessfulReadOnlyDevelopToolCallCount == 2
+              || consecutiveSuccessfulReadOnlyDevelopToolCallCount == 6
+            {
+              transcript.append(
+                .repair(
+                  Self.repeatedReadOnlyDevelopToolRepairMessage(
+                    toolName: toolName,
+                    arguments: argumentText,
+                    repeatCount: repeatedSuccessfulReadOnlyDevelopToolCallCount,
+                    readOnlyCount: consecutiveSuccessfulReadOnlyDevelopToolCallCount,
+                    phase: configuration.continuationPhase
+                  )
+                )
+              )
+            }
+          } else {
+            lastSuccessfulReadOnlyDevelopToolCall = nil
+            repeatedSuccessfulReadOnlyDevelopToolCallCount = 0
+            consecutiveSuccessfulReadOnlyDevelopToolCallCount = 0
+          }
           if sawSubmitRejection {
             if signature == lastSuccessfulToolCallAfterSubmitRejection {
               repeatedSuccessfulToolCallAfterSubmitRejectionCount += 1
@@ -451,6 +485,23 @@ extension AgentExecutor {
 
   private static func isFileMutationTool(_ toolName: String) -> Bool {
     toolName == AgentWriteFileTool.toolName || toolName == AgentEditFileTool.toolName
+  }
+
+  private static let readOnlyInspectionToolNames: Set<String> = [
+    AgentFindSymbolTool.toolName,
+    AgentGlobTool.toolName,
+    AgentGrepTool.toolName,
+    AgentImportersOfTool.toolName,
+    AgentListFilesTool.toolName,
+    AgentLsTool.toolName,
+    AgentOutlineTool.toolName,
+    AgentPlanHistoryTool.toolName,
+    AgentReadFileTool.toolName,
+    AgentSummaryTool.toolName,
+  ]
+
+  private static func isReadOnlyInspectionTool(_ toolName: String) -> Bool {
+    readOnlyInspectionToolNames.contains(toolName)
   }
 
   private static func successfulVerifyCommand(
@@ -751,6 +802,35 @@ extension AgentExecutor {
     - Only call a different tool if the repair instruction explicitly requires new evidence.
 
     Repeated arguments:
+    \(fencedContinuationText(arguments, limit: 2_000))
+    """
+  }
+
+  private static func repeatedReadOnlyDevelopToolRepairMessage(
+    toolName: String,
+    arguments: String,
+    repeatCount: Int,
+    readOnlyCount: Int,
+    phase: AgentContinuationPhase
+  ) -> String {
+    """
+    You repeated successful read-only Develop tool calls without changing files.
+
+    The latest `\(toolName)` observation succeeded and already contains the concrete
+    evidence available from that tool. You have made \(readOnlyCount) successful
+    read-only tool calls in a row, and the latest exact `\(toolName)` arguments have
+    been seen \(repeatCount) time(s).
+
+    Do not call `\(toolName)` again with the same arguments. Do not keep calling
+    `read_file`, `list_files`, `ls`, `glob`, `grep`, `outline`, `find_symbol`,
+    `importers_of`, `summary`, or `plan_history` merely to rediscover context.
+    Choose exactly one next action:
+    - Call `edit_file` or `write_file` using the known paths and line numbers.
+    - Call `bash` with the verify command only if the implementation is complete.
+    - Return `\(phase.submitKind)` with status=failed or status=blocked if you cannot
+      make a concrete edit within this budget.
+
+    Latest arguments:
     \(fencedContinuationText(arguments, limit: 2_000))
     """
   }
