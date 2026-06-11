@@ -278,6 +278,28 @@ struct AgentEditFileTool: AgentTool {
     let content: String
   }
 
+  private struct EditFileContentRepairPayload: Encodable {
+    let path: String
+    let edits: [EditFileContentRepairEdit]
+  }
+
+  private struct EditFileContentRepairEdit: Encodable {
+    let startLine: Int
+    let endLine: Int
+    let content: String
+  }
+
+  private struct EditFileInsertRepairPayload: Encodable {
+    let path: String
+    let edits: [EditFileInsertRepairEdit]
+  }
+
+  private struct EditFileInsertRepairEdit: Encodable {
+    let startLine: Int
+    let endLine: Int
+    let insert: String
+  }
+
   let spec: AgentToolSpec
 
   init() {
@@ -349,8 +371,19 @@ struct AgentEditFileTool: AgentTool {
 
     for (idx, edit) in args.edits.enumerated() {
       if edit.startLine < 1 {
+        var message =
+          "edits[\(idx)].startLine must be >= 1; got \(edit.startLine). Line numbers are 1-indexed; never use startLine=0."
+        if edit.endLine == 0 {
+          message += Self.editFileInsertRepairHint(
+            path: args.path,
+            startLine: 1,
+            endLine: 0,
+            content: Self.joinLines(edit.replacementLines),
+            intro: "To insert before the first line, return `edit_file` with these arguments"
+          )
+        }
         return .failure(
-          .invalidArguments("edits[\(idx)].startLine must be >= 1; got \(edit.startLine)"))
+          .invalidArguments(message))
       }
       if edit.endLine < edit.startLine - 1 {
         return .failure(
@@ -359,9 +392,17 @@ struct AgentEditFileTool: AgentTool {
           ))
       }
       if edit.usesInsertionAlias, edit.endLine != edit.startLine - 1 {
+        let insertionHint = Self.editFileInsertRepairHint(
+          path: args.path,
+          startLine: edit.startLine,
+          endLine: edit.startLine - 1,
+          content: Self.joinLines(edit.replacementLines),
+          intro:
+            "If you truly intended to insert these lines, return `edit_file` with these arguments"
+        )
         return .failure(
           .invalidArguments(
-            "edits[\(idx)] uses insert/insertion but startLine=\(edit.startLine), endLine=\(edit.endLine) is a replacement range. Insert aliases must use endLine=startLine - 1; to insert at line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1). If you meant to replace existing lines, use replacementLines or content instead of insert."
+            "edits[\(idx)] uses insert/insertion but startLine=\(edit.startLine), endLine=\(edit.endLine) is a replacement range. Insert aliases must use endLine=startLine - 1; to insert at line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1). If you meant to replace existing lines, use replacementLines or content instead of insert; for a full rewrite, read the file and replace startLine=1 through the last line from read_file.\(insertionHint)"
           ))
       }
       if let embeddedNewline = Self.embeddedNewline(in: edit.replacementLines) {
@@ -454,6 +495,7 @@ struct AgentEditFileTool: AgentTool {
         if let suspiciousInsertion = Self.suspiciousWholeFileInsertionMessage(
           editIndex: idx,
           edit: edit,
+          relativePath: relative,
           lineCount: lineCount,
           isSourceFile: Self.isSourceFile(url)
         ) {
@@ -494,6 +536,7 @@ struct AgentEditFileTool: AgentTool {
       if let suspiciousExpansion = Self.suspiciousPartialRewriteMessage(
         editIndex: idx,
         edit: edit,
+        relativePath: relative,
         existingLines: existing,
         remainingLines: Array(lines.dropFirst(endIndex + 1)),
         isSourceFile: Self.isSourceFile(url),
@@ -678,6 +721,68 @@ struct AgentEditFileTool: AgentTool {
       """
   }
 
+  private static func editFileContentRepairHint(
+    path: String,
+    startLine: Int,
+    endLine: Int,
+    content: String,
+    intro: String
+  ) -> String {
+    guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "" }
+    let payload = EditFileContentRepairPayload(
+      path: path,
+      edits: [
+        EditFileContentRepairEdit(
+          startLine: startLine,
+          endLine: endLine,
+          content: content
+        )
+      ]
+    )
+    return encodedEditFileRepairHint(payload: payload, intro: intro)
+  }
+
+  private static func editFileInsertRepairHint(
+    path: String,
+    startLine: Int,
+    endLine: Int,
+    content: String,
+    intro: String
+  ) -> String {
+    guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "" }
+    let payload = EditFileInsertRepairPayload(
+      path: path,
+      edits: [
+        EditFileInsertRepairEdit(
+          startLine: startLine,
+          endLine: endLine,
+          insert: content
+        )
+      ]
+    )
+    return encodedEditFileRepairHint(payload: payload, intro: intro)
+  }
+
+  private static func encodedEditFileRepairHint<Payload: Encodable>(
+    payload: Payload,
+    intro: String
+  ) -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    guard let data = try? encoder.encode(payload),
+      let json = String(data: data, encoding: .utf8)
+    else {
+      return ""
+    }
+    return """
+
+      \(intro):
+      ```json
+      \(json)
+      ```
+      """
+  }
+
   private func nearestExistingDirectory(
     from url: URL,
     context: AgentToolContext
@@ -807,7 +912,8 @@ struct AgentEditFileTool: AgentTool {
       lines.joined(separator: "\n"),
       pathExtension: pathExtension
     )
-    return stripped
+    return
+      stripped
       .components(separatedBy: .newlines)
       .contains { line in
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -872,6 +978,7 @@ struct AgentEditFileTool: AgentTool {
   private static func suspiciousPartialRewriteMessage(
     editIndex: Int,
     edit: EditOperation,
+    relativePath: String,
     existingLines: [String],
     remainingLines: [String],
     isSourceFile: Bool,
@@ -894,13 +1001,24 @@ struct AgentEditFileTool: AgentTool {
       return nil
     }
 
+    let repairHint = editFileContentRepairHint(
+      path: relativePath,
+      startLine: 1,
+      endLine: lineCount,
+      content: joinLines(edit.replacementLines),
+      intro:
+        "If this is the intended whole-file replacement, return `edit_file` with these arguments"
+    )
+
     return
       "edits[\(editIndex)] replaces only line \(edit.startLine) with \(edit.replacementLines.count) lines while leaving \(lineCount - edit.endLine) existing lines after it. This looks like a partial whole-file rewrite. Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with the same replacement, and do not fix this by shifting to another single-line range such as startLine=\(min(edit.startLine + 1, lineCount)), endLine=\(min(edit.endLine + 1, lineCount)). If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to insert before line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1) with only the new lines to insert, not the whole file. Otherwise replace the exact line range that should be removed."
+      + repairHint
   }
 
   private static func suspiciousWholeFileInsertionMessage(
     editIndex: Int,
     edit: EditOperation,
+    relativePath: String,
     lineCount: Int,
     isSourceFile: Bool
   ) -> String? {
@@ -913,8 +1031,18 @@ struct AgentEditFileTool: AgentTool {
       return nil
     }
 
+    let repairHint = editFileContentRepairHint(
+      path: relativePath,
+      startLine: 1,
+      endLine: lineCount,
+      content: joinLines(edit.replacementLines),
+      intro:
+        "If this is the intended whole-file replacement, return `edit_file` with these arguments"
+    )
+
     return
       "edits[\(editIndex)] inserts \(edit.replacementLines.count) lines before line \(edit.startLine) while leaving \(lineCount) existing lines after it. This looks like a whole-file rewrite expressed as an insertion. Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with the same replacement. If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to add an import or header, insert only those new lines. Otherwise replace the exact line range that should be removed."
+      + repairHint
   }
 
   private struct FunctionDeclarationLine {
@@ -1039,7 +1167,8 @@ struct AgentEditFileTool: AgentTool {
       guard line.contains("{"),
         let name = firstCapture(
           in: line,
-          pattern: #"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\b"#
+          pattern:
+            #"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\b"#
         )
       else {
         continue
@@ -1053,7 +1182,8 @@ struct AgentEditFileTool: AgentTool {
     lines.contains { line in
       firstCapture(
         in: line,
-        pattern: #"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\b"#
+        pattern:
+          #"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\b"#
       ) == name
     }
   }

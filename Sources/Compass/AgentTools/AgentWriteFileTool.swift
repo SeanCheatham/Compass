@@ -39,6 +39,17 @@ struct AgentWriteFileTool: AgentTool {
     }
   }
 
+  private struct EditFileRepairPayload: Encodable {
+    let path: String
+    let edits: [EditFileRepairEdit]
+  }
+
+  private struct EditFileRepairEdit: Encodable {
+    let startLine: Int
+    let endLine: Int
+    let content: String
+  }
+
   let spec: AgentToolSpec
 
   init() {
@@ -102,8 +113,13 @@ struct AgentWriteFileTool: AgentTool {
       } else {
         wholeFileRange = "startLine=1, endLine=<last line from read_file>"
       }
+      let repairHint = Self.editFileRepairHint(
+        relativePath: relative,
+        lineCount: await context.readTracker.lineCount(for: url),
+        content: args.content
+      )
       let guidance =
-        "write_file refused to overwrite \(relative) because it already exists. Use edit_file for existing files. \(wasRead ? "Use the line numbers from the prior read_file" : "Call read_file on \(relative) first"), then call edit_file with startLine/endLine and replacement lines. For a whole-file replacement, use edit_file with \(wholeFileRange)."
+        "write_file refused to overwrite \(relative) because it already exists. Use edit_file for existing files. \(wasRead ? "Use the line numbers from the prior read_file" : "Call read_file on \(relative) first"), then call edit_file with startLine/endLine and replacement lines. For a whole-file replacement, use edit_file with \(wholeFileRange).\(repairHint)"
       if wasRead {
         return .failure(.invalidArguments(guidance))
       }
@@ -285,6 +301,42 @@ struct AgentWriteFileTool: AgentTool {
     return entryPoints
   }
 
+  private static func editFileRepairHint(
+    relativePath: String,
+    lineCount: Int?,
+    content: String
+  ) -> String {
+    guard let lineCount,
+      !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+      return ""
+    }
+    let payload = EditFileRepairPayload(
+      path: relativePath,
+      edits: [
+        EditFileRepairEdit(
+          startLine: 1,
+          endLine: lineCount,
+          content: content
+        )
+      ]
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    guard let data = try? encoder.encode(payload),
+      let json = String(data: data, encoding: .utf8)
+    else {
+      return ""
+    }
+    return """
+
+      To replace the existing file with the attempted content, return `edit_file` with these arguments:
+      ```json
+      \(json)
+      ```
+      """
+  }
+
   private func normalizedPackageEntryPoint(_ raw: String) -> String? {
     var path = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !path.isEmpty, !path.hasPrefix("#"), !path.contains("://") else { return nil }
@@ -453,7 +505,8 @@ struct AgentWriteFileTool: AgentTool {
       .trimmingCharacters(in: .whitespacesAndNewlines)
     guard stripped.isEmpty else { return nil }
 
-    let firstLine = trimmed.components(separatedBy: "\n").first?
+    let firstLine =
+      trimmed.components(separatedBy: "\n").first?
       .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return EmptyOrCommentOnlySourceContent(
       preview: "`\(String(firstLine.prefix(120)))`"

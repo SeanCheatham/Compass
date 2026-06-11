@@ -74,6 +74,39 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("uses insert/insertion"))
     #expect(result.content.contains("use startLine=3, endLine=2"))
     #expect(result.content.contains("use replacementLines or content instead of insert"))
+    #expect(result.content.contains("return `edit_file` with these arguments"))
+    #expect(result.content.contains(#""path":"notes.txt""#))
+    #expect(result.content.contains(#""startLine":3"#))
+    #expect(result.content.contains(#""endLine":2"#))
+    #expect(result.content.contains(#""insert":"three""#))
+  }
+
+  @Test
+  func editFileStartLineZeroSuggestsFirstLineInsert() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "notes.txt")
+    try "one\ntwo".write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"notes.txt"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(#"{"path":"notes.txt","startLine":0,"endLine":0,"insert":"zero"}"#.utf8),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("never use startLine=0"))
+    #expect(result.content.contains("To insert before the first line"))
+    #expect(result.content.contains(#""path":"notes.txt""#))
+    #expect(result.content.contains(#""startLine":1"#))
+    #expect(result.content.contains(#""endLine":0"#))
+    #expect(result.content.contains(#""insert":"zero""#))
   }
 
   @Test
@@ -278,6 +311,11 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("write_file refused to overwrite packages/cli/src/main.ts"))
     #expect(result.content.contains("Use edit_file for existing files"))
     #expect(result.content.contains("startLine=1, endLine=2"))
+    #expect(result.content.contains("return `edit_file` with these arguments"))
+    #expect(result.content.contains(#""path":"packages/cli/src/main.ts""#))
+    #expect(result.content.contains(#""startLine":1"#))
+    #expect(result.content.contains(#""endLine":2"#))
+    #expect(result.content.contains(#""content":"export {};""#))
     let current = try String(contentsOf: mainURL, encoding: .utf8)
     #expect(current == "export function main() {}\nconsole.log(main());")
   }
@@ -628,6 +666,11 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("Do not retry startLine=1, endLine=1"))
     #expect(result.content.contains("do not fix this by shifting to another single-line range"))
     #expect(result.content.contains("with only the new lines to insert, not the whole file"))
+    #expect(result.content.contains("return `edit_file` with these arguments"))
+    #expect(result.content.contains(#""path":"main.ts""#))
+    #expect(result.content.contains(#""startLine":1"#))
+    #expect(result.content.contains(#""endLine":6"#))
+    #expect(result.content.contains("export function replacement"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged.contains("export function one()"))
   }
@@ -678,6 +721,11 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("partial whole-file rewrite"))
     #expect(result.content.contains("use startLine=1, endLine=11"))
     #expect(result.content.contains("with only the new lines to insert, not the whole file"))
+    #expect(result.content.contains("return `edit_file` with these arguments"))
+    #expect(result.content.contains(#""path":"packages/cli/src/main.ts""#))
+    #expect(result.content.contains(#""startLine":1"#))
+    #expect(result.content.contains(#""endLine":11"#))
+    #expect(result.content.contains("summarizeCLI(entries)"))
     let unchanged = try String(contentsOf: mainURL, encoding: .utf8)
     #expect(unchanged == original)
   }
