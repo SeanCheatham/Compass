@@ -240,6 +240,13 @@ extension AgentExecutor {
             successfulVerifyCommand: lastSuccessfulVerifyCommand,
             configuration: configuration
           )
+          ?? Self.rejectFailedDevelopSubmitAfterContinuationRejection(
+            payload,
+            sawContinuationRejection: sawContinuationRejection,
+            latestRepairMessage: latestContinuationRejectionRepairMessage,
+            rejectionDescription: latestContinuationRejectionDescription,
+            configuration: configuration
+          )
           ?? Self.rejectSubmitResultIfNeeded(
           payload,
           configuration: configuration
@@ -1282,6 +1289,87 @@ extension AgentExecutor {
     } catch {
       return submitResultValidationNudge(for: error, phase: configuration.phase)
     }
+  }
+
+  private static func rejectFailedDevelopSubmitAfterContinuationRejection(
+    _ submitResultJSON: Data,
+    sawContinuationRejection: Bool,
+    latestRepairMessage: String?,
+    rejectionDescription: String,
+    configuration: AgentExecutionConfiguration
+  ) -> InvalidToolArgumentsNudge? {
+    guard configuration.phase == .develop,
+      sawContinuationRejection,
+      let summary = try? JSONDecoder().decode(DevelopSummary.self, from: submitResultJSON),
+      summary.status == .failed,
+      let proceduralFeedback = proceduralFailedDevelopFeedback(summary)
+    else { return nil }
+
+    let repair = latestRepairMessage.map {
+      "\n\nLatest Compass repair message:\n\(fencedContinuationText($0, limit: 2_000))"
+    } ?? ""
+
+    return InvalidToolArgumentsNudge(
+      eventText: "develop_submit procedural failure rejected",
+      eventDetail:
+        "Develop submitted status=failed after a repairable \(rejectionDescription) rejection: `\(proceduralFeedback)`.",
+      userMessage: """
+        Your previous `develop_submit` reported status=failed after Compass had already rejected
+        a repairable \(rejectionDescription), and its feedback says to fix tool/JSON formatting
+        and try again:
+        `\(proceduralFeedback)`
+
+        This is not a terminal Develop result. Do not submit failed for malformed continuation JSON.
+        Return a valid `develop_continue` with corrected JSON now. If you need multiline
+        `edit_file` content, use `replacementLines` as an array of strings, not JavaScript
+        template literals.
+
+        Submit status=failed only for a real project blocker after you have no concrete
+        tool call left to try.
+        \(repair)
+
+        \(submitResultDecodeRetryShape(for: .develop))
+        """
+    )
+  }
+
+  private static func proceduralFailedDevelopFeedback(_ summary: DevelopSummary) -> String? {
+    let feedback = normalizedInlineText(summary.feedback)
+    let combined = normalizedInlineText("\(summary.summary) \(summary.feedback)")
+    let lowercased = combined.lowercased()
+    let retryPhrases = [
+      "try again",
+      "retry",
+      "re-try",
+      "rerun",
+      "re-run",
+    ]
+    guard retryPhrases.contains(where: { lowercased.contains($0) }) else { return nil }
+
+    let toolShapePhrases = [
+      "arguments",
+      "continuation",
+      "develop_continue",
+      "edit_file",
+      "format",
+      "formatting",
+      "json",
+      "malformed",
+      "parse",
+      "payload",
+      "schema",
+      "syntax",
+      "tool",
+    ]
+    guard toolShapePhrases.contains(where: { lowercased.contains($0) }) else { return nil }
+    return feedback.isEmpty ? combined : feedback
+  }
+
+  private static func normalizedInlineText(_ text: String) -> String {
+    text
+      .components(separatedBy: .whitespacesAndNewlines)
+      .filter { !$0.isEmpty }
+      .joined(separator: " ")
   }
 
   private static func rejectDevelopSubmitAfterSuccessfulVerify(

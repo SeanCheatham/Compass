@@ -1367,6 +1367,60 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorRejectsProceduralFailedDevelopSubmitAfterMalformedContinuation() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let malformedEdit = """
+      ```json
+      {
+        "kind": "develop_continue",
+        "tool": "edit_file",
+        "arguments": {
+          "path": "packages/cli/src/main.ts",
+          "startLine": 4,
+          "endLine": 15,
+          "content": `export function main() {
+        return "bad";
+      }`
+        },
+        "reason": "Repair the CLI entrypoint."
+      }
+      ```
+      """
+    let proceduralFailure =
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Failed to parse and apply the edit_file content due to malformed JSON.","feedback":"Correct the JSON formatting and try again.","bypassVerify":false,"lessonEdits":[]}}"#
+    let terminalFailure =
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Could not complete the requested CLI change within the iteration budget.","feedback":"The --count implementation was not completed before the Develop iteration budget ended.","bypassVerify":false,"lessonEdits":[]}}"#
+    let runtime = FakeLocalModelRuntime(outputs: [
+      malformedEdit,
+      proceduralFailure,
+      terminalFailure,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [AgentEditFileTool()],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 3
+      )
+    )
+
+    #expect(result.iterations == 3)
+    #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("iteration budget"))
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 3)
+    #expect(prompts[1].contains("JSON strings must use double quotes"))
+    #expect(prompts[2].contains("reported status=failed after Compass had already rejected"))
+    #expect(prompts[2].contains("This is not a terminal Develop result"))
+    #expect(prompts[2].contains("Return a valid `develop_continue` with corrected JSON now"))
+    #expect(prompts[2].contains("use `replacementLines` as an array of strings"))
+  }
+
+  @Test
   func executorStopsAtMaxIterationsAndWallClock() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
