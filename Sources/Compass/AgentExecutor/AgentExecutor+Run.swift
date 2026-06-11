@@ -26,6 +26,7 @@ extension AgentExecutor {
     var iterations = 0
     var assistantTranscript = ""
     var transcript: [ContinuationTranscriptEntry] = []
+    var compactedHistory: String?
     var tokenUsage = AgentRunTokenUsage()
     var lastFailedToolCall: FailedToolCallSignature?
     var repeatedFailedToolCallCount = 0
@@ -37,6 +38,81 @@ extension AgentExecutor {
         throw AgentExecutionError.wallClockExceeded(configuration.wallClockTimeout)
       }
 
+      var prompt = Self.continuationPrompt(
+        configuration: configuration,
+        compactedHistory: compactedHistory,
+        transcript: transcript,
+        historyMode: configuration.contextWindowTokens == 0 ? .boundedRecent : .full
+      )
+      if configuration.contextWindowTokens > 0,
+        Self.promptNeedsCompaction(
+          prompt: prompt,
+          systemPrompt: configuration.systemPrompt,
+          configuration: configuration
+        )
+      {
+        do {
+          if let compaction = try await Self.compactContinuationHistory(
+            configuration: configuration,
+            runtime: runtime,
+            compactedHistory: compactedHistory,
+            transcript: transcript
+          ) {
+            compactedHistory = compaction.summary
+            transcript = Array(transcript.suffix(Self.rawTranscriptEntriesAfterCompaction))
+            tokenUsage.recordTurn(
+              inputTokens: compaction.tokenUsage.inputTokens,
+              outputTokens: compaction.tokenUsage.outputTokens,
+              totalTokens: compaction.tokenUsage.totalTokens,
+              isEstimated: compaction.tokenUsage.usesEstimate,
+              streamedUsageAvailable: compaction.tokenUsage.streamedUsageAvailable
+            )
+            tokenUsage.recordCompaction(summaryTokens: compaction.tokenUsage.outputTokens)
+            if let durationMs = compaction.tokenUsage.durationMs {
+              tokenUsage.durationMs = (tokenUsage.durationMs ?? 0) + durationMs
+            }
+            emit(
+              level: .info,
+              text: "Compacted continuation history",
+              detail: previewString(compaction.summary),
+              kind: .lifecycle,
+              status: .completed
+            )
+            prompt = Self.continuationPrompt(
+              configuration: configuration,
+              compactedHistory: compactedHistory,
+              transcript: transcript,
+              historyMode: .full
+            )
+          } else {
+            prompt = Self.continuationPrompt(
+              configuration: configuration,
+              compactedHistory: compactedHistory,
+              transcript: transcript,
+              historyMode: .boundedRecent
+            )
+          }
+        } catch is CancellationError {
+          throw AgentExecutionError.cancelled
+        } catch let agentError as AgentExecutionError {
+          throw agentError
+        } catch {
+          emit(
+            level: .warning,
+            text: "Continuation compaction skipped",
+            detail: previewString(error.localizedDescription),
+            kind: .lifecycle,
+            status: .failed
+          )
+          prompt = Self.continuationPrompt(
+            configuration: configuration,
+            compactedHistory: compactedHistory,
+            transcript: transcript,
+            historyMode: .boundedRecent
+          )
+        }
+      }
+
       iterations += 1
       emit(
         level: .info,
@@ -45,10 +121,6 @@ extension AgentExecutor {
         status: .running
       )
 
-      let prompt = Self.continuationPrompt(
-        configuration: configuration,
-        transcript: transcript
-      )
       let generation: LocalModelGenerationResult
       do {
         generation = try await runtime.generateText(
@@ -159,7 +231,7 @@ extension AgentExecutor {
           tokenUsage: tokenUsage
         )
 
-      case .continueTool(let toolName, let arguments, let reason):
+      case .continueTool(let toolName, let arguments, let reason, let note):
         guard let tool = toolsByName[toolName] else {
           transcript.append(
             .repair(
@@ -192,6 +264,9 @@ extension AgentExecutor {
           reason: reason
         )
         transcript.append(.toolObservation(observation))
+        if let note {
+          transcript.append(.assistantNote(note))
+        }
         if result.isError {
           let signature = FailedToolCallSignature(toolName: toolName, arguments: argumentText)
           if signature == lastFailedToolCall {
@@ -298,9 +373,23 @@ extension AgentExecutor {
       Self(title: "Compass Observation", body: body)
     }
 
+    static func assistantNote(_ body: String) -> Self {
+      Self(title: "Assistant Note (unverified)", body: body)
+    }
+
     static func repair(_ body: String) -> Self {
       Self(title: "Compass Repair", body: body)
     }
+  }
+
+  private enum ContinuationHistoryMode {
+    case full
+    case boundedRecent
+  }
+
+  private struct ContinuationCompactionResult {
+    var summary: String
+    var tokenUsage: AgentRunTokenUsage
   }
 
   private struct FailedToolCallSignature: Equatable {
@@ -308,9 +397,13 @@ extension AgentExecutor {
     var arguments: String
   }
 
+  private static let rawTranscriptEntriesAfterCompaction = 8
+
   private static func continuationPrompt(
     configuration: AgentExecutionConfiguration,
-    transcript: [ContinuationTranscriptEntry]
+    compactedHistory: String?,
+    transcript: [ContinuationTranscriptEntry],
+    historyMode: ContinuationHistoryMode
   ) -> String {
     var sections: [String] = [
       """
@@ -321,21 +414,30 @@ extension AgentExecutor {
       ## Continuation Contract
       Emit exactly one JSON object and no prose.
       Use `\(configuration.continuationPhase.continueKind)` to request one Compass tool.
+      A continue envelope may include optional `note`: a short unverified working note for how to use the upcoming real tool observation.
       Use `\(configuration.continuationPhase.submitKind)` with `payload` to finish this phase.
       """
     ]
 
-    if !transcript.isEmpty {
-      let recent = transcript.suffix(8).map { entry in
+    if let compactedHistory = sanitizedCompactedHistory(compactedHistory) {
+      sections.append(
         """
-        ### \(entry.title)
-        \(fencedContinuationText(entry.body, limit: 8_000))
+        ## Compacted History
+        The following is model-generated compressed history. It is useful context, but lower authority than real `Compass Observation` entries below.
+        \(fencedContinuationText(compactedHistory, limit: 12_000))
         """
-      }.joined(separator: "\n\n")
+      )
+    }
+
+    let historyEntries =
+      historyMode == .boundedRecent
+      ? transcript.suffix(rawTranscriptEntriesAfterCompaction)
+      : transcript[...]
+    if !historyEntries.isEmpty {
       sections.append(
         """
         ## Recent History
-        \(recent)
+        \(renderTranscriptEntries(historyEntries, entryLimit: 8_000))
         """
       )
     }
@@ -347,6 +449,157 @@ extension AgentExecutor {
       """
     )
     return sections.joined(separator: "\n\n")
+  }
+
+  private static func promptNeedsCompaction(
+    prompt: String,
+    systemPrompt: String,
+    configuration: AgentExecutionConfiguration
+  ) -> Bool {
+    let contextWindowTokens = configuration.contextWindowTokens
+    guard contextWindowTokens > 0 else { return false }
+    let threshold = max(
+      1,
+      Int((Double(contextWindowTokens) * compactionThresholdFraction).rounded(.down))
+    )
+    let estimatedTokens = AgentRunTokenUsage.estimateTokens(
+      characters: prompt.count + systemPrompt.count,
+      charsPerToken: estimatedCharsPerToken
+    )
+    return estimatedTokens > threshold
+  }
+
+  private static func compactContinuationHistory(
+    configuration: AgentExecutionConfiguration,
+    runtime: any LocalModelGenerating,
+    compactedHistory: String?,
+    transcript: [ContinuationTranscriptEntry]
+  ) async throws -> ContinuationCompactionResult? {
+    let olderCount = max(0, transcript.count - rawTranscriptEntriesAfterCompaction)
+    let olderEntries = transcript.prefix(olderCount)
+    guard sanitizedCompactedHistory(compactedHistory) != nil || !olderEntries.isEmpty else {
+      return nil
+    }
+
+    let generation = try await runtime.generateText(
+      request: LocalModelGenerationRequest(
+        modelID: LocalModelCatalog.blessedModelID,
+        systemPrompt: continuationCompactionSystemPrompt(),
+        prompt: continuationCompactionPrompt(
+          configuration: configuration,
+          compactedHistory: compactedHistory,
+          olderEntries: olderEntries,
+          recentEntries: transcript.suffix(rawTranscriptEntriesAfterCompaction)
+        ),
+        maxOutputTokens: maxSummaryCompletionTokens
+      )
+    )
+
+    let (cleaned, _) = stripThinkBlocks(generation.text)
+    let summary = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !summary.isEmpty else { return nil }
+    return ContinuationCompactionResult(
+      summary: boundedCompactedHistory(summary),
+      tokenUsage: generation.tokenUsage
+    )
+  }
+
+  private static func continuationCompactionSystemPrompt() -> String {
+    """
+    You compact Compass continuation history for a small local coding agent.
+    Preserve only useful resumable state. Do not invent facts. Return plain text only.
+    """
+  }
+
+  private static func continuationCompactionPrompt(
+    configuration: AgentExecutionConfiguration,
+    compactedHistory: String?,
+    olderEntries: ArraySlice<ContinuationTranscriptEntry>,
+    recentEntries: ArraySlice<ContinuationTranscriptEntry>
+  ) -> String {
+    var sections: [String] = [
+      """
+      ## Task
+      Compact the older Compass continuation history. The latest raw entries will remain visible separately, so summarize older context only enough to resume.
+
+      Authority rules:
+      - `Compass Observation` entries are real tool output.
+      - `Assistant JSON` and `Assistant Note (unverified)` entries are model intent, not proof.
+      - If entries conflict, preserve the real observation and note the conflict tersely.
+      - Do not invent tool results, file contents, or completed work.
+
+      Required output headings, in this exact order:
+      Goal / Current Phase
+      Established Facts
+      Files / Symbols
+      Errors / Repairs
+      Current Step / Next Action
+      """,
+      """
+      ## Original Phase Packet
+      \(fencedContinuationText(configuration.userPrompt, limit: 8_000))
+      """
+    ]
+
+    if let compactedHistory = sanitizedCompactedHistory(compactedHistory) {
+      sections.append(
+        """
+        ## Existing Compacted History
+        \(fencedContinuationText(compactedHistory, limit: 8_000))
+        """
+      )
+    }
+
+    if !olderEntries.isEmpty {
+      sections.append(
+        """
+        ## Raw History To Compact
+        \(renderTranscriptEntries(olderEntries, entryLimit: 6_000))
+        """
+      )
+    }
+
+    if !recentEntries.isEmpty {
+      sections.append(
+        """
+        ## Latest Raw History Kept Verbatim
+        Do not duplicate these entries unless needed to connect the older summary.
+        \(renderTranscriptEntries(recentEntries, entryLimit: 4_000))
+        """
+      )
+    }
+
+    sections.append(
+      """
+      ## Output
+      Return only the compacted plain-text summary with the required headings.
+      """
+    )
+    return sections.joined(separator: "\n\n")
+  }
+
+  private static func renderTranscriptEntries(
+    _ entries: ArraySlice<ContinuationTranscriptEntry>,
+    entryLimit: Int
+  ) -> String {
+    entries.map { entry in
+      """
+      ### \(entry.title)
+      \(fencedContinuationText(entry.body, limit: entryLimit))
+      """
+    }.joined(separator: "\n\n")
+  }
+
+  private static func sanitizedCompactedHistory(_ text: String?) -> String? {
+    let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return trimmed.isEmpty ? nil : trimmed
+  }
+
+  private static func boundedCompactedHistory(_ text: String, limit: Int = 16_000) -> String {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.count > limit else { return trimmed }
+    return String(trimmed.prefix(max(0, limit - 80)))
+      + "\n... [Compass truncated \(trimmed.count - limit) characters from compacted history] ..."
   }
 
   private static func continuationRepairMessage(
@@ -361,7 +614,7 @@ extension AgentExecutor {
     \(error)
 
     Required shape:
-    {"kind":"\(phase.continueKind)","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current package scripts."}
+    {"kind":"\(phase.continueKind)","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current package scripts.","note":"If package scripts exist, run the relevant verify command next."}
     or
     {"kind":"\(phase.submitKind)","payload":{...}}
 

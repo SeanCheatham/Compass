@@ -21,7 +21,7 @@ extension Prompts {
 
     Response protocol:
     - Emit exactly one JSON object per turn, with no prose or Markdown fences.
-    - Request a tool with `{"kind":"delegate_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts."}`.
+    - Request a tool with `{"kind":"delegate_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts.","note":"If scripts exist, report the relevant verify command."}`.
     - Finish with `{"kind":"delegate_submit","payload":{"findings":"<grounded findings>"}}`.
     Do not delegate further.
     """
@@ -100,8 +100,9 @@ extension Prompts {
 
     Response protocol:
     - Emit exactly one JSON object per turn, with no prose or Markdown fences.
-    - Request one Compass tool with `{"kind":"\(phaseContinuationKind(phase))","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts."}`.
+    - Request one Compass tool with `{"kind":"\(phaseContinuationKind(phase))","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts.","note":"If scripts exist, choose the relevant verify command next."}`.
     - Finish the phase with `{"kind":"\(phaseSubmitKind(phase))","payload":{...}}`, where `payload` matches the phase schema in the user message.
+    - Use `reason` for why the requested tool is needed now. Use optional `note` only for a short unverified next-step hint after the real tool observation.
 
     Use codemap tools before broad file reads when possible.
     """

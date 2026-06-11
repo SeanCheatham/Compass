@@ -23,7 +23,7 @@ enum AgentContinuationPhase: String, Equatable, Sendable, CaseIterable {
 
 struct AgentContinuation: Equatable, Sendable {
   enum Action: Equatable, Sendable {
-    case continueTool(toolName: String, arguments: Data, reason: String?)
+    case continueTool(toolName: String, arguments: Data, reason: String?, note: String?)
     case submit(payload: Data)
   }
 
@@ -40,6 +40,7 @@ enum AgentContinuationParseError: LocalizedError, Equatable {
   case missingTool
   case unknownTool(String)
   case argumentsNotObject
+  case noteNotString
   case missingPayload
   case payloadNotObject
   case invalidJSONObject
@@ -60,6 +61,8 @@ enum AgentContinuationParseError: LocalizedError, Equatable {
       return "Unknown tool `\(tool)` for this phase."
     case .argumentsNotObject:
       return "Continue envelope field `arguments` must be a JSON object."
+    case .noteNotString:
+      return "Continue envelope field `note` must be a string when present."
     case .missingPayload:
       return "Submit envelope is missing object field `payload`."
     case .payloadNotObject:
@@ -71,6 +74,8 @@ enum AgentContinuationParseError: LocalizedError, Equatable {
 }
 
 enum AgentContinuationParser {
+  static let noteCharacterLimit = 800
+
   static func parse(
     _ text: String,
     phase: AgentContinuationPhase,
@@ -117,13 +122,15 @@ enum AgentContinuationParser {
       }
       let reason = (object["reason"] as? String)?
         .trimmingCharacters(in: .whitespacesAndNewlines)
+      let note = try sanitizedNote(from: object)
       return AgentContinuation(
         kind: kind,
         phase: phase,
         action: .continueTool(
           toolName: toolName,
           arguments: try encodeJSONObject(arguments),
-          reason: reason?.isEmpty == true ? nil : reason
+          reason: reason?.isEmpty == true ? nil : reason,
+          note: note
         )
       )
     }
@@ -139,6 +146,16 @@ enum AgentContinuationParser {
       phase: phase,
       action: .submit(payload: try encodeJSONObject(payload))
     )
+  }
+
+  private static func sanitizedNote(from object: [String: Any]) throws -> String? {
+    guard object.keys.contains("note") else { return nil }
+    guard let raw = object["note"] as? String else {
+      throw AgentContinuationParseError.noteNotString
+    }
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    return String(trimmed.prefix(noteCharacterLimit))
   }
 
   private static func normalizedJSONObjectText(from text: String) throws -> String {

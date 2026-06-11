@@ -318,7 +318,8 @@ struct FactoryPivotTests {
           "kind": "\(phase.continueKind)",
           "tool": "read-file",
           "arguments": { "path": "package.json" },
-          "reason": "Need scripts."
+          "reason": "Need scripts.",
+          "note": "  If scripts exist, choose the matching verify command.  "
         }
         """
       let parsed = try AgentContinuationParser.parse(
@@ -326,13 +327,14 @@ struct FactoryPivotTests {
         phase: phase,
         availableToolNames: tools
       )
-      guard case .continueTool(let toolName, let arguments, let reason) = parsed.action else {
+      guard case .continueTool(let toolName, let arguments, let reason, let note) = parsed.action else {
         Issue.record("Expected continue action")
         return
       }
       #expect(toolName == "read_file")
       #expect(String(decoding: arguments, as: UTF8.self).contains("package.json"))
       #expect(reason == "Need scripts.")
+      #expect(note == "If scripts exist, choose the matching verify command.")
     }
   }
 
@@ -356,13 +358,51 @@ struct FactoryPivotTests {
       availableToolNames: ["read_file"]
     )
 
-    guard case .continueTool(let toolName, let arguments, let reason) = parsed.action else {
+    guard case .continueTool(let toolName, let arguments, let reason, let note) = parsed.action else {
       Issue.record("Expected continue action")
       return
     }
     #expect(toolName == "read_file")
     #expect(String(decoding: arguments, as: UTF8.self).contains("package.json"))
     #expect(reason == "Need current package scripts.")
+    #expect(note == nil)
+  }
+
+  @Test
+  func continuationParserSanitizesAndRejectsNotes() throws {
+    let emptyNote = try AgentContinuationParser.parse(
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"note":"   "}"#,
+      phase: .develop,
+      availableToolNames: ["read_file"]
+    )
+    guard case .continueTool(_, _, _, let empty) = emptyNote.action else {
+      Issue.record("Expected continue action")
+      return
+    }
+    #expect(empty == nil)
+
+    let longNote = String(repeating: "x", count: AgentContinuationParser.noteCharacterLimit + 20)
+    let longJSON = """
+      {"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"note":"\(longNote)"}
+      """
+    let truncated = try AgentContinuationParser.parse(
+      longJSON,
+      phase: .develop,
+      availableToolNames: ["read_file"]
+    )
+    guard case .continueTool(_, _, _, let note) = truncated.action else {
+      Issue.record("Expected continue action")
+      return
+    }
+    #expect(note?.count == AgentContinuationParser.noteCharacterLimit)
+
+    #expect(throws: AgentContinuationParseError.noteNotString) {
+      try AgentContinuationParser.parse(
+        #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"note":{"next":"edit"}}"#,
+        phase: .develop,
+        availableToolNames: ["read_file"]
+      )
+    }
   }
 
   @Test
@@ -471,7 +511,7 @@ struct FactoryPivotTests {
     )
 
     let runtime = FakeLocalModelRuntime(outputs: [
-      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current exports."}"#,
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current exports.","note":"after-read-note: edit this file if it exports answer."}"#,
       #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Read the file.","feedback":"Verified with pnpm verify.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
     let result = try await AgentExecutor().run(
@@ -489,6 +529,19 @@ struct FactoryPivotTests {
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 2)
     #expect(prompts[1].contains("export const answer"))
+    #expect(prompts[1].contains("### Assistant Note (unverified)"))
+    #expect(prompts[1].contains("after-read-note: edit this file if it exports answer."))
+    if let observationRange = prompts[1].range(of: "### Compass Observation"),
+      let noteRange = prompts[1].range(
+        of: "### Assistant Note (unverified)",
+        range: observationRange.upperBound..<prompts[1].endIndex
+      )
+    {
+      let observationSection = String(prompts[1][observationRange.upperBound..<noteRange.lowerBound])
+      #expect(!observationSection.contains("after-read-note"))
+    } else {
+      Issue.record("Expected separate observation and note sections")
+    }
   }
 
   @Test
@@ -555,6 +608,69 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("Do not call `edit_file` again with the same arguments"))
     #expect(prompts[3].contains("change the startLine/endLine"))
     #expect(prompts[3].contains(#""path":"index.ts""#))
+  }
+
+  @Test
+  func executorCompactsContinuationHistoryWithoutCountingAnAgentIteration() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try "export const answer = 42\n".write(
+      to: tempURL.appending(path: "index.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let continues = (1...5).map { index in
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Read pass \#(index)."}"#
+    }
+    let summary = """
+      Goal / Current Phase
+      Develop is reading index.ts before deciding.
+
+      Established Facts
+      Older summary from compactor.
+
+      Files / Symbols
+      index.ts has been read in prior turns.
+
+      Errors / Repairs
+      None.
+
+      Current Step / Next Action
+      Continue from the latest raw observation.
+      """
+    let runtime = FakeLocalModelRuntime(outputs: continues + [
+      summary,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Compaction preserved enough context.","feedback":"Verified with pnpm verify.","bypassVerify":false,"lessonEdits":[]}}"#,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        settings: AgentRuntimeSettings(contextWindowTokens: 300),
+        runtime: runtime,
+        tools: [AgentReadFileTool()],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 6
+      )
+    )
+
+    #expect(result.iterations == 6)
+    #expect(result.tokenUsage.compactionCount == 1)
+    #expect(result.tokenUsage.summaryTokens > 0)
+
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 7)
+    #expect(prompts[5].contains("## Raw History To Compact"))
+    #expect(prompts[5].contains("## Latest Raw History Kept Verbatim"))
+
+    let finalPrompt = prompts[6]
+    #expect(finalPrompt.contains("## Compacted History"))
+    #expect(finalPrompt.contains("lower authority than real `Compass Observation` entries"))
+    #expect(finalPrompt.contains("Older summary from compactor"))
+    #expect(finalPrompt.contains("Read pass 5."))
+    #expect(!finalPrompt.contains("Read pass 1."))
   }
 
   @Test
@@ -696,6 +812,7 @@ private func makeTempDirectory() throws -> URL {
 
 private func testConfiguration(
   phase: AgentPhase,
+  settings: AgentRuntimeSettings = AgentRuntimeSettings(),
   runtime: any LocalModelGenerating,
   tools: [AgentTool],
   workingDirectory: URL,
@@ -704,7 +821,7 @@ private func testConfiguration(
   wallClockTimeout: TimeInterval = 60
 ) -> AgentExecutionConfiguration {
   AgentExecutionConfiguration(
-    settings: AgentRuntimeSettings(),
+    settings: settings,
     phase: phase,
     systemPrompt: Prompts.agentSystemPrompt(
       phase: phase,
