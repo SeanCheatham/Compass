@@ -351,9 +351,14 @@ private enum UnfinishedSuccessFeedback {
 
   private static let nextStepActions: Set<String> = [
     "add",
+    "choose",
     "create",
+    "determine",
+    "edit",
     "fix",
     "implement",
+    "prepare",
+    "read",
     "update",
     "use",
     "wire",

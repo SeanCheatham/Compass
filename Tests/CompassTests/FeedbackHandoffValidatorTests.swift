@@ -75,6 +75,42 @@ struct FeedbackHandoffValidatorTests {
   }
 
   @Test
+  func rejectsSucceededDevelopFeedbackWithNextDiscoveryWork() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Requested the current package.json to determine the next verification command.",
+      feedback: "Next action: Choose the relevant verify command from the scripts in package.json.",
+      bypassVerify: false
+    )
+
+    do {
+      try DevelopFeedbackValidator.validate(summary)
+      Issue.record("Expected next-discovery feedback rejection.")
+    } catch let error as DevelopFeedbackValidationError {
+      #expect(error.reason == .unfinishedSuccess)
+      #expect(error.feedback?.contains("Choose the relevant verify command") == true)
+    }
+  }
+
+  @Test
+  func rejectsSucceededDevelopFeedbackThatOnlyReadsForNextSteps() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Read the current scripts from package.json to determine the next steps.",
+      feedback: "Read the current scripts to determine the next steps.",
+      bypassVerify: false
+    )
+
+    do {
+      try DevelopFeedbackValidator.validate(summary)
+      Issue.record("Expected read-for-next-steps feedback rejection.")
+    } catch let error as DevelopFeedbackValidationError {
+      #expect(error.reason == .unfinishedSuccess)
+      #expect(error.feedback?.contains("determine the next steps") == true)
+    }
+  }
+
+  @Test
   func rejectsSucceededDevelopFeedbackStartingWithImperativeWork() throws {
     let summary = DevelopSummary(
       status: .succeeded,
@@ -85,6 +121,24 @@ struct FeedbackHandoffValidatorTests {
 
     #expect(throws: DevelopFeedbackValidationError.self) {
       try DevelopFeedbackValidator.validate(summary)
+    }
+  }
+
+  @Test
+  func rejectsSucceededDevelopFeedbackStartingWithEditAndPrepare() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Moved existing logic to packages/cli/src/summarize.ts.",
+      feedback: "Edit the existing file with the new logic and prepare for adding a test function next.",
+      bypassVerify: false
+    )
+
+    do {
+      try DevelopFeedbackValidator.validate(summary)
+      Issue.record("Expected edit-and-prepare feedback rejection.")
+    } catch let error as DevelopFeedbackValidationError {
+      #expect(error.reason == .unfinishedSuccess)
+      #expect(error.feedback?.contains("prepare for adding a test") == true)
     }
   }
 
