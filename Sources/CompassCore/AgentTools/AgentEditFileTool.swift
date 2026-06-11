@@ -528,6 +528,15 @@ struct AgentEditFileTool: AgentTool {
         ) {
           return .failure(.invalidArguments(suspiciousInsertion))
         }
+        if let misplacedImport = Self.misplacedTopLevelImportMessage(
+          editIndex: idx,
+          edit: edit,
+          relativePath: relative,
+          lines: lines,
+          isSourceFile: Self.isSourceFile(url)
+        ) {
+          return .failure(.invalidArguments(misplacedImport))
+        }
         lines.insert(contentsOf: edit.replacementLines, at: edit.startLine - 1)
         appliedEditCount += 1
         totalLinesAffected += edit.replacementLines.count
@@ -619,6 +628,15 @@ struct AgentEditFileTool: AgentTool {
         isSourceFile: Self.isSourceFile(url)
       ) {
         return .failure(.invalidArguments(duplicateReplacement))
+      }
+      if let misplacedImport = Self.misplacedTopLevelImportMessage(
+        editIndex: idx,
+        edit: edit,
+        relativePath: relative,
+        lines: lines,
+        isSourceFile: Self.isSourceFile(url)
+      ) {
+        return .failure(.invalidArguments(misplacedImport))
       }
 
       lines.replaceSubrange(startIndex...endIndex, with: edit.replacementLines)
@@ -1240,6 +1258,30 @@ struct AgentEditFileTool: AgentTool {
       "edits[\(editIndex)] replaces lines \(edit.startLine)-\(edit.endLine) with \(edit.replacementLines.count) lines, but the same nonblank source block already exists in \(relativePath) at lines \(replacementStart)-\(replacementEnd). Do not duplicate this block by replacing another line/range with it. If the existing block is wrong, replace or remove lines \(replacementStart)-\(replacementEnd); if the current range is wrong, read the verify error and edit the exact broken test structure or implementation structure instead."
   }
 
+  private static func misplacedTopLevelImportMessage(
+    editIndex: Int,
+    edit: EditOperation,
+    relativePath: String,
+    lines: [String],
+    isSourceFile: Bool
+  ) -> String? {
+    guard isSourceFile,
+      let importLine = firstTopLevelImportLine(in: edit.replacementLines),
+      let bodyLine = firstNonHeaderLine(in: lines)
+    else {
+      return nil
+    }
+
+    let insertsBeforeBody = edit.endLine == edit.startLine - 1 && edit.startLine <= bodyLine
+    let rewritesHeader = edit.startLine == 1 || edit.startLine < bodyLine
+    guard !insertsBeforeBody, !rewritesHeader else {
+      return nil
+    }
+
+    return
+      "edits[\(editIndex)] starts at line \(edit.startLine) in \(relativePath), after the file header, but the replacement contains top-level import \(importLine). Do not paste imports into a function/body replacement; insert imports near the top of the file, or rewrite the whole file from line 1 if the import section must change."
+  }
+
   private static func trimmedInsertionBlock(_ lines: [String]) -> [String]? {
     var start = 0
     var end = lines.count
@@ -1392,6 +1434,31 @@ struct AgentEditFileTool: AgentTool {
       {
         return "declaration `\(String(trimmed.prefix(120)))`"
       }
+    }
+    return nil
+  }
+
+  private static func firstTopLevelImportLine(in lines: [String]) -> String? {
+    for line in lines {
+      guard line.first?.isWhitespace != true else { continue }
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      if trimmed.hasPrefix("import ") {
+        return "`\(String(trimmed.prefix(120)))`"
+      }
+    }
+    return nil
+  }
+
+  private static func firstNonHeaderLine(in lines: [String]) -> Int? {
+    for (index, line) in lines.enumerated() {
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty else { continue }
+      guard !trimmed.hasPrefix("#!"),
+        !trimmed.hasPrefix("import ")
+      else {
+        continue
+      }
+      return index + 1
     }
     return nil
   }
