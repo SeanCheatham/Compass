@@ -907,6 +907,49 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileRejectsDuplicateSourceReplacementBlock() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "main.test.ts")
+    let original = """
+      import { describe, expect, it } from "vitest";
+      import { main } from "./main";
+
+      describe("@split-argv-fixture/cli", () => {
+        it("prints the queue summary", () => {
+          it("prints the queue summary with limit", () => {
+            expect(main(["--limit", "4", "Ship", "it"])).toBe("4 open / 4 total");
+          });
+        });
+      });
+      """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"main.test.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"main.test.ts","startLine":5,"endLine":5,"replacement":"    it(\"prints the queue summary with limit\", () => {\n      expect(main([\"--limit\", \"4\", \"Ship\", \"it\"])).toBe(\"4 open / 4 total\");\n    });"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("same nonblank source block already exists"))
+    #expect(result.content.contains("Do not duplicate this block by replacing another line/range"))
+    #expect(result.content.contains("replace or remove lines"))
+    #expect(result.content.contains("exact broken test structure"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == original)
+  }
+
+  @Test
   func editFileRejectsNewPlaceholderImplementation() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

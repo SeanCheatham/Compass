@@ -592,6 +592,16 @@ struct AgentEditFileTool: AgentTool {
         noOpEditCount += 1
         continue
       }
+      if let duplicateReplacement = Self.duplicateSourceReplacementMessage(
+        editIndex: idx,
+        edit: edit,
+        relativePath: relative,
+        lines: lines,
+        replacedRange: startIndex..<(endIndex + 1),
+        isSourceFile: Self.isSourceFile(url)
+      ) {
+        return .failure(.invalidArguments(duplicateReplacement))
+      }
 
       lines.replaceSubrange(startIndex...endIndex, with: edit.replacementLines)
       appliedEditCount += 1
@@ -1132,6 +1142,28 @@ struct AgentEditFileTool: AgentTool {
       "edits[\(editIndex)] inserts \(edit.replacementLines.count) lines, but the same nonblank source block already exists in \(relativePath) at lines \(replacementStart)-\(replacementEnd). Do not insert this block again at any line; repeated duplicate insertions usually make verification failures worse. If the existing block is wrong, replace or remove lines \(replacementStart)-\(replacementEnd), or rewrite the enclosing function or whole file once with a single complete version."
   }
 
+  private static func duplicateSourceReplacementMessage(
+    editIndex: Int,
+    edit: EditOperation,
+    relativePath: String,
+    lines: [String],
+    replacedRange: Range<Int>,
+    isSourceFile: Bool
+  ) -> String? {
+    guard isSourceFile,
+      let block = trimmedInsertionBlock(edit.replacementLines),
+      block.count >= 2,
+      let existingRange = firstContiguousRange(of: block, in: lines, excluding: replacedRange)
+    else {
+      return nil
+    }
+
+    let replacementStart = existingRange.lowerBound + 1
+    let replacementEnd = existingRange.upperBound
+    return
+      "edits[\(editIndex)] replaces lines \(edit.startLine)-\(edit.endLine) with \(edit.replacementLines.count) lines, but the same nonblank source block already exists in \(relativePath) at lines \(replacementStart)-\(replacementEnd). Do not duplicate this block by replacing another line/range with it. If the existing block is wrong, replace or remove lines \(replacementStart)-\(replacementEnd); if the current range is wrong, read the verify error and edit the exact broken test structure or implementation structure instead."
+  }
+
   private static func trimmedInsertionBlock(_ lines: [String]) -> [String]? {
     var start = 0
     var end = lines.count
@@ -1145,11 +1177,21 @@ struct AgentEditFileTool: AgentTool {
     return Array(lines[start..<end])
   }
 
-  private static func firstContiguousRange(of needle: [String], in haystack: [String]) -> Range<Int>? {
+  private static func firstContiguousRange(
+    of needle: [String],
+    in haystack: [String],
+    excluding excludedRange: Range<Int>? = nil
+  ) -> Range<Int>? {
     guard !needle.isEmpty, haystack.count >= needle.count else { return nil }
     let lastStart = haystack.count - needle.count
     for start in 0...lastStart {
       let end = start + needle.count
+      if let excludedRange,
+        start < excludedRange.upperBound,
+        end > excludedRange.lowerBound
+      {
+        continue
+      }
       if Array(haystack[start..<end]) == needle {
         return start..<end
       }
