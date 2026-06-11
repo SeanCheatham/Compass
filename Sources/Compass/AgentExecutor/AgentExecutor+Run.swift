@@ -36,6 +36,7 @@ extension AgentExecutor {
     var sawContinuationRejection = false
     var latestContinuationRejectionRepairMessage: String?
     var latestContinuationRejectionDescription = "continuation"
+    var pendingSubmitRepair: PendingSubmitRepair?
     var lastSubmitRejectionSignature: String?
     var repeatedSubmitRejectionCount = 0
     var successfulToolCallCountsAfterContinuationRejection: [ToolCallSignature: Int] = [:]
@@ -202,6 +203,14 @@ extension AgentExecutor {
           output: output,
           phase: configuration.continuationPhase
         )
+        if malformedSignature == "malformed `\(configuration.continuationPhase.submitKind)` JSON" {
+          pendingSubmitRepair = PendingSubmitRepair(
+            submitKind: configuration.continuationPhase.submitKind,
+            rejectionDescription: "malformed `\(configuration.continuationPhase.submitKind)` JSON",
+            malformedJSON: true,
+            repairMessage: repairMessage
+          )
+        }
         if malformedSignature == lastMalformedContinuationSignature {
           repeatedMalformedContinuationCount += 1
         } else {
@@ -236,6 +245,7 @@ extension AgentExecutor {
 
       switch continuation.action {
       case .submit(let payload):
+        pendingSubmitRepair = nil
         if let rejection =
           Self.rejectDevelopSubmitAfterSuccessfulVerify(
             payload,
@@ -263,6 +273,14 @@ extension AgentExecutor {
           latestContinuationRejectionRepairMessage = rejection.userMessage
           latestContinuationRejectionDescription = "`\(configuration.continuationPhase.submitKind)` payload"
           successfulToolCallCountsAfterContinuationRejection = [:]
+          if configuration.phase == .plan {
+            pendingSubmitRepair = PendingSubmitRepair(
+              submitKind: configuration.continuationPhase.submitKind,
+              rejectionDescription: "rejected `\(configuration.continuationPhase.submitKind)` payload",
+              malformedJSON: false,
+              repairMessage: rejection.userMessage
+            )
+          }
           let rejectionSignature = "\(rejection.eventText)\n\(rejection.eventDetail)"
           if rejectionSignature == lastSubmitRejectionSignature {
             repeatedSubmitRejectionCount += 1
@@ -320,6 +338,31 @@ extension AgentExecutor {
         )
 
       case .continueTool(let toolName, let arguments, let reason, let note):
+        let argumentText = String(decoding: arguments, as: UTF8.self)
+        if let pendingSubmitRepair {
+          let repairMessage = Self.toolAfterSubmitRepairMessage(
+            toolName: toolName,
+            arguments: argumentText,
+            pendingRepair: pendingSubmitRepair,
+            phase: configuration.continuationPhase
+          )
+          sawContinuationRejection = true
+          latestContinuationRejectionRepairMessage = repairMessage
+          latestContinuationRejectionDescription = pendingSubmitRepair.rejectionDescription
+          successfulToolCallCountsAfterContinuationRejection = [:]
+          emit(
+            level: .warning,
+            text: "Tool call after rejected submit rejected",
+            detail: previewString(
+              "Compass did not run `\(toolName)` after \(pendingSubmitRepair.rejectionDescription)."
+            ),
+            kind: .agentMessage,
+            status: .failed
+          )
+          transcript.append(.repair(repairMessage))
+          continue
+        }
+
         guard let tool = toolsByName[toolName] else {
           transcript.append(
             .repair(
@@ -333,7 +376,6 @@ extension AgentExecutor {
           continue
         }
 
-        let argumentText = String(decoding: arguments, as: UTF8.self)
         let signature = ToolCallSignature(toolName: toolName, arguments: argumentText)
         let correlationID = UUID().uuidString
         emitToolStart(name: toolName, arguments: argumentText, correlationID: correlationID)
@@ -646,6 +688,13 @@ extension AgentExecutor {
     var toolName: String
     var path: String
     var family: String
+  }
+
+  private struct PendingSubmitRepair: Equatable {
+    var submitKind: String
+    var rejectionDescription: String
+    var malformedJSON: Bool
+    var repairMessage: String
   }
 
   private static func isFileMutationTool(_ toolName: String) -> Bool {
@@ -1149,6 +1198,37 @@ extension AgentExecutor {
     }
     let block = text[blockRange].trimmingCharacters(in: .whitespacesAndNewlines)
     return block.isEmpty ? nil : block
+  }
+
+  private static func toolAfterSubmitRepairMessage(
+    toolName: String,
+    arguments: String,
+    pendingRepair: PendingSubmitRepair,
+    phase: AgentContinuationPhase
+  ) -> String {
+    let reason = pendingRepair.malformedJSON
+      ? "because the JSON was malformed"
+      : "because Compass rejected its payload"
+    let repairTarget = pendingRepair.malformedJSON
+      ? "malformed submit JSON"
+      : "a rejected submit payload"
+    return """
+    Your previous `\(pendingRepair.submitKind)` was rejected \(reason).
+    The next action must repair that submit envelope; it must not call tools.
+
+    Compass did not run `\(toolName)`. Do not call `read_file`, `list_files`, `bash`,
+    or other tools just to repair \(repairTarget). Existing observations remain
+    available in the recent history.
+
+    Return exactly one valid JSON object now:
+    {"kind":"\(phase.submitKind)","payload":{...}}
+
+    Apply this repair:
+    \(pendingRepair.repairMessage)
+
+    Rejected tool arguments:
+    \(fencedContinuationText(arguments, limit: 2_000))
+    """
   }
 
   private static func repeatedToolAfterContinuationRejectionRepairMessage(

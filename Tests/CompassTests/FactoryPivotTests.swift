@@ -907,14 +907,9 @@ struct FactoryPivotTests {
   }
 
   @Test
-  func executorEscalatesRepeatedSuccessfulToolCallsAfterSubmitRejection() async throws {
+  func executorRejectsToolCallAfterPlanSubmitRejection() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    try #"{"scripts":{"verify":"pnpm verify"}}"#.write(
-      to: tempURL.appending(path: "package.json"),
-      atomically: true,
-      encoding: .utf8
-    )
 
     let planSubmit =
       #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Build decision notes.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
@@ -924,44 +919,40 @@ struct FactoryPivotTests {
     let runtime = FakeLocalModelRuntime(outputs: [
       planSubmit,
       readPackage,
-      readPackage,
       planSubmit,
     ])
+    let counter = ToolInvocationCounter()
 
     let result = try await AgentExecutor().run(
       testConfiguration(
         phase: .plan,
         runtime: runtime,
-        tools: [AgentReadFileTool()],
+        tools: [FakeReadFileTool(counter: counter)],
         workingDirectory: tempURL,
         submitResultSchema: Prompts.planSchema,
-        maxIterations: 4,
+        maxIterations: 3,
         validateSubmitResult: { data in
           try validator.validate(data)
         }
       )
     )
 
-    #expect(result.iterations == 4)
+    #expect(result.iterations == 3)
+    #expect(counter.value == 0)
     let prompts = await runtime.capturedPrompts()
-    #expect(prompts.count == 4)
+    #expect(prompts.count == 3)
     #expect(
-      prompts[3].contains(
-        "Compass already rejected a recent `plan_submit` payload"
+      prompts[2].contains(
+        "Your previous `plan_submit` was rejected because Compass rejected its payload"
       ))
-    #expect(prompts[3].contains("called\n`read_file` with the same arguments 2 times")
-      || prompts[3].contains("called `read_file` with the same arguments 2 times"))
-    #expect(prompts[3].contains("The repeated observation\ndid not repair the rejected continuation")
-      || prompts[3].contains("The repeated observation did not repair the rejected continuation"))
-    #expect(prompts[3].contains("If the rejected payload said a verify command still needs to run"))
-    #expect(prompts[3].contains("Do not call `read_file`, `list_files`, or reread"))
-    #expect(prompts[3].contains("Return `plan_submit` with a corrected `payload`"))
-    #expect(prompts[3].contains("For Plan, read-only tools cannot repair a rejected handoff"))
-    #expect(prompts[3].contains("Latest rejected-payload repair to apply now"))
-    #expect(prompts[3].contains("Your previous Plan payload claimed new CLI behavior without proof"))
-    #expect(prompts[3].contains("Do not call another tool to repair this"))
-    #expect(prompts[3].contains(#"main(["--format", "json", "Ship", "it"])"#))
-    #expect(prompts[3].contains(#""path":"package.json""#))
+    #expect(prompts[2].contains("The next action must repair that submit envelope"))
+    #expect(prompts[2].contains("Compass did not run `read_file`"))
+    #expect(prompts[2].contains("Do not call `read_file`, `list_files`, `bash`"))
+    #expect(prompts[2].contains(#"{"kind":"plan_submit","payload":{...}}"#))
+    #expect(prompts[2].contains("Your previous Plan payload claimed new CLI behavior without proof"))
+    #expect(prompts[2].contains("Do not call another tool to repair this"))
+    #expect(prompts[2].contains(#"main(["--format", "json", "Ship", "it"])"#))
+    #expect(prompts[2].contains(#""path":"package.json""#))
   }
 
   @Test
@@ -1453,6 +1444,45 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorRejectsToolCallAfterMalformedSubmitJSON() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let malformedPlanSubmit =
+      #"{"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"main(["--done", "1", "Ship", "it"]) returns 0 open / 1 total."}}}}"#
+    let readPackage =
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need scripts after the rejected submit."}"#
+    let validPlanSubmit =
+      #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Add separate --done argv support.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
+    let runtime = FakeLocalModelRuntime(outputs: [
+      malformedPlanSubmit,
+      readPackage,
+      validPlanSubmit,
+    ])
+    let counter = ToolInvocationCounter()
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .plan,
+        runtime: runtime,
+        tools: [FakeReadFileTool(counter: counter)],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.planSchema,
+        maxIterations: 3
+      )
+    )
+
+    #expect(result.iterations == 3)
+    #expect(counter.value == 0)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 3)
+    #expect(prompts[2].contains("Your previous `plan_submit` was rejected because the JSON was malformed"))
+    #expect(prompts[2].contains("Compass did not run `read_file`"))
+    #expect(prompts[2].contains("must not call tools"))
+    #expect(prompts[2].contains(#"{"kind":"plan_submit","payload":{...}}"#))
+  }
+
+  @Test
   func executorRejectsProceduralFailedDevelopSubmitAfterMalformedContinuation() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -1712,6 +1742,26 @@ private struct FakeBashTool: AgentTool {
   func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
     counter?.increment()
     return .ok(output)
+  }
+}
+
+private struct FakeReadFileTool: AgentTool {
+  var counter: ToolInvocationCounter? = nil
+
+  var spec: AgentToolSpec {
+    AgentToolSpec(
+      name: AgentReadFileTool.toolName,
+      description: "Fake read file tool.",
+      parameters: AgentToolParametersSchema(literal: [
+        "type": "object",
+        "additionalProperties": true,
+      ])
+    )
+  }
+
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+    counter?.increment()
+    return .ok("fake file contents")
   }
 }
 
