@@ -489,6 +489,9 @@ struct AgentEditFileTool: AgentTool {
       if let suspiciousExpansion = Self.suspiciousPartialRewriteMessage(
         editIndex: idx,
         edit: edit,
+        existingLines: existing,
+        remainingLines: Array(lines.dropFirst(endIndex + 1)),
+        isSourceFile: Self.isSourceFile(url),
         lineCount: lineCount
       ) {
         return .failure(.invalidArguments(suspiciousExpansion))
@@ -832,12 +835,24 @@ struct AgentEditFileTool: AgentTool {
   private static func suspiciousPartialRewriteMessage(
     editIndex: Int,
     edit: EditOperation,
+    existingLines: [String],
+    remainingLines: [String],
+    isSourceFile: Bool,
     lineCount: Int
   ) -> String? {
     let replacedLineCount = edit.endLine - edit.startLine + 1
+    let duplicateFunctionNames = Set(topLevelFunctionNames(in: edit.replacementLines))
+      .intersection(topLevelFunctionNames(in: remainingLines))
+    let looksLikeShortTopOfFileRewrite =
+      isSourceFile
+      && edit.startLine <= 2
+      && edit.replacementLines.count >= 4
+      && firstTopLevelDeclaration(in: edit.replacementLines) != nil
+      && (existingLines.first?.hasPrefix("#!") == true || !duplicateFunctionNames.isEmpty)
+
     guard replacedLineCount == 1,
-      edit.replacementLines.count >= 8,
-      lineCount > edit.endLine
+      lineCount > edit.endLine,
+      edit.replacementLines.count >= 8 || looksLikeShortTopOfFileRewrite
     else {
       return nil
     }
@@ -951,6 +966,32 @@ struct AgentEditFileTool: AgentTool {
       }
     }
     return nil
+  }
+
+  private static func topLevelFunctionNames(in lines: [String]) -> [String] {
+    var names: [String] = []
+    for line in lines {
+      guard line.first?.isWhitespace != true else { continue }
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      for prefix in [
+        "export default async function ",
+        "export default function ",
+        "export async function ",
+        "export function ",
+        "async function ",
+        "function ",
+      ] where trimmed.hasPrefix(prefix) {
+        let remainder = trimmed.dropFirst(prefix.count)
+        let name = remainder.prefix { character in
+          character.isLetter || character.isNumber || character == "_" || character == "$"
+        }
+        if !name.isEmpty {
+          names.append(String(name))
+        }
+        break
+      }
+    }
+    return names
   }
 
   private static func firstFunctionDeclaration(

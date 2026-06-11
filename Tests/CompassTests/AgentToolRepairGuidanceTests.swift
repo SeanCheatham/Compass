@@ -534,6 +534,56 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileRejectsShortTopOfFilePartialRewrite() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    let mainURL = srcURL.appending(path: "main.ts")
+    let original = """
+    #!/usr/bin/env tsx
+    import { summarizeQueue } from "@compass-test/core";
+
+    export function main(argv = process.argv.slice(2)): string {
+      const title = argv.join(" ").trim() || "First Compass task";
+      return summarizeQueue([{ id: "task-1", title, done: false }]);
+    }
+
+    if (import.meta.url === `file://${process.argv[1]}`) {
+      console.log(main());
+    }
+    """
+    try original.write(to: mainURL, atomically: true, encoding: .utf8)
+    try "export function summarizeCLI() { return ''; }\n".write(
+      to: srcURL.appending(path: "summarize.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/src/main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/main.ts","startLine":1,"endLine":1,"content":"import { summarizeCLI } from './summarize';\n\nexport function main(): void {\n  const entries = [];\n  console.log(summarizeCLI(entries));\n}\n"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("partial whole-file rewrite"))
+    #expect(result.content.contains("use startLine=1, endLine=11"))
+    #expect(result.content.contains("with only the new lines to insert, not the whole file"))
+    let unchanged = try String(contentsOf: mainURL, encoding: .utf8)
+    #expect(unchanged == original)
+  }
+
+  @Test
   func editFileRejectsBodyOnlyReplacementOfFunctionDeclaration() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

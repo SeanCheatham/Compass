@@ -375,6 +375,13 @@ private enum UnfinishedSuccessFeedback {
     {
       return nil
     }
+    if lowercased.hasPrefix("now i will ")
+      || lowercased.hasPrefix("now i'll ")
+      || lowercased.hasPrefix("i will ")
+      || lowercased.hasPrefix("i'll ")
+    {
+      return normalized
+    }
     let tokens = HandoffText.wordTokens(in: lowercased)
     if lowercased.contains("next step") || lowercased.contains("next action")
       || lowercased.contains("follow up")

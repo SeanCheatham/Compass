@@ -42,6 +42,24 @@ struct FeedbackHandoffValidatorTests {
   }
 
   @Test
+  func rejectsSucceededDevelopFeedbackWithFutureWorkPhrase() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Read package.json to understand current scripts.",
+      feedback: "Now I will create the `summarize.ts` file and move the existing logic there.",
+      bypassVerify: false
+    )
+
+    do {
+      try DevelopFeedbackValidator.validate(summary)
+      Issue.record("Expected future-work feedback rejection.")
+    } catch let error as DevelopFeedbackValidationError {
+      #expect(error.reason == .unfinishedSuccess)
+      #expect(error.feedback?.contains("Now I will create") == true)
+    }
+  }
+
+  @Test
   func rejectsSucceededDevelopFeedbackWithNextActionWork() throws {
     let summary = DevelopSummary(
       status: .succeeded,
