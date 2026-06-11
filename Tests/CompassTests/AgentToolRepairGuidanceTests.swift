@@ -392,6 +392,29 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func writeFileRejectsPlaceholderImplementationComment() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    let fileURL = srcURL.appending(path: "summarize.ts")
+    let result = try await AgentWriteFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/summarize.ts","content":"export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {\n  // Placeholder implementation\n  return `Summary: ${entries.length} entries`;\n}\n"}"#
+          .utf8
+      ),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("placeholder implementation code"))
+    #expect(result.content.contains("Placeholder implementation"))
+    #expect(!FileManager.default.fileExists(atPath: fileURL.path))
+  }
+
+  @Test
   func writeFileRejectsCommentOnlySourceFile() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -739,6 +762,42 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.errorKind == .invalidArguments)
     #expect(result.content.contains("placeholder implementation code"))
     #expect(result.content.contains("Do not replace working source"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == original)
+  }
+
+  @Test
+  func editFileRejectsReplaceThisWithActualImplementationPlaceholder() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "summarize.ts")
+    let original = """
+    export function summarizeCLI(entries: { id: string; title: string; done: boolean }[]): string {
+      const doneCount = entries.filter(entry => entry.done).length;
+      const totalCount = entries.length;
+      return `${doneCount} of ${totalCount} tasks done.`;
+    }
+    """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"summarize.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"summarize.ts","startLine":2,"endLine":3,"replacementLines":["  // Replace this with the actual implementation","  return `Summary: ${entries.length} entries`;"]}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("placeholder implementation code"))
+    #expect(result.content.contains("Replace this with the actual implementation"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged == original)
   }

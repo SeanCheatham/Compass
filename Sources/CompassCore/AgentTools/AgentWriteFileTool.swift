@@ -532,6 +532,9 @@ struct AgentWriteFileTool: AgentTool {
       && (lowercasedLine.contains("implement") || lowercasedLine.contains("placeholder")))
       || lowercasedLine.contains("not implemented")
       || lowercasedLine.contains("unimplemented")
+      || lowercasedLine.contains("placeholder implementation")
+      || (lowercasedLine.contains("replace this with")
+        && lowercasedLine.contains("implementation"))
       || lowercasedLine.contains("implement the logic")
       || lowercasedLine.contains("implement logic")
   }
