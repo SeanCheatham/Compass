@@ -74,6 +74,24 @@ struct FeedbackHandoffValidatorTests {
   }
 
   @Test
+  func rejectsSucceededDevelopFeedbackWithProceedWork() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Moved the existing logic from main.ts to summarize.ts.",
+      feedback: "Proceed to create the test file next.",
+      bypassVerify: false
+    )
+
+    do {
+      try DevelopFeedbackValidator.validate(summary)
+      Issue.record("Expected proceed-work feedback rejection.")
+    } catch let error as DevelopFeedbackValidationError {
+      #expect(error.reason == .unfinishedSuccess)
+      #expect(error.feedback?.contains("Proceed to create") == true)
+    }
+  }
+
+  @Test
   func rejectsSucceededDevelopFeedbackWithBareNextWork() throws {
     let summary = DevelopSummary(
       status: .succeeded,

@@ -6,6 +6,57 @@ import Testing
 @Suite("PlanTransitionValidator")
 struct PlanTransitionValidatorTests {
   @Test
+  func rejectsDroppingExistingBriefFields() throws {
+    let current = PlanState(
+      completed: [],
+      immediate: nil,
+      brief: PlanStrategicContext(
+        summary: "Build a tiny activity-ledger feature.",
+        targetUsers: ["Solo builders"],
+        desiredOutcomes: ["Core logic summarizes done and pending activity counts."],
+        constraints: ["Keep the slice dependency-free."],
+        acceptanceSignals: ["Core and CLI tests cover the ledger summary."]
+      )
+    )
+    let next = PlanState(
+      completed: [],
+      immediate: PlanNext(
+        plan: """
+          ## Outcome
+          Update `packages/cli/src/main.ts` and `packages/cli/src/main.test.ts` so the CLI prints a useful one-line ledger summary.
+
+          ## Acceptance checks
+          - The CLI test asserts the one-line ledger summary from sample entries.
+          """,
+        verify: "pnpm verify",
+        verifyTimeoutMs: 600_000,
+        estimatedDifficulty: .low,
+        selectedBecause: "This is a focused test packet.",
+        source: .repository
+      ),
+      brief: PlanStrategicContext(
+        summary: "Build a tiny activity-ledger feature.",
+        targetUsers: [],
+        desiredOutcomes: [],
+        constraints: [],
+        acceptanceSignals: []
+      )
+    )
+
+    do {
+      try PlanTransitionValidator.validate(from: current, to: next)
+      Issue.record("Expected brief preservation rejection.")
+    } catch let error as PlanTransitionValidationError {
+      #expect(error.reason == .invalidStateMutation)
+      #expect(error.missingLabels.contains("brief.targetUsers"))
+      #expect(error.missingLabels.contains("brief.desiredOutcomes"))
+      #expect(error.missingLabels.contains("brief.constraints"))
+      #expect(error.missingLabels.contains("brief.acceptanceSignals"))
+      #expect(error.message.contains("Keep `brief` stable"))
+    }
+  }
+
+  @Test
   func rejectsMissingExplicitPathsUnlessMarkedAsNewFile() throws {
     let tempURL = try makePlanValidatorTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

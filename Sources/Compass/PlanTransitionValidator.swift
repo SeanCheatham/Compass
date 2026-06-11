@@ -60,6 +60,16 @@ enum PlanTransitionValidator {
       )
     }
 
+    let droppedBriefFields = droppedBriefFieldLabels(from: current.brief, to: next.brief)
+    if !droppedBriefFields.isEmpty {
+      throw PlanTransitionValidationError(
+        message:
+          "Plan tried to drop non-empty brief fields: \(formattedFields(droppedBriefFields)). Keep `brief` stable unless the user explicitly changed the project brief; preserve target users, desired outcomes, constraints, and acceptance signals so Develop keeps the real finish line.",
+        reason: .invalidStateMutation,
+        missingLabels: droppedBriefFields
+      )
+    }
+
     guard let immediate = next.immediate else {
       let remainingFields =
         remainingPlanFields(in: current, label: "current")
@@ -158,6 +168,29 @@ enum PlanTransitionValidator {
       try validateGroundedPaths(in: immediate.plan, repoURL: repoURL)
     }
     try validateVerifySupportsHandoff(immediate, handoffDigest: handoffDigest)
+  }
+
+  private static func droppedBriefFieldLabels(
+    from current: PlanStrategicContext,
+    to next: PlanStrategicContext
+  ) -> [String] {
+    var labels: [String] = []
+    if !current.summary.isEmpty && next.summary.isEmpty {
+      labels.append("brief.summary")
+    }
+    if !current.targetUsers.isEmpty && next.targetUsers.isEmpty {
+      labels.append("brief.targetUsers")
+    }
+    if !current.desiredOutcomes.isEmpty && next.desiredOutcomes.isEmpty {
+      labels.append("brief.desiredOutcomes")
+    }
+    if !current.constraints.isEmpty && next.constraints.isEmpty {
+      labels.append("brief.constraints")
+    }
+    if !current.acceptanceSignals.isEmpty && next.acceptanceSignals.isEmpty {
+      labels.append("brief.acceptanceSignals")
+    }
+    return labels
   }
 
   private static func remainingPlanFields(in state: PlanState, label: String) -> [String] {
