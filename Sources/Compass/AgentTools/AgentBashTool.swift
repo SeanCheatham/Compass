@@ -175,20 +175,23 @@ struct AgentBashTool: AgentTool {
     return sections.joined(separator: "\n\n")
   }
 
-  private func successfulVerificationGuidance(for command: String) -> String? {
+  static func isVerifyCommand(_ command: String) -> Bool {
     let normalized = command
       .lowercased()
       .components(separatedBy: .whitespacesAndNewlines)
       .filter { !$0.isEmpty }
       .joined(separator: " ")
 
-    guard normalized == "pnpm verify"
+    return normalized == "pnpm verify"
       || normalized == "pnpm run verify"
       || normalized.contains(" pnpm verify")
       || normalized.contains(" pnpm run verify")
       || normalized.hasSuffix(" pnpm verify")
       || normalized.hasSuffix(" pnpm run verify")
-    else {
+  }
+
+  private func successfulVerificationGuidance(for command: String) -> String? {
+    guard Self.isVerifyCommand(command) else {
       return nil
     }
 

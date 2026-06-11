@@ -33,6 +33,7 @@ extension AgentExecutor {
     var sawSubmitRejection = false
     var lastSuccessfulToolCallAfterSubmitRejection: ToolCallSignature?
     var repeatedSuccessfulToolCallAfterSubmitRejectionCount = 0
+    var lastSuccessfulVerifyCommand: String?
 
     while iterations < configuration.maxIterations {
       if cancelled { throw AgentExecutionError.cancelled }
@@ -196,10 +197,17 @@ extension AgentExecutor {
 
       switch continuation.action {
       case .submit(let payload):
-        if let rejection = Self.rejectSubmitResultIfNeeded(
+        if let rejection =
+          Self.rejectDevelopSubmitAfterSuccessfulVerify(
+            payload,
+            successfulVerifyCommand: lastSuccessfulVerifyCommand,
+            configuration: configuration
+          )
+          ?? Self.rejectSubmitResultIfNeeded(
           payload,
           configuration: configuration
-        ) {
+          )
+        {
           sawSubmitRejection = true
           emit(
             level: .warning,
@@ -271,6 +279,24 @@ extension AgentExecutor {
         transcript.append(.toolObservation(observation))
         if let note {
           transcript.append(.assistantNote(note))
+        }
+        if !result.isError, Self.isFileMutationTool(toolName) {
+          lastSuccessfulVerifyCommand = nil
+        }
+        if let command = Self.successfulVerifyCommand(
+          toolName: toolName,
+          arguments: arguments,
+          result: result
+        ) {
+          lastSuccessfulVerifyCommand = command
+          transcript.append(
+            .repair(
+              Self.successfulVerifyObservedRepairMessage(
+                command: command,
+                phase: configuration.continuationPhase
+              )
+            )
+          )
         }
         if result.isError {
           if signature == lastFailedToolCall {
@@ -421,6 +447,36 @@ extension AgentExecutor {
   private struct ToolCallSignature: Equatable {
     var toolName: String
     var arguments: String
+  }
+
+  private static func isFileMutationTool(_ toolName: String) -> Bool {
+    toolName == AgentWriteFileTool.toolName || toolName == AgentEditFileTool.toolName
+  }
+
+  private static func successfulVerifyCommand(
+    toolName: String,
+    arguments: Data,
+    result: AgentToolInvocationResult
+  ) -> String? {
+    guard toolName == AgentBashTool.toolName,
+      !result.isError,
+      result.content.contains("[exit 0]")
+    else { return nil }
+
+    guard let object = try? JSONSerialization.jsonObject(with: arguments) as? [String: Any] else {
+      return nil
+    }
+    let command = [
+      "command",
+      "cmd",
+      "shellCommand",
+      "shell_command",
+      "script",
+    ].compactMap { object[$0] as? String }
+      .first?
+      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    guard !command.isEmpty, AgentBashTool.isVerifyCommand(command) else { return nil }
+    return command
   }
 
   private static let rawTranscriptEntriesAfterCompaction = 8
@@ -691,6 +747,20 @@ extension AgentExecutor {
     """
   }
 
+  private static func successfulVerifyObservedRepairMessage(
+    command: String,
+    phase: AgentContinuationPhase
+  ) -> String {
+    """
+    Compass observed `\(command)` exit 0. This verify command passed.
+
+    Do not interpret earlier stdout lines as failures unless the final exit marker is nonzero.
+    If the requested packet and acceptance checks are complete, return `\(phase.submitKind)` now
+    with status=succeeded, bypassVerify=false, and feedback naming `\(command)` as verified.
+    Continue only if a specific acceptance requirement is still missing.
+    """
+  }
+
   private static func toolObservationJSON(
     toolName: String,
     result: AgentToolInvocationResult,
@@ -758,5 +828,41 @@ extension AgentExecutor {
     } catch {
       return submitResultValidationNudge(for: error, phase: configuration.phase)
     }
+  }
+
+  private static func rejectDevelopSubmitAfterSuccessfulVerify(
+    _ submitResultJSON: Data,
+    successfulVerifyCommand: String?,
+    configuration: AgentExecutionConfiguration
+  ) -> InvalidToolArgumentsNudge? {
+    guard configuration.phase == .develop,
+      let successfulVerifyCommand,
+      let summary = try? JSONDecoder().decode(DevelopSummary.self, from: submitResultJSON),
+      summary.status != .succeeded || summary.bypassVerify == true
+    else { return nil }
+
+    let submittedState =
+      "status=\(summary.status.rawValue), bypassVerify=\(summary.bypassVerify == true ? "true" : "false")"
+    return InvalidToolArgumentsNudge(
+      eventText: "develop_submit contradicted successful verify",
+      eventDetail:
+        "`\(successfulVerifyCommand)` exited 0, but Develop submitted \(submittedState).",
+      userMessage: """
+        Compass already observed this verify command pass:
+        `\(successfulVerifyCommand)`
+
+        The bash observation ended with `[exit 0]`. Your previous Develop payload reported
+        \(submittedState), which contradicts the successful verify result.
+
+        Do not call another tool to inspect that verify output. Choose exactly one repair:
+        - If the requested packet is complete, return `develop_submit` again with
+          status=succeeded, bypassVerify=false, and feedback that names `\(successfulVerifyCommand)`
+          as the passing verification.
+        - If a specific acceptance check from the Handoff is still missing, return
+          `develop_continue` for that missing check and name it in the reason.
+
+        \(submitResultDecodeRetryShape(for: .develop))
+        """
+    )
   }
 }

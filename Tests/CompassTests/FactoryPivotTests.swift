@@ -783,6 +783,71 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorRejectsFailedDevelopSubmitAfterSuccessfulVerify() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let runtime = FakeLocalModelRuntime(outputs: [
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Typecheck failed due to a missing summarizeQueue import.","feedback":"Fix the summarizeQueue import before trying again.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed after the requested changes.","feedback":"Verified with pnpm verify; the packet is ready for Plan.","bypassVerify":false,"lessonEdits":[]}}"#,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [FakeBashTool(output: "[stdout]\nAll checks passed.\n\n[exit 0]\n\n[next]\nSubmit success.")],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 3
+      )
+    )
+
+    #expect(result.iterations == 3)
+    #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("succeeded"))
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 3)
+    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
+    #expect(prompts[2].contains("Compass already observed this verify command pass"))
+    #expect(prompts[2].contains("status=failed, bypassVerify=false"))
+    #expect(prompts[2].contains("return `develop_submit` again with"))
+  }
+
+  @Test
+  func executorClearsSuccessfulVerifyAfterFileMutation() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let runtime = FakeLocalModelRuntime(outputs: [
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run baseline verification."}"#,
+      #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.ts","content":"export const generated = true;\n"},"reason":"Create the requested file after verify."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"A later file mutation still needs verification.","feedback":"Run pnpm verify after generated.ts was created.","bypassVerify":false,"lessonEdits":[]}}"#,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [
+          FakeBashTool(output: "[stdout]\nBaseline passed.\n\n[exit 0]\n\n[next]\nSubmit success."),
+          AgentWriteFileTool(),
+        ],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 3
+      )
+    )
+
+    #expect(result.iterations == 3)
+    #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("failed"))
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 3)
+    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
+    #expect(!prompts[2].contains("Compass already observed this verify command pass"))
+  }
+
+  @Test
   func executorCompactsContinuationHistoryWithoutCountingAnAgentIteration() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -994,6 +1059,24 @@ private final class RejectFirstPlanSubmitValidator: @unchecked Sendable {
       )
     }
     _ = try JSONDecoder().decode(PlanRunResult.self, from: data)
+  }
+}
+
+private struct FakeBashTool: AgentTool {
+  var output: String
+  var spec: AgentToolSpec {
+    AgentToolSpec(
+      name: AgentBashTool.toolName,
+      description: "Fake bash tool.",
+      parameters: AgentToolParametersSchema(literal: [
+        "type": "object",
+        "additionalProperties": true,
+      ])
+    )
+  }
+
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+    .ok(output)
   }
 }
 

@@ -246,7 +246,7 @@ extension AgentExecutor {
     )
   }
 
-  private static func submitResultDecodeRetryShape(for phase: AgentPhase?) -> String {
+  static func submitResultDecodeRetryShape(for phase: AgentPhase?) -> String {
     switch phase {
     case .plan:
       return """
