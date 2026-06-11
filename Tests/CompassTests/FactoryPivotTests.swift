@@ -979,7 +979,7 @@ struct FactoryPivotTests {
 
     let runtime = FakeLocalModelRuntime(outputs: [
       #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run baseline verification."}"#,
-      #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.ts","content":"export const generated = true;\n"},"reason":"Create the requested file after verify."}"#,
+      #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.ts","content":"export const generated = true;\n"},"reason":"Repair missing acceptance check: generated.ts must exist after verify."}"#,
       #"{"kind":"develop_submit","payload":{"status":"failed","summary":"A later file mutation still needs verification.","feedback":"Run pnpm verify after generated.ts was created.","bypassVerify":false,"lessonEdits":[]}}"#,
     ])
 
@@ -1006,6 +1006,43 @@ struct FactoryPivotTests {
     #expect(prompts[2].contains("That earlier verify result no longer proves the current worktree"))
     #expect(prompts[2].contains("call `bash` with `pnpm verify` again"))
     #expect(!prompts[2].contains("Compass already observed this verify command pass"))
+  }
+
+  @Test
+  func executorRejectsGenericFileMutationAfterSuccessfulVerify() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let runtime = FakeLocalModelRuntime(outputs: [
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.ts","content":"export const generated = true;\n"},"reason":"Create the file after verify."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"The packet was already verified.","feedback":"Verified with pnpm verify; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [
+          FakeBashTool(output: "[stdout]\nAll checks passed.\n\n[exit 0]\n\n[next]\nSubmit success."),
+          AgentWriteFileTool(),
+        ],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 3
+      )
+    )
+
+    #expect(result.iterations == 3)
+    #expect(!FileManager.default.fileExists(atPath: tempURL.appending(path: "generated.ts").path))
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 3)
+    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
+    #expect(prompts[2].contains("A generic `write_file` call after a"))
+    #expect(prompts[2].contains("passing verify would invalidate that proof"))
+    #expect(prompts[2].contains("retry `write_file` only with a `reason`"))
+    #expect(prompts[2].contains("explicitly names the missing acceptance check"))
+    #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("succeeded"))
   }
 
   @Test

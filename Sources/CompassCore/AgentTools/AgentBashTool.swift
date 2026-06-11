@@ -137,15 +137,18 @@ struct AgentBashTool: AgentTool {
     let elapsed = Date().timeIntervalSince(startedAt)
     let timedOut = elapsed >= timeoutSeconds - 0.1 && result.exitCode != 0
 
-    return .ok(
-      formatOutput(
-        command: command,
-        stdout: result.stdout,
-        stderr: result.stderr,
-        exitCode: result.exitCode,
-        timedOut: timedOut,
-        timeoutMs: timeoutMs
-      ))
+    let output = formatOutput(
+      command: command,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+      timedOut: timedOut,
+      timeoutMs: timeoutMs
+    )
+    guard result.exitCode == 0, !timedOut else {
+      return .failure(output, kind: .bashFailure)
+    }
+    return .ok(output)
   }
 
   private func formatOutput(

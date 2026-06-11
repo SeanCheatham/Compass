@@ -289,12 +289,27 @@ extension AgentExecutor {
         let correlationID = UUID().uuidString
         emitToolStart(name: toolName, arguments: argumentText, correlationID: correlationID)
         let result: AgentToolInvocationResult
-        do {
-          result = try await tool.invoke(arguments: arguments, context: toolContext)
-        } catch let toolError as AgentToolError {
-          result = .failure(toolError)
-        } catch {
-          result = .failure("Tool \(toolName) threw: \(error.localizedDescription)", kind: .unknown)
+        if configuration.phase == .develop,
+          let lastSuccessfulVerifyCommand,
+          Self.isFileMutationTool(toolName),
+          !Self.isPostVerifyMutationJustified(reason: reason, note: note)
+        {
+          result = .failure(
+            Self.postVerifyMutationRejectedMessage(
+              command: lastSuccessfulVerifyCommand,
+              toolName: toolName,
+              phase: configuration.continuationPhase
+            ),
+            kind: .invalidArguments
+          )
+        } else {
+          do {
+            result = try await tool.invoke(arguments: arguments, context: toolContext)
+          } catch let toolError as AgentToolError {
+            result = .failure(toolError)
+          } catch {
+            result = .failure("Tool \(toolName) threw: \(error.localizedDescription)", kind: .unknown)
+          }
         }
         emitToolEnd(name: toolName, arguments: argumentText, result: result, correlationID: correlationID)
 
@@ -538,6 +553,19 @@ extension AgentExecutor {
 
   private static func isReadOnlyInspectionTool(_ toolName: String) -> Bool {
     readOnlyInspectionToolNames.contains(toolName)
+  }
+
+  private static func isPostVerifyMutationJustified(reason: String?, note: String?) -> Bool {
+    let text = [reason, note]
+      .compactMap { $0 }
+      .joined(separator: "\n")
+      .lowercased()
+    guard text.contains("acceptance") else { return false }
+    return text.contains("missing")
+      || text.contains("unmet")
+      || text.contains("remaining")
+      || text.contains("not yet")
+      || text.contains("repair")
   }
 
   private static func successfulVerifyCommand(
@@ -953,6 +981,25 @@ extension AgentExecutor {
     - If a specific acceptance requirement is still missing, make that concrete edit now.
     - If you cannot complete the repair in this budget, return `\(phase.submitKind)` with
       status=failed or status=blocked and concise feedback.
+    """
+  }
+
+  private static func postVerifyMutationRejectedMessage(
+    command: String,
+    toolName: String,
+    phase: AgentContinuationPhase
+  ) -> String {
+    """
+    Compass already observed `\(command)` exit 0. A generic `\(toolName)` call after a
+    passing verify would invalidate that proof before the phase can submit.
+
+    Choose exactly one next action:
+    - If the requested packet is complete, return `\(phase.submitKind)` now with
+      status=succeeded, bypassVerify=false, and feedback naming `\(command)` as verified.
+    - If an acceptance check is still missing, retry `\(toolName)` only with a `reason` that
+      explicitly names the missing acceptance check it repairs, then rerun `\(command)`.
+    - If you cannot finish in budget, return `\(phase.submitKind)` with status=failed or
+      status=blocked and concise feedback.
     """
   }
 

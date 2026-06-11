@@ -1203,6 +1203,31 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("submit status=succeeded now"))
     #expect(result.content.contains("specific acceptance requirement is still missing"))
   }
+
+  @Test
+  func bashNonzeroExitIsToolFailure() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let context = AgentToolContext(
+      workingDirectory: tempURL,
+      bashRunner: StaticBashRunner(
+        result: ProcessResult(exitCode: 124, stdout: "", stderr: "timed out\n")
+      ),
+      phase: .develop
+    )
+
+    let result = try await AgentBashTool().invoke(
+      arguments: Data(#"{"command":"pnpm verify"}"#.utf8),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .bashFailure)
+    #expect(result.content.contains("[stderr]\ntimed out"))
+    #expect(result.content.contains("[exit 124]"))
+    #expect(!result.content.contains("`pnpm verify` exited 0"))
+  }
 }
 
 private struct StaticBashRunner: AgentBashRunner {
