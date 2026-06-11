@@ -556,6 +556,7 @@ struct AgentEditFileTool: AgentTool {
       if let declarationRemoval = Self.suspiciousDeclarationBodyReplacementMessage(
         editIndex: idx,
         edit: edit,
+        relativePath: relative,
         existingLines: existing,
         allLines: lines,
         lineCount: lineCount
@@ -1109,6 +1110,7 @@ struct AgentEditFileTool: AgentTool {
   private static func suspiciousDeclarationBodyReplacementMessage(
     editIndex: Int,
     edit: EditOperation,
+    relativePath: String,
     existingLines: [String],
     allLines: [String],
     lineCount: Int
@@ -1140,9 +1142,26 @@ struct AgentEditFileTool: AgentTool {
     } else {
       bodyRange = "or insert the intended body immediately after line \(declaration.lineNumber)"
     }
+    let repairHint: String
+    if let functionEndLine, functionEndLine <= allLines.count {
+      let bodyLines = trimmedInsertionBlock(edit.replacementLines) ?? edit.replacementLines
+      let fullFunctionLines =
+        [allLines[declaration.lineNumber - 1]] + bodyLines + [allLines[functionEndLine - 1]]
+      repairHint = editFileContentRepairHint(
+        path: relativePath,
+        startLine: declaration.lineNumber,
+        endLine: functionEndLine,
+        content: joinLines(fullFunctionLines),
+        intro:
+          "If your replacement lines are the new body for `\(declaration.name)`, return `edit_file` with these arguments next"
+      )
+    } else {
+      repairHint = ""
+    }
 
     return
-      "edits[\(editIndex)] would remove the function declaration `\(declaration.name)` on line \(declaration.lineNumber) and replace it with body-only lines while leaving \(lineCount - edit.endLine) existing lines after the edit. This usually breaks the surrounding source structure. Your next edit_file call must use a different edit shape: \(fullFunctionRange); \(bodyRange). Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with body-only replacement lines."
+      "edits[\(editIndex)] would remove the function declaration `\(declaration.name)` on line \(declaration.lineNumber) and replace it with body-only lines while leaving \(lineCount - edit.endLine) existing lines after the edit. This usually breaks the surrounding source structure. Your next edit_file call must use a different edit shape: \(fullFunctionRange); \(bodyRange). Because no edit was applied, do not call read_file again for \(relativePath) before attempting one of these shapes. Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with body-only replacement lines."
+      + repairHint
   }
 
   private struct OpenBlockLine {
