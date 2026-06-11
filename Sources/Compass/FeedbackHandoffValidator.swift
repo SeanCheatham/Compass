@@ -349,6 +349,24 @@ private enum UnfinishedSuccessFeedback {
     "to do",
   ]
 
+  private static let unresolvedFailurePhrases = [
+    "now fails",
+    "still fails",
+    "still failing",
+    "fails due",
+    "failed due",
+    "does not pass",
+    "did not pass",
+    "is failing",
+    "are failing",
+    "resolve the type error",
+    "resolve the type errors",
+    "fix the syntax error",
+    "fix the type error",
+    "fix the type errors",
+    "syntax error remains",
+  ]
+
   private static let nextStepActions: Set<String> = [
     "add",
     "choose",
@@ -371,6 +389,9 @@ private enum UnfinishedSuccessFeedback {
     let normalized = HandoffText.normalizedWhitespace(feedback)
     guard !normalized.isEmpty else { return nil }
     let lowercased = normalized.lowercased()
+    if unresolvedFailurePhrases.contains(where: { lowercased.contains($0) }) {
+      return normalized
+    }
     if lowercased.contains("no follow")
       || lowercased.contains("nothing else")
       || lowercased.contains("verified")

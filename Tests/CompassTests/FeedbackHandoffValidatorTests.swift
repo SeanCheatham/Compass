@@ -197,6 +197,54 @@ struct FeedbackHandoffValidatorTests {
   }
 
   @Test
+  func rejectsSucceededDevelopFeedbackThatReportsVerifyFailure() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Added the CLI JSON flag and touched the tests.",
+      feedback: "pnpm verify now fails due to type errors. Resolve the type errors before proceeding.",
+      bypassVerify: false
+    )
+
+    do {
+      try DevelopFeedbackValidator.validate(summary)
+      Issue.record("Expected verify-failure feedback rejection.")
+    } catch let error as DevelopFeedbackValidationError {
+      #expect(error.reason == .unfinishedSuccess)
+      #expect(error.feedback?.contains("verify now fails") == true)
+    }
+  }
+
+  @Test
+  func rejectsSucceededDevelopFeedbackThatReportsSyntaxError() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Updated the CLI entrypoint.",
+      feedback: "Fix the syntax error in packages/cli/src/main.ts and then run pnpm verify again.",
+      bypassVerify: false
+    )
+
+    do {
+      try DevelopFeedbackValidator.validate(summary)
+      Issue.record("Expected syntax-error feedback rejection.")
+    } catch let error as DevelopFeedbackValidationError {
+      #expect(error.reason == .unfinishedSuccess)
+      #expect(error.feedback?.contains("Fix the syntax error") == true)
+    }
+  }
+
+  @Test
+  func acceptsSucceededDevelopFeedbackAboutFixedFailingTest() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Updated the CLI and tests.",
+      feedback: "Fixed the failing CLI assertion and verified pnpm verify passes.",
+      bypassVerify: false
+    )
+
+    try DevelopFeedbackValidator.validate(summary)
+  }
+
+  @Test
   func acceptsSucceededDevelopFeedbackWithVerifiedResult() throws {
     let summary = DevelopSummary(
       status: .succeeded,
