@@ -1036,12 +1036,27 @@ extension AgentExecutor {
       guidance =
         "Use the concrete repair shape in the latest Compass Observation instead of shifting the same edit to a nearby range."
     }
+    let concreteRepair: String
+    if let payload = firstFencedJSONBlock(in: latestFailure) {
+      concreteRepair = """
+
+        Concrete repair arguments from the latest Compass Observation:
+        ```json
+        \(payload)
+        ```
+        Use these as the `arguments` for the next `\(toolName)` call. Do not call `read_file`
+        before trying these arguments unless the payload is missing a required line range.
+        """
+    } else {
+      concreteRepair = ""
+    }
 
     return """
     You repeated `\(toolName)` failures in the same repair family for `\(path)`.
 
     Failure family: \(family)
     Seen in this phase: \(repeatCount) time(s)
+    \(concreteRepair)
 
     Changing only `startLine`/`endLine` or rereading files is not repairing this failure.
     \(guidance)
@@ -1057,6 +1072,24 @@ extension AgentExecutor {
     Latest failed arguments:
     \(fencedContinuationText(arguments, limit: 2_000))
     """
+  }
+
+  private static func firstFencedJSONBlock(in text: String) -> String? {
+    guard let regex = try? NSRegularExpression(
+      pattern: #"```json\s*(.*?)\s*```"#,
+      options: [.dotMatchesLineSeparators]
+    ) else {
+      return nil
+    }
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    guard let match = regex.firstMatch(in: text, range: range),
+      match.numberOfRanges >= 2,
+      let blockRange = Range(match.range(at: 1), in: text)
+    else {
+      return nil
+    }
+    let block = text[blockRange].trimmingCharacters(in: .whitespacesAndNewlines)
+    return block.isEmpty ? nil : block
   }
 
   private static func repeatedToolAfterContinuationRejectionRepairMessage(

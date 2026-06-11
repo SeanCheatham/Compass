@@ -854,7 +854,12 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("include the complete function declaration"))
     #expect(prompts[3].contains("edit only the body lines inside the function"))
     #expect(prompts[3].contains("Do not replace a function declaration line"))
+    #expect(prompts[3].contains("Concrete repair arguments from the latest Compass Observation"))
+    #expect(prompts[3].contains("Use these as the `arguments` for the next `edit_file` call"))
     #expect(prompts[3].contains(#""path":"main.ts""#))
+    #expect(prompts[3].contains(#""startLine":1"#))
+    #expect(prompts[3].contains(#""endLine":4"#))
+    #expect(prompts[3].contains("export function main(argv = process.argv.slice(2)): string {"))
   }
 
   @Test
