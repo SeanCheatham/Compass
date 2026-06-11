@@ -456,6 +456,37 @@ public struct HeadlessCompassRunner: Sendable {
         )
         try persist(session: session, workspace: workspace)
 
+        if verify.exitCode == 0,
+          let issue = await successfulVerifyCoverageIssue(
+            command: immediate.verify,
+            output: verify.stdout + verify.stderr,
+            beforeSha: session.beforeSha,
+            repoURL: repoURL
+          )
+        {
+          session.notes.append("Verify attempt \(attempt) passed with coverage gaps.")
+          let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
+          let canUseVerifyRepairAttempt =
+            !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
+          if canUseDevelopAttempt || canUseVerifyRepairAttempt {
+            if canUseVerifyRepairAttempt {
+              verifyRepairAttemptsUsed += 1
+            }
+            priorIssues = [issue]
+            try persist(session: session, workspace: workspace)
+            emitDevelopRetry(
+              attempt: attempt,
+              maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
+              issue: issue,
+              retryKind: "coverage_gap",
+              onEvent: onEvent
+            )
+            attempt += 1
+            continue
+          }
+          break
+        }
+
         if verify.exitCode == 0 {
           successfulDevelop = develop
           ok = true
@@ -970,6 +1001,135 @@ public struct HeadlessCompassRunner: Sendable {
       """
   }
 
+  private struct CoverageTableRow {
+    let path: String
+    let statements: Double?
+    let functions: Double?
+    let lines: Double?
+  }
+
+  private func successfulVerifyCoverageIssue(
+    command: String,
+    output: String,
+    beforeSha: String?,
+    repoURL: URL
+  ) async -> String? {
+    let rows = Self.vitestCoverageRows(in: output)
+    guard !rows.isEmpty,
+      let changedPaths = await gitChangedPathsSince(beforeSha, repoURL: repoURL)
+    else {
+      return nil
+    }
+
+    let changedSourcePaths = changedPaths.filter(Self.isCoverageGatedSourcePath)
+    guard !changedSourcePaths.isEmpty else { return nil }
+
+    let gaps = changedSourcePaths.compactMap { changedPath -> String? in
+      guard
+        let row = rows.first(where: {
+          Self.coveragePath($0.path, matchesChangedPath: changedPath)
+        }),
+        row.statements == 0 || row.functions == 0 || row.lines == 0
+      else {
+        return nil
+      }
+
+      let coveragePath = row.path == changedPath ? row.path : "\(changedPath) (reported as \(row.path))"
+      return
+        "- \(coveragePath): statements \(Self.percentLabel(row.statements)), functions \(Self.percentLabel(row.functions)), lines \(Self.percentLabel(row.lines))"
+    }
+
+    guard !gaps.isEmpty else { return nil }
+    return """
+      Verify passed for `\(command)`, but coverage shows changed source files were not exercised:
+      \(gaps.joined(separator: "\n"))
+
+      A green verify is not enough when new or changed source has 0% coverage. Add or update tests that import and execute these changed files, wire the new code into the planned behavior when needed, then rerun `\(command)`.
+      """
+  }
+
+  private static func vitestCoverageRows(in output: String) -> [CoverageTableRow] {
+    var rows: [CoverageTableRow] = []
+    var currentDirectory: String?
+
+    for line in output.components(separatedBy: "\n") {
+      guard line.contains("|") else { continue }
+      let columns = line.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+      guard columns.count >= 5 else { continue }
+
+      let displayPath = columns[0].trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !displayPath.isEmpty,
+        displayPath != "File",
+        displayPath != "All files",
+        !displayPath.allSatisfy({ $0 == "-" })
+      else {
+        continue
+      }
+
+      if !Self.hasSourceExtension(displayPath), displayPath.contains("/") {
+        currentDirectory = displayPath
+        continue
+      }
+      guard Self.hasSourceExtension(displayPath) else { continue }
+
+      let coveragePath: String
+      if displayPath.contains("/") || currentDirectory == nil {
+        coveragePath = displayPath
+      } else {
+        coveragePath = [currentDirectory!, displayPath].joined(separator: "/")
+      }
+
+      rows.append(
+        CoverageTableRow(
+          path: coveragePath,
+          statements: Self.coveragePercent(columns[1]),
+          functions: Self.coveragePercent(columns[3]),
+          lines: Self.coveragePercent(columns[4])
+        ))
+    }
+
+    return rows
+  }
+
+  private static func coveragePath(_ coveragePath: String, matchesChangedPath changedPath: String)
+    -> Bool
+  {
+    changedPath == coveragePath || changedPath.hasSuffix("/\(coveragePath)")
+      || changedPath.hasSuffix(coveragePath)
+  }
+
+  private static func isCoverageGatedSourcePath(_ path: String) -> Bool {
+    let lowercased = path.lowercased()
+    guard hasSourceExtension(lowercased),
+      !lowercased.contains("/dist/"),
+      !lowercased.contains("/node_modules/")
+    else {
+      return false
+    }
+    let filename = URL(fileURLWithPath: lowercased).lastPathComponent
+    return !filename.contains(".test.") && !filename.contains(".spec.")
+  }
+
+  private static func hasSourceExtension(_ path: String) -> Bool {
+    ["js", "jsx", "mjs", "mts", "ts", "tsx"].contains(
+      URL(fileURLWithPath: path).pathExtension.lowercased())
+  }
+
+  private static func coveragePercent(_ value: String) -> Double? {
+    let cleaned = value
+      .replacingOccurrences(of: "%", with: "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return Double(cleaned)
+  }
+
+  private static func percentLabel(_ value: Double?) -> String {
+    guard let value else { return "unknown" }
+    if value.rounded() == value {
+      return "\(Int(value))%"
+    }
+    return String(format: "%.2f%%", value)
+  }
+
   private func makeRuntime(
     mode: HeadlessModelMode,
     fixtureURL: URL?,
@@ -1091,6 +1251,50 @@ public struct HeadlessCompassRunner: Sendable {
     case 1: return false
     default: return nil
     }
+  }
+
+  private func gitChangedPathsSince(_ beforeSha: String?, repoURL: URL) async -> [String]? {
+    let command: String
+    if let beforeSha, !beforeSha.isEmpty {
+      command = """
+        if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+          exit 2
+        fi
+        git -c core.quotepath=false diff --name-only \(beforeSha)..HEAD
+        git -c core.quotepath=false diff --name-only
+        git -c core.quotepath=false diff --cached --name-only
+        git -c core.quotepath=false ls-files --others --exclude-standard
+        """
+    } else {
+      command = """
+        if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+          exit 2
+        fi
+        git -c core.quotepath=false diff --name-only
+        git -c core.quotepath=false diff --cached --name-only
+        git -c core.quotepath=false ls-files --others --exclude-standard
+        """
+    }
+
+    guard
+      let result = try? await ProcessRunner.runShell(
+        command,
+        workingDirectory: repoURL,
+        timeout: 10,
+        launchPlan: .host()
+      ),
+      result.exitCode == 0
+    else {
+      return nil
+    }
+
+    let paths = Set(
+      result.stdout
+        .split(whereSeparator: \.isNewline)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+    )
+    return Array(paths).sorted()
   }
 
   private func gitDiffSinceSHA(_ sha: String?, repoURL: URL) async -> String {

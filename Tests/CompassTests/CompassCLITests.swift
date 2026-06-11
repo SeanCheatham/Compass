@@ -304,6 +304,55 @@ struct CompassCLITests {
   }
 
   @Test
+  func fixtureRunnerRetriesDevelopWhenChangedSourceHasZeroCoverage() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let verifyRunner = CoverageGapFixtureBashRunner()
+    let runner = HeadlessCompassRunner { _, label in
+      if label == "verify" {
+        return verifyRunner
+      }
+      return FixtureBashRunner()
+    }
+    try runner.scaffoldTypeScript(at: tempURL, name: "cli-coverage-gap-fixture", onEvent: record)
+    try await initializeFixtureGitRepo(at: tempURL)
+
+    let fixtureURL = tempURL.appending(path: "coverage-gap-fixture.jsonl")
+    try writeFixture(coverageGapFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Add a small summarize helper with tests",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 8,
+        maxDevelopAttempts: 2,
+        maxVerifyRepairAttempts: 0,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    #expect(
+      FileManager.default.fileExists(
+        atPath: tempURL.appending(path: "packages/cli/src/summarize.test.ts").path))
+    let snapshot = events.snapshot()
+    #expect(
+      snapshot.contains {
+        $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "coverage_gap"
+          && ($0.detail ?? "").contains("summarize.ts")
+          && ($0.detail ?? "").contains("coverage shows changed source")
+      })
+    #expect(snapshot.filter { $0.kind == "verify_result" && $0.status == "completed" }.count == 2)
+  }
+
+  @Test
   func fixtureRunnerRetriesDevelopAfterIterationBudgetExhaustion() async throws {
     let tempURL = try makeCLITempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -373,6 +422,32 @@ private struct FixtureBashRunner: AgentBashRunner {
       workingDirectory: workingDirectory,
       timeout: timeout
     )
+  }
+}
+
+private final class CoverageGapFixtureBashRunner: AgentBashRunner, @unchecked Sendable {
+  private var verifyCount = 0
+
+  func run(
+    command: String,
+    workingDirectory: URL,
+    timeout: TimeInterval
+  ) async throws -> ProcessResult {
+    guard command.trimmingCharacters(in: .whitespacesAndNewlines) == "pnpm verify" else {
+      return try await FixtureBashRunner().run(
+        command: command,
+        workingDirectory: workingDirectory,
+        timeout: timeout
+      )
+    }
+
+    verifyCount += 1
+    let count = verifyCount
+
+    if count == 1 {
+      return ProcessResult(exitCode: 0, stdout: firstCoverageGapVerifyOutput, stderr: "")
+    }
+    return ProcessResult(exitCode: 0, stdout: repairedCoverageVerifyOutput, stderr: "")
   }
 }
 
@@ -491,6 +566,24 @@ private let verifyRepairFixtureOutputs = [
   """,
 ]
 
+private let coverageGapFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nCreate new file `packages/cli/src/summarize.ts` with a `summarizeCLI` helper and create new file `packages/cli/src/summarize.test.ts` to cover it.\\n\\n## Acceptance checks\\n- Create new file `packages/cli/src/summarize.test.ts` that imports and executes `summarizeCLI`.\\n- `pnpm verify` passes with coverage for `summarize.ts`.","verify":"pnpm verify","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when changed source has 0% coverage.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise coverage-gap retry after a green verify.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Changed source with 0% coverage triggers another Develop pass."],"constraints":["Use Vitest coverage output."],"acceptanceSignals":["summarize.ts is covered by summarize.test.ts."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"write_file","arguments":{"path":"packages/cli/src/summarize.ts","content":"export function summarizeCLI(): string {\\n  return 'Done: 0, Pending: 0';\\n}\\n"},"reason":"Create the new helper, intentionally without its test so coverage catches the gap."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Added packages/cli/src/summarize.ts with summarizeCLI.","feedback":"summarize.ts was added with summarizeCLI.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"write_file","arguments":{"path":"packages/cli/src/summarize.test.ts","content":"import { describe, expect, it } from \\"vitest\\";\\nimport { summarizeCLI } from \\"./summarize\\";\\n\\ndescribe(\\"summarizeCLI\\", () => {\\n  it(\\"formats the empty summary\\", () => {\\n    expect(summarizeCLI()).toBe(\\"Done: 0, Pending: 0\\");\\n  });\\n});\\n"},"reason":"Add the missing test that exercises summarizeCLI."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Added summarize.test.ts so summarizeCLI is executed by Vitest.","feedback":"summarize.test.ts imports and exercises summarizeCLI.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
 private let budgetExhaustionFixtureOutputs = [
   """
   {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nExercise budget exhaustion recovery without changing files.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner retries Develop after max-iteration exhaustion.\\n\\n## Acceptance checks\\n- The second Develop attempt submits successfully.","verify":"tsc --version","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"The first Develop output intentionally consumes the full max-iteration budget without submitting.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI Develop retry after iteration budget exhaustion.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Budget exhaustion reaches a fresh Develop attempt."],"constraints":["No file changes required for this control fixture."],"acceptanceSignals":["Verify runs after the second attempt."]},"openQuestions":[]},"lessonEdits":[]}}
@@ -502,6 +595,47 @@ private let budgetExhaustionFixtureOutputs = [
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Recovered after the first Develop attempt exhausted its iteration budget.","feedback":"The headless runner converted budget exhaustion into retry context and verification can run.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
+
+private let firstCoverageGapVerifyOutput = """
+> compass-test@0.1.0 verify /workspace
+> pnpm typecheck && pnpm test -- --coverage && pnpm build
+
+ RUN  v2.1.9 /workspace
+      Coverage enabled with v8
+
+ ✓ packages/cli/src/main.test.ts (1 test) 1ms
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   17.02 |     37.5 |   33.33 |   17.02 |
+ cli/src           |   31.57 |       25 |      50 |   31.57 |
+  main.ts          |      75 |    33.33 |     100 |      75 | 10-11
+  summarize.ts     |       0 |        0 |       0 |       0 | 1-3
+-------------------|---------|----------|---------|---------|-------------------
+"""
+
+private let repairedCoverageVerifyOutput = """
+> compass-test@0.1.0 verify /workspace
+> pnpm typecheck && pnpm test -- --coverage && pnpm build
+
+ RUN  v2.1.9 /workspace
+      Coverage enabled with v8
+
+ ✓ packages/cli/src/summarize.test.ts (1 test) 1ms
+ ✓ packages/cli/src/main.test.ts (1 test) 1ms
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------|---------|----------|---------|---------|-------------------
+All files          |     100 |      100 |     100 |     100 |
+ cli/src           |     100 |      100 |     100 |     100 |
+  main.ts          |     100 |      100 |     100 |     100 |
+  summarize.ts     |     100 |      100 |     100 |     100 |
+-------------------|---------|----------|---------|---------|-------------------
+"""
 
 private let fixtureJSONL = """
   {"text":"{\\"kind\\":\\"plan_submit\\",\\"payload\\":{\\"state\\":{\\"immediate\\":{\\"plan\\":\\"## Outcome\\\\nAdd a short README note that says Fixture smoke note.\\\\n\\\\n## Why it matters\\\\nThis proves the CLI fixture loop can plan a small observable documentation edit.\\\\n\\\\n## Acceptance checks\\\\n- README.md contains the sentence Fixture smoke note.\\",\\"verify\\":\\"tsc --version\\",\\"verifyTimeoutMs\\":60000,\\"estimatedDifficulty\\":\\"low\\",\\"selectedBecause\\":\\"This is a tiny deterministic slice for the CLI fixture harness.\\",\\"source\\":\\"repository\\",\\"candidateID\\":null},\\"queue\\":[],\\"brief\\":{\\"summary\\":\\"Smoke test the CompassCLI fixture harness on a generated TypeScript workspace.\\",\\"targetUsers\\":[\\"Compass maintainers\\"],\\"desiredOutcomes\\":[\\"A deterministic CLI run edits a file and verifies on host.\\"],\\"constraints\\":[\\"No pnpm dependency for this smoke test.\\"],\\"acceptanceSignals\\":[\\"README.md contains Fixture smoke note.\\"]},\\"openQuestions\\":[]},\\"lessonEdits\\":[]}}"}
