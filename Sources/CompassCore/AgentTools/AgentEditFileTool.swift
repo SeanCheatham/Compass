@@ -501,6 +501,15 @@ struct AgentEditFileTool: AgentTool {
         ) {
           return .failure(.invalidArguments(testCode))
         }
+        if let implementationCode = Self.implementationCodeInTestFileMessage(
+          editIndex: idx,
+          relativePath: relative,
+          replacementLines: edit.replacementLines,
+          isSourceFile: Self.isSourceFile(url),
+          isTestFile: Self.isTestFile(url)
+        ) {
+          return .failure(.invalidArguments(implementationCode))
+        }
         if let duplicateInsertion = Self.duplicateSourceInsertionMessage(
           editIndex: idx,
           edit: edit,
@@ -548,6 +557,15 @@ struct AgentEditFileTool: AgentTool {
         isTestFile: Self.isTestFile(url)
       ) {
         return .failure(.invalidArguments(testCode))
+      }
+      if let implementationCode = Self.implementationCodeInTestFileMessage(
+        editIndex: idx,
+        relativePath: relative,
+        replacementLines: edit.replacementLines,
+        isSourceFile: Self.isSourceFile(url),
+        isTestFile: Self.isTestFile(url)
+      ) {
+        return .failure(.invalidArguments(implementationCode))
       }
       if Self.isSourceFile(url),
         let commentOnlyReplacement = Self.commentOnlySourceReplacementMessage(
@@ -960,6 +978,29 @@ struct AgentEditFileTool: AgentTool {
       "edits[\(editIndex)] would introduce test code into non-test source file \(relativePath) at replacement line \(marker.lineNumber): \(marker.preview). Do not paste Vitest/Jest `describe`, `it`, `test`, or `expect` blocks into implementation files. Put assertions in a `.test.ts`/`.spec.ts` file, and edit \(relativePath) with implementation code only."
   }
 
+  private static func implementationCodeInTestFileMessage(
+    editIndex: Int,
+    relativePath: String,
+    replacementLines: [String],
+    isSourceFile: Bool,
+    isTestFile: Bool
+  ) -> String? {
+    guard isSourceFile, isTestFile,
+      let marker = firstArgumentParsingImplementationMarker(in: replacementLines)
+    else {
+      return nil
+    }
+    if let testMarker = firstTestCodeMarker(in: replacementLines),
+      testMarker.lineNumber < marker.lineNumber
+    {
+      return nil
+    }
+
+    let implementationPath = probableImplementationPath(forTestPath: relativePath)
+    return
+      "edits[\(editIndex)] would introduce argument-parsing implementation code into test file \(relativePath) at replacement line \(marker.lineNumber): \(marker.preview). Do not repair production behavior by pasting `argv` parsing or return logic into a test file. Edit \(implementationPath) with the implementation, and keep test edits focused on `describe`/`it`/`test`/`expect` assertions or fixtures."
+  }
+
   private struct TestCodeMarker {
     let lineNumber: Int
     let preview: String
@@ -978,6 +1019,41 @@ struct AgentEditFileTool: AgentTool {
       }
     }
     return nil
+  }
+
+  private static func firstArgumentParsingImplementationMarker(in lines: [String])
+    -> TestCodeMarker?
+  {
+    let trimmedLines = lines.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+    guard trimmedLines.contains(where: { line in
+      line.range(of: #"\b(argv|process\.argv)\b"#, options: .regularExpression) != nil
+    }),
+      trimmedLines.contains(where: { line in
+        line.range(of: #"^return\b"#, options: .regularExpression) != nil
+      })
+    else {
+      return nil
+    }
+
+    for (index, line) in trimmedLines.enumerated() where !line.isEmpty {
+      if line.range(of: #"\b(argv|process\.argv)\b"#, options: .regularExpression) != nil
+        || line.range(of: #"^return\b"#, options: .regularExpression) != nil
+      {
+        return TestCodeMarker(lineNumber: index + 1, preview: linePreview(line))
+      }
+    }
+    return nil
+  }
+
+  private static func probableImplementationPath(forTestPath relativePath: String) -> String {
+    let implementationPath =
+      relativePath
+      .replacingOccurrences(of: ".test.", with: ".")
+      .replacingOccurrences(of: ".spec.", with: ".")
+    guard implementationPath != relativePath else {
+      return "the implementation file imported by this test"
+    }
+    return implementationPath
   }
 
   private static func containsMeaningfulSource(

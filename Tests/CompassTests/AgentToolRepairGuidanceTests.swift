@@ -826,6 +826,84 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileRejectsArgumentParsingImplementationInTestFile() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "main.test.ts")
+    let original = """
+    import { describe, expect, it } from "vitest";
+    import { main } from "./main";
+
+    describe("cli", () => {
+      it("prints the queue summary", () => {
+        expect(main(["Ship", "it"])).toBe("1 open / 1 total");
+      });
+    });
+    """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"main.test.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"main.test.ts","startLine":6,"endLine":6,"content":"    const [action, countStr] = argv;\n    const count = parseInt(countStr, 10);\n    const title = argv.slice(2).join(\" \").trim() || \"First Compass task\";\n    return summarizeQueue([{ id: \"task-1\", title, done: action === \"--done\" && count === 1 }]);\n  });\n  it(\"handles --done with count\", () => {\n    expect(main([\"--done\", \"1\", \"Ship\", \"it\"])).toBe(\"0 open / 1 total\");\n  });"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("argument-parsing implementation code into test file main.test.ts"))
+    #expect(result.content.contains("Do not repair production behavior"))
+    #expect(result.content.contains("Edit main.ts with the implementation"))
+    #expect(result.content.contains("keep test edits focused"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == original)
+  }
+
+  @Test
+  func editFileAllowsAssertionsInTestFile() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "main.test.ts")
+    let original = """
+    import { describe, expect, it } from "vitest";
+    import { main } from "./main";
+
+    describe("cli", () => {
+      it("prints the queue summary", () => {
+        expect(main(["Ship", "it"])).toBe("1 open / 1 total");
+      });
+    });
+    """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"main.test.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"main.test.ts","startLine":8,"endLine":7,"insert":"\n  it(\"handles --done with count\", () => {\n    expect(main([\"--done\", \"1\", \"Ship\", \"it\"])).toBe(\"0 open / 1 total\");\n  });"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(!result.isError)
+    let edited = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(edited.contains("handles --done with count"))
+    #expect(edited.contains("expect(main([\"--done\", \"1\", \"Ship\", \"it\"])).toBe(\"0 open / 1 total\")"))
+  }
+
+  @Test
   func editFileTreatsIdenticalReplacementAsNoOp() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
