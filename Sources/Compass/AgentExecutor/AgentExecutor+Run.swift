@@ -344,6 +344,18 @@ extension AgentExecutor {
             ),
             kind: .invalidArguments
           )
+        } else if configuration.phase == .develop,
+          let lastSuccessfulVerifyCommand,
+          let requestedVerifyCommand = Self.verifyCommand(arguments: arguments)
+        {
+          result = .failure(
+            Self.repeatedSuccessfulVerifyRejectedMessage(
+              previousCommand: lastSuccessfulVerifyCommand,
+              requestedCommand: requestedVerifyCommand,
+              phase: configuration.continuationPhase
+            ),
+            kind: .invalidArguments
+          )
         } else {
           do {
             result = try await tool.invoke(arguments: arguments, context: toolContext)
@@ -687,6 +699,10 @@ extension AgentExecutor {
       result.content.contains("[exit 0]")
     else { return nil }
 
+    return verifyCommand(arguments: arguments)
+  }
+
+  private static func verifyCommand(arguments: Data) -> String? {
     guard let object = try? JSONSerialization.jsonObject(with: arguments) as? [String: Any] else {
       return nil
     }
@@ -1234,6 +1250,25 @@ extension AgentExecutor {
     - If you cannot complete the repair in this budget, return `\(phase.submitKind)` with
       status=failed or status=blocked and concise feedback.
     """
+  }
+
+  private static func repeatedSuccessfulVerifyRejectedMessage(
+    previousCommand: String,
+    requestedCommand: String,
+    phase: AgentContinuationPhase
+  ) -> String {
+    let requestedLine =
+      requestedCommand == previousCommand
+      ? ""
+      : "\nThe latest requested verify command was `\(requestedCommand)`, which is still a verify command."
+    return """
+      Compass already observed `\(previousCommand)` exit 0, and no accepted file edit has happened since that successful verify.\(requestedLine)
+
+      Do not rerun verify against the same worktree. Repeating the proof command cannot implement missing acceptance requirements and wastes the Develop budget. Choose exactly one next action:
+      - If the requested packet is complete, return `\(phase.submitKind)` with status=succeeded, bypassVerify=false, and one concrete feedback sentence naming `\(previousCommand)` as the passing verification.
+      - If a specific acceptance requirement is still missing, call `edit_file` or `write_file` now, then run `\(previousCommand)` after that accepted mutation.
+      - If you cannot make a concrete edit in this budget, return `\(phase.submitKind)` with status=failed or status=blocked and concise feedback.
+      """
   }
 
   private static func postVerifyMutationRejectedMessage(

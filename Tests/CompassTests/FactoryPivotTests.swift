@@ -1213,6 +1213,44 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorRejectsRepeatedVerifyAfterSuccessfulVerifyWithoutMutation() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let bashCounter = ToolInvocationCounter()
+    let runtime = FakeLocalModelRuntime(outputs: [
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run the missing verification command before submitting success."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed for the requested packet.","feedback":"Verified with pnpm verify; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [
+          FakeBashTool(
+            output: "[stdout]\nAll checks passed.\n\n[exit 0]\n\n[next]\nSubmit success.",
+            counter: bashCounter
+          )
+        ],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 3
+      )
+    )
+
+    #expect(bashCounter.value == 1)
+    #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("succeeded"))
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 3)
+    #expect(prompts[1].contains("Compass observed `pnpm verify` exit 0"))
+    #expect(prompts[2].contains("Compass already observed `pnpm verify` exit 0"))
+    #expect(prompts[2].contains("Do not rerun verify against the same worktree"))
+    #expect(prompts[2].contains("call `edit_file` or `write_file` now"))
+  }
+
+  @Test
   func executorCompactsContinuationHistoryWithoutCountingAnAgentIteration() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -1578,8 +1616,27 @@ private final class RejectFirstTwoPlanSubmitValidator: @unchecked Sendable {
   }
 }
 
+private final class ToolInvocationCounter: @unchecked Sendable {
+  private let lock = NSLock()
+  private var count = 0
+
+  var value: Int {
+    lock.lock()
+    defer { lock.unlock() }
+    return count
+  }
+
+  func increment() {
+    lock.lock()
+    count += 1
+    lock.unlock()
+  }
+}
+
 private struct FakeBashTool: AgentTool {
   var output: String
+  var counter: ToolInvocationCounter? = nil
+
   var spec: AgentToolSpec {
     AgentToolSpec(
       name: AgentBashTool.toolName,
@@ -1592,7 +1649,8 @@ private struct FakeBashTool: AgentTool {
   }
 
   func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
-    .ok(output)
+    counter?.increment()
+    return .ok(output)
   }
 }
 
