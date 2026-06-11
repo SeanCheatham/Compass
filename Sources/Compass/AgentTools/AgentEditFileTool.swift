@@ -832,7 +832,7 @@ struct AgentEditFileTool: AgentTool {
     }
 
     return
-      "edits[\(editIndex)] replaces only line \(edit.startLine) with \(edit.replacementLines.count) lines while leaving \(lineCount - edit.endLine) existing lines after it. This looks like a partial whole-file rewrite. Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with the same replacement. If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to insert before line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1). Otherwise replace the exact line range that should be removed."
+      "edits[\(editIndex)] replaces only line \(edit.startLine) with \(edit.replacementLines.count) lines while leaving \(lineCount - edit.endLine) existing lines after it. This looks like a partial whole-file rewrite. Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with the same replacement, and do not fix this by shifting to another single-line range such as startLine=\(min(edit.startLine + 1, lineCount)), endLine=\(min(edit.endLine + 1, lineCount)). If you intended to rewrite the whole file, use startLine=1, endLine=\(lineCount). If you intended to insert before line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1) with only the new lines to insert, not the whole file. Otherwise replace the exact line range that should be removed."
   }
 
   private static func suspiciousWholeFileInsertionMessage(

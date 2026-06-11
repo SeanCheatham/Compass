@@ -482,6 +482,8 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("partial whole-file rewrite"))
     #expect(result.content.contains("use startLine=1, endLine=6"))
     #expect(result.content.contains("Do not retry startLine=1, endLine=1"))
+    #expect(result.content.contains("do not fix this by shifting to another single-line range"))
+    #expect(result.content.contains("with only the new lines to insert, not the whole file"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged.contains("export function one()"))
   }
