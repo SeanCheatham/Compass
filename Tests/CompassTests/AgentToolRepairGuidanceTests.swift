@@ -99,6 +99,35 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileMissingPathWithContentShowsWriteFileArguments() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    try "export const main = true;\n".write(
+      to: srcURL.appending(path: "main.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/summarize.ts","startLine":1,"endLine":1,"content":"export function summarizeCLI(): string {\n  return '1 open / 1 total';\n}\n"}"#
+          .utf8
+      ),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .readNotTracked)
+    #expect(result.content.contains("file does not exist"))
+    #expect(result.content.contains("return `write_file` with these arguments"))
+    #expect(result.content.contains(#""path":"packages/cli/src/summarize.ts""#))
+    #expect(result.content.contains(#""content":"export function summarizeCLI()"#))
+  }
+
+  @Test
   func editFileRejectsInsertAliasWithReplacementRange() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

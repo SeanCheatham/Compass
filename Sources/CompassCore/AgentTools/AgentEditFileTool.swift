@@ -273,6 +273,11 @@ struct AgentEditFileTool: AgentTool {
     }
   }
 
+  private struct WriteFileRepairPayload: Encodable {
+    let path: String
+    let content: String
+  }
+
   let spec: AgentToolSpec
 
   init() {
@@ -386,7 +391,7 @@ struct AgentEditFileTool: AgentTool {
       if !FileManager.default.fileExists(atPath: url.path) {
         return .failure(
           .readNotTracked(
-            await missingEditTargetMessage(resolvedURL: url, context: context)
+            await missingEditTargetMessage(resolvedURL: url, edits: args.edits, context: context)
           ))
       }
       return .failure(
@@ -619,13 +624,20 @@ struct AgentEditFileTool: AgentTool {
     return message
   }
 
-  private func missingEditTargetMessage(resolvedURL: URL, context: AgentToolContext) async -> String
-  {
+  private func missingEditTargetMessage(
+    resolvedURL: URL,
+    edits: [EditOperation],
+    context: AgentToolContext
+  ) async -> String {
     let relativePath = context.relativize(resolvedURL)
+    let creationHint = Self.writeFileCreationRepairHint(
+      relativePath: relativePath,
+      edits: edits
+    )
     var message = "edit_file cannot edit \(relativePath) because the file does not exist."
     guard let nearest = await nearestExistingDirectory(from: resolvedURL, context: context) else {
       return message
-        + " Use list_files or glob to discover current repo paths before creating a new file. Use write_file only when the plan explicitly requires creating \(relativePath)."
+        + " Use list_files or glob to discover current repo paths before creating a new file. Use write_file only when the plan explicitly requires creating \(relativePath).\(creationHint)"
     }
 
     message += "\nNearest existing directory: \(context.relativize(nearest.url))"
@@ -638,7 +650,32 @@ struct AgentEditFileTool: AgentTool {
     }
     message +=
       "\nIf you meant to change an existing file, call read_file on one of these paths and edit that file. Use write_file for \(relativePath) only when the plan explicitly requires creating that exact new file."
+    message += creationHint
     return message
+  }
+
+  private static func writeFileCreationRepairHint(
+    relativePath: String,
+    edits: [EditOperation]
+  ) -> String {
+    guard edits.count == 1, let edit = edits.first else { return "" }
+    let content = joinLines(edit.replacementLines)
+    guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "" }
+    let payload = WriteFileRepairPayload(path: relativePath, content: content)
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    guard let data = try? encoder.encode(payload),
+      let json = String(data: data, encoding: .utf8)
+    else {
+      return ""
+    }
+    return """
+
+      If you intended to create this new file, return `write_file` with these arguments instead of retrying `edit_file`:
+      ```json
+      \(json)
+      ```
+      """
   }
 
   private func nearestExistingDirectory(
