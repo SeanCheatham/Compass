@@ -520,6 +520,38 @@ public struct HeadlessCompassRunner: Sendable {
           break
         }
 
+        if verify.exitCode == 0,
+          let issue = await successfulVerifyWeakCLIFlagTestIssue(
+            immediate: immediate,
+            brief: plannedState.brief,
+            command: immediate.verify,
+            beforeSha: session.beforeSha,
+            repoURL: repoURL
+          )
+        {
+          session.notes.append("Verify attempt \(attempt) passed with weak CLI flag tests.")
+          let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
+          let canUseVerifyRepairAttempt =
+            !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
+          if canUseDevelopAttempt || canUseVerifyRepairAttempt {
+            if canUseVerifyRepairAttempt {
+              verifyRepairAttemptsUsed += 1
+            }
+            priorIssues = [issue]
+            try persist(session: session, workspace: workspace)
+            emitDevelopRetry(
+              attempt: attempt,
+              maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
+              issue: issue,
+              retryKind: "weak_cli_flag_tests",
+              onEvent: onEvent
+            )
+            attempt += 1
+            continue
+          }
+          break
+        }
+
         if verify.exitCode == 0 {
           successfulDevelop = develop
           ok = true
@@ -1246,6 +1278,76 @@ public struct HeadlessCompassRunner: Sendable {
       - Add assertions for the new behavior named in the plan or brief, then rerun `\(command)`.
       - Do not rely on a green verify from the old tests when the acceptance checks explicitly call for new or updated tests.
       """
+  }
+
+  private func successfulVerifyWeakCLIFlagTestIssue(
+    immediate: PlanNext,
+    brief: PlanStrategicContext,
+    command: String,
+    beforeSha: String?,
+    repoURL: URL
+  ) async -> String? {
+    let handoffText = [
+      immediate.plan,
+      immediate.selectedBecause ?? "",
+      brief.summary,
+      brief.desiredOutcomes.joined(separator: "\n"),
+      brief.constraints.joined(separator: "\n"),
+      brief.acceptanceSignals.joined(separator: "\n"),
+    ].joined(separator: "\n").lowercased()
+    guard handoffText.contains("--format json"), handoffText.contains("cli") else {
+      return nil
+    }
+    guard let changedPaths = await gitChangedPathsSince(beforeSha, repoURL: repoURL) else {
+      return nil
+    }
+    let changedCLIPaths = changedPaths.filter { path in
+      path.hasPrefix("packages/cli/src/") && Self.isCoverageGatedSourcePath(path)
+    }
+    guard !changedCLIPaths.isEmpty else { return nil }
+    let changedTestPaths = changedPaths.filter { path in
+      path.hasPrefix("packages/cli/src/") && Self.isTestPath(path)
+    }
+    guard !changedTestPaths.isEmpty else { return nil }
+
+    let changedTestFiles: [(path: String, contents: String)] = changedTestPaths.compactMap { path in
+      let url = repoURL.appending(path: path)
+      guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+      return (path, contents)
+    }
+    guard !changedTestFiles.contains(where: { Self.containsSplitFormatJSONAssertion($0.contents) }) else {
+      return nil
+    }
+    let weakTestPaths = changedTestFiles.map(\.path)
+    guard !weakTestPaths.isEmpty else { return nil }
+
+    return """
+      Verify passed for `\(command)`, but the CLI `--format json` tests do not exercise real argv splitting.
+
+      In `process.argv`, `--format json` arrives as separate `--format` and `json` arguments. A test like `["--format json", "Ship", "it"]` can pass while the real CLI command fails.
+
+      Weak or missing split-argv test file(s):
+      \(weakTestPaths.map { "- `\($0)`" }.joined(separator: "\n"))
+
+      Changed CLI source file(s):
+      \(changedCLIPaths.map { "- `\($0)`" }.joined(separator: "\n"))
+
+      Required repair:
+      - Update the CLI test to call the exported CLI function with split arguments, for example `main(["--format", "json", "Ship", "it"])`.
+      - Assert the JSON title is `Ship it`, with `open` and `total` fields present.
+      - Rerun `\(command)` after the test and implementation agree on real argv behavior.
+      """
+  }
+
+  private static func containsSplitFormatJSONAssertion(_ contents: String) -> Bool {
+    let normalized = contents
+      .replacingOccurrences(of: "'", with: "\"")
+      .unicodeScalars
+      .filter { !CharacterSet.whitespacesAndNewlines.contains($0) }
+      .map(String.init)
+      .joined()
+    return normalized.contains("[\"--format\",\"json\"")
+      || normalized.contains("([\"--format\",\"json\"")
   }
 
   private static func mentionedTestPaths(in text: String) -> [String] {

@@ -445,6 +445,56 @@ struct CompassCLITests {
   }
 
   @Test
+  func fixtureRunnerRetriesDevelopWhenCLIFlagTestUsesCombinedArg() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, label in
+      if label == "verify" {
+        return PnpmVerifyAlwaysPassBashRunner()
+      }
+      return FixtureBashRunner()
+    }
+    try runner.scaffoldTypeScript(at: tempURL, name: "cli-flag-split-fixture", onEvent: record)
+    try await initializeFixtureGitRepo(at: tempURL)
+
+    let fixtureURL = tempURL.appending(path: "weak-cli-flag-fixture.jsonl")
+    try writeFixture(weakCLIFlagTestFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Add a CLI --format json flag and update packages/cli/src/main.test.ts",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 8,
+        maxDevelopAttempts: 2,
+        maxVerifyRepairAttempts: 0,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let mainTest = try String(
+      contentsOf: tempURL.appending(path: "packages/cli/src/main.test.ts"),
+      encoding: .utf8
+    )
+    #expect(mainTest.contains(#"main(["--format", "json", "Ship", "it"])"#))
+    let snapshot = events.snapshot()
+    let flagRetry = snapshot.first {
+      $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "weak_cli_flag_tests"
+    }
+    #expect(flagRetry?.detail?.contains("real argv splitting") == true)
+    #expect(flagRetry?.detail?.contains(#"main(["--format", "json", "Ship", "it"])"#) == true)
+    #expect(flagRetry?.detail?.contains("packages/cli/src/main.test.ts") == true)
+    #expect(snapshot.filter { $0.kind == "verify_result" && $0.status == "completed" }.count == 2)
+  }
+
+  @Test
   func fixtureRunnerRetriesDevelopAfterIterationBudgetExhaustion() async throws {
     let tempURL = try makeCLITempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -566,6 +616,23 @@ private final class RequiredTestsFixtureBashRunner: AgentBashRunner, @unchecked 
       return ProcessResult(exitCode: 0, stdout: requiredTestsFirstVerifyOutput, stderr: "")
     }
     return ProcessResult(exitCode: 0, stdout: requiredTestsRepairedVerifyOutput, stderr: "")
+  }
+}
+
+private struct PnpmVerifyAlwaysPassBashRunner: AgentBashRunner {
+  func run(
+    command: String,
+    workingDirectory: URL,
+    timeout: TimeInterval
+  ) async throws -> ProcessResult {
+    guard command.trimmingCharacters(in: .whitespacesAndNewlines) == "pnpm verify" else {
+      return try await FixtureBashRunner().run(
+        command: command,
+        workingDirectory: workingDirectory,
+        timeout: timeout
+      )
+    }
+    return ProcessResult(exitCode: 0, stdout: "pnpm verify passed.\n", stderr: "")
   }
 }
 
@@ -723,6 +790,36 @@ private let requiredTestsFixtureOutputs = [
   """,
   """
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated main.test.ts with the required CLI assertions.","feedback":"packages/cli/src/main.test.ts covers default and JSON CLI output; pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
+private let weakCLIFlagTestFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nUpdate `packages/cli/src/main.ts` to support `--format json` and update `packages/cli/src/main.test.ts` with CLI-facing assertions.\\n\\n## Acceptance checks\\n- `packages/cli/src/main.test.ts` covers default text output, JSON output, and a title containing multiple words.\\n- The JSON test calls `main([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"])` because real argv splits the flag and value.\\n- `pnpm verify` passes.","verify":"pnpm verify","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves a green verify is not accepted when CLI flag-value tests use a single combined argv token.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI --format json flag.","targetUsers":["Compass maintainers"],"desiredOutcomes":["The CLI behavior has direct tests."],"constraints":["Modify the existing entrypoint and test file."],"acceptanceSignals":["packages/cli/src/main.test.ts covers split --format json argv."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.ts"},"reason":"Need current line numbers before editing the existing CLI entrypoint."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/src/main.ts","startLine":5,"endLine":6,"content":"  const format = argv.includes(\\"--format json\\");\\n  const title = argv.filter((arg) => arg !== \\"--format json\\").join(\\" \\").trim() || \\"First Compass task\\";\\n  if (format) {\\n    return JSON.stringify({ open: 1, total: 1, title });\\n  }\\n  return summarizeQueue([{ id: \\"task-1\\", title, done: false }]);"},"reason":"Add an intentionally weak combined-token flag parser so the test post-check catches the matching weak assertion."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.test.ts"},"reason":"Need current line numbers before adding the CLI assertions."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/src/main.test.ts","startLine":1,"endLine":8,"content":"import { describe, expect, it } from \\"vitest\\";\\nimport { main } from \\"./main\\";\\n\\ndescribe(\\"@cli-flag-split-fixture/cli\\", () => {\\n  it(\\"prints default text output\\", () => {\\n    expect(main([\\"Ship\\", \\"it\\"])).toBe(\\"1 open / 1 total\\");\\n  });\\n\\n  it(\\"prints JSON output for a multi-word title\\", () => {\\n    expect(JSON.parse(main([\\"--format json\\", \\"Ship\\", \\"it\\"]))).toEqual({\\n      open: 1,\\n      total: 1,\\n      title: \\"Ship it\\",\\n    });\\n  });\\n});\\n"},"reason":"Add a weak combined-token JSON assertion that should not satisfy the CLI flag-value acceptance check."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated main.ts and main.test.ts with JSON output coverage.","feedback":"packages/cli/src/main.test.ts covers JSON output and pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.test.ts"},"reason":"Need current line numbers before repairing the weak combined-token flag assertion."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/src/main.test.ts","startLine":1,"endLine":16,"content":"import { describe, expect, it } from \\"vitest\\";\\nimport { main } from \\"./main\\";\\n\\ndescribe(\\"@cli-flag-split-fixture/cli\\", () => {\\n  it(\\"prints default text output\\", () => {\\n    expect(main([\\"Ship\\", \\"it\\"])).toBe(\\"1 open / 1 total\\");\\n  });\\n\\n  it(\\"prints JSON output for split --format json args\\", () => {\\n    expect(JSON.parse(main([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"]))).toEqual({\\n      open: 1,\\n      total: 1,\\n      title: \\"Ship it\\",\\n    });\\n  });\\n});\\n"},"reason":"Repair the CLI-facing test to exercise real split argv tokens for --format json."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated main.test.ts with split argv coverage for --format json.","feedback":"packages/cli/src/main.test.ts calls main([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"]) and pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 
