@@ -180,6 +180,7 @@ public struct HeadlessCompassRunner: Sendable {
   public func scaffoldTypeScript(
     at url: URL,
     name: String?,
+    initializeGit: Bool = false,
     onEvent: @Sendable (HeadlessCompassEvent) -> Void
   ) throws {
     let url = url.standardizedFileURL
@@ -207,6 +208,32 @@ public struct HeadlessCompassRunner: Sendable {
         metadata: ["path": url.path, "name": projectName]
       )
     )
+
+    guard initializeGit else { return }
+    let result = Self.initializeScaffoldGitBaseline(at: url)
+    if result.exitCode == 0 {
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "scaffold_git_baseline",
+          level: "success",
+          status: "completed",
+          message: "Initial Git baseline committed.",
+          metadata: ["path": url.path]
+        )
+      )
+    } else {
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "scaffold_git_baseline",
+          level: "warning",
+          status: "failed",
+          message: "Initial Git baseline was not created.",
+          detail: [result.stdout, result.stderr]
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .joined(separator: "\n")
+        )
+      )
+    }
   }
 
   @discardableResult
@@ -1557,6 +1584,57 @@ public struct HeadlessCompassRunner: Sendable {
       startedAt: session.startedAt,
       endedAt: session.endedAt
     )
+  }
+
+  private static func initializeScaffoldGitBaseline(at repoURL: URL) -> ProcessResult {
+    runShellSync(
+      """
+      set -e
+      if [ -e .git ]; then
+        :
+      elif git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "not creating scaffold baseline inside an existing parent Git worktree" >&2
+        exit 3
+      else
+        git init
+      fi
+
+      if git rev-parse --verify HEAD >/dev/null 2>&1; then
+        exit 0
+      fi
+
+      git add .
+      git -c user.name='Compass Scaffold' \
+        -c user.email='compass-scaffold@localhost' \
+        commit -m 'Initial Compass scaffold'
+      """,
+      workingDirectory: repoURL
+    )
+  }
+
+  private static func runShellSync(_ command: String, workingDirectory: URL) -> ProcessResult {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/sh")
+    process.arguments = ["-c", command]
+    process.currentDirectoryURL = workingDirectory
+
+    let stdoutPipe = Pipe()
+    let stderrPipe = Pipe()
+    process.standardOutput = stdoutPipe
+    process.standardError = stderrPipe
+    process.standardInput = FileHandle(forReadingAtPath: "/dev/null")
+
+    do {
+      try process.run()
+      process.waitUntilExit()
+      let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+        ?? ""
+      let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+        ?? ""
+      return ProcessResult(exitCode: process.terminationStatus, stdout: stdout, stderr: stderr)
+    } catch {
+      return ProcessResult(exitCode: 127, stdout: "", stderr: error.localizedDescription)
+    }
   }
 
   private func gitCurrentSHA(repoURL: URL) async -> String? {

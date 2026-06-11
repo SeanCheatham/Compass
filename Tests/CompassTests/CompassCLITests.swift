@@ -104,6 +104,27 @@ struct CompassCLITests {
   }
 
   @Test
+  func scaffoldCommandInitializesCleanGitBaseline() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let exitCode = await CompassCLI.run(arguments: [
+      "scaffold", "typescript", tempURL.path, "--name", "cli-git-baseline-fixture",
+    ])
+
+    #expect(exitCode == 0)
+    let result = try await AgentHostBashRunner().run(
+      command: "git rev-parse --verify HEAD && git status --porcelain --untracked-files=all",
+      workingDirectory: tempURL,
+      timeout: 30
+    )
+    #expect(result.exitCode == 0)
+    let lines = result.stdout.split(separator: "\n", omittingEmptySubsequences: false)
+    #expect(lines.first?.isEmpty == false)
+    #expect(lines.dropFirst().allSatisfy { $0.isEmpty })
+  }
+
+  @Test
   func headlessBriefSeedFillsMissingStrategicFields() {
     let state = PlanState(
       completed: ["prior-item"],

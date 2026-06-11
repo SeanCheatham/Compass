@@ -42,6 +42,42 @@ struct FeedbackHandoffValidatorTests {
   }
 
   @Test
+  func rejectsSucceededDevelopFeedbackThatOnlyAsksToRunVerification() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Implemented the CLI flag.",
+      feedback: "Run the verification command to ensure the implementation is correct.",
+      bypassVerify: false
+    )
+
+    do {
+      try DevelopFeedbackValidator.validate(summary)
+      Issue.record("Expected run-verification feedback rejection.")
+    } catch let error as DevelopFeedbackValidationError {
+      #expect(error.reason == .unfinishedSuccess)
+      #expect(error.feedback?.contains("verification command") == true)
+    }
+  }
+
+  @Test
+  func rejectsSucceededDevelopFeedbackWithNextRunVerification() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Updated the CLI entrypoint.",
+      feedback: "Next, run the verification command before reporting success.",
+      bypassVerify: false
+    )
+
+    do {
+      try DevelopFeedbackValidator.validate(summary)
+      Issue.record("Expected next-run feedback rejection.")
+    } catch let error as DevelopFeedbackValidationError {
+      #expect(error.reason == .unfinishedSuccess)
+      #expect(error.feedback?.contains("Next, run") == true)
+    }
+  }
+
+  @Test
   func rejectsSucceededDevelopFeedbackThatAsksToVerifyChanges() throws {
     let summary = DevelopSummary(
       status: .succeeded,

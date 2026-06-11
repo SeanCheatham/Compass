@@ -205,6 +205,47 @@ struct PlanTransitionValidatorTests {
 
     try PlanTransitionValidator.validate(from: .empty, to: grounded)
   }
+
+  @Test
+  func rejectsTestOnlyVerifyForCLIImplementationWork() throws {
+    let implementation = planState(
+      """
+      ## Outcome
+      Implement a split-argv `--limit <number>` option in the CLI.
+
+      ## Acceptance checks
+      - `main(["--limit", "4", "Ship", "it"])` parses the real split argv entries and returns `4 open / 4 total`.
+      - Update `packages/cli/src/main.test.ts` with the split argv assertion.
+      """,
+      verify: "pnpm test -- --coverage"
+    )
+
+    do {
+      try PlanTransitionValidator.validate(from: .empty, to: implementation)
+      Issue.record("Expected test-only verify rejection.")
+    } catch let error as PlanTransitionValidationError {
+      #expect(error.reason == .weakVerifyCoverage)
+      #expect(error.rejectedVerify == "pnpm test -- --coverage")
+      #expect(error.message.contains("test-only verify command"))
+      #expect(error.message.contains("use `pnpm verify`"))
+    }
+  }
+
+  @Test
+  func acceptsCoverageVerifyForTestOnlyCLISlice() throws {
+    let testOnly = planState(
+      """
+      ## Outcome
+      Add regression coverage in `packages/cli/src/main.test.ts` for the existing CLI split argv behavior.
+
+      ## Acceptance checks
+      - The CLI test calls `main(["--format", "json", "Ship", "it"])` and asserts the parsed title is `Ship it`.
+      """,
+      verify: "pnpm test -- --coverage"
+    )
+
+    try PlanTransitionValidator.validate(from: .empty, to: testOnly)
+  }
 }
 
 private func planState(_ plan: String, verify: String = "pnpm verify") -> PlanState {

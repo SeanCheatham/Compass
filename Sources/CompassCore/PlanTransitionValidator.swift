@@ -329,13 +329,27 @@ enum PlanTransitionValidator {
       .lowercased()
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard normalizedVerify == "pnpm verify" || normalizedVerify == "pnpm run verify" else {
-      return
-    }
     let plan = immediate.plan.lowercased()
     let acceptanceText = ([handoffDigest.outcome ?? ""] + handoffDigest.acceptanceChecks)
       .joined(separator: "\n")
       .lowercased()
+    if isFocusedCoverageVerify(normalizedVerify),
+      claimsNewCLIBehavior(acceptanceText),
+      claimsCLIImplementationWork(plan + "\n" + acceptanceText)
+    {
+      throw PlanTransitionValidationError(
+        message: """
+          Plan selected test-only verify command `\(immediate.verify)` for new CLI implementation work.
+
+          `pnpm test -- --coverage` is only acceptable for focused test-only slices. This handoff asks Develop to implement CLI behavior, so use `pnpm verify` and keep the CLI test update in the acceptance checks.
+          """,
+        reason: .weakVerifyCoverage,
+        rejectedVerify: immediate.verify
+      )
+    }
+    guard normalizedVerify == "pnpm verify" || normalizedVerify == "pnpm run verify" else {
+      return
+    }
     guard claimsNewCLIBehavior(acceptanceText), !mentionsTestProof(plan) else {
       return
     }
@@ -620,6 +634,25 @@ enum PlanTransitionValidator {
       "argument",
       "argv",
       "command",
+    ].contains { text.contains($0) }
+  }
+
+  private static func isFocusedCoverageVerify(_ normalizedVerify: String) -> Bool {
+    normalizedVerify.contains("pnpm test")
+      && normalizedVerify.contains("--coverage")
+      && !normalizedVerify.contains("typecheck")
+      && !normalizedVerify.contains("build")
+  }
+
+  private static func claimsCLIImplementationWork(_ text: String) -> Bool {
+    [
+      "implement",
+      "add support",
+      "support for",
+      "packages/cli/src/main.ts",
+      "main.ts",
+      "entrypoint",
+      "source",
     ].contains { text.contains($0) }
   }
 

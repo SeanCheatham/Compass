@@ -25,7 +25,7 @@ public enum CompassCLI {
         return ok ? 0 : 1
 
       case .scaffoldTypeScript(let path, let name, _):
-        try runner.scaffoldTypeScript(at: path, name: name, onEvent: emit)
+        try runner.scaffoldTypeScript(at: path, name: name, initializeGit: true, onEvent: emit)
         return 0
 
       case .verify(let repo, let verifyCommand, _):

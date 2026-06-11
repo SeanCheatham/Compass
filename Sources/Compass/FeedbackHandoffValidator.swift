@@ -379,6 +379,7 @@ private enum UnfinishedSuccessFeedback {
     "prepare",
     "proceed",
     "read",
+    "run",
     "update",
     "use",
     "verify",
@@ -426,7 +427,9 @@ private enum UnfinishedSuccessFeedback {
     if unfinishedPhrases.contains(where: { lowercased.contains($0) }) {
       return normalized
     }
-    if lowercased.hasPrefix("run ") && lowercased.contains("verify") {
+    if lowercased.hasPrefix("run ")
+      && (lowercased.contains("verify") || lowercased.contains("verification"))
+    {
       return normalized
     }
     return nil
