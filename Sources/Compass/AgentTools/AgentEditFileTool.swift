@@ -492,6 +492,15 @@ struct AgentEditFileTool: AgentTool {
             .invalidArguments(
               "edits[\(idx)] inserts nothing; provide replacementLines or use a replace range"))
         }
+        if let testCode = Self.testCodeInNonTestSourceMessage(
+          editIndex: idx,
+          relativePath: relative,
+          replacementLines: edit.replacementLines,
+          isSourceFile: Self.isSourceFile(url),
+          isTestFile: Self.isTestFile(url)
+        ) {
+          return .failure(.invalidArguments(testCode))
+        }
         if let duplicateInsertion = Self.duplicateSourceInsertionMessage(
           editIndex: idx,
           edit: edit,
@@ -531,6 +540,15 @@ struct AgentEditFileTool: AgentTool {
       let startIndex = edit.startLine - 1
       let endIndex = edit.endLine - 1
       let existing = Array(lines[startIndex...endIndex])
+      if let testCode = Self.testCodeInNonTestSourceMessage(
+        editIndex: idx,
+        relativePath: relative,
+        replacementLines: edit.replacementLines,
+        isSourceFile: Self.isSourceFile(url),
+        isTestFile: Self.isTestFile(url)
+      ) {
+        return .failure(.invalidArguments(testCode))
+      }
       if Self.isSourceFile(url),
         let commentOnlyReplacement = Self.commentOnlySourceReplacementMessage(
           editIndex: idx,
@@ -913,6 +931,43 @@ struct AgentEditFileTool: AgentTool {
       .map { linePreview($0) } ?? "comment-only replacement"
     return
       "edits[\(editIndex)] would replace working source lines in \(relativePath) with comment-only content: \(preview). Do not replace working source with TODO/comment-only placeholders; provide complete replacementLines, delete the range only if removal is intended, or submit status=failed/status=blocked if you cannot reconstruct it."
+  }
+
+  private static func testCodeInNonTestSourceMessage(
+    editIndex: Int,
+    relativePath: String,
+    replacementLines: [String],
+    isSourceFile: Bool,
+    isTestFile: Bool
+  ) -> String? {
+    guard isSourceFile, !isTestFile,
+      let marker = firstTestCodeMarker(in: replacementLines)
+    else {
+      return nil
+    }
+
+    return
+      "edits[\(editIndex)] would introduce test code into non-test source file \(relativePath) at replacement line \(marker.lineNumber): \(marker.preview). Do not paste Vitest/Jest `describe`, `it`, `test`, or `expect` blocks into implementation files. Put assertions in a `.test.ts`/`.spec.ts` file, and edit \(relativePath) with implementation code only."
+  }
+
+  private struct TestCodeMarker {
+    let lineNumber: Int
+    let preview: String
+  }
+
+  private static func firstTestCodeMarker(in lines: [String]) -> TestCodeMarker? {
+    for (index, line) in lines.enumerated() {
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      if trimmed.range(
+        of: #"^(describe|it|test)\s*\("#,
+        options: .regularExpression
+      ) != nil
+        || trimmed.range(of: #"^expect\s*\("#, options: .regularExpression) != nil
+      {
+        return TestCodeMarker(lineNumber: index + 1, preview: linePreview(trimmed))
+      }
+    }
+    return nil
   }
 
   private static func containsMeaningfulSource(
@@ -1508,6 +1563,15 @@ struct AgentEditFileTool: AgentTool {
       "ts",
       "tsx",
     ].contains(url.pathExtension.lowercased())
+  }
+
+  private static func isTestFile(_ url: URL) -> Bool {
+    let path = url.path.lowercased()
+    let filename = url.lastPathComponent.lowercased()
+    return filename.contains(".test.")
+      || filename.contains(".spec.")
+      || path.contains("/__tests__/")
+      || path.contains("/tests/")
   }
 
   private static func argumentRepairMessage(_ detail: String) -> String {

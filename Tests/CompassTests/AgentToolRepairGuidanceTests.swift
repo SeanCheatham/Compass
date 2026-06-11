@@ -786,6 +786,46 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileRejectsTestCodeInNonTestSourceFile() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "main.ts")
+    let original = """
+    #!/usr/bin/env tsx
+    import { summarizeQueue } from "@compass-test/core";
+
+    export function main(argv = process.argv.slice(2)): string {
+      const title = argv.join(" ").trim() || "First Compass task";
+      return summarizeQueue([{ id: "task-1", title, done: false }]);
+    }
+    """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"main.ts","startLine":5,"endLine":6,"content":"  it(\"handles the --limit argument\", () => {\n    expect(main([\"--limit\", \"4\", \"Ship\", \"it\"])).toBe(\"4 open / 4 total\");\n  });"}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("test code into non-test source file main.ts"))
+    #expect(result.content.contains("Do not paste Vitest/Jest"))
+    #expect(result.content.contains(".test.ts"))
+    #expect(result.content.contains("implementation code only"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == original)
+  }
+
+  @Test
   func editFileTreatsIdenticalReplacementAsNoOp() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
