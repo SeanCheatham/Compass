@@ -727,7 +727,11 @@ struct FactoryPivotTests {
     #expect(prompts.count == 4)
     #expect(prompts[3].contains("You repeated the exact same failed `edit_file` call 2 times"))
     #expect(prompts[3].contains("Do not call `edit_file` again with the same arguments"))
-    #expect(prompts[3].contains("change the startLine/endLine"))
+    #expect(prompts[3].contains("use its concrete repair shape"))
+    #expect(prompts[3].contains("whole-file replacement"))
+    #expect(prompts[3].contains("Do not submit"))
+    #expect(prompts[3].contains("failed/blocked"))
+    #expect(prompts[3].contains("previous edit range was wrong"))
     #expect(prompts[3].contains(#""path":"index.ts""#))
   }
 

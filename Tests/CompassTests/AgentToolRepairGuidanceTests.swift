@@ -665,6 +665,8 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.content.contains("use startLine=1, endLine=6"))
     #expect(result.content.contains("Do not retry startLine=1, endLine=1"))
     #expect(result.content.contains("do not fix this by shifting to another single-line range"))
+    #expect(result.content.contains("Your next edit_file call must use a different edit shape"))
+    #expect(result.content.contains("Do not submit failed/blocked until you have tried"))
     #expect(result.content.contains("with only the new lines to insert, not the whole file"))
     #expect(result.content.contains("return `edit_file` with these arguments"))
     #expect(result.content.contains(#""path":"main.ts""#))

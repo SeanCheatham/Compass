@@ -394,6 +394,57 @@ struct CompassCLITests {
   }
 
   @Test
+  func fixtureRunnerRetriesDevelopWhenRequiredTestPathWasNotChanged() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let verifyRunner = RequiredTestsFixtureBashRunner()
+    let runner = HeadlessCompassRunner { _, label in
+      if label == "verify" {
+        return verifyRunner
+      }
+      return FixtureBashRunner()
+    }
+    try runner.scaffoldTypeScript(at: tempURL, name: "cli-required-tests-fixture", onEvent: record)
+    try await initializeFixtureGitRepo(at: tempURL)
+
+    let fixtureURL = tempURL.appending(path: "required-tests-fixture.jsonl")
+    try writeFixture(requiredTestsFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Add a CLI --format json flag and update packages/cli/src/main.test.ts",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 8,
+        maxDevelopAttempts: 2,
+        maxVerifyRepairAttempts: 0,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let mainTest = try String(
+      contentsOf: tempURL.appending(path: "packages/cli/src/main.test.ts"),
+      encoding: .utf8
+    )
+    #expect(mainTest.contains("prints JSON output"))
+    let snapshot = events.snapshot()
+    let requiredTestRetry = snapshot.first {
+      $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "missing_required_tests"
+    }
+    #expect(requiredTestRetry?.detail?.contains("explicitly requires test changes") == true)
+    #expect(requiredTestRetry?.detail?.contains("packages/cli/src/main.test.ts") == true)
+    #expect(requiredTestRetry?.detail?.contains("packages/cli/src/main.ts") == true)
+    #expect(snapshot.filter { $0.kind == "verify_result" && $0.status == "completed" }.count == 2)
+  }
+
+  @Test
   func fixtureRunnerRetriesDevelopAfterIterationBudgetExhaustion() async throws {
     let tempURL = try makeCLITempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -489,6 +540,32 @@ private final class CoverageGapFixtureBashRunner: AgentBashRunner, @unchecked Se
       return ProcessResult(exitCode: 0, stdout: firstCoverageGapVerifyOutput, stderr: "")
     }
     return ProcessResult(exitCode: 0, stdout: repairedCoverageVerifyOutput, stderr: "")
+  }
+}
+
+private final class RequiredTestsFixtureBashRunner: AgentBashRunner, @unchecked Sendable {
+  private var verifyCount = 0
+
+  func run(
+    command: String,
+    workingDirectory: URL,
+    timeout: TimeInterval
+  ) async throws -> ProcessResult {
+    guard command.trimmingCharacters(in: .whitespacesAndNewlines) == "pnpm verify" else {
+      return try await FixtureBashRunner().run(
+        command: command,
+        workingDirectory: workingDirectory,
+        timeout: timeout
+      )
+    }
+
+    verifyCount += 1
+    let count = verifyCount
+
+    if count == 1 {
+      return ProcessResult(exitCode: 0, stdout: requiredTestsFirstVerifyOutput, stderr: "")
+    }
+    return ProcessResult(exitCode: 0, stdout: requiredTestsRepairedVerifyOutput, stderr: "")
   }
 }
 
@@ -625,6 +702,30 @@ private let coverageGapFixtureOutputs = [
   """,
 ]
 
+private let requiredTestsFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nUpdate `packages/cli/src/main.ts` to support `--format json` and update `packages/cli/src/main.test.ts` with CLI-facing assertions.\\n\\n## Acceptance checks\\n- `packages/cli/src/main.test.ts` covers default text output, JSON output, and a title containing multiple words.\\n- `pnpm verify` passes.","verify":"pnpm verify","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves a green verify is not accepted when explicit test-file acceptance work is skipped.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI --format json flag.","targetUsers":["Compass maintainers"],"desiredOutcomes":["The CLI behavior has direct tests."],"constraints":["Modify the existing entrypoint and test file."],"acceptanceSignals":["packages/cli/src/main.test.ts covers JSON output."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.ts"},"reason":"Need current line numbers before editing the existing CLI entrypoint."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/src/main.ts","startLine":5,"endLine":5,"content":"  const format = argv.includes('--format json') ? 'json' : 'text';\\n  const title = argv.filter(arg => !arg.includes('--format')).join(' ').trim() || 'First Compass task';"},"reason":"Add the new flag parsing in the existing CLI entrypoint."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Added --format json support to the CLI entrypoint.","feedback":"pnpm verify can pass for the CLI change.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.test.ts"},"reason":"Need current line numbers before adding the required CLI assertions."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/src/main.test.ts","startLine":1,"endLine":8,"content":"import { describe, expect, it } from \\"vitest\\";\\nimport { main } from \\"./main\\";\\n\\ndescribe(\\"@cli-required-tests-fixture/cli\\", () => {\\n  it(\\"prints the queue summary\\", () => {\\n    expect(main([\\"Ship\\", \\"it\\"])).toBe(\\"1 open / 1 total\\");\\n  });\\n\\n  it(\\"prints JSON output for a multi-word title\\", () => {\\n    expect(JSON.parse(main([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"]))).toEqual({\\n      open: 1,\\n      total: 1,\\n      title: \\"Ship it\\",\\n    });\\n  });\\n});\\n"},"reason":"Add the missing CLI-facing tests required by the plan."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated main.test.ts with the required CLI assertions.","feedback":"packages/cli/src/main.test.ts covers default and JSON CLI output; pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
 private let budgetExhaustionFixtureOutputs = [
   """
   {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nExercise budget exhaustion recovery without changing files.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner retries Develop after max-iteration exhaustion.\\n\\n## Acceptance checks\\n- The second Develop attempt submits successfully.","verify":"tsc --version","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"The first Develop output intentionally consumes the full max-iteration budget without submitting.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI Develop retry after iteration budget exhaustion.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Budget exhaustion reaches a fresh Develop attempt."],"constraints":["No file changes required for this control fixture."],"acceptanceSignals":["Verify runs after the second attempt."]},"openQuestions":[]},"lessonEdits":[]}}
@@ -673,8 +774,46 @@ File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
 -------------------|---------|----------|---------|---------|-------------------
 All files          |     100 |      100 |     100 |     100 |
  cli/src           |     100 |      100 |     100 |     100 |
+ main.ts          |     100 |      100 |     100 |     100 |
+ summarize.ts     |     100 |      100 |     100 |     100 |
+-------------------|---------|----------|---------|---------|-------------------
+"""
+
+private let requiredTestsFirstVerifyOutput = """
+> compass-test@0.1.0 verify /workspace
+> pnpm typecheck && pnpm test -- --coverage && pnpm build
+
+ RUN  v2.1.9 /workspace
+      Coverage enabled with v8
+
+ ✓ packages/cli/src/main.test.ts (1 test) 1ms
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   47.05 |       50 |      50 |   47.05 |
+ cli/src           |   77.77 |       40 |     100 |   77.77 |
+  main.ts          |   77.77 |       40 |     100 |   77.77 | 11-12
+-------------------|---------|----------|---------|---------|-------------------
+"""
+
+private let requiredTestsRepairedVerifyOutput = """
+> compass-test@0.1.0 verify /workspace
+> pnpm typecheck && pnpm test -- --coverage && pnpm build
+
+ RUN  v2.1.9 /workspace
+      Coverage enabled with v8
+
+ ✓ packages/cli/src/main.test.ts (2 tests) 1ms
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------|---------|----------|---------|---------|-------------------
+All files          |     100 |      100 |     100 |     100 |
+ cli/src           |     100 |      100 |     100 |     100 |
   main.ts          |     100 |      100 |     100 |     100 |
-  summarize.ts     |     100 |      100 |     100 |     100 |
 -------------------|---------|----------|---------|---------|-------------------
 """
 

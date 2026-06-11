@@ -488,6 +488,38 @@ public struct HeadlessCompassRunner: Sendable {
           break
         }
 
+        if verify.exitCode == 0,
+          let issue = await successfulVerifyMissingRequiredTestIssue(
+            immediate: immediate,
+            brief: plannedState.brief,
+            command: immediate.verify,
+            beforeSha: session.beforeSha,
+            repoURL: repoURL
+          )
+        {
+          session.notes.append("Verify attempt \(attempt) passed without required test changes.")
+          let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
+          let canUseVerifyRepairAttempt =
+            !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
+          if canUseDevelopAttempt || canUseVerifyRepairAttempt {
+            if canUseVerifyRepairAttempt {
+              verifyRepairAttemptsUsed += 1
+            }
+            priorIssues = [issue]
+            try persist(session: session, workspace: workspace)
+            emitDevelopRetry(
+              attempt: attempt,
+              maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
+              issue: issue,
+              retryKind: "missing_required_tests",
+              onEvent: onEvent
+            )
+            attempt += 1
+            continue
+          }
+          break
+        }
+
         if verify.exitCode == 0 {
           successfulDevelop = develop
           ok = true
@@ -1173,6 +1205,64 @@ public struct HeadlessCompassRunner: Sendable {
     return [sibling]
   }
 
+  private func successfulVerifyMissingRequiredTestIssue(
+    immediate: PlanNext,
+    brief: PlanStrategicContext,
+    command: String,
+    beforeSha: String?,
+    repoURL: URL
+  ) async -> String? {
+    guard let changedPaths = await gitChangedPathsSince(beforeSha, repoURL: repoURL) else {
+      return nil
+    }
+
+    let changedSourcePaths = changedPaths.filter(Self.isCoverageGatedSourcePath)
+    guard !changedSourcePaths.isEmpty else { return nil }
+    guard !changedPaths.contains(where: Self.isTestPath) else { return nil }
+
+    let requestedTestPaths = Self.mentionedTestPaths(
+      in: [
+        immediate.plan,
+        immediate.selectedBecause ?? "",
+        brief.summary,
+        brief.desiredOutcomes.joined(separator: "\n"),
+        brief.constraints.joined(separator: "\n"),
+        brief.acceptanceSignals.joined(separator: "\n"),
+      ].joined(separator: "\n")
+    )
+    guard !requestedTestPaths.isEmpty else { return nil }
+
+    return """
+      Verify passed for `\(command)`, but the accepted plan or brief explicitly requires test changes and no test/spec file changed.
+
+      Requested test file(s):
+      \(requestedTestPaths.map { "- `\($0)`" }.joined(separator: "\n"))
+
+      Changed source file(s) without a matching test edit:
+      \(changedSourcePaths.map { "- `\($0)`" }.joined(separator: "\n"))
+
+      Missing required test instructions:
+      - Your next Develop action should update one of the requested test files before submitting success.
+      - Add assertions for the new behavior named in the plan or brief, then rerun `\(command)`.
+      - Do not rely on a green verify from the old tests when the acceptance checks explicitly call for new or updated tests.
+      """
+  }
+
+  private static func mentionedTestPaths(in text: String) -> [String] {
+    let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._/-"))
+    let normalized = String(
+      text.unicodeScalars.map { allowed.contains($0) ? Character($0) : " " }
+    )
+    var seen: Set<String> = []
+    var paths: [String] = []
+    for rawToken in normalized.split(whereSeparator: \.isWhitespace) {
+      let token = rawToken.trimmingCharacters(in: CharacterSet(charactersIn: "./"))
+      guard !token.isEmpty, isTestPath(token), seen.insert(token).inserted else { continue }
+      paths.append(token)
+    }
+    return paths.sorted()
+  }
+
   private static func existingCoveragePackageTestTargets(for changedPath: String, repoURL: URL)
     -> [String]
   {
@@ -1260,6 +1350,13 @@ public struct HeadlessCompassRunner: Sendable {
     }
     let filename = URL(fileURLWithPath: lowercased).lastPathComponent
     return !filename.contains(".test.") && !filename.contains(".spec.")
+  }
+
+  private static func isTestPath(_ path: String) -> Bool {
+    let lowercased = path.lowercased()
+    guard hasSourceExtension(lowercased) else { return false }
+    let filename = URL(fileURLWithPath: lowercased).lastPathComponent
+    return filename.contains(".test.") || filename.contains(".spec.")
   }
 
   private static func hasSourceExtension(_ path: String) -> Bool {

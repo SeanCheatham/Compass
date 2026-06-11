@@ -715,7 +715,12 @@ extension AgentExecutor {
     You repeated the exact same failed `\(toolName)` call \(repeatCount) times.
 
     Do not call `\(toolName)` again with the same arguments. Choose a different next action:
-    - If this is an edit_file failure, change the startLine/endLine and replacement lines using the latest read_file output.
+    - If this is an edit_file failure, read the Compass Observation immediately above and
+      use its concrete repair shape. For a partial whole-file rewrite, choose exactly one:
+      whole-file replacement (`startLine=1`, `endLine=<current file line count>`, complete
+      intended file content), insertion (`startLine=N`, `endLine=N-1`, only the new lines),
+      or exact range replacement (the existing lines that should be removed). Do not submit
+      failed/blocked just because the previous edit range was wrong.
     - If the path or lines are uncertain, call read_file or list_files first.
     - If you cannot make a different concrete tool call now, return `\(phase.submitKind)` with status=failed or status=blocked and concise feedback.
 
