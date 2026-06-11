@@ -744,6 +744,9 @@ extension AgentExecutor {
     `\(phase.submitKind)` now:
     - Reuse the useful fields from your rejected payload.
     - Apply the latest Compass Repair instruction exactly.
+    - If the rejected payload said a verify command still needs to run, call `bash`
+      with that command now. Do not call `read_file`, `list_files`, or reread
+      `package.json` merely to rediscover scripts.
     - Return `\(phase.submitKind)` with a corrected `payload`.
     - Only call a different tool if the repair instruction explicitly requires new evidence.
 

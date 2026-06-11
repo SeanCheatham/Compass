@@ -81,6 +81,7 @@ extension AgentExecutor {
     if let error = error as? DevelopFeedbackValidationError {
       if error.reason == .unfinishedSuccess {
         let unfinished = error.feedback.map { "`\($0)`" } ?? "planned work"
+        let verificationRepair = unfinishedVerificationCommandRepair(for: error.feedback)
         return InvalidToolArgumentsNudge(
           eventText: "develop_submit feedback rejected",
           eventDetail: error.message,
@@ -93,6 +94,8 @@ extension AgentExecutor {
             - Return `develop_submit` with status=failed or status=blocked if you cannot finish in budget.
             - Return status=succeeded only after the packet is complete and `feedback` summarizes the
               verified result without future work.
+
+            \(verificationRepair)
 
             \(submitResultDecodeRetryShape(for: .develop))
             """
@@ -298,5 +301,59 @@ extension AgentExecutor {
     case nil:
       return "Use the JSON schema for the current phase and include every required field."
     }
+  }
+
+  private static func unfinishedVerificationCommandRepair(for feedback: String?) -> String {
+    guard let command = unfinishedVerificationCommand(from: feedback) else { return "" }
+    return """
+      Detected missing verification command:
+      Return this exact continuation next instead of reading files or resubmitting success:
+      ```json
+      {
+        "kind": "develop_continue",
+        "tool": "bash",
+        "arguments": { "command": \(jsonStringLiteral(command)) },
+        "reason": "Run the missing verification command before submitting success."
+      }
+      ```
+      Do not call `read_file`, `list_files`, or reread `package.json` just to rediscover this command.
+      """
+  }
+
+  private static func unfinishedVerificationCommand(from feedback: String?) -> String? {
+    guard let feedback, !feedback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      return nil
+    }
+    let normalized = feedback
+      .replacingOccurrences(of: "`", with: " ")
+      .replacingOccurrences(of: "\"", with: "")
+    let patterns = [
+      #"(?i)\bCI=true\s+pnpm\s+verify\b"#,
+      #"(?i)\bpnpm\s+verify\b"#,
+      #"(?i)\bpnpm\s+test\s+--\s+--coverage\b"#,
+      #"(?i)\bpnpm\s+test\b"#,
+      #"(?i)\bnpm\s+run\s+verify\b"#,
+      #"(?i)\bnpm\s+run\s+test\b"#,
+      #"(?i)\bnpm\s+test\b"#,
+      #"(?i)\byarn\s+verify\b"#,
+      #"(?i)\byarn\s+test\b"#,
+      #"(?i)\bswift\s+test\b"#,
+    ]
+    for pattern in patterns {
+      if let range = normalized.range(of: pattern, options: .regularExpression) {
+        return normalized[range].trimmingCharacters(in: .whitespacesAndNewlines)
+      }
+    }
+    return nil
+  }
+
+  private static func jsonStringLiteral(_ value: String) -> String {
+    guard
+      let data = try? JSONEncoder().encode(value),
+      let literal = String(data: data, encoding: .utf8)
+    else {
+      return #""""#
+    }
+    return literal
   }
 }

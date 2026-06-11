@@ -413,6 +413,10 @@ struct FactoryPivotTests {
     #expect(nudge.userMessage.contains("status=failed"))
     #expect(nudge.userMessage.contains("status=blocked"))
     #expect(nudge.userMessage.contains("Return status=succeeded only after"))
+    #expect(nudge.userMessage.contains("Detected missing verification command"))
+    #expect(nudge.userMessage.contains(#""tool": "bash""#))
+    #expect(nudge.userMessage.contains(#""command": "pnpm verify""#))
+    #expect(nudge.userMessage.contains("Do not call `read_file`"))
   }
 
   @Test
@@ -782,8 +786,65 @@ struct FactoryPivotTests {
       || prompts[3].contains("called `read_file` with the same arguments 2 times"))
     #expect(prompts[3].contains("The repeated observation\ndid not repair the rejected payload")
       || prompts[3].contains("The repeated observation did not repair the rejected payload"))
+    #expect(prompts[3].contains("If the rejected payload said a verify command still needs to run"))
+    #expect(prompts[3].contains("Do not call `read_file`, `list_files`, or reread"))
     #expect(prompts[3].contains("Return `plan_submit` with a corrected `payload`"))
     #expect(prompts[3].contains(#""path":"package.json""#))
+  }
+
+  @Test
+  func executorGivesConcreteVerifyCommandAfterUnfinishedDevelopSuccess() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try #"{"scripts":{"verify":"pnpm verify"}}"#.write(
+      to: tempURL.appending(path: "package.json"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let unfinishedSubmit =
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Edited main.ts.","feedback":"Run `pnpm verify` to check if the changes meet the acceptance criteria.","bypassVerify":false,"lessonEdits":[]}}"#
+    let readPackage =
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current package scripts."}"#
+    let runVerify =
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run the missing verification command before submitting success."}"#
+    let finishedSubmit =
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verified the completed packet.","feedback":"Verified with pnpm verify; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#
+    let runtime = FakeLocalModelRuntime(outputs: [
+      unfinishedSubmit,
+      readPackage,
+      readPackage,
+      runVerify,
+      finishedSubmit,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [
+          AgentReadFileTool(),
+          FakeBashTool(output: "[stdout]\nAll checks passed.\n\n[exit 0]\n\n[next]\nSubmit success."),
+        ],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 5,
+        validateSubmitResult: { data in
+          let summary = try JSONDecoder().decode(DevelopSummary.self, from: data)
+          try DevelopFeedbackValidator.validate(summary)
+        }
+      )
+    )
+
+    #expect(result.iterations == 5)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 5)
+    #expect(prompts[1].contains("Detected missing verification command"))
+    #expect(prompts[1].contains(#""tool": "bash""#))
+    #expect(prompts[1].contains(#""command": "pnpm verify""#))
+    #expect(prompts[1].contains("Do not call `read_file`"))
+    #expect(prompts[3].contains("If the rejected payload said a verify command still needs to run"))
+    #expect(prompts[3].contains("Do not call `read_file`, `list_files`, or reread"))
   }
 
   @Test
@@ -983,8 +1044,12 @@ struct FactoryPivotTests {
       try await LocalModelLease.shared.beginRun(modelID: "model-b")
     }
     await LocalModelLease.shared.endRun(modelID: "model-a")
-    try await Task.sleep(nanoseconds: 40_000_000)
-    let snapshot = await LocalModelLease.shared.snapshot()
+    var snapshot = await LocalModelLease.shared.snapshot()
+    let deadline = Date().addingTimeInterval(1)
+    while snapshot.loadedModelID != nil, Date() < deadline {
+      try await Task.sleep(nanoseconds: 10_000_000)
+      snapshot = await LocalModelLease.shared.snapshot()
+    }
     #expect(snapshot.loadedModelID == nil)
     #expect(snapshot.activeRunCount == 0)
     await LocalModelLease.shared.resetForTesting()

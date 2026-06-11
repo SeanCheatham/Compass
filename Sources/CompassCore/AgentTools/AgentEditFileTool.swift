@@ -548,6 +548,7 @@ struct AgentEditFileTool: AgentTool {
         editIndex: idx,
         edit: edit,
         existingLines: existing,
+        allLines: lines,
         lineCount: lineCount
       ) {
         return .failure(.invalidArguments(declarationRemoval))
@@ -1054,6 +1055,7 @@ struct AgentEditFileTool: AgentTool {
     editIndex: Int,
     edit: EditOperation,
     existingLines: [String],
+    allLines: [String],
     lineCount: Int
   ) -> String? {
     guard lineCount > edit.endLine,
@@ -1070,8 +1072,22 @@ struct AgentEditFileTool: AgentTool {
       return nil
     }
 
+    let functionEndLine = closingLineForBlock(in: allLines, startLine: declaration.lineNumber)
+    let fullFunctionRange =
+      functionEndLine.map {
+        "use startLine=\(declaration.lineNumber), endLine=\($0), and include the complete `\(declaration.name)` function declaration, body, and closing brace"
+      }
+      ?? "include the complete `\(declaration.name)` function declaration, body, and closing brace in the replacement"
+    let bodyRange: String
+    if let functionEndLine, declaration.lineNumber + 1 <= functionEndLine - 1 {
+      bodyRange =
+        "or edit only the function body with startLine=\(declaration.lineNumber + 1), endLine=\(functionEndLine - 1)"
+    } else {
+      bodyRange = "or insert the intended body immediately after line \(declaration.lineNumber)"
+    }
+
     return
-      "edits[\(editIndex)] would remove the function declaration `\(declaration.name)` on line \(declaration.lineNumber) and replace it with body-only lines while leaving \(lineCount - edit.endLine) existing lines after the edit. This usually breaks the surrounding source structure. Keep line \(declaration.lineNumber) in the replacement, or edit only the function body lines instead."
+      "edits[\(editIndex)] would remove the function declaration `\(declaration.name)` on line \(declaration.lineNumber) and replace it with body-only lines while leaving \(lineCount - edit.endLine) existing lines after the edit. This usually breaks the surrounding source structure. Your next edit_file call must use a different edit shape: \(fullFunctionRange); \(bodyRange). Do not retry startLine=\(edit.startLine), endLine=\(edit.endLine) with body-only replacement lines."
   }
 
   private struct OpenBlockLine {
@@ -1186,6 +1202,26 @@ struct AgentEditFileTool: AgentTool {
           #"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\b"#
       ) == name
     }
+  }
+
+  private static func closingLineForBlock(in lines: [String], startLine: Int) -> Int? {
+    guard startLine >= 1, startLine <= lines.count else { return nil }
+    var depth = 0
+    var sawOpeningBrace = false
+    for index in (startLine - 1)..<lines.count {
+      for character in lines[index] {
+        if character == "{" {
+          depth += 1
+          sawOpeningBrace = true
+        } else if character == "}", sawOpeningBrace {
+          depth -= 1
+          if depth <= 0 {
+            return index + 1
+          }
+        }
+      }
+    }
+    return nil
   }
 
   private static func looksLikeIndentedBodyLine(_ line: String) -> Bool {

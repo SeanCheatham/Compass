@@ -769,7 +769,11 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.isError)
     #expect(result.errorKind == .invalidArguments)
     #expect(result.content.contains("would remove the function declaration `main`"))
-    #expect(result.content.contains("Keep line 4 in the replacement"))
+    #expect(result.content.contains("Your next edit_file call must use a different edit shape"))
+    #expect(result.content.contains("use startLine=4, endLine=7"))
+    #expect(result.content.contains("include the complete `main` function declaration"))
+    #expect(result.content.contains("edit only the function body with startLine=5, endLine=6"))
+    #expect(result.content.contains("Do not retry startLine=4, endLine=6"))
     let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
     #expect(unchanged == original)
   }
