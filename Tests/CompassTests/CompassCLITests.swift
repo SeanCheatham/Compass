@@ -72,6 +72,33 @@ struct CompassCLITests {
   }
 
   @Test
+  func headlessBriefSeedFillsMissingStrategicFields() {
+    let state = PlanState(
+      completed: ["prior-item"],
+      immediate: nil,
+      brief: PlanStrategicContext(
+        summary: "Existing structured summary.",
+        constraints: ["Keep current constraints."]
+      )
+    )
+
+    let seeded = HeadlessCompassRunner.stateBySeedingHeadlessBrief(
+      state,
+      brief: """
+        Add a small CLI summarize helper
+        with tests and verification.
+        """
+    )
+
+    #expect(seeded.completed == ["prior-item"])
+    #expect(seeded.brief.summary == "Existing structured summary.")
+    #expect(seeded.brief.constraints == ["Keep current constraints."])
+    #expect(!seeded.brief.targetUsers.isEmpty)
+    #expect(!seeded.brief.desiredOutcomes.isEmpty)
+    #expect(!seeded.brief.acceptanceSignals.isEmpty)
+  }
+
+  @Test
   func parserRejectsMissingArguments() {
     #expect(throws: CompassCLIError.self) {
       try CompassCLICommand.parse(["doctor"])
@@ -505,7 +532,7 @@ private let retryFixtureOutputs = [
   {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Retry marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves HeadlessCompassRunner can retry Develop after a verify failure.\\n\\n## Acceptance checks\\n- README.md contains Retry marker.","verify":"tsc retry-marker-check","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This tiny documentation slice has a deterministic failing then passing verify command.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise CLI Develop retry after verify failure.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Verify failure output reaches a second Develop attempt."],"constraints":["No pnpm dependency for this retry test."],"acceptanceSignals":["README.md contains Retry marker."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
-  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Reported the README marker complete before editing it so verify can catch the missing sentence.","feedback":"Verify should fail until README.md contains the exact Retry marker sentence; the next Develop attempt should patch README.md.","bypassVerify":false,"lessonEdits":[]}}
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Reported the README marker complete before editing it so verify can catch the missing sentence.","feedback":"README.md was reported as ready for retry coverage, but the marker sentence is absent so the configured command can surface a concrete failure.","bypassVerify":false,"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before repairing the failed verify check."}

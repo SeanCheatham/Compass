@@ -322,6 +322,30 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func writeFileRejectsNewMissingRelativeModuleImport() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    let fileURL = srcURL.appending(path: "summarize.ts")
+    let result = try await AgentWriteFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/summarize.ts","content":"import { CLIEntry } from '../types';\n\nexport function summarizeCLI(entries: CLIEntry[]): string {\n  return String(entries.length);\n}\n"}"#
+          .utf8
+      ),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("unresolved relative module `../types`"))
+    #expect(result.content.contains("packages/cli/types.ts"))
+    #expect(result.content.contains("define the implementation directly"))
+    #expect(!FileManager.default.fileExists(atPath: fileURL.path))
+  }
+
+  @Test
   func writeFileRejectsPlaceholderImplementation() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -341,6 +365,29 @@ struct AgentToolRepairGuidanceTests {
     #expect(result.errorKind == .invalidArguments)
     #expect(result.content.contains("placeholder implementation code"))
     #expect(result.content.contains("TODO: Implement logic"))
+    #expect(!FileManager.default.fileExists(atPath: fileURL.path))
+  }
+
+  @Test
+  func writeFileRejectsImplementTheLogicPlaceholder() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let srcURL = tempURL.appending(path: "packages/cli/src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: srcURL, withIntermediateDirectories: true)
+    let fileURL = srcURL.appending(path: "summarize.ts")
+    let result = try await AgentWriteFileTool().invoke(
+      arguments: Data(
+        #"{"path":"packages/cli/src/summarize.ts","content":"export function summarizeCLI(entries: unknown[]): string {\n  // Implement the logic to summarize CLI entries here\n  return 'Summary of CLI entries';\n}\n"}"#
+          .utf8
+      ),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("placeholder implementation code"))
+    #expect(result.content.contains("Implement the logic"))
     #expect(!FileManager.default.fileExists(atPath: fileURL.path))
   }
 

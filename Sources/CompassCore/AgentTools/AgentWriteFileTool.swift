@@ -141,6 +141,20 @@ struct AgentWriteFileTool: AgentTool {
     }
     if existing == nil,
       Self.isSourceFile(url),
+      let missingReference = await Self.missingRelativeModuleReference(
+        in: args.content,
+        sourceURL: url,
+        context: context
+      )
+    {
+      let relative = context.relativize(url)
+      return .failure(
+        .invalidArguments(
+          "write_file refused to create \(relative) because its content imports unresolved relative module \(missingReference.specifier). Compass could not find \(missingReference.expectedDescription). Create the referenced module first, use an existing relative path, or define the implementation directly in \(relative)."
+        ))
+    }
+    if existing == nil,
+      Self.isSourceFile(url),
       let skeleton = Self.emptyOrCommentOnlySourceContent(
         in: args.content,
         pathExtension: url.pathExtension
@@ -286,6 +300,11 @@ struct AgentWriteFileTool: AgentTool {
     let specifier: String
   }
 
+  private struct MissingRelativeModuleReference {
+    let specifier: String
+    let expectedDescription: String
+  }
+
   private static func selfRelativeModuleReference(
     in text: String,
     sourceURL: URL
@@ -300,6 +319,29 @@ struct AgentWriteFileTool: AgentTool {
       }) {
         return SelfRelativeModuleReference(specifier: "`\(specifier)`")
       }
+    }
+    return nil
+  }
+
+  private static func missingRelativeModuleReference(
+    in text: String,
+    sourceURL: URL,
+    context: AgentToolContext
+  ) async -> MissingRelativeModuleReference? {
+    for specifier in relativeModuleReferences(in: text) {
+      guard
+        let expected = await missingRelativeModuleDescription(
+          specifier: specifier,
+          sourceURL: sourceURL,
+          context: context
+        )
+      else {
+        continue
+      }
+      return MissingRelativeModuleReference(
+        specifier: "`\(specifier)`",
+        expectedDescription: expected
+      )
     }
     return nil
   }
@@ -332,6 +374,30 @@ struct AgentWriteFileTool: AgentTool {
       return nil
     }
     return String(text[range])
+  }
+
+  private static func missingRelativeModuleDescription(
+    specifier: String,
+    sourceURL: URL,
+    context: AgentToolContext
+  ) async -> String? {
+    let baseURL = sourceURL.deletingLastPathComponent()
+      .appending(path: specifier)
+      .standardizedFileURL
+    let candidates = moduleResolutionCandidates(for: baseURL)
+    for candidate in candidates {
+      if let metadata = try? await context.filesystem.metadata(of: candidate),
+        metadata.isRegularFile
+      {
+        return nil
+      }
+    }
+    let relativeCandidates =
+      candidates
+      .prefix(6)
+      .map { context.relativize($0) }
+      .joined(separator: ", ")
+    return relativeCandidates.isEmpty ? context.relativize(baseURL) : relativeCandidates
   }
 
   private static func moduleResolutionCandidates(for baseURL: URL) -> [URL] {
@@ -466,6 +532,8 @@ struct AgentWriteFileTool: AgentTool {
       && (lowercasedLine.contains("implement") || lowercasedLine.contains("placeholder")))
       || lowercasedLine.contains("not implemented")
       || lowercasedLine.contains("unimplemented")
+      || lowercasedLine.contains("implement the logic")
+      || lowercasedLine.contains("implement logic")
   }
 
   private static func isSourceFile(_ url: URL) -> Bool {

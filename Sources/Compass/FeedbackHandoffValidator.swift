@@ -363,6 +363,7 @@ private enum UnfinishedSuccessFeedback {
     "read",
     "update",
     "use",
+    "verify",
     "wire",
   ]
 

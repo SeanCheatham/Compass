@@ -42,6 +42,24 @@ struct FeedbackHandoffValidatorTests {
   }
 
   @Test
+  func rejectsSucceededDevelopFeedbackThatAsksToVerifyChanges() throws {
+    let summary = DevelopSummary(
+      status: .succeeded,
+      summary: "Created the summarize helper.",
+      feedback: "Verify the changes with `pnpm verify`.",
+      bypassVerify: false
+    )
+
+    do {
+      try DevelopFeedbackValidator.validate(summary)
+      Issue.record("Expected verify-changes feedback rejection.")
+    } catch let error as DevelopFeedbackValidationError {
+      #expect(error.reason == .unfinishedSuccess)
+      #expect(error.feedback?.contains("Verify the changes") == true)
+    }
+  }
+
+  @Test
   func rejectsSucceededDevelopFeedbackWithFutureWorkPhrase() throws {
     let summary = DevelopSummary(
       status: .succeeded,

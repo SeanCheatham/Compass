@@ -267,6 +267,7 @@ public struct HeadlessCompassRunner: Sendable {
       throw HeadlessCompassError.invalidBrief("Brief cannot be empty.")
     }
     try workspace.writeVision(brief)
+    try seedHeadlessBrief(brief, workspace: workspace)
 
     onEvent(
       HeadlessCompassEvent(
@@ -568,6 +569,55 @@ public struct HeadlessCompassRunner: Sendable {
       )
       throw error
     }
+  }
+
+  private func seedHeadlessBrief(_ brief: String, workspace: CompassWorkspace) throws {
+    let current = try workspace.readState()
+    let seeded = Self.stateBySeedingHeadlessBrief(current, brief: brief)
+    guard seeded != current else { return }
+    try workspace.writeState(seeded)
+  }
+
+  static func stateBySeedingHeadlessBrief(_ state: PlanState, brief: String) -> PlanState {
+    let rawSummary = Self.compactBriefSummary(brief)
+    guard !rawSummary.isEmpty else { return state }
+
+    var seeded = state
+    var strategicContext = state.brief
+    if strategicContext.summary.isEmpty {
+      strategicContext.summary = rawSummary
+    }
+    if strategicContext.targetUsers.isEmpty {
+      strategicContext.targetUsers = ["People using this repository's Compass workflow."]
+    }
+    if strategicContext.desiredOutcomes.isEmpty {
+      strategicContext.desiredOutcomes = [
+        "The requested brief is implemented with verified, repository-local changes."
+      ]
+    }
+    if strategicContext.constraints.isEmpty {
+      strategicContext.constraints = [
+        "Preserve existing project behavior and work within the current repository."
+      ]
+    }
+    if strategicContext.acceptanceSignals.isEmpty {
+      strategicContext.acceptanceSignals = [
+        "The configured verify command passes and the changes match the brief."
+      ]
+    }
+    seeded.brief = strategicContext
+    return seeded
+  }
+
+  private static func compactBriefSummary(_ brief: String, limit: Int = 280) -> String {
+    let compact = brief
+      .components(separatedBy: .whitespacesAndNewlines)
+      .filter { !$0.isEmpty }
+      .joined(separator: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard compact.count > limit else { return compact }
+    guard limit > 3 else { return String(compact.prefix(limit)) }
+    return compact.prefix(limit - 3).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
   }
 
   private func runPlan(
