@@ -72,6 +72,38 @@ struct CompassCLITests {
   }
 
   @Test
+  func promptLoggingRuntimeWritesPromptAndOutputArtifacts() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let runtime = PromptLoggingLocalModelRuntime(
+      base: StaticLocalModelRuntime(output: #"{"kind":"plan_submit","payload":{}}"#),
+      promptLogDirectory: tempURL
+    )
+
+    let result = try await runtime.generateText(
+      request: LocalModelGenerationRequest(
+        systemPrompt: "system marker",
+        prompt: "prompt marker",
+        maxOutputTokens: 32
+      )
+    )
+
+    #expect(result.text.contains("plan_submit"))
+    #expect(
+      try String(contentsOf: tempURL.appending(path: "001-system.md"), encoding: .utf8)
+        == "system marker"
+    )
+    #expect(
+      try String(contentsOf: tempURL.appending(path: "001-prompt.md"), encoding: .utf8)
+        == "prompt marker"
+    )
+    #expect(
+      try String(contentsOf: tempURL.appending(path: "001-output.md"), encoding: .utf8)
+        .contains("plan_submit")
+    )
+  }
+
+  @Test
   func headlessBriefSeedFillsMissingStrategicFields() {
     let state = PlanState(
       completed: ["prior-item"],
@@ -633,6 +665,24 @@ private struct PnpmVerifyAlwaysPassBashRunner: AgentBashRunner {
       )
     }
     return ProcessResult(exitCode: 0, stdout: "pnpm verify passed.\n", stderr: "")
+  }
+}
+
+private actor StaticLocalModelRuntime: LocalModelGenerating {
+  let output: String
+
+  init(output: String) {
+    self.output = output
+  }
+
+  func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
+    LocalModelGenerationResult(
+      text: output,
+      tokenUsage: .estimated(
+        inputCharacters: request.systemPrompt.count + request.prompt.count,
+        outputCharacters: output.count
+      )
+    )
   }
 }
 

@@ -30,12 +30,12 @@ extension AgentExecutor {
     var tokenUsage = AgentRunTokenUsage()
     var lastFailedToolCall: ToolCallSignature?
     var repeatedFailedToolCallCount = 0
-    var sawSubmitRejection = false
-    var latestSubmitRejectionRepairMessage: String?
+    var sawContinuationRejection = false
+    var latestContinuationRejectionRepairMessage: String?
+    var latestContinuationRejectionDescription = "continuation"
     var lastSubmitRejectionSignature: String?
     var repeatedSubmitRejectionCount = 0
-    var lastSuccessfulToolCallAfterSubmitRejection: ToolCallSignature?
-    var repeatedSuccessfulToolCallAfterSubmitRejectionCount = 0
+    var successfulToolCallCountsAfterContinuationRejection: [ToolCallSignature: Int] = [:]
     var lastSuccessfulVerifyCommand: String?
     var lastSuccessfulReadOnlyDevelopToolCall: ToolCallSignature?
     var repeatedSuccessfulReadOnlyDevelopToolCallCount = 0
@@ -182,6 +182,16 @@ extension AgentExecutor {
         )
       } catch {
         let detail = error.localizedDescription
+        let repairMessage = Self.continuationRepairMessage(
+          error: detail,
+          invalidOutput: output,
+          phase: configuration.continuationPhase
+        )
+        sawContinuationRejection = true
+        latestContinuationRejectionRepairMessage = repairMessage
+        latestContinuationRejectionDescription =
+          "malformed \(configuration.continuationPhase.rawValue.capitalized) continuation response"
+        successfulToolCallCountsAfterContinuationRejection = [:]
         emit(
           level: .warning,
           text: "Continuation rejected",
@@ -190,13 +200,7 @@ extension AgentExecutor {
           status: .failed
         )
         transcript.append(
-          .repair(
-            Self.continuationRepairMessage(
-              error: detail,
-              invalidOutput: output,
-              phase: configuration.continuationPhase
-            )
-          )
+          .repair(repairMessage)
         )
         continue
       }
@@ -214,8 +218,10 @@ extension AgentExecutor {
           configuration: configuration
           )
         {
-          sawSubmitRejection = true
-          latestSubmitRejectionRepairMessage = rejection.userMessage
+          sawContinuationRejection = true
+          latestContinuationRejectionRepairMessage = rejection.userMessage
+          latestContinuationRejectionDescription = "`\(configuration.continuationPhase.submitKind)` payload"
+          successfulToolCallCountsAfterContinuationRejection = [:]
           let rejectionSignature = "\(rejection.eventText)\n\(rejection.eventDetail)"
           if rejectionSignature == lastSubmitRejectionSignature {
             repeatedSubmitRejectionCount += 1
@@ -373,8 +379,7 @@ extension AgentExecutor {
               )
             )
           }
-          lastSuccessfulToolCallAfterSubmitRejection = nil
-          repeatedSuccessfulToolCallAfterSubmitRejectionCount = 0
+          successfulToolCallCountsAfterContinuationRejection = [:]
         } else {
           lastFailedToolCall = nil
           repeatedFailedToolCallCount = 0
@@ -406,21 +411,18 @@ extension AgentExecutor {
             repeatedSuccessfulReadOnlyDevelopToolCallCount = 0
             consecutiveSuccessfulReadOnlyDevelopToolCallCount = 0
           }
-          if sawSubmitRejection {
-            if signature == lastSuccessfulToolCallAfterSubmitRejection {
-              repeatedSuccessfulToolCallAfterSubmitRejectionCount += 1
-            } else {
-              lastSuccessfulToolCallAfterSubmitRejection = signature
-              repeatedSuccessfulToolCallAfterSubmitRejectionCount = 1
-            }
-            if repeatedSuccessfulToolCallAfterSubmitRejectionCount >= 2 {
+          if sawContinuationRejection {
+            let repeatCount = (successfulToolCallCountsAfterContinuationRejection[signature] ?? 0) + 1
+            successfulToolCallCountsAfterContinuationRejection[signature] = repeatCount
+            if repeatCount >= 2 {
               transcript.append(
                 .repair(
-                  Self.repeatedToolAfterSubmitRejectionRepairMessage(
+                  Self.repeatedToolAfterContinuationRejectionRepairMessage(
                     toolName: toolName,
                     arguments: argumentText,
-                    repeatCount: repeatedSuccessfulToolCallAfterSubmitRejectionCount,
-                    latestRepairMessage: latestSubmitRejectionRepairMessage,
+                    repeatCount: repeatCount,
+                    latestRepairMessage: latestContinuationRejectionRepairMessage,
+                    rejectionDescription: latestContinuationRejectionDescription,
                     phase: configuration.continuationPhase
                   )
                 )
@@ -529,7 +531,7 @@ extension AgentExecutor {
     var tokenUsage: AgentRunTokenUsage
   }
 
-  private struct ToolCallSignature: Equatable {
+  private struct ToolCallSignature: Equatable, Hashable {
     var toolName: String
     var arguments: String
   }
@@ -844,11 +846,12 @@ extension AgentExecutor {
     """
   }
 
-  private static func repeatedToolAfterSubmitRejectionRepairMessage(
+  private static func repeatedToolAfterContinuationRejectionRepairMessage(
     toolName: String,
     arguments: String,
     repeatCount: Int,
     latestRepairMessage: String?,
+    rejectionDescription: String,
     phase: AgentContinuationPhase
   ) -> String {
     let planInstruction =
@@ -860,21 +863,24 @@ extension AgentExecutor {
         Plan payload text.
         """
       : ""
+    let repairHeading = rejectionDescription.contains("payload")
+      ? "Latest rejected-payload repair to apply now:"
+      : "Latest continuation repair to apply now:"
     let latestRepair = latestRepairMessage.map {
       """
 
-      Latest rejected-payload repair to apply now:
+      \(repairHeading)
       \($0)
       """
     } ?? ""
     return """
-    Compass already rejected a recent `\(phase.submitKind)` payload, and you then called
+    Compass already rejected a recent \(rejectionDescription), and you then called
     `\(toolName)` with the same arguments \(repeatCount) times. The repeated observation
-    did not repair the rejected payload.
+    did not repair the rejected continuation.
 
     Do not call `\(toolName)` again with the same arguments. Repair the rejected
-    `\(phase.submitKind)` now:
-    - Reuse the useful fields from your rejected payload.
+    continuation now:
+    - Reuse useful fields from the rejected output, if any.
     - Apply the latest Compass Repair instruction exactly.
     - If the rejected payload said a verify command still needs to run, call `bash`
       with that command now. Do not call `read_file`, `list_files`, or reread

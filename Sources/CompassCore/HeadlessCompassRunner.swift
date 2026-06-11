@@ -1525,7 +1525,12 @@ public struct HeadlessCompassRunner: Sendable {
           metadata: ["model": LocalModelCatalog.blessedModelID]
         )
       )
-      return MLXLocalModelRuntime.shared
+      let runtime: any LocalModelGenerating = MLXLocalModelRuntime.shared
+      guard let promptLogDirectory else { return runtime }
+      return PromptLoggingLocalModelRuntime(
+        base: runtime,
+        promptLogDirectory: promptLogDirectory
+      )
     }
   }
 

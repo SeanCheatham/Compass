@@ -831,8 +831,8 @@ struct FactoryPivotTests {
       ))
     #expect(prompts[3].contains("called\n`read_file` with the same arguments 2 times")
       || prompts[3].contains("called `read_file` with the same arguments 2 times"))
-    #expect(prompts[3].contains("The repeated observation\ndid not repair the rejected payload")
-      || prompts[3].contains("The repeated observation did not repair the rejected payload"))
+    #expect(prompts[3].contains("The repeated observation\ndid not repair the rejected continuation")
+      || prompts[3].contains("The repeated observation did not repair the rejected continuation"))
     #expect(prompts[3].contains("If the rejected payload said a verify command still needs to run"))
     #expect(prompts[3].contains("Do not call `read_file`, `list_files`, or reread"))
     #expect(prompts[3].contains("Return `plan_submit` with a corrected `payload`"))
@@ -841,6 +841,53 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("Your previous Plan payload claimed new CLI behavior without proof"))
     #expect(prompts[3].contains("Do not call another tool to repair this"))
     #expect(prompts[3].contains(#"main(["--format", "json", "Ship", "it"])"#))
+    #expect(prompts[3].contains(#""path":"package.json""#))
+  }
+
+  @Test
+  func executorEscalatesRepeatedToolCallsAfterMalformedContinuationRejection() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try #"{"scripts":{"verify":"pnpm verify"}}"#.write(
+      to: tempURL.appending(path: "package.json"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let readPackage =
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts."}"#
+    let planSubmit =
+      #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Build decision notes.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
+    let runtime = FakeLocalModelRuntime(outputs: [
+      "not valid continuation json",
+      readPackage,
+      readPackage,
+      planSubmit,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .plan,
+        runtime: runtime,
+        tools: [AgentReadFileTool()],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.planSchema,
+        maxIterations: 4
+      )
+    )
+
+    #expect(result.iterations == 4)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 4)
+    #expect(prompts[1].contains("Your previous response could not be used"))
+    #expect(prompts[3].contains("malformed Plan continuation response"))
+    #expect(prompts[3].contains("called\n`read_file` with the same arguments 2 times")
+      || prompts[3].contains("called `read_file` with the same arguments 2 times"))
+    #expect(prompts[3].contains("did not repair the rejected continuation"))
+    #expect(prompts[3].contains("Do not call `read_file`, `list_files`, or reread"))
+    #expect(prompts[3].contains("Return `plan_submit` with a corrected `payload`"))
+    #expect(prompts[3].contains("Latest continuation repair to apply now"))
+    #expect(prompts[3].contains("Invalid response"))
     #expect(prompts[3].contains(#""path":"package.json""#))
   }
 
