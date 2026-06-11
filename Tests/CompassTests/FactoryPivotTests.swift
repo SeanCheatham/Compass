@@ -63,6 +63,38 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func applyingPlanProposalPreservesOmittedBriefFields() {
+    let current = PlanState(
+      completed: [],
+      immediate: nil,
+      brief: PlanStrategicContext(
+        summary: "Build decision notes.",
+        targetUsers: ["Product teams"],
+        desiredOutcomes: ["List decision records"],
+        constraints: ["No new dependencies"],
+        acceptanceSignals: ["pnpm verify passes"]
+      )
+    )
+    let proposal = PlanProposal(
+      immediate: PlanNext(
+        plan: "## Outcome\nAdd decision records\n\n## Acceptance checks\n- pnpm verify passes",
+        verify: "pnpm verify"
+      ),
+      candidates: [],
+      strategicContext: PlanStrategicContext(summary: "Build decision notes."),
+      openQuestions: []
+    )
+
+    let next = proposal.applying(to: current)
+
+    #expect(next.brief.summary == "Build decision notes.")
+    #expect(next.brief.targetUsers == ["Product teams"])
+    #expect(next.brief.desiredOutcomes == ["List decision records"])
+    #expect(next.brief.constraints == ["No new dependencies"])
+    #expect(next.brief.acceptanceSignals == ["pnpm verify passes"])
+  }
+
+  @Test
   func mlxOnlyRuntimeReadiness() {
     let settings = AgentRuntimeSettings()
 
@@ -296,6 +328,51 @@ struct FactoryPivotTests {
     #expect(nudge.userMessage.contains("Do not call another tool"))
     #expect(nudge.userMessage.contains("copy the current `state.brief` exactly"))
     #expect(nudge.userMessage.contains(#""acceptanceSignals":["pnpm verify passes"]"#))
+  }
+
+  @Test
+  func planQueueDecodeNudgeTellsPlanToUseEmptyQueueWithoutTools() throws {
+    let invalidPayload = """
+      {
+        "state": {
+          "immediate": {
+            "plan": "## Outcome\\nAdd decision records.\\n\\n## Acceptance checks\\n- pnpm verify passes",
+            "verify": "pnpm verify",
+            "verifyTimeoutMs": 600000,
+            "estimatedDifficulty": "low",
+            "selectedBecause": "First useful slice.",
+            "source": "repository",
+            "candidateID": null
+          },
+          "queue": [
+            { "title": "Wire the web UI later" }
+          ],
+          "brief": {
+            "summary": "Build decision notes.",
+            "targetUsers": [],
+            "desiredOutcomes": [],
+            "constraints": [],
+            "acceptanceSignals": []
+          },
+          "openQuestions": []
+        },
+        "lessonEdits": []
+      }
+      """.data(using: .utf8)!
+
+    do {
+      _ = try JSONDecoder().decode(PlanRunResult.self, from: invalidPayload)
+      Issue.record("Expected invalid queue payload to fail decoding.")
+    } catch {
+      let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
+
+      #expect(nudge.eventText == "phase payload contract rejected")
+      #expect(nudge.userMessage.contains("Plan queue repair"))
+      #expect(nudge.userMessage.contains(#"set `"queue": []`"#))
+      #expect(nudge.userMessage.contains("Do not call a tool just to repair queue JSON"))
+      #expect(nudge.userMessage.contains("Do not call another tool"))
+      #expect(nudge.userMessage.contains("`id`, `title`, `outcome`"))
+    }
   }
 
   @Test

@@ -32,6 +32,9 @@ extension Prompts {
       - Keep `brief` stable and short: summary, target users, desired outcomes, constraints,
         and acceptance signals.
       - Keep `queue` to at most six actionable work items. Mark obsolete work stale or drop it.
+        For a simple first slice, use `"queue": []`. Only include queued follow-ups when
+        they are concrete, and every queue item has `id`, `title`, `outcome`, `why`,
+        `category`, `origin`, `priority`, `status`, `evidence`, and `blockedBy`.
       - Pick one `immediate` item with a concrete Markdown handoff and a real verify command.
       - For generated TypeScript work, name likely target files in the handoff. Use
         `packages/core/src` for domain logic, `packages/cli/src` for CLI behavior, and

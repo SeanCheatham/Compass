@@ -812,7 +812,23 @@ public struct HeadlessCompassRunner: Sendable {
       maxIterations: maxIterations,
       wallClockTimeout: 60 * 60
     )
-    let result = try await executor.run(configuration)
+    let result: AgentExecutionResult
+    do {
+      result = try await executor.run(configuration)
+    } catch {
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "phase_end",
+          level: "error",
+          status: "failed",
+          phase: phase.rawValue,
+          message: "\(phase.rawValue.capitalized) failed.",
+          detail: error.localizedDescription,
+          metadata: ["maxIterations": "\(maxIterations)"]
+        )
+      )
+      throw error
+    }
     _ = try workspace.writeSessionAuditArtifact(
       session: sessionNumber,
       name: "\(phase.rawValue)-submit-payload.json",

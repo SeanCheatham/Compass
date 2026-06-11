@@ -79,11 +79,12 @@ struct PlanProposal: Codable, Equatable {
   }
 
   func applying(to state: PlanState) -> PlanState {
-    PlanState(
+    let mergedContext = strategicContext.preservingMissingFields(from: state.strategicContext)
+    return PlanState(
       completed: state.completed,
       immediate: immediate,
       candidates: candidates,
-      strategicContext: strategicContext,
+      strategicContext: mergedContext,
       openQuestions: openQuestions
     )
   }
@@ -191,6 +192,20 @@ struct PlanProposal: Codable, Equatable {
       throw firstTypeError
     }
     return nil
+  }
+}
+
+extension PlanStrategicContext {
+  fileprivate func preservingMissingFields(
+    from current: PlanStrategicContext
+  ) -> PlanStrategicContext {
+    PlanStrategicContext(
+      summary: summary.isEmpty ? current.summary : summary,
+      targetUsers: targetUsers.isEmpty ? current.targetUsers : targetUsers,
+      desiredOutcomes: desiredOutcomes.isEmpty ? current.desiredOutcomes : desiredOutcomes,
+      constraints: constraints.isEmpty ? current.constraints : constraints,
+      acceptanceSignals: acceptanceSignals.isEmpty ? current.acceptanceSignals : acceptanceSignals
+    )
   }
 }
 

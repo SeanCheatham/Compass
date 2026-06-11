@@ -166,18 +166,41 @@ extension AgentExecutor {
     errorMessage: String,
     phase: AgentPhase? = nil
   ) -> InvalidToolArgumentsNudge {
-    InvalidToolArgumentsNudge(
+    let repairHint = submitResultDecodeRepairHint(errorMessage: errorMessage, phase: phase)
+    return InvalidToolArgumentsNudge(
       eventText: "phase payload contract rejected",
       eventDetail: errorMessage,
       userMessage: """
         Your previous phase payload did not match this phase's required shape:
         \(errorMessage)
 
-        Return the phase submit envelope again with valid JSON only. Do not answer in prose.
+        \(repairHint)
+
+        Return the phase submit envelope again with valid JSON only. Do not call another tool
+        to repair a payload-shape error; the required data is already in the rejected JSON and
+        the shape below. Do not answer in prose.
 
         \(submitResultDecodeRetryShape(for: phase))
         """
     )
+  }
+
+  private static func submitResultDecodeRepairHint(
+    errorMessage: String,
+    phase: AgentPhase?
+  ) -> String {
+    guard phase == .plan else { return "" }
+    let normalized = errorMessage.lowercased()
+    if normalized.contains("state.queue") {
+      return """
+        Plan queue repair:
+        - If this packet does not need queued follow-up work, set `"queue": []`.
+        - If you keep any queue item, every item must include `id`, `title`, `outcome`,
+          `why`, `category`, `origin`, `priority`, `status`, `evidence`, and `blockedBy`.
+        - Do not call a tool just to repair queue JSON.
+        """
+    }
+    return ""
   }
 
   static func missingSubmitResultNudge(
