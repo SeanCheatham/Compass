@@ -786,6 +786,64 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileRejectsCommentLedBodyReplacementOfFunctionDeclaration() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let fileURL = tempURL.appending(path: "main.ts")
+    let original = """
+    #!/usr/bin/env tsx
+    import { summarizeQueue } from "@compass-test/core";
+
+    export function main(argv = process.argv.slice(2)): string {
+      const title = argv.join(" ").trim() || "First Compass task";
+      return summarizeQueue([{ id: "task-1", title, done: false }]);
+    }
+
+    if (import.meta.url === `file://${process.argv[1]}`) {
+      console.log(main());
+    }
+    """
+    try original.write(to: fileURL, atomically: true, encoding: .utf8)
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"main.ts"}"#.utf8),
+      context: context
+    )
+
+    let replacement = """
+    // Parse --done and the following numeric string as separate argv entries
+    const doneIndex = argv.indexOf('--done');
+    if (doneIndex !== -1 && doneIndex + 1 < argv.length) {
+      const done = parseInt(argv[doneIndex + 1], 10);
+      argv = argv.slice(0, doneIndex).concat(argv.slice(doneIndex + 2));
+    }
+
+    const title = argv.join(' ').trim() || 'First Compass task';
+    return summarizeQueue([{ id: 'task-1', title, done: done || false }]);
+    """
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"main.ts","startLine":4,"endLine":7,"content":\#(toolGuidanceJSONStringLiteral(replacement))}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(result.isError)
+    #expect(result.errorKind == .invalidArguments)
+    #expect(result.content.contains("would remove the function declaration `main`"))
+    #expect(result.content.contains("body-only lines"))
+    #expect(result.content.contains("use startLine=4, endLine=7"))
+    #expect(result.content.contains("edit only the function body with startLine=5, endLine=6"))
+    #expect(result.content.contains("return `edit_file` with these arguments next"))
+    #expect(result.content.contains("export function main(argv = process.argv.slice(2)): string {"))
+    #expect(result.content.contains("const doneIndex = argv.indexOf('--done');"))
+    let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(unchanged == original)
+  }
+
+  @Test
   func editFileRejectsTestCodeInNonTestSourceFile() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -1608,4 +1666,9 @@ private func makeToolGuidanceTempDirectory() throws -> URL {
     .appending(path: "AgentToolRepairGuidanceTests-\(UUID().uuidString)")
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url
+}
+
+private func toolGuidanceJSONStringLiteral(_ value: String) -> String {
+  let data = (try? JSONEncoder().encode(value)) ?? Data(#""""#.utf8)
+  return String(decoding: data, as: UTF8.self)
 }

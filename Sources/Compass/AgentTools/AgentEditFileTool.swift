@@ -1336,10 +1336,7 @@ struct AgentEditFileTool: AgentTool {
         startLine: edit.startLine
       ),
       !replacementDeclaresFunction(named: declaration.name, in: edit.replacementLines),
-      let firstReplacementLine = edit.replacementLines.first(where: {
-        !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      }),
-      looksLikeIndentedBodyLine(firstReplacementLine)
+      looksLikeFunctionBodyReplacement(edit.replacementLines)
     else {
       return nil
     }
@@ -1548,6 +1545,42 @@ struct AgentEditFileTool: AgentTool {
       && !trimmed.hasPrefix("class ")
       && !trimmed.hasPrefix("interface ")
       && !trimmed.hasPrefix("type ")
+  }
+
+  private static func looksLikeFunctionBodyReplacement(_ lines: [String]) -> Bool {
+    guard let firstLine = firstMeaningfulReplacementLine(in: lines) else { return false }
+    if looksLikeIndentedBodyLine(firstLine) { return true }
+
+    let trimmed = firstLine.trimmingCharacters(in: .whitespacesAndNewlines)
+    if firstTopLevelDeclaration(in: [firstLine]) != nil || trimmed.hasPrefix("import ") {
+      return false
+    }
+    if lines.contains(where: { line in
+      line.trimmingCharacters(in: .whitespacesAndNewlines)
+        .range(of: #"^return\b"#, options: .regularExpression) != nil
+    }) {
+      return true
+    }
+    return trimmed.range(
+      of: #"^(const|let|var|if|for|while|switch|try|catch|await|return|throw)\b"#,
+      options: .regularExpression
+    ) != nil
+  }
+
+  private static func firstMeaningfulReplacementLine(in lines: [String]) -> String? {
+    for line in lines {
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty, !isCommentOnlyLine(trimmed) else { continue }
+      return line
+    }
+    return nil
+  }
+
+  private static func isCommentOnlyLine(_ trimmedLine: String) -> Bool {
+    trimmedLine.hasPrefix("//")
+      || trimmedLine.hasPrefix("/*")
+      || trimmedLine.hasPrefix("*")
+      || trimmedLine.hasPrefix("*/")
   }
 
   private struct MissingRelativeModuleReference {
