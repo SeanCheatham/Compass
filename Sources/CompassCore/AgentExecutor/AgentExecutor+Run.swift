@@ -40,6 +40,8 @@ extension AgentExecutor {
     var repeatedSubmitRejectionCount = 0
     var successfulToolCallCountsAfterContinuationRejection: [ToolCallSignature: Int] = [:]
     var lastSuccessfulVerifyCommand: String?
+    var lastFailedVerifyCommand: String?
+    var failedVerifyInvalidatedByMutationCommand: String?
     var lastSuccessfulReadOnlyDevelopToolCall: ToolCallSignature?
     var repeatedSuccessfulReadOnlyDevelopToolCallCount = 0
     var consecutiveSuccessfulReadOnlyDevelopToolCallCount = 0
@@ -240,6 +242,11 @@ extension AgentExecutor {
             successfulVerifyCommand: lastSuccessfulVerifyCommand,
             configuration: configuration
           )
+          ?? Self.rejectFailedDevelopSubmitAfterInvalidatedVerify(
+            payload,
+            invalidatedVerifyCommand: failedVerifyInvalidatedByMutationCommand,
+            configuration: configuration
+          )
           ?? Self.rejectFailedDevelopSubmitAfterContinuationRejection(
             payload,
             sawContinuationRejection: sawContinuationRejection,
@@ -389,6 +396,19 @@ extension AgentExecutor {
             )
           }
           lastSuccessfulVerifyCommand = nil
+          if let lastFailedVerifyCommand {
+            transcript.append(
+              .repair(
+                Self.failedVerifyInvalidatedByMutationRepairMessage(
+                  command: lastFailedVerifyCommand,
+                  toolName: toolName,
+                  phase: configuration.continuationPhase
+                )
+              )
+            )
+            failedVerifyInvalidatedByMutationCommand = lastFailedVerifyCommand
+          }
+          lastFailedVerifyCommand = nil
         }
         if let command = Self.successfulVerifyCommand(
           toolName: toolName,
@@ -396,6 +416,8 @@ extension AgentExecutor {
           result: result
         ) {
           lastSuccessfulVerifyCommand = command
+          lastFailedVerifyCommand = nil
+          failedVerifyInvalidatedByMutationCommand = nil
           transcript.append(
             .repair(
               Self.successfulVerifyObservedRepairMessage(
@@ -404,6 +426,14 @@ extension AgentExecutor {
               )
             )
           )
+        }
+        if let command = Self.failedVerifyCommand(
+          toolName: toolName,
+          arguments: arguments,
+          result: result
+        ) {
+          lastFailedVerifyCommand = command
+          failedVerifyInvalidatedByMutationCommand = nil
         }
         if result.isError {
           lastSuccessfulReadOnlyDevelopToolCall = nil
@@ -697,6 +727,19 @@ extension AgentExecutor {
     guard toolName == AgentBashTool.toolName,
       !result.isError,
       result.content.contains("[exit 0]")
+    else { return nil }
+
+    return verifyCommand(arguments: arguments)
+  }
+
+  private static func failedVerifyCommand(
+    toolName: String,
+    arguments: Data,
+    result: AgentToolInvocationResult
+  ) -> String? {
+    guard toolName == AgentBashTool.toolName,
+      result.isError,
+      result.errorKind == .bashFailure
     else { return nil }
 
     return verifyCommand(arguments: arguments)
@@ -1252,6 +1295,23 @@ extension AgentExecutor {
     """
   }
 
+  private static func failedVerifyInvalidatedByMutationRepairMessage(
+    command: String,
+    toolName: String,
+    phase: AgentContinuationPhase
+  ) -> String {
+    """
+    You just changed files with `\(toolName)` after Compass observed `\(command)` fail.
+
+    That earlier failure no longer proves the current worktree. Do not submit
+    status=failed based on the old verify/typecheck/test output. Choose exactly one next action:
+    - If the requested packet might now be complete, call `bash` with `\(command)` again.
+    - If a specific acceptance requirement is still missing, make that concrete edit now.
+    - If verification cannot be rerun because of an external blocker, return `\(phase.submitKind)`
+      with status=blocked and concise feedback explaining why.
+    """
+  }
+
   private static func repeatedSuccessfulVerifyRejectedMessage(
     previousCommand: String,
     requestedCommand: String,
@@ -1395,6 +1455,41 @@ extension AgentExecutor {
         Submit status=failed only for a real project blocker after you have no concrete
         tool call left to try.
         \(repair)
+
+        \(submitResultDecodeRetryShape(for: .develop))
+        """
+    )
+  }
+
+  private static func rejectFailedDevelopSubmitAfterInvalidatedVerify(
+    _ submitResultJSON: Data,
+    invalidatedVerifyCommand: String?,
+    configuration: AgentExecutionConfiguration
+  ) -> InvalidToolArgumentsNudge? {
+    guard configuration.phase == .develop,
+      let invalidatedVerifyCommand,
+      let summary = try? JSONDecoder().decode(DevelopSummary.self, from: submitResultJSON),
+      summary.status == .failed
+    else { return nil }
+
+    return InvalidToolArgumentsNudge(
+      eventText: "develop_submit used stale verify failure",
+      eventDetail:
+        "Develop submitted status=failed after files changed following a failed `\(invalidatedVerifyCommand)` run.",
+      userMessage: """
+        Compass previously observed this verify command fail:
+        `\(invalidatedVerifyCommand)`
+
+        But files were changed after that failure, so the old verify/typecheck/test output
+        no longer proves the current worktree. Do not submit status=failed from stale
+        verification errors.
+
+        Choose exactly one repair:
+        - If the requested packet might now be complete, call `bash` with `\(invalidatedVerifyCommand)` again.
+        - If a specific acceptance requirement is still missing, call `develop_continue`
+          with the concrete `edit_file` or `write_file` repair now.
+        - If verification cannot be rerun because of an external blocker, return
+          `develop_submit` with status=blocked and concise feedback explaining why.
 
         \(submitResultDecodeRetryShape(for: .develop))
         """

@@ -1251,6 +1251,49 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorRejectsFailedSubmitAfterMutationInvalidatesFailedVerify() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let bashCounter = ToolInvocationCounter()
+    let bashResults = ToolResultQueue([
+      .failure("[stderr]\nTypeScript error before repair.\n\n[exit 1]", kind: .bashFailure),
+      .ok("[stdout]\nAll checks passed after repair.\n\n[exit 0]\n\n[next]\nSubmit success."),
+    ])
+    let runtime = FakeLocalModelRuntime(outputs: [
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verification."}"#,
+      #"{"kind":"develop_continue","tool":"write_file","arguments":{"path":"generated.ts","content":"export const generated = true;\n"},"reason":"Repair failed verification output."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"TypeScript errors during verification still block the packet.","feedback":"Review TypeScript errors from pnpm verify before trying again.","bypassVerify":false,"lessonEdits":[]}}"#,
+      #"{"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Rerun verification after the accepted repair."}"#,
+      #"{"kind":"develop_submit","payload":{"status":"succeeded","summary":"Verification passed after the repair.","feedback":"Verified with pnpm verify after the accepted repair; no follow-up work remains.","bypassVerify":false,"lessonEdits":[]}}"#,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [
+          FakeSequencedBashTool(results: bashResults, counter: bashCounter),
+          AgentWriteFileTool(),
+        ],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 5
+      )
+    )
+
+    #expect(bashCounter.value == 2)
+    #expect(String(decoding: result.submitResultArguments, as: UTF8.self).contains("succeeded"))
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 5)
+    #expect(prompts[2].contains("You just changed files with `write_file` after Compass observed `pnpm verify` fail"))
+    #expect(prompts[2].contains("That earlier failure no longer proves the current worktree"))
+    #expect(prompts[3].contains("Compass previously observed this verify command fail"))
+    #expect(prompts[3].contains("Do not submit status=failed from stale"))
+    #expect(prompts[3].contains("call `bash` with `pnpm verify` again"))
+  }
+
+  @Test
   func executorCompactsContinuationHistoryWithoutCountingAnAgentIteration() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -1633,6 +1676,24 @@ private final class ToolInvocationCounter: @unchecked Sendable {
   }
 }
 
+private final class ToolResultQueue: @unchecked Sendable {
+  private let lock = NSLock()
+  private var results: [AgentToolInvocationResult]
+
+  init(_ results: [AgentToolInvocationResult]) {
+    self.results = results
+  }
+
+  func next() -> AgentToolInvocationResult {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !results.isEmpty else {
+      return .failure("Fake bash result queue exhausted.", kind: .unknown)
+    }
+    return results.removeFirst()
+  }
+}
+
 private struct FakeBashTool: AgentTool {
   var output: String
   var counter: ToolInvocationCounter? = nil
@@ -1651,6 +1712,27 @@ private struct FakeBashTool: AgentTool {
   func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
     counter?.increment()
     return .ok(output)
+  }
+}
+
+private struct FakeSequencedBashTool: AgentTool {
+  var results: ToolResultQueue
+  var counter: ToolInvocationCounter? = nil
+
+  var spec: AgentToolSpec {
+    AgentToolSpec(
+      name: AgentBashTool.toolName,
+      description: "Fake sequenced bash tool.",
+      parameters: AgentToolParametersSchema(literal: [
+        "type": "object",
+        "additionalProperties": true,
+      ])
+    )
+  }
+
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+    counter?.increment()
+    return results.next()
   }
 }
 
