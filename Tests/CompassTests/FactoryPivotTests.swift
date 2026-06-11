@@ -276,6 +276,29 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func droppedBriefNudgeTellsPlanToResubmitWithoutTools() {
+    let error = PlanTransitionValidationError(
+      message: """
+        Plan tried to drop non-empty brief fields: brief.acceptanceSignals.
+
+        Set `state.brief` exactly to this current brief in the next `plan_submit`:
+        ```json
+        {"acceptanceSignals":["pnpm verify passes"],"constraints":[],"desiredOutcomes":[],"summary":"Build the slice.","targetUsers":[]}
+        ```
+        """,
+      reason: .invalidStateMutation,
+      missingLabels: ["brief.acceptanceSignals"]
+    )
+
+    let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
+
+    #expect(nudge.eventText == "plan_submit rejected")
+    #expect(nudge.userMessage.contains("Do not call another tool"))
+    #expect(nudge.userMessage.contains("copy the current `state.brief` exactly"))
+    #expect(nudge.userMessage.contains(#""acceptanceSignals":["pnpm verify passes"]"#))
+  }
+
+  @Test
   func unfinishedDevelopSuccessNudgeTellsAgentToContinueOrFail() {
     let error = DevelopFeedbackValidationError(
       message:

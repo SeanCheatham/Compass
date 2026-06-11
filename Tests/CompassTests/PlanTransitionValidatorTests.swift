@@ -53,6 +53,10 @@ struct PlanTransitionValidatorTests {
       #expect(error.missingLabels.contains("brief.constraints"))
       #expect(error.missingLabels.contains("brief.acceptanceSignals"))
       #expect(error.message.contains("Keep `brief` stable"))
+      #expect(error.message.contains("Set `state.brief` exactly"))
+      #expect(
+        error.message.contains(
+          #""acceptanceSignals":["Core and CLI tests cover the ledger summary."]"#))
     }
   }
 

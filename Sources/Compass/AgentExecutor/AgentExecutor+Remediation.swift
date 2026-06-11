@@ -28,6 +28,25 @@ extension AgentExecutor {
             """
         )
       }
+      if error.reason == .invalidStateMutation,
+        !error.missingLabels.isEmpty,
+        error.missingLabels.allSatisfy({ $0.hasPrefix("brief.") })
+      {
+        return InvalidToolArgumentsNudge(
+          eventText: "plan_submit rejected",
+          eventDetail: error.message,
+          userMessage: """
+            Your previous Plan payload dropped required project brief fields:
+            \(error.message)
+
+            Do not call another tool to repair this. Return `plan_submit` again with the same
+            immediate work if it is still useful, and copy the current `state.brief` exactly from
+            the rejection message.
+
+            \(submitResultDecodeRetryShape(for: .plan))
+            """
+        )
+      }
       return InvalidToolArgumentsNudge(
         eventText: "plan_submit rejected",
         eventDetail: error.message,

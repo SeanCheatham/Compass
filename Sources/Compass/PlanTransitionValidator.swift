@@ -64,7 +64,7 @@ enum PlanTransitionValidator {
     if !droppedBriefFields.isEmpty {
       throw PlanTransitionValidationError(
         message:
-          "Plan tried to drop non-empty brief fields: \(formattedFields(droppedBriefFields)). Keep `brief` stable unless the user explicitly changed the project brief; preserve target users, desired outcomes, constraints, and acceptance signals so Develop keeps the real finish line.",
+          "Plan tried to drop non-empty brief fields: \(formattedFields(droppedBriefFields)). Keep `brief` stable unless the user explicitly changed the project brief; preserve target users, desired outcomes, constraints, and acceptance signals so Develop keeps the real finish line.\(briefRepairDetail(current.brief))",
         reason: .invalidStateMutation,
         missingLabels: droppedBriefFields
       )
@@ -214,6 +214,24 @@ enum PlanTransitionValidator {
       return uniqueFields.dropLast().joined(separator: ", ")
         + ", and \(uniqueFields.last ?? "planning state")"
     }
+  }
+
+  private static func briefRepairDetail(_ brief: PlanStrategicContext) -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    guard let data = try? encoder.encode(brief),
+      let json = String(data: data, encoding: .utf8)
+    else {
+      return ""
+    }
+    return """
+
+
+      Set `state.brief` exactly to this current brief in the next `plan_submit`:
+      ```json
+      \(json)
+      ```
+      """
   }
 
   private static func formattedRejectedChecks(_ checks: [String]) -> String {
