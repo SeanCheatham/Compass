@@ -43,9 +43,9 @@ extension AgentExecutor {
     var lastSuccessfulVerifyCommand: String?
     var lastFailedVerifyCommand: String?
     var failedVerifyInvalidatedByMutationCommand: String?
-    var lastSuccessfulReadOnlyDevelopToolCall: ToolCallSignature?
     var repeatedSuccessfulReadOnlyDevelopToolCallCount = 0
     var consecutiveSuccessfulReadOnlyDevelopToolCallCount = 0
+    var successfulReadOnlyDevelopToolCallCounts: [ToolCallSignature: Int] = [:]
 
     while iterations < configuration.maxIterations {
       if cancelled { throw AgentExecutionError.cancelled }
@@ -478,9 +478,9 @@ extension AgentExecutor {
           failedVerifyInvalidatedByMutationCommand = nil
         }
         if result.isError {
-          lastSuccessfulReadOnlyDevelopToolCall = nil
           repeatedSuccessfulReadOnlyDevelopToolCallCount = 0
           consecutiveSuccessfulReadOnlyDevelopToolCallCount = 0
+          successfulReadOnlyDevelopToolCallCounts = [:]
           if signature == lastFailedToolCall {
             repeatedFailedToolCallCount += 1
           } else {
@@ -533,12 +533,9 @@ extension AgentExecutor {
           }
           if configuration.phase == .develop, Self.isReadOnlyInspectionTool(toolName) {
             consecutiveSuccessfulReadOnlyDevelopToolCallCount += 1
-            if signature == lastSuccessfulReadOnlyDevelopToolCall {
-              repeatedSuccessfulReadOnlyDevelopToolCallCount += 1
-            } else {
-              lastSuccessfulReadOnlyDevelopToolCall = signature
-              repeatedSuccessfulReadOnlyDevelopToolCallCount = 1
-            }
+            let readOnlyRepeatCount = (successfulReadOnlyDevelopToolCallCounts[signature] ?? 0) + 1
+            successfulReadOnlyDevelopToolCallCounts[signature] = readOnlyRepeatCount
+            repeatedSuccessfulReadOnlyDevelopToolCallCount = readOnlyRepeatCount
             if repeatedSuccessfulReadOnlyDevelopToolCallCount == 2
               || consecutiveSuccessfulReadOnlyDevelopToolCallCount == 6
             {
@@ -555,9 +552,9 @@ extension AgentExecutor {
               )
             }
           } else {
-            lastSuccessfulReadOnlyDevelopToolCall = nil
             repeatedSuccessfulReadOnlyDevelopToolCallCount = 0
             consecutiveSuccessfulReadOnlyDevelopToolCallCount = 0
+            successfulReadOnlyDevelopToolCallCounts = [:]
           }
           if sawContinuationRejection {
             let repeatCount = (successfulToolCallCountsAfterContinuationRejection[signature] ?? 0) + 1
@@ -1327,8 +1324,8 @@ extension AgentExecutor {
 
     The latest `\(toolName)` observation succeeded and already contains the concrete
     evidence available from that tool. You have made \(readOnlyCount) successful
-    read-only tool calls in a row, and the latest exact `\(toolName)` arguments have
-    been seen \(repeatCount) time(s).
+    read-only tool calls in a row without changing files, and the latest exact
+    `\(toolName)` arguments have been seen \(repeatCount) time(s) in that streak.
 
     Do not call `\(toolName)` again with the same arguments. Do not keep calling
     `read_file`, `list_files`, `ls`, `glob`, `grep`, `outline`, `find_symbol`,

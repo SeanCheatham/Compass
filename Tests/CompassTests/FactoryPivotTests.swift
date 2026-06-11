@@ -907,6 +907,47 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorEscalatesAlternatingReadOnlyDevelopLoop() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let readSource =
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.ts"},"reason":"Need current CLI logic before editing."}"#
+    let readTest =
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.test.ts"},"reason":"Need current tests before editing."}"#
+    let runtime = FakeLocalModelRuntime(outputs: [
+      readSource,
+      readTest,
+      readSource,
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Did not edit the CLI.","feedback":"The model alternated reads instead of calling edit_file.","bypassVerify":false,"lessonEdits":[]}}"#,
+    ])
+    let counter = ToolInvocationCounter()
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [FakeReadFileTool(counter: counter)],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 4
+      )
+    )
+
+    #expect(result.iterations == 4)
+    #expect(counter.value == 3)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 4)
+    #expect(prompts[3].contains("You repeated successful read-only Develop tool calls"))
+    #expect(prompts[3].contains("read-only tool calls in a row without changing files"))
+    #expect(prompts[3].contains("seen 2 time(s) in that streak"))
+    #expect(prompts[3].contains("Do not keep calling\n`read_file`")
+      || prompts[3].contains("Do not keep calling `read_file`"))
+    #expect(prompts[3].contains("Call `edit_file` or `write_file`"))
+    #expect(prompts[3].contains(#""path":"packages/cli/src/main.ts""#))
+  }
+
+  @Test
   func executorRejectsToolCallAfterPlanSubmitRejection() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
