@@ -743,6 +743,121 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorEscalatesRepeatedPartialRewriteFailureFamily() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try """
+    import { current } from "./current";
+    export function one() { return 1; }
+    export function two() { return 2; }
+    export function three() { return 3; }
+    export function four() { return 4; }
+    export function five() { return 5; }
+    """.write(
+      to: tempURL.appending(path: "index.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    let replacement = """
+    import { next } from './next';
+
+    export function replacement() {
+      return next();
+    }
+
+    export function extra() {
+      return 42;
+    }
+    """
+    let partialRewriteAtTop =
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"index.ts","startLine":1,"endLine":1,"content":\#(jsonStringLiteral(replacement))},"reason":"Rewrite the module."}"#
+    let partialRewriteShifted =
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"index.ts","startLine":2,"endLine":2,"content":\#(jsonStringLiteral(replacement))},"reason":"Try a nearby range."}"#
+
+    let runtime = FakeLocalModelRuntime(outputs: [
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"index.ts"},"reason":"Need current exports."}"#,
+      partialRewriteAtTop,
+      partialRewriteShifted,
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Could not repair the edit shape.","feedback":"The edit kept moving the same partial rewrite to nearby ranges.","bypassVerify":false,"lessonEdits":[]}}"#,
+    ])
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [AgentReadFileTool(), AgentEditFileTool()],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 4
+      )
+    )
+
+    #expect(result.iterations == 4)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 4)
+    #expect(prompts[3].contains("You repeated `edit_file` failures in the same repair family"))
+    #expect(prompts[3].contains("Failure family: partial whole-file rewrite"))
+    #expect(prompts[3].contains("Changing only `startLine`/`endLine`"))
+    #expect(prompts[3].contains("use the full file range"))
+    #expect(prompts[3].contains("Do not move the same multi-line replacement"))
+    #expect(prompts[3].contains("Latest failure"))
+    #expect(prompts[3].contains(#""path":"index.ts""#))
+  }
+
+  @Test
+  func executorEscalatesRepeatedBodyOnlyFunctionReplacementFamily() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try """
+    export function main(argv = process.argv.slice(2)): string {
+      const title = argv.join(" ").trim() || "First Compass task";
+      return title;
+    }
+
+    console.log(main());
+    """.write(
+      to: tempURL.appending(path: "main.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    let bodyOnly = """
+      const count = Number.parseInt(argv[0] ?? "1", 10);
+      const title = argv.slice(1).join(" ").trim() || "First Compass task";
+      return `${count}: ${title}`;
+    """
+    let replaceDeclarationOnly =
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"main.ts","startLine":1,"endLine":1,"content":\#(jsonStringLiteral(bodyOnly))},"reason":"Replace main logic."}"#
+    let replaceDeclarationAndBody =
+      #"{"kind":"develop_continue","tool":"edit_file","arguments":{"path":"main.ts","startLine":1,"endLine":3,"content":\#(jsonStringLiteral(bodyOnly))},"reason":"Try a wider range."}"#
+
+    let runtime = FakeLocalModelRuntime(outputs: [
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"main.ts"},"reason":"Need current main function."}"#,
+      replaceDeclarationOnly,
+      replaceDeclarationAndBody,
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Could not repair the function edit.","feedback":"The edit kept replacing a declaration with body-only lines.","bypassVerify":false,"lessonEdits":[]}}"#,
+    ])
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [AgentReadFileTool(), AgentEditFileTool()],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 4
+      )
+    )
+
+    #expect(result.iterations == 4)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 4)
+    #expect(prompts[3].contains("You repeated `edit_file` failures in the same repair family"))
+    #expect(prompts[3].contains("Failure family: body-only function declaration replacement"))
+    #expect(prompts[3].contains("include the complete function declaration"))
+    #expect(prompts[3].contains("edit only the body lines inside the function"))
+    #expect(prompts[3].contains("Do not replace a function declaration line"))
+    #expect(prompts[3].contains(#""path":"main.ts""#))
+  }
+
+  @Test
   func executorEscalatesRepeatedReadOnlyDevelopLoopBeforeSubmitRejection() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -1183,6 +1298,75 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorEscalatesRepeatedMalformedSubmitJSONAcrossToolReads() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try #"{"scripts":{"verify":"pnpm verify"}}"#.write(
+      to: tempURL.appending(path: "package.json"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let malformedPlanSubmit = """
+      ```json
+      {
+        "kind": "plan_submit",
+        "payload": {
+          "state": {
+            "immediate": {
+              "plan": "## Outcome\\nAdd count support.\\n\\n## Acceptance checks\\n- main(["--count", "3", "Ship", "it"]) returns 3 open / 3 total.",
+              "verify": "pnpm verify"
+            },
+            "queue": [],
+            "brief": {
+              "summary": "Add count support.",
+              "targetUsers": [],
+              "desiredOutcomes": [],
+              "constraints": [],
+              "acceptanceSignals": []
+            },
+            "openQuestions": []
+          },
+          "lessonEdits": []
+        }
+      }
+      ```
+      """
+    let readPackage =
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts."}"#
+    let validPlanSubmit =
+      #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Build decision notes.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
+    let runtime = FakeLocalModelRuntime(outputs: [
+      malformedPlanSubmit,
+      readPackage,
+      malformedPlanSubmit,
+      validPlanSubmit,
+    ])
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .plan,
+        runtime: runtime,
+        tools: [AgentReadFileTool()],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.planSchema,
+        maxIterations: 4
+      )
+    )
+
+    #expect(result.iterations == 4)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 4)
+    #expect(prompts[3].contains("Compass rejected malformed `plan_submit` JSON 2 times"))
+    #expect(prompts[3].contains("This is a JSON syntax problem"))
+    #expect(prompts[3].contains("Do not call\n`read_file`")
+      || prompts[3].contains("Do not call `read_file`"))
+    #expect(prompts[3].contains("quotes inside string fields must be escaped"))
+    #expect(prompts[3].contains("For Plan, do not call more tools"))
+    #expect(prompts[3].contains("Return exactly one valid JSON object now"))
+  }
+
+  @Test
   func executorStopsAtMaxIterationsAndWallClock() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -1358,6 +1542,11 @@ private func makeTempDirectory() throws -> URL {
     .appending(path: "CompassFactoryPivotTests-\(UUID().uuidString)")
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url
+}
+
+private func jsonStringLiteral(_ value: String) -> String {
+  let data = (try? JSONEncoder().encode(value)) ?? Data(#""""#.utf8)
+  return String(decoding: data, as: UTF8.self)
 }
 
 private func testConfiguration(

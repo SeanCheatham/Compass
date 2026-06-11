@@ -30,6 +30,9 @@ extension AgentExecutor {
     var tokenUsage = AgentRunTokenUsage()
     var lastFailedToolCall: ToolCallSignature?
     var repeatedFailedToolCallCount = 0
+    var failedToolFamilyCounts: [ToolFailureFamilySignature: Int] = [:]
+    var lastMalformedContinuationSignature: String?
+    var repeatedMalformedContinuationCount = 0
     var sawContinuationRejection = false
     var latestContinuationRejectionRepairMessage: String?
     var latestContinuationRejectionDescription = "continuation"
@@ -192,6 +195,17 @@ extension AgentExecutor {
         latestContinuationRejectionDescription =
           "malformed \(configuration.continuationPhase.rawValue.capitalized) continuation response"
         successfulToolCallCountsAfterContinuationRejection = [:]
+        let malformedSignature = Self.malformedContinuationSignature(
+          error: detail,
+          output: output,
+          phase: configuration.continuationPhase
+        )
+        if malformedSignature == lastMalformedContinuationSignature {
+          repeatedMalformedContinuationCount += 1
+        } else {
+          lastMalformedContinuationSignature = malformedSignature
+          repeatedMalformedContinuationCount = 1
+        }
         emit(
           level: .warning,
           text: "Continuation rejected",
@@ -202,6 +216,19 @@ extension AgentExecutor {
         transcript.append(
           .repair(repairMessage)
         )
+        if repeatedMalformedContinuationCount >= 2 {
+          transcript.append(
+            .repair(
+              Self.repeatedMalformedContinuationRepairMessage(
+                signature: malformedSignature,
+                error: detail,
+                invalidOutput: output,
+                repeatCount: repeatedMalformedContinuationCount,
+                phase: configuration.continuationPhase
+              )
+            )
+          )
+        }
         continue
       }
 
@@ -267,6 +294,8 @@ extension AgentExecutor {
           kind: .agentMessage,
           status: .completed
         )
+        lastMalformedContinuationSignature = nil
+        repeatedMalformedContinuationCount = 0
         tokenUsage.durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
         return AgentExecutionResult(
           submitResultArguments: payload,
@@ -379,10 +408,38 @@ extension AgentExecutor {
               )
             )
           }
+          if let failureFamily = Self.toolFailureFamily(
+            toolName: toolName,
+            arguments: arguments,
+            result: result
+          ) {
+            let repeatCount = (failedToolFamilyCounts[failureFamily] ?? 0) + 1
+            failedToolFamilyCounts[failureFamily] = repeatCount
+            if repeatCount >= 2 {
+              transcript.append(
+                .repair(
+                  Self.repeatedToolFailureFamilyRepairMessage(
+                    toolName: toolName,
+                    arguments: argumentText,
+                    family: failureFamily.family,
+                    path: failureFamily.path,
+                    repeatCount: repeatCount,
+                    latestFailure: result.content,
+                    phase: configuration.continuationPhase
+                  )
+                )
+              )
+            }
+          }
           successfulToolCallCountsAfterContinuationRejection = [:]
         } else {
           lastFailedToolCall = nil
           repeatedFailedToolCallCount = 0
+          if let path = Self.pathArgument(from: arguments) {
+            failedToolFamilyCounts = failedToolFamilyCounts.filter {
+              $0.key.toolName != toolName || $0.key.path != path
+            }
+          }
           if configuration.phase == .develop, Self.isReadOnlyInspectionTool(toolName) {
             consecutiveSuccessfulReadOnlyDevelopToolCallCount += 1
             if signature == lastSuccessfulReadOnlyDevelopToolCall {
@@ -536,6 +593,12 @@ extension AgentExecutor {
     var arguments: String
   }
 
+  private struct ToolFailureFamilySignature: Equatable, Hashable {
+    var toolName: String
+    var path: String
+    var family: String
+  }
+
   private static func isFileMutationTool(_ toolName: String) -> Bool {
     toolName == AgentWriteFileTool.toolName || toolName == AgentEditFileTool.toolName
   }
@@ -555,6 +618,43 @@ extension AgentExecutor {
 
   private static func isReadOnlyInspectionTool(_ toolName: String) -> Bool {
     readOnlyInspectionToolNames.contains(toolName)
+  }
+
+  private static func toolFailureFamily(
+    toolName: String,
+    arguments: Data,
+    result: AgentToolInvocationResult
+  ) -> ToolFailureFamilySignature? {
+    guard result.isError, toolName == AgentEditFileTool.toolName else { return nil }
+    let lowered = result.content.lowercased()
+    let family: String
+    if lowered.contains("partial whole-file rewrite") {
+      family = "partial whole-file rewrite"
+    } else if lowered.contains("would remove the function declaration")
+      && lowered.contains("body-only")
+    {
+      family = "body-only function declaration replacement"
+    } else if lowered.contains("line range") && lowered.contains("out of range") {
+      family = "out-of-range edit range"
+    } else {
+      return nil
+    }
+
+    return ToolFailureFamilySignature(
+      toolName: toolName,
+      path: pathArgument(from: arguments) ?? "<unknown>",
+      family: family
+    )
+  }
+
+  private static func pathArgument(from arguments: Data) -> String? {
+    guard let object = try? JSONSerialization.jsonObject(with: arguments) as? [String: Any],
+      let path = object["path"] as? String
+    else {
+      return nil
+    }
+    let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
   }
 
   private static func isPostVerifyMutationJustified(reason: String?, note: String?) -> Bool {
@@ -822,6 +922,65 @@ extension AgentExecutor {
     """
   }
 
+  private static func malformedContinuationSignature(
+    error: String,
+    output: String,
+    phase: AgentContinuationPhase
+  ) -> String {
+    if mentionsContinuationKind(phase.submitKind, in: output) {
+      return "malformed `\(phase.submitKind)` JSON"
+    }
+    if mentionsContinuationKind(phase.continueKind, in: output) {
+      return "malformed `\(phase.continueKind)` JSON"
+    }
+    return error
+  }
+
+  private static func mentionsContinuationKind(_ kind: String, in output: String) -> Bool {
+    output.range(
+      of: #""kind"\s*:\s*"\#(NSRegularExpression.escapedPattern(for: kind))""#,
+      options: .regularExpression
+    ) != nil
+  }
+
+  private static func repeatedMalformedContinuationRepairMessage(
+    signature: String,
+    error: String,
+    invalidOutput: String,
+    repeatCount: Int,
+    phase: AgentContinuationPhase
+  ) -> String {
+    let planGuidance =
+      phase == .plan
+      ? """
+
+        For Plan, do not call more tools to repair JSON syntax. Return `\(phase.submitKind)`
+        with a smaller valid payload. Keep `state.immediate.verify` as `pnpm verify`.
+        If the plan text needs to mention an argv example, either escape quotes inside
+        the JSON string or write it in words, for example: split `--count`, `3`, `Ship`,
+        `it` argv.
+        """
+      : ""
+    return """
+    Compass rejected \(signature) \(repeatCount) times.
+
+    This is a JSON syntax problem, not missing repository context. Do not call
+    `read_file`, `list_files`, or other tools just to repair JSON formatting.
+    Common cause: quotes inside string fields must be escaped, or the sentence should
+    be rewritten without nested quoted code.
+
+    Error:
+    \(error)
+    \(planGuidance)
+
+    Return exactly one valid JSON object now:
+    {"kind":"\(phase.submitKind)","payload":{...}}
+
+    Latest invalid response:
+    \(fencedContinuationText(invalidOutput, limit: 3_000))
+    """
+  }
+
   private static func repeatedToolFailureRepairMessage(
     toolName: String,
     arguments: String,
@@ -842,6 +1001,53 @@ extension AgentExecutor {
     - If you cannot make a different concrete tool call now, return `\(phase.submitKind)` with status=failed or status=blocked and concise feedback.
 
     Repeated arguments:
+    \(fencedContinuationText(arguments, limit: 2_000))
+    """
+  }
+
+  private static func repeatedToolFailureFamilyRepairMessage(
+    toolName: String,
+    arguments: String,
+    family: String,
+    path: String,
+    repeatCount: Int,
+    latestFailure: String,
+    phase: AgentContinuationPhase
+  ) -> String {
+    let guidance: String
+    switch family {
+    case "partial whole-file rewrite":
+      guidance =
+        "If you intended a whole-file rewrite, use the full file range from the latest read_file output. If you intended a local change, replace only the exact existing lines that should be removed. Do not move the same multi-line replacement to another single-line range."
+    case "body-only function declaration replacement":
+      guidance =
+        "Either include the complete function declaration, body, and closing brace in the replacement, or edit only the body lines inside the function. Do not replace a function declaration line with indented body-only lines."
+    case "out-of-range edit range":
+      guidance =
+        "Use the line count from the latest read_file/tool error. For a whole-file replacement, replace line 1 through the last existing line; for an append, insert at lastLine+1 with endLine=lastLine."
+    default:
+      guidance =
+        "Use the concrete repair shape in the latest Compass Observation instead of shifting the same edit to a nearby range."
+    }
+
+    return """
+    You repeated `\(toolName)` failures in the same repair family for `\(path)`.
+
+    Failure family: \(family)
+    Seen in this phase: \(repeatCount) time(s)
+
+    Changing only `startLine`/`endLine` or rereading files is not repairing this failure.
+    \(guidance)
+
+    Choose exactly one next action:
+    - Call `\(toolName)` with the concrete repair shape named in the latest Compass Observation.
+    - Call `read_file` only if the latest observation does not include the current line count or needed range.
+    - Return `\(phase.submitKind)` with status=failed or status=blocked if you cannot make a different concrete edit.
+
+    Latest failure:
+    \(fencedContinuationText(latestFailure, limit: 2_000))
+
+    Latest failed arguments:
     \(fencedContinuationText(arguments, limit: 2_000))
     """
   }
