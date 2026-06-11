@@ -1074,6 +1074,12 @@ public struct HeadlessCompassRunner: Sendable {
     let lines: Double?
   }
 
+  private struct CoverageGap {
+    let changedPath: String
+    let coverageLine: String
+    let testTargetLines: [String]
+  }
+
   private func successfulVerifyCoverageIssue(
     command: String,
     output: String,
@@ -1090,7 +1096,7 @@ public struct HeadlessCompassRunner: Sendable {
     let changedSourcePaths = changedPaths.filter(Self.isCoverageGatedSourcePath)
     guard !changedSourcePaths.isEmpty else { return nil }
 
-    let gaps = changedSourcePaths.compactMap { changedPath -> String? in
+    let gaps = changedSourcePaths.compactMap { changedPath -> CoverageGap? in
       guard
         let row = rows.first(where: {
           Self.coveragePath($0.path, matchesChangedPath: changedPath)
@@ -1101,17 +1107,97 @@ public struct HeadlessCompassRunner: Sendable {
       }
 
       let coveragePath = row.path == changedPath ? row.path : "\(changedPath) (reported as \(row.path))"
-      return
+      let coverageLine =
         "- \(coveragePath): statements \(Self.percentLabel(row.statements)), functions \(Self.percentLabel(row.functions)), lines \(Self.percentLabel(row.lines))"
+      return CoverageGap(
+        changedPath: changedPath,
+        coverageLine: coverageLine,
+        testTargetLines: Self.coverageRepairTestTargetLines(for: changedPath, repoURL: repoURL)
+      )
     }
 
     guard !gaps.isEmpty else { return nil }
+    let targetLines = gaps.flatMap(\.testTargetLines)
+    let testTargetSection =
+      targetLines.isEmpty
+      ? ""
+      : """
+
+        Suggested test targets:
+        \(targetLines.joined(separator: "\n"))
+        """
+    let sourceList = gaps.map { "`\($0.changedPath)`" }.joined(separator: ", ")
     return """
       Verify passed for `\(command)`, but coverage shows changed source files were not exercised:
-      \(gaps.joined(separator: "\n"))
+      \(gaps.map(\.coverageLine).joined(separator: "\n"))
+
+      Coverage repair instructions:
+      - Your next Develop action should be test-focused, not another source-only inspection.
+      - Add or update a test that imports and executes \(sourceList).
+      - Do not edit those source files merely to say no changes were needed; the problem is
+        missing execution evidence, not a source formatting issue.
+      - If an existing sibling or package test file is listed below, read it and edit it.
+        Otherwise create the suggested sibling `*.test.ts` file.
+      \(testTargetSection)
 
       A green verify is not enough when new or changed source has 0% coverage. Add or update tests that import and execute these changed files, wire the new code into the planned behavior when needed, then rerun `\(command)`.
       """
+  }
+
+  private static func coverageRepairTestTargetLines(for changedPath: String, repoURL: URL)
+    -> [String]
+  {
+    var candidates = coverageRepairTestTargets(for: changedPath)
+    let existingPackageTests = existingCoveragePackageTestTargets(for: changedPath, repoURL: repoURL)
+    for candidate in existingPackageTests where !candidates.contains(candidate) {
+      candidates.append(candidate)
+    }
+
+    let fm = FileManager.default
+    return candidates.map { candidate in
+      let exists = fm.fileExists(atPath: repoURL.appending(path: candidate).path)
+      let action = exists ? "read_file then edit_file" : "write_file"
+      return "- `\(candidate)` (\(action)) should import and execute `\(changedPath)`."
+    }
+  }
+
+  private static func coverageRepairTestTargets(for changedPath: String) -> [String] {
+    let url = URL(fileURLWithPath: changedPath)
+    let ext = url.pathExtension
+    let basename = url.deletingPathExtension().lastPathComponent
+    guard !ext.isEmpty else { return [] }
+    let sibling = url
+      .deletingLastPathComponent()
+      .appending(path: "\(basename).test.\(ext)")
+      .relativePath
+    return [sibling]
+  }
+
+  private static func existingCoveragePackageTestTargets(for changedPath: String, repoURL: URL)
+    -> [String]
+  {
+    let sourceURL = URL(fileURLWithPath: changedPath)
+    let sourceDirectory = sourceURL.deletingLastPathComponent()
+    let fm = FileManager.default
+    let directoryURL = repoURL.appending(path: sourceDirectory.relativePath)
+    guard
+      let entries = try? fm.contentsOfDirectory(
+        at: directoryURL,
+        includingPropertiesForKeys: [.isRegularFileKey],
+        options: [.skipsHiddenFiles]
+      )
+    else {
+      return []
+    }
+
+    return entries.compactMap { entry -> String? in
+      let filename = entry.lastPathComponent.lowercased()
+      guard filename.contains(".test.") || filename.contains(".spec.") else { return nil }
+      guard (try? entry.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else {
+        return nil
+      }
+      return sourceDirectory.appending(path: entry.lastPathComponent).relativePath
+    }.sorted()
   }
 
   private static func vitestCoverageRows(in output: String) -> [CoverageTableRow] {

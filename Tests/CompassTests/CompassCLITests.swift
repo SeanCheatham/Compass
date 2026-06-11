@@ -376,6 +376,20 @@ struct CompassCLITests {
           && ($0.detail ?? "").contains("summarize.ts")
           && ($0.detail ?? "").contains("coverage shows changed source")
       })
+    let coverageRetry = snapshot.first {
+      $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "coverage_gap"
+    }
+    #expect(coverageRetry?.detail?.contains("Coverage repair instructions") == true)
+    #expect(coverageRetry?.detail?.contains("Your next Develop action should be test-focused") == true)
+    #expect(coverageRetry?.detail?.contains("Suggested test targets") == true)
+    #expect(
+      coverageRetry?.detail?.contains(
+        "`packages/cli/src/summarize.test.ts` (write_file)"
+      ) == true)
+    #expect(
+      coverageRetry?.detail?.contains(
+        "`packages/cli/src/main.test.ts` (read_file then edit_file)"
+      ) == true)
     #expect(snapshot.filter { $0.kind == "verify_result" && $0.status == "completed" }.count == 2)
   }
 
