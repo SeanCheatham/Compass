@@ -238,6 +238,10 @@ struct AgentHostFilesystem: AgentFilesystem {
     caseInsensitive: Bool,
     timeout: TimeInterval
   ) async throws -> ProcessResult {
+    var isDirectory: ObjCBool = false
+    let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+    let searchTargetIsDirectory = exists && isDirectory.boolValue
+    let workingDirectory = searchTargetIsDirectory ? url : url.deletingLastPathComponent()
     let invocationArgs: [String]
     switch grepExecutable {
     case .ripgrep:
@@ -257,7 +261,7 @@ struct AgentHostFilesystem: AgentFilesystem {
     case .grep:
       var grepArgs = ["-rnE"]
       if caseInsensitive { grepArgs.append("-i") }
-      if let glob, !glob.isEmpty {
+      if searchTargetIsDirectory, let glob, !glob.isEmpty {
         let matches = try await self.glob(pattern: glob, under: url, walkCap: 10_000)
         let filePaths = matches.map(\.url.path)
         guard !filePaths.isEmpty else {
@@ -275,7 +279,7 @@ struct AgentHostFilesystem: AgentFilesystem {
       return try await ProcessRunner.run(
         executable: grepExecutable.path,
         arguments: invocationArgs,
-        workingDirectory: url,
+        workingDirectory: workingDirectory,
         timeout: timeout
       )
     } catch {

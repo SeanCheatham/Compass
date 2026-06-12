@@ -52,6 +52,29 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func grepAcceptsSingleFilePath() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let readmeURL = tempURL.appending(path: "README.md")
+    try """
+    # Fixture
+
+    Compass local-model smoke note.
+    """.write(to: readmeURL, atomically: true, encoding: .utf8)
+
+    let result = try await AgentGrepTool().invoke(
+      arguments: Data(
+        #"{"pattern":"Compass local-model smoke note\\.","path":"README.md"}"#.utf8
+      ),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+
+    #expect(!result.isError)
+    #expect(result.content.contains("README.md:3:Compass local-model smoke note."))
+  }
+
+  @Test
   func editFileOutOfRangeExplainsInsertAfterEnd() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

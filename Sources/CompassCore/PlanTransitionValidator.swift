@@ -110,17 +110,6 @@ enum PlanTransitionValidator {
         rejectedVerify: verify
       )
     }
-    if let coverageError = ForgeVerifyValidator.coverageViolation(
-      verify: verify,
-      profile: forgeProfile
-    ) {
-      throw PlanTransitionValidationError(
-        message: coverageError,
-        reason: .coverageRequirement,
-        missingLabels: ["Coverage-ready verify command"],
-        rejectedVerify: verify
-      )
-    }
     if immediate.selectedBecause?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
       throw PlanTransitionValidationError(
         message:
@@ -139,6 +128,19 @@ enum PlanTransitionValidator {
     }
 
     let handoffDigest = PlanHandoffDigest(plan: immediate.plan)
+    if let coverageError = ForgeVerifyValidator.coverageViolation(
+      verify: verify,
+      profile: forgeProfile
+    ),
+      !isDocumentationOnlyContentVerify(verify, handoffDigest: handoffDigest)
+    {
+      throw PlanTransitionValidationError(
+        message: coverageError,
+        reason: .coverageRequirement,
+        missingLabels: ["Coverage-ready verify command"],
+        rejectedVerify: verify
+      )
+    }
     guard handoffDigest.status == .ready else {
       let requiredMissing = handoffDigest.missingPieces
         .filter { $0.isRequired }
@@ -642,6 +644,41 @@ enum PlanTransitionValidator {
       && normalizedVerify.contains("--coverage")
       && !normalizedVerify.contains("typecheck")
       && !normalizedVerify.contains("build")
+  }
+
+  private static func isDocumentationOnlyContentVerify(
+    _ verify: String,
+    handoffDigest: PlanHandoffDigest
+  ) -> Bool {
+    guard isSimpleDocumentationGrepVerify(verify) else { return false }
+    let text = ([handoffDigest.outcome ?? ""] + handoffDigest.acceptanceChecks)
+      .joined(separator: "\n")
+      .lowercased()
+    let mentionsDocs =
+      text.contains("documentation-only")
+      || text.contains("readme")
+      || text.contains("docs/")
+      || text.contains(".md")
+      || text.contains("documentation")
+    guard mentionsDocs else { return false }
+    return ![
+      "packages/",
+      ".ts",
+      ".tsx",
+      "cli behavior",
+      "vitest",
+      "test file",
+      "source file",
+    ].contains { text.contains($0) }
+  }
+
+  private static func isSimpleDocumentationGrepVerify(_ verify: String) -> Bool {
+    let normalized = verify
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let pattern =
+      #"^(?:/usr/bin/)?grep\s+-[A-Za-z]*q[A-Za-z]*\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s+[\w./-]+\.(?:md|markdown|txt|rst)$"#
+    return normalized.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
   }
 
   private static func claimsCLIImplementationWork(_ text: String) -> Bool {

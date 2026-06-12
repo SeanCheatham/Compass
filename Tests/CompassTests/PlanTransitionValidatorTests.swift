@@ -246,6 +246,53 @@ struct PlanTransitionValidatorTests {
 
     try PlanTransitionValidator.validate(from: .empty, to: testOnly)
   }
+
+  @Test
+  func acceptsDocumentationOnlyGrepVerify() throws {
+    let docsOnly = planState(
+      """
+      ## Outcome
+      Add a documentation-only README note for maintainers.
+
+      ## Acceptance checks
+      - README.md contains `Compass local-model smoke note.`
+      """,
+      verify: #"grep -q "Compass local-model smoke note." README.md"#
+    )
+
+    try PlanTransitionValidator.validate(
+      from: .empty,
+      to: docsOnly,
+      forgeProfile: .typeScriptPnpmVite
+    )
+  }
+
+  @Test
+  func rejectsGrepVerifyForCLIImplementationWork() throws {
+    let implementation = planState(
+      """
+      ## Outcome
+      Implement a split-argv `--limit <number>` option in the CLI.
+
+      ## Acceptance checks
+      - The CLI can parse `main(["--limit", "4", "Ship", "it"])`.
+      """,
+      verify: #"grep -q "--limit" README.md"#
+    )
+
+    do {
+      try PlanTransitionValidator.validate(
+        from: .empty,
+        to: implementation,
+        forgeProfile: .typeScriptPnpmVite
+      )
+      Issue.record("Expected coverage verify rejection.")
+    } catch let error as PlanTransitionValidationError {
+      #expect(error.reason == .coverageRequirement)
+      #expect(error.rejectedVerify == #"grep -q "--limit" README.md"#)
+      #expect(error.message.contains("pnpm verify"))
+    }
+  }
 }
 
 private func planState(_ plan: String, verify: String = "pnpm verify") -> PlanState {

@@ -46,6 +46,8 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
           and Vite + React for web UI.
         - Standard verify is `pnpm verify`; targeted test work may use
           `pnpm test -- --coverage`.
+        - Documentation-only README/docs slices may use a simple `grep -q` content
+          check against the edited Markdown/text file instead of pnpm.
         """
     }
   }
@@ -55,7 +57,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     case .swiftSPM:
       return "test verify should declare SwiftPM coverage, e.g. `swift test --enable-code-coverage`."
     case .typeScriptPnpmVite:
-      return "use `pnpm verify` for standard checks, or include Vitest coverage for test-only checks, e.g. `pnpm test -- --coverage`."
+      return "use `pnpm verify` for standard checks, include Vitest coverage for test-only checks, e.g. `pnpm test -- --coverage`, or use a simple `grep -q` content check for documentation-only README/docs slices."
     }
   }
 
