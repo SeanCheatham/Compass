@@ -160,7 +160,8 @@ enum CompassCLICommand: Equatable {
       let promptLog = try parser.optionalURLOption("--prompt-log")
       let maxIterations = try parser.optionalInt("--max-iterations") ?? 24
       let maxDevelopAttempts = try parser.optionalInt("--max-develop-attempts") ?? 2
-      let maxVerifyRepairAttempts = try parser.optionalInt("--max-verify-repairs") ?? 1
+      let maxVerifyRepairAttempts =
+        try parser.optionalInt("--max-verify-repairs", allowingZero: true) ?? 1
       let runCritic = parser.consumeFlag("--critic")
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
@@ -284,10 +285,12 @@ struct CompassCLIParser {
     return value
   }
 
-  mutating func optionalInt(_ name: String) throws -> Int? {
+  mutating func optionalInt(_ name: String, allowingZero: Bool = false) throws -> Int? {
     guard let raw = try optionalValue(name) else { return nil }
-    guard let value = Int(raw), value > 0 else {
-      throw CompassCLIError.usage("\(name) must be a positive integer.")
+    let isValid: (Int) -> Bool = allowingZero ? { $0 >= 0 } : { $0 > 0 }
+    guard let value = Int(raw), isValid(value) else {
+      let requirement = allowingZero ? "a non-negative integer" : "a positive integer"
+      throw CompassCLIError.usage("\(name) must be \(requirement).")
     }
     return value
   }
@@ -309,7 +312,7 @@ struct CompassCLIParser {
   mutating func modelMode() throws -> HeadlessModelMode {
     guard let raw = try optionalValue("--mode") else { return .auto }
     guard let mode = HeadlessModelMode(rawValue: raw) else {
-      throw CompassCLIError.usage("--mode must be fixture or mlx.")
+      throw CompassCLIError.usage("--mode must be auto, fixture, or mlx.")
     }
     return mode
   }
@@ -379,8 +382,8 @@ enum CompassCLIError: LocalizedError, Equatable {
     Usage:
       compass-cli doctor --repo <path> [--format json|text]
       compass-cli scaffold typescript <path> [--name <name>] [--format json|text]
-      compass-cli run --repo <path> --brief <file-or-inline> [--mode fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--format json|text]
-      compass-cli replay --repo <path> --session <number> [--mode fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
+      compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--format json|text]
+      compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]
       compass-cli verify --repo <path> [--command <cmd>] [--format json|text]
 
     \(localizedDescription)

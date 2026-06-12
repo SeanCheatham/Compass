@@ -27,18 +27,18 @@ struct CompassCLITests {
     }
 
     if case .run(let options, let format) = try CompassCLICommand.parse([
-      "run", "--repo", "/tmp/project", "--brief", "Add a slice", "--mode", "fixture",
+      "run", "--repo", "/tmp/project", "--brief", "Add a slice", "--mode", "auto",
       "--fixture", "/tmp/fixture.jsonl", "--max-iterations", "3", "--max-develop-attempts", "4",
-      "--max-verify-repairs", "2", "--prompt-log", "/tmp/prompts", "--critic", "--format", "text",
+      "--max-verify-repairs", "0", "--prompt-log", "/tmp/prompts", "--critic", "--format", "text",
     ]) {
       #expect(options.repoURL.path == "/tmp/project")
       #expect(options.brief == "Add a slice")
-      #expect(options.mode == .fixture)
+      #expect(options.mode == .auto)
       #expect(options.fixtureURL?.path == "/tmp/fixture.jsonl")
       #expect(options.promptLogDirectory?.path == "/tmp/prompts")
       #expect(options.maxIterations == 3)
       #expect(options.maxDevelopAttempts == 4)
-      #expect(options.maxVerifyRepairAttempts == 2)
+      #expect(options.maxVerifyRepairAttempts == 0)
       #expect(options.runCritic)
       #expect(format == .text)
     } else {
@@ -1132,7 +1132,7 @@ private let weakCLIFlagTestFixtureOutputs = [
 
 private let missingPackageEntryFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- Tests cover the CLI output.","verify":"pnpm verify","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when package bin points at a missing replacement entry point.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Package entry-point mistakes trigger repair."],"constraints":["Use pnpm verify."],"acceptanceSignals":["The CLI entry point exists and is tested."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- `packages/cli/src/main.test.ts` covers the CLI output.","verify":"pnpm verify","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when package bin points at a missing replacement entry point.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Package entry-point mistakes trigger repair."],"constraints":["Use pnpm verify."],"acceptanceSignals":["The CLI entry point exists and is tested."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/package.json"},"reason":"Need current package manifest line numbers before changing the bin entry."}
@@ -1156,13 +1156,19 @@ private let missingPackageEntryFixtureOutputs = [
   {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/src/main.ts","startLine":5,"endLine":6,"content":"  const title = argv.join(\\" \\").trim() || \\"Weekly habit\\";\\n  return `weekly momentum: ${summarizeQueue([{ id: \\"task-1\\", title, done: false }])}`;"},"reason":"Make a concrete source change in the existing CLI entry point."}
   """,
   """
-  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Restored the package bin to src/main.ts and updated the existing CLI entry point with a weekly momentum summary.","feedback":"packages/cli/src/main.ts implements the weekly momentum CLI output and pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.test.ts"},"reason":"Need current CLI test line numbers before adding the required weekly momentum assertion."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/src/main.test.ts","startLine":1,"endLine":8,"content":"import { describe, expect, it } from \\"vitest\\";\\nimport { main } from \\"./main\\";\\n\\ndescribe(\\"@missing-entry-fixture/cli\\", () => {\\n  it(\\"prints weekly momentum output\\", () => {\\n    expect(main([\\"Ship\\", \\"it\\"])).toBe(\\"weekly momentum: 1 open / 1 total\\");\\n  });\\n});\\n"},"reason":"Add the CLI-facing test required by the accepted plan."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Restored the package bin to src/main.ts, updated the existing CLI entry point, and covered the weekly momentum summary in main.test.ts.","feedback":"packages/cli/src/main.ts and packages/cli/src/main.test.ts implement and verify the weekly momentum CLI output; pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 
 private let metadataOnlyImplementationFixtureOutputs = [
   """
-  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- Tests cover the CLI output.","verify":"pnpm verify","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when a source-behavior handoff changes only package metadata.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Metadata-only false success triggers repair."],"constraints":["Use pnpm verify."],"acceptanceSignals":["The CLI behavior is implemented and tested."]},"openQuestions":[]},"lessonEdits":[]}}
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- `packages/cli/src/main.test.ts` covers the CLI output.","verify":"pnpm verify","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when a source-behavior handoff changes only package metadata.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Metadata-only false success triggers repair."],"constraints":["Use pnpm verify."],"acceptanceSignals":["The CLI behavior is implemented and tested."]},"openQuestions":[]},"lessonEdits":[]}}
   """,
   """
   {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/package.json"},"reason":"Need current package manifest line numbers before changing dependencies."}
@@ -1180,7 +1186,13 @@ private let metadataOnlyImplementationFixtureOutputs = [
   {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/src/main.ts","startLine":5,"endLine":6,"content":"  const title = argv.join(\\" \\").trim() || \\"Weekly habit\\";\\n  return `weekly momentum: ${summarizeQueue([{ id: \\"task-1\\", title, done: false }])}`;"},"reason":"Make the source behavior change required by the metadata-only repair guidance."}
   """,
   """
-  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated packages/cli/src/main.ts with a weekly momentum summary.","feedback":"packages/cli/src/main.ts implements the weekly momentum CLI output and pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.test.ts"},"reason":"Need current CLI test line numbers before adding the required weekly momentum assertion."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/src/main.test.ts","startLine":1,"endLine":8,"content":"import { describe, expect, it } from \\"vitest\\";\\nimport { main } from \\"./main\\";\\n\\ndescribe(\\"@metadata-only-fixture/cli\\", () => {\\n  it(\\"prints weekly momentum output\\", () => {\\n    expect(main([\\"Ship\\", \\"it\\"])).toBe(\\"weekly momentum: 1 open / 1 total\\");\\n  });\\n});\\n"},"reason":"Add the CLI-facing test required by the accepted plan."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated packages/cli/src/main.ts and packages/cli/src/main.test.ts with a weekly momentum summary and coverage.","feedback":"packages/cli/src/main.ts implements the weekly momentum CLI output, packages/cli/src/main.test.ts covers it, and pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 

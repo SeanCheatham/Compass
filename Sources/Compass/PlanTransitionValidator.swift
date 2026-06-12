@@ -790,13 +790,11 @@ enum PlanTransitionValidator {
   private static func mentionsTestProof(_ plan: String) -> Bool {
     [
       ".test.",
-      " test",
-      " tests",
+      "packages/cli/src/main.test.ts",
       "vitest",
       "coverage",
       "assert",
       "expect(",
-      "packages/cli/src/main.test.ts",
     ].contains { plan.contains($0) }
   }
 

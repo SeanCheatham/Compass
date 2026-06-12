@@ -264,6 +264,37 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func developFirstAttemptPromptPrioritizesAcceptanceTestFiles() {
+    let next = PlanNext(
+      plan: """
+        ## Outcome
+        Implement `--streak` in `packages/cli/src/main.ts` with a core helper.
+
+        ## Acceptance checks
+        - `packages/core/src/index.test.ts` covers the streak helper.
+        - `packages/cli/src/main.test.ts` calls `main(["--streak", "done", "done"])`.
+        """,
+      verify: "pnpm verify",
+      estimatedDifficulty: .low
+    )
+
+    let prompt = Prompts.developPrompt(
+      next: next,
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: []
+    )
+
+    #expect(prompt.contains("Inspect the files implied by the Outcome and Acceptance checks"))
+    #expect(prompt.contains("packages/cli/src/main.ts"))
+    #expect(prompt.contains("packages/cli/src/main.test.ts"))
+    #expect(prompt.contains("packages/core/src/index.ts"))
+    #expect(prompt.contains("packages/core/src/index.test.ts"))
+    #expect(prompt.contains("source-only edit"))
+  }
+
+  @Test
   func developRetryPromptPrioritizesSuggestedTestTargets() {
     let next = PlanNext(
       plan: """

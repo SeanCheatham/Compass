@@ -489,6 +489,7 @@ public struct ContainerizedLinuxSandbox: Sendable {
       || lowercased.contains("operation not permitted")
       || lowercased.contains("permission")
       || lowercased.contains("virtualization")
+      || lowercased.contains("vmnet")
     guard looksLikeSigningFailure else { return message }
     return """
       \(message)

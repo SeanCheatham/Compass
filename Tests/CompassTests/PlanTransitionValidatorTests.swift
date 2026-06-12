@@ -226,6 +226,31 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test
+  func rejectsGenericCLITestWordingWithoutConcreteTestFile() throws {
+    let weak = planState(
+      """
+      ## Outcome
+      Implement a CLI habit streak summary feature.
+
+      ## Acceptance checks
+      - Add or update core tests for the streak helper.
+      - Add or update CLI tests for split argv usage of `--streak`.
+      - `pnpm verify` passes.
+      """
+    )
+
+    do {
+      try PlanTransitionValidator.validate(from: .empty, to: weak)
+      Issue.record("Expected weak CLI test proof rejection.")
+    } catch let error as PlanTransitionValidationError {
+      #expect(error.reason == .weakVerifyCoverage)
+      #expect(error.message.contains("does not include a CLI test or direct proof"))
+      #expect(error.message.contains("packages/cli/src/main.test.ts"))
+      #expect(error.message.contains(#"main(["--streak", "value"])"#))
+    }
+  }
+
+  @Test
   func jsonFormatCLIProofGuidanceNamesSplitArgvTest() throws {
     let weak = planState(
       """

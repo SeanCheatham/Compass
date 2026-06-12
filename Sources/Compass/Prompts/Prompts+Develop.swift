@@ -99,10 +99,18 @@ extension Prompts {
     if attempt <= 1 {
       return """
         Workflow:
-        1. Inspect the relevant files.
-        2. Implement the packet without broadening scope.
-        3. Run verify and fix failures.
-        4. Return a concrete summary and feedback.
+        1. Inspect the files implied by the Outcome and Acceptance checks before editing.
+           For generated TypeScript work, CLI argv or flag behavior usually means
+           `packages/cli/src/main.ts` plus `packages/cli/src/main.test.ts`; core helpers
+           usually mean `packages/core/src/index.ts` plus `packages/core/src/index.test.ts`.
+        2. If Acceptance checks mention tests, read or create the matching test file and
+           make the test change in the same implementation pass. Do not submit success
+           after a source-only edit when the handoff asks for tests.
+        3. If a planned path is uncertain or missing, list files or glob for the correct
+           generated workspace location before editing.
+        4. Implement the packet without broadening scope.
+        5. Run verify and fix failures.
+        6. Return a concrete summary and feedback.
         """
     }
     let issues = priorIssues.isEmpty ? "_(no captured prior issue text)_" : priorIssues.joined(separator: "\n\n")
