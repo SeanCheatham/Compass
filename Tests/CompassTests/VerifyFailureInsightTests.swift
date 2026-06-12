@@ -15,4 +15,17 @@ struct VerifyFailureInsightTests {
     #expect(insight.kind == .buildFailure)
     #expect(insight.repairDetail.contains("syntax error"))
   }
+
+  @Test
+  func corepackFetchErrorsArePackageManagerBootstrapFailures() {
+    let detail = """
+      Preparing pnpm@9.15.4 for immediate activation...
+      Internal Error: Error when performing the request to https://registry.npmjs.org/pnpm/-/pnpm-9.15.4.tgz
+      """
+    let insight = VerifyFailureInsight(detail: detail, metadata: "command=pnpm verify exitCode=1")
+
+    #expect(insight.kind == .packageManagerBootstrap)
+    #expect(insight.inspectDetail.contains("before project tests could run"))
+    #expect(insight.repairDetail.contains("Do not ask Develop to rewrite app code"))
+  }
 }

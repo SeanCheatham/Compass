@@ -292,6 +292,86 @@ struct CompassCLITests {
   }
 
   @Test
+  func fixtureRunnerStopsAfterDevelopPackageManagerBootstrapFailure() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      CorepackBootstrapFailureBashRunner()
+    }
+    try runner.scaffoldTypeScript(at: tempURL, name: "cli-bootstrap-failure-fixture", onEvent: record)
+
+    let fixtureURL = tempURL.appending(path: "package-bootstrap-develop-fixture.jsonl")
+    try writeFixture(packageBootstrapDevelopFailureFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Exercise package-manager bootstrap failure handling",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 4,
+        maxDevelopAttempts: 3,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(!ok)
+    let snapshot = events.snapshot()
+    #expect(snapshot.contains { $0.kind == "tool_end" && $0.metadata?["tool"] == "bash" })
+    #expect(!snapshot.contains { $0.kind == "develop_retry" })
+    let sessionEnd = try #require(snapshot.last { $0.kind == "session_end" })
+    #expect(sessionEnd.message == "Develop hit a package-manager bootstrap failure.")
+    #expect(sessionEnd.metadata?["retryKind"] == "infrastructure_failure")
+    #expect(sessionEnd.detail?.contains("before project verification could run") == true)
+    #expect(sessionEnd.detail?.contains("will not retry Develop") == true)
+  }
+
+  @Test
+  func fixtureRunnerStopsAfterVerifyPackageManagerBootstrapFailure() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      CorepackBootstrapFailureBashRunner()
+    }
+    try runner.scaffoldTypeScript(at: tempURL, name: "cli-bootstrap-verify-fixture", onEvent: record)
+
+    let fixtureURL = tempURL.appending(path: "package-bootstrap-verify-fixture.jsonl")
+    try writeFixture(packageBootstrapVerifyFailureFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Exercise package-manager bootstrap verify failure handling",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 6,
+        maxDevelopAttempts: 3,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(!ok)
+    let snapshot = events.snapshot()
+    #expect(snapshot.contains { $0.kind == "verify_result" && $0.status == "failed" })
+    #expect(!snapshot.contains { $0.kind == "develop_retry" })
+    let sessionEnd = try #require(snapshot.last { $0.kind == "session_end" })
+    #expect(sessionEnd.message == "Verify hit a package-manager bootstrap failure.")
+    #expect(sessionEnd.metadata?["retryKind"] == "infrastructure_failure")
+    #expect(sessionEnd.metadata?["command"] == "pnpm verify")
+    #expect(sessionEnd.detail?.contains("Do not ask Develop to rewrite app code") == true)
+  }
+
+  @Test
   func fixtureRunnerRetriesDevelopWhenSuccessHasNoGitChanges() async throws {
     let tempURL = try makeCLITempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -620,6 +700,23 @@ private struct FixtureBashRunner: AgentBashRunner {
   }
 }
 
+private struct CorepackBootstrapFailureBashRunner: AgentBashRunner {
+  func run(
+    command: String,
+    workingDirectory: URL,
+    timeout: TimeInterval
+  ) async throws -> ProcessResult {
+    guard command.trimmingCharacters(in: .whitespacesAndNewlines) == "pnpm verify" else {
+      return try await FixtureBashRunner().run(
+        command: command,
+        workingDirectory: workingDirectory,
+        timeout: timeout
+      )
+    }
+    return ProcessResult(exitCode: 1, stdout: corepackBootstrapFailureOutput, stderr: "")
+  }
+}
+
 private final class CoverageGapFixtureBashRunner: AgentBashRunner, @unchecked Sendable {
   private var verifyCount = 0
 
@@ -773,6 +870,38 @@ private let retryFixtureOutputs = [
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now contains the Retry marker sentence required by verify.","feedback":"Retry marker is present in README.md and grep verification can pass; Plan can choose another small slice.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
+
+private let packageBootstrapDevelopFailureFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nExercise package-manager bootstrap failure handling.\\n\\n## Acceptance checks\\n- `pnpm verify` reports the package-manager bootstrap failure.","verify":"pnpm verify","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves infrastructure failures are not treated as code retries.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise package-manager bootstrap failure handling.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Compass stops instead of asking Develop to rewrite app code."],"constraints":["Use pnpm verify."],"acceptanceSignals":["Infrastructure failure is surfaced."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"bash","arguments":{"command":"pnpm verify"},"reason":"Run verify before submitting."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"failed","summary":"The verify command failed due to an internal error when fetching pnpm@9.15.4 from the npm registry.","feedback":"Check network access and ensure Corepack can activate pnpm before rerunning Compass.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
+private let packageBootstrapVerifyFailureFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Package bootstrap marker. sentence near the top of README.md.\\n\\n## Acceptance checks\\n- README.md contains Package bootstrap marker.\\n- `pnpm verify` runs after Develop.","verify":"pnpm verify","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves runner verify bootstrap failures are not treated as code retries.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Exercise package-manager bootstrap verify handling.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Compass stops when the verify runtime cannot start pnpm."],"constraints":["Use pnpm verify."],"acceptanceSignals":["Infrastructure failure is surfaced."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before editing."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"README.md","startLine":3,"endLine":2,"insert":["Package bootstrap marker.",""]},"reason":"Add the marker sentence required by the handoff."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now contains the Package bootstrap marker sentence.","feedback":"Package bootstrap marker is present in README.md; pnpm verify should run next.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
+private let corepackBootstrapFailureOutput = """
+Preparing pnpm@9.15.4 for immediate activation...
+Internal Error: Error when performing the request to https://registry.npmjs.org/pnpm/-/pnpm-9.15.4.tgz; for troubleshooting help, see https://github.com/nodejs/corepack#troubleshooting
+"""
 
 private let noChangeRetryFixtureOutputs = [
   """

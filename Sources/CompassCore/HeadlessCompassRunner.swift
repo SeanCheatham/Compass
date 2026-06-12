@@ -400,6 +400,26 @@ public struct HeadlessCompassRunner: Sendable {
 
         guard develop.status == .succeeded, develop.bypassVerify != true else {
           let issue = developFailureIssue(develop)
+          if let infrastructureIssue = packageManagerBootstrapFailureIssue(from: issue) {
+            session.notes.append(infrastructureIssue)
+            session.status = .failed
+            session.endedAt = Date().timeIntervalSince1970 * 1000
+            try persist(session: session, workspace: workspace)
+            onEvent(
+              HeadlessCompassEvent(
+                kind: "session_end",
+                level: "error",
+                status: "failed",
+                message: "Develop hit a package-manager bootstrap failure.",
+                detail: infrastructureIssue,
+                metadata: [
+                  "session": "\(sessionNumber)",
+                  "retryKind": "infrastructure_failure",
+                ]
+              )
+            )
+            return false
+          }
           session.notes.append(issue)
           if attempt < options.maxDevelopAttempts {
             priorIssues = [issue]
@@ -586,6 +606,30 @@ public struct HeadlessCompassRunner: Sendable {
         }
 
         let issue = verifyFailureIssue(command: immediate.verify, result: verify)
+        if let infrastructureIssue = packageManagerBootstrapFailureIssue(
+          from: verify.stdout + verify.stderr
+        ) {
+          session.notes.append("Verify attempt \(attempt) hit a package-manager bootstrap failure.")
+          session.notes.append(infrastructureIssue)
+          session.status = .failed
+          session.endedAt = Date().timeIntervalSince1970 * 1000
+          try persist(session: session, workspace: workspace)
+          onEvent(
+            HeadlessCompassEvent(
+              kind: "session_end",
+              level: "error",
+              status: "failed",
+              message: "Verify hit a package-manager bootstrap failure.",
+              detail: infrastructureIssue,
+              metadata: [
+                "session": "\(sessionNumber)",
+                "retryKind": "infrastructure_failure",
+                "command": immediate.verify,
+              ]
+            )
+          )
+          return false
+        }
         session.notes.append("Verify attempt \(attempt) failed.")
         let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
         let canUseVerifyRepairAttempt =
@@ -1155,6 +1199,21 @@ public struct HeadlessCompassRunner: Sendable {
 
       Verify output:
       \(combined.isEmpty ? "_(no output)_" : combined)
+      """
+  }
+
+  private func packageManagerBootstrapFailureIssue(from detail: String) -> String? {
+    let insight = VerifyFailureInsight(detail: detail, metadata: nil)
+    guard insight.kind == .packageManagerBootstrap else { return nil }
+    return """
+      TypeScript package-manager bootstrap failed before project verification could run.
+
+      \(insight.inspectDetail)
+
+      Repair guidance: \(insight.repairDetail)
+
+      Compass will not retry Develop for this failure because application code changes cannot
+      repair Corepack, pnpm, or network availability in the execution environment.
       """
   }
 
