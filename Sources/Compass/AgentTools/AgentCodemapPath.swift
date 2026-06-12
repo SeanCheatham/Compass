@@ -57,6 +57,7 @@ enum AgentCodemapPath {
     let ext = ns.pathExtension.lowercased()
     let importExtensions: Set<String> = [
       "ts", "tsx", "js", "jsx", "mjs", "cjs", "mts", "cts", "py", "pyi",
+      "tes",
     ]
     if importExtensions.contains(ext) {
       s = ns.deletingPathExtension

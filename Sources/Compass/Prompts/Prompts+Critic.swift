@@ -34,9 +34,9 @@ extension Prompts {
       fixable issue the next Develop pass can address in one small step.
 
       Review rules:
-      - Generated Compass output must remain TypeScript.
+      - Generated Compass output must remain Tessera unless the active repo is an imported legacy profile.
       - Check whether the diff implements the plan without overshooting it.
-      - Look for bugs verify may not catch, missing tests, broken strict typing, accidental
+      - Look for bugs verify may not catch, missing tests, broken types, accidental
         generated artifacts, and ignored lessons or denied assumptions.
       - You may use read-only tools and `bash` probes. Do not edit, commit, or push.
 

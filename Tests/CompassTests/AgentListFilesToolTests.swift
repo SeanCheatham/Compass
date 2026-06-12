@@ -107,6 +107,32 @@ struct AgentListFilesToolTests {
     #expect(emptyDirectoryResult.content.contains("(no source files matching 'packages/cli/test')"))
     #expect(emptyDirectoryResult.content.contains("try a broader filter such as 'packages/cli'"))
   }
+
+  @Test
+  func includesLiveTesseraSourceFilesMissingFromCodemap() async throws {
+    let tempURL = try makeListFilesTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let src = tempURL.appending(path: "src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
+    try "(def display ((name Text)) (concat name \"!\"))\n(display user.name)\n".write(
+      to: src.appending(path: "display-name.tes"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let result = try await AgentListFilesTool().invoke(
+      arguments: Data(#"{"path":"src"}"#.utf8),
+      context: AgentToolContext(
+        workingDirectory: tempURL,
+        codemapStoreDirectory: tempURL.appending(path: "codemap", directoryHint: .isDirectory)
+      )
+    )
+
+    #expect(!result.isError)
+    #expect(result.content.contains("files: 1"))
+    #expect(result.content.contains("src/display-name.tes  [Tessera, unindexed]"))
+  }
 }
 
 private func makeListFilesTempDirectory() throws -> URL {

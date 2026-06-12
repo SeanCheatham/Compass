@@ -7,7 +7,7 @@ The current direction is intentionally narrow:
 - MLX is the only model backend.
 - Compass does deterministic work through local tools and the Shared VM.
 - Model calls are reserved for decomposition, implementation text, and review.
-- Generated projects are TypeScript pnpm workspaces.
+- Generated projects are Tessera app workspaces.
 
 ## Factory Loop
 
@@ -32,39 +32,38 @@ Activity/Live is the primary project surface.
 
 ## Generated Projects
 
-Compass-generated output is TypeScript only. New projects use:
+Compass-generated output is Tessera by default. New projects use:
 
-- `pnpm-workspace.yaml`
-- root `package.json`
-- `tsconfig.base.json`
-- `packages/core`
-- `packages/cli`
-- `packages/web`
+- `tessera.json`
+- `src/*.tes`
+- `contexts/*.json`
+- `tests/*.json`
+- `cli` and `web-json` manifest entrypoints
 
-The generated stack is strict TypeScript, Vite + React for web, Vitest coverage, and `tsx` for CLI/dev scripts.
+The generated stack is a small-model-friendly Tessera app contract. The current web replacement is an explicit `web-json` entrypoint until Tessera grows a full UI runtime.
 
 Standard root scripts:
 
 ```bash
-pnpm verify
-pnpm test -- --coverage
-pnpm build
-pnpm typecheck
+tessera verify . --json
+tessera app cli --json
+tessera app web --json
 ```
 
 ## Runtime
 
 Compass runs model work locally through native Swift MLX with `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit`. The model is downloaded only after user approval into Compass Application Support. There are no API keys, remote text providers, media providers, or provider routing settings in this build.
 
-The Shared VM provisions the default generated-project toolchain:
+The Shared VM/tooling path expects this generated-project toolchain:
 
 - Xcode Command Line Tools
 - Homebrew
 - ripgrep
-- Node.js
-- npm
-- Corepack/pnpm
-- TypeScript
+- Node.js and Corepack/pnpm for legacy TypeScript repositories
+- `tessera` CLI on `PATH` for generated Tessera app verification
+
+Until Compass packages Tessera into the runtime image directly, install or link the Tessera CLI
+before running generated Tessera verification inside that environment.
 
 ## Development
 

@@ -257,8 +257,8 @@ struct FactoryPivotTests {
     }
     #expect(prompts.contains("local software factory"))
     #expect(prompts.contains("TypeScript"))
+    #expect(prompts.contains("Tessera"))
     #expect(prompts.contains("pnpm verify"))
-    #expect(prompts.contains("Do not use bare `pnpm test`"))
     #expect(prompts.contains("develop_continue"))
     #expect(prompts.contains("develop_submit"))
   }
@@ -289,7 +289,6 @@ struct FactoryPivotTests {
     #expect(prompt.contains("Inspect the files implied by the Outcome and Acceptance checks"))
     #expect(prompt.contains("packages/cli/src/main.ts"))
     #expect(prompt.contains("packages/cli/src/main.test.ts"))
-    #expect(prompt.contains("packages/core/src/index.ts"))
     #expect(prompt.contains("packages/core/src/index.test.ts"))
     #expect(prompt.contains("source-only edit"))
   }
@@ -401,9 +400,36 @@ struct FactoryPivotTests {
   }
 
   @Test
-  func forgeProfileDefaultsToTypeScriptGeneratedProjects() throws {
-    #expect(ForgeProfile.generatedProjectDefault == .typeScriptPnpmVite)
-    #expect(ForgeProfile.generatedProjectTargets == [.typeScriptPnpmVite])
+  func tesseraScaffoldHasManifestSourcesContextsAndTests() throws {
+    let files = TesseraProjectScaffold.files(
+      options: .init(projectName: "My Factory App")
+    )
+    let byPath = Dictionary(uniqueKeysWithValues: files.map { ($0.path, $0.contents) })
+
+    #expect(byPath.keys.contains("tessera.json"))
+    #expect(byPath.keys.contains("src/display-name.tes"))
+    #expect(byPath.keys.contains("contexts/user.json"))
+    #expect(byPath.keys.contains("tests/display-name.json"))
+
+    let manifest = try #require(byPath["tessera.json"])
+    #expect(manifest.contains(#""capabilities""#))
+    #expect(manifest.contains(#""cli""#))
+    #expect(manifest.contains(#""web-json""#))
+    #expect(manifest.contains(#""entrypoints""#))
+
+    let source = try #require(byPath["src/display-name.tes"])
+    #expect(source.contains("(def display"))
+    #expect(source.contains("(display user.name)"))
+
+    let test = try #require(byPath["tests/display-name.json"])
+    #expect(test.contains(#""expect"#))
+    #expect(test.contains("my-factory-app!"))
+  }
+
+  @Test
+  func forgeProfileDefaultsToTesseraGeneratedProjects() throws {
+    #expect(ForgeProfile.generatedProjectDefault == .tesseraApp)
+    #expect(ForgeProfile.generatedProjectTargets == [.tesseraApp])
     #expect(RepositoryManifestHint.packageJSON.forgeProfile == .typeScriptPnpmVite)
 
     let tempURL = FileManager.default.temporaryDirectory
@@ -414,10 +440,23 @@ struct FactoryPivotTests {
       attributes: nil
     )
     defer { try? FileManager.default.removeItem(at: tempURL) }
-    try TypeScriptProjectScaffold.write(to: tempURL, options: .init(projectName: "Detected App"))
+    try TesseraProjectScaffold.write(to: tempURL, options: .init(projectName: "Detected App"))
 
-    #expect(TypeScriptProjectScaffold.isGeneratedWorkspace(at: tempURL))
-    #expect(ForgeProfileService.detect(in: tempURL) == .typeScriptPnpmVite)
+    #expect(TesseraProjectScaffold.isGeneratedWorkspace(at: tempURL))
+    #expect(ForgeProfileService.detect(in: tempURL) == .tesseraApp)
+
+    let legacyURL = FileManager.default.temporaryDirectory
+      .appending(path: "CompassForgeProfileLegacyTests-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(
+      at: legacyURL,
+      withIntermediateDirectories: true,
+      attributes: nil
+    )
+    defer { try? FileManager.default.removeItem(at: legacyURL) }
+    try TypeScriptProjectScaffold.write(to: legacyURL, options: .init(projectName: "Legacy App"))
+
+    #expect(TypeScriptProjectScaffold.isGeneratedWorkspace(at: legacyURL))
+    #expect(ForgeProfileService.detect(in: legacyURL) == .typeScriptPnpmVite)
   }
 
   @Test
@@ -468,8 +507,9 @@ struct FactoryPivotTests {
 
     #expect(nudge.eventText == "plan_submit rejected")
     #expect(nudge.userMessage.contains("`pnpm test`"))
+    #expect(nudge.userMessage.contains("`tessera verify . --json`"))
     #expect(nudge.userMessage.contains("`pnpm verify`"))
-    #expect(nudge.userMessage.contains("Do not use bare `pnpm test`"))
+    #expect(nudge.userMessage.contains("Do not use placeholder or bare test commands"))
   }
 
   @Test

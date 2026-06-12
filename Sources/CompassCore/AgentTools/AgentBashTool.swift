@@ -188,8 +188,11 @@ struct AgentBashTool: AgentTool {
 
     return normalized == "pnpm verify"
       || normalized == "pnpm run verify"
+      || normalized == "tessera verify . --json"
+      || normalized.hasPrefix("tessera verify ")
       || normalized.contains(" pnpm verify")
       || normalized.contains(" pnpm run verify")
+      || normalized.contains(" tessera verify ")
       || normalized.hasSuffix(" pnpm verify")
       || normalized.hasSuffix(" pnpm run verify")
   }

@@ -236,6 +236,65 @@ public struct HeadlessCompassRunner: Sendable {
     }
   }
 
+  public func scaffoldTessera(
+    at url: URL,
+    name: String?,
+    initializeGit: Bool = false,
+    onEvent: @Sendable (HeadlessCompassEvent) -> Void
+  ) throws {
+    let url = url.standardizedFileURL
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    let projectName = name ?? url.lastPathComponent
+    try TesseraProjectScaffold.write(
+      to: url,
+      options: TesseraProjectScaffold.Options(projectName: projectName)
+    )
+    let workspace = CompassWorkspace(repoURL: url)
+    try workspace.initialize()
+    try ForgeProfileService.writeRecord(
+      ForgeProfileRecord(
+        profile: .tesseraApp,
+        version: ForgeProfileRecord.currentVersion
+      ),
+      workspace: workspace
+    )
+    onEvent(
+      HeadlessCompassEvent(
+        kind: "scaffold",
+        level: "success",
+        status: "completed",
+        message: "Tessera app scaffolded.",
+        metadata: ["path": url.path, "name": projectName]
+      )
+    )
+
+    guard initializeGit else { return }
+    let result = Self.initializeScaffoldGitBaseline(at: url)
+    if result.exitCode == 0 {
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "scaffold_git_baseline",
+          level: "success",
+          status: "completed",
+          message: "Initial Git baseline committed.",
+          metadata: ["path": url.path]
+        )
+      )
+    } else {
+      onEvent(
+        HeadlessCompassEvent(
+          kind: "scaffold_git_baseline",
+          level: "warning",
+          status: "failed",
+          message: "Initial Git baseline was not created.",
+          detail: [result.stdout, result.stderr]
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .joined(separator: "\n")
+        )
+      )
+    }
+  }
+
   @discardableResult
   public func verify(
     options: HeadlessVerifyOptions,
@@ -249,7 +308,8 @@ public struct HeadlessCompassRunner: Sendable {
       command?.isEmpty == false
       ? command!
       : state.immediate?.verify.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
-        ?? "pnpm verify"
+        ?? (ForgeProfileService.resolve(repoURL: options.repoURL, workspace: workspace)
+          ?? .generatedProjectDefault).standardVerifyCommand
     return try await runVerifyCommand(
       verifyCommand,
       repoURL: options.repoURL,
@@ -504,7 +564,8 @@ public struct HeadlessCompassRunner: Sendable {
         )
         try persist(session: session, workspace: workspace)
 
-        if verify.exitCode == 0,
+        if forgeProfile == .typeScriptPnpmVite,
+          verify.exitCode == 0,
           let issue = await successfulVerifyCoverageIssue(
             command: immediate.verify,
             output: verify.stdout + verify.stderr,
@@ -535,7 +596,8 @@ public struct HeadlessCompassRunner: Sendable {
           break
         }
 
-        if verify.exitCode == 0,
+        if forgeProfile == .typeScriptPnpmVite,
+          verify.exitCode == 0,
           let issue = await successfulVerifyMissingRequiredTestIssue(
             immediate: immediate,
             brief: plannedState.brief,
@@ -567,7 +629,8 @@ public struct HeadlessCompassRunner: Sendable {
           break
         }
 
-        if verify.exitCode == 0,
+        if forgeProfile == .typeScriptPnpmVite,
+          verify.exitCode == 0,
           let issue = await successfulVerifyWeakCLIFlagTestIssue(
             immediate: immediate,
             brief: plannedState.brief,
@@ -599,7 +662,8 @@ public struct HeadlessCompassRunner: Sendable {
           break
         }
 
-        if verify.exitCode == 0,
+        if forgeProfile == .typeScriptPnpmVite,
+          verify.exitCode == 0,
           let issue = await successfulVerifyMissingPackageEntryIssue(
             command: immediate.verify,
             beforeSha: session.beforeSha,
@@ -629,7 +693,8 @@ public struct HeadlessCompassRunner: Sendable {
           break
         }
 
-        if verify.exitCode == 0,
+        if forgeProfile == .typeScriptPnpmVite,
+          verify.exitCode == 0,
           let issue = await successfulVerifyManifestOnlyImplementationIssue(
             immediate: immediate,
             brief: plannedState.brief,

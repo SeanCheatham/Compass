@@ -169,7 +169,11 @@ enum PlanTransitionValidator {
     if let repoURL {
       try validateGroundedPaths(in: immediate.plan, repoURL: repoURL)
     }
-    try validateVerifySupportsHandoff(immediate, handoffDigest: handoffDigest)
+    try validateVerifySupportsHandoff(
+      immediate,
+      handoffDigest: handoffDigest,
+      forgeProfile: forgeProfile
+    )
   }
 
   private static func droppedBriefFieldLabels(
@@ -324,8 +328,10 @@ enum PlanTransitionValidator {
 
   private static func validateVerifySupportsHandoff(
     _ immediate: PlanNext,
-    handoffDigest: PlanHandoffDigest
+    handoffDigest: PlanHandoffDigest,
+    forgeProfile: ForgeProfile?
   ) throws {
+    guard forgeProfile == .typeScriptPnpmVite else { return }
     let normalizedVerify =
       immediate.verify
       .lowercased()

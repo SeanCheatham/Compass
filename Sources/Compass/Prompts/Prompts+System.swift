@@ -114,8 +114,8 @@ extension Prompts {
     The loop is Brief -> decomposed queue -> immediate packet -> Develop -> Verify -> Critic.
     Compass relies on one local MLX model for narrow non-deterministic work and keeps the
     harness responsible for state, verification, files, history, assumptions, and retries.
-    Generated output is TypeScript only: pnpm workspace, strict TypeScript, Vite + React,
-    Vitest coverage, and `tsx` for CLI/dev scripts.
+    Generated output is Tessera by default: `tessera.json`, `src/*.tes`, JSON contexts,
+    JSON tests, and a `web-json` entrypoint until Tessera has a full UI runtime.
     """
   }
 
@@ -169,7 +169,9 @@ extension Prompts {
       File tools read and write repo-relative paths on the Compass-owned host worktree.
       Bash commands run inside Linux with the repo mounted at `/workspace`; use relative
       paths or `/workspace/...` in shell commands. Expected tools include git, Node.js,
-      npm, Corepack, and pinned pnpm. Docker, Xcode, and Homebrew are unavailable.
+      `tessera` on PATH for generated Tessera verification when installed, and
+      npm/Corepack with pinned pnpm for legacy TypeScript repos.
+      Docker, Xcode, and Homebrew are unavailable.
       """
     }
   }

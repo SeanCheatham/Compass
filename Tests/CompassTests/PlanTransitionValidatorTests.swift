@@ -204,7 +204,11 @@ struct PlanTransitionValidatorTests {
     )
 
     do {
-      try PlanTransitionValidator.validate(from: .empty, to: weak)
+      try PlanTransitionValidator.validate(
+        from: .empty,
+        to: weak,
+        forgeProfile: .typeScriptPnpmVite
+      )
       Issue.record("Expected weak verify rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .weakVerifyCoverage)
@@ -222,7 +226,11 @@ struct PlanTransitionValidatorTests {
       """
     )
 
-    try PlanTransitionValidator.validate(from: .empty, to: grounded)
+    try PlanTransitionValidator.validate(
+      from: .empty,
+      to: grounded,
+      forgeProfile: .typeScriptPnpmVite
+    )
   }
 
   @Test
@@ -240,7 +248,11 @@ struct PlanTransitionValidatorTests {
     )
 
     do {
-      try PlanTransitionValidator.validate(from: .empty, to: weak)
+      try PlanTransitionValidator.validate(
+        from: .empty,
+        to: weak,
+        forgeProfile: .typeScriptPnpmVite
+      )
       Issue.record("Expected weak CLI test proof rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .weakVerifyCoverage)
@@ -263,7 +275,11 @@ struct PlanTransitionValidatorTests {
     )
 
     do {
-      try PlanTransitionValidator.validate(from: .empty, to: weak)
+      try PlanTransitionValidator.validate(
+        from: .empty,
+        to: weak,
+        forgeProfile: .typeScriptPnpmVite
+      )
       Issue.record("Expected weak verify rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .weakVerifyCoverage)
@@ -288,7 +304,11 @@ struct PlanTransitionValidatorTests {
     )
 
     do {
-      try PlanTransitionValidator.validate(from: .empty, to: implementation)
+      try PlanTransitionValidator.validate(
+        from: .empty,
+        to: implementation,
+        forgeProfile: .typeScriptPnpmVite
+      )
       Issue.record("Expected test-only verify rejection.")
     } catch let error as PlanTransitionValidationError {
       #expect(error.reason == .weakVerifyCoverage)
@@ -311,7 +331,11 @@ struct PlanTransitionValidatorTests {
       verify: "pnpm test -- --coverage"
     )
 
-    try PlanTransitionValidator.validate(from: .empty, to: testOnly)
+    try PlanTransitionValidator.validate(
+      from: .empty,
+      to: testOnly,
+      forgeProfile: .typeScriptPnpmVite
+    )
   }
 
   @Test

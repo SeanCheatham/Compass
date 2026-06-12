@@ -16,6 +16,16 @@ struct CompassCLITests {
       Issue.record("Expected doctor command.")
     }
 
+    if case .scaffoldTessera(let path, let name, let format) = try CompassCLICommand.parse([
+      "scaffold", "tessera", "/tmp/new-tessera-project", "--name", "new-tessera-project",
+    ]) {
+      #expect(path.path == "/tmp/new-tessera-project")
+      #expect(name == "new-tessera-project")
+      #expect(format == .json)
+    } else {
+      Issue.record("Expected Tessera scaffold command.")
+    }
+
     if case .scaffoldTypeScript(let path, let name, let format) = try CompassCLICommand.parse([
       "scaffold", "typescript", "/tmp/new-project", "--name", "new-project",
     ]) {
@@ -23,7 +33,7 @@ struct CompassCLITests {
       #expect(name == "new-project")
       #expect(format == .json)
     } else {
-      Issue.record("Expected scaffold command.")
+      Issue.record("Expected TypeScript scaffold command.")
     }
 
     if case .run(let options, let format) = try CompassCLICommand.parse([
@@ -117,10 +127,13 @@ struct CompassCLITests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     let exitCode = await CompassCLI.run(arguments: [
-      "scaffold", "typescript", tempURL.path, "--name", "cli-git-baseline-fixture",
+      "scaffold", "tessera", tempURL.path, "--name", "cli-git-baseline-fixture",
     ])
 
     #expect(exitCode == 0)
+    #expect(FileManager.default.fileExists(atPath: tempURL.appending(path: "tessera.json").path))
+    #expect(FileManager.default.fileExists(atPath: tempURL.appending(path: "src/display-name.tes").path))
+    #expect(!FileManager.default.fileExists(atPath: tempURL.appending(path: "package.json").path))
     let result = try await AgentHostBashRunner().run(
       command: "git rev-parse --verify HEAD && git status --porcelain --untracked-files=all",
       workingDirectory: tempURL,

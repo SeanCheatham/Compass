@@ -255,6 +255,8 @@ struct PlanHandoffRepairGuide: Equatable, Sendable {
       return "swift test --enable-code-coverage"
     case .typeScriptPnpmVite:
       return "pnpm verify"
+    case .tesseraApp:
+      return "tessera verify . --json"
     }
   }
 

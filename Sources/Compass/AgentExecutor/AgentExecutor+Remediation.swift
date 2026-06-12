@@ -21,8 +21,9 @@ extension AgentExecutor {
             `\(error.rejectedVerify ?? "unknown")`
 
             Return `plan_submit` again with the same small work packet if it is still useful, but set
-            `state.immediate.verify` to `pnpm verify`. For a test-only slice, `pnpm test -- --coverage`
-            is also valid. Do not use bare `pnpm test`.
+            `state.immediate.verify` to a coverage-ready command such as
+            `tessera verify . --json` for generated Tessera apps, or `pnpm verify` for a
+            legacy TypeScript profile. Do not use placeholder or bare test commands.
 
             \(submitResultDecodeRetryShape(for: .plan))
             """
@@ -110,7 +111,7 @@ extension AgentExecutor {
         userMessage: """
           Your previous Plan payload did not select valid immediate work: \(error.message)
 
-          Return `plan_submit` again with one commit-sized TypeScript work packet and a real verify command.
+          Return `plan_submit` again with one commit-sized Tessera work packet and a real verify command.
 
           \(submitResultDecodeRetryShape(for: .plan))
           """
@@ -316,7 +317,7 @@ extension AgentExecutor {
           "state": {
             "immediate": {
               "plan": "## Outcome\\n<what changes>\\n\\n## Acceptance checks\\n- <observable result>",
-              "verify": "pnpm verify",
+              "verify": "tessera verify . --json",
               "verifyTimeoutMs": 600000,
               "estimatedDifficulty": "low",
               "selectedBecause": "<why this is the next slice>",

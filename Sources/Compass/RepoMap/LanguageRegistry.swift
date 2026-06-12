@@ -21,7 +21,7 @@ final class LanguageRegistry: @unchecked Sendable {
 
   init() {
     var map: [CodemapLanguage: Entry] = [:]
-    for codemapLanguage in CodemapLanguage.allCases {
+    for codemapLanguage in CodemapLanguage.allCases where codemapLanguage != .tessera {
       let lang = Self.makeLanguage(for: codemapLanguage)
       let querySource = Self.symbolQuerySource(for: codemapLanguage)
       guard let queryData = querySource.data(using: .utf8) else {
@@ -80,6 +80,14 @@ final class LanguageRegistry: @unchecked Sendable {
         errorTypes: ["catch_clause"],
         callTypes: ["call_expression"]
       )
+    case .tessera:
+      return RuntimeNodeKinds(
+        branchTypes: ["if"],
+        loopTypes: [],
+        switchTypes: [],
+        errorTypes: [],
+        callTypes: ["call"]
+      )
     }
   }
 
@@ -89,6 +97,8 @@ final class LanguageRegistry: @unchecked Sendable {
     case .typescript: return Language(language: tree_sitter_typescript())
     case .tsx: return Language(language: tree_sitter_tsx())
     case .javascript: return Language(language: tree_sitter_javascript())
+    case .tessera:
+      fatalError("Tessera codemap extraction does not use tree-sitter")
     }
   }
 
@@ -108,6 +118,7 @@ final class LanguageRegistry: @unchecked Sendable {
     case .typescript: return typeScriptQuery
     case .tsx: return typeScriptQuery
     case .javascript: return javaScriptQuery
+    case .tessera: return ""
     }
   }
 

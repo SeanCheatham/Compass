@@ -34,12 +34,12 @@ struct SidebarView: View {
           .foregroundStyle(.secondary)
         Spacer()
         Button {
-          Task { await model.createTypeScriptProject() }
+          Task { await model.createTesseraProject() }
         } label: {
-          Label("New TypeScript Project", systemImage: "plus.square.dashed")
+          Label("New Tessera App", systemImage: "plus.square.dashed")
         }
         .labelStyle(.iconOnly)
-        .help("New TypeScript project")
+        .help("New Tessera app")
 
         Button {
           Task { await model.chooseRepository() }

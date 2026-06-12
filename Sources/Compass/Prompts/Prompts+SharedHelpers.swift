@@ -30,7 +30,7 @@ extension Prompts {
     guard let forgeProfile else {
       return """
         ## Forge profile
-        _(not detected - generated Compass projects default to TypeScript with pnpm, Vite, and Vitest.)_
+        _(not detected - generated Compass projects default to Tessera apps.)_
         """
     }
     return """

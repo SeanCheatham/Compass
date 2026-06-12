@@ -3,14 +3,16 @@ import Foundation
 enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   case swiftSPM = "swift-spm"
   case typeScriptPnpmVite = "typescript-pnpm-vite"
+  case tesseraApp = "tessera-app"
 
-  static let generatedProjectDefault: ForgeProfile = .typeScriptPnpmVite
-  static let generatedProjectTargets: [ForgeProfile] = [.typeScriptPnpmVite]
+  static let generatedProjectDefault: ForgeProfile = .tesseraApp
+  static let generatedProjectTargets: [ForgeProfile] = [.tesseraApp]
 
   var displayName: String {
     switch self {
     case .swiftSPM: return "Imported Swift (SwiftPM)"
     case .typeScriptPnpmVite: return "TypeScript (pnpm + Vite + Vitest)"
+    case .tesseraApp: return "Tessera App"
     }
   }
 
@@ -21,8 +23,10 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   var generationStatusDescription: String {
     switch self {
     case .swiftSPM:
-      return "imported-repo profile; Compass-generated output is TypeScript"
+      return "imported-repo profile; Compass-generated output is Tessera"
     case .typeScriptPnpmVite:
+      return "imported/generated legacy TypeScript profile"
+    case .tesseraApp:
       return "default generated-project target"
     }
   }
@@ -33,7 +37,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
       return """
         Imported Swift profile:
         - This is for maintaining the Compass host or user-owned Swift packages.
-        - Do not create new generated output in Swift; generated projects use TypeScript.
+        - Do not create new generated output in Swift; generated projects use Tessera.
         - Prefer SwiftPM verification with `swift test` for package work.
         """
     case .typeScriptPnpmVite:
@@ -49,6 +53,17 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         - Documentation-only README/docs slices may use a simple `grep -q` content
           check against the edited Markdown/text file instead of pnpm.
         """
+    case .tesseraApp:
+      return """
+        Forge profile - Tessera App:
+        - Compass-generated project code must be Tessera source in `src/*.tes`.
+        - Use `tessera.json` for named app entrypoints, `contexts/*.json` for host input,
+          and `tests/*.json` for deterministic examples.
+        - Keep Tessera changes expression-oriented, typed, and small-model friendly.
+        - Standard verify is `tessera verify . --json`; focused entrypoint checks may use
+          `tessera app <entrypoint> --json`.
+        - The `web` entrypoint is `web-json` until Tessera grows a full UI runtime.
+        """
     }
   }
 
@@ -58,6 +73,19 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
       return "test verify should declare SwiftPM coverage, e.g. `swift test --enable-code-coverage`."
     case .typeScriptPnpmVite:
       return "use `pnpm verify` for standard checks, include Vitest coverage for test-only checks, e.g. `pnpm test -- --coverage`, or use a simple `grep -q` content check for documentation-only README/docs slices."
+    case .tesseraApp:
+      return "use `tessera verify . --json` so Compass can read the Tessera trace report for exercised `.tes` sources."
+    }
+  }
+
+  var standardVerifyCommand: String {
+    switch self {
+    case .swiftSPM:
+      return "swift test --enable-code-coverage"
+    case .typeScriptPnpmVite:
+      return "pnpm verify"
+    case .tesseraApp:
+      return "tessera verify . --json"
     }
   }
 
@@ -87,6 +115,8 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
           pnpm exec vitest run --coverage --coverage.reporter=json-summary
         fi
         """
+    case .tesseraApp:
+      return "tessera verify . --json"
     }
   }
 
@@ -107,6 +137,8 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     case .typeScriptPnpmVite:
       return normalized.contains("pnpm build") || normalized.contains("pnpm typecheck")
         || normalized.contains("tsc ")
+    case .tesseraApp:
+      return normalized.contains("tessera validate") || normalized.contains("tessera fmt --check")
     }
   }
 
@@ -119,6 +151,8 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
       return normalized.contains("coverage")
         || normalized.contains("pnpm verify")
         || normalized.contains("pnpm run verify")
+    case .tesseraApp:
+      return normalized.contains("tessera verify") && normalized.contains("--json")
     }
   }
 
@@ -133,6 +167,8 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         return CoverageSnapshotParser.parseVitestSummaryJSON(json, profile: self)
       }
       return CoverageSnapshotParser.parseVitestSummaryJSON(output, profile: self)
+    case .tesseraApp:
+      return CoverageSnapshotParser.parseTesseraTraceJSON(output, profile: self)
     }
   }
 }
@@ -226,6 +262,11 @@ enum ForgeProfileService {
   static func detect(in repoURL: URL) -> ForgeProfile? {
     let root = repoURL.standardizedFileURL
     let fm = FileManager.default
+    if TesseraProjectScaffold.isGeneratedWorkspace(at: root)
+      || fm.fileExists(atPath: root.appending(path: "tessera.json").path)
+    {
+      return .tesseraApp
+    }
     if TypeScriptProjectScaffold.isGeneratedWorkspace(at: root) {
       return .typeScriptPnpmVite
     }
@@ -326,6 +367,42 @@ enum CoverageSnapshotParser {
       collectedAt: Date(),
       sessionNumber: nil,
       overallLineCoveragePercent: totalPercent ?? averagePercent(files),
+      files: files,
+      rawSummary: nil
+    )
+  }
+
+  static func parseTesseraTraceJSON(_ input: String, profile: ForgeProfile) -> CoverageSnapshot {
+    guard let data = input.data(using: .utf8),
+      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let trace = json["trace"] as? [String: Any]
+    else {
+      return CoverageSnapshot(
+        profile: profile,
+        collectedAt: Date(),
+        sessionNumber: nil,
+        overallLineCoveragePercent: nil,
+        files: [],
+        rawSummary: String(input.prefix(2000))
+      )
+    }
+    let sourceCount = trace["source_count"] as? Double
+      ?? (trace["source_count"] as? Int).map(Double.init)
+      ?? 0
+    let coveredCount = trace["covered_source_count"] as? Double
+      ?? (trace["covered_source_count"] as? Int).map(Double.init)
+      ?? 0
+    let covered = trace["covered_sources"] as? [String] ?? []
+    let uncovered = trace["uncovered_sources"] as? [String] ?? []
+    let files =
+      covered.map { CoverageFileEntry(path: $0, lineCoveragePercent: 100) }
+      + uncovered.map { CoverageFileEntry(path: $0, lineCoveragePercent: 0) }
+    let percent = sourceCount > 0 ? (coveredCount / sourceCount) * 100 : nil
+    return CoverageSnapshot(
+      profile: profile,
+      collectedAt: Date(),
+      sessionNumber: nil,
+      overallLineCoveragePercent: percent,
       files: files,
       rawSummary: nil
     )

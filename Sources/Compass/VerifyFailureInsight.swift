@@ -89,13 +89,22 @@ struct VerifyFailureInsight: Equatable {
     }
     if containsAny(
       text,
+      ["tessera: command not found", "could not find command tessera"]
+    ) {
+      return .missingTool
+    }
+    if containsAny(
+      text,
       ["command not found", "no such file or directory", "could not find command"]
     ) {
       return .missingTool
     }
     if containsAny(
       text,
-      ["typecheck", "tsc -p", "error ts", "syntax error", "compile error", "compiler error"]
+      [
+        "typecheck", "tsc -p", "error ts", "syntax error", "compile error", "compiler error",
+        "tessera", "parse", "invalid manifest",
+      ]
     ) {
       return .buildFailure
     }

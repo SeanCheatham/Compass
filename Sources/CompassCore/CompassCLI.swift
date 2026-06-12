@@ -28,6 +28,10 @@ public enum CompassCLI {
         try runner.scaffoldTypeScript(at: path, name: name, initializeGit: true, onEvent: emit)
         return 0
 
+      case .scaffoldTessera(let path, let name, _):
+        try runner.scaffoldTessera(at: path, name: name, initializeGit: true, onEvent: emit)
+        return 0
+
       case .verify(let repo, let verifyCommand, _):
         let ok = try await runner.verify(
           options: HeadlessVerifyOptions(repoURL: repo, command: verifyCommand),
@@ -107,6 +111,7 @@ enum CompassCLIOutputFormat: String, Equatable {
 enum CompassCLICommand: Equatable {
   case doctor(repo: URL, format: CompassCLIOutputFormat)
   case scaffoldTypeScript(path: URL, name: String?, format: CompassCLIOutputFormat)
+  case scaffoldTessera(path: URL, name: String?, format: CompassCLIOutputFormat)
   case run(options: HeadlessRunOptions, format: CompassCLIOutputFormat)
   case replay(
     repo: URL,
@@ -123,6 +128,7 @@ enum CompassCLICommand: Equatable {
     switch self {
     case .doctor(_, let format),
       .scaffoldTypeScript(_, _, let format),
+      .scaffoldTessera(_, _, let format),
       .run(_, let format),
       .replay(_, _, _, _, _, _, let format),
       .verify(_, _, let format):
@@ -142,14 +148,18 @@ enum CompassCLICommand: Equatable {
 
     case "scaffold":
       let kind = try parser.requireCommand()
-      guard kind == "typescript" else {
-        throw CompassCLIError.usage("Only `scaffold typescript` is supported.")
-      }
       let path = try parser.requirePositionalURL("path")
       let name = try parser.optionalValue("--name")
       let format = try parser.outputFormat()
       try parser.rejectRemaining()
-      return .scaffoldTypeScript(path: path, name: name, format: format)
+      switch kind {
+      case "tessera":
+        return .scaffoldTessera(path: path, name: name, format: format)
+      case "typescript":
+        return .scaffoldTypeScript(path: path, name: name, format: format)
+      default:
+        throw CompassCLIError.usage("Supported scaffold kinds: tessera, typescript.")
+      }
 
     case "run":
       let repo = try parser.requireURLOption("--repo")
@@ -381,6 +391,7 @@ enum CompassCLIError: LocalizedError, Equatable {
     """
     Usage:
       compass-cli doctor --repo <path> [--format json|text]
+      compass-cli scaffold tessera <path> [--name <name>] [--format json|text]
       compass-cli scaffold typescript <path> [--name <name>] [--format json|text]
       compass-cli run --repo <path> --brief <file-or-inline> [--mode auto|fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--max-develop-attempts <n>] [--max-verify-repairs <n>] [--prompt-log <dir>] [--critic] [--format json|text]
       compass-cli replay --repo <path> --session <number> [--mode auto|fixture|mlx] [--fixture <jsonl>] [--max-iterations <n>] [--prompt-log <dir>] [--format json|text]

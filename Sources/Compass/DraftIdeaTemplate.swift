@@ -10,20 +10,20 @@ struct DraftIdeaTemplate: Identifiable, Equatable, Sendable {
 enum DraftIdeaLibrary {
   static func ideas(for profile: RepositoryLanguageProfile) -> [DraftIdeaTemplate] {
     [
-      typeScriptFactoryIdea,
+      tesseraFactoryIdea,
       feedbackIdea,
       languageIdea(for: profile.primaryLanguage),
     ]
   }
 
-  private static let typeScriptFactoryIdea = DraftIdeaTemplate(
-    id: "typescript-factory-output",
-    title: "TypeScript Factory",
+  private static let tesseraFactoryIdea = DraftIdeaTemplate(
+    id: "tessera-factory-output",
+    title: "Tessera Factory",
     systemImage: "curlybraces.square",
     text: """
-      Change: create or improve the TypeScript output path
-      Because: generated projects should build, test, typecheck, and run inside the containerized Linux runtime with pnpm
-      Done when: `pnpm verify` passes and the workspace has core, CLI, and web packages
+      Change: create or improve the Tessera app output path
+      Because: generated projects should verify deterministically through Tessera manifests, sources, contexts, and tests
+      Done when: `tessera verify . --json` passes and the workspace has `tessera.json`, `src/`, `contexts/`, and `tests/`
       """
   )
 
@@ -47,7 +47,7 @@ enum DraftIdeaLibrary {
         systemImage: "macwindow",
         text: """
           Change: polish the imported Swift repo without creating new generated Swift output
-          Because: legacy Swift work is still inspectable, while new Compass-generated projects should be TypeScript
+          Because: legacy Swift work is still inspectable, while new Compass-generated projects should be Tessera
           Done when: the affected view uses clear controls, accessible labels, and existing Swift tests pass
           """
       )
@@ -58,7 +58,7 @@ enum DraftIdeaLibrary {
         systemImage: "rectangle.3.group",
         text: """
           Change: repair or clarify the imported TS/JS repo without creating new generated web output
-          Because: legacy web repos are still inspectable, while new Compass-generated projects use the pnpm TypeScript scaffold
+          Because: legacy web repos are still inspectable, while new Compass-generated projects use the Tessera scaffold
           Done when: the active view shows ready, blocked, and in-progress states clearly
           """
       )

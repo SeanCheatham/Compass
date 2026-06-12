@@ -295,7 +295,7 @@ struct LiveFailureInsight: Equatable, Sendable {
       return (
         .unavailableService,
         "Node Runtime Tools Are Not Ready",
-        "Compass could not find the Node/pnpm tools needed for generated TypeScript work.",
+        "Compass could not find the Node/pnpm tools needed for legacy TypeScript work.",
         "Repair the containerized Linux runtime bootstrap, then rerun verify.",
         "Runtime tools",
         "shippingbox"

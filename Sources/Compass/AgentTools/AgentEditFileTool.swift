@@ -1116,6 +1116,9 @@ struct AgentEditFileTool: AgentTool {
       )
       stripped = replacingMatches(in: stripped, pattern: #"(?m)//.*$"#)
     }
+    if ["tes"].contains(ext) {
+      stripped = replacingMatches(in: stripped, pattern: #"(?m);.*$"#)
+    }
     if ["py", "rb"].contains(ext) {
       stripped = replacingMatches(
         in: stripped,
@@ -1739,7 +1742,7 @@ struct AgentEditFileTool: AgentTool {
   }
 
   private static func moduleResolutionCandidates(for baseURL: URL) -> [URL] {
-    let fileExtensions = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "json"]
+    let fileExtensions = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "json", "tes"]
     if !baseURL.pathExtension.isEmpty {
       return [baseURL]
     }
@@ -1778,6 +1781,7 @@ struct AgentEditFileTool: AgentTool {
       "py",
       "rs",
       "swift",
+      "tes",
       "ts",
       "tsx",
     ].contains(url.pathExtension.lowercased())

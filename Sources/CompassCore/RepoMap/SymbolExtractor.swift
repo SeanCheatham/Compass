@@ -25,6 +25,9 @@ struct SymbolExtractor: Sendable {
   /// sitter `Parser` per call so the extractor itself stays Sendable and the
   /// caller can fan parse work out across a task group.
   func extract(source: String, language: CodemapLanguage) throws -> CodemapExtraction {
+    if language == .tessera {
+      return Self.extractTessera(source: source)
+    }
     guard let entry = registry.entry(for: language) else {
       throw ExtractorError.unsupportedLanguage(language)
     }
@@ -100,6 +103,23 @@ struct SymbolExtractor: Sendable {
     symbols.sort { $0.line < $1.line || ($0.line == $1.line && $0.name < $1.name) }
     imports.sort { $0.line < $1.line }
     return CodemapExtraction(symbols: symbols, imports: imports)
+  }
+
+  private static func extractTessera(source: String) -> CodemapExtraction {
+    let pattern = #"(?m)^\s*\(def\s+([A-Za-z_][A-Za-z0-9_-]*)\b"#
+    guard let regex = try? NSRegularExpression(pattern: pattern) else {
+      return CodemapExtraction(symbols: [], imports: [])
+    }
+    let nsSource = source as NSString
+    let matches = regex.matches(in: source, range: NSRange(location: 0, length: nsSource.length))
+    let symbols = matches.compactMap { match -> CodemapSymbol? in
+      guard match.range(at: 1).location != NSNotFound else { return nil }
+      let name = nsSource.substring(with: match.range(at: 1))
+      let prefix = nsSource.substring(to: match.range.location)
+      let line = prefix.components(separatedBy: "\n").count
+      return CodemapSymbol(kind: .function, name: name, line: line, endLine: line)
+    }
+    return CodemapExtraction(symbols: symbols, imports: [])
   }
 
   private func makeSymbol(

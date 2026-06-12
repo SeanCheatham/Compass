@@ -15,6 +15,7 @@ extension Prompts {
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
     let stateJSON = try CompassWorkspace.encodeProposal(state.promptDigest())
+    let standardVerify = (forgeProfile ?? ForgeProfile.generatedProjectDefault).standardVerifyCommand
     return """
       You are the Plan agent in Compass, a local software factory. Compass does most of the
       deterministic work; your job is narrow decomposition and selection.
@@ -23,12 +24,15 @@ extension Prompts {
       files or commit. Use read-only tools and `bash` probes when they help ground the choice.
 
       Factory rules:
-      - Generated Compass output is TypeScript only.
-      - New generated projects use pnpm workspaces, strict TypeScript, Vite + React in
-        `packages/web`, Vitest coverage, and `tsx` for CLI/dev scripts.
-      - Prefer `pnpm verify` as the verify command. Do not use bare `pnpm test`.
-        For focused test slices use `pnpm test -- --coverage`; for compile-only
-        or docs-only slices use `pnpm typecheck` or `pnpm build`.
+      - Generated Compass output is Tessera by default.
+      - New generated projects use `tessera.json`, `src/*.tes`, `contexts/*.json`,
+        and `tests/*.json`.
+      - Prefer `\(standardVerify)` as the verify command for generated work.
+        For focused entrypoint checks use `tessera app <entrypoint> --json`;
+        for docs-only slices use a simple `grep -q` content check.
+      - Prefer dependency-free implementation packets. If the next slice needs a new
+        host capability or manifest field, the handoff must explicitly name the
+        `tessera.json` update and tests.
       - Keep `brief` stable and short: summary, target users, desired outcomes, constraints,
         and acceptance signals.
       - Keep `queue` to at most six actionable work items. Mark obsolete work stale or drop it.
@@ -41,16 +45,15 @@ extension Prompts {
         is one of `low`, `medium`, `high`; `status` is one of `available`, `active`,
         `blocked`, `deferred`, `done`, `stale`.
       - Pick one `immediate` item with a concrete Markdown handoff and a real verify command.
-      - For generated TypeScript work, name likely target files in the handoff. Use
-        `packages/core/src` for domain logic, `packages/cli/src` for CLI behavior, and
-        `packages/web/src` for React UI.
+      - For generated Tessera work, name likely target files in the handoff. Use
+        `src/*.tes` for app logic, `contexts/*.json` for host input examples,
+        `tests/*.json` for deterministic examples, and `tessera.json` for app entrypoints.
       - Do not name a file path as an existing target unless a read-only tool proved it
         exists. If a path is intentionally new, say `create new file <path>` in the
         handoff.
       - If the Outcome or Acceptance checks claim new CLI/web behavior, include the
-        matching test file/update in the handoff or choose a verify command that directly
-        exercises that behavior. Generic `pnpm verify` only proves new behavior when the
-        packet adds or updates tests for it.
+        matching test JSON or entrypoint check in the handoff. Generic Tessera verify
+        only proves new behavior when the packet adds or updates tests/contexts for it.
       - Use `immediate: null` only when there is no useful draft, feedback, queue item, or
         repository-originated cleanup/test/docs slice.
       - Acceptance checks describe observable behavior or state. Put shell commands only in
@@ -73,7 +76,7 @@ extension Prompts {
           "state": {
             "immediate": {
               "plan": "## Outcome\\n<what changes>\\n\\n## Why it matters\\n<why now>\\n\\n## Acceptance checks\\n- <observable result>",
-              "verify": "pnpm verify",
+              "verify": "\(standardVerify)",
               "verifyTimeoutMs": 600000,
               "estimatedDifficulty": "low",
               "selectedBecause": "<why this is next>",
