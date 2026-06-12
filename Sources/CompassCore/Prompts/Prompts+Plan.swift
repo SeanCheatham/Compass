@@ -38,6 +38,11 @@ extension Prompts {
         For a simple first slice, use `"queue": []`. Only include queued follow-ups when
         they are concrete, and every queue item has `id`, `title`, `outcome`, `why`,
         `category`, `origin`, `priority`, `status`, `evidence`, and `blockedBy`.
+        Queue enum values are lowercase: `category` is one of `feature`, `test`,
+        `cleanup`, `docs`, `bugHunt`, `reliability`, `exploration`; `origin` is one
+        of `draft`, `feedback`, `repository`, `plan`, `lesson`, `user`; `priority`
+        is one of `low`, `medium`, `high`; `status` is one of `available`, `active`,
+        `blocked`, `deferred`, `done`, `stale`.
       - Pick one `immediate` item with a concrete Markdown handoff and a real verify command.
       - For generated TypeScript work, name the likely target files in the handoff.
         Use `packages/core/src` for domain logic, `packages/cli/src` for CLI behavior,

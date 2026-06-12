@@ -63,6 +63,67 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func planQueueDecodesHumanEnumAliases() throws {
+    let payload = """
+      {
+        "state": {
+          "immediate": {
+            "plan": "## Outcome\\nAdd loud CLI output.\\n\\n## Acceptance checks\\n- pnpm verify passes",
+            "verify": "pnpm verify",
+            "verifyTimeoutMs": 600000,
+            "estimatedDifficulty": "low",
+            "selectedBecause": "First useful slice.",
+            "source": "repository",
+            "candidateID": null
+          },
+          "queue": [
+            {
+              "id": "1",
+              "title": "Update CLI implementation",
+              "outcome": "Handle the --loud flag.",
+              "why": "Implements the requested behavior.",
+              "category": "Development",
+              "origin": "User request",
+              "priority": "High",
+              "status": "Open",
+              "evidence": [],
+              "blockedBy": []
+            },
+            {
+              "id": "2",
+              "title": "Update tests",
+              "outcome": "Cover loud output.",
+              "why": "Protects the new behavior.",
+              "category": "Testing",
+              "origin": "repo",
+              "priority": "Medium",
+              "status": "In progress",
+              "evidence": [],
+              "blockedBy": []
+            }
+          ],
+          "brief": {
+            "summary": "Add loud CLI output.",
+            "targetUsers": [],
+            "desiredOutcomes": [],
+            "constraints": [],
+            "acceptanceSignals": []
+          },
+          "openQuestions": []
+        },
+        "lessonEdits": []
+      }
+      """.data(using: .utf8)!
+
+    let decoded = try JSONDecoder().decode(PlanRunResult.self, from: payload)
+
+    #expect(decoded.state.candidates.map(\.category) == [PlanCandidate.Category.feature, .test])
+    #expect(decoded.state.candidates.map(\.origin) == [PlanCandidate.Origin.user, .repository])
+    #expect(decoded.state.candidates.map(\.priority) == [PlanCandidate.Priority.high, .medium])
+    #expect(decoded.state.candidates.map(\.status) == [PlanCandidate.Status.available, .active])
+  }
+
+  @Test
   func applyingPlanProposalPreservesOmittedBriefFields() {
     let current = PlanState(
       completed: [],
@@ -331,6 +392,27 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func ungroundedPathNudgeTellsPlanToResubmitWithoutTools() {
+    let error = PlanTransitionValidationError(
+      message: """
+        Plan named file paths that do not exist in the repo:
+        - packages/cli/test/main.test.ts (nearest existing directory: packages/cli; entries: package.json, src/, tsconfig.json; same filename exists at: packages/cli/src/main.test.ts)
+
+        Repair the handoff without calling another tool.
+        """,
+      reason: .ungroundedPaths
+    )
+
+    let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
+
+    #expect(nudge.eventText == "plan_submit rejected")
+    #expect(nudge.userMessage.contains("Do not call another tool"))
+    #expect(nudge.userMessage.contains("same-filename match"))
+    #expect(nudge.userMessage.contains("packages/cli/src/main.test.ts"))
+    #expect(nudge.userMessage.contains("create new file <path>"))
+  }
+
+  @Test
   func planQueueDecodeNudgeTellsPlanToUseEmptyQueueWithoutTools() throws {
     let invalidPayload = """
       {
@@ -372,6 +454,61 @@ struct FactoryPivotTests {
       #expect(nudge.userMessage.contains("Do not call a tool just to repair queue JSON"))
       #expect(nudge.userMessage.contains("Do not call another tool"))
       #expect(nudge.userMessage.contains("`id`, `title`, `outcome`"))
+    }
+  }
+
+  @Test
+  func planQueueEnumDecodeNudgeNamesAllowedValues() throws {
+    let invalidPayload = """
+      {
+        "state": {
+          "immediate": {
+            "plan": "## Outcome\\nAdd decision records.\\n\\n## Acceptance checks\\n- pnpm verify passes",
+            "verify": "pnpm verify",
+            "verifyTimeoutMs": 600000,
+            "estimatedDifficulty": "low",
+            "selectedBecause": "First useful slice.",
+            "source": "repository",
+            "candidateID": null
+          },
+          "queue": [
+            {
+              "id": "security-work",
+              "title": "Review security",
+              "outcome": "Review the slice.",
+              "why": "The model invented an unsupported category.",
+              "category": "Security",
+              "origin": "user",
+              "priority": "high",
+              "status": "available",
+              "evidence": [],
+              "blockedBy": []
+            }
+          ],
+          "brief": {
+            "summary": "Build decision notes.",
+            "targetUsers": [],
+            "desiredOutcomes": [],
+            "constraints": [],
+            "acceptanceSignals": []
+          },
+          "openQuestions": []
+        },
+        "lessonEdits": []
+      }
+      """.data(using: .utf8)!
+
+    do {
+      _ = try JSONDecoder().decode(PlanRunResult.self, from: invalidPayload)
+      Issue.record("Expected invalid queue enum payload to fail decoding.")
+    } catch {
+      let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
+
+      #expect(nudge.eventText == "phase payload contract rejected")
+      #expect(nudge.userMessage.contains("Plan enum repair"))
+      #expect(nudge.userMessage.contains("`category`: feature, test, cleanup"))
+      #expect(nudge.userMessage.contains("`status`: available, active"))
+      #expect(nudge.userMessage.contains("Do not call a tool just to repair queue JSON"))
     }
   }
 

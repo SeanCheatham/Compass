@@ -209,9 +209,36 @@ struct AgentReadFileTool: AgentTool {
         message += "\n- ... \(nearest.entries.count - 12) more"
       }
     }
+    let sameFilenameMatches = await sameFilenameMatches(for: requestedPath, context: context)
+    if !sameFilenameMatches.isEmpty {
+      message += "\nSame filename exists at:"
+      message += sameFilenameMatches.map { "\n- \($0)" }.joined()
+    }
     message +=
-      "\nUse read_file with one of these paths, or list_files/glob before creating a new file. Use write_file only when the plan truly requires a new file."
+      "\nUse read_file with one of these paths or same-filename matches. Use list_files/glob before creating a new file. Use write_file only when the plan truly requires a new file."
     return message
+  }
+
+  private func sameFilenameMatches(
+    for requestedPath: String,
+    context: AgentToolContext,
+    limit: Int = 4
+  ) async -> [String] {
+    let basename = URL(fileURLWithPath: requestedPath).lastPathComponent
+    guard !basename.isEmpty else { return [] }
+    let matches = (try? await context.filesystem.glob(
+      pattern: "**/*",
+      under: context.workingDirectory,
+      walkCap: 20_000
+    )) ?? []
+    return matches
+      .map(\.url)
+      .filter { $0.lastPathComponent == basename }
+      .map(context.relativize)
+      .filter { $0 != requestedPath }
+      .sorted()
+      .prefix(limit)
+      .map { $0 }
   }
 
   private func nearestExistingDirectory(

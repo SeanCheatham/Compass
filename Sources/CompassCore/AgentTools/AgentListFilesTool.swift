@@ -222,6 +222,12 @@ struct AgentListFilesTool: AgentTool {
     let prefix = wildcardIndex.map { String(filter[..<$0]) } ?? filter
     let trimmed = prefix.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     guard !trimmed.isEmpty else { return nil }
+    if wildcardIndex == nil {
+      let parts = trimmed.split(separator: "/")
+      if parts.count > 1 {
+        return parts.dropLast().joined(separator: "/")
+      }
+    }
     return trimmed
   }
 

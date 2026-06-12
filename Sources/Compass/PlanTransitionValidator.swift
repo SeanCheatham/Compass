@@ -316,7 +316,7 @@ enum PlanTransitionValidator {
         Plan named file paths that do not exist in the repo:
         \(details)
 
-        Use read_file/list_files/glob before naming an existing target path. If the packet really needs a new file, say `create new file <path>` in the Outcome or Acceptance checks so Develop knows to use write_file.
+        Repair the handoff without calling another tool: replace each missing path with an existing path listed above, mark it as `create new file <path>` if it is intentionally new, or remove the unproved path from the Outcome and Acceptance checks.
         """,
       reason: .ungroundedPaths
     )
@@ -460,8 +460,52 @@ enum PlanTransitionValidator {
     if !names.isEmpty {
       detail += "; entries: \(names.joined(separator: ", "))"
     }
+    let sameFilenameMatches = sameFilenameMatches(for: path, repoURL: repoURL)
+    if !sameFilenameMatches.isEmpty {
+      detail += "; same filename exists at: \(sameFilenameMatches.joined(separator: ", "))"
+    }
     detail += ")"
     return detail
+  }
+
+  private static func sameFilenameMatches(
+    for path: String,
+    repoURL: URL,
+    limit: Int = 4
+  ) -> [String] {
+    let basename = URL(fileURLWithPath: path).lastPathComponent
+    guard !basename.isEmpty else { return [] }
+    guard
+      let enumerator = FileManager.default.enumerator(
+        at: repoURL,
+        includingPropertiesForKeys: [.isDirectoryKey],
+        options: [.skipsHiddenFiles]
+      )
+    else {
+      return []
+    }
+
+    let skippedDirectories: Set<String> = [
+      ".compass",
+      ".git",
+      ".turbo",
+      "coverage",
+      "dist",
+      "node_modules",
+    ]
+    var matches: [String] = []
+    for case let url as URL in enumerator {
+      let isDirectory =
+        ((try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false)
+      if isDirectory, skippedDirectories.contains(url.lastPathComponent) {
+        enumerator.skipDescendants()
+        continue
+      }
+      guard !isDirectory, url.lastPathComponent == basename else { continue }
+      matches.append(relativePath(url, repoURL: repoURL))
+      if matches.count >= limit { break }
+    }
+    return matches.sorted()
   }
 
   private struct PackageEntryPointConflict {

@@ -49,6 +49,15 @@ struct AgentToolRepairGuidanceTests {
     #expect(emptyDirectoryResult.isError)
     #expect(emptyDirectoryResult.content.contains("Nearest existing directory: packages/cli/src"))
     #expect(emptyDirectoryResult.content.contains("- main.ts"))
+
+    let wrongDirectoryResult = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/test/main.test.ts"}"#.utf8),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+    #expect(wrongDirectoryResult.isError)
+    #expect(wrongDirectoryResult.content.contains("Nearest existing directory: packages/cli"))
+    #expect(wrongDirectoryResult.content.contains("Same filename exists at:"))
+    #expect(wrongDirectoryResult.content.contains("- packages/cli/src/main.test.ts"))
   }
 
   @Test

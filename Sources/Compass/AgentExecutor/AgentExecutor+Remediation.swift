@@ -71,6 +71,29 @@ extension AgentExecutor {
             """
         )
       }
+      if error.reason == .ungroundedPaths {
+        return InvalidToolArgumentsNudge(
+          eventText: "plan_submit rejected",
+          eventDetail: error.message,
+          userMessage: """
+            Your previous Plan payload named file paths Compass could not find:
+            \(error.message)
+
+            Do not call another tool to repair this rejected submit. Return `plan_submit`
+            again and choose exactly one repair:
+            - Replace the missing path with a concrete existing path listed in the rejection
+              message, such as a same-filename match or existing package entry point.
+            - Or, if the path is intentionally new, say `create new file <path>` in the
+              Outcome or Acceptance checks.
+            - Or remove the unproved path from the handoff and keep only paths you already
+              proved with earlier read-only tool output.
+
+            Keep the same small work packet and verify command if they are still useful.
+
+            \(submitResultDecodeRetryShape(for: .plan))
+            """
+        )
+      }
       return InvalidToolArgumentsNudge(
         eventText: "plan_submit rejected",
         eventDetail: error.message,
@@ -224,6 +247,26 @@ extension AgentExecutor {
         - If this packet does not need queued follow-up work, set `"queue": []`.
         - If you keep any queue item, every item must include `id`, `title`, `outcome`,
           `why`, `category`, `origin`, `priority`, `status`, `evidence`, and `blockedBy`.
+        - Do not call a tool just to repair queue JSON.
+        """
+    }
+    if normalized.contains("plancandidate.category")
+      || normalized.contains("plancandidate.origin")
+      || normalized.contains("plancandidate.priority")
+      || normalized.contains("plancandidate.status")
+      || normalized.contains("cannot initialize category")
+      || normalized.contains("cannot initialize origin")
+      || normalized.contains("cannot initialize priority")
+      || normalized.contains("cannot initialize status")
+    {
+      return """
+        Plan enum repair:
+        - If this packet does not need queued follow-up work, set `"queue": []`.
+        - If you keep queue items, use only lowercase enum values:
+          `category`: feature, test, cleanup, docs, bugHunt, reliability, exploration.
+          `origin`: draft, feedback, repository, plan, lesson, user.
+          `priority`: low, medium, high.
+          `status`: available, active, blocked, deferred, done, stale.
         - Do not call a tool just to repair queue JSON.
         """
     }

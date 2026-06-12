@@ -95,6 +95,17 @@ struct AgentListFilesToolTests {
     )
     #expect(!globResult.isError)
     #expect(globResult.content.contains("packages/cli/src/summarize.ts"))
+
+    let emptyDirectoryResult = try await AgentListFilesTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/test"}"#.utf8),
+      context: AgentToolContext(
+        workingDirectory: tempURL,
+        codemapStoreDirectory: codemapURL
+      )
+    )
+    #expect(!emptyDirectoryResult.isError)
+    #expect(emptyDirectoryResult.content.contains("(no source files matching 'packages/cli/test')"))
+    #expect(emptyDirectoryResult.content.contains("try a broader filter such as 'packages/cli'"))
   }
 }
 

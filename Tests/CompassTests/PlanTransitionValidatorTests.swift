@@ -113,6 +113,25 @@ struct PlanTransitionValidatorTests {
       #expect(error.message.contains("main.ts"))
     }
 
+    let wrongTestPath = planState(
+      """
+      ## Outcome
+      Update `packages/cli/test/main.test.ts` to cover loud CLI output.
+
+      ## Acceptance checks
+      - `packages/cli/test/main.test.ts` covers loud CLI output.
+      """
+    )
+
+    do {
+      try PlanTransitionValidator.validate(from: .empty, to: wrongTestPath, repoURL: tempURL)
+      Issue.record("Expected missing test path rejection.")
+    } catch let error as PlanTransitionValidationError {
+      #expect(error.reason == .ungroundedPaths)
+      #expect(error.message.contains("packages/cli/test/main.test.ts"))
+      #expect(error.message.contains("same filename exists at: packages/cli/src/main.test.ts"))
+    }
+
     let duplicateEntryPoint = planState(
       """
       ## Outcome

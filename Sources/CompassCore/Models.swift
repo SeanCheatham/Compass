@@ -164,6 +164,37 @@ enum FlexibleModelDecoder {
     )
   }
 
+  static func decodeRequiredEnum<Value, Key>(
+    from container: KeyedDecodingContainer<Key>,
+    forKey key: Key,
+    aliases: [String: Value] = [:],
+    fieldName: String
+  ) throws -> Value
+  where Value: CaseIterable & RawRepresentable, Value.RawValue == String {
+    let rawValue = try decodeRequiredString(from: container, forKey: key)
+    let normalized = normalizedIdentifier(rawValue)
+
+    if let value = Value.allCases.first(where: {
+      normalizedIdentifier($0.rawValue) == normalized
+    }) {
+      return value
+    }
+    if let value = aliases[normalized] {
+      return value
+    }
+
+    let allowedValues = Value.allCases.map(\.rawValue).joined(separator: ", ")
+    let aliasValues = aliases.keys.sorted().joined(separator: ", ")
+    let aliasSuffix = aliasValues.isEmpty ? "" : " Accepted aliases: \(aliasValues)."
+    throw DecodingError.dataCorrupted(
+      .init(
+        codingPath: container.codingPath + [key],
+        debugDescription:
+          "\(fieldName) must be one of: \(allowedValues). Received `\(rawValue)`.\(aliasSuffix)"
+      )
+    )
+  }
+
   static func decodeValueIfPresent<Value: Decodable, Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,
@@ -710,6 +741,20 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     case bugHunt
     case reliability
     case exploration
+
+    static let modelAliases: [String: Category] = [
+      "bug": .bugHunt,
+      "bug_fix": .bugHunt,
+      "bugfix": .bugHunt,
+      "development": .feature,
+      "documentation": .docs,
+      "feature_work": .feature,
+      "implementation": .feature,
+      "maintenance": .cleanup,
+      "refactor": .cleanup,
+      "testing": .test,
+      "tests": .test,
+    ]
   }
 
   enum Origin: String, Codable, CaseIterable {
@@ -719,12 +764,22 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     case plan
     case lesson
     case user
+
+    static let modelAliases: [String: Origin] = [
+      "current_brief": .user,
+      "current_request": .user,
+      "repo": .repository,
+      "request": .user,
+      "user_request": .user,
+    ]
   }
 
   enum Priority: String, Codable, CaseIterable {
     case low
     case medium
     case high
+
+    static let modelAliases: [String: Priority] = [:]
   }
 
   enum Status: String, Codable, CaseIterable {
@@ -734,6 +789,17 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     case deferred
     case done
     case stale
+
+    static let modelAliases: [String: Status] = [
+      "closed": .done,
+      "complete": .done,
+      "completed": .done,
+      "in_progress": .active,
+      "open": .available,
+      "ready": .available,
+      "todo": .available,
+      "to_do": .available,
+    ]
 
     var isActionable: Bool {
       switch self {
@@ -778,10 +844,30 @@ struct PlanCandidate: Codable, Equatable, Identifiable {
     let outcome = try FlexibleModelDecoder.decodeRequiredString(from: container, forKey: .outcome)
     let why =
       try FlexibleModelDecoder.decodeStringIfPresent(from: container, forKey: .why) ?? ""
-    let category = try container.decode(Category.self, forKey: .category)
-    let origin = try container.decode(Origin.self, forKey: .origin)
-    let priority = try container.decode(Priority.self, forKey: .priority)
-    let status = try container.decode(Status.self, forKey: .status)
+    let category = try FlexibleModelDecoder.decodeRequiredEnum(
+      from: container,
+      forKey: .category,
+      aliases: Category.modelAliases,
+      fieldName: "PlanCandidate.category"
+    )
+    let origin = try FlexibleModelDecoder.decodeRequiredEnum(
+      from: container,
+      forKey: .origin,
+      aliases: Origin.modelAliases,
+      fieldName: "PlanCandidate.origin"
+    )
+    let priority = try FlexibleModelDecoder.decodeRequiredEnum(
+      from: container,
+      forKey: .priority,
+      aliases: Priority.modelAliases,
+      fieldName: "PlanCandidate.priority"
+    )
+    let status = try FlexibleModelDecoder.decodeRequiredEnum(
+      from: container,
+      forKey: .status,
+      aliases: Status.modelAliases,
+      fieldName: "PlanCandidate.status"
+    )
     let evidence =
       try FlexibleModelDecoder.decodeStringArrayIfPresent(from: container, forKey: .evidence) ?? []
     let blockedBy =
