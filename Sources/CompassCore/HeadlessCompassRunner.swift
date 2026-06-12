@@ -599,6 +599,68 @@ public struct HeadlessCompassRunner: Sendable {
           break
         }
 
+        if verify.exitCode == 0,
+          let issue = await successfulVerifyMissingPackageEntryIssue(
+            command: immediate.verify,
+            beforeSha: session.beforeSha,
+            repoURL: repoURL
+          )
+        {
+          session.notes.append("Verify attempt \(attempt) passed with broken package entry points.")
+          let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
+          let canUseVerifyRepairAttempt =
+            !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
+          if canUseDevelopAttempt || canUseVerifyRepairAttempt {
+            if canUseVerifyRepairAttempt {
+              verifyRepairAttemptsUsed += 1
+            }
+            priorIssues = [issue]
+            try persist(session: session, workspace: workspace)
+            emitDevelopRetry(
+              attempt: attempt,
+              maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
+              issue: issue,
+              retryKind: "missing_package_entry",
+              onEvent: onEvent
+            )
+            attempt += 1
+            continue
+          }
+          break
+        }
+
+        if verify.exitCode == 0,
+          let issue = await successfulVerifyManifestOnlyImplementationIssue(
+            immediate: immediate,
+            brief: plannedState.brief,
+            command: immediate.verify,
+            beforeSha: session.beforeSha,
+            repoURL: repoURL
+          )
+        {
+          session.notes.append("Verify attempt \(attempt) passed after metadata-only changes.")
+          let canUseDevelopAttempt = attempt < options.maxDevelopAttempts
+          let canUseVerifyRepairAttempt =
+            !canUseDevelopAttempt && verifyRepairAttemptsUsed < options.maxVerifyRepairAttempts
+          if canUseDevelopAttempt || canUseVerifyRepairAttempt {
+            if canUseVerifyRepairAttempt {
+              verifyRepairAttemptsUsed += 1
+            }
+            priorIssues = [issue]
+            try persist(session: session, workspace: workspace)
+            emitDevelopRetry(
+              attempt: attempt,
+              maxAttempts: options.maxDevelopAttempts + options.maxVerifyRepairAttempts,
+              issue: issue,
+              retryKind: "metadata_only_implementation",
+              onEvent: onEvent
+            )
+            attempt += 1
+            continue
+          }
+          break
+        }
+
         if verify.exitCode == 0 {
           successfulDevelop = develop
           ok = true
@@ -1230,6 +1292,13 @@ public struct HeadlessCompassRunner: Sendable {
     let testTargetLines: [String]
   }
 
+  private struct PackageEntryPointIssue {
+    let manifestPath: String
+    let field: String
+    let declaredPath: String
+    let targetPath: String
+  }
+
   private func successfulVerifyCoverageIssue(
     command: String,
     output: String,
@@ -1425,6 +1494,81 @@ public struct HeadlessCompassRunner: Sendable {
       """
   }
 
+  private func successfulVerifyMissingPackageEntryIssue(
+    command: String,
+    beforeSha: String?,
+    repoURL: URL
+  ) async -> String? {
+    guard let changedPaths = await gitChangedPathsSince(beforeSha, repoURL: repoURL),
+      !changedPaths.isEmpty
+    else {
+      return nil
+    }
+
+    let reviewPaths = changedPaths.filter { !Self.isHeadlessFixtureArtifactPath($0) }
+    let issues = Self.missingPackageEntryPointIssues(repoURL: repoURL).filter { issue in
+      reviewPaths.contains(issue.manifestPath) || reviewPaths.contains(issue.targetPath)
+    }
+    guard !issues.isEmpty else { return nil }
+
+    return """
+      Verify passed for `\(command)`, but package entry points now reference files that do not exist:
+      \(issues.map { "- `\($0.manifestPath)` \($0.field) = `\($0.declaredPath)` -> missing `\($0.targetPath)`" }.joined(separator: "\n"))
+
+      Package-entry repair instructions:
+      - If this is a real replacement entry point, create the missing target file with the implementation and add or update tests that execute it.
+      - If the replacement was accidental, restore the manifest entry to the existing source file and edit that existing file instead.
+      - Rerun `\(command)` after the manifest and files agree.
+
+      A green package build can miss a package `bin` target when the TypeScript project only compiles files from `tsconfig.json`. Do not submit success while a package entry points at a missing file.
+      """
+  }
+
+  private func successfulVerifyManifestOnlyImplementationIssue(
+    immediate: PlanNext,
+    brief: PlanStrategicContext,
+    command: String,
+    beforeSha: String?,
+    repoURL: URL
+  ) async -> String? {
+    guard let changedPaths = await gitChangedPathsSince(beforeSha, repoURL: repoURL),
+      !changedPaths.isEmpty
+    else {
+      return nil
+    }
+    let reviewPaths = changedPaths.filter { !Self.isHeadlessFixtureArtifactPath($0) }
+    guard !reviewPaths.isEmpty,
+      !reviewPaths.contains(where: Self.isCoverageGatedSourcePath),
+      !reviewPaths.contains(where: Self.isTestPath),
+      reviewPaths.allSatisfy(Self.isPackageMetadataPath)
+    else {
+      return nil
+    }
+
+    let handoffText = [
+      immediate.plan,
+      immediate.selectedBecause ?? "",
+      brief.summary,
+      brief.desiredOutcomes.joined(separator: "\n"),
+      brief.constraints.joined(separator: "\n"),
+      brief.acceptanceSignals.joined(separator: "\n"),
+    ].joined(separator: "\n")
+    guard Self.handoffRequiresSourceOrTestWork(handoffText) else { return nil }
+
+    return """
+      Verify passed for `\(command)`, but this Develop attempt changed only package metadata or lockfiles:
+      \(reviewPaths.map { "- `\($0)`" }.joined(separator: "\n"))
+
+      The accepted handoff asks for source behavior or tests, so metadata-only changes are not enough.
+
+      Required repair:
+      - Edit or create the source file that implements the requested behavior.
+      - Add or update a test/spec file that executes that behavior.
+      - Keep package metadata changes only if they are still needed after the source and test edits.
+      - Rerun `\(command)` after source and test files changed.
+      """
+  }
+
   private static func containsSplitFormatJSONAssertion(_ contents: String) -> Bool {
     let normalized = contents
       .replacingOccurrences(of: "'", with: "\"")
@@ -1476,6 +1620,154 @@ public struct HeadlessCompassRunner: Sendable {
       }
       return sourceDirectory.appending(path: entry.lastPathComponent).relativePath
     }.sorted()
+  }
+
+  private static func missingPackageEntryPointIssues(repoURL: URL) -> [PackageEntryPointIssue] {
+    packageManifestURLs(in: repoURL).flatMap { manifestURL in
+      missingPackageEntryPointIssues(manifestURL: manifestURL, repoURL: repoURL)
+    }
+    .sorted {
+      [$0.manifestPath, $0.field, $0.targetPath].joined(separator: "\u{0}")
+        < [$1.manifestPath, $1.field, $1.targetPath].joined(separator: "\u{0}")
+    }
+  }
+
+  private static func packageManifestURLs(in repoURL: URL) -> [URL] {
+    let fm = FileManager.default
+    guard
+      let enumerator = fm.enumerator(
+        at: repoURL,
+        includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
+        options: [.skipsHiddenFiles]
+      )
+    else {
+      return []
+    }
+
+    var manifests: [URL] = []
+    for case let url as URL in enumerator {
+      let name = url.lastPathComponent
+      if Self.shouldSkipPackageManifestScanDescendants(url) {
+        enumerator.skipDescendants()
+        continue
+      }
+      guard name == "package.json",
+        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+      else {
+        continue
+      }
+      manifests.append(url)
+    }
+    return manifests
+  }
+
+  private static func shouldSkipPackageManifestScanDescendants(_ url: URL) -> Bool {
+    guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
+      return false
+    }
+    return [".compass", ".git", "dist", "node_modules"].contains(url.lastPathComponent)
+  }
+
+  private static func missingPackageEntryPointIssues(
+    manifestURL: URL,
+    repoURL: URL
+  ) -> [PackageEntryPointIssue] {
+    guard let data = try? Data(contentsOf: manifestURL),
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else {
+      return []
+    }
+
+    let manifestPath = relativePath(manifestURL, repoURL: repoURL)
+    let packageDirectory = manifestURL.deletingLastPathComponent()
+    let scalarEntries: [(field: String, rawPath: String)] = [
+      "main", "module", "browser", "types", "typings",
+    ].compactMap { field in
+      (object[field] as? String).map { (field, $0) }
+    }
+
+    let binEntries: [(field: String, rawPath: String)]
+    if let bin = object["bin"] as? String {
+      binEntries = [("bin", bin)]
+    } else if let bin = object["bin"] as? [String: Any] {
+      binEntries = bin.compactMap { key, value in
+        (value as? String).map { ("bin.\(key)", $0) }
+      }
+    } else {
+      binEntries = []
+    }
+
+    return (scalarEntries + binEntries).compactMap { entry in
+      guard let cleanedPath = cleanedLocalPackageEntryPath(entry.rawPath) else { return nil }
+      let targetURL = packageDirectory.appending(path: cleanedPath).standardizedFileURL
+      guard !FileManager.default.fileExists(atPath: targetURL.path) else { return nil }
+      return PackageEntryPointIssue(
+        manifestPath: manifestPath,
+        field: entry.field,
+        declaredPath: entry.rawPath,
+        targetPath: relativePath(targetURL, repoURL: repoURL)
+      )
+    }
+  }
+
+  private static func cleanedLocalPackageEntryPath(_ rawPath: String) -> String? {
+    let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty,
+      !trimmed.hasPrefix("#"),
+      !trimmed.contains("://")
+    else {
+      return nil
+    }
+
+    let withoutFragment = trimmed.split(separator: "#", maxSplits: 1).first.map(String.init) ?? trimmed
+    let withoutQuery =
+      withoutFragment.split(separator: "?", maxSplits: 1).first.map(String.init) ?? withoutFragment
+    let cleaned = withoutQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleaned.isEmpty else { return nil }
+    return cleaned
+  }
+
+  private static func isPackageMetadataPath(_ path: String) -> Bool {
+    let filename = URL(fileURLWithPath: path).lastPathComponent.lowercased()
+    return filename == "package.json"
+      || filename == "pnpm-lock.yaml"
+      || filename == "package-lock.json"
+      || filename == "npm-shrinkwrap.json"
+      || filename == "yarn.lock"
+  }
+
+  private static func isHeadlessFixtureArtifactPath(_ path: String) -> Bool {
+    let filename = URL(fileURLWithPath: path).lastPathComponent.lowercased()
+    return filename == "fixture.jsonl" || filename.hasSuffix("-fixture.jsonl")
+  }
+
+  private static func handoffRequiresSourceOrTestWork(_ text: String) -> Bool {
+    let normalized = text.lowercased()
+    let sourceSignals = [
+      "acceptance checks",
+      "add core",
+      "cli",
+      "command",
+      "component",
+      "cover",
+      "function",
+      "implement",
+      "logic",
+      "source",
+      "test",
+      "web",
+    ]
+    return sourceSignals.contains { normalized.contains($0) }
+  }
+
+  private static func relativePath(_ url: URL, repoURL: URL) -> String {
+    let repoPath = repoURL.standardizedFileURL.path
+    let path = url.standardizedFileURL.path
+    guard path == repoPath || path.hasPrefix(repoPath + "/") else {
+      return url.path
+    }
+    if path == repoPath { return "." }
+    return String(path.dropFirst(repoPath.count + 1))
   }
 
   private static func vitestCoverageRows(in output: String) -> [CoverageTableRow] {

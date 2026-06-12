@@ -628,6 +628,105 @@ struct CompassCLITests {
   }
 
   @Test
+  func fixtureRunnerRetriesDevelopWhenPackageEntryPointsAtMissingFile() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, label in
+      if label == "verify" {
+        return PnpmVerifyAlwaysPassBashRunner()
+      }
+      return FixtureBashRunner()
+    }
+    try runner.scaffoldTypeScript(at: tempURL, name: "missing-entry-fixture", onEvent: record)
+    try await initializeFixtureGitRepo(at: tempURL)
+
+    let fixtureURL = tempURL.appending(path: "missing-entry-fixture.jsonl")
+    try writeFixture(missingPackageEntryFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Add a CLI weekly habit momentum command with tests",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 8,
+        maxDevelopAttempts: 2,
+        maxVerifyRepairAttempts: 0,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let cliPackage = try String(
+      contentsOf: tempURL.appending(path: "packages/cli/package.json"),
+      encoding: .utf8
+    )
+    #expect(cliPackage.contains(#""missing-entry-fixture": "./src/main.ts""#))
+    let snapshot = events.snapshot()
+    let entryRetry = snapshot.first {
+      $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "missing_package_entry"
+    }
+    #expect(entryRetry?.detail?.contains("package entry points") == true)
+    #expect(entryRetry?.detail?.contains("packages/cli/package.json") == true)
+    #expect(entryRetry?.detail?.contains("packages/cli/src/index.ts") == true)
+    #expect(snapshot.filter { $0.kind == "verify_result" && $0.status == "completed" }.count == 2)
+  }
+
+  @Test
+  func fixtureRunnerRetriesDevelopWhenImplementationOnlyChangesPackageMetadata() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, label in
+      if label == "verify" {
+        return PnpmVerifyAlwaysPassBashRunner()
+      }
+      return FixtureBashRunner()
+    }
+    try runner.scaffoldTypeScript(at: tempURL, name: "metadata-only-fixture", onEvent: record)
+    try await initializeFixtureGitRepo(at: tempURL)
+
+    let fixtureURL = tempURL.appending(path: "metadata-only-fixture.jsonl")
+    try writeFixture(metadataOnlyImplementationFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: tempURL,
+        brief: "Add a CLI weekly habit momentum command with tests",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 8,
+        maxDevelopAttempts: 2,
+        maxVerifyRepairAttempts: 0,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(ok)
+    let main = try String(
+      contentsOf: tempURL.appending(path: "packages/cli/src/main.ts"),
+      encoding: .utf8
+    )
+    #expect(main.contains("weekly momentum"))
+    let snapshot = events.snapshot()
+    let metadataRetry = snapshot.first {
+      $0.kind == "develop_retry" && $0.metadata?["retryKind"] == "metadata_only_implementation"
+    }
+    #expect(metadataRetry?.detail?.contains("changed only package metadata") == true)
+    #expect(metadataRetry?.detail?.contains("packages/cli/package.json") == true)
+    #expect(snapshot.filter { $0.kind == "verify_result" && $0.status == "completed" }.count == 2)
+  }
+
+  @Test
   func fixtureRunnerRetriesDevelopAfterIterationBudgetExhaustion() async throws {
     let tempURL = try makeCLITempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -1020,6 +1119,60 @@ private let weakCLIFlagTestFixtureOutputs = [
   """,
   """
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated main.test.ts with split argv coverage for --format json.","feedback":"packages/cli/src/main.test.ts calls main([\\"--format\\", \\"json\\", \\"Ship\\", \\"it\\"]) and pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
+private let missingPackageEntryFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- Tests cover the CLI output.","verify":"pnpm verify","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when package bin points at a missing replacement entry point.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Package entry-point mistakes trigger repair."],"constraints":["Use pnpm verify."],"acceptanceSignals":["The CLI entry point exists and is tested."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/package.json"},"reason":"Need current package manifest line numbers before changing the bin entry."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/package.json","startLine":6,"endLine":6,"content":"    \\"missing-entry-fixture\\": \\"./src/index.ts\\""},"reason":"Point the CLI bin at a replacement file without creating it so the post-verify package-entry check can catch the gap."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated the CLI package bin to point at packages/cli/src/index.ts.","feedback":"The CLI weekly habit command is complete and pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/package.json"},"reason":"Need current package manifest line numbers before restoring the existing entry point."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/package.json","startLine":6,"endLine":6,"content":"    \\"missing-entry-fixture\\": \\"./src/main.ts\\""},"reason":"Restore the manifest to the existing CLI entry point named in the repair guidance."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.ts"},"reason":"Need current CLI entry point line numbers before implementing the weekly momentum output."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/src/main.ts","startLine":5,"endLine":6,"content":"  const title = argv.join(\\" \\").trim() || \\"Weekly habit\\";\\n  return `weekly momentum: ${summarizeQueue([{ id: \\"task-1\\", title, done: false }])}`;"},"reason":"Make a concrete source change in the existing CLI entry point."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Restored the package bin to src/main.ts and updated the existing CLI entry point with a weekly momentum summary.","feedback":"packages/cli/src/main.ts implements the weekly momentum CLI output and pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
+private let metadataOnlyImplementationFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a CLI weekly habit momentum command and tests.\\n\\n## Acceptance checks\\n- The CLI command prints a readable weekly momentum summary.\\n- Tests cover the CLI output.","verify":"pnpm verify","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture proves green verify is not accepted when a source-behavior handoff changes only package metadata.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Add a CLI weekly habit momentum command with tests.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Metadata-only false success triggers repair."],"constraints":["Use pnpm verify."],"acceptanceSignals":["The CLI behavior is implemented and tested."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/package.json"},"reason":"Need current package manifest line numbers before changing dependencies."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/package.json","startLine":14,"endLine":14,"content":"    \\"@metadata-only-fixture/core\\": \\"workspace:*\\",\\n    \\"zod\\": \\"^4.4.3\\""},"reason":"Change only package metadata while claiming implementation work is complete."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Added a dependency for the CLI weekly momentum command.","feedback":"The CLI weekly habit command is complete and pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"packages/cli/src/main.ts"},"reason":"Need current CLI entry point line numbers before implementing the weekly momentum output."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"packages/cli/src/main.ts","startLine":5,"endLine":6,"content":"  const title = argv.join(\\" \\").trim() || \\"Weekly habit\\";\\n  return `weekly momentum: ${summarizeQueue([{ id: \\"task-1\\", title, done: false }])}`;"},"reason":"Make the source behavior change required by the metadata-only repair guidance."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"Updated packages/cli/src/main.ts with a weekly momentum summary.","feedback":"packages/cli/src/main.ts implements the weekly momentum CLI output and pnpm verify passes.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 
