@@ -37,6 +37,7 @@ extension AgentExecutor {
     var latestContinuationRejectionRepairMessage: String?
     var latestContinuationRejectionDescription = "continuation"
     var pendingSubmitRepair: PendingSubmitRepair?
+    var blockedToolCallCountsDuringSubmitRepair: [ToolCallSignature: Int] = [:]
     var lastSubmitRejectionSignature: String?
     var repeatedSubmitRejectionCount = 0
     var successfulToolCallCountsAfterContinuationRejection: [ToolCallSignature: Int] = [:]
@@ -210,6 +211,7 @@ extension AgentExecutor {
             malformedJSON: true,
             repairMessage: repairMessage
           )
+          blockedToolCallCountsDuringSubmitRepair = [:]
         }
         if malformedSignature == lastMalformedContinuationSignature {
           repeatedMalformedContinuationCount += 1
@@ -246,6 +248,7 @@ extension AgentExecutor {
       switch continuation.action {
       case .submit(let payload):
         pendingSubmitRepair = nil
+        blockedToolCallCountsDuringSubmitRepair = [:]
         if let rejection =
           Self.rejectDevelopSubmitAfterSuccessfulVerify(
             payload,
@@ -280,6 +283,7 @@ extension AgentExecutor {
               malformedJSON: false,
               repairMessage: rejection.userMessage
             )
+            blockedToolCallCountsDuringSubmitRepair = [:]
           }
           let rejectionSignature = "\(rejection.eventText)\n\(rejection.eventDetail)"
           if rejectionSignature == lastSubmitRejectionSignature {
@@ -339,12 +343,16 @@ extension AgentExecutor {
 
       case .continueTool(let toolName, let arguments, let reason, let note):
         let argumentText = String(decoding: arguments, as: UTF8.self)
+        let signature = ToolCallSignature(toolName: toolName, arguments: argumentText)
         if let pendingSubmitRepair {
+          let blockedRepeatCount = (blockedToolCallCountsDuringSubmitRepair[signature] ?? 0) + 1
+          blockedToolCallCountsDuringSubmitRepair[signature] = blockedRepeatCount
           let repairMessage = Self.toolAfterSubmitRepairMessage(
             toolName: toolName,
             arguments: argumentText,
             pendingRepair: pendingSubmitRepair,
-            phase: configuration.continuationPhase
+            phase: configuration.continuationPhase,
+            repeatCount: blockedRepeatCount
           )
           sawContinuationRejection = true
           latestContinuationRejectionRepairMessage = repairMessage
@@ -376,7 +384,6 @@ extension AgentExecutor {
           continue
         }
 
-        let signature = ToolCallSignature(toolName: toolName, arguments: argumentText)
         let correlationID = UUID().uuidString
         emitToolStart(name: toolName, arguments: argumentText, correlationID: correlationID)
         let result: AgentToolInvocationResult
@@ -1201,7 +1208,8 @@ extension AgentExecutor {
     toolName: String,
     arguments: String,
     pendingRepair: PendingSubmitRepair,
-    phase: AgentContinuationPhase
+    phase: AgentContinuationPhase,
+    repeatCount: Int
   ) -> String {
     let reason = pendingRepair.malformedJSON
       ? "because the JSON was malformed"
@@ -1209,6 +1217,20 @@ extension AgentExecutor {
     let repairTarget = pendingRepair.malformedJSON
       ? "malformed submit JSON"
       : "a rejected submit payload"
+    let repeatedWarning =
+      repeatCount >= 2
+      ? """
+
+        You have now tried the same blocked `\(toolName)` call \(repeatCount) times after
+        Compass rejected `\(pendingRepair.submitKind)`. Compass will keep rejecting tools
+        until you repair the submit envelope.
+
+        The continuation-contract `read_file package.json` shape is only an example. It is
+        lower authority than this Compass Repair. Do not copy that example here.
+
+        Your next response must be `\(phase.submitKind)`, not `\(phase.continueKind)`.
+        """
+      : ""
     return """
     Your previous `\(pendingRepair.submitKind)` was rejected \(reason).
     The next action must repair that submit envelope; it must not call tools.
@@ -1219,6 +1241,7 @@ extension AgentExecutor {
 
     Return exactly one valid JSON object now:
     {"kind":"\(phase.submitKind)","payload":{...}}
+    \(repeatedWarning)
 
     Apply this repair:
     \(pendingRepair.repairMessage)

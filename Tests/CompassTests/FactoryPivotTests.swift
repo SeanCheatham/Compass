@@ -1524,6 +1524,47 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorEscalatesRepeatedToolCallAfterMalformedSubmitJSON() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let malformedPlanSubmit =
+      #"{"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"main(["--done", "1", "Ship", "it"]) returns 0 open / 1 total."}}}}"#
+    let readPackage =
+      #"{"kind":"plan_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need scripts after the rejected submit."}"#
+    let validPlanSubmit =
+      #"{"kind":"plan_submit","payload":{"state":{"immediate":null,"queue":[],"brief":{"summary":"Add separate --done argv support.","targetUsers":[],"desiredOutcomes":[],"constraints":[],"acceptanceSignals":[]},"openQuestions":[]},"lessonEdits":[]}}"#
+    let runtime = FakeLocalModelRuntime(outputs: [
+      malformedPlanSubmit,
+      readPackage,
+      readPackage,
+      validPlanSubmit,
+    ])
+    let counter = ToolInvocationCounter()
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .plan,
+        runtime: runtime,
+        tools: [FakeReadFileTool(counter: counter)],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.planSchema,
+        maxIterations: 4
+      )
+    )
+
+    #expect(result.iterations == 4)
+    #expect(counter.value == 0)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 4)
+    #expect(prompts[3].contains("tried the same blocked `read_file` call 2 times"))
+    #expect(prompts[3].contains("Compass will keep rejecting tools"))
+    #expect(prompts[3].contains("The continuation-contract `read_file package.json` shape is only an example"))
+    #expect(prompts[3].contains("Your next response must be `plan_submit`, not `plan_continue`"))
+    #expect(prompts[3].contains(#""path":"package.json""#))
+  }
+
+  @Test
   func executorRejectsProceduralFailedDevelopSubmitAfterMalformedContinuation() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
