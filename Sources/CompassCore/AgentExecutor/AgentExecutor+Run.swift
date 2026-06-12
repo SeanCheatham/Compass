@@ -41,6 +41,7 @@ extension AgentExecutor {
     var lastSubmitRejectionSignature: String?
     var repeatedSubmitRejectionCount = 0
     var successfulToolCallCountsAfterContinuationRejection: [ToolCallSignature: Int] = [:]
+    var successfulReadOnlyToolCallCountAfterMalformedDevelopContinuation = 0
     var lastSuccessfulVerifyCommand: String?
     var lastFailedVerifyCommand: String?
     var failedVerifyInvalidatedByMutationCommand: String?
@@ -199,6 +200,7 @@ extension AgentExecutor {
         latestContinuationRejectionDescription =
           "malformed \(configuration.continuationPhase.rawValue.capitalized) continuation response"
         successfulToolCallCountsAfterContinuationRejection = [:]
+        successfulReadOnlyToolCallCountAfterMalformedDevelopContinuation = 0
         let malformedSignature = Self.malformedContinuationSignature(
           error: detail,
           output: output,
@@ -276,6 +278,7 @@ extension AgentExecutor {
           latestContinuationRejectionRepairMessage = rejection.userMessage
           latestContinuationRejectionDescription = "`\(configuration.continuationPhase.submitKind)` payload"
           successfulToolCallCountsAfterContinuationRejection = [:]
+          successfulReadOnlyToolCallCountAfterMalformedDevelopContinuation = 0
           if configuration.phase == .plan {
             pendingSubmitRepair = PendingSubmitRepair(
               submitKind: configuration.continuationPhase.submitKind,
@@ -530,6 +533,7 @@ extension AgentExecutor {
             }
           }
           successfulToolCallCountsAfterContinuationRejection = [:]
+          successfulReadOnlyToolCallCountAfterMalformedDevelopContinuation = 0
         } else {
           lastFailedToolCall = nil
           repeatedFailedToolCallCount = 0
@@ -564,6 +568,26 @@ extension AgentExecutor {
             successfulReadOnlyDevelopToolCallCounts = [:]
           }
           if sawContinuationRejection {
+            if configuration.phase == .develop,
+              Self.isReadOnlyInspectionTool(toolName),
+              Self.isMalformedDevelopContinuationRejection(latestContinuationRejectionDescription)
+            {
+              successfulReadOnlyToolCallCountAfterMalformedDevelopContinuation += 1
+              if successfulReadOnlyToolCallCountAfterMalformedDevelopContinuation == 1 {
+                transcript.append(
+                  .repair(
+                    Self.readOnlyToolAfterMalformedDevelopContinuationRepairMessage(
+                      toolName: toolName,
+                      arguments: argumentText,
+                      latestRepairMessage: latestContinuationRejectionRepairMessage,
+                      phase: configuration.continuationPhase
+                    )
+                  )
+                )
+              }
+            } else if !Self.isReadOnlyInspectionTool(toolName) {
+              successfulReadOnlyToolCallCountAfterMalformedDevelopContinuation = 0
+            }
             let repeatCount = (successfulToolCallCountsAfterContinuationRejection[signature] ?? 0) + 1
             successfulToolCallCountsAfterContinuationRejection[signature] = repeatCount
             if repeatCount >= 2 {
@@ -720,6 +744,10 @@ extension AgentExecutor {
 
   private static func isReadOnlyInspectionTool(_ toolName: String) -> Bool {
     readOnlyInspectionToolNames.contains(toolName)
+  }
+
+  private static func isMalformedDevelopContinuationRejection(_ description: String) -> Bool {
+    description == "malformed Develop continuation response"
   }
 
   private static func toolFailureFamily(
@@ -1295,6 +1323,38 @@ extension AgentExecutor {
     \(planInstruction)\(latestRepair)
 
     Repeated arguments:
+    \(fencedContinuationText(arguments, limit: 2_000))
+    """
+  }
+
+  private static func readOnlyToolAfterMalformedDevelopContinuationRepairMessage(
+    toolName: String,
+    arguments: String,
+    latestRepairMessage: String?,
+    phase: AgentContinuationPhase
+  ) -> String {
+    let latestRepair = latestRepairMessage.map {
+      """
+
+      Latest malformed-continuation repair to apply now:
+      \($0)
+      """
+    } ?? ""
+    return """
+    You called read-only inspection tool `\(toolName)` after Compass rejected a malformed
+    Develop continuation. Compass ran the tool and the observation is now in history, but
+    reading more files does not repair malformed JSON or malformed tool arguments.
+
+    Use the latest observations and repair the rejected continuation now:
+    - If the rejected response was an `edit_file` with multiline content, return
+      `\(phase.continueKind)` using `edit_file` and `replacementLines` as an array of strings.
+    - Do not reread `package.json`, list files, or inspect other files merely to repair JSON syntax.
+    - Call `bash` only after the needed file edits/tests have been accepted.
+    - Return `\(phase.submitKind)` with status=failed or status=blocked only if no concrete
+      edit or verify call remains.
+    \(latestRepair)
+
+    Read-only detour arguments:
     \(fencedContinuationText(arguments, limit: 2_000))
     """
   }

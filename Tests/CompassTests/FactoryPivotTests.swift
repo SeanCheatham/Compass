@@ -1619,6 +1619,63 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func executorNudgesReadOnlyDetourAfterMalformedDevelopContinuation() async throws {
+    let tempURL = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let malformedEdit = """
+      ```json
+      {
+        "kind": "develop_continue",
+        "tool": "edit_file",
+        "arguments": {
+          "path": "packages/cli/src/main.ts",
+          "startLine": 4,
+          "endLine": 15,
+          "content": `export function main() {
+        return "bad";
+      }`
+        },
+        "reason": "Repair the CLI entrypoint."
+      }
+      ```
+      """
+    let readPackage =
+      #"{"kind":"develop_continue","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current scripts after the malformed edit."}"#
+    let terminalFailure =
+      #"{"kind":"develop_submit","payload":{"status":"failed","summary":"Could not complete the requested CLI change within the iteration budget.","feedback":"The implementation was not completed before the Develop iteration budget ended.","bypassVerify":false,"lessonEdits":[]}}"#
+    let runtime = FakeLocalModelRuntime(outputs: [
+      malformedEdit,
+      readPackage,
+      terminalFailure,
+    ])
+    let counter = ToolInvocationCounter()
+
+    let result = try await AgentExecutor().run(
+      testConfiguration(
+        phase: .develop,
+        runtime: runtime,
+        tools: [FakeReadFileTool(counter: counter)],
+        workingDirectory: tempURL,
+        submitResultSchema: Prompts.developSchema,
+        maxIterations: 3
+      )
+    )
+
+    #expect(result.iterations == 3)
+    #expect(counter.value == 1)
+    let prompts = await runtime.capturedPrompts()
+    #expect(prompts.count == 3)
+    #expect(prompts[2].contains("You called read-only inspection tool `read_file`"))
+    #expect(prompts[2].contains("reading more files does not repair malformed JSON"))
+    #expect(prompts[2].contains("repair the rejected continuation now"))
+    #expect(prompts[2].contains("using `edit_file` and `replacementLines` as an array of strings"))
+    #expect(prompts[2].contains("Do not reread `package.json`"))
+    #expect(prompts[2].contains("Latest malformed-continuation repair to apply now"))
+    #expect(prompts[2].contains(#""path":"package.json""#))
+  }
+
+  @Test
   func executorStopsAtMaxIterationsAndWallClock() async throws {
     let tempURL = try makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
