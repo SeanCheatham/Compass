@@ -231,14 +231,49 @@ struct AgentReadFileTool: AgentTool {
       under: context.workingDirectory,
       walkCap: 20_000
     )) ?? []
-    return matches
+    let usefulMatches = matches
       .map(\.url)
       .filter { $0.lastPathComponent == basename }
       .map(context.relativize)
       .filter { $0 != requestedPath }
+      .filter(Self.isUsefulSameFilenameMatch)
       .sorted()
+
+    if let packageRoot = Self.packageRootPrefix(for: requestedPath) {
+      return usefulMatches
+        .filter { $0.hasPrefix(packageRoot + "/") }
+        .prefix(limit)
+        .map { $0 }
+    }
+
+    return usefulMatches
       .prefix(limit)
       .map { $0 }
+  }
+
+  private static func packageRootPrefix(for path: String) -> String? {
+    let components = path.split(separator: "/").map(String.init)
+    guard components.count >= 2, components[0] == "packages" else { return nil }
+    return "packages/\(components[1])"
+  }
+
+  private static func isUsefulDirectoryEntry(_ entry: String) -> Bool {
+    isUsefulSameFilenameMatch(entry.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+  }
+
+  private static func isUsefulSameFilenameMatch(_ path: String) -> Bool {
+    let skippedComponents: Set<String> = [
+      ".build",
+      ".compass",
+      ".git",
+      ".pnpm-store",
+      ".turbo",
+      "build",
+      "coverage",
+      "dist",
+      "node_modules",
+    ]
+    return !path.split(separator: "/").contains { skippedComponents.contains(String($0)) }
   }
 
   private func nearestExistingDirectory(
@@ -254,6 +289,7 @@ struct AgentReadFileTool: AgentTool {
         let entries = try await context.filesystem.listDirectory(at: candidate)
           .map { entry in entry.isDirectory ? "\(entry.name)/" : entry.name }
           .filter { !$0.hasPrefix(".") }
+          .filter(Self.isUsefulDirectoryEntry)
           .sorted()
         if !entries.isEmpty || candidate.path == workingPath {
           return (candidate, entries)

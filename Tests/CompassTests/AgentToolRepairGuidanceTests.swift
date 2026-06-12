@@ -15,7 +15,17 @@ struct AgentToolRepairGuidanceTests {
       .appending(path: "packages", directoryHint: .isDirectory)
       .appending(path: "cli", directoryHint: .isDirectory)
       .appending(path: "src", directoryHint: .isDirectory)
+    let coreSrc =
+      tempURL
+      .appending(path: "packages", directoryHint: .isDirectory)
+      .appending(path: "core", directoryHint: .isDirectory)
+      .appending(path: "src", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: cliSrc, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: coreSrc, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: cliSrc.deletingLastPathComponent().appending(path: "node_modules"),
+      withIntermediateDirectories: true
+    )
     try FileManager.default.createDirectory(
       at: cliSrc.appending(path: "empty", directoryHint: .isDirectory),
       withIntermediateDirectories: true
@@ -27,6 +37,22 @@ struct AgentToolRepairGuidanceTests {
     )
     try "import './main';\n".write(
       to: cliSrc.appending(path: "main.test.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    try "export const core = true;\n".write(
+      to: coreSrc.appending(path: "index.ts"),
+      atomically: true,
+      encoding: .utf8
+    )
+    let vendoredSrc =
+      tempURL
+      .appending(path: "node_modules", directoryHint: .isDirectory)
+      .appending(path: "vendored", directoryHint: .isDirectory)
+      .appending(path: "src", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: vendoredSrc, withIntermediateDirectories: true)
+    try "export const noise = true;\n".write(
+      to: vendoredSrc.appending(path: "main.test.ts"),
       atomically: true,
       encoding: .utf8
     )
@@ -50,14 +76,25 @@ struct AgentToolRepairGuidanceTests {
     #expect(emptyDirectoryResult.content.contains("Nearest existing directory: packages/cli/src"))
     #expect(emptyDirectoryResult.content.contains("- main.ts"))
 
+    let wrongEntrypointResult = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"packages/cli/src/index.ts"}"#.utf8),
+      context: AgentToolContext(workingDirectory: tempURL)
+    )
+    #expect(wrongEntrypointResult.isError)
+    #expect(wrongEntrypointResult.content.contains("Nearest existing directory: packages/cli/src"))
+    #expect(wrongEntrypointResult.content.contains("- main.ts"))
+    #expect(!wrongEntrypointResult.content.contains("packages/core/src/index.ts"))
+
     let wrongDirectoryResult = try await AgentReadFileTool().invoke(
       arguments: Data(#"{"path":"packages/cli/test/main.test.ts"}"#.utf8),
       context: AgentToolContext(workingDirectory: tempURL)
     )
     #expect(wrongDirectoryResult.isError)
     #expect(wrongDirectoryResult.content.contains("Nearest existing directory: packages/cli"))
+    #expect(!wrongDirectoryResult.content.contains("- node_modules/"))
     #expect(wrongDirectoryResult.content.contains("Same filename exists at:"))
     #expect(wrongDirectoryResult.content.contains("- packages/cli/src/main.test.ts"))
+    #expect(!wrongDirectoryResult.content.contains("node_modules"))
   }
 
   @Test

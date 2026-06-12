@@ -361,6 +361,8 @@ enum PlanTransitionValidator {
         Plan selected generic `\(immediate.verify)` for new CLI behavior, but the handoff does not include a CLI test or direct proof.
 
         `pnpm verify` only proves this packet if Develop also adds or updates a test for the claimed CLI behavior, such as `packages/cli/src/main.test.ts`. Add the test file/update to the handoff, or choose a focused verify command that directly exercises the CLI output.
+
+        \(cliTestProofGuidance(for: plan + "\n" + acceptanceText))
         """,
       reason: .weakVerifyCoverage,
       rejectedVerify: immediate.verify
@@ -681,6 +683,47 @@ enum PlanTransitionValidator {
       "argv",
       "command",
     ].contains { text.contains($0) }
+  }
+
+  private static func cliTestProofGuidance(for text: String) -> String {
+    let flags = mentionedCLIFlags(in: text)
+    guard let flag = flags.first else {
+      return
+        """
+        Required acceptance check to append:
+        - `packages/cli/src/main.test.ts` exercises the new CLI path with split argv and asserts the output.
+        """
+    }
+
+    let repeated = text.contains("repeated") || text.contains("multiple")
+    if repeated {
+      return
+        """
+        Required acceptance check to append:
+        - `packages/cli/src/main.test.ts` calls `main([\"\(flag)\", \"api:green\", \"\(flag)\", \"db:red\"])` and asserts the formatted output.
+        """
+    }
+    return
+      """
+      Required acceptance check to append:
+      - `packages/cli/src/main.test.ts` calls `main([\"\(flag)\", \"value\"])` and asserts the output.
+      """
+  }
+
+  private static func mentionedCLIFlags(in text: String) -> [String] {
+    guard let regex = try? NSRegularExpression(pattern: #"--[A-Za-z][A-Za-z0-9-]*"#) else {
+      return []
+    }
+    let nsText = text as NSString
+    let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+    var seen = Set<String>()
+    var flags: [String] = []
+    for match in matches {
+      let flag = nsText.substring(with: match.range)
+      guard seen.insert(flag).inserted else { continue }
+      flags.append(flag)
+    }
+    return flags
   }
 
   private static func isFocusedCoverageVerify(_ normalizedVerify: String) -> Bool {

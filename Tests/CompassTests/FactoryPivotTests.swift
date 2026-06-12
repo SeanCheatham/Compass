@@ -264,6 +264,44 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func developRetryPromptPrioritizesSuggestedTestTargets() {
+    let next = PlanNext(
+      plan: """
+        ## Outcome
+        Add signal board formatting
+
+        ## Acceptance checks
+        - `packages/cli/src/main.test.ts` calls `main(["--signal", "api:green"])`.
+        """,
+      verify: "pnpm verify",
+      estimatedDifficulty: .low
+    )
+
+    let prompt = Prompts.developPrompt(
+      next: next,
+      lessons: "",
+      vision: "",
+      attempt: 2,
+      priorIssues: [
+        """
+        Verify passed for `pnpm verify`, but coverage shows changed source files were not exercised.
+
+        Suggested test targets:
+        - `packages/core/src/signalBoard.test.ts` (write_file) should import and execute `packages/core/src/signalBoard.ts`.
+        """
+      ]
+    )
+
+    #expect(prompt.contains("read and edit one of those exact"))
+    #expect(
+      prompt.contains("Do not start\na retry by rereading package.json")
+        || prompt.contains("Do not start a retry by rereading package.json")
+    )
+    #expect(prompt.contains("Do not submit success or rerun verify until you have changed a file"))
+    #expect(prompt.contains("packages/core/src/signalBoard.test.ts"))
+  }
+
+  @Test
   func typeScriptScaffoldHasWorkspaceScriptsAndPackages() throws {
     let files = TypeScriptProjectScaffold.files(
       options: .init(projectName: "My Factory App")
@@ -366,6 +404,27 @@ struct FactoryPivotTests {
     #expect(nudge.userMessage.contains("`pnpm test`"))
     #expect(nudge.userMessage.contains("`pnpm verify`"))
     #expect(nudge.userMessage.contains("Do not use bare `pnpm test`"))
+  }
+
+  @Test
+  func weakCLIProofNudgeShowsRepeatedSplitArgvShape() {
+    let error = PlanTransitionValidationError(
+      message:
+        "Plan selected generic `pnpm verify` for repeated `--signal` CLI behavior without a CLI test.",
+      reason: .weakVerifyCoverage,
+      rejectedVerify: "pnpm verify"
+    )
+
+    let nudge = AgentExecutor.submitResultValidationNudge(for: error, phase: .plan)
+
+    #expect(nudge.eventText == "plan_submit rejected")
+    #expect(nudge.userMessage.contains("Do not resubmit the same Acceptance checks unchanged"))
+    #expect(nudge.userMessage.contains("packages/cli/src/main.test.ts"))
+    #expect(
+      nudge.userMessage.contains(
+        #"main(["--signal", "api:green", "--signal", "db:red"])"#
+      )
+    )
   }
 
   @Test
@@ -1119,6 +1178,11 @@ struct FactoryPivotTests {
     #expect(counter.value == 0)
     let prompts = await runtime.capturedPrompts()
     #expect(prompts.count == 3)
+    #expect(prompts[1].contains("Your previous `plan_submit` payload could not be used"))
+    #expect(prompts[1].contains("Required next shape:"))
+    #expect(prompts[1].contains(#"{"kind":"plan_submit","payload":{...}}"#))
+    #expect(!prompts[1].contains(#"Required shape:\n{"kind":"plan_continue""#))
+    #expect(prompts[1].contains("Do not call `plan_continue`"))
     #expect(
       prompts[2].contains(
         "Your previous `plan_submit` was rejected because Compass rejected its payload"

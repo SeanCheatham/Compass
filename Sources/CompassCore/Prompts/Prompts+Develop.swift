@@ -119,6 +119,13 @@ extension Prompts {
     let issues = priorIssues.isEmpty ? "_(no captured prior issue text)_" : priorIssues.joined(separator: "\n\n")
     return """
       This is Develop attempt \(attempt). First address the prior issue(s), then rerun verify.
+      If the prior issue lists Suggested test targets, read and edit one of those exact
+      test files before inspecting unrelated files or running verify again. Do not start
+      a retry by rereading package.json unless the prior issue is about package scripts.
+      If a tool says a package manifest already points to an existing entry point, read
+      and edit that existing file instead of creating a duplicate entry point.
+      Do not submit success or rerun verify until you have changed a file that directly
+      addresses the prior issue.
 
       ```
       \(issues)

@@ -304,7 +304,7 @@ extension AgentExecutor {
           )
           transcript.append(
             .repair(
-              Self.continuationRepairMessage(
+              Self.submitResultRepairMessage(
                 error: rejection.userMessage,
                 invalidOutput: output,
                 phase: configuration.continuationPhase
@@ -1063,6 +1063,28 @@ extension AgentExecutor {
     {"kind":"\(phase.continueKind)","tool":"read_file","arguments":{"path":"package.json"},"reason":"Need current package scripts.","note":"If package scripts exist, run the relevant verify command next."}
     or
     {"kind":"\(phase.submitKind)","payload":{...}}
+
+    Invalid response:
+    \(fencedContinuationText(invalidOutput, limit: 4_000))
+    """
+  }
+
+  private static func submitResultRepairMessage(
+    error: String,
+    invalidOutput: String,
+    phase: AgentContinuationPhase
+  ) -> String {
+    """
+    Your previous `\(phase.submitKind)` payload could not be used.
+
+    Error:
+    \(error)
+
+    Required next shape:
+    {"kind":"\(phase.submitKind)","payload":{...}}
+
+    Do not call `\(phase.continueKind)` or any tool to repair this rejected submit.
+    Existing observations remain available in recent history.
 
     Invalid response:
     \(fencedContinuationText(invalidOutput, limit: 4_000))
