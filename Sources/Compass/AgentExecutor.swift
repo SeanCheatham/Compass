@@ -40,6 +40,8 @@ struct AgentExecutionConfiguration {
   var assumptionsURL: URL?
   /// Compass session number associated with this phase, when one exists.
   var sessionNumber: Int?
+  /// Optional prefix for prompt-log artifact labels, such as `develop-attempt-2`.
+  var promptLogLabelPrefix: String?
   /// Optional post-decode guard for the phase submit payload. When it throws,
   /// the executor rolls back the turn and reprompts — same remediation
   /// path as malformed tool JSON. `runAgent` uses this to reject lesson
@@ -66,6 +68,7 @@ struct AgentExecutionConfiguration {
     planHistoryEntries: [String] = [],
     assumptionsURL: URL? = nil,
     sessionNumber: Int? = nil,
+    promptLogLabelPrefix: String? = nil,
     validateSubmitResult: (@Sendable (Data) throws -> Void)? = nil,
     maxIterations: Int = 512,
     wallClockTimeout: TimeInterval = 60 * 60
@@ -86,6 +89,7 @@ struct AgentExecutionConfiguration {
     self.planHistoryEntries = planHistoryEntries
     self.assumptionsURL = assumptionsURL
     self.sessionNumber = sessionNumber
+    self.promptLogLabelPrefix = promptLogLabelPrefix
     self.validateSubmitResult = validateSubmitResult
     self.maxIterations = maxIterations
     self.wallClockTimeout = wallClockTimeout

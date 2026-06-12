@@ -858,6 +858,7 @@ public struct HeadlessCompassRunner: Sendable {
       workspace: workspace,
       forgeProfile: forgeProfile,
       sessionNumber: sessionNumber,
+      promptLogLabelPrefix: "plan",
       maxIterations: maxIterations,
       decode: PlanRunResult.self,
       onEvent: onEvent
@@ -899,6 +900,7 @@ public struct HeadlessCompassRunner: Sendable {
       workspace: workspace,
       forgeProfile: ForgeProfileService.resolve(repoURL: workspace.repoURL, workspace: workspace),
       sessionNumber: sessionNumber,
+      promptLogLabelPrefix: "develop-attempt-\(attempt)",
       maxIterations: maxIterations,
       decode: DevelopSummary.self,
       onEvent: onEvent
@@ -950,6 +952,7 @@ public struct HeadlessCompassRunner: Sendable {
       workspace: workspace,
       forgeProfile: forgeProfile,
       sessionNumber: sessionNumber,
+      promptLogLabelPrefix: "critic",
       maxIterations: maxIterations,
       decode: CriticVerdict.self,
       onEvent: onEvent
@@ -965,6 +968,7 @@ public struct HeadlessCompassRunner: Sendable {
     workspace: CompassWorkspace,
     forgeProfile: ForgeProfile?,
     sessionNumber: Int,
+    promptLogLabelPrefix: String?,
     maxIterations: Int,
     decode: T.Type,
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
@@ -1000,6 +1004,7 @@ public struct HeadlessCompassRunner: Sendable {
       planHistoryEntries: workspace.readSessions(includeArchived: true).compactMap(\.plan),
       assumptionsURL: workspace.assumptionsURL,
       sessionNumber: sessionNumber,
+      promptLogLabelPrefix: promptLogLabelPrefix,
       validateSubmitResult: submitResultValidation(
         for: phase,
         workspace: workspace,

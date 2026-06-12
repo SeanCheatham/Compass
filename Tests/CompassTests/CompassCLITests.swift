@@ -84,23 +84,31 @@ struct CompassCLITests {
       request: LocalModelGenerationRequest(
         systemPrompt: "system marker",
         prompt: "prompt marker",
-        maxOutputTokens: 32
+        maxOutputTokens: 32,
+        logLabel: "Plan Iteration 1"
       )
     )
 
     #expect(result.text.contains("plan_submit"))
     #expect(
-      try String(contentsOf: tempURL.appending(path: "001-system.md"), encoding: .utf8)
+      try String(
+        contentsOf: tempURL.appending(path: "001-plan-iteration-1-system.md"), encoding: .utf8)
         == "system marker"
     )
     #expect(
-      try String(contentsOf: tempURL.appending(path: "001-prompt.md"), encoding: .utf8)
+      try String(
+        contentsOf: tempURL.appending(path: "001-plan-iteration-1-prompt.md"), encoding: .utf8)
         == "prompt marker"
     )
     #expect(
-      try String(contentsOf: tempURL.appending(path: "001-output.md"), encoding: .utf8)
-        .contains("plan_submit")
+      try String(
+        contentsOf: tempURL.appending(path: "001-plan-iteration-1-output.md"), encoding: .utf8
+      )
+      .contains("plan_submit")
     )
+    let index = try String(contentsOf: tempURL.appending(path: "index.jsonl"), encoding: .utf8)
+    #expect(index.contains(#""label":"plan-iteration-1""#))
+    #expect(index.contains(#""status":"completed""#))
   }
 
   @Test

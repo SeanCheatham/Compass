@@ -35,36 +35,38 @@ actor FixtureLocalModelRuntime: LocalModelGenerating {
   }
 
   func generateText(request: LocalModelGenerationRequest) async throws -> LocalModelGenerationResult {
-    try writePromptLog(request: request, turn: cursor + 1)
+    let artifacts = try promptLogDirectory.map {
+      try PromptLogWriter.writePromptLog(request: request, turn: cursor + 1, in: $0)
+    }
     guard cursor < outputs.count else {
+      if let promptLogDirectory, let artifacts {
+        try? PromptLogWriter.writeOutputLog(
+          "Generation failed: \(HeadlessCompassError.fixtureExhausted.localizedDescription)\n",
+          request: request,
+          artifacts: artifacts,
+          status: "failed",
+          error: HeadlessCompassError.fixtureExhausted.localizedDescription,
+          in: promptLogDirectory
+        )
+      }
       throw HeadlessCompassError.fixtureExhausted
     }
     let output = outputs[cursor]
     cursor += 1
+    if let promptLogDirectory, let artifacts {
+      try PromptLogWriter.writeOutputLog(
+        output,
+        request: request,
+        artifacts: artifacts,
+        status: "completed",
+        in: promptLogDirectory
+      )
+    }
     let usage = AgentRunTokenUsage.estimated(
       inputCharacters: request.systemPrompt.count + request.prompt.count,
       outputCharacters: output.count,
       charsPerToken: AgentExecutor.estimatedCharsPerToken
     )
     return LocalModelGenerationResult(text: output, tokenUsage: usage)
-  }
-
-  private func writePromptLog(request: LocalModelGenerationRequest, turn: Int) throws {
-    guard let promptLogDirectory else { return }
-    try FileManager.default.createDirectory(
-      at: promptLogDirectory,
-      withIntermediateDirectories: true
-    )
-    let prefix = String(format: "%03d", turn)
-    try request.systemPrompt.write(
-      to: promptLogDirectory.appending(path: "\(prefix)-system.md"),
-      atomically: true,
-      encoding: .utf8
-    )
-    try request.prompt.write(
-      to: promptLogDirectory.appending(path: "\(prefix)-prompt.md"),
-      atomically: true,
-      encoding: .utf8
-    )
   }
 }

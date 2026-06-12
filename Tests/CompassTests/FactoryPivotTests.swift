@@ -302,6 +302,41 @@ struct FactoryPivotTests {
   }
 
   @Test
+  func developRetryPromptPrioritizesRequestedTestFiles() {
+    let next = PlanNext(
+      plan: """
+        ## Outcome
+        Add JSON output support to the CLI.
+
+        ## Acceptance checks
+        - `packages/cli/src/main.test.ts` calls `main(["--format", "json", "Ship", "it"])`.
+        """,
+      verify: "pnpm verify",
+      estimatedDifficulty: .low
+    )
+
+    let prompt = Prompts.developPrompt(
+      next: next,
+      lessons: "",
+      vision: "",
+      attempt: 4,
+      priorIssues: [
+        """
+        Verify passed for `pnpm verify`, but the accepted plan or brief explicitly requires test changes and no test/spec file changed.
+
+        Requested test file(s):
+        - `packages/cli/src/main.test.ts`
+        """
+      ]
+    )
+
+    #expect(prompt.contains("If the prior issue lists Requested test file(s)"))
+    #expect(prompt.contains("make your first write/edit target"))
+    #expect(prompt.contains("Do not edit source files again until that requested test"))
+    #expect(prompt.contains("packages/cli/src/main.test.ts"))
+  }
+
+  @Test
   func typeScriptScaffoldHasWorkspaceScriptsAndPackages() throws {
     let files = TypeScriptProjectScaffold.files(
       options: .init(projectName: "My Factory App")
@@ -1190,6 +1225,9 @@ struct FactoryPivotTests {
     #expect(prompts[2].contains("The next action must repair that submit envelope"))
     #expect(prompts[2].contains("Compass did not run `read_file`"))
     #expect(prompts[2].contains("Do not call `read_file`, `list_files`, `bash`"))
+    #expect(prompts[2].contains("For Plan, repair `state.immediate.plan` directly"))
+    #expect(
+      prompts[2].contains("Include both the target test file path and the concrete invocation"))
     #expect(prompts[2].contains(#"{"kind":"plan_submit","payload":{...}}"#))
     #expect(prompts[2].contains("Your previous Plan payload claimed new CLI behavior without proof"))
     #expect(prompts[2].contains("Do not call another tool to repair this"))
@@ -1762,6 +1800,7 @@ struct FactoryPivotTests {
     #expect(prompts[3].contains("Compass will keep rejecting tools"))
     #expect(prompts[3].contains("The continuation-contract `read_file package.json` shape is only an example"))
     #expect(prompts[3].contains("Your next response must be `plan_submit`, not `plan_continue`"))
+    #expect(prompts[3].contains("For Plan, repair `state.immediate.plan` directly"))
     #expect(prompts[3].contains(#""path":"package.json""#))
   }
 

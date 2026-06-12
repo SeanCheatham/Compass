@@ -146,7 +146,8 @@ extension AgentExecutor {
             modelID: LocalModelCatalog.blessedModelID,
             systemPrompt: configuration.systemPrompt,
             prompt: prompt,
-            maxOutputTokens: Self.maxCompletionTokensPerTurn
+            maxOutputTokens: Self.maxCompletionTokensPerTurn,
+            logLabel: Self.generationLogLabel(configuration: configuration, iteration: iterations)
           )
         )
       } catch is CancellationError {
@@ -915,6 +916,22 @@ extension AgentExecutor {
     return estimatedTokens > threshold
   }
 
+  private static func generationLogLabel(
+    configuration: AgentExecutionConfiguration,
+    iteration: Int
+  ) -> String {
+    generationLogLabel(configuration: configuration, suffix: "iteration-\(iteration)")
+  }
+
+  private static func generationLogLabel(
+    configuration: AgentExecutionConfiguration,
+    suffix: String
+  ) -> String {
+    let prefix = configuration.promptLogLabelPrefix?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let base = prefix?.isEmpty == false ? prefix! : configuration.phase.rawValue
+    return "\(base)-\(suffix)"
+  }
+
   private static func compactContinuationHistory(
     configuration: AgentExecutionConfiguration,
     runtime: any LocalModelGenerating,
@@ -937,7 +954,8 @@ extension AgentExecutor {
           olderEntries: olderEntries,
           recentEntries: transcript.suffix(rawTranscriptEntriesAfterCompaction)
         ),
-        maxOutputTokens: maxSummaryCompletionTokens
+        maxOutputTokens: maxSummaryCompletionTokens,
+        logLabel: Self.generationLogLabel(configuration: configuration, suffix: "compaction")
       )
     )
 
@@ -1267,6 +1285,17 @@ extension AgentExecutor {
     let repairTarget = pendingRepair.malformedJSON
       ? "malformed submit JSON"
       : "a rejected submit payload"
+    let planPayloadRepair =
+      phase == .plan
+      ? """
+
+        For Plan, repair `state.immediate.plan` directly:
+        - Keep the same Outcome if it is still useful.
+        - Add the missing Acceptance checks line from the Compass Repair below.
+        - Include both the target test file path and the concrete invocation in that line.
+        - Return `\(phase.submitKind)` immediately; no repository file needs to be reread.
+        """
+      : ""
     let repeatedWarning =
       repeatCount >= 2
       ? """
@@ -1291,7 +1320,7 @@ extension AgentExecutor {
 
     Return exactly one valid JSON object now:
     {"kind":"\(phase.submitKind)","payload":{...}}
-    \(repeatedWarning)
+    \(planPayloadRepair)\(repeatedWarning)
 
     Apply this repair:
     \(pendingRepair.repairMessage)

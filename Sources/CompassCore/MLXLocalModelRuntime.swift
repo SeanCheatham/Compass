@@ -11,17 +11,20 @@ struct LocalModelGenerationRequest: Sendable, Equatable {
   var systemPrompt: String
   var prompt: String
   var maxOutputTokens: Int
+  var logLabel: String?
 
   init(
     modelID: String = LocalModelCatalog.blessedModelID,
     systemPrompt: String,
     prompt: String,
-    maxOutputTokens: Int = AgentExecutor.maxCompletionTokensPerTurn
+    maxOutputTokens: Int = AgentExecutor.maxCompletionTokensPerTurn,
+    logLabel: String? = nil
   ) {
     self.modelID = modelID
     self.systemPrompt = systemPrompt
     self.prompt = prompt
     self.maxOutputTokens = max(1, maxOutputTokens)
+    self.logLabel = logLabel
   }
 }
 

@@ -703,6 +703,13 @@ enum PlanTransitionValidator {
         - `packages/cli/src/main.test.ts` calls `main([\"\(flag)\", \"api:green\", \"\(flag)\", \"db:red\"])` and asserts the formatted output.
         """
     }
+    if flag == "--format", text.contains("json") {
+      return
+        """
+        Required acceptance check to append:
+        - `packages/cli/src/main.test.ts` calls `main(["--format", "json", "Ship", "it"])` and asserts the parsed JSON title is `Ship it`.
+        """
+    }
     return
       """
       Required acceptance check to append:

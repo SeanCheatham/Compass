@@ -226,6 +226,29 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test
+  func jsonFormatCLIProofGuidanceNamesSplitArgvTest() throws {
+    let weak = planState(
+      """
+      ## Outcome
+      Add support for `--format json` to the CLI.
+
+      ## Acceptance checks
+      - Running `main(["--format", "json", "Ship", "it"])` returns JSON output.
+      """
+    )
+
+    do {
+      try PlanTransitionValidator.validate(from: .empty, to: weak)
+      Issue.record("Expected weak verify rejection.")
+    } catch let error as PlanTransitionValidationError {
+      #expect(error.reason == .weakVerifyCoverage)
+      #expect(error.message.contains("packages/cli/src/main.test.ts"))
+      #expect(error.message.contains(#"main(["--format", "json", "Ship", "it"])"#))
+      #expect(error.message.contains("parsed JSON title is `Ship it`"))
+    }
+  }
+
+  @Test
   func rejectsTestOnlyVerifyForCLIImplementationWork() throws {
     let implementation = planState(
       """

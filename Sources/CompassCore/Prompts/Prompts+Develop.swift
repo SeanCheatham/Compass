@@ -122,6 +122,9 @@ extension Prompts {
       If the prior issue lists Suggested test targets, read and edit one of those exact
       test files before inspecting unrelated files or running verify again. Do not start
       a retry by rereading package.json unless the prior issue is about package scripts.
+      If the prior issue lists Requested test file(s), make your first write/edit target
+      one of those test files. Do not edit source files again until that requested test
+      file has changed in this attempt.
       If a tool says a package manifest already points to an existing entry point, read
       and edit that existing file instead of creating a duplicate entry point.
       Do not submit success or rerun verify until you have changed a file that directly
