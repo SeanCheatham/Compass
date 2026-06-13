@@ -28,10 +28,11 @@ package extension Prompts {
       - New generated projects use `tessera.json`, `src/*.tes`, `contexts/*.json`,
         and `tests/*.json`.
       - Prefer `\(standardVerify)` as the verify command for generated work.
-        For focused entrypoint checks, use the `tessera` tool with
-        `{"action":"run_entrypoint","entrypoint":"<name>"}` while keeping
-        human-readable verify fields as shell-style commands. For docs-only slices use
-        a simple `grep -q` content check.
+        Use the `tessera` tool with `{"action":"inspect_project"}` to ground source,
+        test, context, and entrypoint paths. For focused probes use
+        `run_entrypoint`, `run_test`, `parse_source`, or `check_source` tool actions
+        while keeping human-readable verify fields as shell-style commands. For docs-only
+        slices use a simple `grep -q` content check.
       - Prefer dependency-free implementation packets. If the next slice needs a new
         host capability or manifest field, the handoff must explicitly name the
         `tessera.json` update and tests.

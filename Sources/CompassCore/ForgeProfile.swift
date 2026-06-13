@@ -60,8 +60,9 @@ package enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
         - Use `tessera.json` for named app entrypoints, `contexts/*.json` for host input,
           and `tests/*.json` for deterministic examples.
         - Keep Tessera changes expression-oriented, typed, and small-model friendly.
-        - Standard verify is `tessera verify . --json`; focused entrypoint checks may use
-          `tessera app <entrypoint> --json`.
+        - Standard verify is `tessera verify . --json`; focused probes should use the
+          embedded Compass `tessera` tool for project inspection, source checks, test
+          runs, and entrypoint execution.
         - The `web` entrypoint is `web-json` until Tessera grows a full UI runtime.
         """
     }

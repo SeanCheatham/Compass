@@ -34,8 +34,11 @@ package extension Prompts {
       - Run the verify command before finishing unless the command itself is wrong or out
         of scope.
       - For generated Tessera projects, use the Compass `tessera` tool with
-        `{"action":"verify"}` or `{"action":"run_entrypoint","entrypoint":"<name>"}`
-        instead of depending on a `tessera` binary in shell PATH.
+        `{"action":"verify"}`, `{"action":"inspect_project"}`,
+        `{"action":"run_test","test_path":"tests/<name>.json"}`,
+        `{"action":"check_source","path":"src/<name>.tes"}`, or
+        `{"action":"run_entrypoint","entrypoint":"<name>"}` instead of depending on a
+        `tessera` binary in shell PATH.
       - Leave the working tree clean, or explain why you are blocked.
       - Do not commit generated outputs or caches: `target/`, `node_modules/`, `dist/`,
         `coverage/`, `.build/`, `build/`, or editor artifacts.

@@ -69,6 +69,7 @@ package struct CodemapIndexer: Sendable {
   package func indexAll() async throws -> Result {
     let candidates = try await listCandidateFiles()
     let candidateSet = Set(candidates)
+    let tesseraInspection = await loadTesseraInspectionIfAvailable(for: candidates)
 
     var indexed = 0
     var unchanged = 0
@@ -88,7 +89,7 @@ package struct CodemapIndexer: Sendable {
         }
         let target = next
         group.addTask {
-          await indexOne(relativePath: target)
+          await indexOne(relativePath: target, tesseraInspection: tesseraInspection)
         }
         inFlight += 1
       }
@@ -112,7 +113,10 @@ package struct CodemapIndexer: Sendable {
   /// Read a single file, hash it, and re-parse / save when the hash
   /// differs from what's on disk. Exposed for the incremental refresher
   /// (Phase 4) and for tests; the bulk indexer fans out across this.
-  package func indexOne(relativePath: String) async -> PerFileOutcome {
+  package func indexOne(
+    relativePath: String,
+    tesseraInspection: TesseraProjectInspection? = nil
+  ) async -> PerFileOutcome {
     guard let language = CodemapLanguage.forRelativePath(relativePath) else {
       return .skipped(.unsupportedExtension)
     }
@@ -138,17 +142,24 @@ package struct CodemapIndexer: Sendable {
     let existing = store.loadEntry(forRelativePath: relativePath)
     if let existing,
       existing.contentHash == contentHash,
-      existing.language == language
+      existing.language == language,
+      !(language == .tessera && tesseraInspection != nil)
     {
       return .unchanged
     }
 
     let source = String(decoding: data, as: UTF8.self)
     let extraction: CodemapExtraction
-    do {
-      extraction = try extractor.extract(source: source, language: language)
-    } catch {
-      return .failed("parse failed: \(error.localizedDescription)")
+    if language == .tessera,
+      let indexedSource = tesseraInspection?.sources.first(where: { $0.path == relativePath })
+    {
+      extraction = Self.tesseraExtraction(from: indexedSource)
+    } else {
+      do {
+        extraction = try extractor.extract(source: source, language: language)
+      } catch {
+        return .failed("parse failed: \(error.localizedDescription)")
+      }
     }
 
     let entry = CodemapEntry(
@@ -172,6 +183,43 @@ package struct CodemapIndexer: Sendable {
       return .failed("save failed: \(error.localizedDescription)")
     }
     return .indexed
+  }
+
+  private func loadTesseraInspectionIfAvailable(
+    for candidates: [String]
+  ) async -> TesseraProjectInspection? {
+    guard candidates.contains(where: { $0.hasSuffix(".tes") }),
+      FileManager.default.fileExists(atPath: workingDirectory.appending(path: "tessera.json").path)
+    else {
+      return nil
+    }
+    return try? await CompassEngineProcess.loadProjectInspection(root: workingDirectory)
+  }
+
+  private static func tesseraExtraction(from source: TesseraIndexedSource) -> CodemapExtraction {
+    var symbols = source.symbols.map { symbol in
+      CodemapSymbol(
+        kind: CodemapSymbolKind(rawValue: symbol.kind) ?? .function,
+        name: symbol.name,
+        line: symbol.line,
+        endLine: symbol.endLine
+      )
+    }
+    symbols += source.entrypoints.map {
+      CodemapSymbol(kind: .constant, name: "entrypoint:\($0)", line: 1, endLine: 1)
+    }
+    symbols += source.tests.map {
+      CodemapSymbol(kind: .constant, name: "test:\(($0 as NSString).lastPathComponent)", line: 1, endLine: 1)
+    }
+    symbols += source.contexts.map {
+      CodemapSymbol(kind: .constant, name: "context:\(($0 as NSString).lastPathComponent)", line: 1, endLine: 1)
+    }
+    symbols.sort { $0.line < $1.line || ($0.line == $1.line && $0.name < $1.name) }
+
+    let imports = (source.contexts + source.tests)
+      .map { CodemapImport(raw: $0, line: 1) }
+      .sorted { $0.raw < $1.raw }
+    return CodemapExtraction(symbols: symbols, imports: imports)
   }
 
   /// Remove on-disk entries whose `relativePath` no longer appears in the

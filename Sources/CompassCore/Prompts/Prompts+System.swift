@@ -41,7 +41,8 @@ package extension Prompts {
   ) -> String {
     let fileTools = "read_file, ls, grep, glob"
     let codemapTools = "outline, find_symbol, summary, list_files, importers_of"
-    let tesseraTool = "tessera for embedded Tessera verify and entrypoint execution"
+    let tesseraTool =
+      "tessera for embedded Tessera verify, project inspection, source checks, tests, and entrypoint execution"
     let assumptionTools = "record_assumption, remove_assumption"
     let delegateTool = "delegate"
     let toolList: String
@@ -173,9 +174,10 @@ package extension Prompts {
       File tools read and write repo-relative paths on the Compass-owned host worktree.
       Bash commands run inside Linux with the repo mounted at `/workspace`; use relative
       paths or `/workspace/...` in shell commands. Use the Compass `tessera` tool for
-      generated Tessera verification and entrypoint probes; the Tessera CLI does not need
-      to be on PATH for Compass-owned Tessera workflows. Expected shell tools include git,
-      Node.js, and npm/Corepack with pinned pnpm for legacy TypeScript repos.
+      generated Tessera verification, project inspection, source checks, focused test
+      runs, and entrypoint probes; the Tessera CLI does not need to be on PATH for
+      Compass-owned Tessera workflows. Expected shell tools include git, Node.js, and
+      npm/Corepack with pinned pnpm for legacy TypeScript repos.
       Docker, Xcode, and Homebrew are unavailable.
       """
     }

@@ -50,6 +50,11 @@ tessera app cli --json
 tessera app web --json
 ```
 
+Compass agents use the embedded Rust engine for generated Tessera workflows:
+project verify, project inspection, focused `tests/*.json` runs, source
+parse/typecheck/format probes, and manifest entrypoint execution. The engine
+reports an ABI and Tessera project-report schema version before Compass uses it.
+
 ## Runtime
 
 Compass runs model work locally through native Swift MLX with `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit`. The model is downloaded only after user approval into Compass Application Support. There are no API keys, remote text providers, media providers, or provider routing settings in this build.
@@ -60,10 +65,11 @@ The Shared VM/tooling path expects this generated-project toolchain:
 - Homebrew
 - ripgrep
 - Node.js and Corepack/pnpm for legacy TypeScript repositories
-- `tessera` CLI on `PATH` for generated Tessera app verification
+- `tessera` CLI on `PATH` only when a user-selected shell command explicitly
+  invokes the CLI
 
-Until Compass packages Tessera into the runtime image directly, install or link the Tessera CLI
-before running generated Tessera verification inside that environment.
+Compass-owned Tessera verify and focused probes do not require the Tessera CLI in
+the runtime image.
 
 ## Development
 

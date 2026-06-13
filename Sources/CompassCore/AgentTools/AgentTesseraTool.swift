@@ -9,7 +9,7 @@ package struct AgentTesseraTool: AgentTool {
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Run embedded Tessera project operations without shelling out to the tessera CLI. Supports project verify and manifest entrypoint execution.",
+        "Run embedded Tessera project operations without shelling out to the tessera CLI. Supports project verify, inspection, focused source checks, tests, and manifest entrypoint execution.",
       parameters: AgentToolParametersSchema(literal: [
         "type": "object",
         "additionalProperties": false,
@@ -17,7 +17,10 @@ package struct AgentTesseraTool: AgentTool {
         "properties": [
           "action": [
             "type": "string",
-            "enum": ["verify", "run_entrypoint"],
+            "enum": [
+              "verify", "inspect_project", "run_entrypoint", "run_test", "parse_source",
+              "check_source", "format_source",
+            ],
             "description": "Tessera operation to run.",
           ],
           "root": [
@@ -28,8 +31,16 @@ package struct AgentTesseraTool: AgentTool {
             "type": "string",
             "description": "Manifest entrypoint name. Required for run_entrypoint.",
           ],
+          "path": [
+            "type": "string",
+            "description": "Source path or bare source name for parse_source, check_source, and format_source.",
+          ],
+          "test_path": [
+            "type": "string",
+            "description": "Test JSON path for run_test, for example tests/display-name.json.",
+          ],
           "input": [
-            "description": "Optional JSON object used as an entrypoint input override.",
+            "description": "Optional JSON object used as an entrypoint or source-check input override.",
           ],
         ],
       ])
@@ -67,6 +78,9 @@ package struct AgentTesseraTool: AgentTool {
     case "verify":
       let result = try await CompassEngineProcess.verifyProject(root: root)
       return format(result: result, successNext: verifySuccessGuidance())
+    case "inspect_project":
+      let result = try await CompassEngineProcess.inspectProject(root: root)
+      return format(result: result, successNext: nil)
     case "run_entrypoint":
       guard let entrypoint = object["entrypoint"] as? String,
         !entrypoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -79,6 +93,39 @@ package struct AgentTesseraTool: AgentTool {
         entrypoint: entrypoint,
         input: input
       )
+      return format(result: result, successNext: nil)
+    case "run_test":
+      guard let testPath = object["test_path"] as? String,
+        !testPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      else {
+        return .failure(.invalidArguments("test_path is required for run_test"))
+      }
+      let result = try await CompassEngineProcess.runTest(root: root, testPath: testPath)
+      return format(result: result, successNext: nil)
+    case "parse_source":
+      guard let path = object["path"] as? String,
+        !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      else {
+        return .failure(.invalidArguments("path is required for parse_source"))
+      }
+      let result = try await CompassEngineProcess.parseSource(root: root, path: path)
+      return format(result: result, successNext: nil)
+    case "check_source":
+      guard let path = object["path"] as? String,
+        !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      else {
+        return .failure(.invalidArguments("path is required for check_source"))
+      }
+      let input = try inputData(from: object["input"])
+      let result = try await CompassEngineProcess.checkSource(root: root, path: path, input: input)
+      return format(result: result, successNext: nil)
+    case "format_source":
+      guard let path = object["path"] as? String,
+        !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      else {
+        return .failure(.invalidArguments("path is required for format_source"))
+      }
+      let result = try await CompassEngineProcess.formatSource(root: root, path: path)
       return format(result: result, successNext: nil)
     default:
       return .failure(.invalidArguments("unsupported action: \(action)"))
@@ -102,6 +149,9 @@ package struct AgentTesseraTool: AgentTool {
     let stderr = result.stderr.trimmingCharacters(in: CharacterSet(charactersIn: "\n"))
     if !stderr.isEmpty {
       sections.append("[stderr]\n\(stderr)")
+    }
+    if let note = CompassEngineProcess.resultNote(stdout: stdout) {
+      sections.append("[tessera]\n\(note)")
     }
     sections.append("[exit \(result.exitCode)]")
     if result.exitCode == 0, let successNext {

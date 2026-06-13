@@ -3,11 +3,41 @@ use std::ffi::{c_char, CStr, CString};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use tessera_core::{
-    run_entrypoint as run_tessera_entrypoint, verify_project as verify_tessera_project,
+    check_source as check_tessera_source, format_project_source as format_tessera_source,
+    inspect_project as inspect_tessera_project, parse_source as parse_tessera_source,
+    run_entrypoint as run_tessera_entrypoint, run_test as run_tessera_test,
+    verify_project as verify_tessera_project, PROJECT_REPORT_SCHEMA_VERSION, TESSERA_CORE_VERSION,
 };
 
+const ENGINE_ABI_VERSION: u32 = 1;
+const VERSION_KIND: &str = "version";
 const VERIFY_PROJECT_KIND: &str = "verify_project";
 const RUN_ENTRYPOINT_KIND: &str = "run_entrypoint";
+const RUN_TEST_KIND: &str = "run_test";
+const INSPECT_PROJECT_KIND: &str = "inspect_project";
+const PARSE_SOURCE_KIND: &str = "parse_source";
+const CHECK_SOURCE_KIND: &str = "check_source";
+const FORMAT_SOURCE_KIND: &str = "format_source";
+
+const SUPPORTED_OPERATIONS: &[&str] = &[
+    VERSION_KIND,
+    VERIFY_PROJECT_KIND,
+    RUN_ENTRYPOINT_KIND,
+    RUN_TEST_KIND,
+    INSPECT_PROJECT_KIND,
+    PARSE_SOURCE_KIND,
+    CHECK_SOURCE_KIND,
+    FORMAT_SOURCE_KIND,
+];
+
+#[derive(Debug, Serialize)]
+struct EngineVersion {
+    engine_abi_version: u32,
+    compass_engine_version: &'static str,
+    project_report_schema_version: u32,
+    tessera_core_version: &'static str,
+    operations: &'static [&'static str],
+}
 
 #[derive(Debug, Deserialize)]
 struct VerifyProjectRequest {
@@ -18,6 +48,26 @@ struct VerifyProjectRequest {
 struct RunEntrypointRequest {
     root: String,
     entrypoint: String,
+    #[serde(default)]
+    input: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RunTestRequest {
+    root: String,
+    test_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SourcePathRequest {
+    root: String,
+    path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CheckSourceRequest {
+    root: String,
+    path: String,
     #[serde(default)]
     input: Option<serde_json::Value>,
 }
@@ -36,6 +86,11 @@ where
 }
 
 #[no_mangle]
+pub extern "C" fn compass_engine_version() -> *mut c_char {
+    ffi_boundary(version)
+}
+
+#[no_mangle]
 pub extern "C" fn compass_engine_verify_project(request_json: *const c_char) -> *mut c_char {
     ffi_boundary(|| verify_project(request_json))
 }
@@ -43,6 +98,31 @@ pub extern "C" fn compass_engine_verify_project(request_json: *const c_char) -> 
 #[no_mangle]
 pub extern "C" fn compass_engine_run_entrypoint(request_json: *const c_char) -> *mut c_char {
     ffi_boundary(|| run_entrypoint(request_json))
+}
+
+#[no_mangle]
+pub extern "C" fn compass_engine_run_test(request_json: *const c_char) -> *mut c_char {
+    ffi_boundary(|| run_test(request_json))
+}
+
+#[no_mangle]
+pub extern "C" fn compass_engine_inspect_project(request_json: *const c_char) -> *mut c_char {
+    ffi_boundary(|| inspect_project(request_json))
+}
+
+#[no_mangle]
+pub extern "C" fn compass_engine_parse_source(request_json: *const c_char) -> *mut c_char {
+    ffi_boundary(|| parse_source(request_json))
+}
+
+#[no_mangle]
+pub extern "C" fn compass_engine_check_source(request_json: *const c_char) -> *mut c_char {
+    ffi_boundary(|| check_source(request_json))
+}
+
+#[no_mangle]
+pub extern "C" fn compass_engine_format_source(request_json: *const c_char) -> *mut c_char {
+    ffi_boundary(|| format_source(request_json))
 }
 
 #[no_mangle]
@@ -61,6 +141,21 @@ pub unsafe extern "C" fn compass_engine_free_string(ptr: *mut c_char) {
         // pointers are handled above, and `from_raw` takes ownership exactly once.
         drop(CString::from_raw(ptr));
     }
+}
+
+fn version() -> String {
+    encode_response(EngineResponse {
+        ok: true,
+        kind: VERSION_KIND,
+        result: Some(EngineVersion {
+            engine_abi_version: ENGINE_ABI_VERSION,
+            compass_engine_version: env!("CARGO_PKG_VERSION"),
+            project_report_schema_version: PROJECT_REPORT_SCHEMA_VERSION,
+            tessera_core_version: TESSERA_CORE_VERSION,
+            operations: SUPPORTED_OPERATIONS,
+        }),
+        message: None,
+    })
 }
 
 fn verify_project(request_json: *const c_char) -> String {
@@ -84,6 +179,66 @@ fn run_entrypoint(request_json: *const c_char) -> String {
             let entrypoint = required_string(request.entrypoint, "entrypoint")?;
             let result = run_tessera_entrypoint(root, &entrypoint, request.input.as_ref());
             Ok((result.ok, result))
+        },
+    )
+}
+
+fn run_test(request_json: *const c_char) -> String {
+    handle_request(RUN_TEST_KIND, request_json, |request: RunTestRequest| {
+        let root = required_path(request.root, "root")?;
+        let test_path = required_string(request.test_path, "test_path")?;
+        let result = run_tessera_test(root, &test_path);
+        Ok((result.ok, result))
+    })
+}
+
+fn inspect_project(request_json: *const c_char) -> String {
+    handle_request(
+        INSPECT_PROJECT_KIND,
+        request_json,
+        |request: VerifyProjectRequest| {
+            let root = required_path(request.root, "root")?;
+            let report = inspect_tessera_project(root);
+            Ok((report.ok, report))
+        },
+    )
+}
+
+fn parse_source(request_json: *const c_char) -> String {
+    handle_request(
+        PARSE_SOURCE_KIND,
+        request_json,
+        |request: SourcePathRequest| {
+            let root = required_path(request.root, "root")?;
+            let path = required_string(request.path, "path")?;
+            let report = parse_tessera_source(root, &path);
+            Ok((report.ok, report))
+        },
+    )
+}
+
+fn check_source(request_json: *const c_char) -> String {
+    handle_request(
+        CHECK_SOURCE_KIND,
+        request_json,
+        |request: CheckSourceRequest| {
+            let root = required_path(request.root, "root")?;
+            let path = required_string(request.path, "path")?;
+            let report = check_tessera_source(root, &path, request.input.as_ref());
+            Ok((report.ok, report))
+        },
+    )
+}
+
+fn format_source(request_json: *const c_char) -> String {
+    handle_request(
+        FORMAT_SOURCE_KIND,
+        request_json,
+        |request: SourcePathRequest| {
+            let root = required_path(request.root, "root")?;
+            let path = required_string(request.path, "path")?;
+            let report = format_tessera_source(root, &path);
+            Ok((report.ok, report))
         },
     )
 }
@@ -181,6 +336,21 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
+    fn version_reports_schema_and_supported_operations() {
+        let ptr = compass_engine_version();
+        let response = decode_and_free(ptr);
+        assert_eq!(response["kind"], "version");
+        assert_eq!(response["ok"], true);
+        assert_eq!(response["result"]["engine_abi_version"], 1);
+        assert_eq!(response["result"]["project_report_schema_version"], 1);
+        assert!(response["result"]["operations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|operation| operation == "inspect_project"));
+    }
+
+    #[test]
     fn verify_project_reports_valid_tessera_workspace() {
         let root = make_project("valid");
         write_standard_project(&root, "\"entrypoint!\"");
@@ -259,10 +429,79 @@ mod tests {
         assert_eq!(response["result"]["json"], "override!");
     }
 
+    #[test]
+    fn inspect_project_reports_tessera_index() {
+        let root = make_project("inspect");
+        write_standard_project(&root, "\"entrypoint!\"");
+        let response = call_request(
+            compass_engine_inspect_project,
+            serde_json::json!({ "root": root.display().to_string() }),
+        );
+        assert_eq!(response["kind"], "inspect_project");
+        assert_eq!(response["ok"], true);
+        assert_eq!(
+            response["result"]["sources"][0]["path"],
+            "src/display-name.tes"
+        );
+        assert_eq!(
+            response["result"]["sources"][0]["entrypoints"][0],
+            serde_json::json!("cli")
+        );
+        assert_eq!(
+            response["result"]["sources"][0]["tests"][0],
+            serde_json::json!("tests/display-name.json")
+        );
+    }
+
+    #[test]
+    fn focused_source_and_test_operations_work() {
+        let root = make_project("focused");
+        write_standard_project(&root, "\"entrypoint!\"");
+
+        let parsed = call_request(
+            compass_engine_parse_source,
+            serde_json::json!({ "root": root.display().to_string(), "path": "display-name" }),
+        );
+        assert_eq!(parsed["kind"], "parse_source");
+        assert_eq!(parsed["ok"], true);
+
+        let checked = call_request(
+            compass_engine_check_source,
+            serde_json::json!({
+                "root": root.display().to_string(),
+                "path": "src/display-name.tes",
+                "input": { "name": "entrypoint" }
+            }),
+        );
+        assert_eq!(checked["kind"], "check_source");
+        assert_eq!(checked["ok"], true);
+        assert_eq!(checked["result"]["ty"], "Text");
+
+        let formatted = call_request(
+            compass_engine_format_source,
+            serde_json::json!({ "root": root.display().to_string(), "path": "src/display-name.tes" }),
+        );
+        assert_eq!(formatted["kind"], "format_source");
+        assert_eq!(formatted["ok"], true);
+        assert_eq!(formatted["result"]["changed"], false);
+
+        let test = call_request(
+            compass_engine_run_test,
+            serde_json::json!({
+                "root": root.display().to_string(),
+                "test_path": "tests/display-name.json"
+            }),
+        );
+        assert_eq!(test["kind"], "run_test");
+        assert_eq!(test["ok"], true);
+        assert_eq!(test["result"]["json"], "entrypoint!");
+    }
+
     fn call_verify(root: &std::path::Path) -> serde_json::Value {
-        let request = CString::new(serde_json::json!({ "root": root }).to_string()).unwrap();
-        let ptr = compass_engine_verify_project(request.as_ptr());
-        decode_and_free(ptr)
+        call_request(
+            compass_engine_verify_project,
+            serde_json::json!({ "root": root }),
+        )
     }
 
     fn call_entrypoint(
@@ -270,16 +509,22 @@ mod tests {
         entrypoint: &str,
         input: Option<serde_json::Value>,
     ) -> serde_json::Value {
-        let request = CString::new(
+        call_request(
+            compass_engine_run_entrypoint,
             serde_json::json!({
                 "root": root,
                 "entrypoint": entrypoint,
                 "input": input
-            })
-            .to_string(),
+            }),
         )
-        .unwrap();
-        let ptr = compass_engine_run_entrypoint(request.as_ptr());
+    }
+
+    fn call_request(
+        function: extern "C" fn(*const c_char) -> *mut c_char,
+        value: serde_json::Value,
+    ) -> serde_json::Value {
+        let request = CString::new(value.to_string()).unwrap();
+        let ptr = function(request.as_ptr());
         decode_and_free(ptr)
     }
 
