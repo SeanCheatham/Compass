@@ -5,6 +5,7 @@ MODE="${1:-run}"
 APP_NAME="Compass"
 BUNDLE_ID="com.seancheatham.CompassLocal"
 MIN_SYSTEM_VERSION="26.0"
+SHOULD_KILL=1
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -17,7 +18,15 @@ INFO_PLIST="$APP_CONTENTS/Info.plist"
 
 cd "$ROOT_DIR"
 
-pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+case "$MODE" in
+  --build-only|build-only)
+    SHOULD_KILL=0
+    ;;
+esac
+
+if [[ "$SHOULD_KILL" -eq 1 ]]; then
+  pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+fi
 
 swift build -c debug --product "$APP_NAME"
 BUILD_DIR="$(swift build --show-bin-path -c debug)"
@@ -59,6 +68,9 @@ case "$MODE" in
   run)
     open_app
     ;;
+  --build-only|build-only)
+    echo "Built: $APP_BUNDLE"
+    ;;
   --debug|debug)
     lldb -- "$APP_BINARY"
     ;;
@@ -76,7 +88,7 @@ case "$MODE" in
     pgrep -x "$APP_NAME" >/dev/null
     ;;
   *)
-    echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
+    echo "usage: $0 [run|--build-only|--debug|--logs|--telemetry|--verify]" >&2
     exit 2
     ;;
 esac
