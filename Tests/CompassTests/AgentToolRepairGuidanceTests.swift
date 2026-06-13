@@ -193,6 +193,46 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileSplitsNewlinePackedReplacementArrayEntries() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let readmeURL = tempURL.appending(path: "README.md")
+    try """
+    # Fixture
+
+    Existing body.
+    """.write(to: readmeURL, atomically: true, encoding: .utf8)
+
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"README.md"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        ##"{"path":"README.md","startLine":1,"endLine":1,"replacementLines":["# Fixture\n\nPacked replacement marker."]}"##
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(!result.isError)
+    #expect(result.content.contains("file now has 5 lines"))
+    let edited = try String(contentsOf: readmeURL, encoding: .utf8)
+    #expect(
+      edited
+        == """
+        # Fixture
+
+        Packed replacement marker.
+
+        Existing body.
+        """
+    )
+  }
+
+  @Test
   func bashVerifySuccessTellsDevelopToSubmit() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

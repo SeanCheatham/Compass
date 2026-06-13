@@ -253,10 +253,10 @@ package struct AgentEditFileTool: AgentTool {
           return []
         }
         if let values = try? container.decode([String].self, forKey: key) {
-          return values
+          return values.flatMap(Self.splitReplacementText)
         }
         if let value = try? container.decode(String.self, forKey: key) {
-          return value.components(separatedBy: "\n")
+          return Self.splitReplacementText(value)
         }
       }
       throw DecodingError.keyNotFound(
@@ -266,6 +266,13 @@ package struct AgentEditFileTool: AgentTool {
           debugDescription: "Missing required replacementLines field."
         )
       )
+    }
+
+    private static func splitReplacementText(_ text: String) -> [String] {
+      text
+        .replacingOccurrences(of: "\r\n", with: "\n")
+        .replacingOccurrences(of: "\r", with: "\n")
+        .components(separatedBy: "\n")
     }
   }
 
@@ -335,7 +342,7 @@ package struct AgentEditFileTool: AgentTool {
                 "type": "array",
                 "items": ["type": "string"],
                 "description":
-                  "Replacement lines without line-number prefixes. Use [] to delete the range.",
+                  "Replacement lines without line-number prefixes. Use [] to delete the range. Newline-packed strings are split into source lines.",
               ],
             ],
           ],
