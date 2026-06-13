@@ -353,9 +353,12 @@ public struct HeadlessCompassRunner: Sendable {
       try persist(session: session, workspace: workspace)
 
       guard options.runDevelop, let immediate = plannedState.immediate else {
-        session.status = .succeeded
-        session.endedAt = Date().timeIntervalSince1970 * 1000
-        try persist(session: session, workspace: workspace)
+        try await finalizeSession(
+          &session,
+          status: .succeeded,
+          workspace: workspace,
+          repoURL: repoURL
+        )
         onEvent(
           HeadlessCompassEvent(
             kind: "session_end",
@@ -409,9 +412,12 @@ public struct HeadlessCompassRunner: Sendable {
             continue
           }
 
-          session.status = .failed
-          session.endedAt = Date().timeIntervalSince1970 * 1000
-          try persist(session: session, workspace: workspace)
+          try await finalizeSession(
+            &session,
+            status: .failed,
+            workspace: workspace,
+            repoURL: repoURL
+          )
           onEvent(
             HeadlessCompassEvent(
               kind: "session_end",
@@ -444,9 +450,12 @@ public struct HeadlessCompassRunner: Sendable {
             continue
           }
 
-          session.status = .failed
-          session.endedAt = Date().timeIntervalSince1970 * 1000
-          try persist(session: session, workspace: workspace)
+          try await finalizeSession(
+            &session,
+            status: .failed,
+            workspace: workspace,
+            repoURL: repoURL
+          )
           onEvent(
             HeadlessCompassEvent(
               kind: "session_end",
@@ -477,9 +486,12 @@ public struct HeadlessCompassRunner: Sendable {
             continue
           }
 
-          session.status = .failed
-          session.endedAt = Date().timeIntervalSince1970 * 1000
-          try persist(session: session, workspace: workspace)
+          try await finalizeSession(
+            &session,
+            status: .failed,
+            workspace: workspace,
+            repoURL: repoURL
+          )
           onEvent(
             HeadlessCompassEvent(
               kind: "session_end",
@@ -573,15 +585,12 @@ public struct HeadlessCompassRunner: Sendable {
           onEvent: onEvent
         )
       }
-      session.afterSha = await gitCurrentSHA(repoURL: repoURL)
-      session.commits = await GitSessionCommitLog.commits(
-        in: repoURL,
-        from: session.beforeSha,
-        to: session.afterSha
+      try await finalizeSession(
+        &session,
+        status: ok ? .succeeded : .failed,
+        workspace: workspace,
+        repoURL: repoURL
       )
-      session.status = ok ? .succeeded : .failed
-      session.endedAt = Date().timeIntervalSince1970 * 1000
-      try persist(session: session, workspace: workspace)
       onEvent(
         HeadlessCompassEvent(
           kind: "session_end",
@@ -594,10 +603,13 @@ public struct HeadlessCompassRunner: Sendable {
       )
       return ok
     } catch {
-      session.status = .failed
       session.notes.append(error.localizedDescription)
-      session.endedAt = Date().timeIntervalSince1970 * 1000
-      try? persist(session: session, workspace: workspace)
+      try? await finalizeSession(
+        &session,
+        status: .failed,
+        workspace: workspace,
+        repoURL: repoURL
+      )
       onEvent(
         HeadlessCompassEvent(
           kind: "fatal_error",
@@ -666,6 +678,7 @@ public struct HeadlessCompassRunner: Sendable {
       "session": "\(session.session)",
       "sessionStatus": session.status.rawValue,
       "commitCount": "\(session.commits.count)",
+      "changedPathCount": "\(session.changedPaths.count)",
     ]
     if let beforeSha = session.beforeSha?.nilIfBlank {
       metadata["beforeSha"] = beforeSha
@@ -680,6 +693,9 @@ public struct HeadlessCompassRunner: Sendable {
       metadata["commitShorts"] = session.commits.map(\.short).joined(separator: ",")
       metadata["commitSubjects"] = session.commits.map(\.subject).joined(separator: " | ")
     }
+    if !session.changedPaths.isEmpty {
+      metadata["changedPaths"] = session.changedPaths.joined(separator: ",")
+    }
     if let verifyOutput = session.verifyOutput {
       metadata["verifyCommand"] = verifyOutput.command
       if let exitCode = verifyOutput.exitCode {
@@ -690,9 +706,48 @@ public struct HeadlessCompassRunner: Sendable {
   }
 
   private static func sessionOutcomeDetail(_ session: SessionRecord) -> String? {
-    guard !session.commits.isEmpty else { return nil }
-    let commitLines = session.commits.map { "- \($0.short) \($0.subject)" }
-    return (["Commits:"] + commitLines).joined(separator: "\n")
+    var sections: [String] = []
+    if !session.commits.isEmpty {
+      sections.append((["Commits:"] + session.commits.map { "- \($0.short) \($0.subject)" })
+        .joined(separator: "\n"))
+    }
+    if session.status == .failed, !session.changedPaths.isEmpty {
+      sections.append((["Changed paths:"] + session.changedPaths.map { "- \($0)" })
+        .joined(separator: "\n"))
+    }
+    return sections.isEmpty ? nil : sections.joined(separator: "\n\n")
+  }
+
+  private func finalizeSession(
+    _ session: inout SessionRecord,
+    status: SessionStatus,
+    workspace: CompassWorkspace,
+    repoURL: URL
+  ) async throws {
+    session.afterSha = await gitCurrentSHA(repoURL: repoURL)
+    session.commits = await GitSessionCommitLog.commits(
+      in: repoURL,
+      from: session.beforeSha,
+      to: session.afterSha
+    )
+    session.changedPaths = await gitChangedPathsSince(session.beforeSha, repoURL: repoURL) ?? []
+    if status == .failed, !session.changedPaths.isEmpty {
+      appendFailedChangedPathsNote(to: &session)
+    }
+    session.status = status
+    session.endedAt = Date().timeIntervalSince1970 * 1000
+    try persist(session: session, workspace: workspace)
+  }
+
+  private func appendFailedChangedPathsNote(to session: inout SessionRecord) {
+    let prefix = "Failed session left Git-visible changes:"
+    guard !session.notes.contains(where: { $0.hasPrefix(prefix) }) else { return }
+    let pathLines = session.changedPaths.prefix(20).map { "- \($0)" }
+    var lines = [prefix] + pathLines
+    if session.changedPaths.count > 20 {
+      lines.append("- ...\(session.changedPaths.count - 20) more path(s)")
+    }
+    session.notes.append(lines.joined(separator: "\n"))
   }
 
   private static func compactBriefSummary(_ brief: String, limit: Int = 280) -> String {

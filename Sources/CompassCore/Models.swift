@@ -1924,6 +1924,7 @@ package struct SessionRecord: Codable, Identifiable, Equatable {
   package var beforeSha: String?
   package var afterSha: String?
   package var commits: [SessionCommit]
+  package var changedPaths: [String]
   package var status: SessionStatus
   package var notes: [String]
   package var verifyOutput: VerifyOutput?
@@ -1941,6 +1942,7 @@ package struct SessionRecord: Codable, Identifiable, Equatable {
       beforeSha: nil,
       afterSha: nil,
       commits: [],
+      changedPaths: [],
       status: .planning,
       notes: [],
       verifyOutput: nil,
@@ -1961,6 +1963,7 @@ package struct SessionRecord: Codable, Identifiable, Equatable {
     case beforeSha
     case afterSha
     case commits
+    case changedPaths
     case status
     case notes
     case verifyOutput
@@ -1978,6 +1981,7 @@ package struct SessionRecord: Codable, Identifiable, Equatable {
     beforeSha: String?,
     afterSha: String?,
     commits: [SessionCommit],
+    changedPaths: [String] = [],
     status: SessionStatus,
     notes: [String],
     verifyOutput: VerifyOutput?,
@@ -1993,6 +1997,7 @@ package struct SessionRecord: Codable, Identifiable, Equatable {
     self.beforeSha = beforeSha
     self.afterSha = afterSha
     self.commits = commits
+    self.changedPaths = changedPaths
     self.status = status
     self.notes = notes
     self.verifyOutput = verifyOutput
@@ -2013,6 +2018,7 @@ package struct SessionRecord: Codable, Identifiable, Equatable {
     beforeSha = try container.decodeIfPresent(String.self, forKey: .beforeSha)
     afterSha = try container.decodeIfPresent(String.self, forKey: .afterSha)
     commits = try container.decodeIfPresent([SessionCommit].self, forKey: .commits) ?? []
+    changedPaths = try container.decodeIfPresent([String].self, forKey: .changedPaths) ?? []
     status = try container.decodeIfPresent(SessionStatus.self, forKey: .status) ?? .planning
     notes = try container.decodeIfPresent([String].self, forKey: .notes) ?? []
     verifyOutput = try container.decodeIfPresent(VerifyOutput.self, forKey: .verifyOutput)
@@ -2038,6 +2044,7 @@ package struct SessionRecord: Codable, Identifiable, Equatable {
     try container.encodeIfPresent(beforeSha, forKey: .beforeSha)
     try container.encodeIfPresent(afterSha, forKey: .afterSha)
     try container.encode(commits, forKey: .commits)
+    try container.encode(changedPaths, forKey: .changedPaths)
     try container.encode(status, forKey: .status)
     try container.encode(notes, forKey: .notes)
     try container.encodeIfPresent(verifyOutput, forKey: .verifyOutput)

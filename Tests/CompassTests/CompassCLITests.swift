@@ -319,6 +319,70 @@ struct CompassCLITests {
   }
 
   @Test
+  func fixtureRunnerRecordsFailedDirtySessionFinalState() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let projectURL = tempURL.appending(path: "project", directoryHint: .isDirectory)
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      FixtureBashRunner()
+    }
+    try runner.scaffoldTessera(at: projectURL, name: "cli-failed-dirty-fixture", onEvent: record)
+    try await initializeFixtureGitRepo(at: projectURL)
+
+    let fixtureURL = tempURL.appending(path: "failed-dirty-fixture.jsonl")
+    try writeFixture(failedDirtyFixtureOutputs, to: fixtureURL)
+
+    let ok = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: projectURL,
+        brief: "Leave a dirty README change during a failed Develop session",
+        mode: .fixture,
+        fixtureURL: fixtureURL,
+        maxIterations: 6,
+        maxDevelopAttempts: 1,
+        maxVerifyRepairAttempts: 0,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(!ok)
+    let workspace = CompassWorkspace(repoURL: projectURL)
+    let sessions = workspace.readSessions()
+    #expect(sessions.count == 1)
+    #expect(sessions[0].status == .failed)
+    #expect(sessions[0].afterSha == sessions[0].beforeSha)
+    #expect(sessions[0].commits.isEmpty)
+    #expect(sessions[0].changedPaths == ["README.md"])
+    #expect(
+      sessions[0].notes.contains {
+        $0.contains("Failed session left Git-visible changes:") && $0.contains("README.md")
+      })
+
+    let snapshot = events.snapshot()
+    guard let sessionEnd = snapshot.last(where: { $0.kind == "session_end" }) else {
+      Issue.record("Expected a failed session_end event.")
+      return
+    }
+    #expect(sessionEnd.metadata?["sessionStatus"] == "failed")
+    #expect(sessionEnd.metadata?["afterSha"] == sessions[0].afterSha)
+    #expect(sessionEnd.metadata?["commitCount"] == "0")
+    #expect(sessionEnd.metadata?["changedPathCount"] == "1")
+    #expect(sessionEnd.metadata?["changedPaths"] == "README.md")
+
+    let status = try await AgentHostBashRunner().run(
+      command: "git status --porcelain --untracked-files=all",
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(status.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "M README.md")
+  }
+
+  @Test
   func fixtureRunnerCommitsVerifiedChangesOnHost() async throws {
     let tempURL = try makeCLITempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -372,6 +436,7 @@ struct CompassCLITests {
     #expect(sessions[0].beforeSha != sessions[0].afterSha)
     #expect(sessions[0].commits.count == 1)
     #expect(sessions[0].commits[0].sha == sessions[0].afterSha)
+    #expect(sessions[0].changedPaths == ["README.md"])
     #expect(
       sessions[0].commits[0].subject
         == "README.md now includes the Fixture smoke note near the top of the file.")
@@ -389,6 +454,8 @@ struct CompassCLITests {
     #expect(sessionEnd.metadata?["commitShas"] == sessions[0].commits[0].sha)
     #expect(sessionEnd.metadata?["commitShorts"] == sessions[0].commits[0].short)
     #expect(sessionEnd.metadata?["commitSubjects"] == sessions[0].commits[0].subject)
+    #expect(sessionEnd.metadata?["changedPathCount"] == "1")
+    #expect(sessionEnd.metadata?["changedPaths"] == "README.md")
     #expect(sessionEnd.metadata?["verifyExitCode"] == "0")
     #expect(sessionEnd.detail?.contains("Commits:") == true)
     #expect(sessionEnd.detail?.contains(sessions[0].commits[0].short) == true)
@@ -997,6 +1064,21 @@ private let documentationGrepFixtureOutputs = [
   """,
   """
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now contains the Host docs verify marker sentence required by verify.","feedback":"Host docs verify marker is present in README.md and grep verification can pass on the host.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
+private let failedDirtyFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Failed audit marker. sentence near the top of README.md, then report failure.\\n\\n## Why it matters\\nThis proves failed sessions still record final dirty repository state for audit.\\n\\n## Acceptance checks\\n- README.md contains Failed audit marker.","verify":"grep -q 'Failed audit marker.' README.md","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This fixture intentionally leaves a dirty failed change so Compass can record it.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Audit failed CLI sessions with dirty edits.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Failure records expose final repository state."],"constraints":["Do not commit failed changes."],"acceptanceSignals":["Session notes mention dirty failed changes."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before editing."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"README.md","startLine":3,"endLine":2,"insert":["Failed audit marker.",""]},"reason":"Create a dirty README change before submitting failure."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"failed","summary":"Stopped after adding an audit marker for failure inspection.","feedback":"The README edit is intentionally left dirty so Compass can record failed-session repository state.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 
