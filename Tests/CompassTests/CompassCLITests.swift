@@ -319,6 +319,21 @@ struct CompassCLITests {
         == "README.md now includes the Fixture smoke note near the top of the file.")
     let snapshot = events.snapshot()
     #expect(snapshot.contains { $0.kind == "host_commit_result" && $0.status == "completed" })
+    guard let sessionEnd = snapshot.last(where: { $0.kind == "session_end" }) else {
+      Issue.record("Expected a session_end event.")
+      return
+    }
+    #expect(sessionEnd.metadata?["session"] == "1")
+    #expect(sessionEnd.metadata?["sessionStatus"] == "succeeded")
+    #expect(sessionEnd.metadata?["commitCount"] == "1")
+    #expect(sessionEnd.metadata?["beforeSha"] == sessions[0].beforeSha)
+    #expect(sessionEnd.metadata?["afterSha"] == sessions[0].afterSha)
+    #expect(sessionEnd.metadata?["commitShas"] == sessions[0].commits[0].sha)
+    #expect(sessionEnd.metadata?["commitShorts"] == sessions[0].commits[0].short)
+    #expect(sessionEnd.metadata?["commitSubjects"] == sessions[0].commits[0].subject)
+    #expect(sessionEnd.metadata?["verifyExitCode"] == "0")
+    #expect(sessionEnd.detail?.contains("Commits:") == true)
+    #expect(sessionEnd.detail?.contains(sessions[0].commits[0].short) == true)
   }
 
   @Test

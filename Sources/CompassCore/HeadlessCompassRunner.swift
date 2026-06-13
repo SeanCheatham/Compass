@@ -362,7 +362,7 @@ public struct HeadlessCompassRunner: Sendable {
             level: "success",
             status: "completed",
             message: "Plan completed without Develop.",
-            metadata: ["session": "\(sessionNumber)"]
+            metadata: Self.sessionOutcomeMetadata(session)
           )
         )
         return true
@@ -419,7 +419,7 @@ public struct HeadlessCompassRunner: Sendable {
               status: "failed",
               message: "Develop exhausted its execution budget.",
               detail: issue,
-              metadata: ["session": "\(sessionNumber)"]
+              metadata: Self.sessionOutcomeMetadata(session)
             )
           )
           return false
@@ -454,7 +454,7 @@ public struct HeadlessCompassRunner: Sendable {
               status: "failed",
               message: "Develop did not produce a verifiable success.",
               detail: issue,
-              metadata: ["session": "\(sessionNumber)"]
+              metadata: Self.sessionOutcomeMetadata(session)
             )
           )
           return false
@@ -487,7 +487,7 @@ public struct HeadlessCompassRunner: Sendable {
               status: "failed",
               message: "Develop reported success without changing the repository.",
               detail: issue,
-              metadata: ["session": "\(sessionNumber)"]
+              metadata: Self.sessionOutcomeMetadata(session)
             )
           )
           return false
@@ -588,7 +588,8 @@ public struct HeadlessCompassRunner: Sendable {
           level: ok ? "success" : "error",
           status: ok ? "completed" : "failed",
           message: ok ? "Headless Compass session succeeded." : "Headless Compass session failed.",
-          metadata: ["session": "\(sessionNumber)"]
+          detail: ok ? Self.sessionOutcomeDetail(session) : nil,
+          metadata: Self.sessionOutcomeMetadata(session)
         )
       )
       return ok
@@ -603,7 +604,7 @@ public struct HeadlessCompassRunner: Sendable {
           level: "error",
           status: "failed",
           message: error.localizedDescription,
-          metadata: ["session": "\(sessionNumber)"]
+          metadata: Self.sessionOutcomeMetadata(session)
         )
       )
       throw error
@@ -658,6 +659,40 @@ public struct HeadlessCompassRunner: Sendable {
       Transient run context:
       \(brief)
       """
+  }
+
+  private static func sessionOutcomeMetadata(_ session: SessionRecord) -> [String: String] {
+    var metadata = [
+      "session": "\(session.session)",
+      "sessionStatus": session.status.rawValue,
+      "commitCount": "\(session.commits.count)",
+    ]
+    if let beforeSha = session.beforeSha?.nilIfBlank {
+      metadata["beforeSha"] = beforeSha
+      metadata["beforeShort"] = String(beforeSha.prefix(12))
+    }
+    if let afterSha = session.afterSha?.nilIfBlank {
+      metadata["afterSha"] = afterSha
+      metadata["afterShort"] = String(afterSha.prefix(12))
+    }
+    if !session.commits.isEmpty {
+      metadata["commitShas"] = session.commits.map(\.sha).joined(separator: ",")
+      metadata["commitShorts"] = session.commits.map(\.short).joined(separator: ",")
+      metadata["commitSubjects"] = session.commits.map(\.subject).joined(separator: " | ")
+    }
+    if let verifyOutput = session.verifyOutput {
+      metadata["verifyCommand"] = verifyOutput.command
+      if let exitCode = verifyOutput.exitCode {
+        metadata["verifyExitCode"] = "\(exitCode)"
+      }
+    }
+    return metadata
+  }
+
+  private static func sessionOutcomeDetail(_ session: SessionRecord) -> String? {
+    guard !session.commits.isEmpty else { return nil }
+    let commitLines = session.commits.map { "- \($0.short) \($0.subject)" }
+    return (["Commits:"] + commitLines).joined(separator: "\n")
   }
 
   private static func compactBriefSummary(_ brief: String, limit: Int = 280) -> String {
