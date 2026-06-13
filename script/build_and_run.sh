@@ -15,6 +15,7 @@ APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
+XCODE_CONFIGURATION="${XCODE_CONFIGURATION:-Debug}"
 
 cd "$ROOT_DIR"
 
@@ -32,10 +33,39 @@ swift build -c debug --product "$APP_NAME"
 BUILD_DIR="$(swift build --show-bin-path -c debug)"
 BUILD_BINARY="$BUILD_DIR/$APP_NAME"
 
+find_mlx_metallib() {
+  local candidate
+  for candidate in \
+    "$BUILD_DIR/mlx.metallib" \
+    "$BUILD_DIR/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib" \
+    "$ROOT_DIR/DerivedData/Build/Products/$XCODE_CONFIGURATION/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib" \
+    "$ROOT_DIR/DerivedData/Build/Products/$XCODE_CONFIGURATION/Compass.app/Contents/Resources/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib"
+  do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+MLX_METALLIB_SOURCE="$(find_mlx_metallib || true)"
+if [[ -z "$MLX_METALLIB_SOURCE" ]]; then
+  cat >&2 <<EOF
+error: could not find MLX default.metallib.
+
+Compass can launch without this file, but Run Loop aborts when MLX first loads.
+Run ./scripts/build-cli-local.sh once, or build the Compass Xcode scheme once,
+then retry this launcher.
+EOF
+  exit 1
+fi
+
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
+cp "$MLX_METALLIB_SOURCE" "$APP_MACOS/mlx.metallib"
 
 find "$BUILD_DIR" -maxdepth 1 -name '*.bundle' -type d -exec cp -R {} "$APP_RESOURCES/" \;
 
