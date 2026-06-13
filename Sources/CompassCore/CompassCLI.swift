@@ -43,16 +43,7 @@ public enum CompassCLI {
         let repo, let session, let mode, let fixture, let promptLog, let maxIterations, _):
         let workspace = CompassWorkspace(repoURL: repo)
         try workspace.initialize()
-        let record = workspace.readSessions(includeArchived: true).first { $0.session == session }
-        let brief =
-          [
-            "Replay Compass session #\(session).",
-            record?.plan.map { "Previous plan:\n\($0)" },
-            record?.feedback.map { "Previous feedback:\n\($0)" },
-            workspace.readVision().nilIfBlank.map { "Project context:\n\($0)" },
-          ]
-          .compactMap { $0 }
-          .joined(separator: "\n\n")
+        let brief = replayBrief(workspace: workspace, session: session)
         emit(
           HeadlessCompassEvent(
             kind: "replay_start",
@@ -68,7 +59,8 @@ public enum CompassCLI {
             mode: mode,
             fixtureURL: fixture,
             promptLogDirectory: promptLog,
-            maxIterations: maxIterations
+            maxIterations: maxIterations,
+            persistBriefToVision: false
           ),
           onEvent: emit
         )
@@ -96,6 +88,18 @@ public enum CompassCLI {
       )
       return 1
     }
+  }
+
+  package static func replayBrief(workspace: CompassWorkspace, session: Int) -> String {
+    let record = workspace.readSessions(includeArchived: true).first { $0.session == session }
+    return [
+      "Replay Compass session #\(session).",
+      record?.plan.map { "Previous plan:\n\($0)" },
+      record?.feedback.map { "Previous feedback:\n\($0)" },
+      workspace.readVision().nilIfBlank.map { "Project context:\n\($0)" },
+    ]
+    .compactMap { $0 }
+    .joined(separator: "\n\n")
   }
 }
 

@@ -50,6 +50,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
   public var maxVerifyRepairAttempts: Int
   public var runDevelop: Bool
   public var runCritic: Bool
+  public var persistBriefToVision: Bool
 
   public init(
     repoURL: URL,
@@ -61,7 +62,8 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     maxDevelopAttempts: Int = 2,
     maxVerifyRepairAttempts: Int = 1,
     runDevelop: Bool = true,
-    runCritic: Bool = false
+    runCritic: Bool = false,
+    persistBriefToVision: Bool = true
   ) {
     self.repoURL = repoURL.standardizedFileURL
     self.brief = brief
@@ -73,6 +75,7 @@ public struct HeadlessRunOptions: Equatable, Sendable {
     self.maxVerifyRepairAttempts = max(0, maxVerifyRepairAttempts)
     self.runDevelop = runDevelop
     self.runCritic = runCritic
+    self.persistBriefToVision = persistBriefToVision
   }
 }
 
@@ -308,8 +311,17 @@ public struct HeadlessCompassRunner: Sendable {
     guard !brief.isEmpty else {
       throw HeadlessCompassError.invalidBrief("Brief cannot be empty.")
     }
-    try workspace.writeVision(brief)
-    try seedHeadlessBrief(brief, workspace: workspace)
+    let promptVision: String
+    if options.persistBriefToVision {
+      try workspace.writeVision(brief)
+      try seedHeadlessBrief(brief, workspace: workspace)
+      promptVision = workspace.readVision()
+    } else {
+      promptVision = Self.transientPromptVision(
+        brief: brief,
+        existingVision: workspace.readVision()
+      )
+    }
 
     onEvent(
       HeadlessCompassEvent(
@@ -327,6 +339,7 @@ public struct HeadlessCompassRunner: Sendable {
         settings: settings,
         runtime: runtime,
         forgeProfile: forgeProfile,
+        vision: promptVision,
         sessionNumber: sessionNumber,
         maxIterations: options.maxIterations,
         onEvent: onEvent
@@ -372,6 +385,7 @@ public struct HeadlessCompassRunner: Sendable {
             workspace: workspace,
             settings: settings,
             runtime: runtime,
+            vision: promptVision,
             sessionNumber: sessionNumber,
             attempt: attempt,
             priorIssues: priorIssues,
@@ -539,6 +553,7 @@ public struct HeadlessCompassRunner: Sendable {
           settings: settings,
           runtime: runtime,
           forgeProfile: forgeProfile,
+          vision: promptVision,
           sessionNumber: sessionNumber,
           maxIterations: options.maxIterations,
           onEvent: onEvent
@@ -628,6 +643,18 @@ public struct HeadlessCompassRunner: Sendable {
     return seeded
   }
 
+  private static func transientPromptVision(brief: String, existingVision: String) -> String {
+    let existing = existingVision.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !existing.isEmpty else { return brief }
+    return """
+      Existing project context:
+      \(existing)
+
+      Transient run context:
+      \(brief)
+      """
+  }
+
   private static func compactBriefSummary(_ brief: String, limit: Int = 280) -> String {
     let compact =
       brief
@@ -645,6 +672,7 @@ public struct HeadlessCompassRunner: Sendable {
     settings: AgentRuntimeSettings,
     runtime: any LocalModelGenerating,
     forgeProfile: ForgeProfile,
+    vision: String,
     sessionNumber: Int,
     maxIterations: Int,
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
@@ -660,7 +688,7 @@ public struct HeadlessCompassRunner: Sendable {
       ),
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
-      vision: workspace.readVision(),
+      vision: vision,
       focus: .feature,
       forgeProfile: forgeProfile,
       coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace)
@@ -693,6 +721,7 @@ public struct HeadlessCompassRunner: Sendable {
     workspace: CompassWorkspace,
     settings: AgentRuntimeSettings,
     runtime: any LocalModelGenerating,
+    vision: String,
     sessionNumber: Int,
     attempt: Int,
     priorIssues: [String],
@@ -703,7 +732,7 @@ public struct HeadlessCompassRunner: Sendable {
       next: immediate,
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
-      vision: workspace.readVision(),
+      vision: vision,
       attempt: attempt,
       priorIssues: priorIssues
     )
@@ -739,6 +768,7 @@ public struct HeadlessCompassRunner: Sendable {
     settings: AgentRuntimeSettings,
     runtime: any LocalModelGenerating,
     forgeProfile: ForgeProfile,
+    vision: String,
     sessionNumber: Int,
     maxIterations: Int,
     onEvent: @Sendable @escaping (HeadlessCompassEvent) -> Void
@@ -754,7 +784,7 @@ public struct HeadlessCompassRunner: Sendable {
       priorCritiques: [],
       lessons: workspace.readLessons(),
       assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
-      vision: workspace.readVision(),
+      vision: vision,
       forgeProfile: forgeProfile,
       iteration: 1,
       maxIterations: 1

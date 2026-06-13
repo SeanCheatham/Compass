@@ -459,6 +459,85 @@ struct CompassCLITests {
   }
 
   @Test
+  func fixtureReplayUsesTransientVisionWithoutReplacingSavedVision() async throws {
+    let tempURL = try makeCLITempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let projectURL = tempURL.appending(path: "project", directoryHint: .isDirectory)
+    let events = HeadlessEventRecorder()
+    let record: @Sendable (HeadlessCompassEvent) -> Void = { event in
+      events.record(event)
+    }
+    let runner = HeadlessCompassRunner { _, _ in
+      FixtureBashRunner()
+    }
+    try runner.scaffoldTessera(at: projectURL, name: "cli-replay-vision", onEvent: record)
+    try await initializeFixtureGitRepo(at: projectURL)
+
+    let firstFixtureURL = tempURL.appending(path: "first-fixture.jsonl")
+    try writeFixture(greetingFixtureOutputs(projectName: "cli-replay-vision"), to: firstFixtureURL)
+    let savedProjectBrief = "Build a durable Tessera greeting project vision."
+
+    let firstOK = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: projectURL,
+        brief: savedProjectBrief,
+        mode: .fixture,
+        fixtureURL: firstFixtureURL,
+        maxIterations: 8,
+        runCritic: false
+      ),
+      onEvent: record
+    )
+
+    #expect(firstOK)
+    let workspace = CompassWorkspace(repoURL: projectURL)
+    let savedVision = workspace.readVision()
+    #expect(savedVision == savedProjectBrief)
+
+    let replayFixtureURL = tempURL.appending(path: "replay-fixture.jsonl")
+    try writeFixture(replayVisionFixtureOutputs, to: replayFixtureURL)
+    let replayBrief = CompassCLI.replayBrief(workspace: workspace, session: 1)
+    #expect(replayBrief.contains("Replay Compass session #1."))
+    #expect(replayBrief.contains(savedProjectBrief))
+
+    let replayOK = try await runner.run(
+      options: HeadlessRunOptions(
+        repoURL: projectURL,
+        brief: replayBrief,
+        mode: .fixture,
+        fixtureURL: replayFixtureURL,
+        maxIterations: 6,
+        runCritic: false,
+        persistBriefToVision: false
+      ),
+      onEvent: record
+    )
+
+    #expect(replayOK)
+    let latestVision = workspace.readVision()
+    #expect(latestVision == savedVision)
+    #expect(!latestVision.contains("Replay Compass session"))
+
+    let readme = try String(contentsOf: projectURL.appending(path: "README.md"), encoding: .utf8)
+    #expect(readme.contains("Replay follow-up marker."))
+    let planPrompt = try String(
+      contentsOf: projectURL.appending(path: ".compass/sessions/000002/plan-prompt.md"),
+      encoding: .utf8
+    )
+    #expect(planPrompt.contains("Replay Compass session #1."))
+    #expect(planPrompt.contains("Existing project context:"))
+    #expect(planPrompt.contains(savedProjectBrief))
+
+    let status = try await AgentHostBashRunner().run(
+      command: "git status --porcelain --untracked-files=all",
+      workingDirectory: projectURL,
+      timeout: 30
+    )
+    #expect(status.exitCode == 0)
+    #expect(status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+  }
+
+  @Test
   func fixtureRunnerRetriesDevelopAfterVerifyFailure() async throws {
     let tempURL = try makeCLITempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -780,6 +859,21 @@ private let retryFixtureOutputs = [
   """,
   """
   {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now contains the Retry marker sentence required by verify.","feedback":"Retry marker is present in README.md and grep verification can pass; Plan can choose another small slice.","bypassVerify":false,"lessonEdits":[]}}
+  """,
+]
+
+private let replayVisionFixtureOutputs = [
+  """
+  {"kind":"plan_submit","payload":{"state":{"immediate":{"plan":"## Outcome\\nAdd a Replay follow-up marker. sentence near the top of README.md.\\n\\n## Why it matters\\nThis proves replay context can guide a run without replacing saved Compass project vision.\\n\\n## Acceptance checks\\n- README.md contains Replay follow-up marker.","verify":"grep -q 'Replay follow-up marker.' README.md","verifyTimeoutMs":60000,"estimatedDifficulty":"low","selectedBecause":"This docs-only slice makes replay behavior visible with one deterministic edit.","source":"repository","candidateID":null},"queue":[],"brief":{"summary":"Replay a prior Compass session without replacing saved vision.","targetUsers":["Compass maintainers"],"desiredOutcomes":["Replay prompt context is transient."],"constraints":["Keep the persisted project vision unchanged."],"acceptanceSignals":["README.md contains Replay follow-up marker."]},"openQuestions":[]},"lessonEdits":[]}}
+  """,
+  """
+  {"kind":"develop_continue","tool":"read_file","arguments":{"path":"README.md"},"reason":"Need the current README contents before editing."}
+  """,
+  """
+  {"kind":"develop_continue","tool":"edit_file","arguments":{"path":"README.md","startLine":3,"endLine":2,"insert":["Replay follow-up marker.",""]},"reason":"Add the replay marker required by the verification command."}
+  """,
+  """
+  {"kind":"develop_submit","payload":{"status":"succeeded","summary":"README.md now includes the Replay follow-up marker near the top of the file.","feedback":"Replay follow-up marker is present and the saved Compass vision should remain unchanged.","bypassVerify":false,"lessonEdits":[]}}
   """,
 ]
 
