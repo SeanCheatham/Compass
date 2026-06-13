@@ -153,6 +153,46 @@ struct AgentToolRepairGuidanceTests {
   }
 
   @Test
+  func editFileTreatsInsertAliasOnReplacementRangeAsReplacement() async throws {
+    let tempURL = try makeToolGuidanceTempDirectory()
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    let fileURL = tempURL.appending(path: "src/display-name.tes")
+    try FileManager.default.createDirectory(
+      at: fileURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try """
+    (def display ((name Text)) (concat name "!"))
+    (display user.name)
+    """.write(to: fileURL, atomically: true, encoding: .utf8)
+
+    let context = AgentToolContext(workingDirectory: tempURL)
+    _ = try await AgentReadFileTool().invoke(
+      arguments: Data(#"{"path":"src/display-name.tes"}"#.utf8),
+      context: context
+    )
+
+    let result = try await AgentEditFileTool().invoke(
+      arguments: Data(
+        #"{"path":"src/display-name.tes","startLine":1,"endLine":1,"insert":["(def display ((name Text)) (concat \"Hello, \" (concat name \"!\")))"]}"#
+          .utf8
+      ),
+      context: context
+    )
+
+    #expect(!result.isError)
+    #expect(result.content.contains("applied 1 edit"))
+    let edited = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(
+      edited
+        == """
+        (def display ((name Text)) (concat "Hello, " (concat name "!")))
+        (display user.name)
+        """
+    )
+  }
+
+  @Test
   func bashVerifySuccessTellsDevelopToSubmit() async throws {
     let tempURL = try makeToolGuidanceTempDirectory()
     defer { try? FileManager.default.removeItem(at: tempURL) }

@@ -2,10 +2,11 @@ import Foundation
 
 /// Line-range edits on an existing UTF-8 text file. The model passes an
 /// ordered list of operations; each replaces the inclusive 1-indexed line
-/// range `[startLine, endLine]` with `replacementLines` (or inserts when
-/// `endLine == startLine - 1`). All edits succeed atomically — if any one
-/// fails, the file is not written. A prior `read_file` for the path is
-/// required so line numbers come from content the model has actually seen.
+/// range `[startLine, endLine]` with `replacementLines` or common aliases
+/// (or inserts when `endLine == startLine - 1`). All edits succeed atomically
+/// — if any one fails, the file is not written. A prior `read_file` for the
+/// path is required so line numbers come from content the model has actually
+/// seen.
 package struct AgentEditFileTool: AgentTool {
   package static let toolName = "edit_file"
 
@@ -129,7 +130,6 @@ package struct AgentEditFileTool: AgentTool {
     let startLine: Int
     let endLine: Int
     let replacementLines: [String]
-    let usesInsertionAlias: Bool
 
     enum CodingKeys: String, CodingKey {
       case startLine
@@ -166,9 +166,7 @@ package struct AgentEditFileTool: AgentTool {
         aliases: [.endLineSnake, .end],
         fieldName: "endLine"
       )
-      let decodedReplacement = try Self.decodeReplacementLines(from: container)
-      replacementLines = decodedReplacement.lines
-      usesInsertionAlias = decodedReplacement.usesInsertionAlias
+      replacementLines = try Self.decodeReplacementLines(from: container)
     }
 
     private static func decodeRequiredLine<Key: CodingKey>(
@@ -236,7 +234,7 @@ package struct AgentEditFileTool: AgentTool {
 
     private static func decodeReplacementLines(
       from container: KeyedDecodingContainer<CodingKeys>
-    ) throws -> (lines: [String], usesInsertionAlias: Bool) {
+    ) throws -> [String] {
       for key in [
         CodingKeys.replacementLines,
         .replacementLinesSnake,
@@ -251,16 +249,14 @@ package struct AgentEditFileTool: AgentTool {
         .insertText,
         .insertion,
       ] where container.contains(key) {
-        let usesInsertionAlias =
-          key == .insert || key == .insertSnake || key == .insertText || key == .insertion
         if try container.decodeNil(forKey: key) {
-          return ([], usesInsertionAlias)
+          return []
         }
         if let values = try? container.decode([String].self, forKey: key) {
-          return (values, usesInsertionAlias)
+          return values
         }
         if let value = try? container.decode(String.self, forKey: key) {
-          return (value.components(separatedBy: "\n"), usesInsertionAlias)
+          return value.components(separatedBy: "\n")
         }
       }
       throw DecodingError.keyNotFound(
@@ -389,20 +385,6 @@ package struct AgentEditFileTool: AgentTool {
         return .failure(
           .invalidArguments(
             "edits[\(idx)].endLine must be >= startLine - 1; got startLine=\(edit.startLine), endLine=\(edit.endLine)"
-          ))
-      }
-      if edit.usesInsertionAlias, edit.endLine != edit.startLine - 1 {
-        let insertionHint = Self.editFileInsertRepairHint(
-          path: args.path,
-          startLine: edit.startLine,
-          endLine: edit.startLine - 1,
-          content: Self.joinLines(edit.replacementLines),
-          intro:
-            "If you truly intended to insert these lines, return `edit_file` with these arguments"
-        )
-        return .failure(
-          .invalidArguments(
-            "edits[\(idx)] uses insert/insertion but startLine=\(edit.startLine), endLine=\(edit.endLine) is a replacement range. Insert aliases must use endLine=startLine - 1; to insert at line \(edit.startLine), use startLine=\(edit.startLine), endLine=\(edit.startLine - 1). If you meant to replace existing lines, use replacementLines or content instead of insert; for a full rewrite, read the file and replace startLine=1 through the last line from read_file.\(insertionHint)"
           ))
       }
       if let embeddedNewline = Self.embeddedNewline(in: edit.replacementLines) {
