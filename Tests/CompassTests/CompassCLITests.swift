@@ -618,6 +618,23 @@ struct CompassCLITests {
     #expect(planPrompt.contains("Existing project context:"))
     #expect(planPrompt.contains(savedProjectBrief))
 
+    let sessions = workspace.readSessions()
+    #expect(sessions.count == 2)
+    #expect(sessions[1].commits.count == 1)
+    #expect(sessions[1].verify == "grep -q 'Replay follow-up marker.' README.md")
+
+    let snapshot = events.snapshot()
+    let verifyStarts = snapshot.filter { $0.kind == "verify_start" }
+    #expect(verifyStarts.last?.metadata?["runtime"] == "host_documentation_grep")
+    guard let replaySessionEnd = snapshot.last(where: { $0.kind == "session_end" }) else {
+      Issue.record("Expected a replay session_end event.")
+      return
+    }
+    #expect(replaySessionEnd.metadata?["session"] == "2")
+    #expect(replaySessionEnd.metadata?["commitCount"] == "1")
+    #expect(replaySessionEnd.metadata?["commitShas"] == sessions[1].commits[0].sha)
+    #expect(replaySessionEnd.metadata?["commitSubjects"] == sessions[1].commits[0].subject)
+
     let status = try await AgentHostBashRunner().run(
       command: "git status --porcelain --untracked-files=all",
       workingDirectory: projectURL,
