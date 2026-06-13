@@ -130,7 +130,7 @@ package extension CodemapSymbolKind {
   /// JSON-Schema-friendly list of allowed `kind` values for tool input
   /// validation. Stable order so the schema diff stays minimal across
   /// builds.
-  package static var allRawValues: [String] {
+  static var allRawValues: [String] {
     [
       "function", "method", "class", "interface", "struct", "enum",
       "trait", "module", "type", "property", "macro", "impl",

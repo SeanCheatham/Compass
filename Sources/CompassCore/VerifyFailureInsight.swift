@@ -102,8 +102,16 @@ package struct VerifyFailureInsight: Equatable {
     if containsAny(
       text,
       [
+        "tessera test", "expected json",
+      ]
+    ) {
+      return .testFailure
+    }
+    if containsAny(
+      text,
+      [
         "typecheck", "tsc -p", "error ts", "syntax error", "compile error", "compiler error",
-        "tessera", "parse", "invalid manifest",
+        "tessera parse", "tessera typecheck", "tessera load", "invalid manifest",
       ]
     ) {
       return .buildFailure

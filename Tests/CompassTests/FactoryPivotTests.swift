@@ -433,26 +433,14 @@ struct FactoryPivotTests {
     #expect(ForgeProfile.generatedProjectTargets == [.tesseraApp])
     #expect(RepositoryManifestHint.packageJSON.forgeProfile == .typeScriptPnpmVite)
 
-    let tempURL = FileManager.default.temporaryDirectory
-      .appending(path: "CompassForgeProfileTests-\(UUID().uuidString)")
-    try FileManager.default.createDirectory(
-      at: tempURL,
-      withIntermediateDirectories: true,
-      attributes: nil
-    )
+    let tempURL = try makeCompassTestDirectory(named: "CompassForgeProfileTests")
     defer { try? FileManager.default.removeItem(at: tempURL) }
     try TesseraProjectScaffold.write(to: tempURL, options: .init(projectName: "Detected App"))
 
     #expect(TesseraProjectScaffold.isGeneratedWorkspace(at: tempURL))
     #expect(ForgeProfileService.detect(in: tempURL) == .tesseraApp)
 
-    let legacyURL = FileManager.default.temporaryDirectory
-      .appending(path: "CompassForgeProfileLegacyTests-\(UUID().uuidString)")
-    try FileManager.default.createDirectory(
-      at: legacyURL,
-      withIntermediateDirectories: true,
-      attributes: nil
-    )
+    let legacyURL = try makeCompassTestDirectory(named: "CompassForgeProfileLegacyTests")
     defer { try? FileManager.default.removeItem(at: legacyURL) }
     try TypeScriptProjectScaffold.write(to: legacyURL, options: .init(projectName: "Legacy App"))
 
@@ -2238,10 +2226,7 @@ private struct FakeSequencedBashTool: AgentTool {
 }
 
 private func makeTempDirectory() throws -> URL {
-  let url = FileManager.default.temporaryDirectory
-    .appending(path: "CompassFactoryPivotTests-\(UUID().uuidString)")
-  try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-  return url
+  try makeCompassTestDirectory(named: "CompassFactoryPivotTests")
 }
 
 private func jsonStringLiteral(_ value: String) -> String {

@@ -469,15 +469,15 @@ package enum AssumptionLedgerError: LocalizedError, Equatable {
 }
 
 package extension CompassWorkspace {
-  package func readAssumptionLedger() throws -> AssumptionLedger {
+  func readAssumptionLedger() throws -> AssumptionLedger {
     try AssumptionLedgerStore(url: assumptionsURL).read()
   }
 
-  package func writeAssumptionLedger(_ ledger: AssumptionLedger) throws {
+  func writeAssumptionLedger(_ ledger: AssumptionLedger) throws {
     try AssumptionLedgerStore(url: assumptionsURL).write(ledger)
   }
 
-  package func recordAssumption(
+  func recordAssumption(
     _ draft: AssumptionDraft,
     phase: AgentPhase,
     sessionNumber: Int?
@@ -489,7 +489,7 @@ package extension CompassWorkspace {
     )
   }
 
-  package func reviewAssumption(
+  func reviewAssumption(
     id: String,
     status: AssumptionRecord.Status,
     comment: String?
@@ -501,7 +501,7 @@ package extension CompassWorkspace {
     )
   }
 
-  package func removeAssumption(
+  func removeAssumption(
     id: String,
     comment: String?
   ) throws -> AssumptionRecord {

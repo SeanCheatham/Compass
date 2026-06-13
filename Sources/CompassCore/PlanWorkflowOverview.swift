@@ -1168,7 +1168,7 @@ package enum PlanFactoryBriefNarrator {
 }
 
 package extension PlanWorkflowOverview.Kind {
-  package var timelineDestination: PlanWorkflowOverview.TimelineDestination {
+  var timelineDestination: PlanWorkflowOverview.TimelineDestination {
     switch self {
     case .immediate:
       return .immediate
@@ -1179,11 +1179,11 @@ package extension PlanWorkflowOverview.Kind {
     }
   }
 
-  package var timelineItemID: String {
+  var timelineItemID: String {
     timelineDestination.itemID
   }
 
-  package init?(timelineItemID: String) {
+  init?(timelineItemID: String) {
     guard let destination = PlanWorkflowOverview.TimelineDestination(rawValue: timelineItemID)
     else {
       return nil
@@ -1194,11 +1194,11 @@ package extension PlanWorkflowOverview.Kind {
 }
 
 package extension PlanWorkflowOverview.Section {
-  package var timelineDestination: PlanWorkflowOverview.TimelineDestination {
+  var timelineDestination: PlanWorkflowOverview.TimelineDestination {
     kind.timelineDestination
   }
 
-  package var timelineItemID: String {
+  var timelineItemID: String {
     kind.timelineItemID
   }
 }

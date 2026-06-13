@@ -1,7 +1,7 @@
 import Foundation
 
 package extension Prompts {
-  package static func subAgentSystemPrompt(
+  static func subAgentSystemPrompt(
     parentPhase: AgentPhase,
     workingDirectoryPath: String,
     toolNames: [String],
@@ -27,12 +27,12 @@ package extension Prompts {
     """
   }
 
-  package enum ExecutionEnvironmentDescriptor {
+  enum ExecutionEnvironmentDescriptor {
     case host
     case containerizedLinux
   }
 
-  package static func agentSystemPrompt(
+  static func agentSystemPrompt(
     phase: AgentPhase,
     workingDirectoryPath: String,
     executionEnvironment: ExecutionEnvironmentDescriptor = .containerizedLinux,
@@ -112,7 +112,7 @@ package extension Prompts {
     """
   }
 
-  package static func compassOverviewSection() -> String {
+  static func compassOverviewSection() -> String {
     """
     Compass is a macOS host app that runs one Git repository as a local software factory.
     The loop is Brief -> decomposed queue -> immediate packet -> Develop -> Verify -> Critic.
@@ -123,7 +123,7 @@ package extension Prompts {
     """
   }
 
-  package static func workLoopSection(phase: AgentPhase) -> String {
+  static func workLoopSection(phase: AgentPhase) -> String {
     switch phase {
     case .plan:
       return "Current role: Plan. Decompose or revise the queue, then select one immediate packet."
@@ -134,15 +134,15 @@ package extension Prompts {
     }
   }
 
-  package static func phaseContinuationKind(_ phase: AgentPhase) -> String {
+  static func phaseContinuationKind(_ phase: AgentPhase) -> String {
     AgentContinuationPhase(agentPhase: phase).continueKind
   }
 
-  package static func phaseSubmitKind(_ phase: AgentPhase) -> String {
+  static func phaseSubmitKind(_ phase: AgentPhase) -> String {
     AgentContinuationPhase(agentPhase: phase).submitKind
   }
 
-  package static func lessonEditsGuidance() -> String {
+  static func lessonEditsGuidance() -> String {
     """
     Persistent lessons:
     Use `lessonEdits` for durable technical facts future agents should not rediscover.
@@ -151,7 +151,7 @@ package extension Prompts {
     """
   }
 
-  package static func assumptionGuidance() -> String {
+  static func assumptionGuidance() -> String {
     """
     Assumptions:
     Record consequential guesses about user intent, environment, or acceptance criteria with
@@ -159,7 +159,7 @@ package extension Prompts {
     """
   }
 
-  package static func executionEnvironmentSection(
+  static func executionEnvironmentSection(
     _ env: ExecutionEnvironmentDescriptor,
     hostXcodeBuildTestEnabled: Bool = false
   ) -> String {

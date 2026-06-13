@@ -401,8 +401,5 @@ private func planState(_ plan: String, verify: String = "pnpm verify") -> PlanSt
 }
 
 private func makePlanValidatorTempDirectory() throws -> URL {
-  let url = FileManager.default.temporaryDirectory
-    .appending(path: "PlanTransitionValidatorTests-\(UUID().uuidString)")
-  try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-  return url
+  try makeCompassTestDirectory(named: "PlanTransitionValidatorTests")
 }

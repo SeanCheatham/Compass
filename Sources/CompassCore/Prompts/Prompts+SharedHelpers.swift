@@ -1,7 +1,7 @@
 import Foundation
 
 package extension Prompts {
-  package static func sharedVMApplePlatformPlanningRule(
+  static func sharedVMApplePlatformPlanningRule(
     forgeProfile: ForgeProfile?
   ) -> String {
     _ = forgeProfile
@@ -12,7 +12,7 @@ package extension Prompts {
   /// needs to compact the message history. The model is asked to drop
   /// what it was doing and emit a plain-text summary that the next
   /// iteration can resume from.
-  package static let conversationSummarizationInstruction = """
+  static let conversationSummarizationInstruction = """
     STOP. Do not call any tools. Do not continue the task.
 
     The context window is filling up. Write a compact summary of THIS conversation so far so the agent can resume in a fresh window. Cover, in order:
@@ -26,7 +26,7 @@ package extension Prompts {
     Be terse but specific. Reply ONLY with the summary as plain text — no preamble, no tool call, no submit envelope. The next turn will receive only this summary plus the original task.
     """
 
-  package static func forgeProfileSection(forgeProfile: ForgeProfile?) -> String {
+  static func forgeProfileSection(forgeProfile: ForgeProfile?) -> String {
     guard let forgeProfile else {
       return """
         ## Forge profile
@@ -42,7 +42,7 @@ package extension Prompts {
       """
   }
 
-  package static func forgeCoveragePlanningRules(forgeProfile: ForgeProfile?) -> String {
+  static func forgeCoveragePlanningRules(forgeProfile: ForgeProfile?) -> String {
     guard let forgeProfile else { return "" }
     return """
       - Forge profile coverage rule (\(forgeProfile.displayName)): \
@@ -52,14 +52,14 @@ package extension Prompts {
       """
   }
 
-  package static func encodeSessions(_ sessions: [SessionRecord]) throws -> String {
+  static func encodeSessions(_ sessions: [SessionRecord]) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(sessions)
     return String(decoding: data, as: UTF8.self)
   }
 
-  package static func fencedOrEmpty(_ text: String, empty: String) -> String {
+  static func fencedOrEmpty(_ text: String, empty: String) -> String {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return empty }
     return """

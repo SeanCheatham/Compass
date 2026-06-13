@@ -72,7 +72,7 @@ package struct DraftStarterTemplate: Equatable, Sendable {
 }
 
 package extension DraftReadinessGuide {
-  package var missingSignalKinds: [Kind] {
+  var missingSignalKinds: [Kind] {
     cues.filter { !$0.isSatisfied }.map(\.kind)
   }
 }

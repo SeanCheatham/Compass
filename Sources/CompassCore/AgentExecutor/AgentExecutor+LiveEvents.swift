@@ -3,7 +3,7 @@ import Foundation
 package extension AgentExecutor {
   // MARK: - LiveEvent mapping
 
-  package func emit(
+  func emit(
     level: LiveLine.Level = .info,
     text: String,
     detail: String? = nil,
@@ -18,7 +18,7 @@ package extension AgentExecutor {
         correlationID: correlationID, metadata: metadata))
   }
 
-  package func emitToolStart(name: String, arguments: String, correlationID: String) {
+  func emitToolStart(name: String, arguments: String, correlationID: String) {
     let kind = liveKind(forTool: name)
     let level: LiveLine.Level = kind == .command ? .raw : .info
     let detail = previewString(arguments)
@@ -36,7 +36,7 @@ package extension AgentExecutor {
     )
   }
 
-  package func emitToolEnd(
+  func emitToolEnd(
     name: String, arguments: String, result: AgentToolInvocationResult, correlationID: String
   ) {
     let kind = liveKind(forTool: name)
@@ -168,7 +168,7 @@ package extension AgentExecutor {
     return String(firstLine.prefix(limit)) + "…"
   }
 
-  package func previewString(_ s: String, limit: Int = 280) -> String {
+  func previewString(_ s: String, limit: Int = 280) -> String {
     let stripped = s.trimmingCharacters(in: .whitespacesAndNewlines)
     if stripped.count <= limit { return stripped }
     return String(stripped.prefix(limit)) + " ..."

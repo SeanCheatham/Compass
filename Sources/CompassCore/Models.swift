@@ -1315,7 +1315,7 @@ package struct LessonEdit: Codable, Equatable {
 }
 
 package extension FlexibleModelDecoder {
-  package static func decodeLessonEditsIfPresent<Key: CodingKey>(
+  static func decodeLessonEditsIfPresent<Key: CodingKey>(
     from container: KeyedDecodingContainer<Key>,
     preferredKey: Key,
     aliases: [Key]

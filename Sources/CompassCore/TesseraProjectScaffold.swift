@@ -110,8 +110,7 @@ package enum TesseraProjectScaffold {
     {
       "user": {
         "name": "\(projectName)"
-      },
-      "args": ["preview"]
+      }
     }
     """
   }

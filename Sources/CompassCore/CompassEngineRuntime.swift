@@ -214,7 +214,7 @@ package actor CompassEngineRuntime {
     }
 
     let devURL = devLibraryURL()
-    if !FileManager.default.fileExists(atPath: devURL.path) {
+    if !FileManager.default.fileExists(atPath: devURL.path) || devLibraryNeedsBuild(devURL) {
       try await buildDevLibrary()
     }
     guard FileManager.default.fileExists(atPath: devURL.path) else {
@@ -257,6 +257,60 @@ package actor CompassEngineRuntime {
     repoRoot()
       .appending(path: "rust/compass-engine/target/debug/libcompass_engine.dylib")
       .standardizedFileURL
+  }
+
+  private func devLibraryNeedsBuild(_ libraryURL: URL) -> Bool {
+    guard let libraryDate = modificationDate(for: libraryURL) else {
+      return true
+    }
+    return devBuildInputURLs().contains { input in
+      guard let inputDate = newestModificationDate(at: input) else { return false }
+      return inputDate > libraryDate
+    }
+  }
+
+  private func devBuildInputURLs() -> [URL] {
+    let root = repoRoot()
+    return [
+      root.appending(path: "rust/compass-engine/Cargo.toml"),
+      root.appending(path: "rust/compass-engine/src"),
+      root.deletingLastPathComponent().appending(path: "Tessera/tessera-core/Cargo.toml"),
+      root.deletingLastPathComponent().appending(path: "Tessera/tessera-core/src"),
+    ]
+  }
+
+  private func newestModificationDate(at url: URL) -> Date? {
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+      return nil
+    }
+    if !isDirectory.boolValue {
+      return modificationDate(for: url)
+    }
+    let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
+    guard let enumerator = FileManager.default.enumerator(
+      at: url,
+      includingPropertiesForKeys: keys,
+      options: [.skipsHiddenFiles]
+    ) else {
+      return modificationDate(for: url)
+    }
+    var newest = modificationDate(for: url)
+    for case let fileURL as URL in enumerator {
+      guard ["rs", "toml"].contains(fileURL.pathExtension) else { continue }
+      let values = try? fileURL.resourceValues(forKeys: Set(keys))
+      guard values?.isRegularFile == true,
+        let date = values?.contentModificationDate
+      else { continue }
+      if newest == nil || date > newest! {
+        newest = date
+      }
+    }
+    return newest
+  }
+
+  private func modificationDate(for url: URL) -> Date? {
+    try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
   }
 
   private func repoRoot() -> URL {
@@ -317,6 +371,9 @@ package enum CompassEngineProcess {
     else {
       return "Tessera verification failed."
     }
+    if let failures = object["failures"] as? [[String: Any]], let failure = failures.first {
+      return formatTesseraFailure(failure)
+    }
     if let diagnostics = object["diagnostics"] as? [[String: Any]],
       let first = diagnostics.first,
       let message = first["message"] as? String
@@ -342,5 +399,58 @@ package enum CompassEngineProcess {
       }
     }
     return "Tessera verification failed."
+  }
+
+  private static func formatTesseraFailure(_ failure: [String: Any]) -> String {
+    let kind = (failure["kind"] as? String)?.replacingOccurrences(of: "_", with: " ")
+      ?? "failure"
+    let name = failure["name"] as? String
+    let path = failure["path"] as? String
+      ?? failure["source_path"] as? String
+      ?? failure["context_path"] as? String
+    let message = failure["message"] as? String ?? "Tessera verification failed."
+    var summary = "Tessera \(kind)"
+    if let name, !name.isEmpty {
+      summary += " \(name)"
+    }
+    if let path, !path.isEmpty {
+      summary += " at \(path)"
+    }
+    if let line = jsonInt(failure["line"]) {
+      summary += ":\(line)"
+      if let column = jsonInt(failure["column"]) {
+        summary += ":\(column)"
+      }
+    }
+    summary += ": \(message)"
+    if let expected = jsonDescription(failure["expected_json"]),
+      let actual = jsonDescription(failure["actual_json"])
+    {
+      summary += " (expected \(expected), got \(actual))"
+    }
+    return summary
+  }
+
+  private static func jsonInt(_ value: Any?) -> Int? {
+    if let value = value as? Int {
+      return value
+    }
+    if let value = value as? Double {
+      return Int(value)
+    }
+    return nil
+  }
+
+  private static func jsonDescription(_ value: Any?) -> String? {
+    guard let value, !(value is NSNull) else { return nil }
+    if let value = value as? String {
+      return #""\#(value)""#
+    }
+    if JSONSerialization.isValidJSONObject(value),
+      let data = try? JSONSerialization.data(withJSONObject: value, options: [.withoutEscapingSlashes])
+    {
+      return String(decoding: data, as: UTF8.self)
+    }
+    return String(describing: value)
   }
 }

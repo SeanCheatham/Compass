@@ -1,9 +1,13 @@
 use serde::{Deserialize, Serialize};
-use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+use std::ffi::{c_char, CStr, CString};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
-use tessera_core::TesseraProjectService;
+use tessera_core::{
+    run_entrypoint as run_tessera_entrypoint, verify_project as verify_tessera_project,
+};
+
+const VERIFY_PROJECT_KIND: &str = "verify_project";
+const RUN_ENTRYPOINT_KIND: &str = "run_entrypoint";
 
 #[derive(Debug, Deserialize)]
 struct VerifyProjectRequest {
@@ -42,54 +46,46 @@ pub extern "C" fn compass_engine_run_entrypoint(request_json: *const c_char) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn compass_engine_free_string(ptr: *mut c_char) {
+/// Frees a string returned by the Compass engine.
+///
+/// # Safety
+///
+/// `ptr` must be null or a pointer previously returned by this library from
+/// `CString::into_raw`. Each non-null pointer may be freed exactly once.
+pub unsafe extern "C" fn compass_engine_free_string(ptr: *mut c_char) {
     if ptr.is_null() {
         return;
     }
     unsafe {
+        // SAFETY: `ptr` must come from `CString::into_raw` in this library. Null
+        // pointers are handled above, and `from_raw` takes ownership exactly once.
         drop(CString::from_raw(ptr));
     }
 }
 
 fn verify_project(request_json: *const c_char) -> String {
-    let request: VerifyProjectRequest = match decode_request(request_json) {
-        Ok(request) => request,
-        Err(message) => return encode_error("verify_project", message),
-    };
-    if request.root.trim().is_empty() {
-        return encode_error("verify_project", "root is required");
-    }
-    let report = TesseraProjectService::new().verify_root(PathBuf::from(request.root));
-    encode_response(EngineResponse {
-        ok: report.ok,
-        kind: "verify_project",
-        result: Some(report),
-        message: None,
-    })
+    handle_request(
+        VERIFY_PROJECT_KIND,
+        request_json,
+        |request: VerifyProjectRequest| {
+            let root = required_path(request.root, "root")?;
+            let report = verify_tessera_project(root);
+            Ok((report.ok, report))
+        },
+    )
 }
 
 fn run_entrypoint(request_json: *const c_char) -> String {
-    let request: RunEntrypointRequest = match decode_request(request_json) {
-        Ok(request) => request,
-        Err(message) => return encode_error("run_entrypoint", message),
-    };
-    if request.root.trim().is_empty() {
-        return encode_error("run_entrypoint", "root is required");
-    }
-    if request.entrypoint.trim().is_empty() {
-        return encode_error("run_entrypoint", "entrypoint is required");
-    }
-    let result = TesseraProjectService::new().execute_entrypoint_root(
-        PathBuf::from(request.root),
-        &request.entrypoint,
-        request.input.as_ref(),
-    );
-    encode_response(EngineResponse {
-        ok: result.ok,
-        kind: "run_entrypoint",
-        result: Some(result),
-        message: None,
-    })
+    handle_request(
+        RUN_ENTRYPOINT_KIND,
+        request_json,
+        |request: RunEntrypointRequest| {
+            let root = required_path(request.root, "root")?;
+            let entrypoint = required_string(request.entrypoint, "entrypoint")?;
+            let result = run_tessera_entrypoint(root, &entrypoint, request.input.as_ref());
+            Ok((result.ok, result))
+        },
+    )
 }
 
 fn ffi_boundary(operation: impl FnOnce() -> String) -> *mut c_char {
@@ -109,10 +105,48 @@ where
     if request_json.is_null() {
         return Err("request_json is null".to_string());
     }
+    // SAFETY: The exported C API requires callers to pass a valid, NUL-terminated
+    // UTF-8 string pointer for the lifetime of this call.
     let request = unsafe { CStr::from_ptr(request_json) }
         .to_str()
         .map_err(|error| format!("request_json is not UTF-8: {error}"))?;
     serde_json::from_str(request).map_err(|error| format!("invalid request JSON: {error}"))
+}
+
+fn handle_request<T, R>(
+    kind: &'static str,
+    request_json: *const c_char,
+    operation: impl FnOnce(T) -> Result<(bool, R), String>,
+) -> String
+where
+    T: for<'de> Deserialize<'de>,
+    R: Serialize,
+{
+    let request = match decode_request(request_json) {
+        Ok(request) => request,
+        Err(message) => return encode_error(kind, message),
+    };
+    match operation(request) {
+        Ok((ok, result)) => encode_response(EngineResponse {
+            ok,
+            kind,
+            result: Some(result),
+            message: None,
+        }),
+        Err(message) => encode_error(kind, message),
+    }
+}
+
+fn required_path(value: String, field: &'static str) -> Result<PathBuf, String> {
+    required_string(value, field).map(PathBuf::from)
+}
+
+fn required_string(value: String, field: &'static str) -> Result<String, String> {
+    if value.trim().is_empty() {
+        Err(format!("{field} is required"))
+    } else {
+        Ok(value)
+    }
 }
 
 fn encode_response<T>(response: EngineResponse<T>) -> String
@@ -142,6 +176,8 @@ mod tests {
     use super::*;
     use std::ffi::CString;
     use std::fs;
+    use std::ops::Deref;
+    use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -152,7 +188,13 @@ mod tests {
         assert_eq!(response["kind"], "verify_project");
         assert_eq!(response["ok"], true);
         assert_eq!(response["result"]["ok"], true);
+        assert_eq!(response["result"]["metadata"]["schema_version"], 1);
         assert_eq!(response["result"]["trace"]["covered_source_count"], 1);
+        assert_eq!(response["result"]["trace"]["executions"][0]["kind"], "test");
+        assert!(response["result"]["failures"]
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -181,6 +223,14 @@ mod tests {
         let response = call_verify(&root);
         assert_eq!(response["ok"], false);
         assert_eq!(response["result"]["tests"][0]["ok"], false);
+        assert_eq!(
+            response["result"]["failures"][0]["expected_json"],
+            serde_json::json!("wrong")
+        );
+        assert_eq!(
+            response["result"]["failures"][0]["actual_json"],
+            serde_json::json!("entrypoint!")
+        );
     }
 
     #[test]
@@ -190,6 +240,7 @@ mod tests {
         let response = call_entrypoint(&root, "cli", None);
         assert_eq!(response["kind"], "run_entrypoint");
         assert_eq!(response["ok"], true);
+        assert_eq!(response["result"]["metadata"]["schema_version"], 1);
         assert_eq!(response["result"]["json"], "entrypoint!");
     }
 
@@ -234,22 +285,52 @@ mod tests {
 
     fn decode_and_free(ptr: *mut c_char) -> serde_json::Value {
         assert!(!ptr.is_null());
+        // SAFETY: The engine returns owned, NUL-terminated strings allocated by
+        // `CString::into_raw`; tests immediately copy and then free them.
         let response = unsafe { CStr::from_ptr(ptr) }.to_str().unwrap().to_string();
-        compass_engine_free_string(ptr);
+        unsafe {
+            // SAFETY: `ptr` came from an engine FFI call in this test and has not
+            // been freed yet.
+            compass_engine_free_string(ptr);
+        }
         serde_json::from_str(&response).unwrap()
     }
 
-    fn make_project(label: &str) -> PathBuf {
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let root = std::env::temp_dir().join(format!("compass-engine-{label}-{stamp}"));
-        fs::create_dir_all(&root).unwrap();
-        root
+    struct TestProject {
+        root: PathBuf,
     }
 
-    fn write_standard_project(root: &std::path::Path, expected: &str) {
+    impl TestProject {
+        fn new(label: &str) -> Self {
+            let stamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir().join(format!("compass-engine-{label}-{stamp}"));
+            fs::create_dir_all(&root).unwrap();
+            Self { root }
+        }
+    }
+
+    impl Deref for TestProject {
+        type Target = Path;
+
+        fn deref(&self) -> &Self::Target {
+            &self.root
+        }
+    }
+
+    impl Drop for TestProject {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.root);
+        }
+    }
+
+    fn make_project(label: &str) -> TestProject {
+        TestProject::new(label)
+    }
+
+    fn write_standard_project(root: &Path, expected: &str) {
         fs::create_dir_all(root.join("src")).unwrap();
         fs::create_dir_all(root.join("contexts")).unwrap();
         fs::create_dir_all(root.join("tests")).unwrap();

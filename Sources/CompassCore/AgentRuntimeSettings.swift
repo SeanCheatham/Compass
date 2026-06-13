@@ -54,7 +54,7 @@ package struct AgentRuntimeSettings: Equatable, Sendable {
 }
 
 package extension Dictionary where Key == String, Value == String {
-  package func trimmedValue(_ key: String) -> String? {
+  func trimmedValue(_ key: String) -> String? {
     let trimmed = self[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return trimmed.isEmpty ? nil : trimmed
   }

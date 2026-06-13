@@ -1,7 +1,7 @@
 import Foundation
 
 package extension Prompts {
-  package static func criticPrompt(
+  static func criticPrompt(
     next: PlanNext,
     developSummary: DevelopSummary,
     verifyCommand: String,

@@ -1731,10 +1731,7 @@ private actor RecordingBashRunner: AgentBashRunner {
 }
 
 private func makeToolGuidanceTempDirectory() throws -> URL {
-  let url = FileManager.default.temporaryDirectory
-    .appending(path: "AgentToolRepairGuidanceTests-\(UUID().uuidString)")
-  try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-  return url
+  try makeCompassTestDirectory(named: "AgentToolRepairGuidanceTests")
 }
 
 private func toolGuidanceJSONStringLiteral(_ value: String) -> String {

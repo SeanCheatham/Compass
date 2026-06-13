@@ -16,7 +16,10 @@ struct CompassEngineRuntimeTests {
     #expect(result.exitCode == 0)
     #expect(result.stderr.isEmpty)
     #expect(result.stdout.contains(#""ok":true"#))
+    #expect(result.stdout.contains(#""schema_version":1"#))
+    #expect(result.stdout.contains(#""failures":[]"#))
     #expect(result.stdout.contains(#""trace""#))
+    #expect(result.stdout.contains(#""executions""#))
   }
 
   @Test
@@ -29,7 +32,36 @@ struct CompassEngineRuntimeTests {
 
     #expect(result.exitCode == 0)
     #expect(result.stdout.contains(#""name":"cli""#))
+    #expect(result.stdout.contains(#""schema_version":1"#))
     #expect(result.stdout.contains(#""json":"embedded-app!""#))
+  }
+
+  @Test
+  func embeddedVerifySummarizesTesseraExpectedActualFailures() async throws {
+    let root = try makeEngineTempDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try TesseraProjectScaffold.write(to: root, options: .init(projectName: "Embedded App"))
+    try """
+      {
+        "name": "display-name",
+        "source": "display-name",
+        "context": "user",
+        "expect": "Grace!"
+      }
+      """.write(
+        to: root.appending(path: "tests/display-name.json"),
+        atomically: true,
+        encoding: .utf8
+      )
+
+    let result = try await CompassEngineProcess.verifyProject(root: root)
+
+    #expect(result.exitCode == 1)
+    #expect(result.stdout.contains(#""failures""#))
+    #expect(result.stderr.contains("Tessera test display-name"))
+    #expect(result.stderr.contains("expected"))
+    #expect(result.stderr.contains(#""Grace!""#))
+    #expect(result.stderr.contains(#""embedded-app!""#))
   }
 
   @Test
@@ -119,8 +151,5 @@ private actor RecordingFailingBashRunner: AgentBashRunner {
 }
 
 private func makeEngineTempDirectory() throws -> URL {
-  let url = FileManager.default.temporaryDirectory
-    .appending(path: "compass-engine-tests-\(UUID().uuidString)")
-  try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-  return url
+  try makeCompassTestDirectory(named: "CompassEngineRuntimeTests")
 }

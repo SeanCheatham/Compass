@@ -28,4 +28,18 @@ struct VerifyFailureInsightTests {
     #expect(insight.inspectDetail.contains("before project tests could run"))
     #expect(insight.repairDetail.contains("Do not ask Develop to rewrite app code"))
   }
+
+  @Test
+  func tesseraExpectedActualFailuresAreTestFailures() {
+    let detail = """
+      Tessera test display-name at tests/display-name.json: expected JSON "Grace!" but got "Ada!" (expected "Grace!", got "Ada!")
+      """
+    let insight = VerifyFailureInsight(
+      detail: detail,
+      metadata: "command=tessera verify . --json exitCode=1"
+    )
+
+    #expect(insight.kind == .testFailure)
+    #expect(insight.inspectDetail.contains("display-name"))
+  }
 }

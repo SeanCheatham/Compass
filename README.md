@@ -70,7 +70,19 @@ before running generated Tessera verification inside that environment.
 Build and test the macOS host with SwiftPM:
 
 ```bash
-swift test
+./scripts/test-local.sh
+```
+
+Run the Rust engine bridge checks with Cargo:
+
+```bash
+./scripts/test-rust-engine.sh
+```
+
+Format Swift sources before larger changes:
+
+```bash
+./scripts/format.sh
 ```
 
 Legacy project files in existing user workspaces are ignored rather than deleted. The repository code for the previous product-factory, market, provider, and non-TypeScript generated-output systems has been removed for this pivot.

@@ -136,10 +136,7 @@ struct AgentListFilesToolTests {
 }
 
 private func makeListFilesTempDirectory() throws -> URL {
-  let url = FileManager.default.temporaryDirectory
-    .appending(path: "AgentListFilesToolTests-\(UUID().uuidString)")
-  try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-  return url
+  try makeCompassTestDirectory(named: "AgentListFilesToolTests")
 }
 
 private func entry(_ relativePath: String, language: CodemapLanguage) -> CodemapEntry {

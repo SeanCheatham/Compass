@@ -1,7 +1,7 @@
 import Foundation
 
 package extension Prompts {
-  package static func developPrompt(
+  static func developPrompt(
     next: PlanNext,
     lessons: String,
     assumptions: String = "",

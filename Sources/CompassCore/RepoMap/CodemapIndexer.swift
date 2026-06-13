@@ -262,21 +262,21 @@ package struct CodemapIndexer: Sendable {
 }
 
 package extension CodemapIndexer {
-  package enum PerFileOutcome: Sendable, Equatable {
+  enum PerFileOutcome: Sendable, Equatable {
     case indexed
     case unchanged
     case skipped(SkipReason)
     case failed(String)
   }
 
-  package enum SkipReason: Sendable, Equatable {
+  enum SkipReason: Sendable, Equatable {
     case unsupportedExtension
     case tooSmall
     case tooLarge
     case binary
   }
 
-  package enum GitListingError: Error, LocalizedError {
+  enum GitListingError: Error, LocalizedError {
     case gitFailed(String)
 
     package var errorDescription: String? {

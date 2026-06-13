@@ -269,7 +269,7 @@ package extension AgentToolContext {
   /// that resolve outside the working directory are rejected so a buggy or
   /// adversarial tool call can't read `/etc/passwd` from a sandbox-style
   /// read-only planning or review pass.
-  package func resolvePath(_ raw: String) throws -> URL {
+  func resolvePath(_ raw: String) throws -> URL {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       throw AgentToolError.invalidArguments("path is empty")
@@ -292,7 +292,7 @@ package extension AgentToolContext {
   /// Convert an absolute URL back to a path relative to the working
   /// directory. Used by tools that report match results so the model sees
   /// short paths instead of `/Users/...` prefixes that change per machine.
-  package func relativize(_ url: URL) -> String {
+  func relativize(_ url: URL) -> String {
     let workingPath = workingDirectory.standardizedFileURL.path
     let absolutePath = url.standardizedFileURL.path
     if absolutePath == workingPath { return "." }
@@ -306,7 +306,7 @@ package extension AgentToolContext {
   /// re-deriving the path so the executor can point them at the
   /// host-side store even when `workingDirectory` is a remote (e.g.
   /// containerized Linux runtime) container path.
-  package func codemapStore() -> CodemapStore {
+  func codemapStore() -> CodemapStore {
     CodemapStore(directory: codemapStoreDirectory)
   }
 }

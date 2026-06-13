@@ -942,10 +942,7 @@ private final class HeadlessEventRecorder: @unchecked Sendable {
 }
 
 private func makeCLITempDirectory() throws -> URL {
-  let url = FileManager.default.temporaryDirectory
-    .appending(path: "CompassCLITests-\(UUID().uuidString)")
-  try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-  return url
+  try makeCompassTestDirectory(named: "CompassCLITests")
 }
 
 private func initializeFixtureGitRepo(at url: URL) async throws {
